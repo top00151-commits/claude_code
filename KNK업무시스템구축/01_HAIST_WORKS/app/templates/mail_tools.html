@@ -3,24 +3,54 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  /* ⚙ 설정·정리 (대표 지시 2026-11-18 「쉽게 보이고 쉽게 사용」) — 매일 화면에서 뺀 단추를 한 곳에 */
-  .mt-wrap{max-width:980px}
-  .mt-sec{margin:18px 0 8px;font-size:15px;font-weight:800;color:var(--ink)}
-  .mt-sec small{font-weight:500;color:var(--mute);font-size:12.5px;margin-left:6px}
-  .mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
-  .mt-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;background:#fff;padding:13px 15px;text-decoration:none;color:var(--ink);cursor:pointer;font-family:inherit;text-align:left;width:100%}
-  .mt-card:hover{border-color:#cbd5e1;background:#fafafa}
-  .mt-ico{font-size:22px;line-height:1;flex:none;margin-top:1px}
-  .mt-t{font-size:14.5px;font-weight:700}
-  .mt-d{font-size:13px;color:var(--mute);line-height:1.6;margin-top:3px}
-  .mt-n{display:inline-block;margin-left:6px;font-size:12px;font-weight:700;color:#fff;background:#dc2626;border-radius:999px;padding:0 7px;vertical-align:1px}
-  .mt-n.b{background:#2563eb}
-  .mt-admin .mt-card{background:#fbfaf8}
-  .mt-sw{display:inline-block;margin-left:6px;font-size:12px;font-weight:700;border-radius:999px;padding:0 9px;background:#e5e7eb;color:#374151;vertical-align:1px}
-  .mt-sw.on{background:#16a34a;color:#fff}
-  .mt-old{cursor:default;grid-column:span 2}
-  .mt-old select{font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:1px 4px}
-  @media(max-width:720px){.mt-old{grid-column:auto}}
+  /* ⚙ 설정·정리 — 11-18 대표 「딱 들어가면 직관적으로 바로바로 알 수 있어야」
+     ① 위: 「지금 내 메일」 — 정리할 것을 큰 숫자 + 단추 하나(없으면 ✓ 깨끗해요)
+     ② 아래: 「설정」 — 한 줄에 하나 · 오른쪽에 지금 상태와 단추 · 글자 크게·보기 방식은 그 자리에서 바로
+     ③ 관리자 — 접어 둠 */
+  .mt-wrap{max-width:1040px}
+  .mt-sec{display:flex;align-items:baseline;gap:8px;margin:22px 0 10px;font-size:16px;font-weight:800;color:var(--ink)}
+  .mt-sec small{font-weight:500;color:var(--mute);font-size:13px}
+  /* ① 지금 내 메일 — 타일 */
+  .mt-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 16px;min-height:132px}
+  .mt-tile .mt-tt{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#374151}
+  .mt-tile .mt-tt .ic{font-size:20px}
+  .mt-tile .num{font-size:28px;font-weight:800;line-height:1.1;color:var(--ink)}
+  .mt-tile .num small{font-size:14px;font-weight:600;color:var(--mute);margin-left:3px}
+  .mt-tile .why{font-size:12.5px;color:var(--mute);line-height:1.5;flex:1}
+  .mt-tile .go{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;background:var(--knk-red);color:#fff}
+  .mt-tile .go.sub{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .mt-tile .go[disabled]{opacity:.45;cursor:default}
+  .mt-tile.clean{background:#f6fbf7;border-color:#cfe8d6}
+  .mt-tile.clean .num{color:#15803d;font-size:18px}
+  .mt-tile.warn{border-color:#fecaca;background:#fffafa}
+  .mt-tile select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;margin:0 2px}
+  /* ② 설정 — 줄 */
+  .mt-list{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+  .mt-row{display:flex;align-items:center;gap:14px;padding:13px 16px;border-top:1px solid #f0f1f3;text-decoration:none;color:var(--ink)}
+  .mt-row:first-child{border-top:0}
+  a.mt-row:hover,button.mt-row:hover{background:#fafbfc}
+  .mt-row .ic{font-size:21px;width:28px;text-align:center;flex:none}
+  .mt-row .tx{flex:1;min-width:0}
+  .mt-row .t{font-size:14.5px;font-weight:700}
+  .mt-row .d{font-size:12.5px;color:var(--mute);margin-top:2px;line-height:1.5}
+  .mt-row .st{flex:none;font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:#f1f5f9;color:#475569;white-space:nowrap}
+  .mt-row .st.ok{background:#e8f6ec;color:#15803d}
+  .mt-row .st.no{background:#fff7ed;color:#c2410c}
+  .mt-row .arr{flex:none;color:#9ca3af;font-size:18px}
+  .mt-row select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:#fff}
+  .mt-sw{flex:none;position:relative;width:46px;height:26px;border-radius:999px;background:#d1d5db;border:0;cursor:pointer;transition:background .15s}
+  .mt-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+  .mt-sw.on{background:#16a34a}
+  .mt-sw.on::after{left:23px}
+  .mt-keys{font-size:12.5px;color:#374151;line-height:1.9}
+  .mt-keys kbd{display:inline-block;min-width:20px;text-align:center;border:1px solid #d1d5db;border-bottom-width:2px;border-radius:5px;padding:0 5px;font-family:inherit;font-size:11.5px;background:#f9fafb;margin-right:3px}
+  .mt-adm{margin-top:22px;border:1px dashed #d6d3d1;border-radius:14px;background:#fbfaf8;padding:4px 14px}
+  .mt-adm>summary{cursor:pointer;padding:10px 2px;font-size:14.5px;font-weight:800;color:#57534e;list-style:none}
+  .mt-adm>summary::-webkit-details-marker{display:none}
+  .mt-adm .mt-list{margin-bottom:12px}
+  .mt-msg{font-size:12.5px;color:#15803d;font-weight:700}
+  @media(max-width:640px){.mt-row{flex-wrap:wrap}.mt-row .tx{flex-basis:calc(100% - 50px)}}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -31,85 +61,103 @@
     <h1 class="page-title">⚙ 설정·<em>정리</em></h1>
   </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
 
-  <div class="mt-sec">🧹 정리 <small>메일이 쌓였을 때</small></div>
-  <div class="mt-grid">
-    <a class="mt-card" href="/mail/cleanup"><span class="mt-ico">📮</span><span><span class="mt-t">보낸 곳별 정리</span>
-      <span class="mt-d" style="display:block">광고·알림을 보낸 곳별로 묶어 한 번에 휴지통으로 · 나에게만 다시 안 받기</span></span></a>
-    <button type="button" class="mt-card" onclick="dedupInbox(event)"><span class="mt-ico">🔁</span><span><span class="mt-t">같은 메일 여러 통 정리</span>
-      <span class="mt-d" style="display:block">여러 그룹 주소로 같은 메일이 여러 통 온 것을 1통만 남기기(답장은 안 건드림 · 휴지통에서 되살릴 수 있음)</span></span></button>
-    {% if has_tree %}<a class="mt-card" href="/mail/folders/general"><span class="mt-ico">🧹</span><span><span class="mt-t">일반 정리하기{% if gen_n %}<span class="mt-n b">{{ gen_n }}</span>{% endif %}</span>
-      <span class="mt-d" style="display:block">폴더에 안 들어간 「일반」 메일을 보낸 곳별로 묶어 한 번에 폴더로</span></span></a>{% endif %}
-    <div class="mt-card mt-old"><span class="mt-ico">📦</span><span style="flex:1"><span class="mt-t">오래된 메일 한 번에 보관</span>
-      <span class="mt-d" style="display:block">받은 지
-        <select id="mtOldM" onchange="mtOldCount()"><option value="1">1개월</option><option value="3" selected>3개월</option><option value="6">6개월</option><option value="12">1년</option></select>
-        지난 <b>읽은</b> 메일을 받은편지함에서 빼서 📦 보관함으로(⭐ 중요 표시한 메일은 그대로 · 지우지 않음 · 찾기·폴더에는 그대로)</span>
-      <span class="mt-d" style="display:block;margin-top:6px"><b id="mtOldN">…</b>
-        <button type="button" class="btn btn-secondary" id="mtOldGo" style="padding:4px 12px;margin-left:6px" onclick="mtOldGo()" disabled>📦 보관하기</button></span></span></div>
-    <a class="mt-card" href="/mail/inbox?arc=1"><span class="mt-ico">📦</span><span><span class="mt-t">보관함 보기</span>
-      <span class="mt-d" style="display:block">보관한 메일 · 「📥 받은편지함으로」로 되돌리기</span></span></a>
-    <a class="mt-card" href="/mail/trash"><span class="mt-ico">🗑</span><span><span class="mt-t">휴지통</span>
-      <span class="mt-d" style="display:block">지운 메일 되살리기 · 완전히 지우기 · 휴지통 비우기</span></span></a>
+  {# ① 지금 내 메일 — 정리할 것 #}
+  <div class="mt-sec">🧹 지금 내 메일 <small>정리할 것이 있으면 숫자가 보이고, 단추 하나로 끝납니다</small></div>
+  <div class="mt-tiles">
+    <div class="mt-tile {{ 'warn' if blocked_n else 'clean' }}">
+      <div class="mt-tt"><span class="ic">🚫</span>스팸함</div>
+      {% if blocked_n %}<div class="num">{{ '{:,}'.format(blocked_n) }}<small>통</small></div>{% else %}<div class="num">✓ 비어 있어요</div>{% endif %}
+      <div class="why">스팸·피싱으로 보여 저절로 옮긴 메일 · 지우지 않음 · 정상 메일이면 「✓ 스팸 아님」</div>
+      <a class="go{{ '' if blocked_n else ' sub' }}" href="/mail/blocked">열어 보기</a>
+    </div>
+    {% if has_tree %}
+    <div class="mt-tile {{ '' if gen_n else 'clean' }}">
+      <div class="mt-tt"><span class="ic">🗂</span>폴더 없는 메일(일반)</div>
+      {% if gen_n %}<div class="num">{{ '{:,}'.format(gen_n) }}<small>통</small></div>{% else %}<div class="num">✓ 모두 폴더에 있어요</div>{% endif %}
+      <div class="why">어느 폴더에도 안 들어간 메일 — 보낸 곳별로 묶어 한 번에 폴더로</div>
+      <a class="go{{ '' if gen_n else ' sub' }}" href="/mail/folders/general">폴더로 정리하기</a>
+    </div>
+    {% endif %}
+    <div class="mt-tile {{ '' if ad_n else 'clean' }}">
+      <div class="mt-tt"><span class="ic">📮</span>광고·알림 보내는 곳</div>
+      {% if ad_n %}<div class="num">{{ '{:,}'.format(ad_n) }}<small>곳</small></div>{% else %}<div class="num">✓ 없어요</div>{% endif %}
+      <div class="why">광고·알림을 보낸 곳별로 묶어 한 번에 휴지통으로 · 나에게만 다시 안 받기</div>
+      <a class="go{{ '' if ad_n else ' sub' }}" href="/mail/cleanup">보낸 곳별 정리</a>
+    </div>
+    <div class="mt-tile" id="mtOldTile">
+      <div class="mt-tt"><span class="ic">📦</span>오래된 메일 한 번에 보관</div>
+      <div class="num" id="mtOldN">…</div>
+      <div class="why">받은 지 <select id="mtOldM" onchange="mtOldCount()"><option value="1">1개월</option><option value="3" selected>3개월</option><option value="6">6개월</option><option value="12">1년</option></select> 지난 <b>읽은</b> 메일을 📦 보관함으로(⭐ 중요는 그대로 · 지우지 않음 · <a href="/mail/inbox?arc=1">보관함 보기</a>)</div>
+      <button type="button" class="go" id="mtOldGo" onclick="mtOldGo()" disabled>📦 보관하기</button>
+    </div>
+    <div class="mt-tile {{ '' if trash_n else 'clean' }}">
+      <div class="mt-tt"><span class="ic">🗑</span>휴지통</div>
+      {% if trash_n %}<div class="num">{{ '{:,}'.format(trash_n) }}<small>통</small></div>{% else %}<div class="num">✓ 비어 있어요</div>{% endif %}
+      <div class="why">지운 메일 되살리기 · 완전히 지우기 · 휴지통 비우기</div>
+      <a class="go sub" href="/mail/trash">열어 보기</a>
+    </div>
+    <div class="mt-tile">
+      <div class="mt-tt"><span class="ic">🔁</span>같은 메일 여러 통</div>
+      <div class="num" id="mtDupN" style="font-size:16px;color:var(--mute)">눌러서 검사</div>
+      <div class="why">여러 그룹 주소로 같은 메일이 여러 통 온 것을 1통만 남기기(답장은 안 건드림 · 휴지통에서 되살릴 수 있음)</div>
+      <button type="button" class="go sub" onclick="dedupInbox(event)">정리하기</button>
+    </div>
   </div>
 
-  <div class="mt-sec">📁 분류 <small>메일이 어느 폴더로 갈지</small></div>
-  <div class="mt-grid">
-    <a class="mt-card" href="/mail/folders"><span class="mt-ico">📁</span><span><span class="mt-t">폴더 관리</span>
-      <span class="mt-d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 다른 이름(영문·회사 주소) · 내가 정한 규칙</span></span></a>
-    <a class="mt-card" href="/mail/rules"><span class="mt-ico">🏷</span><span><span class="mt-t">자동 분류 규칙</span>
-      <span class="mt-d" style="display:block">보낸 사람·제목 낱말로 메일 종류를 정하는 규칙</span></span></a>
-  </div>
-
-  <div class="mt-sec">✍ 내 메일 <small>보낼 때 쓰는 것</small></div>
-  <div class="mt-grid">
-    <a class="mt-card" href="/mail/signature"><span class="mt-ico">✍</span><span><span class="mt-t">서명</span>
-      <span class="mt-d" style="display:block">메일 끝에 붙는 이름·직책·연락처</span></span></a>
-    <a class="mt-card" href="/mail/account"><span class="mt-ico">🔗</span><span><span class="mt-t">내 회사 주소 연결</span>
-      <span class="mt-d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기 연결</span></span></a>
-    <button type="button" class="mt-card" id="mtBig" onclick="mtBigToggle()"><span class="mt-ico">🔠</span><span><span class="mt-t">글자 크게 보기 <span class="mt-sw" id="mtBigSw">끔</span></span>
-      <span class="mt-d" style="display:block">메일 목록·읽기 글자를 한 단계 크게(이 컴퓨터·이 휴대폰에만 · 누를 때마다 켜고 끔)</span></span></button>
-  </div>
-
-  <div class="mt-sec">🛡 보안 <small>위험·스팸 메일</small></div>
-  <div class="mt-grid">
-    <a class="mt-card" href="/mail/blocked"><span class="mt-ico">🚫</span><span><span class="mt-t">스팸함{% if blocked_n %}<span class="mt-n">{{ blocked_n }}</span>{% endif %}</span>
-      <span class="mt-d" style="display:block">위험하거나 다시 안 받기로 한 메일이 모인 곳(지우지 않음 · 되살릴 수 있음)</span></span></a>
-    {% if is_admin %}<a class="mt-card" href="/mail/blocklist"><span class="mt-ico">⛔</span><span><span class="mt-t">차단 목록 관리</span>
-      <span class="mt-d" style="display:block">회사 전체에서 막을 위험·스팸 주소 등록(관리자)</span></span></a>{% endif %}
+  {# ② 설정 #}
+  <div class="mt-sec">⚙ 설정 <small>한 번 정해 두면 계속 그대로</small></div>
+  <div class="mt-list">
+    <a class="mt-row" href="/mail/signature"><span class="ic">✍</span><span class="tx"><span class="t">서명</span><span class="d" style="display:block">메일 끝에 붙는 이름·직책·연락처</span></span>
+      <span class="st {{ 'ok' if has_sig else 'no' }}">{{ '있음' if has_sig else '아직 없음' }}</span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/account"><span class="ic">🔗</span><span class="tx"><span class="t">내 회사 주소 연결</span><span class="d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기</span></span>
+      <span class="st {{ 'ok' if has_acct else 'no' }}">{{ '연결됨' if has_acct else '연결 안 됨' }}</span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/folders"><span class="ic">📁</span><span class="tx"><span class="t">폴더 관리</span><span class="d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 메일이 어느 폴더로 갈지 내가 정한 규칙</span></span>
+      <span class="st">{% if folder_n %}폴더 {{ folder_n }}개{% if rule_n %} · 규칙 {{ rule_n }}개{% endif %}{% else %}폴더 없음{% endif %}</span><span class="arr">›</span></a>
+    <div class="mt-row"><span class="ic">🗔</span><span class="tx"><span class="t">보기 방식</span><span class="d" style="display:block">메일 내용을 어디에 보일지 — 작은 모니터면 「끄기(목록만, 누르면 크게)」가 편해요 · 이 컴퓨터에만</span></span>
+      <select id="mtView" onchange="mtViewSet(this.value)" title="받은편지함 「🗔 보기」와 같은 설정">
+        <option value="auto">자동 — 화면 크기에 맞춤</option><option value="right">오른쪽(세 칸)</option><option value="bottom">아래(목록 위·내용 아래)</option><option value="list">끄기(목록만, 누르면 크게)</option>
+      </select><span class="mt-msg" id="mtViewMsg"></span></div>
+    <div class="mt-row" id="mtBig"><span class="ic">🔠</span><span class="tx"><span class="t">글자 크게 보기</span><span class="d" style="display:block">메일 목록·읽기 글자를 한 단계 크게 · 이 컴퓨터·이 휴대폰에만</span></span>
+      <span class="st" id="mtBigSw">끔</span><button type="button" class="mt-sw" id="mtBigBtn" onclick="mtBigToggle()" aria-label="글자 크게 보기 켜기·끄기"></button></div>
+    <div class="mt-row"><span class="ic">⌨</span><span class="tx"><span class="t">단축키(아웃룩과 같게)</span>
+      <span class="mt-keys" style="display:block"><kbd>↑</kbd><kbd>↓</kbd>다음 메일 · <kbd>R</kbd>답장 · <kbd>Shift</kbd>+<kbd>R</kbd>전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd>전달 · <kbd>Delete</kbd>삭제 · <kbd>E</kbd>보관 · <kbd>U</kbd>읽음↔안 읽음 · <kbd>Insert</kbd>중요 · <kbd>N</kbd>새 메일 · 메일 위 <b>오른쪽 클릭</b> = 메뉴</span></span></div>
+    <a class="mt-row" href="/mail/rules"><span class="ic">🏷</span><span class="tx"><span class="t">메일 종류 규칙(견적·발주·세금계산서)</span><span class="d" style="display:block">보낸 사람·제목 낱말로 메일 종류를 정하는 규칙 — 가끔 씀</span></span><span class="arr">›</span></a>
   </div>
 
   {% if is_admin %}
-  <div class="mt-admin">
-  <div class="mt-sec">🔧 관리자 <small>처음 한 번 설정하는 것</small></div>
-  <div class="mt-grid">
-    <a class="mt-card" href="/admin/mail-inbound"><span class="mt-ico">📥</span><span><span class="mt-t">받기 설정</span>
-      <span class="mt-d" style="display:block">메일이 이음웍스로 들어오는 길</span></span></a>
-    <a class="mt-card" href="/admin/mail-send"><span class="mt-ico">📤</span><span><span class="mt-t">보내기 설정</span>
-      <span class="mt-d" style="display:block">메일을 내보내는 길(발송망)</span></span></a>
-    <a class="mt-card" href="/admin/mail-fetch"><span class="mt-ico">⤵</span><span><span class="mt-t">기존 메일 가져오기</span>
-      <span class="mt-d" style="display:block">하이웍스 등 기존 메일을 이음웍스 메일로 당겨오기</span></span></a>
-    <a class="mt-card" href="/admin/mail-purge"><span class="mt-ico">💽</span><span><span class="mt-t">저장 공간 정리</span>
-      <span class="mt-d" style="display:block">휴지통 비우기 · 오래된 메일 완전삭제 · 디스크 정리</span></span></a>
+  <details class="mt-adm"><summary>🔧 관리자 설정 ▸ <small style="font-weight:500;color:var(--mute)">처음 한 번 · 회사 전체에 영향</small></summary>
+  <div class="mt-list">
+    <a class="mt-row" href="/mail/blocklist"><span class="ic">⛔</span><span class="tx"><span class="t">차단 목록 관리</span><span class="d" style="display:block">회사 전체에서 막을 위험·스팸 주소</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/admin/mail-inbound"><span class="ic">📥</span><span class="tx"><span class="t">받기 설정</span><span class="d" style="display:block">메일이 이음웍스로 들어오는 길</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/admin/mail-send"><span class="ic">📤</span><span class="tx"><span class="t">보내기 설정</span><span class="d" style="display:block">메일을 내보내는 길(발송망)</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/admin/mail-fetch"><span class="ic">⤵</span><span class="tx"><span class="t">기존 메일 가져오기</span><span class="d" style="display:block">하이웍스 등 기존 메일을 당겨오기</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/admin/mail-purge"><span class="ic">💽</span><span class="tx"><span class="t">저장 공간 정리</span><span class="d" style="display:block">휴지통 비우기 · 오래된 메일 완전삭제 · 디스크 정리</span></span><span class="arr">›</span></a>
   </div>
-  </div>
+  </details>
   {% endif %}
 </div>
 </main>
 </div>
 <script>
-/* 글자 크게 보기(11-18) — 이 기기에만 기억(localStorage) · 메일 목록·읽기 화면이 머리에서 읽음 */
+/* 글자 크게 보기(11-18) — 이 기기에만 기억(localStorage) · 메일 목록·읽기 화면이 읽음 */
 function mtBigShow(){ var on=false; try{ on=localStorage.getItem('knkmail.big')==='1'; }catch(e){}
-  var sw=document.getElementById('mtBigSw'); if(sw){ sw.textContent=on?'켬':'끔'; sw.classList.toggle('on',on); } }
+  var sw=document.getElementById('mtBigSw'), b=document.getElementById('mtBigBtn');
+  if(sw){ sw.textContent=on?'켬':'끔'; sw.className='st'+(on?' ok':''); } if(b){ b.classList.toggle('on',on); b.setAttribute('aria-pressed', on?'true':'false'); } }
 function mtBigToggle(){ try{ var on=localStorage.getItem('knkmail.big')==='1';
     if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){ alert('이 브라우저에서는 저장할 수 없습니다'); }
   mtBigShow(); }
 mtBigShow();
-/* 오래된 메일 한 번에 보관(11-18 3단계) — 먼저 몇 통인지 보여 주고, 누르면 보관 */
+/* 보기 방식 — 받은편지함 「🗔 보기」와 같은 저장 칸(knkmail.view) */
+(function(){ var s=document.getElementById('mtView'); if(!s) return; var v='auto'; try{ v=localStorage.getItem('knkmail.view')||'auto'; }catch(e){} s.value=v; })();
+function mtViewSet(v){ try{ localStorage.setItem('knkmail.view', v); }catch(e){} var m=document.getElementById('mtViewMsg'); if(m){ m.textContent='✓ 저장 — 받은편지함에 바로 적용'; setTimeout(function(){ m.textContent=''; }, 2500); } }
+/* 오래된 메일 한 번에 보관 — 먼저 몇 통인지 보여 주고, 누르면 보관 */
 async function mtOldCount(){
-  var m=document.getElementById('mtOldM').value, n=document.getElementById('mtOldN'), b=document.getElementById('mtOldGo');
+  var m=document.getElementById('mtOldM').value, n=document.getElementById('mtOldN'), b=document.getElementById('mtOldGo'), tile=document.getElementById('mtOldTile');
   n.textContent='세는 중…'; b.disabled=true;
   try{ var fd=new FormData(); fd.append('months', m); fd.append('dry','1');
     var r=await fetch('/mail/archive/old',{method:'POST',body:fd}); var j=await r.json();
-    if(j.ok){ n.textContent=j.n ? ('보관할 메일 '+j.n.toLocaleString()+'통') : '보관할 메일이 없습니다'; b.disabled=!j.n; b.dataset.n=j.n; }
+    if(j.ok){ if(j.n){ n.innerHTML=j.n.toLocaleString()+'<small>통</small>'; n.style.fontSize=''; n.style.color=''; } else { n.textContent='✓ 보관할 메일이 없어요'; n.style.fontSize='18px'; n.style.color='#15803d'; }
+      b.disabled=!j.n; b.dataset.n=j.n; if(tile) tile.classList.toggle('clean', !j.n); }
     else { n.textContent='⚠ 셀 수 없습니다'; }
   }catch(e){ n.textContent='⚠ 네트워크 오류'; }
 }
@@ -129,6 +177,7 @@ async function dedupInbox(ev){
   if(ev) ev.preventDefault();
   if(!confirm('여러 그룹메일로 같은 메일이 여러 통 온 것을 1통만 남기고 정리할까요?\n(답장·내용이 다른 메일은 안 건드리고, 정리된 메일은 휴지통으로 갑니다 — 복구 가능)')) return;
   try{ var r=await fetch('/mail/dedup',{method:'POST'}); var j=await r.json();
+    var n=document.getElementById('mtDupN'); if(n){ n.textContent=j.removed ? ('✓ '+j.removed+'통 정리함') : '✓ 같은 메일 없어요'; n.style.color='#15803d'; }
     alert(j.message||(j.ok?'정리 완료':'실패')); }catch(e){ alert('네트워크 오류'); }
 }
 </script>

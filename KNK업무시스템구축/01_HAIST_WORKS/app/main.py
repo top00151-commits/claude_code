@@ -22827,7 +22827,31 @@ async def mail_tools_page(req: Request):
                                       "AND is_deleted=0 AND COALESCE(is_blocked,0)=1", (u["id"],)).fetchone()[0] or 0)
         except Exception:
             blocked_n = 0
-    return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n)
+        # 11-18 「딱 들어가면 바로 알 수 있게」 — 정리할 것·설정 상태를 숫자로(읽기만)
+        st = {"trash_n": 0, "ad_n": 0, "has_sig": False, "has_acct": False, "folder_n": 0, "rule_n": 0}
+        try:
+            st["trash_n"] = int(_mailbox.count_trash(c, u["id"]) or 0)
+        except Exception:
+            pass
+        try:
+            st["ad_n"] = len(_mail_find.bulk_senders(c, u["id"]) or ())
+        except Exception:
+            pass
+        try:
+            st["has_sig"] = bool((_mailbox.get_signature(c, u["id"]) or "").strip())
+        except Exception:
+            pass
+        try:
+            from . import mail_fetch as _mfx
+            st["has_acct"] = bool(_mfx.get_account(c, u["id"]))
+        except Exception:
+            pass
+        try:
+            st["folder_n"] = len(_mail_folders.folders(c, u["id"]) or [])
+            st["rule_n"] = len(_mail_folders.rules(c, u["id"]) or [])
+        except Exception:
+            pass
+    return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n, **st)
 
 
 # ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
