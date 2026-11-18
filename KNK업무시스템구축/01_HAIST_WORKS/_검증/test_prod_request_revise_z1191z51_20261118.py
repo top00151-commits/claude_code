@@ -244,8 +244,8 @@ check("prod_cxdone=1" in loc and "prid=%d" % LEAD in loc and all(x[3] and x[4] =
       "구성원(021T2611) 줄로 취소해도 묶음 4건 모두 취소 · 사유 저장", (loc, rx))
 check(rowx("id=?", (cx_c[0],))[0][4] == "remove", "앞서 묶음에서 뺀 줄은 「뺌」 그대로")
 cd = CARDS[0] if CARDS else {}
-check(cd and cd["card"] is None and cd["title"].startswith("🚫 제작요청 취소 [020T2611 외 3건]") and "■ 취소 사유 : 고객사 취소 요청" in cd["body"] and "이 제작요청서는 진행하지 않습니다" in cd["body"]
-      and "📝 요청사항" not in cd["body"] and "4. 023T2611" in cd["body"], "이음: 카드 대신 「🚫 제작요청 취소」 글 알림(사유 · 품목 줄 · 요청사항은 뺌)", cd and (cd["title"], cd["body"][:300]))
+check(cd and cd["card"] and cd["card"].get("cancelled") is True and cd["card"].get("status") == "취소" and cd["title"].startswith("🚫 제작요청 취소 [020T2611 외 3건]") and "■ 취소 사유 : 고객사 취소 요청" in cd["body"] and "이 제작요청서는 진행하지 않습니다" in cd["body"]
+      and "📝 요청사항" not in cd["body"] and "4. 023T2611" in cd["body"], "이음: 취소 카드(z1191z54 · cancelled · 상태 「취소」) + 「🚫 제작요청 취소」 글(사유 · 품목 줄 · 요청사항은 뺌)", cd and (cd["title"], cd["body"][:300]))
 check(len(CARDS) == 2 and CARDS[1]["title"].startswith("🚫 내가 취소한 제작요청"), "취소한 사람에게도 확인 알림", [x["title"] for x in CARDS])
 with D.db_session() as c:
     sup = c.execute("SELECT COUNT(*) FROM notifications WHERE kind='prod_request' AND prod_prid=? AND COALESCE(superseded,0)=1", (LEAD,)).fetchone()[0]

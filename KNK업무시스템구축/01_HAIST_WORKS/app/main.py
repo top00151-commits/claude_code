@@ -12579,6 +12579,11 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             #   is_revision = 수정발행 여부(카드 상단 '수정발행' 뱃지). 발행측이 직접 표기(수신자·발행자 본인 카드 모두 일관).
             "prid": (_eff_prid or None), "issue_token": _issue_token, "is_revision": bool(is_update),
         }
+        if _z48_gist:   # z1191z54: 요지 한 줄(이음 v966 이 카드 제목 아래에 그림 · 상한 120자)
+            _card["gist"] = _z48_gist[:120]
+        if cancel_reason:   # z1191z54: 취소 카드 — 같은 prid · 새 issue_token → 이음이 앞 카드를 흑백 「취소된 요청서」로 · 상태 칩 「취소」
+            _card.update({"cancelled": True, "cancel_reason": str(cancel_reason)[:200], "cancelled_by": str(by_name)[:60],
+                          "cancelled_at": now_str, "status": "취소", "is_revision": False})
         if is_update and not cancel_reason and (rev_reason or removed or rev_lines):   # z1191z51 새 칸(이음이 그리기 전엔 안 보임 · 세션 10 요청)
             _card["revision_reason"] = rev_reason or ""
             if removed:
@@ -12593,8 +12598,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                               + [{"mgmt": _m["p"].get("mgmt_code"), "so_nos": list(_m["so_nos"]), "model": (_m["p"].get("model_name") or ""),
                                   "equip": (_m["p"].get("equip_name") or ""), "qty": (_m["p"].get("unit_qty") or 1),
                                   "due": (str(_m["p"].get("due_date") or "")[:10])} for _m in _z49_members])
-        # z1191z51: 취소는 카드 대신 글 알림 — 지금 카드 모양으로 보내면 정상 요청서처럼 보임(취소 카드는 세션 10 요청)
-        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=(None if cancel_reason else _card))
+        # z1191z54: 취소도 카드로(이음 v966 이 취소 카드를 그림) — 제목·본문 글은 그대로 함께(휴대폰 알림 · 방 목록 미리보기)
+        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
         # v5H226z812 (대표 지시): 발행자 본인에게도 이음 'WORKS 알림' 카드 — 벨(z804)+메신저 둘 다. 통보 수(msg_sent)엔 미포함.
         #   z881: 본인을 통보대상으로 골랐으면(_self_selected) 본인 사번이 emp_nos 에 포함돼 위에서 이미 카드 수신 → receipt 생략.
         if _author_emp and not _self_selected:
@@ -12603,7 +12608,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 if cancel_reason:
                     _self_ttl = f"🚫 내가 취소한 제작요청 · {mgmt} — {sent_to}명에게 알림"
                 _self_bd = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
-                sso_client.notify_via_messenger([_author_emp], _self_ttl, _self_bd, _full_link, card=(None if cancel_reason else _card))
+                sso_client.notify_via_messenger([_author_emp], _self_ttl, _self_bd, _full_link, card=_card)
             except Exception:
                 pass
         if _mres.get("ok"):
@@ -31627,7 +31632,9 @@ async def prod_request_update(request: Request, pid: int, prid: int):
                     _z51_removed.append(_rr[1])
             _z51_items_after = [x for x in _z51_items_csv(c, prid).split(",") if x]
             _z51_added = [x for x in _z51_items_after if x not in _z51_items_before]
-            _z51_lines = _z51_change_text(pr["cust_req"], _cust_req) + [("(기타) " + x) for x in _z51_change_text(pr["note"], _note, 3)]
+            _z51_lines = _z51_change_text(pr["cust_req"], _cust_req, 9999) + [("(기타) " + x) for x in _z51_change_text(pr["note"], _note, 9999)]
+            if len(_z51_lines) > 7:   # z1191z54: 이음 카드 상한 7줄(6 + 「… 외 N줄」 · 세션 10 v966) — 알림 글도 같은 줄
+                _z51_lines = _z51_lines[:6] + ["… 외 %d줄" % (len(_z51_lines) - 6)]
             _z51_chg = []
             _z51_dc = _z51_lines_diff(pr["cust_req"], _cust_req)[1]
             _z51_dn = _z51_lines_diff(pr["note"], _note)[1]
