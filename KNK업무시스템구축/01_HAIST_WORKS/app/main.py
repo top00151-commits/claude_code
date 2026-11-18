@@ -38442,6 +38442,218 @@ async def api_mgmt_code_check(request: Request, code: str = "", biz_div: str = "
                          "code": (msg if ok else (code or "").strip().upper())})
 
 
+# z1191z57 (대표 2026-11-18 등록 화면 ①②):
+#   ① 「등록화면을 동시에 열리지 않게 · 누가 열고 작업중이면 누가 열고 있다고 안내」 → 프로젝트 등록 화면은 한 번에 한 사람.
+#      화면이 20초마다 「작업 중」 신호(beat) → 75초 끊기면(창 닫힘·잠자기) 풀림 · 10분 동안 입력이 없고 다른 분이 기다리면 넘김.
+#      잡은 사람에게는 「등록하면 이 번호」(다음 관리번호·수주번호)를 보여 준다 — 한 사람만 등록하니 보이는 번호 = 받는 번호.
+#      잠금 = DB 표(일꾼 2개라 메모리로는 안 됨) · 같은 사람의 다른 탭은 같은 사람으로 본다.
+#   ② 프로젝트명·모델명·장비명 옆 ⓘ = 입력 기준(등록 권한자 누구나 고침 · 고친 사람·시각·이력) + 최근 등록 예
+import time as _z57_time
+_Z57_LOCK = "project_new"
+_Z57_TTL = 75
+_Z57_IDLE = 600
+_Z57_GKEYS = {"project_name": ("프로젝트명", "name"), "model_name": ("모델명", "model_name"), "equip_name": ("장비명", "equip_name")}
+
+
+def _z57_tables(c):
+    c.execute("CREATE TABLE IF NOT EXISTS screen_locks(name TEXT PRIMARY KEY, user_id INTEGER, user_name TEXT, token TEXT, "
+              "opened_at REAL, beat_at REAL, active_at REAL)")
+    c.execute("CREATE TABLE IF NOT EXISTS screen_lock_waits(name TEXT, user_id INTEGER, user_name TEXT, beat_at REAL, PRIMARY KEY(name, user_id))")
+    c.execute("CREATE TABLE IF NOT EXISTS field_guides(key TEXT PRIMARY KEY, body TEXT, updated_by INTEGER, updated_by_name TEXT, updated_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS field_guide_hist(id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT, body TEXT, by_id INTEGER, by_name TEXT, at TEXT)")
+
+
+def _z57_hm(t):
+    from datetime import datetime as _d57, timezone as _tz57, timedelta as _td57
+    try:
+        return _d57.fromtimestamp(float(t), _tz57(_td57(hours=9))).strftime("%H:%M")
+    except Exception:
+        return ""
+
+
+def _z57_take(u, token, active=True):
+    """등록 화면 잡기·신호. 반환 {held, holder, since, idle_min, waiters}."""
+    now = _z57_time.time()
+    uid = int(u.get("id") or 0)
+    nm = vname_full(u) or (u.get("name") or "")
+    with db_session() as c:
+        _z57_tables(c)
+        c.execute("INSERT OR IGNORE INTO screen_locks(name, user_id, user_name, token, opened_at, beat_at, active_at) VALUES(?,?,?,?,?,?,?)",
+                  (_Z57_LOCK, uid, nm, token, now, now, now))
+        cur = c.execute(
+            "UPDATE screen_locks SET user_id=?, user_name=?, "
+            "opened_at=CASE WHEN token=? THEN opened_at ELSE ? END, "
+            "active_at=CASE WHEN token<>? OR ?=1 THEN ? ELSE active_at END, "
+            "token=?, beat_at=? "
+            "WHERE name=? AND (token=? OR user_id=? OR beat_at<? OR active_at<?)",
+            (uid, nm, token, now, token, (1 if active else 0), now, token, now, _Z57_LOCK, token, uid, now - _Z57_TTL, now - _Z57_IDLE))
+        held = cur.rowcount == 1
+        if held:
+            c.execute("DELETE FROM screen_lock_waits WHERE name=? AND user_id=?", (_Z57_LOCK, uid))
+        else:
+            c.execute("INSERT OR REPLACE INTO screen_lock_waits(name, user_id, user_name, beat_at) VALUES(?,?,?,?)", (_Z57_LOCK, uid, nm, now))
+        r = c.execute("SELECT user_name, opened_at, active_at FROM screen_locks WHERE name=?", (_Z57_LOCK,)).fetchone()
+        waiters = [x[0] for x in c.execute("SELECT user_name FROM screen_lock_waits WHERE name=? AND beat_at>? AND user_id<>? ORDER BY beat_at",
+                                            (_Z57_LOCK, now - 30, uid)).fetchall()] if held else []
+    return {"held": held, "holder": (r[0] if r else ""), "since": _z57_hm(r[1]) if r else "",
+            "idle_min": (int((now - float(r[2] or now)) // 60) if r else 0), "waiters": waiters}
+
+
+def _z57_next_numbers(biz_div, ptype, po_type, order_date, manual):
+    """잡은 사람에게 보여 줄 다음 번호 — 저장 때와 같은 함수(관리번호 = 오늘 연월 · 수주번호 = 발주일, 비면 오늘)."""
+    out = {"mgmt": "", "so": ""}
+    bd = (biz_div or "T").strip().upper()
+    try:
+        if (po_type or "신규") == "신규" and not manual:
+            out["mgmt"] = _logi.generate_mgmt_code(_expected_mgmt_letter(ptype, bd))
+    except Exception as e:
+        print(f"[z1191z57] 다음 관리번호 계산 실패: {e}")
+    try:
+        from datetime import date as _dd57, datetime as _dt57
+        try:
+            od = _dt57.strptime(str(order_date or "")[:10], "%Y-%m-%d").date()
+        except Exception:
+            od = _dd57.today()
+        with db_session() as c:
+            out["so"] = _pwf.generate_so_no(c, (bd if bd in ("T", "M", "L", "E", "C") else "T"), od)
+    except Exception as e:
+        print(f"[z1191z57] 다음 수주번호 계산 실패: {e}")
+    return out
+
+
+def _z57_lock_other(u, token):
+    """저장 직전 확인: 다른 사람이 살아 있는 잠금을 쥐고 있으면 그 사람 이름 · 아니면 ''."""
+    now = _z57_time.time()
+    with db_session() as c:
+        _z57_tables(c)
+        r = c.execute("SELECT user_id, user_name, token, beat_at FROM screen_locks WHERE name=?", (_Z57_LOCK,)).fetchone()
+    if not r or float(r[3] or 0) < now - _Z57_TTL:
+        return ""
+    if (token and r[2] == token) or int(r[0] or 0) == int(u.get("id") or 0):
+        return ""
+    return r[1] or "다른 분"
+
+
+def _z57_guides():
+    out = {k: {"label": v[0], "body": "", "by": "", "at": ""} for k, v in _Z57_GKEYS.items()}
+    try:
+        with db_session() as c:
+            _z57_tables(c)
+            for r in c.execute("SELECT key, COALESCE(body,''), COALESCE(updated_by_name,''), COALESCE(updated_at,'') FROM field_guides").fetchall():
+                if r[0] in out:
+                    out[r[0]].update({"body": r[1], "by": r[2], "at": r[3]})
+    except Exception as e:
+        print(f"[z1191z57] 입력 기준 읽기 실패: {e}")
+    return out
+
+
+@app.post("/api/project-reg-lock/beat")
+async def api_z57_lock_beat(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    tok = str(b.get("token") or "").strip()[:64]
+    if len(tok) < 8:
+        return JSONResponse({"ok": False, "error": "bad_token"}, 400)
+    st = _z57_take(u, tok, active=bool(b.get("active")))
+    if st["held"]:
+        st.update(_z57_next_numbers(b.get("biz_div"), b.get("ptype"), b.get("po_type"), b.get("order_date"), bool(b.get("manual"))))
+    st["ok"] = True
+    return JSONResponse(st)
+
+
+@app.post("/api/project-reg-lock/release")
+async def api_z57_lock_release(request: Request):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    try:
+        import json as _j57
+        b = _j57.loads((await request.body()).decode("utf-8") or "{}")
+    except Exception:
+        b = {}
+    tok = str(b.get("token") or "").strip()[:64]
+    with db_session() as c:
+        _z57_tables(c)
+        if tok:
+            c.execute("UPDATE screen_locks SET beat_at=0, active_at=0 WHERE name=? AND token=?", (_Z57_LOCK, tok))
+        c.execute("DELETE FROM screen_lock_waits WHERE name=? AND user_id=?", (_Z57_LOCK, int(u.get("id") or 0)))
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/field-guides/examples")
+async def api_z57_guide_examples(request: Request, key: str = "", biz: str = ""):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    if key not in _Z57_GKEYS:
+        return JSONResponse({"ok": False, "error": "bad_key"}, 400)
+    col = _Z57_GKEYS[key][1]
+    bz = (biz or "").strip().upper()
+    seen, items = set(), []
+    with db_session() as c:
+        sql = (f"SELECT mgmt_code, {col} FROM projects WHERE COALESCE(is_archived,0)=0 AND COALESCE(TRIM({col}),'')<>'' "
+               + ("AND biz_div=? " if bz in ("T", "M", "L", "E") else "") + "ORDER BY id DESC LIMIT 200")
+        for r in c.execute(sql, ((bz,) if bz in ("T", "M", "L", "E") else ())).fetchall():
+            v = str(r[1] or "").strip()
+            if v.lower() in seen:
+                continue
+            seen.add(v.lower()); items.append({"mgmt": r[0] or "", "v": v[:120]})
+            if len(items) >= 8:
+                break
+    return JSONResponse({"ok": True, "items": items})
+
+
+@app.get("/api/field-guides/{key}/history")
+async def api_z57_guide_history(request: Request, key: str):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    if key not in _Z57_GKEYS:
+        return JSONResponse({"ok": False, "error": "bad_key"}, 400)
+    with db_session() as c:
+        _z57_tables(c)
+        rows = [{"body": r[0] or "", "by": r[1] or "", "at": r[2] or ""} for r in c.execute(
+            "SELECT body, by_name, at FROM field_guide_hist WHERE key=? ORDER BY id DESC LIMIT 10", (key,)).fetchall()]
+    return JSONResponse({"ok": True, "items": rows})
+
+
+@app.post("/api/field-guides/{key}")
+async def api_z57_guide_save(request: Request, key: str):
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):   # 등록 권한 있는 사람 모두(대표 11-18)
+        return JSONResponse({"ok": False, "error": "등록 권한이 있는 분만 기준을 고칠 수 있습니다"}, 403)
+    if key not in _Z57_GKEYS:
+        return JSONResponse({"ok": False, "error": "bad_key"}, 400)
+    try:
+        b = await request.json()
+    except Exception:
+        b = {}
+    body = str(b.get("body") or "").replace("\r\n", "\n").strip()[:2000]
+    from datetime import datetime as _d57s, timezone as _tz57s, timedelta as _td57s
+    at = _d57s.now(_tz57s(_td57s(hours=9))).strftime("%Y-%m-%d %H:%M")
+    nm = vname_full(u) or (u.get("name") or "")
+    with db_session() as c:
+        _z57_tables(c)
+        old = c.execute("SELECT COALESCE(body,'') FROM field_guides WHERE key=?", (key,)).fetchone()
+        if old and (old[0] or "") == body:
+            return JSONResponse({"ok": True, "same": True, "guide": {"body": body}})
+        c.execute("INSERT INTO field_guides(key, body, updated_by, updated_by_name, updated_at) VALUES(?,?,?,?,?) "
+                  "ON CONFLICT(key) DO UPDATE SET body=excluded.body, updated_by=excluded.updated_by, "
+                  "updated_by_name=excluded.updated_by_name, updated_at=excluded.updated_at",
+                  (key, body, u.get("id"), nm, at))
+        c.execute("INSERT INTO field_guide_hist(key, body, by_id, by_name, at) VALUES(?,?,?,?,?)", (key, body, u.get("id"), nm, at))
+    return JSONResponse({"ok": True, "guide": {"label": _Z57_GKEYS[key][0], "body": body, "by": nm, "at": at}})
+
+
 @app.get("/projects/quick", response_class=HTMLResponse)
 async def projects_quick_form(request: Request, embed: str = "", biz_div: str = ""):
     """v5H226z276 (대표 지시): '엑셀처럼' 한 화면 평면 등록 폼 — 보드 칸들을 한 번에 채워 등록.
@@ -38494,8 +38706,18 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
         _notify_blocks = []
     # v5H226z386 (대표 지시): 검증 모드 ON 이면 관리번호가 A 접두로 발급됨 — 화면에 표시(잊지 않게)
     _test_on = (get_setting("test_mode", "") or "").strip().lower() in ("1", "on", "true", "yes")
+    # z1191z57: 등록 화면 잡기(한 번에 한 사람) — 이 화면의 표(token)로 잡고, 못 잡으면 화면이 「누가 작업 중」을 띄우고 기다린다
+    import secrets as _sec57
+    _tok57 = _sec57.token_hex(12)
+    try:
+        _reg57 = _z57_take(u, _tok57, active=True)
+    except Exception as _e57:
+        print(f"[z1191z57] 등록 화면 잡기 실패(잠금 없이 연다): {_e57}")
+        _reg57 = {"held": True, "holder": "", "since": "", "idle_min": 0, "waiters": []}
+    _reg57["token"] = _tok57
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
+               reg_lock=_reg57, field_guides=_z57_guides(), fg_can_edit=True,
                can_money=bool(can_view_sales(u)), teams=_teams, team_members=_team_members,
                notify_blocks=_notify_blocks, can_make_block=_can_make_notify_block(u),
                test_on=_test_on, PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
@@ -38565,7 +38787,8 @@ async def projects_quick_edit_form(request: Request, pid: int):
                PO_TYPES=_logi.PO_TYPES, FORM_TYPES=_logi.FORM_TYPES,
                customers=_logi.customers_for_picker(),
                project=p, so_no=_so_no, ship_to=_ship_to,
-               board_qty=_board_qty, board_unit=_board_unit)
+               board_qty=_board_qty, board_unit=_board_unit,
+               field_guides=_z57_guides(), fg_can_edit=True)   # z1191z57: 수정 화면에도 ⓘ 입력 기준
 
 
 # v5H226z460 (대표 지시): 상품(PARTS) 자재 행의 매입단가·마진% 파싱.
@@ -38654,6 +38877,14 @@ async def projects_new_submit(request: Request):
         if extra:
             url += "&" + extra
         return RedirectResponse(url, status_code=303)
+    # z1191z57: 다른 분이 등록 화면을 잡고 있으면 저장하지 않는다(화면이 먼저 막지만 서버도 한 번 더 · 입력은 이 기기에 남음)
+    try:
+        _hold57 = _z57_lock_other(_u, (form.get("lock_token") or "").strip())
+    except Exception:
+        _hold57 = ""
+    if _hold57:
+        from urllib.parse import quote as _q57
+        return _err_redirect("reg_locked", "holder=" + _q57(_hold57))
     if not project_name:
         return _err_redirect("name_required")
     # v5H218: 진행 사업부는 항상 T 또는 M 이어야 함 (K 기타는 chooser 에서 K 로 들어와도 폼에서 T/M 으로 보정)

@@ -118,6 +118,17 @@ html,body{background:#fff!important;overflow:auto!important;}
       <form id="quickForm" method="post" enctype="multipart/form-data" action="{% if ed %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}">
         {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
         <input type="hidden" name="quick" value="1">
+        {% if not ed and reg_lock %}<input type="hidden" name="lock_token" id="qLockTok" value="{{ reg_lock.token }}">{# z1191z57 #}
+        <div id="qLockCover" class="z57-cover"{% if reg_lock.held %} hidden{% endif %}>
+          <div class="z57-card">
+            <div class="z57-ttl">🔒 지금 <b id="qLockWho">{{ reg_lock.holder }}</b> 님이 등록 화면에서 작업 중입니다</div>
+            <div class="z57-sub" id="qLockSub">{% if reg_lock.since %}{{ reg_lock.since }}부터 · {% endif %}관리번호·수주번호가 겹치지 않게 등록은 한 번에 한 사람만 합니다.</div>
+            <div class="z57-sub">끝나면(저장하거나 창을 닫으면) <b>이 화면이 저절로 열립니다</b> — 기다리는 동안 다른 일을 하셔도 됩니다.</div>
+            <div class="z57-sub z57-dim" id="qLockIdle"></div>
+          </div>
+        </div>
+        <div id="qLockBar" class="z57-bar"{% if not reg_lock.held %} hidden{% endif %}>🔒 지금 등록 화면은 <b>나만</b> 쓰는 중 — 저장하거나 창을 닫으면 다른 분이 열 수 있습니다<span id="qLockWait"></span></div>
+        {% endif %}
         <input type="hidden" name="biz_div" id="qBizDiv" value="{{ project.biz_div if ed else preset_biz|default('T') }}">
         {# v5H226z355(대표 지시): 기타(E)는 유형=OTHER, 그 외(T/M/L)는 NEW_EQUIP. 수정 모드는 기존 유형 보존 #}
         <input type="hidden" name="project_type" id="qPtype" value="{{ project.project_type if ed else ('OTHER' if preset_biz == 'E' else 'NEW_EQUIP') }}">
@@ -181,7 +192,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>
             {% endif %}</div>
           <div class="qf-f c2"><label>수주번호</label>
-            {% if ed %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;">{{ so_no|default('—') or '—' }}</div>{% else %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div>{% endif %}</div>
+            {% if ed %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;">{{ so_no|default('—') or '—' }}</div>{% else %}<div class="qf-code" id="qSoAuto" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div>{% endif %}</div>
           {# v5H226z621 (대표 지시): 고객사1 = 등록 고객사(시스템명) 자동완성 콤보 — 미매칭이면 적색·저장차단. customer_id 바인딩 #}
           {# z1191: 추가 발주 「지난 발주처」 단추 — 관리번호를 고르면 그 수주들의 1차·2차를 보이고 사람이 고른다(몰래 채우지 않음) #}
           <style>
@@ -237,7 +248,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c2"><label>거래구분 <span id="qIexHint" style="display:none;font-weight:400;color:var(--qv-ink-3);font-size:11px;">(발주처 기준 · 바꿀 수 있음)</span></label>
             <select name="is_export" id="qIsExport"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
           </div>
-          <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span></label>
+          <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="project_name" title="프로젝트명 — 입력 기준 보기·고치기">ⓘ</button></label>
             {% if not ed %}
             {# v5H226z1087 (대표 지시 08-19·2차 확장): 검사기(T) 등록은 **모든 형태**에서 프로젝트명이 분야로 정해짐
                (TSP·PBA·SENSOR·전장) → 드롭다운 선택. 수기 입력도 열어둠('직접 입력…' — 개조·A/S 서술명 등).
@@ -256,8 +267,8 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# v5H226z1088 (대표 지시 08-19): 제목 옆 안내 — 여기 모델명·장비명 = 작업일정표 한 줄의 대표 이름 #}
           <div class="qf-group"><div class="qf-group-ttl">품목 · 사양 <span style="font-weight:400;font-size:11px;color:var(--qv-ink-3);text-transform:none;letter-spacing:0;">— 여기 모델명·장비명이 <b>작업일정표 한 줄</b>에 표시되는 대표 이름입니다</span></div><div class="qf-grid">
           {# v5H226z445(대표 지시): 모델명·장비명을 자재 목록 '위쪽 줄'로 이동 #}
-          <div class="qf-f c6"><label>모델명 <span class="req">*</span></label><input name="model" placeholder="모델명" value="{{ (project.model_name or '') if ed else '' }}"></div>
-          <div class="qf-f c6"><label>장비명 <span class="req">*</span></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ (project.equip_name or '') if ed else '' }}"></div>
+          <div class="qf-f c6"><label>모델명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="model_name" title="모델명 — 입력 기준 보기·고치기">ⓘ</button></label><input name="model" placeholder="모델명" value="{{ (project.model_name or '') if ed else '' }}"></div>
+          <div class="qf-f c6"><label>장비명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="equip_name" title="장비명 — 입력 기준 보기·고치기">ⓘ</button></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ (project.equip_name or '') if ed else '' }}"></div>
           {# z1191z5 (안지연 프로 신고 ② · 대표 2026-11-06): 수정 모드 안내 — 이 칸은 프로젝트 대표값(첫 등록). 추가·개조 수주의 값은 상세 수주 카드에서 #}
           {% if ed %}<div class="qf-f c12" style="margin-top:-6px;font-size:11.5px;color:var(--qv-ink-3);">ⓘ 여기 모델명·장비명은 <b>프로젝트 대표값</b>(첫 등록)입니다. 추가·개조 수주마다 다르면 <b>상세 화면 [수주 내역] 카드의 📦 모델/장비</b>(✏️ 수정)에서 그 수주만 고칩니다.</div>{% endif %}
           {# v5H226z1088 (대표 지시 08-19): 형태=제품(SEMI) — '수량·금액' 구획을 없애고 여기로:
@@ -1262,7 +1273,9 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       mgmt_code_dup:'이미 등록된 관리번호입니다.',
       mgmt_code_format:'관리번호 형식이 올바르지 않습니다.',
       manual_mgmt_invalid:'수동발행 관리번호를 쓸 수 없습니다 — 다시 [검증]하세요.',
+      reg_locked:'지금 다른 분이 등록 화면에서 작업 중이라 저장하지 않았습니다 — 입력한 내용은 이 기기에 남아 있습니다. 화면이 열리면 다시 [등록]하세요.',
       parts_need_confirm:'부품을 저장하려면 아래 「수주확정」을 체크하고 등록하세요. (제안 단계면 등록 후 상세 → PACKING LIST 에서 입력)'}[er] || ('오류: '+er);
+    if(er==='reg_locked'){ var _hd=p.get('holder'); if(_hd) msg='지금 '+_hd+' 님이 등록 화면에서 작업 중이라 저장하지 않았습니다 — 입력한 내용은 이 기기에 남아 있습니다. 화면이 열리면 다시 [등록]하세요.'; }   // z1191z57
     if(er==='manual_mgmt_invalid'){ var _mr=p.get('mreason'); if(_mr) msg='수동발행 관리번호를 쓸 수 없습니다 — '+_mr; }
     var e=document.getElementById('qfErr'); e.textContent=msg; e.classList.add('show'); qScrollErr();
     var cu=p.get('cust'); if(cu){ var ci=document.querySelector('[name=customer_name]'); if(ci) ci.value=cu; }
@@ -1518,6 +1531,154 @@ function qIexApply(){
   drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('drag'); });
   drop.addEventListener('dragleave', function(){ drop.classList.remove('drag'); });
   drop.addEventListener('drop', function(e){ e.preventDefault(); drop.classList.remove('drag'); if(e.dataTransfer&&e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+})();
+</script>
+<style>
+/* z1191z57 (대표 11-18): 등록 화면 한 번에 한 사람 · 다음 번호 · 입력 기준 ⓘ */
+#quickForm { position:relative; }
+.z57-cover { position:absolute; inset:-6px; z-index:60; background:rgba(248,250,252,.86); backdrop-filter:blur(2px); border-radius:12px; }
+.z57-cover[hidden], .z57-bar[hidden] { display:none; }
+.z57-card { position:sticky; top:90px; margin:40px auto 0; max-width:560px; background:#fff; border:1px solid #fcd34d; border-left:5px solid #f59e0b;
+  border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.14); padding:18px 20px; }
+.z57-ttl { font-size:16px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.45; }
+.z57-sub { font-size:13px; color:#334155; line-height:1.6; }
+.z57-dim { color:#64748b; font-size:12px; margin-top:4px; }
+.z57-bar { margin:0 0 10px; padding:7px 12px; border-radius:8px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-size:12.5px; }
+.z57-bar b { color:#047857; }
+.z57-wait { margin-left:8px; padding:1px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-weight:700; }
+.z57-next { font-family:Consolas,monospace; font-weight:800; }
+.z57-next-sub { display:block; font-size:10.5px; font-weight:600; opacity:.75; font-family:inherit; margin-top:1px; }
+.qf-gi { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; margin-left:3px; padding:0; border-radius:50%;
+  border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:800; cursor:pointer; vertical-align:middle; line-height:1; }
+.qf-gi.empty { border-color:#cbd5e1; background:#f8fafc; color:#64748b; }
+.qf-gi:hover { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+.z57-pop { position:absolute; z-index:80; width:min(440px, calc(100vw - 32px)); background:#fff; border:1px solid #cbd5e1; border-radius:10px;
+  box-shadow:0 12px 32px rgba(15,23,42,.18); padding:12px 14px; font-size:13px; color:#1f2937; }
+.z57-pop h4 { margin:0 0 6px; font-size:14px; color:#1d4ed8; }
+.z57-pop .gb { white-space:pre-wrap; line-height:1.6; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:8px 10px; max-height:240px; overflow:auto; }
+.z57-pop .gb.none { color:#64748b; }
+.z57-pop .gm { font-size:11.5px; color:#64748b; margin-top:4px; }
+.z57-pop .gx { margin-top:8px; font-size:12px; }
+.z57-pop .gx b { color:#334155; }
+.z57-pop .gx ul { margin:4px 0 0; padding-left:16px; max-height:150px; overflow:auto; }
+.z57-pop .gx li { margin:1px 0; }
+.z57-pop .gx code { font-size:11px; color:#64748b; }
+.z57-pop textarea { width:100%; min-height:120px; box-sizing:border-box; font:inherit; font-size:13px; padding:8px; border:1px solid #93c5fd; border-radius:7px; }
+.z57-pop .gbtn { display:flex; gap:6px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap; }
+.z57-pop .gbtn button { padding:5px 11px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; }
+.z57-pop .gbtn button.pri { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+</style>
+<script>
+/* z1191z57 ① 등록 화면 한 번에 한 사람 + 다음 번호 */
+(function(){
+  var TOK=document.getElementById('qLockTok'); if(!TOK) return;
+  var cover=document.getElementById('qLockCover'), bar=document.getElementById('qLockBar');
+  var held={{ 'true' if (reg_lock and reg_lock.held) else 'false' }}, lastAct=Date.now(), timer=null, busy=false;
+  ['input','keydown','mousedown','touchstart','wheel'].forEach(function(ev){ document.addEventListener(ev, function(){ lastAct=Date.now(); }, {passive:true, capture:true}); });
+  function v(id){ var e=document.getElementById(id); return e ? (e.value||'') : ''; }
+  function payload(){ var m=document.getElementById('qManualChk');
+    return {token:TOK.value, active:(Date.now()-lastAct)<25000, biz_div:v('qBizDiv'), ptype:v('qPtype'), po_type:(v('qPoType')||'신규'),
+            order_date:v('qOrderDate'), manual:!!(m&&m.checked)}; }
+  var mgOrig=null, soOrig=null;
+  function showNums(j){
+    var mg=document.getElementById('qMgmtAuto'), so=document.getElementById('qSoAuto');
+    if(mg){ if(mgOrig===null) mgOrig=mg.innerHTML;
+      if(held && j && j.mgmt){ mg.innerHTML='<span class="z57-next">'+j.mgmt+'</span><span class="z57-next-sub">등록하면 이 번호</span>'; mg.title='지금 등록하면 이 관리번호로 등록됩니다(등록 화면은 한 번에 한 사람)'; }
+      else { mg.innerHTML=mgOrig; mg.title=''; } }
+    if(so){ if(soOrig===null) soOrig=so.innerHTML;
+      if(held && j && j.so){ so.innerHTML='<span class="z57-next">'+j.so+'</span><span class="z57-next-sub">'+(v('qOrderDate')?'발주일 기준':'발주일 비면 오늘 기준')+'</span>'; }
+      else { so.innerHTML=soOrig; } }
+  }
+  function apply(j){
+    if(!j || !j.ok) return;
+    held=!!j.held;
+    cover.hidden=held; bar.hidden=!held;
+    if(!held){
+      document.getElementById('qLockWho').textContent=j.holder||'다른 분';
+      document.getElementById('qLockSub').textContent=(j.since? j.since+'부터 · ':'')+'관리번호·수주번호가 겹치지 않게 등록은 한 번에 한 사람만 합니다.';
+      document.getElementById('qLockIdle').textContent=(j.idle_min>=1? '마지막 입력 '+j.idle_min+'분 전 · ':'')+'10분 동안 입력이 없으면 기다리는 분께 넘어옵니다.';
+    } else {
+      var w=document.getElementById('qLockWait'); w.innerHTML='';
+      if(j.waiters && j.waiters.length){ var s=document.createElement('span'); s.className='z57-wait'; s.textContent='기다리는 분: '+j.waiters.join(', '); w.appendChild(s); }
+    }
+    showNums(j);
+    schedule();
+  }
+  function beat(){
+    if(busy) return; busy=true;
+    fetch('/api/project-reg-lock/beat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())})
+      .then(function(r){ return r.json(); }).then(apply).catch(function(){}).then(function(){ busy=false; });
+  }
+  function schedule(){ if(timer) clearTimeout(timer); timer=setTimeout(beat, held?20000:8000); }
+  ['qPoType','qOrderDate','qManualChk'].forEach(function(id){ var e=document.getElementById(id); if(e) e.addEventListener('change', function(){ setTimeout(beat, 50); }); });
+  window.addEventListener('pagehide', function(){
+    try{ navigator.sendBeacon('/api/project-reg-lock/release', new Blob([JSON.stringify({token:TOK.value})], {type:'application/json'})); }catch(e){}
+  });
+  document.getElementById('quickForm').addEventListener('submit', function(e){
+    if(!held){ e.preventDefault(); e.stopImmediatePropagation();
+      alert('지금 '+(document.getElementById('qLockWho').textContent||'다른 분')+' 님이 등록 화면에서 작업 중입니다.\n입력한 내용은 그대로 있습니다 — 화면이 열리면 다시 [등록]하세요.'); }
+  }, true);
+  beat();
+})();
+/* z1191z57 ② 입력 기준 ⓘ — 프로젝트명·모델명·장비명 */
+(function(){
+  var FG={{ (field_guides or {})|tojson }}, CAN={{ 'true' if fg_can_edit else 'false' }}, pop=null;
+  function biz(){ var e=document.getElementById('qBizDiv'); return e? (e.value||''):''; }
+  var BZ={T:'검사기',M:'자동화',L:'라이프밸류',E:'기타'};
+  function mark(){ document.querySelectorAll('.qf-gi').forEach(function(b){ var g=FG[b.dataset.gk]||{}; b.classList.toggle('empty', !(g.body||'').trim()); }); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function close(){ if(pop){ pop.remove(); pop=null; } }
+  function place(b){ var r=b.getBoundingClientRect(); var x=r.left+window.scrollX, y=r.bottom+window.scrollY+6;
+    var w=Math.min(440, window.innerWidth-32); if(x+w>window.scrollX+window.innerWidth-16) x=window.scrollX+window.innerWidth-16-w; if(x<window.scrollX+16) x=window.scrollX+16;
+    pop.style.left=x+'px'; pop.style.top=y+'px'; }
+  function view(b){
+    var k=b.dataset.gk, g=FG[k]||{label:k};
+    var bz=biz(), body=(g.body||'').trim();
+    pop.innerHTML='<h4>ⓘ '+esc(g.label)+' — 입력 기준</h4>'
+      +'<div class="gb'+(body?'':' none')+'">'+(body? esc(body) : '아직 정한 기준이 없습니다.'+(CAN?' [기준 정하기]를 눌러 처음 정해 주세요 — 저장하면 모두에게 같은 기준이 보입니다.':''))+'</div>'
+      +(g.at? '<div class="gm">마지막으로 고친 사람: '+esc(g.by)+' · '+esc(g.at)+'</div>':'')
+      +'<div class="gx"><b>최근 등록 예'+(BZ[bz]?' ('+BZ[bz]+')':'')+'</b><ul><li style="color:#94a3b8">불러오는 중…</li></ul></div>'
+      +'<div class="gbtn">'+(g.at?'<button type="button" data-a="hist">이력</button>':'')+(CAN?'<button type="button" class="pri" data-a="edit">'+(body?'✏ 기준 고치기':'기준 정하기')+'</button>':'')+'<button type="button" data-a="close">닫기</button></div>';
+    fetch('/api/field-guides/examples?key='+encodeURIComponent(k)+'&biz='+encodeURIComponent(bz)).then(function(r){ return r.json(); }).then(function(j){
+      if(!pop) return; var ul=pop.querySelector('.gx ul'); if(!ul) return;
+      ul.innerHTML=(j.items||[]).length? j.items.map(function(x){ return '<li>'+esc(x.v)+' <code>'+esc(x.mgmt)+'</code></li>'; }).join('') : '<li style="color:#94a3b8">아직 없음</li>';
+    }).catch(function(){});
+    pop.onclick=function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; e.preventDefault();
+      if(a==='close') close(); else if(a==='edit') edit(b); else if(a==='hist') hist(b); };
+  }
+  function edit(b){
+    var k=b.dataset.gk, g=FG[k]||{label:k};
+    pop.innerHTML='<h4>✏ '+esc(g.label)+' — 입력 기준 고치기</h4>'
+      +'<textarea maxlength="2000" placeholder="예) 고객사 제품 모델명 그대로 · 여러 개면 쉼표(,)로 · 버전(-0126000)까지 · 영문 대문자">'+esc(g.body||'')+'</textarea>'
+      +'<div class="gm">저장하면 이 칸을 쓰는 모든 분에게 같은 기준이 보입니다 · 고친 사람·시각은 이력으로 남습니다</div>'
+      +'<div class="gbtn"><button type="button" data-a="back">취소</button><button type="button" class="pri" data-a="save">저장</button></div>';
+    var ta=pop.querySelector('textarea'); ta.focus();
+    pop.onclick=function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; e.preventDefault();
+      if(a==='back') view(b);
+      else if(a==='save'){ e.target.disabled=true;
+        fetch('/api/field-guides/'+encodeURIComponent(k),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({body:ta.value})})
+          .then(function(r){ return r.json(); }).then(function(j){
+            if(!j.ok){ alert('저장하지 못했습니다: '+(j.error||'')); e.target.disabled=false; return; }
+            if(!j.same) FG[k]=Object.assign({}, FG[k]||{}, j.guide); mark(); view(b);
+          }).catch(function(){ alert('저장하지 못했습니다(통신 오류) — 다시 눌러 주세요.'); e.target.disabled=false; });
+      } };
+  }
+  function hist(b){
+    var k=b.dataset.gk, g=FG[k]||{label:k};
+    pop.innerHTML='<h4>'+esc(g.label)+' — 기준 이력</h4><div class="gx"><ul><li style="color:#94a3b8">불러오는 중…</li></ul></div><div class="gbtn"><button type="button" data-a="back">돌아가기</button></div>';
+    fetch('/api/field-guides/'+encodeURIComponent(k)+'/history').then(function(r){ return r.json(); }).then(function(j){
+      var ul=pop && pop.querySelector('.gx ul'); if(!ul) return;
+      ul.innerHTML=(j.items||[]).map(function(x){ return '<li><b>'+esc(x.at)+' · '+esc(x.by)+'</b><div style="white-space:pre-wrap;color:#334155;margin:2px 0 6px;">'+(esc(x.body)||'<i>(비움)</i>')+'</div></li>'; }).join('') || '<li>없음</li>';
+    }).catch(function(){});
+    pop.onclick=function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(a==='back'){ e.preventDefault(); view(b); } };
+  }
+  document.addEventListener('click', function(e){
+    var b=e.target.closest && e.target.closest('.qf-gi');
+    if(b){ e.preventDefault(); e.stopPropagation(); close(); pop=document.createElement('div'); pop.className='z57-pop'; document.body.appendChild(pop); view(b); place(b); return; }
+    if(pop && !pop.contains(e.target)) close();
+  }, true);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
+  mark();
 })();
 </script>
 </body>
