@@ -104,6 +104,34 @@ select.prq-in { appearance:auto; }
 .z50-past-msg { flex-basis:100%; font-weight:600; font-size:11.5px; color:#047857; }
 .z50-past-msg:empty { display:none; }
 .prq-imgs.z50-drag { outline:2px dashed #f97316; outline-offset:2px; background:#fff7ed; }
+/* z1191z51 재발행 — 수정 사유 · 바뀐 줄 · 취소 · 묶음에서 빼기 */
+.z51-why { border:1px solid #bfdbfe; background:#eff6ff; border-radius:10px; padding:10px 12px; margin:0 0 12px; }
+.z51-chips { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 6px; }
+.z51-chip { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:999px; padding:3px 11px; font-size:12px; font-weight:700; cursor:pointer; }
+.z51-chip.on { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.z51-x { margin-left:5px; border:none; background:#e2e8f0; color:#475569; border-radius:50%; width:17px; height:17px; line-height:15px; padding:0; font-size:12px; cursor:pointer; }
+.z51-x:hover { background:#dc2626; color:#fff; }
+.z49-chip.z51-off { text-decoration:line-through; opacity:.55; background:#fee2e2; }
+.z51-l.z51-add { background:#fef08a; border-radius:3px; }
+.z51-l.z51-del { color:#b91c1c; text-decoration:line-through; opacity:.75; }
+#prqView.z51-plain .z51-l.z51-add { background:none; }
+#prqView.z51-plain .z51-l.z51-del { display:none; }
+.z51-legend { font-weight:400; font-size:11.5px; color:#475569; }
+.z51-legend button { margin-left:6px; border:1px solid #93c5fd; background:#fff; color:#1e3a8a; border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
+.z51-cxband { background:#fef2f2; border:2px solid #dc2626; color:#991b1b; border-radius:10px; padding:10px 14px; margin:0 0 10px; font-size:13.5px; line-height:1.6; }
+.z51-cxband a { color:#9a3412; font-weight:800; margin-left:8px; }
+#z48Paper.z51-cxp { position:relative; }
+#z48Paper.z51-cxp > * { opacity:.55; }
+#z48Paper.z51-cxp::after { content:"취소"; position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) rotate(-14deg); font-size:110px; font-weight:900; color:rgba(220,38,38,.55); border:10px solid rgba(220,38,38,.55); border-radius:18px; padding:0 34px; letter-spacing:18px; pointer-events:none; }
+.z51-cancel { border:2px solid #fca5a5; background:#fff5f5; border-radius:10px; padding:12px 14px; margin:10px 0 4px; }
+.z51-ct { font-weight:800; color:#991b1b; font-size:14px; }
+.z51-cnote { font-size:11.5px; color:#7f1d1d; margin-top:6px; line-height:1.6; }
+.z51-cbtns { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.z51-cxbtn { color:#b91c1c !important; border-color:#fca5a5 !important; }
+.z51-hist { margin:10px 0 4px; font-size:12.5px; color:#334155; }
+.z51-hist summary { cursor:pointer; font-weight:700; color:#1e3a8a; }
+.z51-hist ol { margin:6px 0 0 18px; padding:0; line-height:1.7; }
+@media print { .z51-l.z51-add { background:none !important; } .z51-l.z51-del { display:none !important; } #z48Paper.z51-cxp > * { opacity:1; } }
 /* 수주 고르기(작성·수정) */
 .z48-ol { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto; border:1px solid var(--line,#eef0f4); border-radius:7px; padding:7px 10px; background:#fff; }
 .z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:#1f2937; cursor:pointer; }
@@ -157,6 +185,7 @@ select.prq-in { appearance:auto; }
   @page { size:A4; margin:10mm; }
   body * { visibility:hidden !important; }
   #z48Paper, #z48Paper * { visibility:visible !important; }
+  body *:not(:has(#z48Paper)):not(#z48Paper):not(#z48Paper *) { display:none !important; }   /* z1191z51: 빈 쪽 안 생기게 자리까지 접음 */
   #z48Paper { position:absolute; left:0; top:0; width:100%; container-type:normal; }
   #z48Paper .z48-desk { display:table !important; }
   #z48Paper .z48-mob, #z48Paper .z48-copy { display:none !important; }
@@ -188,7 +217,7 @@ select.prq-in { appearance:auto; }
           <div class="prq-lbl">함께 묶을 관리번호 <span style="font-weight:400;color:var(--mute,#64748b);">— 같은 고객사 · 한 장으로 발행 · 통보 한 번 (안 묶어도 됩니다)</span></div>
           <div class="z49-box">
             {% if z48.bitems|length > 1 %}
-            <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip" data-mgmt="{{ it.mgmt }}" data-equip="{{ it.equip }}" data-qty="{{ it.qty }}" data-hogi="{{ it.hogi|join(', ') }}"{% if loop.first %} data-lead="1"{% endif %}>{{ it.mgmt }}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — 아래에서 더 붙일 수 있습니다.</span></div>
+            <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip" data-mgmt="{{ it.mgmt }}" data-equip="{{ it.equip }}" data-qty="{{ it.qty }}" data-hogi="{{ it.hogi|join(', ') }}"{% if loop.first %} data-lead="1" title="대표 관리번호 — 뺄 수 없습니다(요청서 전체를 취소하려면 「🚫 취소 발행」)"{% endif %}>{{ it.mgmt }}{% if not loop.first %}<button type="button" class="z51-x" onclick="z51Remove(this)" title="이 관리번호를 묶음에서 뺍니다(수정발행할 때 적용)">×</button><input type="checkbox" name="remove_pids" value="{{ it.pid }}" hidden>{% endif %}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — × 로 뺄 수 있고(대표 관리번호는 못 뺌), 아래에서 더 붙일 수 있습니다.</span></div>
             {% endif %}
             {% if z48.n_sug %}
             <div class="z49-sug"><span>같은 날 발주된 관리번호가 <b>{{ z48.n_sug }}건</b> 더 있습니다(제작요청서 아직 없음) — 한 장으로 묶을까요?</span><button type="button" onclick="z49CheckSug(this)">모두 묶기</button></div>
@@ -238,6 +267,12 @@ select.prq-in { appearance:auto; }
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;font-weight:700;">📤 제작요청서 발행 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 통보{% endif %}{% if request.query_params.get('prod_img') %} · 참고 이미지 {{ request.query_params.get('prod_img') }}장{% endif %}.{% if request.query_params.get('prod_imgskip') %}<div style="margin-top:4px;font-weight:600;color:#9a3412;">⚠ 이미지 {{ request.query_params.get('prod_imgskip') }}장은 붙이지 못했습니다 — JPG·PNG 로 「✏️ 수정하기」에서 다시 붙여 주세요.</div>{% endif %}</div>
     {% elif request.query_params.get('prod_updated') %}
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
+    {% elif request.query_params.get('prod_cxdone') %}
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13px;font-weight:700;">🚫 취소 발행 완료{% if request.query_params.get('prod_sent') is not none %} — {{ request.query_params.get('prod_dept','0') }}부서·{{ request.query_params.get('prod_sent','0') }}명에게 「취소」로 알렸습니다{% endif %}.</div>
+    {% elif request.query_params.get('prod_cxneed') %}
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 취소 사유를 고르거나 적어야 취소할 수 있습니다.</div>
+    {% elif request.query_params.get('prod_cancelled') %}
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 이미 취소된 제작요청서라 고칠 수 없습니다 — 「📋 새로 작성」으로 다시 발행하세요.</div>
     {% elif request.query_params.get('prod_upderr') %}
     <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
     {% endif %}
@@ -299,7 +334,7 @@ select.prq-in { appearance:auto; }
           {% if z48.past %}
           {# z1191z50: 지난 요청서 불러오기 — 이 관리번호의 지난 요청서 먼저 · 그다음 같은 고객사 #}
           <div class="z50-past">📂 지난 요청서 불러오기
-            <select aria-label="불러올 지난 요청서" onchange="z50Past(this)"><option value="">— 고르면 바로 들어갑니다 ({{ z48.past|length }}건) —</option>{% for d in z48.past %}<option value="{{ loop.index0 }}">{{ d.date }} · {{ d.mgmt }}{% if d.mine %} (이 관리번호){% endif %} · {{ d.head or '(요지 없음)' }}</option>{% endfor %}</select>
+            <select aria-label="불러올 지난 요청서" onchange="z50Past(this)"><option value="">— 고르면 바로 들어갑니다 ({{ z48.past|length }}건) —</option>{% for d in z48.past %}<option value="{{ loop.index0 }}">{{ d.date }} · {{ d.mgmt }}{% if d.mine %} (이 관리번호){% endif %}{% if d.cx %} (취소됨){% endif %} · {{ d.head or '(요지 없음)' }}</option>{% endfor %}</select>
             <span class="z50-past-msg"></span>
           </div>
           <script type="application/json" id="z50PastData">{{ z48.past|tojson }}</script>
@@ -379,7 +414,7 @@ select.prq-in { appearance:auto; }
     </div>
     {% elif pr %}
     <div class="prq-box">
-      <div class="prq-hd">📋 제작요청서 · {{ p.mgmt_code }}{% if z48.bitems|length > 1 %} 외 {{ z48.bitems|length - 1 }}건 <span style="font-weight:600;font-size:12px;color:#64748b;">— 묶어서 발행한 요청서</span>{% endif %}</div>
+      <div class="prq-hd">📋 제작요청서 · {{ p.mgmt_code }}{% if z48.bitems|length > 1 %} 외 {{ z48.bitems|length - 1 }}건 <span style="font-weight:600;font-size:12px;color:#64748b;">— 묶어서 발행한 요청서</span>{% endif %}{% if z48.z51.cx %} <span style="color:#dc2626;font-weight:900;">· 🚫 취소됨</span>{% endif %}</div>
       <div class="prq-bd">
         <div class="prq-meta">
           <span>🗓 발행 <b style="color:#334155;">{{ pr.created_at or pr.created_date }}</b></span>
@@ -394,10 +429,15 @@ select.prq-in { appearance:auto; }
              종이 「제작 요청서」 배치(제목+구분 · 고객사/작성자 · 담당자/MODEL · 요지 · 각인 · 품목 표[관리코드·수주번호·호기·모델명·품명·수량·일정]
              · 자료 경로 · 고객사 요청사항｜기타 요청사항). 웍스에만 있는 값(프로젝트명·사업부·형태·거래구분·발주일)은 한 줄로. 금액 없음. ===== #}
         <div id="prqView">
-          {% if z48.rev %}<div class="z48-rev">✏️ <b>수정발행 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</b> — {{ z48.rev }}</div>{% endif %}
+          {% set _cx = z48.z51.cx %}
+          {% if _cx %}<div class="z51-cxband">🚫 <b>{% if _cx.kind == 'remove' %}묶음에서 뺀 관리번호입니다{% else %}취소된 제작요청서입니다{% endif %}</b> — {{ _cx.at }}{% if _cx.by %} · {{ _cx.by }}{% endif %}{% if _cx.reason %}<br>사유: <b>{{ _cx.reason }}</b>{% endif %}
+            {% if _cx.kind == 'remove' and _cx.lead_pid %}<a href="/project/{{ _cx.lead_pid }}/prod-request/edit?prid={{ _cx.lead_id }}">{{ _cx.lead_mgmt }} 묶음 요청서 보기 →</a>{% endif %}
+            {% if can_edit %}<a href="/project/{{ p.id }}/prod-request/edit?new=1">📋 새로 작성</a>{% endif %}</div>
+          {% elif z48.z51.last %}{% set _l = z48.z51.last %}<div class="z48-rev">✏️ <b>수정발행 {{ _l.created_at }}{% if _l.by_name %} · {{ _l.by_name }}{% endif %}</b>{% if _l.reason %} — 사유: <b>{{ _l.reason }}</b>{% endif %}{% if _l.changes %} · {{ _l.changes }}{% endif %}{% if z48.z51.n_ch %}<span class="z51-legend"> · <span class="z51-l z51-add">노란 줄</span> = 바뀐 줄 · <span class="z51-l z51-del">빨간 줄</span> = 지운 줄 <button type="button" onclick="z51HideCh(this)">바뀐 곳 숨기기</button></span>{% endif %}</div>
+          {% elif z48.rev %}<div class="z48-rev">✏️ <b>수정발행 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</b> — {{ z48.rev }}</div>{% endif %}
           {% set _z48_so %}{% if z48.sel %}{% for o in z48.sel %}{{ o.order_no }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}—{% endif %}{% endset %}
           {# z1191z48e: 호기만(부품 이름 목록 같은 글은 빼고 · 이어진 번호는 묶어서) #}{% set _z48_hogi %}{% for o in z48.sel|selectattr('hogi') %}{{ o.hogi }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endset %}
-          <div id="z48Paper">
+          <div id="z48Paper"{% if z48.z51.cx %} class="z51-cxp"{% endif %}>
           <table class="z48-prs z48-desk">
             <colgroup><col style="width:4%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:16%"><col style="width:20%"><col style="width:9%"><col style="width:19%"></colgroup>
             <tr><td colspan="8" class="z48-tt">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" title="구분 — 가리키는 수주의 발주유형">{{ z48.kind }}</span>{% endif %}</td></tr>
@@ -416,7 +456,9 @@ select.prq-in { appearance:auto; }
             <tr><td colspan="8" class="z48-h">자료 경로</td></tr>
             <tr><td colspan="8" style="padding:11px;">{% if p.server_path %}<span style="word-break:break-all;">{{ p.server_path }}</span><button type="button" class="z48-copy" data-copy="{{ p.server_path }}" onclick="z48Copy(this)" title="탐색기 주소줄에 붙여 넣을 수 있게 경로를 복사합니다">📋 경로 복사</button>{% else %}—{% endif %}</td></tr>
             <tr><td colspan="6" class="z48-h">고객사 요청사항</td><td colspan="2" class="z48-h">기타 요청사항</td></tr>
-            <tr><td colspan="6" class="z48-req">{{ pr.cust_req or '(없음)' }}</td><td colspan="2" class="z48-req">{{ pr.note or '' }}</td></tr>
+            <tr><td colspan="6" class="z48-req">{% if z48.z51.dl_cust %}{% for l in z48.z51.dl_cust %}<span class="z51-l{% if l.st %} z51-{{ l.st }}{% endif %}">{{ l.t }}{% if not loop.last %}
+{% endif %}</span>{% endfor %}{% else %}{{ pr.cust_req or '(없음)' }}{% endif %}</td><td colspan="2" class="z48-req">{% if z48.z51.dl_note %}{% for l in z48.z51.dl_note %}<span class="z51-l{% if l.st %} z51-{{ l.st }}{% endif %}">{{ l.t }}{% if not loop.last %}
+{% endif %}</span>{% endfor %}{% else %}{{ pr.note or '' }}{% endif %}</td></tr>
             <tr><td colspan="8" class="z48-info">
               <span class="z48-kv"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></span>
               <span class="z48-kv"><span class="k">사업부</span><span class="v">{{ biz_label }}</span></span>
@@ -453,7 +495,8 @@ select.prq-in { appearance:auto; }
               {% endfor %}
             </div>
             {% if p.server_path %}<div class="z48-card"><div class="z48-ch">자료 경로</div><div class="z48-cb" style="word-break:break-all;">{{ p.server_path }}<br><button type="button" class="z48-copy" style="margin-left:0;" data-copy="{{ p.server_path }}" onclick="z48Copy(this)">📋 경로 복사</button></div></div>{% endif %}
-            <div class="z48-card"><div class="z48-ch">고객사 요청사항</div><div class="z48-cb">{{ pr.cust_req or '(없음)' }}</div></div>
+            <div class="z48-card"><div class="z48-ch">고객사 요청사항</div><div class="z48-cb">{% if z48.z51.dl_cust %}{% for l in z48.z51.dl_cust %}<span class="z51-l{% if l.st %} z51-{{ l.st }}{% endif %}">{{ l.t }}{% if not loop.last %}
+{% endif %}</span>{% endfor %}{% else %}{{ pr.cust_req or '(없음)' }}{% endif %}</div></div>
             {% if pr.note %}<div class="z48-card"><div class="z48-ch">기타 요청사항</div><div class="z48-cb">{{ pr.note }}</div></div>{% endif %}
             <div class="z48-card"><div class="z48-cb" style="white-space:normal;">
               <span class="z48-kv"><span class="k">프로젝트명</span><span class="v">{{ p.name or '—' }}</span></span>
@@ -465,13 +508,25 @@ select.prq-in { appearance:auto; }
           </div>
           </div>
           {% include "_z48_copy.html" %}
+          {% if z48.z51.revs %}
+          <details class="z51-hist"{% if z48.z51.cx %} open{% endif %}><summary>🕘 수정 이력 {{ z48.z51.revs|length }}건</summary>
+            <ol>{% for r in z48.z51.revs %}<li>{% if r.kind == 'cancel' %}<b style="color:#b91c1c;">🚫 취소</b>{% else %}<b>✏️ 수정발행</b>{% endif %} {{ r.created_at }}{% if r.by_name %} · {{ r.by_name }}{% endif %}{% if r.reason %} — 사유: {{ r.reason }}{% endif %}{% if r.changes and r.kind != 'cancel' %} <span style="color:#64748b;">({{ r.changes }})</span>{% endif %}</li>{% endfor %}</ol>
+          </details>
+          {% endif %}
         </div>
 
         {# ===== 편집 모드(수정하기) — 관리번호만 고정, 나머지 전부 편집 ===== #}
-        {% if can_edit %}
+        {% if can_edit and not z48.z51.cx %}
         <form id="prqEditForm" method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/update" hidden onsubmit="return prqValidate(this);">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit?prid={{ pr.id }}">
           <input type="hidden" name="full_edit" value="1">
+          {# z1191z51 (대표 2026-11-17 2차 · 재발행): 수정 사유 — 받는 사람 알림 맨 위에 보임 · 눌러서 고르거나 직접 씀 #}
+          <div class="z51-why">
+            <div class="prq-lbl" style="margin-top:0;">✏️ 수정 사유 <span style="font-weight:400;color:var(--mute,#64748b);">— 받는 사람 알림 맨 위에 보입니다 · 눌러서 고르거나 직접 쓰세요</span></div>
+            <div class="z51-chips">{% for r in z48.z51.reasons %}<button type="button" class="z51-chip" onclick="z51Reason(this)">{{ r }}</button>{% endfor %}</div>
+            <input class="prq-in" type="text" name="rev_reason" maxlength="120" placeholder="예) 수량 4 → 8EA · 납기 12/1 → 12/5" autocomplete="off">
+            <div class="z48-hint" style="margin:4px 0 0;">요청사항에서 바뀐 줄은 저장하면 자동으로 노랗게 표시되고 알림에도 실립니다.</div>
+          </div>
           {{ z48_fields(pr.gist or '') }}
           <div class="prq-sec">📄 기본 정보 <span class="prq-sec-sub">— 관리번호 빼고 전부 편집</span></div>
           <div class="prq-info-edit">
@@ -613,9 +668,9 @@ select.prq-in { appearance:auto; }
           <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표 바로가기</a>
           <div class="prq-actions">
             <span id="prqViewBtns" class="prq-actgrp">
-              {% if can_edit %}<button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="prqEnterEdit()">✏️ 수정하기</button>{% endif %}
+              {% if can_edit and not z48.z51.cx %}<button type="button" class="btn btn-secondary z51-cxbtn" onclick="z51CancelOpen()" title="이 요청서를 취소하고 받았던 사람에게 알립니다">🚫 취소 발행</button> <button type="button" class="btn btn-primary" style="background:#c2410c;" onclick="prqEnterEdit()">✏️ 수정하기</button>{% elif can_edit %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit?new=1">📋 새로 작성</a>{% endif %}
             </span>
-            {% if can_edit %}
+            {% if can_edit and not z48.z51.cx %}
             <span id="prqEditBtns" class="prq-actgrp" hidden>
               <button type="button" class="btn btn-secondary" onclick="prqCancelEdit()">취소</button>
               <button type="submit" form="prqEditForm" class="btn btn-primary" style="background:#c2410c;{% if z48.need %}opacity:.45;cursor:not-allowed;{% endif %}"{% if z48.need %} disabled title="{{ z48.need_now }}"{% endif %}>🔁 수정발행 · 부서 다시 통보</button>
@@ -623,6 +678,22 @@ select.prq-in { appearance:auto; }
             {% endif %}
           </div>
         </div>
+        {# z1191z51: 취소 발행 — 사유(필수 · 눌러서 고름) · 받은 사람에게 「취소」로 다시 알림 #}
+        {% if can_edit and not z48.z51.cx %}
+        <div id="z51Cancel" class="z51-cancel" hidden>
+          <form method="post" action="/project/{{ p.id }}/prod-request/{{ pr.id }}/cancel" onsubmit="return z51CancelGo(this);">
+            <div class="z51-ct">🚫 이 제작요청서를 취소합니다{% if z48.bitems|length > 1 %} — 묶은 관리번호 {{ z48.bitems|length }}건 모두{% endif %}</div>
+            <div class="prq-lbl" style="margin-top:6px;">취소 사유 <span style="color:#dc2626;">(필수)</span></div>
+            <div class="z51-chips">{% for r in z48.z51.cx_reasons %}<button type="button" class="z51-chip" onclick="z51Reason(this)">{{ r }}</button>{% endfor %}</div>
+            <input class="prq-in" type="text" name="cancel_reason" maxlength="120" placeholder="예) 고객사 요청으로 미진행" autocomplete="off">
+            <div class="z51-cnote">받았던 사람({{ pr.dept_count or 0 }}부서 · {{ pr.sent_to or 0 }}명)에게 「🚫 제작요청 취소」로 다시 알립니다. 취소한 요청서는 고칠 수 없고, 필요하면 새로 작성합니다(지난 요청서 불러오기로 글을 그대로 가져올 수 있습니다).</div>
+            <div class="z51-cbtns">
+              <button type="button" class="btn btn-secondary" onclick="z51CancelClose()">닫기</button>
+              <button type="submit" class="btn" style="background:#b91c1c;color:#fff;">🚫 취소 발행 · 받은 사람에게 알림</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
         {% if can_edit %}
         <div id="prqEditHint" class="prq-edithint" hidden>저장하면 관련 부서에 [수정]으로 다시 통보됩니다.</div>
         {% endif %}
@@ -714,7 +785,7 @@ select.prq-in { appearance:auto; }
       function v(n){ var e=f.querySelector('[name='+n+']'); return e?String(e.value||'').trim():''; }
       var lh=[]; f.querySelectorAll('input[name=order_ids]').forEach(function(e){ if(e.type!=='checkbox'||e.checked){ var h=e.getAttribute('data-hogi')||''; if(h) lh.push(h); } });
       var items=[{mgmt:'', equip:v('equip_name')||v('name'), qty:v('unit_qty'), hogi:lh.join(', ')}], rest=[];
-      f.querySelectorAll('.z49-chip[data-mgmt]:not([data-lead])').forEach(function(c){
+      f.querySelectorAll('.z49-chip[data-mgmt]:not([data-lead]):not(.z51-off)').forEach(function(c){
         rest.push({mgmt:c.getAttribute('data-mgmt')||'', equip:c.getAttribute('data-equip')||'', qty:c.getAttribute('data-qty')||'', hogi:c.getAttribute('data-hogi')||''}); });
       f.querySelectorAll('.z49-item input[name=bundle_pids]:checked').forEach(function(cb){
         var r=cb.closest('.z49-item'); if(!r) return; var h='';
@@ -832,7 +903,42 @@ select.prq-in { appearance:auto; }
         });
       }
     })();
+    // z1191z51 (대표 2026-11-17 2차 · 재발행) ─────────────────────────────────
+    function z51Toggle(inp, word, on){   // 쉼표로 이은 사유 칸에 낱말을 넣고 뺌
+      var a=String(inp.value||'').split(/\s*[,·]\s*/).filter(function(x){ return x.trim(); });
+      var i=a.indexOf(word);
+      if(on===undefined) on = i<0;
+      if(on && i<0) a.push(word); if(!on && i>=0) a.splice(i,1);
+      inp.value=a.join(', ');
+    }
+    window.z51Reason=function(btn){   // 사유 고르기(다시 누르면 뺌)
+      var box=btn.closest('.z51-why, .z51-cancel'); if(!box) return; var inp=box.querySelector('input[type=text]'); if(!inp) return;
+      z51Toggle(inp, btn.textContent.trim()); btn.classList.toggle('on', (inp.value||'').indexOf(btn.textContent.trim())>=0);
+    };
+    window.z51Remove=function(btn){   // 묶음에서 빼기(수정발행할 때 적용 · 다시 누르면 되돌림)
+      var chip=btn.closest('.z49-chip'); var cb=chip&&chip.querySelector('input[name=remove_pids]'); if(!cb) return;
+      cb.checked=!cb.checked; chip.classList.toggle('z51-off', cb.checked);
+      btn.textContent=cb.checked?'↺':'×'; btn.title=cb.checked?'되돌리기 — 묶음에 그대로 둡니다':'이 관리번호를 묶음에서 뺍니다(수정발행할 때 적용)';
+      var f=btn.closest('form'); var inp=f&&f.querySelector('input[name=rev_reason]');
+      if(inp){ z51Toggle(inp, '품목 제외', !!f.querySelector('input[name=remove_pids]:checked')); }
+    };
+    window.z51CancelOpen=function(){ var b=document.getElementById('z51Cancel'); if(!b) return; b.hidden=false; try{ b.scrollIntoView({block:'center'}); b.querySelector('input[name=cancel_reason]').focus(); }catch(_){} };
+    window.z51CancelClose=function(){ var b=document.getElementById('z51Cancel'); if(b) b.hidden=true; };
+    window.z51CancelGo=function(form){
+      var inp=form.querySelector('input[name=cancel_reason]');
+      if(!inp || !inp.value.trim()){ alert('취소 사유를 고르거나 적어 주세요 — 받는 사람이 왜 취소됐는지 알아야 합니다.'); try{ inp.focus(); }catch(_){} return false; }
+      return confirm('이 제작요청서를 취소하고 받았던 사람에게 알릴까요? (취소한 요청서는 고칠 수 없습니다)');
+    };
+    window.z51HideCh=function(btn){   // 바뀐 곳 표시 숨기기/보이기
+      var p=document.getElementById('prqView'); if(!p) return; var off=p.classList.toggle('z51-plain');
+      btn.textContent=off?'바뀐 곳 보이기':'바뀐 곳 숨기기';
+    };
     window.prqValidate=function(form){
+      // z1191z51: 수정 사유 — 비어 있으면 한 번 묻는다(받는 사람이 무엇이 왜 바뀌었는지 알도록)
+      try{
+        var rr=form.querySelector('input[name=rev_reason]');
+        if(rr && !rr.value.trim() && !confirm('수정 사유 없이 보낼까요?\n(위의 「수량 변경」 같은 단추를 누르면 한 번에 들어갑니다)')){ try{ rr.focus(); }catch(_){} return false; }
+      }catch(_){}
       // z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 수주가 여러 건이면 하나 이상 골라야 한다
       try{
         if(form.querySelector('input[type=checkbox][name=order_ids]') && !form.querySelector('input[type=checkbox][name=order_ids]:checked')){

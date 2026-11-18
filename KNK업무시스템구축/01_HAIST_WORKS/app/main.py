@@ -11758,12 +11758,12 @@ def _z49_item(c, proj, stored_csv="", issued_at=""):
 def _z49_bundle_rows(c, pr):
     """제작요청서 줄 → 같은 묶음의 줄들(대표 줄 먼저). 묶음이 아니면 자기 한 줄."""
     bid = pr.get("bundle_id")
-    if not bid:
+    if not bid or (pr.get("cancel_kind") or "") == "remove":   # z1191z51: 묶음에서 뺀 줄은 자기 한 줄
         return [pr]
     rows = [dict(r) for r in c.execute(
         "SELECT m.id, m.project_id, COALESCE(m.order_ids,'') AS order_ids, COALESCE(m.created_at,'') AS created_at, m.bundle_id FROM prod_requests m "
         "LEFT JOIN projects p ON p.id=m.project_id "   # 대표 줄 먼저 · 그 뒤는 관리번호 순(고른 순서가 아니라)
-        "WHERE m.bundle_id=? ORDER BY (CASE WHEN m.id=m.bundle_id THEN 0 ELSE 1 END), COALESCE(p.mgmt_code,''), m.id", (bid,)).fetchall()]
+        "WHERE m.bundle_id=? AND COALESCE(m.cancel_kind,'')<>'remove' ORDER BY (CASE WHEN m.id=m.bundle_id THEN 0 ELSE 1 END), COALESCE(p.mgmt_code,''), m.id", (bid,)).fetchall()]
     return rows or [pr]
 
 
@@ -11774,7 +11774,7 @@ def _z49_candidates(c, p, exclude_pids, limit=60):
         return []
     out = []
     pod = str(p.get("order_date") or "")[:10]
-    for r in c.execute("SELECT " + _Z49_PCOLS + ", (SELECT COUNT(*) FROM prod_requests pr WHERE pr.project_id=projects.id) AS n_pr "
+    for r in c.execute("SELECT " + _Z49_PCOLS + ", (SELECT COUNT(*) FROM prod_requests pr WHERE pr.project_id=projects.id AND pr.cancelled_at IS NULL) AS n_pr "
                        "FROM projects WHERE customer_id=? AND id<>? AND COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
                        "ORDER BY id DESC LIMIT 300", (p["customer_id"], p["id"])).fetchall():
         d = dict(r)
@@ -11819,7 +11819,7 @@ def _z49_members_need(c, prid):
     if not bid:
         return ""
     for r in c.execute("SELECT m.project_id, COALESCE(m.order_ids,''), COALESCE(m.created_at,''), COALESCE(p.mgmt_code,'') FROM prod_requests m "
-                       "LEFT JOIN projects p ON p.id=m.project_id WHERE m.bundle_id=? AND m.id<>m.bundle_id", (bid,)).fetchall():
+                       "LEFT JOIN projects p ON p.id=m.project_id WHERE m.bundle_id=? AND m.id<>m.bundle_id AND COALESCE(m.cancel_kind,'')<>'remove'", (bid,)).fetchall():
         if not str(r[3] or "").strip() or not _z48_pick_orders(_z48_project_orders(c, r[0]), r[1], r[2]):
             return "member"
     return ""
@@ -11830,7 +11830,7 @@ def _z49_apply_update(c, prid, pid, bundle, bundle_model, cust_req, note, gist, 
     묶음이 아니고 붙이는 것도 없으면 아무것도 하지 않는다."""
     row = c.execute("SELECT bundle_id FROM prod_requests WHERE id=?", (prid,)).fetchone()
     bid = (row[0] if row else None) or None
-    exist = ({r[0] for r in c.execute("SELECT project_id FROM prod_requests WHERE bundle_id=?", (bid,)).fetchall()} if bid else {pid})
+    exist = ({r[0] for r in c.execute("SELECT project_id FROM prod_requests WHERE bundle_id=? AND COALESCE(cancel_kind,'')<>'remove'", (bid,)).fetchall()} if bid else {pid})
     add = [b for b in (bundle or []) if b["pid"] not in exist]
     if add and not bid:
         c.execute("UPDATE prod_requests SET bundle_id=? WHERE id=?", (prid, prid))
@@ -11850,7 +11850,7 @@ def _z49_apply_update(c, prid, pid, bundle, bundle_model, cust_req, note, gist, 
             (b["pid"], mp[0], cust_req, note, lead.get("team_ids"), lead.get("wt_team_ids"), lead.get("user_ids"), lead.get("dept_names"),
              lead.get("recipients"), lead.get("issued_by"), lead.get("issued_by_name"), lead.get("sent_to"), lead.get("dept_count"),
              lead.get("msg_sent"), lead.get("created_at"), lead.get("created_date"), ",".join(str(o["id"]) for o in pick), (gist or None), bid))
-    c.execute("UPDATE prod_requests SET cust_req=?, note=?, gist=?, bundle_model=?, updated_at=?, updated_by_name=? WHERE bundle_id=?",
+    c.execute("UPDATE prod_requests SET cust_req=?, note=?, gist=?, bundle_model=?, updated_at=?, updated_by_name=? WHERE bundle_id=? AND COALESCE(cancel_kind,'')<>'remove'",
               (cust_req, note, (gist or None), (bundle_model or None), now, by, bid))
 
 
@@ -11882,13 +11882,15 @@ def _z50_past(c, p, limit=8):
     cid = p.get("customer_id")
     q = ("SELECT r.id, r.project_id, COALESCE(r.bundle_id, r.id) AS bkey, COALESCE(r.created_at,'') AS created_at, "
          "COALESCE(r.cust_req,'') AS cust_req, COALESCE(r.note,'') AS note, COALESCE(r.gist,'') AS gist, "
-         "COALESCE(r.issued_by_name,'') AS by_name, COALESCE(x.mgmt_code,'') AS mgmt "
+         "COALESCE(r.issued_by_name,'') AS by_name, COALESCE(x.mgmt_code,'') AS mgmt, COALESCE(r.cancel_kind,'') AS ck "
          "FROM prod_requests r JOIN projects x ON x.id=r.project_id "
          "WHERE COALESCE(x.is_archived,0)=0 AND (r.project_id=?" + (" OR x.customer_id=?" if cid else "") + ") "
          "ORDER BY (CASE WHEN r.project_id=? THEN 0 ELSE 1 END), r.id DESC LIMIT 300")
     args = (p["id"], cid, p["id"]) if cid else (p["id"], p["id"])
     for r in c.execute(q, args).fetchall():
         d = dict(r)
+        if d.get("ck") == "remove":   # z1191z51: 묶음에서 뺀 줄
+            continue
         if d["bkey"] in seen:
             continue
         if not (d["cust_req"].strip() or d["note"].strip() or d["gist"].strip()):
@@ -11898,10 +11900,112 @@ def _z50_past(c, p, limit=8):
             or d["note"].strip()
         head = head if len(head) <= 40 else head[:40].rstrip() + " …"
         out.append({"id": d["id"], "mgmt": d["mgmt"], "date": str(d["created_at"])[:10], "by": d["by_name"],
-                    "mine": int(d["project_id"]) == int(p["id"]), "head": head,
+                    "mine": int(d["project_id"]) == int(p["id"]), "head": head, "cx": d.get("ck") == "cancel",
                     "cust_req": d["cust_req"], "note": d["note"], "gist": d["gist"]})
         if len(out) >= limit:
             break
+    return out
+
+
+# z1191z51 (대표 2026-11-17 「2차 진행해」 · 2-3 재발행): 수정 사유 · 바뀐 줄 · 취소 발행 · 묶음에서 빼기.
+#   메일 실측(재송부 48통): 사유 = 수량 변경 · 납기 변경 · 자료 경로 수정 · 품명 오기입 · 가공 품목 변경 · 고객사 취소 · 중복으로 미진행.
+#   이력 = prod_request_revs(대표 줄 기준 · 0번 = 처음 발행 글) · 취소 = prod_requests.cancelled_at(+ cancel_kind 'cancel'|'remove').
+_Z51_REASONS = ("수량 변경", "납기 변경", "사양 변경", "자료 경로 수정", "오기입 정정")
+_Z51_CANCEL_REASONS = ("고객사 취소 요청", "중복 발행", "잘못 발행")
+
+
+def _z51_lines_diff(old, new):
+    """요청사항 줄 비교 → ([{t, st}], 바뀐 줄 수) · st: '' 그대로 · 'add' 새로 쓰거나 바뀐 줄 · 'del' 지운 줄."""
+    import difflib
+    a = str(old or "").replace("\r", "").split("\n")
+    b = str(new or "").replace("\r", "").split("\n")
+    out, n = [], 0
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if op == "equal":
+            out += [{"t": x, "st": ""} for x in b[j1:j2]]
+            continue
+        dels = [x for x in a[i1:i2] if x.strip()]
+        adds = b[j1:j2]
+        out += [{"t": x, "st": "del"} for x in dels]
+        out += [{"t": x, "st": ("add" if x.strip() else "")} for x in adds]
+        n += max(len([x for x in adds if x.strip()]), len(dels))
+    return out, n
+
+
+def _z51_change_text(old, new, limit=6):
+    """알림 글에 넣을 바뀐 줄(「+ 새 줄」 「− 지운 줄」) — 많으면 앞 몇 줄만."""
+    lines, _n = _z51_lines_diff(old, new)
+    ch = [("+ " if l["st"] == "add" else "− ") + l["t"].strip() for l in lines if l["st"]]
+    if len(ch) > limit:
+        ch = ch[:limit] + ["… 외 %d줄" % (len(ch) - limit)]
+    return ch
+
+
+def _z51_live_rows_sql(alias="m"):
+    """묶음에서 뺀 줄은 묶음이 아니다 — 묶음 줄을 읽는 곳마다 붙이는 조건."""
+    return "COALESCE(%s.cancel_kind,'')<>'remove'" % alias
+
+
+def _z51_items_csv(c, lead_id):
+    try:
+        return ",".join(r[0] or "" for r in c.execute(
+            "SELECT COALESCE(p.mgmt_code,'') FROM prod_requests m LEFT JOIN projects p ON p.id=m.project_id "
+            "WHERE (m.bundle_id=? OR m.id=?) AND " + _z51_live_rows_sql("m") + " "
+            "ORDER BY (CASE WHEN m.id=? THEN 0 ELSE 1 END), COALESCE(p.mgmt_code,''), m.id", (lead_id, lead_id, lead_id)).fetchall())
+    except Exception:
+        return ""
+
+
+def _z51_snapshot(c, lead_id, kind, reason, cust_req, note, gist, changes, by_id, by_name, at):
+    """이력 한 줄(대표 줄 기준) — 처음 고칠 때는 발행 때 글을 0번으로 먼저 남긴다(비교 바탕)."""
+    if not c.execute("SELECT 1 FROM prod_request_revs WHERE prod_request_id=? LIMIT 1", (lead_id,)).fetchone():
+        o = c.execute("SELECT COALESCE(cust_req,''), COALESCE(note,''), COALESCE(gist,''), issued_by, COALESCE(issued_by_name,''), "
+                      "COALESCE(created_at,'') FROM prod_requests WHERE id=?", (lead_id,)).fetchone()
+        if o:
+            c.execute("INSERT INTO prod_request_revs(prod_request_id, rev_no, kind, reason, cust_req, note, gist, items, changes, by_id, by_name, created_at) "
+                      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (lead_id, 0, "issue", None, o[0], o[1], o[2], _z51_items_csv(c, lead_id), None, o[3], o[4], o[5]))
+    if kind == "base":
+        return 0
+    n = c.execute("SELECT COALESCE(MAX(rev_no),0)+1 FROM prod_request_revs WHERE prod_request_id=?", (lead_id,)).fetchone()[0]
+    c.execute("INSERT INTO prod_request_revs(prod_request_id, rev_no, kind, reason, cust_req, note, gist, items, changes, by_id, by_name, created_at) "
+              "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", (lead_id, n, kind, (reason or None), cust_req, note, gist, _z51_items_csv(c, lead_id),
+                                                  (changes or None), by_id, by_name, at))
+    return n
+
+
+def _z51_view_ctx(c, pr):
+    """화면에 넘길 값 — 취소 띠 · 마지막 수정(사유·바뀐 것) · 요청사항 바뀐 줄 · 수정 이력."""
+    out = {"cx": None, "revs": [], "last": None, "dl_cust": None, "dl_note": None, "n_ch": 0,
+           "reasons": list(_Z51_REASONS), "cx_reasons": list(_Z51_CANCEL_REASONS)}
+    if not pr:
+        return out
+    if pr.get("cancelled_at"):
+        cx = {"at": pr.get("cancelled_at"), "reason": pr.get("cancel_reason") or "", "by": pr.get("cancelled_by_name") or "",
+              "kind": pr.get("cancel_kind") or "cancel", "lead_pid": None, "lead_id": None, "lead_mgmt": ""}
+        if cx["kind"] == "remove" and pr.get("bundle_id"):
+            lr = c.execute("SELECT l.id, l.project_id, COALESCE(p.mgmt_code,'') FROM prod_requests l LEFT JOIN projects p ON p.id=l.project_id "
+                           "WHERE l.id=?", (pr["bundle_id"],)).fetchone()
+            if lr:
+                cx.update({"lead_id": lr[0], "lead_pid": lr[1], "lead_mgmt": lr[2]})
+        out["cx"] = cx
+    lead = int(pr.get("bundle_id") or pr["id"]) if (pr.get("cancel_kind") or "") != "remove" else int(pr["id"])
+    revs = [dict(r) for r in c.execute("SELECT rev_no, kind, COALESCE(reason,'') AS reason, COALESCE(cust_req,'') AS cust_req, "
+                                       "COALESCE(note,'') AS note, COALESCE(changes,'') AS changes, COALESCE(by_name,'') AS by_name, "
+                                       "COALESCE(created_at,'') AS created_at FROM prod_request_revs WHERE prod_request_id=? ORDER BY rev_no, id", (lead,)).fetchall()]
+    out["revs"] = [r for r in revs if r["kind"] != "issue"]
+    ups = [r for r in revs if r["kind"] == "update"]
+    if ups and not out["cx"]:
+        last = ups[-1]
+        prev = [r for r in revs if r["rev_no"] < last["rev_no"] and r["kind"] in ("issue", "update")]
+        out["last"] = last
+        if prev:
+            dc, nc = _z51_lines_diff(prev[-1]["cust_req"], pr.get("cust_req") or "")
+            dn, nn = _z51_lines_diff(prev[-1]["note"], pr.get("note") or "")
+            out["n_ch"] = nc + nn
+            if nc:
+                out["dl_cust"] = dc
+            if nn:
+                out["dl_note"] = dn
     return out
 
 
@@ -12006,7 +12110,8 @@ def _z48_co_ctx(co, items):
 
 
 def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=None, record=True, is_update=False, image_count=0, user_ids=None, prid=None,
-                              order_ids=None, gist=None, bundle=None, bundle_model=None):
+                              order_ids=None, gist=None, bundle=None, bundle_model=None,
+                              rev_reason=None, removed=None, rev_lines=None, cancel_reason=None):
     """v5H226z372→z373 (대표 지시): 제작요청 통보 코어.
     제작요청서 = 프로젝트 생성의 출발점으로 일원화 — 신규 등록(발행) 직후 호출:
       ① 작업일정표 '제작요청(prod_request)' 단계 자동 체크(누가·언제·요청사항)
@@ -12051,7 +12156,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         _z48_oid_csv = ",".join(str(o["id"]) for o in _z48_picked)
         # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 관리번호나 가리킬 수주가 없으면 발행·통보·저장을 하지 않는다.
         #   화면(작성·수정)은 먼저 막지만, 등록하면서 발행·추가 발주처럼 다른 길로 들어와도 여기서 한 번 더 막는다.
-        if not str(p.get("mgmt_code") or "").strip() or not _z48_picked:
+        if (not str(p.get("mgmt_code") or "").strip() or not _z48_picked) and not cancel_reason:   # z1191z51: 취소 알림은 막지 않음
             return {"ok": False, "error": "need_mgmt_order",
                     "need": ("mgmt" if not str(p.get("mgmt_code") or "").strip() else "order")}
         # z1191z49 (대표 2026-11-17 2차 · 묶음 발행): 함께 내보내는 다른 관리번호들.
@@ -12065,7 +12170,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 for _br in c.execute("SELECT m.project_id, COALESCE(m.order_ids,''), COALESCE(m.created_at,'') FROM prod_requests m "
                                      "LEFT JOIN projects mp ON mp.id=m.project_id "
                                      "WHERE m.bundle_id IS NOT NULL AND m.bundle_id=(SELECT bundle_id FROM prod_requests WHERE id=?) AND m.id<>? "
-                                     "ORDER BY COALESCE(mp.mgmt_code,''), m.id", (int(prid), int(prid))).fetchall():
+                                     "AND COALESCE(m.cancel_kind,'')<>'remove' ORDER BY COALESCE(mp.mgmt_code,''), m.id", (int(prid), int(prid))).fetchall():
                     _z49_src.append({"pid": _br[0], "order_ids": _z48_ids(_br[1]), "at": _br[2]})
                 if bundle_model is None:
                     _bmr = c.execute("SELECT COALESCE(bundle_model,'') FROM prod_requests WHERE id=?", (int(prid),)).fetchone()
@@ -12087,7 +12192,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                 continue
             _mp = dict(_mp)
             _mo = _z48_pick_orders(_z48_project_orders(c, _mpid), ",".join(str(x) for x in (_m.get("order_ids") or [])), _m.get("at") or _z48_at)
-            if not str(_mp.get("mgmt_code") or "").strip() or not _mo:
+            if (not str(_mp.get("mgmt_code") or "").strip() or not _mo) and not cancel_reason:
                 return {"ok": False, "error": "need_mgmt_order", "need": "member", "who": (_mp.get("mgmt_code") or str(_mpid))}
             _z49_members.append({"pid": _mpid, "p": _mp, "picked": _mo, "so_nos": [o["order_no"] for o in _mo]})
         _z49_n = len(_z49_members)
@@ -12129,6 +12234,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     title = f"📋 제작요청{' [수정]' if is_update else ''} [{mgmt}] {model}"
     if _z49_n:   # z1191z49 묶음: 「020T2611 외 3건」 + 묶음 이름
         title = f"📋 제작요청{' [수정]' if is_update else ''} [{mgmt} 외 {_z49_n}건] {_z49_bm or model}"
+    if cancel_reason:   # z1191z51 취소 발행
+        title = f"🚫 제작요청 취소 [{mgmt}{(' 외 %d건' % _z49_n) if _z49_n else ''}] {_z49_bm or model}"
     cust_disp = p.get("customer_name") or "—"
     # v5H226z882 (대표 지시): 수정발행 흑백처리·수정사항 diff용 표시항목 스냅샷 + 판정값.
     #   _diff_card = 이음 카드와 동일한 8개 표시항목(수량·납기·발주유형·모델·각인·장비·고객사·수주번호).
@@ -12150,10 +12257,18 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     body = f"📋 제작 요청서{' (수정)' if is_update else ''} · {mgmt} · {model}\n{_SEP}\n"
     if _z48_gist:   # z1191z48: 요지 한 줄(메일 첫머리에 쓰던 것)
         body += f"■ 요지 : {_z48_gist}\n"
+    if is_update and not cancel_reason and (rev_reason or rev_lines or removed):   # z1191z51: 수정 사유 · 빠진 품목 · 바뀐 줄
+        if rev_reason:
+            body += f"✏️ 수정 사유 : {rev_reason}\n"
+        if removed:
+            body += f"✏️ 빠진 품목 : {', '.join(removed)}\n"
+        if rev_lines:
+            body += "✏️ 바뀐 줄\n" + "".join(f"   {x}\n" for x in rev_lines)
     _cust_line = f"■ 고객사 : {cust_disp}"
     if cc_nm:
         _cust_line += f" · 담당자 {cc_nm}{(' ' + cc_pos) if cc_pos else ''}"
     body += _cust_line + "\n"
+    _z51_i0 = len(body)   # z1191z51: 품목 줄(취소 알림에 다시 씀)
     if _z49_n:   # z1191z49 묶음: 관리번호마다 한 줄
         body += f"■ 품목 {_z49_n + 1}건" + (f" · MODEL {_z49_bm}" if _z49_bm else "") + "\n"
         body += f"  1. {mgmt} · {(p.get('equip_name') or pname)} · 수량 {qty} · {due}" + (f" · 수주 {', '.join(so_nos)}" if so_nos else "") + "\n"
@@ -12168,6 +12283,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         if so_nos:
             _due_line += f" · 수주 {', '.join(so_nos)}"
         body += _due_line + "\n"
+    _z51_i1 = len(body)
     if eng:
         body += f"■ 각인 : {eng}\n"
     if spath:
@@ -12179,6 +12295,10 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     if image_count and image_count > 0:
         body += f"{_SUB}\n📷 참고 이미지 {image_count}장\n"
     body += f"{_SEP}\n요청자 {by_name} · {now_str}"
+    if cancel_reason:   # z1191z51: 취소 알림 글 — 사유 · 어떤 품목인지(요청사항은 뺌)
+        body = (f"🚫 제작 요청서 취소 · {mgmt}{(' 외 %d건' % _z49_n) if _z49_n else ''} · {_z49_bm or model}\n{_SEP}\n"
+                f"■ 취소 사유 : {cancel_reason}\n{_cust_line}\n{body[_z51_i0:_z51_i1]}{_SEP}\n"
+                f"이 제작요청서는 진행하지 않습니다 · 취소 {by_name} · {now_str}")
     # v5H226z772 (대표 지시): 제작요청서 이미지 열람 — 통보 링크를 '제작요청서' 단독 페이지로(설치앱서도 렌더·이미지 갤러리 포함)
     link = f"/project/{pid}/prod-request/edit"
     sent_to = 0
@@ -12221,6 +12341,11 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                         _rev_note = _works_card_diff(_json.loads(_prev_cj), _diff_card) or "세부 내용 수정"
                 except Exception:
                     _rev_note = ""
+            _z51_fd = _rev_note if _rev_note != "세부 내용 수정" else ""   # z1191z51: 칸 바뀜(수량·납기 등)만 — 이력에 씀
+            if is_update and not cancel_reason and rev_reason:
+                _rev_note = f"사유: {rev_reason}" + (f" · {_z51_fd}" if _z51_fd else "")
+            if cancel_reason:
+                _rev_note = f"취소 — {cancel_reason}"
             if tids:   # 팀(부서) 통보 — 사업부 필터
                 ph = ",".join("?" * len(tids))
                 _cand = c.execute(
@@ -12283,6 +12408,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             if uid_self and uid_self > 0 and not _self_selected:
                 try:
                     _self_title = f"✅ 제작요청 발행{' [수정]' if is_update else ''} · {mgmt} — {sent_to}명 통보"
+                    if cancel_reason:
+                        _self_title = f"🚫 제작요청 취소 · {mgmt} — {sent_to}명에게 알림"
                     _self_body = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
                     # z882: 발행확인 receipt 도 같은 요청서 소속 — 수정발행 시 이전 receipt 흑백처리되게 prod_prid·is_revision 태그(카드 아님=card_json 없음).
                     _cn = c.execute("INSERT INTO notifications(user_id, kind, title, body, link, prod_prid, is_revision) VALUES(?,?,?,?,?,?,?)",
@@ -12392,7 +12519,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     try:
         with db_session() as _c977:
             _st977 = _c977.execute("SELECT COALESCE(status,'') FROM projects WHERE id=?", (pid,)).fetchone()
-            if _st977 and str(_st977[0]).strip() == "수주확정":
+            if _st977 and str(_st977[0]).strip() == "수주확정" and not cancel_reason:   # z1191z51: 취소는 상태를 안 올림
                 _c977.execute("UPDATE projects SET status='진행중' WHERE id=?", (pid,))
                 try:
                     _logi.log_project_change(_c977, pid, (user or {}).get("id"), "상태",
@@ -12410,7 +12537,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         try:
             with db_session() as _c977b:
                 _st977b = _c977b.execute("SELECT COALESCE(status,'') FROM projects WHERE id=?", (_m["pid"],)).fetchone()
-                if _st977b and str(_st977b[0]).strip() == "수주확정":
+                if _st977b and str(_st977b[0]).strip() == "수주확정" and not cancel_reason:
                     _c977b.execute("UPDATE projects SET status='진행중' WHERE id=?", (_m["pid"],))
                     try:
                         _logi.log_project_change(_c977b, _m["pid"], (user or {}).get("id"), "상태",
@@ -12452,6 +12579,12 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             #   is_revision = 수정발행 여부(카드 상단 '수정발행' 뱃지). 발행측이 직접 표기(수신자·발행자 본인 카드 모두 일관).
             "prid": (_eff_prid or None), "issue_token": _issue_token, "is_revision": bool(is_update),
         }
+        if is_update and not cancel_reason and (rev_reason or removed or rev_lines):   # z1191z51 새 칸(이음이 그리기 전엔 안 보임 · 세션 10 요청)
+            _card["revision_reason"] = rev_reason or ""
+            if removed:
+                _card["removed"] = list(removed)
+            if rev_lines:
+                _card["changed_lines"] = list(rev_lines)
         if _z49_n:   # z1191z49 묶음: 지금 카드 칸으로도 묶음인 것이 보이게(관리번호 「외 N건」 · 수주번호 전부) + 새 칸 items(이음이 그리면 품목 줄)
             _card["mgmt"] = f"{mgmt} 외 {_z49_n}건"
             _card["so_nos"] = list(_z49_all_so)
@@ -12460,14 +12593,17 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
                               + [{"mgmt": _m["p"].get("mgmt_code"), "so_nos": list(_m["so_nos"]), "model": (_m["p"].get("model_name") or ""),
                                   "equip": (_m["p"].get("equip_name") or ""), "qty": (_m["p"].get("unit_qty") or 1),
                                   "due": (str(_m["p"].get("due_date") or "")[:10])} for _m in _z49_members])
-        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=_card)
+        # z1191z51: 취소는 카드 대신 글 알림 — 지금 카드 모양으로 보내면 정상 요청서처럼 보임(취소 카드는 세션 10 요청)
+        _mres = sso_client.notify_via_messenger(emp_nos, title, body, _full_link, card=(None if cancel_reason else _card))
         # v5H226z812 (대표 지시): 발행자 본인에게도 이음 'WORKS 알림' 카드 — 벨(z804)+메신저 둘 다. 통보 수(msg_sent)엔 미포함.
         #   z881: 본인을 통보대상으로 골랐으면(_self_selected) 본인 사번이 emp_nos 에 포함돼 위에서 이미 카드 수신 → receipt 생략.
         if _author_emp and not _self_selected:
             try:
                 _self_ttl = f"✅ 내가 발행한 제작요청 · {mgmt} — {sent_to}명 통보"
+                if cancel_reason:
+                    _self_ttl = f"🚫 내가 취소한 제작요청 · {mgmt} — {sent_to}명에게 알림"
                 _self_bd = f"내가 발행한 제작요청서입니다. {sent_to}명에게 통보되었습니다.\n{_SUB}\n{body}"
-                sso_client.notify_via_messenger([_author_emp], _self_ttl, _self_bd, _full_link, card=_card)
+                sso_client.notify_via_messenger([_author_emp], _self_ttl, _self_bd, _full_link, card=(None if cancel_reason else _card))
             except Exception:
                 pass
         if _mres.get("ok"):
@@ -12489,7 +12625,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "mgmt_code": mgmt, "issued_at": now_str, "stage_warn": _stage_warn,
             "msg_sent": msg_sent, "msg_err": msg_err, "pr_save_err": _pr_save_err,
             "pr_id": _pr_new_id, "recipients": recipients, "dept_names": dept_names,
-            "wt_team_ids": _wt_csv, "user_ids": _uid_csv}
+            "wt_team_ids": _wt_csv, "user_ids": _uid_csv, "rev_fields": _z51_fd}
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 저장 — files=[(orig_name, raw_bytes)…] → 압축본+썸네일 디스크 저장 + prod_request_images 기록.
@@ -31039,7 +31175,7 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                    "o.id AS order_id, o.order_no, o.order_date AS o_order_date, "
                    # v5H226z977 (대표 승인): 납품일 폴백 — SO 납기 비면 프로젝트 납기(상품 빈 SO '—' 방지)
                    "COALESCE(NULLIF(o.due_date,''), NULLIF(p.due_date,'')) AS o_due_date, o.status AS o_status, "
-                   "pr.id AS pr_id, pr.created_at, pr.created_date, pr.issued_by_name "
+                   "pr.id AS pr_id, pr.created_at, pr.created_date, pr.issued_by_name, COALESCE(pr.cancelled_at,'') AS pr_cancelled "
                    "FROM (SELECT project_id, MAX(id) AS mpr FROM prod_requests GROUP BY project_id) lpr "
                    "JOIN projects p ON p.id = lpr.project_id "
                    "JOIN prod_requests pr ON pr.id = lpr.mpr "
@@ -31205,6 +31341,10 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _add_user_ids = [int(x) for x in form.getlist("add_user_ids") if str(x).strip().isdigit() and int(x) > 0]
     # v5H226z817 (대표 지시 ①): 옛 발행분 — 부서 전체 폴백 대신 '고른 대상에게만' 정밀 전환
     _precise_override = (form.get("precise_override") or "").strip() == "1"
+    # z1191z51: 수정 사유 · 묶음에서 뺄 관리번호
+    _z51_reason = (form.get("rev_reason") or "").strip()[:120]
+    _z51_rm = [int(x) for x in form.getlist("remove_pids") if str(x).strip().isdigit() and int(x) > 0]
+    _z51_removed, _z51_lines, _z51_rev_no = [], [], 0
     # z1191z49 묶음: 구성원 줄 번호로 들어와도 대표 줄(=묶음 전체)에 적용
     try:
         with db_session() as _c49:
@@ -31237,11 +31377,17 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     _img_count = 0
     try:
         with db_session() as c:
-            pr = c.execute("SELECT id, project_id, team_ids, COALESCE(wt_team_ids,'') AS wt_team_ids, COALESCE(user_ids,'') AS user_ids FROM prod_requests WHERE id=? AND project_id=?",
+            pr = c.execute("SELECT id, project_id, team_ids, COALESCE(wt_team_ids,'') AS wt_team_ids, COALESCE(user_ids,'') AS user_ids, "
+                           "COALESCE(cancelled_at,'') AS cancelled_at, COALESCE(cust_req,'') AS cust_req, COALESCE(note,'') AS note "   # z1191z51
+                           "FROM prod_requests WHERE id=? AND project_id=?",
                            (prid, pid)).fetchone()
             if not pr:
                 return RedirectResponse(_dest("prod_upderr=1"), 303)
             pr = dict(pr)
+            if pr.get("cancelled_at"):   # z1191z51: 취소한 요청서는 고칠 수 없음
+                return RedirectResponse(_dest("prod_cancelled=1"), 303)
+            _z51_snapshot(c, prid, "base", None, None, None, None, None, None, None, None)   # 처음 고칠 때 발행 글을 0번으로
+            _z51_items_before = [x for x in _z51_items_csv(c, prid).split(",") if x]
             # 프로젝트 필드(자료경로·모델·각인) 갱신 — 통보 본문·상세 표시에 함께 반영
             _setcols = ["server_path=?", "model_name=?", "engraving=?"]
             _setvals = [_server_path or None, _model_name or None, _engraving or None]
@@ -31280,6 +31426,29 @@ async def prod_request_update(request: Request, pid: int, prid: int):
                 c.execute("UPDATE prod_requests SET order_ids=? WHERE id=?", (",".join(str(x) for x in _z48_ok), prid))
             # z1191z49 묶음: 새로 붙인 관리번호는 줄 추가 · 글(요청사항·기타·요지)과 묶음 이름은 묶음의 모든 줄에 같게
             _z49_apply_update(c, prid, pid, _z49_bundle, _z49_bm, _cust_req, _note, _z48_gist, _now, _by)
+            # z1191z51: 묶음에서 빼기(대표 관리번호는 못 뺌 — 그 줄은 「묶음에서 뺌」으로 취소) · 이력 한 줄(사유 · 바뀐 것)
+            for _rp in _z51_rm:
+                _rr = c.execute("SELECT m.id, COALESCE(p.mgmt_code,'') FROM prod_requests m LEFT JOIN projects p ON p.id=m.project_id "
+                                "WHERE m.bundle_id=? AND m.project_id=? AND m.id<>m.bundle_id AND m.cancelled_at IS NULL", (prid, _rp)).fetchone()
+                if _rr:
+                    c.execute("UPDATE prod_requests SET cancelled_at=?, cancel_reason=?, cancel_kind='remove', cancelled_by_name=? WHERE id=?",
+                              (_now, "묶음에서 뺌" + (f" — {_z51_reason}" if _z51_reason else ""), _by, _rr[0]))
+                    _z51_removed.append(_rr[1])
+            _z51_items_after = [x for x in _z51_items_csv(c, prid).split(",") if x]
+            _z51_added = [x for x in _z51_items_after if x not in _z51_items_before]
+            _z51_lines = _z51_change_text(pr["cust_req"], _cust_req) + [("(기타) " + x) for x in _z51_change_text(pr["note"], _note, 3)]
+            _z51_chg = []
+            _z51_dc = _z51_lines_diff(pr["cust_req"], _cust_req)[1]
+            _z51_dn = _z51_lines_diff(pr["note"], _note)[1]
+            if _z51_dc:
+                _z51_chg.append(f"요청사항 {_z51_dc}줄")
+            if _z51_dn:
+                _z51_chg.append(f"기타 {_z51_dn}줄")
+            if _z51_added:
+                _z51_chg.append("품목 추가 " + ", ".join(_z51_added))
+            if _z51_removed:
+                _z51_chg.append("품목 제외 " + ", ".join(_z51_removed))
+            _z51_rev_no = _z51_snapshot(c, prid, "update", _z51_reason, _cust_req, _note, _z48_gist, " · ".join(_z51_chg), u.get("id"), _by, _now)
             # v5H226z815 (대표 지시·[[feedback_user_ref_by_id]]): 정밀 재통보 — 개별선택자는 그 사람 id로만(부서 확대 금지)
             _st_wt = [int(x) for x in str(pr.get("wt_team_ids") or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
             _st_uid = [int(x) for x in str(pr.get("user_ids") or "").replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
@@ -31315,7 +31484,15 @@ async def prod_request_update(request: Request, pid: int, prid: int):
     try:
         _res = _prod_request_notify_core(int(pid), _cust_req, _note, _team_ids, u,
                                          record=False, is_update=True, image_count=_img_count,
-                                         user_ids=_renotify_uids, prid=prid, gist=_z48_gist)
+                                         user_ids=_renotify_uids, prid=prid, gist=_z48_gist,
+                                         rev_reason=(_z51_reason or None), removed=(_z51_removed or None), rev_lines=(_z51_lines or None))
+        if _z51_rev_no and _res.get("rev_fields"):   # z1191z51: 칸 바뀜(수량·납기 등)도 이력에
+            try:
+                with db_session() as _c51:
+                    _c51.execute("UPDATE prod_request_revs SET changes=TRIM(COALESCE(changes,'') || CASE WHEN COALESCE(changes,'')='' THEN '' ELSE ' · ' END || ?) "
+                                 "WHERE prod_request_id=? AND rev_no=?", (_res.get("rev_fields"), prid, _z51_rev_no))
+            except Exception as _e51:
+                print(f"[z1191z51] 이력 칸 바뀜 쓰기 실패: {_e51}")
         if _res.get("ok"):
             _qs.append(f"prod_sent={_res.get('sent_to', 0)}")
             _qs.append(f"prod_dept={_res.get('dept_count', 0)}")
@@ -31338,6 +31515,70 @@ async def prod_request_update(request: Request, pid: int, prid: int):
         print(f"[z763] 제작요청서 수정 재통보 실패: {_e}")
         _qs.append("prod_renotifyerr=1")
     return RedirectResponse(_dest("&".join(_qs)), 303)
+
+
+# z1191z51 (대표 2026-11-17 「2차 진행해」 · 2-3): 제작요청서 취소 발행 — 사유(필수) · 묶음이면 묶음 전체 · 받은 사람에게 「취소」로 다시 알림.
+#   취소한 요청서는 고칠 수 없다(필요하면 새로 작성). 프로젝트 상태는 건드리지 않는다(사람이 판단).
+@app.post("/project/{pid}/prod-request/{prid}/cancel")
+async def prod_request_cancel(request: Request, pid: int, prid: int):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse(f"/project/{pid}", 303)
+    form = await request.form()
+    _reason = (form.get("cancel_reason") or "").strip()[:120]
+    try:
+        with db_session() as _c51:   # 구성원 줄로 들어와도 묶음 전체(대표 줄)
+            _lr = _c51.execute("SELECT l.id, l.project_id FROM prod_requests m JOIN prod_requests l ON l.id=m.bundle_id "
+                               "WHERE m.id=? AND m.project_id=? AND m.bundle_id IS NOT NULL AND m.bundle_id<>m.id "
+                               "AND COALESCE(m.cancel_kind,'')<>'remove'", (prid, pid)).fetchone()
+        if _lr:
+            prid, pid = int(_lr[0]), int(_lr[1])
+    except Exception as _e51:
+        print(f"[z1191z51] 대표 줄 찾기 실패: {_e51}")
+    _dest = f"/project/{pid}/prod-request/edit?prid={prid}"
+    if not _reason:
+        return RedirectResponse(_dest + "&prod_cxneed=1", 303)
+    from datetime import datetime as _dt51
+    _now = _dt51.now().strftime("%Y-%m-%d %H:%M")
+    _by = u.get("name") or u.get("login_id") or "—"
+    try:
+        with db_session() as c:
+            pr = c.execute("SELECT id, project_id, COALESCE(team_ids,'') AS team_ids, COALESCE(wt_team_ids,'') AS wt_team_ids, "
+                           "COALESCE(user_ids,'') AS user_ids, COALESCE(cust_req,'') AS cust_req, COALESCE(note,'') AS note, "
+                           "COALESCE(gist,'') AS gist, COALESCE(cancelled_at,'') AS cancelled_at, COALESCE(cancel_kind,'') AS cancel_kind "
+                           "FROM prod_requests WHERE id=? AND project_id=?", (prid, pid)).fetchone()
+            if not pr:
+                return RedirectResponse(_dest + "&prod_upderr=1", 303)
+            pr = dict(pr)
+            if pr["cancelled_at"]:
+                return RedirectResponse(_dest + "&prod_cancelled=1", 303)
+            _z51_snapshot(c, prid, "base", None, None, None, None, None, None, None, None)
+            c.execute("UPDATE prod_requests SET cancelled_at=?, cancel_reason=?, cancel_kind='cancel', cancelled_by_name=? "
+                      "WHERE (id=? OR bundle_id=?) AND cancelled_at IS NULL", (_now, _reason, _by, prid, prid))
+            _z51_snapshot(c, prid, "cancel", _reason, pr["cust_req"], pr["note"], pr["gist"], "취소", u.get("id"), _by, _now)
+            _wt = [int(x) for x in pr["wt_team_ids"].replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
+            _ui = [int(x) for x in pr["user_ids"].replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
+            if not (_wt or _ui):   # 옛 기록: 저장된 부서로
+                _wt = [int(x) for x in pr["team_ids"].replace(";", ",").split(",") if x.strip().isdigit() and int(x) > 0]
+    except Exception as _e:
+        print(f"[z1191z51] 제작요청서 취소 실패: {_e}")
+        return RedirectResponse(_dest + "&prod_upderr=1", 303)
+    _qs = ["prod_cxdone=1"]
+    try:
+        _res = _prod_request_notify_core(int(pid), pr["cust_req"], pr["note"], _wt, u, record=False, is_update=True,
+                                         user_ids=_ui, prid=prid, gist=pr["gist"], cancel_reason=_reason)
+        if _res.get("ok"):
+            _qs += [f"prod_sent={_res.get('sent_to', 0)}", f"prod_dept={_res.get('dept_count', 0)}", f"prod_msg={_res.get('msg_sent', 0)}"]
+            if _res.get("msg_err"):
+                _qs.append("prod_msgerr=1")
+        else:
+            _qs.append("prod_renotifyerr=1")
+    except Exception as _e:
+        print(f"[z1191z51] 취소 알림 실패: {_e}")
+        _qs.append("prod_renotifyerr=1")
+    return RedirectResponse(_dest + "&" + "&".join(_qs), 303)
 
 
 # v5H226z787 (대표 지시): 제작요청서 '신규 작성'(이 프로젝트에 추가 발행) — 상세의 3종 발주 버튼(검사기/소모품/수리) 대체.
@@ -31626,7 +31867,9 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                  "sent_to, dept_count, msg_sent, created_at, created_date, updated_at, updated_by_name, "
                  "COALESCE(wt_team_ids,'') AS wt_team_ids, COALESCE(user_ids,'') AS user_ids, "
                  "COALESCE(order_ids,'') AS order_ids, COALESCE(gist,'') AS gist, "   # z1191z48
-                 "bundle_id, COALESCE(bundle_model,'') AS bundle_model "               # z1191z49
+                 "bundle_id, COALESCE(bundle_model,'') AS bundle_model, "               # z1191z49
+                 "COALESCE(cancelled_at,'') AS cancelled_at, COALESCE(cancel_reason,'') AS cancel_reason, "   # z1191z51
+                 "COALESCE(cancel_kind,'') AS cancel_kind, COALESCE(cancelled_by_name,'') AS cancelled_by_name "               # z1191z49
                  "FROM prod_requests WHERE project_id=? ")
         _pr = None
         if prid and prid > 0:
@@ -31636,7 +31879,7 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         pr = dict(_pr) if _pr else None
         # z1191z49 묶음: 구성원 관리번호로 들어와도 같은 한 장 — 대표 줄과 대표 프로젝트로 바꿔 그린다(새 작성 new=1 은 그대로)
         _z49_cur = pid
-        if pr and pr.get("bundle_id") and int(pr["bundle_id"]) != int(pr["id"]) and request.query_params.get("new") != "1":
+        if pr and pr.get("bundle_id") and int(pr["bundle_id"]) != int(pr["id"]) and request.query_params.get("new") != "1" and (pr.get("cancel_kind") or "") != "remove":
             _lead = c.execute(_cols.replace("WHERE project_id=? ", "WHERE id=? "), (int(pr["bundle_id"]),)).fetchone()
             _lp = None
             if _lead:
@@ -31667,7 +31910,13 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                 pr_images = []
         # z1191z48 (대표 2026-11-17): 종이 양식 화면에 쓸 값 — 가리키는 수주(수주번호·호기) · 구분 · 남은 날 · 수정 내용
         _z48 = _z48_view_ctx(c, p, pr)
-        _z48.update(_z49_view_ctx(c, p, pr, _z49_cur))   # z1191z49: 묶음 품목 줄 · 묶을 수 있는 관리번호
+        _z48.update(_z49_view_ctx(c, p, pr, _z49_cur))
+        try:   # z1191z51: 취소 띠 · 마지막 수정(사유·바뀐 것) · 바뀐 줄 · 수정 이력
+            _z48["z51"] = _z51_view_ctx(c, pr)
+        except Exception as _e51:
+            print(f"[z1191z51] 이력 읽기 실패: {_e51}")
+            _z48["z51"] = {"cx": None, "revs": [], "last": None, "dl_cust": None, "dl_note": None, "n_ch": 0,
+                           "reasons": list(_Z51_REASONS), "cx_reasons": list(_Z51_CANCEL_REASONS)}   # z1191z49: 묶음 품목 줄 · 묶을 수 있는 관리번호
         _z48["need_msg"] = _Z48_NEED_MSG.get(request.query_params.get("prod_need") or "", "")   # z48c: 막힌 까닭(돌려보낼 때)
         _z48["past"] = []
         if create_mode:   # z1191z50: 「지난 요청서 불러오기」(이 관리번호 먼저 → 같은 고객사)

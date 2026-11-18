@@ -616,6 +616,25 @@ CREATE TABLE IF NOT EXISTS prod_request_images (
 );
 CREATE INDEX IF NOT EXISTS idx_pri_prid ON prod_request_images(prod_request_id);
 
+-- z1191z51 (대표 2026-11-17 2차 · 재발행): 제작요청서 이력 — 대표 줄(묶음이면 대표 줄) 기준 · 0번 = 처음 발행 글(비교 바탕)
+--   kind = issue(처음) · update(수정발행) · cancel(취소 발행) · items = 그때 묶음 관리번호(쉼표) · changes = 바뀐 것 요약
+CREATE TABLE IF NOT EXISTS prod_request_revs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prod_request_id INTEGER NOT NULL,
+    rev_no INTEGER DEFAULT 0,
+    kind TEXT,
+    reason TEXT,
+    cust_req TEXT,
+    note TEXT,
+    gist TEXT,
+    items TEXT,
+    changes TEXT,
+    by_id INTEGER,
+    by_name TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_prr_prid ON prod_request_revs(prod_request_id);
+
 -- v5H226z795 (대표 지시): 제작요청 통보 블록(즐겨찾기) — 자주 쓰는 통보 대상(팀·개별직원) 묶음을 회사 공용으로 저장.
 --   생성/수정/삭제=영업·매출 쓰기권한자 또는 대표/임원. 발행 통보선택창에서 적용·즉석 저장. team_ids/user_ids=CSV.
 CREATE TABLE IF NOT EXISTS notify_blocks (
@@ -2638,6 +2657,11 @@ def init_db():
                 # z1191z49 (대표 2026-11-17 2차): 묶음 발행 — 대표 줄의 id(대표 줄도 자기 id) · 묶음 이름(MODEL)
                 ("bundle_id",       "ALTER TABLE prod_requests ADD COLUMN bundle_id INTEGER"),
                 ("bundle_model",    "ALTER TABLE prod_requests ADD COLUMN bundle_model TEXT"),
+                # z1191z51 (대표 2026-11-17 2차 · 재발행): 취소 발행 — 언제 · 사유 · 'cancel'(요청서 취소) | 'remove'(묶음에서 뺌) · 누가
+                ("cancelled_at",      "ALTER TABLE prod_requests ADD COLUMN cancelled_at TEXT"),
+                ("cancel_reason",     "ALTER TABLE prod_requests ADD COLUMN cancel_reason TEXT"),
+                ("cancel_kind",       "ALTER TABLE prod_requests ADD COLUMN cancel_kind TEXT"),
+                ("cancelled_by_name", "ALTER TABLE prod_requests ADD COLUMN cancelled_by_name TEXT"),
             ]:
                 if _prcol not in prcols:
                     try:
@@ -7787,6 +7811,7 @@ PROJECT_REF_INDIRECT = (
     ("work_order_items", "work_orders", "wo_id"),
     ("po_items", "purchase_orders", "po_id"),
     ("prod_request_images", "prod_requests", "prod_request_id"),
+    ("prod_request_revs", "prod_requests", "prod_request_id"),   # z1191z51
 )
 
 
@@ -7957,6 +7982,8 @@ def projects_delete_logi(pid: int, force: bool = False) -> None:
                 "SELECT id FROM prod_requests WHERE project_id=?", (pid,)).fetchall()]
             for _prid in _pr_ids:
                 try: c.execute("DELETE FROM prod_request_images WHERE prod_request_id=?", (_prid,))
+                except Exception: pass
+                try: c.execute("DELETE FROM prod_request_revs WHERE prod_request_id=?", (_prid,))   # z1191z51 이력
                 except Exception: pass
             c.execute("DELETE FROM prod_requests WHERE project_id=?", (pid,))
         except Exception: pass

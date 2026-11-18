@@ -107,6 +107,7 @@
   @page { size:A4; margin:10mm; }
   body * { visibility:hidden !important; }
   #z48Paper, #z48Paper * { visibility:visible !important; }
+  body *:not(:has(#z48Paper)):not(#z48Paper):not(#z48Paper *) { display:none !important; }   /* z1191z51: 빈 쪽 안 생기게 자리까지 접음 */
   #z48Paper { position:absolute; left:0; top:0; width:100%; container-type:normal; }
   #z48Paper .z48-desk { display:table !important; }
   #z48Paper .z48-mob, #z48Paper .z48-copy { display:none !important; }
