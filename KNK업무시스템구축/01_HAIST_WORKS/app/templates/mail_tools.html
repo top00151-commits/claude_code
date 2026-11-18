@@ -18,6 +18,9 @@
   .mt-admin .mt-card{background:#fbfaf8}
   .mt-sw{display:inline-block;margin-left:6px;font-size:12px;font-weight:700;border-radius:999px;padding:0 9px;background:#e5e7eb;color:#374151;vertical-align:1px}
   .mt-sw.on{background:#16a34a;color:#fff}
+  .mt-old{cursor:default;grid-column:span 2}
+  .mt-old select{font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:1px 4px}
+  @media(max-width:720px){.mt-old{grid-column:auto}}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -36,6 +39,14 @@
       <span class="mt-d" style="display:block">여러 그룹 주소로 같은 메일이 여러 통 온 것을 1통만 남기기(답장은 안 건드림 · 휴지통에서 되살릴 수 있음)</span></span></button>
     {% if has_tree %}<a class="mt-card" href="/mail/folders/general"><span class="mt-ico">🧹</span><span><span class="mt-t">일반 정리하기{% if gen_n %}<span class="mt-n b">{{ gen_n }}</span>{% endif %}</span>
       <span class="mt-d" style="display:block">폴더에 안 들어간 「일반」 메일을 보낸 곳별로 묶어 한 번에 폴더로</span></span></a>{% endif %}
+    <div class="mt-card mt-old"><span class="mt-ico">📦</span><span style="flex:1"><span class="mt-t">오래된 메일 한 번에 보관</span>
+      <span class="mt-d" style="display:block">받은 지
+        <select id="mtOldM" onchange="mtOldCount()"><option value="1">1개월</option><option value="3" selected>3개월</option><option value="6">6개월</option><option value="12">1년</option></select>
+        지난 <b>읽은</b> 메일을 받은편지함에서 빼서 📦 보관함으로(⭐ 중요 표시한 메일은 그대로 · 지우지 않음 · 찾기·폴더에는 그대로)</span>
+      <span class="mt-d" style="display:block;margin-top:6px"><b id="mtOldN">…</b>
+        <button type="button" class="btn btn-secondary" id="mtOldGo" style="padding:4px 12px;margin-left:6px" onclick="mtOldGo()" disabled>📦 보관하기</button></span></span></div>
+    <a class="mt-card" href="/mail/inbox?arc=1"><span class="mt-ico">📦</span><span><span class="mt-t">보관함 보기</span>
+      <span class="mt-d" style="display:block">보관한 메일 · 「📥 받은편지함으로」로 되돌리기</span></span></a>
     <a class="mt-card" href="/mail/trash"><span class="mt-ico">🗑</span><span><span class="mt-t">휴지통</span>
       <span class="mt-d" style="display:block">지운 메일 되살리기 · 완전히 지우기 · 휴지통 비우기</span></span></a>
   </div>
@@ -92,6 +103,27 @@ function mtBigToggle(){ try{ var on=localStorage.getItem('knkmail.big')==='1';
     if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){ alert('이 브라우저에서는 저장할 수 없습니다'); }
   mtBigShow(); }
 mtBigShow();
+/* 오래된 메일 한 번에 보관(11-18 3단계) — 먼저 몇 통인지 보여 주고, 누르면 보관 */
+async function mtOldCount(){
+  var m=document.getElementById('mtOldM').value, n=document.getElementById('mtOldN'), b=document.getElementById('mtOldGo');
+  n.textContent='세는 중…'; b.disabled=true;
+  try{ var fd=new FormData(); fd.append('months', m); fd.append('dry','1');
+    var r=await fetch('/mail/archive/old',{method:'POST',body:fd}); var j=await r.json();
+    if(j.ok){ n.textContent=j.n ? ('보관할 메일 '+j.n.toLocaleString()+'통') : '보관할 메일이 없습니다'; b.disabled=!j.n; b.dataset.n=j.n; }
+    else { n.textContent='⚠ 셀 수 없습니다'; }
+  }catch(e){ n.textContent='⚠ 네트워크 오류'; }
+}
+async function mtOldGo(){
+  var m=document.getElementById('mtOldM'), b=document.getElementById('mtOldGo');
+  var label=m.options[m.selectedIndex].text;
+  if(!confirm(label+' 지난 읽은 메일 '+(parseInt(b.dataset.n||'0',10)).toLocaleString()+'통을 📦 보관함으로 옮길까요?\n\n지우지 않으며, 보관함에서 「📥 받은편지함으로」로 언제든 되돌릴 수 있습니다.')) return;
+  b.disabled=true;
+  try{ var fd=new FormData(); fd.append('months', m.value); fd.append('dry','0');
+    var r=await fetch('/mail/archive/old',{method:'POST',body:fd}); var j=await r.json();
+    if(j.ok){ alert('📦 '+j.n.toLocaleString()+'통을 보관했습니다.'); mtOldCount(); } else { alert('⚠ 하지 못했습니다'); b.disabled=false; }
+  }catch(e){ alert('네트워크 오류'); b.disabled=false; }
+}
+mtOldCount();
 /* 같은 메일 여러 통 정리 — 받은편지함 도구줄에 있던 「🔁 중복정리」와 같은 동작(11-18 이 화면으로 옮김) */
 async function dedupInbox(ev){
   if(ev) ev.preventDefault();

@@ -187,16 +187,33 @@ DANGEROUS_EXTS = {".exe", ".scr", ".com", ".pif", ".bat", ".cmd", ".vbs", ".vbe"
 
 
 def _ensure_security_cols(c):
+    """메일 표에 더한 칸(차단·위험 · 11-18 보관·이 메일만 폴더)을 만든다.
+    ⭐(11-18) 「만들었다」를 기억하기 전에 **칸이 실제로 있는지** 확인한다 — 처음 열 때 DB 가 잠깐 잠겨 ALTER 가
+    실패해도 다음 요청에서 다시 만든다(예전엔 실패해도 다 된 것으로 기억해 서버를 다시 켤 때까지 메일함이 열리지 않을 수 있었음).
+    DB 파일마다 따로 기억(시험처럼 한 프로세스에서 DB 를 바꿔도 맞게)."""
     global _SEC_COLS_OK
-    if _SEC_COLS_OK:
-        return
-    for ddl in ("ALTER TABLE mail_messages ADD COLUMN is_blocked INTEGER DEFAULT 0",
-                "ALTER TABLE mail_messages ADD COLUMN risk_level INTEGER DEFAULT 0",
-                "ALTER TABLE mail_messages ADD COLUMN risk_note TEXT"):
-        try:
-            c.execute(ddl)
-        except Exception:
-            pass
+    try:
+        key = c.execute("PRAGMA database_list").fetchone()[2] or ("mem:%x" % id(c))   # 메모리 DB 는 연결마다 따로
+    except Exception:
+        key = "?"
+    if _SEC_COLS_OK is True or (isinstance(_SEC_COLS_OK, set) and key in _SEC_COLS_OK):
+        if _SEC_COLS_OK is True:
+            _SEC_COLS_OK = {key}
+        else:
+            return
+    need = {"is_blocked": "INTEGER DEFAULT 0", "risk_level": "INTEGER DEFAULT 0", "risk_note": "TEXT",
+            # 11-18 대표 「3단계 진행해」 — 📦 보관(받은편지함에서만 빠짐 · 지우지 않음) · 📁 이 메일만 폴더
+            "is_archived": "INTEGER DEFAULT 0", "fd_pin": "TEXT DEFAULT ''"}
+    try:
+        have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
+    except Exception:
+        have = set()
+    for col, typ in need.items():
+        if col not in have:
+            try:
+                c.execute("ALTER TABLE mail_messages ADD COLUMN %s %s" % (col, typ))
+            except Exception as e:
+                print("[MAIL-COLS] %s 칸 만들기 실패(다음에 다시): %s" % (col, e))
     try:
         c.execute("""CREATE TABLE IF NOT EXISTS mail_blocklist(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -205,7 +222,14 @@ def _ensure_security_cols(c):
             created_at TEXT DEFAULT (datetime('now','localtime')))""")
     except Exception:
         pass
-    _SEC_COLS_OK = True
+    try:
+        have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
+    except Exception:
+        have = set()
+    if all(col in have for col in need):
+        if not isinstance(_SEC_COLS_OK, set):
+            _SEC_COLS_OK = set()
+        _SEC_COLS_OK.add(key)
 
 
 def _att_ext(filename) -> str:
@@ -561,12 +585,14 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None,
                senders=None, qf: str = "all", with_sent: bool = False, who: str = "", dom: str = "",
-               q_senders=None, noad=None, count_only: bool = False):
+               q_senders=None, noad=None, count_only: bool = False, arc: bool = False, fd_keys=None):
     """받은편지함 목록.
     (11-18 대표 「쉽게 찾기」) q = 띄어 쓴 낱말 **모두** 들어간 메일(낱말마다 보낸 사람·받는 사람·참조·제목·본문·첨부 파일 이름 중 한 곳) ·
     qf = all|from|subj|att(어디서 찾을지) · with_sent = 보낸 메일도 함께 · who/dom = 이 사람·이 회사와 주고받은 메일 ·
     q_senders = 낱말마다 「그 이름의 폴더에 든 보낸 주소」(회사 이름을 치면 영문 주소로 온 메일도) · noad = 빼고 볼 광고·알림 주소 ·
-    count_only = 통수만."""
+    count_only = 통수만.
+    (3단계) arc = 📦 보관함(보관한 받은 메일만) · 그냥 받은편지함은 보관한 메일을 뺀다(폴더·찾기·중요·회신 보기에는 그대로 나옴) ·
+    fd_keys = 지금 폴더(와 아래 폴더) 열쇠 — 「이 메일만」 옮긴 메일은 보낸 사람과 상관없이 그 폴더로."""
     _ensure_security_cols(c)
     who = (who or "").strip().lower()
     dom = (dom or "").strip().lower().lstrip("@")
@@ -583,6 +609,11 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         where += (" AND (lower(from_email) LIKE ? OR lower(COALESCE(to_email,'')) LIKE ? "
                   "OR lower(COALESCE(cc,'')) LIKE ?)")
         args += ["%@" + dom, "%@" + dom + "%", "%@" + dom + "%"]
+    _terms0 = search_terms(q)
+    if arc:
+        where += " AND direction='in' AND COALESCE(is_archived,0)=1"
+    elif senders is None and not _terms0 and not who and not dom and not starred and only_ids is None and not cust:
+        where += " AND COALESCE(is_archived,0)=0"
     if category and category in CATEGORIES:
         where += " AND category=?"
         args.append(category)
@@ -631,12 +662,18 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     #   주소가 수백 개일 수 있어 IN (?,?,…) 대신 이 연결 전용 임시 표로 거른다(SQLite 인자 개수 한도 회피).
     if senders is not None:
         _ss = sorted({(x or "").strip().lower() for x in senders})
-        if not _ss:
-            return []
+        _fk = sorted({k for k in (fd_keys or []) if k and k.startswith("f")})
+        if not _ss and not _fk:
+            return 0 if count_only else []
         c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_senders(e TEXT PRIMARY KEY)")
         c.execute("DELETE FROM _mf_senders")
         c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
-        where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
+        # 「이 메일만」 옮긴 메일(fd_pin)은 보낸 사람 폴더가 아니라 옮긴 폴더에 나온다
+        _pin = ""
+        if _fk:
+            _pin = " OR COALESCE(fd_pin,'') IN (" + ",".join("?" * len(_fk)) + ")"
+        where += " AND ((lower(from_email) IN (SELECT e FROM _mf_senders) AND COALESCE(fd_pin,'')='')" + _pin + ")"
+        args += _fk
     # 광고·알림 빼고 보기(11-18) — 「보낸 곳별 정리」가 광고·알림으로 본 주소(받은 메일만 해당)
     if noad:
         _na = sorted({(x or "").strip().lower() for x in noad if x})
@@ -678,6 +715,7 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     rows = c.execute(
         f"""SELECT id, direction, from_email, from_name, to_email, cc, subject, category, lang,
                    is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
+                   COALESCE(is_archived,0) AS is_archived, COALESCE(fd_pin,'') AS fd_pin,
                    {_dup_count_sql(c)} AS dup_count,
                    (SELECT COUNT(*) FROM mail_attachments a WHERE a.mail_id=mail_messages.id
                       AND COALESCE(a.is_inline,0)=0) AS att_n,
@@ -687,6 +725,106 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         (*args, limit, offset),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _own_ids(c, user_id, ids, inbound_only=False) -> list:
+    """고른 번호 중 내 메일(지우지 않은 것)만 — 남의 메일·없는 번호는 조용히 뺀다. 최대 500."""
+    out = []
+    for x in list(ids or [])[:500]:
+        try:
+            out.append(int(x))
+        except Exception:
+            pass
+    if not out:
+        return []
+    q = ",".join("?" * len(out))
+    extra = " AND direction='in'" if inbound_only else ""
+    return [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE user_id=? AND is_deleted=0" + extra +
+                                    " AND id IN (" + q + ")", (user_id, *out)).fetchall()]
+
+
+def set_archived(c, user_id, ids, on=True) -> int:
+    """📦 보관 / 받은편지함으로 — 받은 메일만. 보관할 때는 읽음으로도(안 읽은 숫자가 보이지 않는 곳에 남지 않게)."""
+    _ensure_security_cols(c)
+    own = _own_ids(c, user_id, ids, inbound_only=True)
+    if not own:
+        return 0
+    q = ",".join("?" * len(own))
+    if on:
+        sql = ("UPDATE mail_messages SET is_archived=1, is_read=1, read_at=COALESCE(read_at, datetime('now','localtime')) "
+               "WHERE user_id=? AND id IN (" + q + ")")
+    else:
+        sql = "UPDATE mail_messages SET is_archived=0 WHERE user_id=? AND id IN (" + q + ")"
+    return c.execute(sql, (user_id, *own)).rowcount
+
+
+def archive_old(c, user_id, months=3, dry=True) -> int:
+    """오래된 메일 한 번에 보관 — 받은 지 N개월 지난 **읽은** 메일(⭐ 중요 표시·차단·휴지통 제외). dry=True 면 셈만."""
+    _ensure_security_cols(c)
+    months = int(months) if str(months).isdigit() and int(months) in (1, 3, 6, 12) else 3
+    cut = c.execute("SELECT datetime('now','localtime', ?)", ("-%d months" % months,)).fetchone()[0]
+    where = ("user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(is_archived,0)=0 "
+             "AND is_read=1 AND COALESCE(is_starred,0)=0 AND received_at < ?")
+    if dry:
+        return int(c.execute("SELECT COUNT(*) FROM mail_messages WHERE " + where, (user_id, cut)).fetchone()[0] or 0)
+    return c.execute("UPDATE mail_messages SET is_archived=1 WHERE " + where, (user_id, cut)).rowcount
+
+
+def bulk_apply(c, user_id, ids, op) -> int:
+    """여러 통 한 번에 — read · unread · star · unstar · archive · unarchive · delete(휴지통). 내 메일만."""
+    if op == "archive":
+        return set_archived(c, user_id, ids, True)
+    if op == "unarchive":
+        return set_archived(c, user_id, ids, False)
+    own = _own_ids(c, user_id, ids)
+    if not own:
+        return 0
+    q = ",".join("?" * len(own))
+    sets = {"read": "is_read=1, read_at=COALESCE(read_at, datetime('now','localtime'))", "unread": "is_read=0",
+            "star": "is_starred=1", "unstar": "is_starred=0",
+            "delete": "is_deleted=1, deleted_at=datetime('now','localtime')"}.get(op)
+    if not sets:
+        return 0
+    return c.execute("UPDATE mail_messages SET " + sets + " WHERE user_id=? AND id IN (" + q + ")", (user_id, *own)).rowcount
+
+
+def set_pin(c, user_id, ids, key) -> int:
+    """📁 이 메일만 폴더로(key='f<폴더id>') · key='' 면 자동 분류로 되돌림. 받은 메일만 · 폴더는 내 것만(부르는 쪽이 확인)."""
+    _ensure_security_cols(c)
+    own = _own_ids(c, user_id, ids, inbound_only=True)
+    if not own:
+        return 0
+    q = ",".join("?" * len(own))
+    return c.execute("UPDATE mail_messages SET fd_pin=? WHERE user_id=? AND id IN (" + q + ")",
+                     ((key or ""), user_id, *own)).rowcount
+
+
+def nav_ids(c, user_id, m) -> dict:
+    """풀페이지 읽기의 ‹ 이전 메일 · 다음 메일 › — 받은편지함 순서(새 메일이 위 · 보관·차단·휴지통 제외)."""
+    out = {"prev": None, "next": None}
+    try:
+        if (m.get("direction") or "in") != "in":
+            return out
+        base = ("user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(is_archived,0)=0")
+        ra, mid = m.get("received_at") or "", m["id"]
+        r = c.execute("SELECT id FROM mail_messages WHERE " + base + " AND (received_at>? OR (received_at=? AND id>?)) "
+                      "ORDER BY received_at ASC, id ASC LIMIT 1", (user_id, ra, ra, mid)).fetchone()
+        out["prev"] = r[0] if r else None
+        r = c.execute("SELECT id FROM mail_messages WHERE " + base + " AND (received_at<? OR (received_at=? AND id<?)) "
+                      "ORDER BY received_at DESC, id DESC LIMIT 1", (user_id, ra, ra, mid)).fetchone()
+        out["next"] = r[0] if r else None
+    except Exception:
+        pass
+    return out
+
+
+def count_archived(c, user_id) -> int:
+    try:
+        _ensure_security_cols(c)
+        return int(c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
+                             "AND COALESCE(is_blocked,0)=0 AND COALESCE(is_archived,0)=1", (user_id,)).fetchone()[0] or 0)
+    except Exception:
+        return 0
 
 
 def search_terms(q) -> list:
@@ -926,19 +1064,29 @@ def save_signature(c, user_id: int, body: str) -> None:
     )
 
 
-def search_contacts(c, q: str, limit: int = 8):
-    """전사 연락처(shared_contacts)에서 받는사람 자동완성 후보."""
+def search_contacts(c, q: str, limit: int = 8, user=None, browse: bool = False):
+    """전사 연락처(shared_contacts)에서 받는사람 자동완성 후보.
+    (11-18) user 를 주면 연락처 공개 범위(내가 등록 · 전사 공유 · 내 부서 공유)만 — contacts._vis_clause 와 같은 규칙.
+    browse=True 면 검색어 없이도 목록(📇 주소록에서 고르기)."""
     q = (q or "").strip()
-    if not q:
+    if not q and not browse:
         return []
     like = f"%{q}%"
+    vsql, vargs = "", []
+    if user:
+        try:
+            from .contacts import _vis_clause
+            vsql, vargs = _vis_clause(user)
+        except Exception:
+            vsql, vargs = "(sc.created_by=? OR sc.visibility='company')", [user.get("id")]
     try:
         rows = c.execute(
-            """SELECT name, email, company, position FROM shared_contacts
-               WHERE email IS NOT NULL AND email<>''
-                 AND (name LIKE ? OR email LIKE ? OR company LIKE ?)
-               ORDER BY name LIMIT ?""",
-            (like, like, like, int(limit) * 3),
+            "SELECT sc.name, sc.email, sc.company, sc.position FROM shared_contacts sc "
+            "WHERE sc.email IS NOT NULL AND sc.email<>'' "
+            + ("AND (sc.name LIKE ? OR sc.email LIKE ? OR sc.company LIKE ?) " if q else "")
+            + (("AND " + vsql + " ") if vsql else "")
+            + "ORDER BY " + ("sc.name" if q else "sc.company COLLATE NOCASE, sc.name COLLATE NOCASE") + " LIMIT ?",
+            ([like, like, like] if q else []) + vargs + [int(limit) * 3],
         ).fetchall()
     except Exception:
         return []

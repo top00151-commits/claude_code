@@ -52,6 +52,15 @@
   .mv-quote .mv-body{color:#4b5563}
   @media print{.mv-who-pop{display:none}.mv-quote{display:block}}
   html.mbx-big .mv-body,html.mbx-big .mv-meta{font-size:16px}
+  /* 11-18 3단계 — 이 메일만 폴더 · 이전·다음 */
+  .mv-fd-pin{font-size:11px;padding:1px 7px;border-radius:6px;background:#e0e7ff;color:#3730a3}
+  .mv-fd-undo{font-size:12px;color:#1d4ed8;text-decoration:none;margin-left:2px}
+  .mv-fd-ask{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;margin-left:6px;padding:4px 8px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:8px;font-size:12.5px}
+  .mv-fd-ask[hidden]{display:none}
+  .mv-fd-ask button{border:1px solid #c7d2fe;background:#fff;border-radius:7px;padding:3px 9px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .mv-fd-ask button.x{border:0;background:none;color:var(--mute)}
+  .mv-nav{display:flex;gap:8px;justify-content:space-between;margin:16px 0 4px}
+  @media print{.mv-nav,.mv-fd-ask{display:none}}
   html.mbx-big .mv-subj{font-size:22px}
   .mv-trans{border:1px dashed #c7d2fe;background:#f5f7ff;border-radius:10px;padding:12px 14px;margin-top:12px;display:none}
   .mv-viewtabs{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}

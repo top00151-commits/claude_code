@@ -2,7 +2,8 @@
    기대 컨텍스트: mails, threads, thread_on, more_href, remain_n, prev_day #}
 {% macro mailrow(m, child=False) %}
 {% set _out = (m.direction|default('in')) == 'out' %}
-<a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read and not _out %} unread{% endif %}{% if child %} mbx-child{% endif %}{% if m.ad %} robot{% endif %}" data-mail-id="{{ m.id }}" onclick="return rowClick(event,{{ m.id }})">
+<a href="/mail/{{ m.id }}" class="mbx-row{% if not m.is_read and not _out %} unread{% endif %}{% if child %} mbx-child{% endif %}{% if m.ad %} robot{% endif %}" data-mail-id="{{ m.id }}" data-arc="{{ m.is_archived|default(0) }}" onclick="return rowClick(event,{{ m.id }})">
+  <input type="checkbox" class="mbx-ck" data-ids="{{ m.id }}" title="고르기 — 여러 통 한 번에" onclick="mbxCk(event,this)">
   <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>
   <div class="mbx-main">
     <div class="mbx-r1">
@@ -15,6 +16,7 @@
       {% if m.ccme %}<span class="mbx-cc" title="나는 참조로 받은 메일">참조</span>{% endif %}
       {% if m.ad %}<span class="mbx-ad" title="광고·알림으로 보이는 곳(⚙ 설정·정리 → 보낸 곳별 정리와 같은 기준)">광고·알림</span>{% endif %}
       {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
+      {% if m.is_archived %}<span class="mbx-arc" title="보관한 메일(받은편지함에서 빠짐 · 지우지 않음)">📦 보관</span>{% endif %}
       {% if m.att_n %}<span class="mbx-att" title="첨부파일 {{ m.att_n }}개">📎 {{ m.att_n }}</span>{% endif %}
     </div>
   </div>
@@ -29,7 +31,8 @@
     <div class="mbx-thread">
       <div class="mbx-thread-head{% if not L.is_read %} unread{% endif %}">
         <button type="button" class="mbx-twist" title="대화 펼치기/접기" aria-expanded="false" onclick="toggleThread(event,this)">▸</button>
-        <a href="/mail/{{ L.id }}" class="mbx-headlink{% if not L.is_read %} unread{% endif %}{% if L.ad %} robot{% endif %}" data-mail-id="{{ L.id }}" onclick="return rowClick(event,{{ L.id }})">
+        <a href="/mail/{{ L.id }}" class="mbx-headlink{% if not L.is_read %} unread{% endif %}{% if L.ad %} robot{% endif %}" data-mail-id="{{ L.id }}" data-arc="{{ L.is_archived|default(0) }}" onclick="return rowClick(event,{{ L.id }})">
+          <input type="checkbox" class="mbx-ck" data-ids="{% for x in t['items'] %}{{ x.id }}{{ ',' if not loop.last else '' }}{% endfor %}" title="이 대화 {{ t['count'] }}통 모두 고르기" onclick="mbxCk(event,this)">
           <button type="button" class="mbx-star {{ 'on' if L.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ L.id }})">★</button>
           <div class="mbx-main">
             <div class="mbx-r1">
@@ -43,6 +46,7 @@
               {% if L.ccme %}<span class="mbx-cc" title="나는 참조로 받은 메일">참조</span>{% endif %}
               {% if L.ad %}<span class="mbx-ad">광고·알림</span>{% endif %}
               {% if L.summary_short %}<span class="mbx-sum">— {{ L.summary_short }}</span>{% endif %}
+              {% if L.is_archived %}<span class="mbx-arc">📦 보관</span>{% endif %}
               {% if L.att_n %}<span class="mbx-att" title="첨부파일 {{ L.att_n }}개">📎 {{ L.att_n }}</span>{% endif %}
             </div>
           </div>

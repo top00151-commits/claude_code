@@ -24,14 +24,20 @@
     <b>받은시각</b> {{ m.received_at }}{% if m.lang %} · <b>언어</b> {{ m.lang }}{% endif %}
     {% if folder_info is defined and folder_info %}
     {# 받은 메일 폴더(아웃룩식 · 11-17) — 지금 폴더 + 「📁 이 폴더로」(그 회사 메일 전부 · 나에게만) #}
-    <br><b>폴더</b> <span id="mvFolderCur" class="mv-fd-cur" title="{{ folder_info.cur.how or '어디에도 안 걸린 메일' }}">📁 {{ folder_info.cur.name }}</span>
+    <br><b>폴더</b> <span id="mvFolderCur" class="mv-fd-cur" title="{{ folder_info.cur.how or '어디에도 안 걸린 메일' }}">📁 {{ folder_info.cur.name }}</span>{% if folder_info.pinned %} <span class="mv-fd-pin">이 메일만 옮김</span> <a href="#" class="mv-fd-undo" onclick="return mailPinUndo()" title="보낸 사람 기준 자동 분류로 되돌리기">↺ 자동으로</a>{% endif %}
     {% if folder_info.target %}
     <select id="mvFolderSel" class="mv-fd-sel" onchange="mailSetFolder(this)"
             data-kind="{{ folder_info.target.kind }}" data-pattern="{{ folder_info.target.pattern }}"
             title="{% if folder_info.target.kind == 'domain' %}회사 주소 @{{ folder_info.target.pattern }} 에서 온 메일을 모두{% else %}{{ folder_info.target.pattern }} 에서 온 메일을 모두{% endif %} 고른 폴더로 — 지난 메일·앞으로 올 메일 · 나에게만">
-      <option value="">📁 이 폴더로…</option>
+      <option value="">📁 다른 폴더로…</option>
       {% for f in folder_info.choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
     </select>
+    <span id="mvFolderAsk" class="mv-fd-ask" hidden>
+      <b id="mvFolderAskName"></b> 로 —
+      <button type="button" onclick="mailFolderGo('one')" title="이 메일 한 통만 옮김 · 보낸 회사의 다른 메일은 그대로">이 메일만</button>
+      <button type="button" onclick="mailFolderGo('all')" title="이 보낸 곳(회사 주소)의 지난 메일·앞으로 올 메일 모두 · 나에게만">이 회사 메일 모두</button>
+      <button type="button" class="x" onclick="mailFolderGo('')">취소</button>
+    </span>
     <span id="mvFolderMsg" class="mv-fd-msg"></span>
     {% endif %}
     {% endif %}
@@ -57,6 +63,7 @@
   <a href="/mail/compose?replyall={{ m.id }}" class="btn btn-secondary">↩↩ 전체답장</a>{% endif %}
   <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
   {% if m.direction != 'out' %}<button type="button" id="mvStarBtn" class="btn btn-secondary mv-star{{ ' on' if m.is_starred else '' }}" onclick="mvStar()" title="중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 · 다시 누르면 풀림">{{ '⭐ 중요' if m.is_starred else '☆ 중요 표시' }}</button>{% endif %}
+  {% if m.direction != 'out' %}<button type="button" id="mvArcBtn" class="btn btn-secondary" onclick="mvArchive()" data-on="{{ 1 if m.is_archived else 0 }}" title="{{ '받은편지함으로 되돌리기' if m.is_archived else '받은편지함에서 빼기 — 지우지 않음 · 📦 보관함·찾기·폴더에는 그대로' }}">{{ '📥 받은편지함으로' if m.is_archived else '📦 보관' }}</button>{% endif %}
   <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
   <span style="flex:1"></span>
   {# 가끔 쓰는 것 — 11-18 대표 「쉽게 보이고 쉽게 사용」: 매일 쓰는 단추만 밖에 #}
@@ -149,6 +156,11 @@
 </div>
 {% endif %}
 
+<div class="mv-nav">
+  {% if pane %}<button type="button" class="btn btn-secondary" onclick="mvNav(-1)" title="목록에서 위 메일">‹ 이전 메일</button><button type="button" class="btn btn-secondary" onclick="mvNav(1)" title="목록에서 아래 메일">다음 메일 ›</button>
+  {% else %}{% if nav is defined and nav and nav.prev %}<a class="btn btn-secondary" href="/mail/{{ nav.prev }}" title="받은편지함에서 위(더 새) 메일">‹ 이전 메일</a>{% endif %}{% if nav is defined and nav and nav.next %}<a class="btn btn-secondary" href="/mail/{{ nav.next }}" title="받은편지함에서 아래(더 지난) 메일">다음 메일 ›</a>{% endif %}{% endif %}
+</div>
+
 <div class="mv-trans" id="transBox">
   <div style="font-size:12px;color:var(--mute);margin-bottom:6px;"><b id="transLabel">번역</b> <span id="transStatus"></span></div>
   <div style="font-weight:700;margin-bottom:6px;" id="transSubj"></div>
@@ -224,7 +236,37 @@
     }catch(e){ alert('네트워크 오류'); }
   };
   // 「📁 이 폴더로」 (11-17) — 그 회사 주소(개인 메일은 그 주소)를 기억 → 지난·앞으로 메일 모두 그 폴더로(나에게만)
-  window.mailSetFolder=async function(sel){
+  // (11-18 3단계) 폴더를 고르면 「이 메일만 / 이 회사 메일 모두」 를 묻는다
+  window.mailSetFolder=function(sel){
+    var ask=document.getElementById('mvFolderAsk'); if(!sel.value){ if(ask) ask.hidden=true; return; }
+    var nm=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
+    if(!ask){ return mailSetFolderAll(sel); }
+    document.getElementById('mvFolderAskName').textContent='「'+nm+'」'; ask.hidden=false;
+  };
+  window.mailFolderGo=async function(how){
+    var sel=document.getElementById('mvFolderSel'), ask=document.getElementById('mvFolderAsk');
+    if(ask) ask.hidden=true;
+    if(!how || !sel || !sel.value){ if(sel) sel.value=''; return; }
+    if(how==='all'){ return mailSetFolderAll(sel); }
+    try{ var fd=new FormData(); fd.append('folder_id', sel.value);
+      var r=await fetch('/mail/'+MAIL_ID+'/pin',{method:'POST',body:fd}); var j=await r.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'옮기지 못했습니다')); sel.value=''; return; }
+      var cur=document.getElementById('mvFolderCur'); if(cur){ cur.textContent='📁 '+j.folder; cur.title='이 메일만 직접 옮김'; }
+      var msg=document.getElementById('mvFolderMsg'); if(msg){ msg.textContent='✓ 이 메일만 「'+j.folder+'」로 옮겼습니다'; }
+      sel.value='';
+    }catch(e){ alert('네트워크 오류'); sel.value=''; }
+  };
+  window.mailPinUndo=function(){
+    (async function(){ try{ var fd=new FormData(); fd.append('folder_id','0');
+      var r=await fetch('/mail/'+MAIL_ID+'/pin',{method:'POST',body:fd}); var j=await r.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'되돌리지 못했습니다')); return; }
+      var cur=document.getElementById('mvFolderCur'); if(cur){ cur.textContent='📁 '+j.folder; }
+      document.querySelectorAll('.mv-fd-pin,.mv-fd-undo').forEach(function(x){ x.remove(); });
+      var msg=document.getElementById('mvFolderMsg'); if(msg){ msg.textContent='✓ 자동 분류로 되돌렸습니다'; }
+    }catch(e){ alert('네트워크 오류'); } })();
+    return false;
+  };
+  window.mailSetFolderAll=async function(sel){
     var fid=sel.value; if(!fid) return;
     var name=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
     var who=sel.getAttribute('data-kind')==='domain' ? ('회사 주소 @'+sel.getAttribute('data-pattern')+' 에서 온 메일') : (sel.getAttribute('data-pattern')+' 에서 온 메일');
@@ -250,6 +292,27 @@
       if(j.ok){ if(IN_PANE && window.mailPaneAfterDelete){ window.mailPaneAfterDelete(id); } else { location.href=inboxHref(); } }
       else { alert('삭제 실패'); }
     }catch(e){ alert('네트워크 오류'); }
+  };
+  // 📦 보관 / 📥 받은편지함으로(11-18 3단계) — 받은편지함에서만 빠지고 지우지 않음
+  window.mvArchive=async function(){
+    var b=document.getElementById('mvArcBtn'); if(!b) return;
+    var on = b.getAttribute('data-on')!=='1';
+    try{ var fd=new FormData(); fd.append('on', on?'1':'0');
+      var r=await fetch('/mail/'+MAIL_ID+'/archive',{method:'POST',body:fd}); var j=await r.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return; }
+      b.setAttribute('data-on', on?'1':'0'); b.textContent = on ? '📥 받은편지함으로' : '📦 보관';
+      if(IN_PANE && window.mailPaneAfterArchive){ window.mailPaneAfterArchive(MAIL_ID, on); }
+      else if(on){ location.href=inboxHref(); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
+  // ‹ 이전 메일 · 다음 메일 › — 읽기 칸에서는 지금 목록(찾기·폴더 그대로)의 위·아래 줄
+  window.mvNav=function(d){
+    var all=[].slice.call(document.querySelectorAll('.mbx-list [data-mail-id]')).filter(function(x){ return x.offsetParent!==null; });
+    var i=all.findIndex(function(x){ return x.getAttribute('data-mail-id')===String(MAIL_ID); });
+    var t=all[i+d];
+    if(!t){ if(d>0){ var more=document.querySelector('.mbx-morerows'); if(more && window.mbxMore){ window.mbxMore(more); } } alert(d>0?'목록의 마지막 메일입니다.':'목록의 첫 메일입니다.'); return; }
+    try{ t.scrollIntoView({block:'nearest'}); }catch(e){}
+    if(window.loadPane){ window.loadPane(parseInt(t.getAttribute('data-mail-id'),10), t); }
   };
   // ⭐ 중요 표시(= 별표) — 목록의 ★ 와 같은 저장(11-18)
   window.mvStar=async function(){

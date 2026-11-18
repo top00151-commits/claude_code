@@ -273,6 +273,11 @@ def _stamp(c, uid):
     a = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_messages WHERE user_id=? AND direction='in'",
                   (uid,)).fetchone()
     b = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_folders WHERE user_id=?", (uid,)).fetchone()
+    try:   # 「이 메일만」 옮김이 바뀌면 다시 계산(같은 개수로 옮겨도 달라지게 폴더 번호까지)
+        pn = tuple(c.execute("SELECT COUNT(*), COALESCE(SUM(id * CAST(substr(fd_pin,2) AS INTEGER)),0) FROM mail_messages "
+                             "WHERE user_id=? AND COALESCE(fd_pin,'')<>''", (uid,)).fetchone())
+    except Exception:
+        pn = ()
     r = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_folder_rules WHERE user_id=?", (uid,)).fetchone()
     nm = c.execute("SELECT COALESCE(group_concat(id||':'||name||':'||COALESCE(parent_id,0)||':'||sort||':'||COALESCE(aliases,''),'|'),'') "
                    "FROM mail_folders WHERE user_id=?", (uid,)).fetchone()
@@ -287,7 +292,7 @@ def _stamp(c, uid):
             ex.append(tuple(c.execute(sql).fetchone()))
         except Exception:
             ex.append(None)
-    return (tuple(a), tuple(b), tuple(r), nm[0], tuple(ex))
+    return (tuple(a), tuple(b), tuple(r), nm[0], tuple(ex), pn)
 
 
 def _maps(c):
@@ -395,6 +400,11 @@ def classify(c, uid) -> dict:
         'labels':  {key: 이름}, 'keys_of': {key: set(자기+자손 열쇠)} }
     열쇠: 'f<폴더id>' · 't<부서id>'(6.케이엔케이 아래) · 'tx'(KNK 기타) · 'gen'(일반)."""
     ensure(c)
+    try:   # 메일 표의 더한 칸(차단·보관·이 메일만 폴더)이 먼저 있어야 아래 셈이 맞다(11-18)
+        from .mail_store import _ensure_security_cols
+        _ensure_security_cols(c)
+    except Exception:
+        pass
     st = _stamp(c, uid)
     hit = _CACHE.get(uid)
     if hit and hit[0] == st:
@@ -567,6 +577,24 @@ def classify(c, uid) -> dict:
         a = cnt.setdefault(s["key"], [0, 0])
         a[0] += s["n"]
         a[1] += s["u"]
+    # (11-18 3단계) 「이 메일만」 옮긴 메일 — 보낸 사람 폴더에서 빼고 옮긴 폴더로(없어진 폴더면 그대로 둠)
+    try:
+        for r in c.execute("SELECT lower(from_email) AS e, fd_pin, is_read FROM mail_messages WHERE user_id=? AND direction='in' "
+                           "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(fd_pin,'')<>''", (uid,)).fetchall():
+            pk = r["fd_pin"] or ""
+            if not pk.startswith("f") or not pk[1:].isdigit() or int(pk[1:]) not in by_id:
+                continue
+            nat = (senders.get((r["e"] or "").strip()) or {}).get("key", "gen")
+            if nat == pk:
+                continue
+            a = cnt.setdefault(nat, [0, 0])
+            a[0] -= 1
+            a[1] -= 0 if r["is_read"] else 1
+            b = cnt.setdefault(pk, [0, 0])
+            b[0] += 1
+            b[1] += 0 if r["is_read"] else 1
+    except Exception:
+        pass
 
     labels, keys_of, nodes = {}, {}, []
     for g in groups:
@@ -694,6 +722,19 @@ def folder_of(res, sender) -> dict:
     return {"key": s["key"], "name": res["labels"].get(s["key"], "일반"), "how": s["how"]}
 
 
+def assignable_list(res) -> list:
+    """여러 통 「📁 폴더로」 고르기 — classify 결과에서(DB 다시 안 읽음). 6.케이엔케이(부서 자동)는 뺀다."""
+    out = []
+    for g in (res or {}).get("nodes") or []:
+        if g.get("kind") == "staff":
+            continue
+        out.append({"id": int(g["key"][1:]), "name": g["name"], "depth": 0})
+        for k in g.get("children") or []:
+            if k["key"].startswith("f") and k["key"][1:].isdigit():
+                out.append({"id": int(k["key"][1:]), "name": k["name"], "depth": 1})
+    return out
+
+
 def assignable(c, uid) -> list:
     """「📁 이 폴더로」 고를 수 있는 폴더(6.케이엔케이 묶음은 부서로 자동이라 뺌)."""
     out = []
@@ -815,6 +856,10 @@ def delete_folder(c, uid, fid) -> int:
         return 0
     q = ",".join("?" * len(ids))
     c.execute("DELETE FROM mail_folder_rules WHERE user_id=? AND folder_id IN (%s)" % q, (uid, *ids))
+    try:   # 「이 메일만」 그 폴더로 옮긴 메일은 자동 분류로 되돌림(메일은 그대로)
+        c.execute("UPDATE mail_messages SET fd_pin='' WHERE user_id=? AND fd_pin IN (%s)" % q, (uid, *["f%d" % i for i in ids]))
+    except Exception:
+        pass
     n = c.execute("DELETE FROM mail_folders WHERE user_id=? AND id IN (%s)" % q, (uid, *ids)).rowcount
     _CACHE.pop(uid, None)
     return n

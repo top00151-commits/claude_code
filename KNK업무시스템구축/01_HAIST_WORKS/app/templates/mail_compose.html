@@ -3,14 +3,28 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .cmp-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:840px}
+  .cmp-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:1120px}
   .cmp-from{font-size:12px;color:var(--mute);padding:4px 2px 10px;border-bottom:1px solid var(--line)}
   .cmp-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:10px 2px}
   .cmp-row label{width:84px;font-size:13px;color:var(--mute);flex:none}
   .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
   .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
   /* z1168(대표 지시): 같은 단추줄을 위에도 — 긴 메일에서 끝까지 안 내려가도 보낼 수 있게 */
-  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding:8px 0 10px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:#fff}
+  .mail-app-top ~ .main .cmp-actions-top{top:50px}   /* 앱(kmail) 머리띠 아래에 붙게 */
+  .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
+  .cmp-pick:hover{background:#e0e7ff}
+  .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
+  .ab-wrap[hidden]{display:none}
+  .ab-box{background:#fff;border-radius:14px;width:min(640px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+  .ab-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .ab-h b{font-size:15px}.ab-h input{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit}
+  .ab-list{overflow:auto;flex:1;padding:4px 6px}
+  .ab-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;font-size:13.5px;cursor:pointer}
+  .ab-row:hover{background:#f5f7ff}
+  .ab-row .co{color:var(--mute);font-size:12.5px}.ab-row .em{margin-left:auto;color:#475569;font-size:12px}
+  .ab-f{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .ab-empty{padding:30px;text-align:center;color:var(--mute);font-size:13px}
   .ac-box div:hover{background:#f5f7ff}
   .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:#fafafa;margin-top:8px}
   .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
@@ -72,18 +86,20 @@
   {% endif %}
 
   <div class="cmp-card">
-    {# z1168: 아래 단추줄과 같은 것을 위에도. id 는 아래에만 두고 여기선 클래스(js-send/js-cmsg)로만 — 중복 id 금지 #}
+    {# z1168(대표): 긴 메일에서도 끝까지 안 내려가고 보내기 → 11-18 「같은 단추는 한 번만」: 위 한 줄을 화면에 늘 붙여 두고 아래 같은 줄은 뺐다 #}
     <div class="cmp-actions cmp-actions-top">
-      <button type="button" class="btn btn-primary js-send" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
+      <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <a href="/mail/inbox" class="btn btn-secondary">취소</a>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
       {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일주소로 보내기 연결">📮 내 계정{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
-      <span class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
+      <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
-    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}"></div>
+    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}">
+      <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">📇 주소록</button></div>
     <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}">
+      <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
     <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}"></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}"></div>
@@ -121,18 +137,44 @@
         <div id="cAttList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       </div>
     </div>
-    <div class="cmp-actions btn-row">
-      <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
-      <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
-      <a href="/mail/inbox" class="btn btn-secondary">취소</a>
-      <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
-      {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일주소로 보내기 연결">📮 내 계정{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
-      <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
-    </div>
     <div style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부한 파일이 <b>10MB</b>를 넘으면 자동으로 <b>대용량(NAS 다운로드 링크·30일 유효)</b>으로 보냅니다. (작은 파일은 메일에 그대로 첨부)</div>
   </div>
 </main></div>
+<div class="ab-wrap" id="abWrap" hidden onclick="if(event.target===this) abClose()">
+  <div class="ab-box" role="dialog" aria-label="주소록에서 고르기">
+    <div class="ab-h"><b>📇 주소록</b><input id="abQ" type="text" placeholder="이름·회사·주소로 찾기" oninput="abFind()" autocomplete="off"><button type="button" class="btn btn-secondary" onclick="abClose()">닫기</button></div>
+    <div class="ab-list" id="abList"><div class="ab-empty">불러오는 중…</div></div>
+    <div class="ab-f"><span id="abN" style="font-size:12.5px;color:var(--mute)">0명 고름</span><span style="flex:1"></span>
+      <button type="button" class="btn btn-primary" onclick="abPut('cTo')">받는 사람에 넣기</button>
+      <button type="button" class="btn btn-secondary" onclick="abPut('cCc')">참조에 넣기</button></div>
+  </div>
+</div>
 <script>
+/* 📇 주소록에서 고르기(11-18 3단계) — 내가 볼 수 있는 연락처만(개인·부서·전사 공개 범위) · 여러 명 골라 받는 사람/참조에 */
+var _abItems=[], _abPick={}, _abTarget='cTo', _abT=null;
+function abEsc(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; }
+function abOpen(target){ _abTarget=target||'cTo'; _abPick={}; document.getElementById('abN').textContent='0명 고름'; document.getElementById('abWrap').hidden=false; var q=document.getElementById('abQ'); q.value=''; q.focus(); abLoad(''); }
+function abClose(){ document.getElementById('abWrap').hidden=true; }
+async function abLoad(q){
+  var box=document.getElementById('abList');
+  try{ var r=await fetch('/api/mail/contacts?browse=1&q='+encodeURIComponent(q||'')); var j=await r.json(); _abItems=(j.items||[]); }catch(e){ _abItems=[]; }
+  if(!_abItems.length){ box.innerHTML='<div class="ab-empty">'+(q?'찾는 연락처가 없습니다':'주소록에 메일 주소가 있는 연락처가 없습니다')+'</div>'; return; }
+  box.innerHTML=_abItems.map(function(it,i){ var on=_abPick[it.email.toLowerCase()];
+    return '<label class="ab-row"><input type="checkbox" data-i="'+i+'"'+(on?' checked':'')+' onchange="abTick(this)"><b>'+abEsc(it.name||'(이름 없음)')+'</b>'+
+      (it.position?' <span class="co">'+abEsc(it.position)+'</span>':'')+(it.company?' <span class="co">· '+abEsc(it.company)+'</span>':'')+'<span class="em">'+abEsc(it.email)+'</span></label>'; }).join('');
+}
+function abFind(){ clearTimeout(_abT); var q=document.getElementById('abQ').value.trim(); _abT=setTimeout(function(){ abLoad(q); }, 220); }
+function abTick(cb){ var it=_abItems[parseInt(cb.dataset.i,10)]; if(!it) return; var k=it.email.toLowerCase();
+  if(cb.checked) _abPick[k]=it.email; else delete _abPick[k]; document.getElementById('abN').textContent=Object.keys(_abPick).length+'명 고름'; }
+function abPut(target){
+  var adds=Object.values(_abPick); if(!adds.length){ alert('넣을 사람을 골라 주세요.'); return; }
+  var el=document.getElementById(target||_abTarget); if(!el) return;
+  var cur=(el.value||'').split(/[,;]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  var low=cur.map(function(x){ return x.toLowerCase(); });
+  adds.forEach(function(a){ if(low.indexOf(a.toLowerCase())<0){ cur.push(a); low.push(a.toLowerCase()); } });
+  el.value=cur.join(', '); abClose(); el.focus();
+}
+
 (function(){
   var NORMAL = [];   // 일반 첨부(File) — 메일에 그대로 첨부
   var LARGE = [];    // 대용량 첨부 토큰 — NAS 다운로드 링크

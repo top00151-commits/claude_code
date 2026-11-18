@@ -22635,7 +22635,8 @@ async def admin_mail_inbound_bind(req: Request):
 async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
                           reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
-                          who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = ""):
+                          who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = "",
+                          arc: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -22676,7 +22677,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                    only_ids=(list(reply_map.keys()) if reply else None),
                    senders=(_mail_folders.senders_in(mf, fd) if fd else None),
                    qf=qf, with_sent=bool((_terms or who or dom) and where != "in"), who=who, dom=dom,
-                   q_senders=_qs, noad=(_bulk if noad else None))
+                   q_senders=_qs, noad=(_bulk if noad else None),
+                   arc=bool(arc), fd_keys=(sorted((mf or {}).get("keys_of", {}).get(fd, set())) if fd else None))
         mails = _mailbox.list_inbox(c, u["id"], limit=_PAGE, offset=off, **_kw)
         total_n = _mailbox.list_inbox(c, u["id"], count_only=True, **_kw) or 0
         _kinds = _mail_find.folder_kinds(mf) if mf else {}
@@ -22692,7 +22694,11 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _m["fdname"], _m["fdkind"] = "", ""
             if mf and _inb:
                 try:
-                    _f = _mail_folders.folder_of(mf, _m.get("from_email") or "")
+                    _pk = _m.get("fd_pin") or ""
+                    if _pk and _pk in (mf.get("labels") or {}):          # 「이 메일만」 옮긴 폴더가 먼저
+                        _f = {"key": _pk, "name": mf["labels"][_pk]}
+                    else:
+                        _f = _mail_folders.folder_of(mf, _m.get("from_email") or "")
                     if _f.get("key") != "gen":
                         _m["fdname"] = _f.get("name") or ""
                         _m["fdkind"] = _kinds.get(_f.get("key"), "")
@@ -22712,7 +22718,11 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
     more_href = ("/mail/inbox?" + _ue(_keep_q + [("off", str(off + _PAGE)), ("frag", "1")])) if (off + len(mails) < total_n and len(mails) >= _PAGE) else ""
     _base_q = [(k, v) for k, v in req.query_params.multi_items()
                if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app")]
-    _ctx_more = dict(more_href=more_href, total_n=total_n, remain_n=max(0, total_n - off - len(mails)),
+    with db_session() as c:
+        _arc_n = _mailbox.count_archived(c, u["id"])
+    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n,
+                     hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
+                     fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
                      prev_day=(prev or "")[:40], page_off=off,
                      base_q=_ue(_base_q), search_on=bool(_terms or who or dom or per or df or dt),
                      terms=_terms, cur_qf=qf, cur_where=where, cur_per=per, cur_who=who, cur_dom=dom,
@@ -23055,10 +23065,12 @@ async def mail_view_page(req: Request, mail_id: int):
             reply_info = {}
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
+        nav = _mailbox.nav_ids(c, u["id"], m)
     return ctx(req, "mail_view.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
-               who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS)
+               who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
+               nav=nav)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -23094,10 +23106,12 @@ async def mail_view_pane(req: Request, mail_id: int):
             reply_info = {}
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
+        nav = _mailbox.nav_ids(c, u["id"], m)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
-               who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS)
+               who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
+               nav=nav)
 
 
 def _mail_who_info(m, folder_info):
@@ -23130,13 +23144,107 @@ def _mail_folder_info(c, uid, m):
             return None
         res = _mail_folders.classify(c, uid)
         cur = _mail_folders.folder_of(res, m.get("from_email") or "")
+        pinned = False
+        _pk = (m.get("fd_pin") or "")
+        if _pk and _pk in (res.get("labels") or {}):     # 「이 메일만」 옮긴 메일(11-18 3단계)
+            cur = {"key": _pk, "name": res["labels"][_pk], "how": "이 메일만 직접 옮김"}
+            pinned = True
         tgt = _mail_folders.rule_target(m.get("from_email") or "")
-        return {"cur": cur, "choices": _mail_folders.assignable(c, uid),
+        return {"cur": cur, "pinned": pinned, "choices": _mail_folders.assignable(c, uid),
                 "target": ({"kind": tgt[0], "pattern": tgt[1]} if tgt else None),
                 "staff": (cur["key"] == "tx" or cur["key"].startswith("t"))}
     except Exception as _e:
         print(f"[MAIL-FOLDERS view ERR] {type(_e).__name__}: {_e}")
         return None
+
+
+@app.post("/mail/{mail_id:int}/archive")
+async def mail_archive_one(req: Request, mail_id: int):
+    """📦 보관(받은편지함에서 빼기 · 지우지 않음) / 받은편지함으로 — on=1/0 · 내 받은 메일만(11-18 3단계)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    on = (form.get("on") or "1") != "0"
+    with db_session() as c:
+        n = _mailbox.set_archived(c, u["id"], [mail_id], on)
+    if not n:
+        return JSONResponse({"ok": False, "message": "내 받은 메일이 아닙니다."}, 404)
+    return JSONResponse({"ok": True, "archived": on})
+
+
+@app.post("/mail/bulk")
+async def mail_bulk(req: Request):
+    """여러 통 한 번에 — op = read·unread·star·unstar·archive·unarchive·delete·pin(folder_id · 0=자동으로) · 내 메일만 · 500통까지."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    op = (form.get("op") or "").strip()
+    ids = [x for x in (form.get("ids") or "").replace(" ", "").split(",") if x][:500]
+    if not ids:
+        return JSONResponse({"ok": False, "message": "고른 메일이 없습니다."}, 400)
+    with db_session() as c:
+        if op == "pin":
+            key = ""
+            try:
+                fid = int(form.get("folder_id") or 0)
+            except Exception:
+                fid = 0
+            if fid:
+                if fid not in {f["id"] for f in _mail_folders.assignable(c, u["id"])}:
+                    return JSONResponse({"ok": False, "message": "옮길 수 없는 폴더입니다."}, 400)
+                key = "f%d" % fid
+            n = _mailbox.set_pin(c, u["id"], ids, key)
+        elif op in ("read", "unread", "star", "unstar", "archive", "unarchive", "delete"):
+            n = _mailbox.bulk_apply(c, u["id"], ids, op)
+        else:
+            return JSONResponse({"ok": False, "message": "모르는 일입니다."}, 400)
+    return JSONResponse({"ok": True, "n": n})
+
+
+@app.post("/mail/{mail_id:int}/pin")
+async def mail_pin_one(req: Request, mail_id: int):
+    """📁 이 메일만 그 폴더로(folder_id) · folder_id=0 → 자동 분류로 되돌림(11-18 3단계)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    try:
+        fid = int(form.get("folder_id") or 0)
+    except Exception:
+        fid = 0
+    with db_session() as c:
+        key, name = "", ""
+        if fid:
+            ch = {f["id"]: f["name"] for f in _mail_folders.assignable(c, u["id"])}
+            if fid not in ch:
+                return JSONResponse({"ok": False, "message": "옮길 수 없는 폴더입니다."}, 400)
+            key, name = "f%d" % fid, ch[fid]
+        n = _mailbox.set_pin(c, u["id"], [mail_id], key)
+        if not n:
+            return JSONResponse({"ok": False, "message": "내 받은 메일이 아닙니다."}, 404)
+        if not key:
+            m = _mailbox.get_mail(c, mail_id, u["id"]) or {}
+            try:
+                name = _mail_folders.folder_of(_mail_folders.classify(c, u["id"]), m.get("from_email") or "").get("name", "일반")
+            except Exception:
+                name = "일반"
+    return JSONResponse({"ok": True, "folder": name, "pinned": bool(key)})
+
+
+@app.post("/mail/archive/old")
+async def mail_archive_old(req: Request):
+    """⚙ 설정·정리 「오래된 메일 한 번에 보관」 — months(1·3·6·12) · dry=1 이면 셈만 · 읽은 메일만(⭐ 중요 제외)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    months = (form.get("months") or "3").strip()
+    dry = (form.get("dry") or "1") != "0"
+    with db_session() as c:
+        n = _mailbox.archive_old(c, u["id"], months, dry=dry)
+    return JSONResponse({"ok": True, "n": n, "dry": dry})
 
 
 @app.post("/mail/{mail_id:int}/folder")
@@ -23603,13 +23711,14 @@ async def mail_translate(req: Request, mail_id: int):
 
 
 @app.get("/api/mail/contacts")
-async def mail_contacts_api(req: Request, q: str = ""):
-    """메일 쓰기 받는사람 자동완성 — 전사 연락처(shared_contacts)에서 추천."""
+async def mail_contacts_api(req: Request, q: str = "", browse: int = 0):
+    """메일 쓰기 받는사람 자동완성 — 연락처(shared_contacts)에서 추천.
+    (11-18) 연락처 공개 범위(내가 등록 · 전사 공유 · 내 부서 공유)만 · browse=1 = 📇 주소록에서 고르기(검색어 없이도 300명까지)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False}, 401)
     with db_session() as c:
-        items = _mailbox.search_contacts(c, q, limit=8)
+        items = _mailbox.search_contacts(c, q, limit=(300 if browse else 8), user=u, browse=bool(browse))
     return JSONResponse({"ok": True, "items": items})
 
 

@@ -124,6 +124,19 @@
   .mf-dot.fk-gen{background:#f59e0b}
   mark.mbx-hl{background:#fde047;color:inherit;padding:0 1px;border-radius:2px}
   .mbx-morerows{padding:14px;text-align:center}
+  /* 11-18 3단계 — 고르기 · 선택 띠 · 보관 */
+  .mbx-ck{flex:none;width:16px;height:16px;margin:2px 0 0;cursor:pointer;accent-color:#1d4ed8;opacity:.35}
+  .mbx-row:hover .mbx-ck,.mbx-headlink:hover .mbx-ck,.mbx-ck:checked,.mbx-list.selecting .mbx-ck{opacity:1}
+  .mbx-row.picked,.mbx-headlink.picked{background:#eef2ff !important}
+  .mbx-sel{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:13px}
+  .mbx-sel[hidden]{display:none}
+  .mbx-sel button,.mbx-sel select{border:1px solid #c7d2fe;background:#fff;border-radius:8px;padding:4px 9px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .mbx-sel button:hover{background:#f5f7ff}
+  .mbx-sel button.del{color:#b91c1c;border-color:#fecaca}
+  .mbx-sel button.lnk{border:0;background:none;color:#1d4ed8;padding:4px 4px}
+  .mbx-sel .sp{flex:1}
+  .mbx-arc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;white-space:nowrap}
+  @media(max-width:640px){.mbx-ck{width:20px;height:20px;opacity:.6}}
   .mbx-morerows .btn{min-width:220px}
   /* 글씨(11-18 「쉽게 보기」) — 제목 14.5 · 보낸 사람 13 · 시간 12 · ⚙ 설정·정리의 「글자 크게」면 한 단계 더 */
   .mbx-subj{font-size:14.5px}
@@ -197,7 +210,7 @@
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
-  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false)) %}
+  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false) and not cur_arc|default(false) and not cur_reply|default(false)) %}
 
   {# ── 상단 컴팩트 메뉴: 검색 + 액션 (메뉴 최대한 상단) ── #}
   <div class="mbx-topbar">
@@ -212,6 +225,7 @@
       {% if cur_unread|default(false) %}<input type="hidden" name="unread" value="1">{% endif %}
       {% if cur_star|default(false) %}<input type="hidden" name="star" value="1">{% endif %}
       {% if cur_noad|default(false) %}<input type="hidden" name="noad" value="1">{% endif %}
+      {% if cur_arc|default(false) %}<input type="hidden" name="arc" value="1">{% endif %}
       {% if cur_who|default('') %}<input type="hidden" name="who" value="{{ cur_who }}">{% endif %}
       {% if cur_dom|default('') %}<input type="hidden" name="dom" value="{{ cur_dom }}">{% endif %}
       {% endif %}
@@ -278,6 +292,7 @@
       <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
       <div class="mbx-fold-h" style="margin-top:4px">내 메일</div>
       <a href="/mail/sent" class="mbx-fold {{ 'on' if box=='sent' else '' }}"><span class="fname">📤 보낸편지함</span></a>
+      <a href="/mail/inbox?arc=1" class="mbx-fold {{ 'on' if cur_arc|default(false) else '' }}" title="📦 보관한 메일 — 받은편지함에서만 빠지고 지우지 않음(찾기·폴더에는 그대로 나옴)"><span class="fname">📦 보관함</span>{% if arc_n|default(0) %}<span class="cnt">{{ '{:,}'.format(arc_n) }}</span>{% endif %}</a>
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}" title="쓰다가 저장한 메일(임시 저장)"><span class="fname">📝 쓰다 만 메일</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"><span class="fname">🗑 휴지통</span></a>
       {% if box=='blocked' %}<a href="/mail/blocked" class="mbx-fold on" title="차단목록에 걸려 격리된 메일(복구 가능)"><span class="fname">🚫 차단함</span></a>{% endif %}
@@ -355,6 +370,25 @@
       <a href="/mail/inbox" class="mbx-res-x">✕ 찾기 끝</a>
     </div>
     {% endif %}
+    {% if cur_arc|default(false) %}
+    <div class="mf-cur">📦 <b>보관함</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 받은편지함에서만 빠진 메일(지우지 않음) · 「📥 받은편지함으로」로 되돌림</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
+    {% endif %}
+    <div class="mbx-sel" id="mbxSel" hidden>
+      <b id="mbxSelN">0통</b> 선택
+      <button type="button" onclick="mbxBulk('read')">✓ 읽음</button>
+      <button type="button" onclick="mbxBulk('unread')">● 안 읽음</button>
+      <button type="button" onclick="mbxBulk('star')">⭐ 중요</button>
+      {% if cur_arc|default(false) %}<button type="button" onclick="mbxBulk('unarchive')">📥 받은편지함으로</button>{% else %}<button type="button" onclick="mbxBulk('archive')" title="받은편지함에서 빼기(지우지 않음)">📦 보관</button>{% endif %}
+      {% if fd_choices|default([]) %}<select id="mbxSelFd" onchange="mbxBulkPin(this)" title="고른 메일만 그 폴더로(보낸 회사 메일 전부가 아니라 이 메일들만)">
+        <option value="">📁 이 메일들만 폴더로…</option>
+        {% for f in fd_choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
+        <option value="0">↺ 자동 분류로 되돌리기</option>
+      </select>{% endif %}
+      <button type="button" class="del" onclick="mbxBulk('delete')">🗑 삭제</button>
+      <span class="sp"></span>
+      <button type="button" class="lnk" onclick="mbxSelAll()" title="지금 목록에 보이는 메일 모두">보이는 것 모두</button>
+      <button type="button" class="lnk" onclick="mbxSelClear()">✕ 풀기</button>
+    </div>
     <div class="mbx-chips">
       <a href="{{ _b }}{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if not cur_unread|default(false) and not cur_att|default(false) else '' }}">전체</a>
       <a href="{{ _b }}&unread=1{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if cur_unread|default(false) else '' }}">● 안 읽음</a>
@@ -421,6 +455,8 @@
     <div class="mbx-empty">
       {% if q or cur_star|default(false) or cur_unread|default(false) or cur_cust|default('') or cur_fd|default('') or search_on|default(false) or cur_att|default(false) or cur_noad|default(false) %}
       🔍 조건에 맞는 메일이 없습니다.<br><br><span style="font-size:12.5px;">검색어나 폴더·필터를 바꿔보세요.</span>
+      {% elif cur_arc|default(false) %}
+      📦 보관한 메일이 없습니다.<br><br><span style="font-size:12.5px;">다 본 메일을 열어 <b>📦 보관</b>을 누르면 받은편지함에서 빠지고 여기에 모입니다(지우지 않음).<br>⚙ 설정·정리 → <b>오래된 메일 한 번에 보관</b>도 있습니다.</span>
       {% elif box=='sent' %}
       📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">왼쪽 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
       {% elif box=='draft' %}
@@ -649,6 +685,45 @@ function mbxHighlight(root){
   });
 }
 (function(){ try{ mbxHighlight(document.querySelector('.mbx-list')); mbxWatchMore(); }catch(e){} })();
+/* ── 여러 통 한 번에(11-18 3단계) — 네모를 누르면 위에 띠 · 내 메일만(서버가 다시 확인) ── */
+window._mbxHidesArc = {{ 'true' if hides_arc|default(false) else 'false' }};
+function mbxPicked(){ var s=[]; document.querySelectorAll('.mbx-ck:checked').forEach(function(x){ (x.dataset.ids||'').split(',').forEach(function(i){ if(i && s.indexOf(i)<0) s.push(i); }); }); return s; }
+function mbxSelShow(){
+  var ids=mbxPicked(), bar=document.getElementById('mbxSel'); if(!bar) return;
+  bar.hidden=!ids.length; var n=document.getElementById('mbxSelN'); if(n) n.textContent=ids.length+'통';
+  var list=document.querySelector('.mbx-list'); if(list) list.classList.toggle('selecting', ids.length>0);
+  document.querySelectorAll('.mbx-ck').forEach(function(x){ var r=x.closest('.mbx-row,.mbx-headlink'); if(r) r.classList.toggle('picked', x.checked); });
+}
+function mbxCk(ev, el){ ev.stopPropagation(); setTimeout(mbxSelShow, 0); }
+function mbxSelAll(){ document.querySelectorAll('.mbx-list .mbx-ck').forEach(function(x){ if(x.offsetParent!==null) x.checked=true; }); mbxSelShow(); }
+function mbxSelClear(){ document.querySelectorAll('.mbx-ck:checked').forEach(function(x){ x.checked=false; }); mbxSelShow(); }
+async function mbxPost(fd){
+  var r=await fetch('/mail/bulk',{method:'POST',body:fd}); var j={}; try{ j=await r.json(); }catch(e){}
+  if(!r.ok || !j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return false; } return j;
+}
+async function mbxBulk(op){
+  var ids=mbxPicked(); if(!ids.length) return;
+  if(op==='delete' && !confirm(ids.length+'통을 휴지통으로 옮길까요?\n(휴지통에서 되살릴 수 있습니다)')) return;
+  var fd=new FormData(); fd.append('op', op); fd.append('ids', ids.join(','));
+  var j=await mbxPost(fd); if(j) location.reload();
+}
+async function mbxBulkPin(sel){
+  var v=sel.value; if(v===''){ return; }
+  var ids=mbxPicked(); if(!ids.length){ sel.value=''; return; }
+  var name=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
+  if(!confirm(v==='0' ? (ids.length+'통을 자동 분류(보낸 사람 기준)로 되돌릴까요?') : (ids.length+'통만 「'+name+'」 폴더로 옮길까요?\n(보낸 회사의 다른 메일·앞으로 올 메일은 그대로)'))){ sel.value=''; return; }
+  var fd=new FormData(); fd.append('op','pin'); fd.append('ids', ids.join(',')); fd.append('folder_id', v);
+  var j=await mbxPost(fd); sel.value=''; if(j) location.reload();
+}
+/* 읽기 칸에서 📦 보관 / 📥 받은편지함으로 — 받은편지함(보관 뺀 목록)이면 그 줄을 빼고, 다른 목록이면 표시만 */
+window.mailPaneAfterArchive=function(id, on){
+  var el=document.querySelector('.mbx-list [data-mail-id="'+id+'"]'); if(!el) return;
+  var hide=(on && window._mbxHidesArc) || (!on && {{ 'true' if cur_arc|default(false) else 'false' }});
+  if(hide){
+    if(el.classList.contains('mbx-headlink')){ var th=el.closest('.mbx-thread'); if(th) th.remove(); } else { el.remove(); }
+    resetPane();
+  } else { el.setAttribute('data-arc', on?'1':'0'); }
+};
 /* ── 메일 없는 폴더 보기(11-18) — 기본은 접어 둠 ── */
 function mfShowZero(ev, key){
   ev.preventDefault(); ev.stopPropagation();

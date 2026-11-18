@@ -314,8 +314,9 @@ for name in ("mail_account.html", "mail_compose.html", "admin_mail_send.html"):
         check("%s 문법 성립" % name, False, "%s: %s" % (type(e).__name__, e))
 
 comp = io.open(os.path.join(ROOT, "app", "templates", "mail_compose.html"), encoding="utf-8").read()
-check("메일 쓰기에 「📮 내 계정」 들어가는 길이 생겼다 (위·아래 두 줄)",
-      comp.count('href="/mail/account"') == 3, comp.count('href="/mail/account"'))
+# 11-18 메뉴 「같은 단추는 한 번만」: 위·아래 두 줄 → 위 한 줄(화면에 늘 붙어 있게) — 안내 1 + 단추줄 1
+check("메일 쓰기에 「📮 내 계정」 들어가는 길이 있다 (안내 + 늘 붙어 있는 단추줄)",
+      comp.count('href="/mail/account"') == 2 and "position:sticky" in comp, comp.count('href="/mail/account"'))
 adm = io.open(os.path.join(ROOT, "app", "templates", "admin_mail_send.html"), encoding="utf-8").read()
 check("관리 화면에 「고른 사람만」이 있다", 'name="via_fetch" value="list"' in adm)
 check("관리 화면에 사람 고르기 칸이 있다", 'name="via_fetch_uids"' in adm)

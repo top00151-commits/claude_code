@@ -227,6 +227,11 @@ def scan(c, user_id, days: int = REPLY_DAYS) -> dict:
     「회신 안 해도 됨」으로 끈 것은 빠지고, 「회신 필요로 표시」한 것은 기간·규칙과 상관없이 들어간다(답장하면 빠짐)."""
     user_id = int(user_id)
     _prep(c)
+    try:   # (11-18 3단계) 📦 보관 칸이 없으면 먼저 만든다
+        from .mail_store import _ensure_security_cols
+        _ensure_security_cols(c)
+    except Exception:
+        pass
     since_row = c.execute("SELECT datetime('now','localtime', ?)", ("-%d days" % int(days),)).fetchone()
     since = since_row[0] if since_row else ""
     marks = _marks(c, user_id)
@@ -235,6 +240,7 @@ def scan(c, user_id, days: int = REPLY_DAYS) -> dict:
         "SELECT id, from_email, subject, category, COALESCE(risk_level,0) AS risk_level, received_at "
         "FROM mail_messages "
         "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND received_at>=? "
+        "AND COALESCE(is_archived,0)=0 "   # 📦 보관한 메일 = 다 본 메일 → 회신 필요에서 뺀다(11-18)
         "ORDER BY received_at DESC, id DESC LIMIT ?", (user_id, since, SCAN_LIMIT)).fetchall()
     rows = [dict(r) for r in rows]
     have = {r["id"] for r in rows}
