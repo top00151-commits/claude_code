@@ -44,12 +44,13 @@
           <button type="button" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
           <button type="button" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
           {% if has_html %}<button type="button" onclick="mvShow(document.getElementById('mvText') && document.getElementById('mvText').style.display==='none' ? 'text' : 'html')" title="서식 없이 글자만 보기 ↔ 원본(서식)">🔤 글자만 보기 / 📄 원본</button>{% endif %}
+          {% if not (win is defined and win) %}<button type="button" onclick="window.mbxOpenWin ? mbxOpenWin(MAIL_ID) : window.open('/mail/'+MAIL_ID+'?win=1','knkmail_'+MAIL_ID,'popup=yes,width=1000,height=880')" title="이 메일만 새 창으로(목록에서 메일을 두 번 눌러도 됨)">🗗 새 창으로 보기</button>{% endif %}
           <button type="button" onclick="window.print()" title="이 메일을 인쇄하거나 PDF로 저장(인쇄 대화상자에서 'PDF로 저장' 선택)">🖨 인쇄·PDF</button>
           {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<hr><button type="button" class="warn" onclick="muteSender()" title="이 발신의 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 스팸함으로(⚙ 설정·정리 → 보낸 곳별 정리에서 풀 수 있음)">🔕 이 보낸 곳 다시 안 받기</button>{% endif %}
           {% if is_admin and m.direction != 'out' %}<button type="button" class="warn" onclick="blockSender({{ m.id }})" title="회사 전체 차단목록에 넣기(관리자)">🚫 이 발신 회사 전체 차단(관리자)</button>{% endif %}
         </div>
       </details>
-      {% if not pane %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}
+      {% if not pane and not (win is defined and win) %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}{% if win is defined and win %}<button type="button" class="btn btn-secondary" onclick="window.close()" title="이 창 닫기(Esc)">✕ 닫기</button>{% endif %}
     </div>
   </div>
   <div class="mv-chips">
@@ -166,7 +167,7 @@
 
 <div class="mv-nav">
   {% if pane %}<button type="button" class="btn btn-secondary" onclick="mvNav(-1)" title="목록에서 위 메일">‹ 이전 메일</button><button type="button" class="btn btn-secondary" onclick="mvNav(1)" title="목록에서 아래 메일">다음 메일 ›</button>
-  {% else %}{% if nav is defined and nav and nav.prev %}<a class="btn btn-secondary" href="/mail/{{ nav.prev }}" title="받은편지함에서 위(더 새) 메일">‹ 이전 메일</a>{% endif %}{% if nav is defined and nav and nav.next %}<a class="btn btn-secondary" href="/mail/{{ nav.next }}" title="받은편지함에서 아래(더 지난) 메일">다음 메일 ›</a>{% endif %}{% endif %}
+  {% else %}{% if nav is defined and nav and nav.prev %}<a class="btn btn-secondary" href="/mail/{{ nav.prev }}{{ '?win=1' if (win is defined and win) else '' }}" title="받은편지함에서 위(더 새) 메일">‹ 이전 메일</a>{% endif %}{% if nav is defined and nav and nav.next %}<a class="btn btn-secondary" href="/mail/{{ nav.next }}{{ '?win=1' if (win is defined and win) else '' }}" title="받은편지함에서 아래(더 지난) 메일">다음 메일 ›</a>{% endif %}{% endif %}
 </div>
 
 <div class="mv-trans" id="transBox">
@@ -182,19 +183,35 @@
   window.mvImgOn=function(btn){
     var pane=document.getElementById('readPane');
     if(pane && btn && pane.contains(btn) && typeof loadPane==='function'){ loadPane(MAIL_ID, document.querySelector('.mbx-row.active,.mbx-headlink.active'), '?img=1'); }
-    else { location.href='/mail/'+MAIL_ID+'?img=1'; }
+    else { location.href='/mail/'+MAIL_ID+'?img=1'+(window.KNK_MAIL_WIN?'&win=1':''); }
   };
   /* ✓ 스팸 아님 — 받은편지함으로 + 이 보낸 사람은 앞으로 스팸함으로 안 옮김(나에게만) */
   window.mvNotSpam=async function(id){
     try{ var r=await fetch('/mail/'+id+'/notspam',{method:'POST'}); var j=await r.json();
       if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return; }
       alert('✓ 받은편지함으로 돌렸습니다.'+String.fromCharCode(10)+(j.addr||'이 사람')+' 메일은 앞으로 스팸함으로 옮기지 않습니다.');
-      location.href='/mail/inbox';
+      mvGoInbox('other');
     }catch(e){ alert('네트워크 오류'); }
   };
   var IN_PANE = {{ 'true' if pane else 'false' }};
   // 읽기 창(pane)에서 목록으로 돌아갈 때 현재 검색·앱모드 파라미터 유지
   function inboxHref(){ return '/mail/inbox' + (IN_PANE ? (location.search||'') : ''); }
+  /* 11-19 새 창(더블클릭)에서 지우기·보관 등을 하면 — 원래 창 목록에서 그 줄을 고치고 이 창은 닫는다 */
+  window.mvGoInbox=function(kind, id, on){
+    if(window.KNK_MAIL_WIN){
+      try{ var o=window.opener;
+        if(o && !o.closed){
+          if(kind==='del' && o.mailPaneAfterDelete) o.mailPaneAfterDelete(id);
+          else if(kind==='arc' && o.mailPaneAfterArchive) o.mailPaneAfterArchive(id, on);
+          else if(kind==='unread' && o.mailPaneAfterUnread) o.mailPaneAfterUnread(id);
+          else o.location.reload();
+        }
+      }catch(e){}
+      window.close(); return;
+    }
+    location.href=inboxHref();
+  };
+  if(window.KNK_MAIL_WIN){ document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !(e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))) window.close(); }); }
   function mvResize(){
     var f=document.getElementById('mvFrame'); if(!f) return;
     try{ var d=f.contentDocument||f.contentWindow.document;
@@ -311,7 +328,7 @@
   window.delMail=async function(id){
     if(!confirm('이 메일을 삭제할까요?')) return;
     try{ var r=await fetch('/mail/'+id+'/delete',{method:'POST'}); var j=await r.json();
-      if(j.ok){ if(IN_PANE && window.mailPaneAfterDelete){ window.mailPaneAfterDelete(id); } else { location.href=inboxHref(); } }
+      if(j.ok){ if(IN_PANE && window.mailPaneAfterDelete){ window.mailPaneAfterDelete(id); } else { mvGoInbox('del', id); } }
       else { alert('삭제 실패'); }
     }catch(e){ alert('네트워크 오류'); }
   };
@@ -324,7 +341,7 @@
       if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return; }
       b.setAttribute('data-on', on?'1':'0'); b.textContent = on ? '📥 받은편지함으로' : '📦 보관';
       if(IN_PANE && window.mailPaneAfterArchive){ window.mailPaneAfterArchive(MAIL_ID, on); }
-      else if(on){ location.href=inboxHref(); }
+      else if(on){ mvGoInbox('arc', MAIL_ID, on); }
     }catch(e){ alert('네트워크 오류'); }
   };
   // ‹ 이전 메일 · 다음 메일 › — 읽기 칸에서는 지금 목록(찾기·폴더 그대로)의 위·아래 줄
@@ -355,7 +372,7 @@
   window.markUnread=async function(){
     try{ var fd=new FormData(); fd.append('read','0');
       await fetch('/mail/'+MAIL_ID+'/read',{method:'POST',body:fd});
-      if(IN_PANE && window.mailPaneAfterUnread){ window.mailPaneAfterUnread(MAIL_ID); } else { location.href=inboxHref(); }
+      if(IN_PANE && window.mailPaneAfterUnread){ window.mailPaneAfterUnread(MAIL_ID); } else { mvGoInbox('unread', MAIL_ID); }
     }catch(e){ alert('네트워크 오류'); }
   };
   window.mailToTask=async function(){

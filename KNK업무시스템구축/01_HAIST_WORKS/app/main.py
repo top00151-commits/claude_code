@@ -23119,7 +23119,7 @@ async def mail_inbox_demo(req: Request):
 
 
 @app.get("/mail/{mail_id:int}")
-async def mail_view_page(req: Request, mail_id: int, img: int = 0):
+async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -23168,7 +23168,7 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0):
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
-    return ctx(req, "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
+    return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,

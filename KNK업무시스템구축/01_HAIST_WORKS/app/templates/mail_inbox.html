@@ -338,7 +338,7 @@
           <label><input type="radio" name="mbxf" value="hide"> 접기 — 「☰ 폴더」로 열기</label>
           <div class="note">이 컴퓨터에서만 기억합니다 · 칸 사이 경계선을 끌어 폭(아래 모드는 높이)도 바꿀 수 있어요</div>
           <b>단축키(아웃룩과 같게)</b>
-          <div class="note" style="margin-top:0">↑↓ 다음 메일 · R 답장 · Shift+R 전체 답장 · Shift+F 전달 · Delete 삭제 · E 보관 · U 읽음↔안 읽음 · Insert 중요 · N 새 메일 · 메일 위에서 오른쪽 클릭 = 메뉴</div>
+          <div class="note" style="margin-top:0">더블클릭 새 창 · ↑↓ 다음 메일 · R 답장 · Shift+R 전체 답장 · Shift+F 전달 · Delete 삭제 · E 보관 · U 읽음↔안 읽음 · Insert 중요 · N 새 메일 · 메일 위에서 오른쪽 클릭 = 메뉴</div>
         </div>
       </details>
       {% endif %}
@@ -1193,6 +1193,7 @@ async function mbxDropDo(tg, ids){
     item('↩ 답장', function(){ go('reply', one); }, {k:'R', cls:(one && !out)?'':'dis'});
     item('↩↩ 전체 답장', function(){ go('replyall', one); }, {k:'Shift+R', cls:(one && !out)?'':'dis'});
     item('↪ 전달', function(){ go('forward', one); }, {k:'Shift+F', cls:one?'':'dis'});
+    item('🗗 새 창으로 열기', function(){ mbxOpenWin(r.dataset.mailId); }, {k:'더블클릭'});
     hr();
     item(unread ? '✓ 읽음으로' : '● 안 읽음으로', function(){ readToggle(ids); }, {k:'U'});
     item(star ? '☆ 중요 풀기' : '⭐ 중요 표시', function(){ mbxCmd('star', ids); }, {k:'Insert'});
@@ -1213,6 +1214,21 @@ async function mbxDropDo(tg, ids){
   document.addEventListener('click', function(e){ if(!menu.hidden && !menu.contains(e.target)) closeMenu(); });
   window.addEventListener('blur', closeMenu);
   document.addEventListener('scroll', function(){ if(!menu.hidden) closeMenu(); }, true);
+  // 11-19 대표: 메일을 두 번 누르면(더블클릭) 그 메일만 새 창으로 — 같은 메일은 같은 창을 다시 씀
+  window.mbxOpenWin=function(id){
+    if(!id) return;
+    var aw=screen.availWidth||1280, ah=screen.availHeight||960;   // 화면 크기를 못 읽으면 보통 크기로
+    var w=Math.max(720, Math.min(1100, aw-80)), h=Math.max(600, Math.min(900, ah-60));
+    var x=Math.max(0, (aw-w)/2|0), y=Math.max(0, (ah-h)/2|0);
+    var win=window.open('/mail/'+id+'?win=1', 'knkmail_'+id, 'popup=yes,width='+w+',height='+h+',left='+x+',top='+y);
+    if(win){ try{ win.focus(); }catch(_){} } else { location.href='/mail/'+id; }   // 팝업이 막혔으면 이 창에서
+  };
+  document.addEventListener('dblclick', function(e){
+    var r=e.target.closest && e.target.closest('.mbx-list .mbx-row, .mbx-list .mbx-headlink'); if(!r) return;
+    if(e.target.closest('.mbx-ck, .mbx-star, .mbx-twist')) return;
+    e.preventDefault(); try{ window.getSelection().removeAllRanges(); }catch(_){}
+    mbxOpenWin(r.dataset.mailId);
+  });
   // 단축키 — 글 쓰는 칸·버튼 조합 키(Ctrl·Alt)일 때는 안 함
   function openRow(r){ if(!r) return; r.scrollIntoView({block:'nearest'}); if(paneWide()){ loadPane(r.dataset.mailId, r); } else { location.href=r.getAttribute('href'); } }
   document.addEventListener('keydown', function(e){

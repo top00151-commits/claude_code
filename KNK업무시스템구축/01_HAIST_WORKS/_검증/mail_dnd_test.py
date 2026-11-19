@@ -252,6 +252,14 @@ try:
     check("되살리기 → 다시 보임 · 부서 폴더 지우기 → 안 부서는 원래 자리(본사)로", res3["senders"]["vn1@knknara.co.kr"]["key"] == tvn and tk_hq in [y["key"] for y in hq3["children"]] and gkey not in prefs3)
     check("잘못된 열쇠는 거절(⚠)", "%E2%9A%A0" in k.post("/mail/folders/team", data={"op": "rename", "key": "f1", "name": "x"}).headers.get("location", ""))
 
+    print("== 3g. 더블클릭 = 그 메일만 새 창(11-19 대표) ==")
+    check("목록: 더블클릭 → 새 창(같은 메일은 같은 창) · 오른쪽 클릭 「새 창으로 열기」", "addEventListener('dblclick'" in h and "'knkmail_'+id" in h and "🗗 새 창으로 열기" in h)
+    hw = k.get("/mail/%d?win=1" % ids["s1"]).text
+    check("새 창 = 메일만(웍스 메뉴·왼쪽 폴더·목록 없음) · ✕ 닫기 · 「← 목록」 없음",
+          'class="mv-subj"' in hw and 'class="mbx-side"' not in hw and 'class="mbx-list' not in hw and "window.close()" in hw and "← 목록</a>" not in hw and "KNK_MAIL_WIN=1" in hw)
+    check("새 창에서 지우기·보관 → 원래 창 목록 고치고 창 닫기", "window.mvGoInbox" in hw and "o.mailPaneAfterDelete" in hw and "mvGoInbox('del', id)" in hw)
+    check("보통 풀페이지는 그대로(← 목록 · 웍스 틀)", "← 목록</a>" in k.get("/mail/%d" % ids["s1"]).text)
+
     print("== 4. 서버 길(놓기 · 되돌리기) ==")
     f1 = sorted(ok_ids)[0]
     j = k.post("/mail/bulk", data={"op": "pin", "ids": "%d,%d" % (ids["s1"], ids["other"]), "folder_id": f1}).json()
