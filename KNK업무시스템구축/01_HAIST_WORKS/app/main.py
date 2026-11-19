@@ -22495,6 +22495,34 @@ async def contacts_bulk_delete(req: Request):
     return JSONResponse({"ok": True, "deleted": deleted, "skipped": skipped, "message": msg})
 
 
+@app.post("/api/contacts/from-eum")
+async def api_contacts_from_eum(req: Request):
+    """z1191z78 (대표 11-19 「초대시 등록하고 QR이 발행된 고객사 협력사 담당자 정보는 연락처로 … 우리부서공개 연락처에 저장」):
+    이음(세션 10) 서버 → WORKS 서버. 머리글 X-SSO-Service-Key(회의록 입구와 같은 공유키 · 서버끼리만).
+    본문 {"inviter_employee_no": 사번, "contacts": [{name, position, company, department, mobile, email, kind, note, eum_invite_id}] (최대 10명)}
+    저장 = 초대한 직원 부서의 👥 부서 연락처 · 등록자 = 그 직원 · 같은 사람이 있으면 빈 칸만 채움(contacts.upsert_from_eum)."""
+    if not _msg_service_key_ok(req):
+        return JSONResponse({"ok": False, "error": "unauthorized"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad_json", "message": "본문(JSON)을 읽지 못했습니다."}, 400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "bad_json", "message": "본문 모양이 다릅니다."}, 400)
+    items = body.get("contacts")
+    if not isinstance(items, list) or not items:
+        return JSONResponse({"ok": False, "error": "no_contacts", "message": "contacts 가 비었습니다."}, 400)
+    if len(items) > _contacts.EUM_MAX:
+        return JSONResponse({"ok": False, "error": "too_many", "message": "한 번에 %d명까지입니다." % _contacts.EUM_MAX}, 400)
+    with db_session() as c:
+        inv = _msg_user_by_empno(c, body.get("inviter_employee_no"))
+        if not inv:
+            return JSONResponse({"ok": False, "error": "inviter_not_found",
+                                 "message": "사번 「%s」에 맞는 재직 직원이 없습니다." % str(body.get("inviter_employee_no") or "")[:40]}, 400)
+        results = [_contacts.upsert_from_eum(c, inv, it if isinstance(it, dict) else {}) for it in items]
+    return JSONResponse({"ok": True, "results": results})
+
+
 @app.post("/contacts/bulk-share")
 async def contacts_bulk_share(req: Request):
     """z1191z77 (대표 11-19): 고른 연락처의 공유 범위를 한 번에 — 🔒 개인 · 👥 우리 부서 · 🌐 전사. body {ids, visibility}.

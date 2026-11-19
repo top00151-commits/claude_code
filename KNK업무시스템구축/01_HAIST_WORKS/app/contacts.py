@@ -661,6 +661,85 @@ def list_staff(c, q: str = "") -> list[dict]:
     return out
 
 
+# ── z1191z78 이음 초대 담당자 → 초대한 직원의 「👥 부서 연락처」 ──
+EUM_MAX = 10
+_EUM_FIELDS = ("position", "company", "department", "mobile", "email")
+
+
+def _eum_clip(v, n=200):
+    return str(v or "").strip()[:n]
+
+
+def upsert_from_eum(c, inviter: dict, item: dict) -> dict:
+    """이음 초대 담당자 한 명 → 초대한 직원 부서의 부서 연락처.
+    같은 사람 = (부서 연락처(그 부서) · 전사 연락처 · 초대한 직원 본인 것) 가운데
+      ① 이음 초대 번호가 같은 것 → ② 휴대폰 숫자가 같은 것 → ③ 이메일이 같은 것(휴대폰이 한쪽이라도 비어 있을 때만).
+    있으면 새로 안 만들고 **빈 칸만** 채움(있는 값은 안 덮어씀) — 같은 고객을 여러 방에 다시 초대하므로.
+    초대한 직원에게 부서가 없으면 그 직원의 🔒 개인 연락처로(잃지 않게).
+    반환 {eum_invite_id, status: created|updated|exists|skipped, contact_id, visibility, reason}."""
+    eid = item.get("eum_invite_id")
+    try:
+        eid = int(eid) if eid not in (None, "") else None
+    except (TypeError, ValueError):
+        eid = None
+    out = {"eum_invite_id": eid, "status": "skipped", "contact_id": None, "visibility": None, "reason": ""}
+    name = _eum_clip(item.get("name"), 100)
+    if not name:
+        out["reason"] = "이름 없음"
+        return out
+    uid, tid = inviter.get("id"), inviter.get("team_id")
+    vis = "dept" if tid else "private"
+    mob_d = re.sub(r"\D", "", str(item.get("mobile") or ""))[:20]
+    mobile = phone_display(mob_d) if mob_d else ""
+    email = _eum_clip(item.get("email"), 200).lower()
+    kind = {"customer": "고객사", "partner": "협력사"}.get(str(item.get("kind") or "").strip().lower(), "")
+    note = _eum_clip(item.get("note"), 900)
+    tag = ("이음 초대 #%d" % eid) if eid else ""
+    if kind and ("[" + kind + "]") not in note:
+        note = ("[" + kind + "] " + note).strip()
+    if tag and tag not in note:
+        note = (note + " · " + tag).strip(" ·")
+    data = {"name": name, "position": _eum_clip(item.get("position"), 100), "company": _eum_clip(item.get("company"), 200),
+            "department": _eum_clip(item.get("department"), 200), "mobile": mobile, "email": email, "note": note}
+    scope = "(sc.visibility='company' OR (sc.visibility='dept' AND sc.share_team_id=?) OR sc.created_by=?)"
+    sp = [tid if tid else -1, uid]
+    row = None
+    if tag:
+        row = c.execute("SELECT sc.* FROM shared_contacts sc WHERE " + scope + " AND sc.note LIKE ? ORDER BY sc.id LIMIT 1",
+                        sp + ["%" + tag + "%"]).fetchone()
+    if not row and len(mob_d) >= 8:
+        row = c.execute("SELECT sc.* FROM shared_contacts sc WHERE " + scope + " AND " + _z77_digits_sql("sc.mobile") + "=? ORDER BY sc.id LIMIT 1",
+                        sp + [mob_d]).fetchone()
+    if not row and email:   # 이메일로 같은 사람 = 휴대폰이 서로 다르지 않을 때만(한쪽이라도 비어 있을 때) — 다른 사람을 합치지 않게
+        row = c.execute("SELECT sc.* FROM shared_contacts sc WHERE " + scope + " AND LOWER(TRIM(COALESCE(sc.email,'')))=? "
+                        "AND (? = '' OR " + _z77_digits_sql("sc.mobile") + " = '') ORDER BY sc.id LIMIT 1",
+                        sp + [email, mob_d]).fetchone()
+    if row:
+        row = dict(row)
+        sets, vals = [], []
+        for k in _EUM_FIELDS:
+            if data[k] and not str(row.get(k) or "").strip():
+                sets.append(k + "=?"); vals.append(data[k])
+        if tag and tag not in str(row.get("note") or ""):
+            sets.append("note=?"); vals.append((str(row.get("note") or "").strip() + " · " + tag).strip(" ·"))
+        out.update(contact_id=row["id"], visibility=row.get("visibility") or "private")
+        if sets:
+            c.execute("UPDATE shared_contacts SET " + ", ".join(sets) + ", updated_by=?, updated_at=datetime('now','localtime') WHERE id=?",
+                      vals + [uid, row["id"]])
+            out["status"] = "updated"
+        else:
+            out["status"] = "exists"
+        return out
+    cur = c.execute("INSERT INTO shared_contacts (name, position, company, department, mobile, email, note, source, visibility, share_team_id, created_by, updated_by) "
+                    "VALUES (?,?,?,?,?,?,?, 'eum', ?, ?, ?, ?)",
+                    (data["name"], data["position"], data["company"], data["department"], data["mobile"], data["email"], data["note"],
+                     vis, tid if vis == "dept" else None, uid, uid))
+    out.update(status="created", contact_id=cur.lastrowid, visibility=vis)
+    if vis == "private":
+        out["reason"] = "초대한 직원에게 부서가 없어 개인 연락처로 저장"
+    return out
+
+
 def get_contact(c, cid: int):
     row = c.execute(
         """SELECT sc.*, u.name AS creator_name, u2.name AS updater_name,
