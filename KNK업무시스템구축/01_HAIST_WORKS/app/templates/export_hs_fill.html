@@ -156,7 +156,8 @@
       <tbody>
       {% for lg in logs %}
       <tr>
-        <td class="mono">{{ lg.invoice_no or '—' }}</td>
+        {# z1191z85: 번호를 누르면 그 선적 건(출고·통관·서류철) #}
+        <td class="mono">{% if lg.invoice_no %}<a href="/export/s/{{ lg.invoice_no }}" title="이 선적 건 보기 — 출고·통관·서류철">{{ lg.invoice_no }}</a>{% else %}—{% endif %}</td>
         <td style="word-break:break-all;">{{ lg.file_name }}<div class="hf-sub">{{ lg.form_name }}{% if lg.conv and lg.conv.ok %} · 🔁 옛 양식에서 바꿈{% elif lg.conv %} · 옛 양식 그대로(못 바꿈){% endif %}</div></td>
         <td style="font-size:11.5px;">{{ (lg.filled_at or '')[:16] }}<div class="hf-sub">{{ lg.filled_name }}</div></td>
         <td class="num">{{ lg.n_auto or 0 }}</td>

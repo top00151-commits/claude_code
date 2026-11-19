@@ -50118,7 +50118,8 @@ def _export_guard(req: Request):
     return None
 
 
-@app.get("/export", response_class=HTMLResponse)
+# z1191z85 (대표 2026-11-20): 첫 화면은 선적 건 보드(app/export_board.py)로 — 이 예전 첫 화면(수주 표 · 운영 0건)은 /export/old 로 둔다.
+@app.get("/export/old", response_class=HTMLResponse)
 async def export_home(req: Request):
     """수출 메인 (수주 목록 + 진행 상태 KPI) — 2차 본문."""
     u = _export_guard(req)
@@ -57525,3 +57526,18 @@ try:
 except Exception as _e83:
     import traceback as _tb83
     print(f"[z83 ERR] 관리 화면 등록 실패: {_e83}\n{_tb83.format_exc()}")
+
+# z1191z85 (대표 2026-11-20 「안지연 프로 입장에서 … 20년 수출입 배테랑이 만든 프로그램처럼」): 수출 관리 첫 화면 = 선적 건 보드.
+#   인보이스 한 장 = 선적 한 건 · 이미 올린 인보이스(자동 채움 기록 · 지난 수출 이력)로 저절로 생김 · 서류 점검 · 선적/통관/대금 · 서류철.
+#   등록이 실패하면 예전 첫 화면을 /export 에 다시 건다(수출 관리가 비지 않게).
+try:
+    from . import export_board as _z85eb
+    _z85eb.register_export_board(app, {
+        "ctx": ctx, "guard": _export_guard, "db_session": db_session, "user_disp": user_disp_by_id,
+        "kst_now": _kst_wall_now, "log": log, "base": BASE, "hs_fill_dir": _HS_FILL_DIR,
+    })
+    print("[z85] 수출 관리 선적 건 보드(/export · /export/s/…) 등록")
+except Exception as _e85:
+    import traceback as _tb85
+    print(f"[z85 ERR] 선적 건 보드 등록 실패 — 예전 첫 화면으로: {_e85}\n{_tb85.format_exc()}")
+    app.add_api_route("/export", export_home, methods=["GET"], response_class=HTMLResponse)

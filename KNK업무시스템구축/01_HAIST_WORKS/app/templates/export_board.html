@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>수출 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_export_z85.html" %}
+{# z1191z85 (대표 2026-11-20 「안지연 프로 입장에서 … 20년 넘게 수출입 실무를 한 배테랑이 만든 프로그램처럼」):
+   첫 화면 = 선적 건 보드. 인보이스 한 장 = 선적 한 건(KNK-YYMMDD-n) — 이미 올린 인보이스로 저절로 생긴다.
+   맨 위 = 손이 필요한 일 · 가운데 = 단계별 칸(공이 누구에게 있는지) · 아래 = 달마다 실적 · 지난 선적 · 예전 화면(접음). #}
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head ex-wrap">
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>수출 관리</b></div>
+      <h1 class="page-title">🚢 수출 <em>관리</em></h1>
+      <div class="ex-sub">인보이스 한 장 = 선적 한 건 — <b>① 인보이스 올리기</b>로 올린 인보이스가 저절로 여기 올라옵니다. 출고·통관·송금은 건을 눌러 적습니다.</div></div>
+    <div class="ex-act">
+      <a class="ex-btn pri" href="/export/hs-fill" title="인보이스 엑셀을 올리면 HS 사전 확정 값으로 HS CODE·Tên hàng 을 채우고, 법인 확인할 줄만 노랗게 표시합니다">① 인보이스 올리기 · HS 자동 채움</a>
+      <a class="ex-btn" href="/export/hs-fill/form/suchaek" title="수책통관(설비·부품 키트) 최종 양식">📄 수책통관 양식</a>
+      <a class="ex-btn" href="/export/hs-fill/form/somo" title="일반통관(소모품·예비품) 최종 양식">📄 일반통관 양식</a>
+      <a class="ex-btn ghost" href="/export/hs-dict">📖 HS 사전</a>
+      <button class="ex-btn" type="button" onclick="document.getElementById('exNew').toggleAttribute('hidden')">＋ 건 직접 만들기</button>
+    </div>
+  </div>
+
+  <div class="ex-wrap">
+    <form id="exNew" class="ex-card ex-new" method="post" action="/export/s/new" hidden style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <b style="font-size:13px;">선적 건 직접 만들기</b>
+      <span class="ex-sub" style="margin:0">— 자동 채움을 거치지 않는 건(장비 한 대 · 견본 등)</span>
+      <input name="invoice_no" required placeholder="인보이스 번호 예) KNK-261125-1" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;min-width:240px;">
+      <select name="kind" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;"><option value="일반통관">일반통관</option><option value="수책통관">수책통관</option></select>
+      <button class="ex-btn blue" type="submit">만들기</button>
+    </form>
+    {% if err == 'no' %}<div class="ex-alert">인보이스 번호 모양이 이상합니다 — 예) KNK-261125-1</div>{% endif %}
+
+    <div class="ex-kpis">
+      <div class="ex-kpi"><div class="l">진행 중인 선적</div><div class="n">{{ live|length }}</div><div class="s">마감 전 · 11-20 전 인보이스는 출고·통관을 적은 건만</div></div>
+      <div class="ex-kpi {% if alerts %}hot{% endif %}"><div class="l">손이 필요한 일</div><div class="n">{{ alerts|length }}</div><div class="s">회신 늦음 · 출고/통관/송금 기록 빠짐 · 서류 오류</div></div>
+      {% set m1 = this_m['수책통관'] %}{% set m2 = this_m['일반통관'] %}
+      <div class="ex-kpi"><div class="l">이번 달({{ cur_m }}) 인보이스</div><div class="n">{{ m1[0] + m2[0] }}건</div><div class="s">수책 {{ m1[0] }} · 일반 {{ m2[0] }} · USD {{ "{:,.0f}".format(m1[1] + m2[1]) }}</div></div>
+      <div class="ex-kpi"><div class="l">올해 인보이스</div><div class="n">{{ ytd.n }}건</div><div class="s">USD {{ "{:,.0f}".format(ytd.usd) }}</div></div>
+    </div>
+
+    {% if alerts %}
+    <div class="ex-card"><div class="ex-h">⚠ 손이 필요한 일 <small>오래 한 실무자가 매일 아침 보는 목록 — 누르면 그 건</small></div>
+      {% for s, a in alerts %}
+      <a class="ex-alert" href="/export/s/{{ s.invoice_no }}"><span class="ex-mono">{{ s.invoice_no }}</span>
+        <span class="ex-chip {{ 'k1' if s.kind == '수책통관' else ('k2' if s.kind == '일반통관' else 'k0') }}">{{ s.kind or '구분 모름' }}</span>
+        <span>{{ a }}</span><span class="go">열기 →</span></a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="ex-card">
+      <div class="ex-h">📦 진행 중인 선적 <small>칸 = 지금 단계 · 칸 머리 아래 = 지금 공을 가진 쪽</small></div>
+      <div class="ex-board" style="--ncol:{{ cols|length }}">
+        {% for i, name, ball, rows in cols %}
+        <div class="ex-col"><div class="ex-col-h"><div><b>{{ name }}</b><span class="w">공: {{ ball }}</span></div><span class="c">{{ rows|length }}</span></div>
+          {% for s in rows %}
+          {% set ck = (s.check or {}).get('summary') or {} %}
+          <a class="ex-sc {% if s.alerts %}hot{% endif %}" href="/export/s/{{ s.invoice_no }}">
+            <div class="r1"><span class="ex-mono">{{ s.invoice_no }}</span>
+              <span class="ex-chip {{ 'k1' if s.kind == '수책통관' else ('k2' if s.kind == '일반통관' else 'k0') }}">{{ (s.kind or '구분 모름')|replace('통관','') }}</span>
+              {% if ck.get('err') %}<span class="ex-chip err" title="서류 점검 오류">✕{{ ck.err }}</span>{% elif ck.get('warn') %}<span class="ex-chip warn" title="서류 점검 확인할 것">⚠{{ ck.warn }}</span>{% elif s.check %}<span class="ex-chip ok" title="서류 점검 통과">✓</span>{% endif %}</div>
+            <div class="r2">{{ s.inv_date }} · {{ s.lines or '—' }}줄 · USD {{ s.amount_txt }}{% if s.ship.get('awb_no') %} · {{ s.ship.awb_no }}{% endif %}</div>
+            {% for a in s.alerts[:2] %}<div class="r3">● {{ a }}</div>{% endfor %}
+          </a>
+          {% else %}<div class="ex-empty">없음</div>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if done_m %}<div class="ex-sub" style="margin-top:8px;">이번 달 마감 {{ done_m|length }}건 — {% for s in done_m %}<a href="/export/s/{{ s.invoice_no }}" class="ex-mono" style="font-weight:600">{{ s.invoice_no }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+    </div>
+
+    <div class="ex-card">
+      <div class="ex-h">📊 달마다 인보이스 <small>지난 수출 이력 + 자동 채움 기록 · 금액은 인보이스 TOTAL(USD)</small></div>
+      <div style="overflow-x:auto"><table class="ex-tbl">
+        <thead><tr><th>달</th><th class="num">수책통관</th><th class="num">USD</th><th class="num">일반통관</th><th class="num">USD</th><th class="num">합계 건</th><th class="num">합계 USD</th></tr></thead>
+        <tbody>{% for m in mrows %}{% set a = m['수책통관'] %}{% set b = m['일반통관'] %}{% set z = m[''] %}
+          <tr><td>{{ m.m }}</td><td class="num">{{ a[0] or '' }}</td><td class="num">{{ "{:,.0f}".format(a[1]) if a[1] else '' }}</td>
+            <td class="num">{{ b[0] or '' }}</td><td class="num">{{ "{:,.0f}".format(b[1]) if b[1] else '' }}</td>
+            <td class="num"><b>{{ a[0] + b[0] + z[0] }}</b></td><td class="num"><b>{{ "{:,.0f}".format(a[1] + b[1] + z[1]) }}</b></td></tr>
+        {% else %}<tr><td colspan="7" class="ex-empty">아직 인보이스가 없습니다 — ① 인보이스 올리기부터</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+
+    <details class="ex-fold ex-card" style="padding:0;border:0;background:none;">
+      <summary>🗂 모든 선적 건 {{ allx|length }}건 <span style="font-size:12px">— 지난 건 {{ n_old }}건 포함(시스템 전에 끝난 일 · 눌러서 기록을 적을 수 있음)</span> <span style="margin-left:auto">▸</span></summary>
+      <div class="ex-card" style="overflow-x:auto"><table class="ex-tbl">
+        <thead><tr><th>인보이스</th><th>구분</th><th>날짜</th><th class="num">줄</th><th class="num">USD</th><th>단계</th><th>AWB · B/L</th><th>통관</th></tr></thead>
+        <tbody>{% for s in allx %}
+          <tr class="lnk" onclick="location.href='/export/s/{{ s.invoice_no }}'"><td class="ex-mono">{{ s.invoice_no }}</td>
+            <td><span class="ex-chip {{ 'k1' if s.kind == '수책통관' else ('k2' if s.kind == '일반통관' else 'k0') }}">{{ s.kind or '—' }}</span></td>
+            <td>{{ s.inv_date }}</td><td class="num">{{ s.lines or '' }}</td><td class="num">{{ s.amount_txt }}</td>
+            <td>{{ '지난 건' if s.old else s.stage_name }}</td><td>{{ s.ship.get('awb_no') or '' }}</td><td>{{ s.ship.get('cleared_at') or '' }}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+    </details>
+
+    <details class="ex-fold" style="margin-top:10px;">
+      <summary>🧰 예전 수출 화면 <span style="font-size:12px">— 처음에 만든 골격(수주·CI·PL·BL 표는 운영 0건) · 지우지 않고 둠</span> <span style="margin-left:auto">▸</span></summary>
+      <div class="lst">
+        <a href="/export/prep">🚢 출하 전 통관 정리<small>프로젝트(수출 거래) 품목별 통관 칸 · 패킹·인보이스·QR</small></a>
+        <a href="/export/old">📋 수출 수주 목록(예전 첫 화면)<small>수주 → CI → P/L → B/L → 통관 골격</small></a>
+        <a href="/export/fta">🌏 FTA 원산지증명서</a>
+        <a href="/export/hs-dict/review.xlsx">⬇ HS 사전 검토표(엑셀)</a>
+      </div>
+    </details>
+    <div style="height:28px"></div>
+  </div>
+</main></div></body></html>
