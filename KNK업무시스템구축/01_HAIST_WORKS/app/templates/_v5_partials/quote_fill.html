@@ -4,9 +4,9 @@
           <div id="z61q" class="z61q" data-mode="{{ qf_mode|default('new') }}" data-knk-no-dropzone>
             <div class="z61q-drop" id="z61qDrop">
               <span class="z61q-ic">📄</span>
-              <div class="z61q-txt"><b>견적서로 채우기</b><span class="z61q-sub">견적서 파일(PDF·엑셀·사진)을 여기에 끌어다 놓거나 오른쪽 단추로 고르면, {% if qf_mode == 'edit' %}견적서에 적힌 담당자·직책·품명·견적일자를 <b>빈 칸에</b> 넣고, [저장]하면 이 프로젝트에 견적서로 보관합니다(금액·수량은 수주 카드에서).{% else %}견적서에 적힌 고객사·담당자·품명·수량·금액을 <b>빈 칸에</b> 넣어 드립니다.{% endif %} 암호 걸린 엑셀은 비밀번호를 물어봅니다.</span></div>
-              <button type="button" class="z61q-btn" id="z61qPick">📎 견적서 고르기</button>
-              <input type="file" id="z61qFile" accept=".pdf,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg" data-knk-no-dropzone style="display:none;">
+              <div class="z61q-txt"><b>견적서로 채우기</b><span class="z61q-sub"><b class="z76-only">엑셀 파일(xlsx·xls)만</b> 올릴 수 있습니다(나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게). 견적서 엑셀을 여기에 끌어다 놓거나 오른쪽 단추로 고르면, {% if qf_mode == 'edit' %}견적서에 적힌 담당자·직책·품명·견적일자를 <b>빈 칸에</b> 넣고, [저장]하면 이 프로젝트에 견적서로 보관합니다(금액·수량은 수주 카드에서).{% else %}견적서에 적힌 고객사·담당자·품명·수량·금액을 <b>빈 칸에</b> 넣어 드립니다.{% endif %} 암호 걸린 엑셀은 비밀번호를 물어봅니다.</span></div>
+              <button type="button" class="z61q-btn" id="z61qPick">📎 견적서 엑셀 고르기</button>
+              <input type="file" id="z61qFile" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
             </div>
             {% if qf_mode == 'edit' and qf_pid and z62_can_upload(user) %}{# z1191z63·z64: 이미 붙은 견적서 · 🗑 빼기 · 없으면 「등록된 견적서가 없습니다.」 #}
             <div class="z63-have" style="margin-top:8px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;"><div style="font-size:12.5px;font-weight:700;color:#334155;">📎 이 프로젝트에 붙은 견적서 <span style="font-weight:400;color:#64748b;">— 잘못 올린 것은 🗑 빼기</span></div>
@@ -25,6 +25,7 @@
 .z61q-txt { flex:1; min-width:0; font-size:13px; color:#1e3a8a; line-height:1.5; }
 .z61q-txt > b { font-size:14px; margin-right:8px; }
 .z61q-sub { color:#334155; font-size:12.5px; }
+.z76-only { color:#047857; background:#dcfce7; border-radius:5px; padding:0 5px; }
 .z61q-btn { flex:none; padding:7px 14px; border:1px solid #2563eb; background:#2563eb; color:#fff; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap; }
 .z61q-res { margin-top:8px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; font-size:12.5px; }
 .z61q-res[hidden] { display:none; }
@@ -207,8 +208,8 @@ input.z61-filled, select.z61-filled { background:#fefce8 !important; box-shadow:
     if(!file) return;
     var _lb=document.getElementById('pfLockBanner');   /* 고급 편집: 잠긴 동안은 칸을 채울 수 없다 */
     if(_lb && _lb.offsetParent!==null){ msg('먼저 위 <b>[🔓 수정 잠금 해제]</b>를 눌러 주세요 — 잠긴 동안은 칸을 채울 수 없습니다.', true); return; }
-    var ok=/\.(pdf|xlsx|xlsm|xls|png|jpe?g)$/i.test(file.name||'');
-    if(!ok){ msg('PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다.', true); return; }
+    var ok=/\.(xlsx|xlsm|xls)$/i.test(file.name||'');   /* z1191z76: 엑셀만 */
+    if(!ok){ msg('<b>「'+esc(file.name||'')+'」</b>은(는) 올릴 수 없습니다. 견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게 엑셀로 보관합니다.', true); return; }
     if(file.size>20*1024*1024){ msg('20MB 보다 큰 파일은 올릴 수 없습니다.', true); return; }
     var fd=new FormData(); fd.append('file', file);
     drop.classList.add('busy'); msg('⏳ 「'+esc(file.name)+'」 견적서를 읽는 중입니다… (10~30초)');

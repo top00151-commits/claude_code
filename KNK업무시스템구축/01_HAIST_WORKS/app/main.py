@@ -39753,6 +39753,20 @@ async def api_z57_guide_save(request: Request, key: str):
 #   · 등록 안 하고 떠난 파일은 3일 뒤 지운다(다음에 누가 올릴 때)
 from . import quote_reader as _qr61
 
+# z1191z76 (대표 11-19 「견적서 등록은 무조건 엑셀파일만 … 최종 견적서를 등록을해야 향후에 수정할때 최종을 수정할수있어 …
+#   등록한 엑셀파일은 다운로드 할수있게」): 올리는 곳(등록·수정 「견적서로 채우기」 · 상세 「＋ 견적서 올리기」) 모두 엑셀만.
+#   이름(확장자)만 바꾼 PDF·사진도 막는다 — 엑셀 파일의 첫 바이트(xlsx·xlsm = ZIP 「PK」 · xls·암호 걸린 엑셀 = 「D0 CF 11 E0」)로 확인.
+_Z76_XL_EXTS = (".xlsx", ".xlsm", ".xls")
+_Z76_XL_MSG = "견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게 엑셀로 보관합니다."
+
+
+def _z76_is_excel(name, raw):
+    """엑셀만 — 확장자 + 파일 첫 바이트. 맞으면 True."""
+    if _qr61.ext_of(name or "") not in _Z76_XL_EXTS:
+        return False
+    head = bytes(raw[:8] or b"")
+    return head.startswith(b"PK\x03\x04") or head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+
 
 def _z61_now():
     from datetime import datetime as _d61, timezone as _tz61, timedelta as _td61
@@ -39837,13 +39851,15 @@ async def api_project_quote_read(req: Request, file: UploadFile = File(...)):
         return JSONResponse({"ok": False, "error": "forbidden", "message": "등록 권한이 없습니다."}, 403)
     name = _qr61._nfc(file.filename or "견적서")[:200]
     ext = _qr61.ext_of(name)
-    if ext not in _qr61.EXTS:
-        return JSONResponse({"ok": False, "error": "ext", "message": "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다."})
+    if ext not in _Z76_XL_EXTS:   # z1191z76: 엑셀만
+        return JSONResponse({"ok": False, "error": "ext", "message": _Z76_XL_MSG})
     raw = await file.read(_qr61.MAX_BYTES + 1)
     if not raw:
         return JSONResponse({"ok": False, "error": "empty", "message": "빈 파일입니다."})
     if len(raw) > _qr61.MAX_BYTES:
         return JSONResponse({"ok": False, "error": "big", "message": "20MB 보다 큰 파일은 올릴 수 없습니다."})
+    if not _z76_is_excel(name, raw):   # z1191z76: 이름만 엑셀인 다른 파일
+        return JSONResponse({"ok": False, "error": "ext", "message": "엑셀 파일이 아닙니다(이름만 .xlsx 인 PDF·사진 등) — " + _Z76_XL_MSG})
     import secrets as _sc61, hashlib as _hl61
     tok = _sc61.token_hex(12)
     sub = _z61_now()[:7].replace("-", "")
@@ -39928,13 +39944,15 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
             return JSONResponse({"ok": False, "message": "프로젝트를 찾지 못했습니다."}, 404)
     name = _qr61._nfc(file.filename or "견적서")[:200]
     ext = _qr61.ext_of(name)
-    if ext not in _qr61.EXTS:
-        return JSONResponse({"ok": False, "message": "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다."})
+    if ext not in _Z76_XL_EXTS:   # z1191z76: 엑셀만
+        return JSONResponse({"ok": False, "message": _Z76_XL_MSG})
     raw = await file.read(_qr61.MAX_BYTES + 1)
     if not raw:
         return JSONResponse({"ok": False, "message": "빈 파일입니다."})
     if len(raw) > _qr61.MAX_BYTES:
         return JSONResponse({"ok": False, "message": "20MB 보다 큰 파일은 올릴 수 없습니다."})
+    if not _z76_is_excel(name, raw):   # z1191z76
+        return JSONResponse({"ok": False, "message": "엑셀 파일이 아닙니다(이름만 .xlsx 인 PDF·사진 등) — " + _Z76_XL_MSG})
     import secrets as _sc62, hashlib as _hl62
     tok = _sc62.token_hex(12)
     sub = _z61_now()[:7].replace("-", "")
@@ -40079,6 +40097,10 @@ def _z61_quote_files(pid):
                 x["locked"] = bool(rj.get("locked") or rj.get("need_password"))
                 x["kind"] = "pdf" if (x["orig_name"] or "").lower().endswith(".pdf") else ("img" if _qr61.ext_of(x["orig_name"] or "") in (".png", ".jpg", ".jpeg") else "file")
                 out.append(x)
+            # z1191z76: 엑셀 견적서가 여러 개면 가장 나중에 올린 것 = 「최신」(고칠 때 그것을 내려받아 고침)
+            _xl = [x for x in out if _qr61.ext_of(x["orig_name"] or "") in _Z76_XL_EXTS]
+            if len(_xl) > 1:
+                _xl[-1]["latest"] = True
             return out
     except Exception as _e:
         print(f"[z1191z61] 견적서 목록 실패 pid={pid}: {_e}")

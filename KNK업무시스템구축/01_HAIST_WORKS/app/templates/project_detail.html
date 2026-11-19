@@ -2132,8 +2132,8 @@
   {% set qr_pid = p.id %}{% include "_v5_partials/quote_rows.html" %}
   {% if z62_can_upload(user) %}{# z1191z62: 등록된 프로젝트에 견적서만 붙이기 — 칸 채우기 없이 보관 #}
   <span class="z62-up" data-pid="{{ p.id }}" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;">
-    <button type="button" class="z62-up-btn" style="padding:3px 10px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">＋ 견적서 올리기</button>
-    <input type="file" class="z62-up-file" accept=".pdf,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg" data-knk-no-dropzone style="display:none;">
+    <button type="button" class="z62-up-btn" title="엑셀 파일(xlsx·xls)만 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게" style="padding:3px 10px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">＋ 견적서 엑셀 올리기</button>
+    <input type="file" class="z62-up-file" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
     <span class="z62-up-msg" style="font-size:11.5px;color:#475569;"></span></span>
   <script>(function(){
     var w=document.querySelector('.z62-up[data-pid="{{ p.id }}"]');
@@ -2141,7 +2141,7 @@
     var b=w.querySelector('.z62-up-btn'), fi=w.querySelector('.z62-up-file'), m=w.querySelector('.z62-up-msg');
     b.addEventListener('click', function(){ fi.click(); });
     fi.addEventListener('change', function(){ var x=fi.files&&fi.files[0]; fi.value=''; if(!x) return;
-      if(!/\.(pdf|xlsx|xlsm|xls|png|jpe?g)$/i.test(x.name||'')){ m.style.color='#b91c1c'; m.textContent='PDF·엑셀·사진만 올릴 수 있습니다.'; return; }
+      if(!/\.(xlsx|xlsm|xls)$/i.test(x.name||'')){ m.style.color='#b91c1c'; m.textContent='견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.'; return; }   /* z1191z76 */
       if(x.size>20*1024*1024){ m.style.color='#b91c1c'; m.textContent='20MB 보다 큰 파일은 올릴 수 없습니다.'; return; }
       var fd=new FormData(); fd.append('file', x); b.disabled=true; m.style.color='#475569'; m.textContent='⏳ 올리는 중…';
       fetch('/api/project-quote/attach/'+w.getAttribute('data-pid'),{method:'POST',body:fd,credentials:'same-origin'})

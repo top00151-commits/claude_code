@@ -75,6 +75,11 @@ AI.ai_available = lambda: AIRESP["avail"]
 AI.ai_vision = lambda img, mime, prompt, **k: (CALLS.append(("vision", len(img), prompt)) or (True, AIRESP["v"]))
 AI.ai_chat = lambda prompt, **k: (CALLS.append(("chat", 0, prompt)) or (True, AIRESP["v"]))
 cl = TestClient(M.app, follow_redirects=False)
+# z1191z76 (대표 11-19 「견적서 등록은 무조건 엑셀파일만」): 운영은 이제 엑셀만 받는다. 이 시험은 읽기·보관·빼기를 보려고
+#   예전 파일 종류(PDF·사진)를 그대로 쓴다 — 엑셀만 규칙은 test_project_quote_excel_only_z1191z76_20261119.py 에서 본다.
+M._Z76_XL_EXTS = M._qr61.EXTS
+M._z76_is_excel = lambda name, raw: True
+M._Z76_XL_MSG = "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다."
 OK = FAIL = 0
 
 
@@ -248,7 +253,7 @@ check("unlock_required" in r.headers.get("location", "") and row(jt2["tok"])["pr
 print("§4 상세 「＋ 견적서 올리기」")
 as_(UA)
 hd = q(cl.get, "/project/%d" % P9).text
-check('class="z62-up"' in hd and "＋ 견적서 올리기" in hd and 'data-pid="%d"' % P9 in hd, "상세 「견적서」 칸에 「＋ 견적서 올리기」(금액·등록 권한자)")
+check('class="z62-up"' in hd and "＋ 견적서 엑셀 올리기" in hd and 'data-pid="%d"' % P9 in hd, "상세 「견적서」 칸에 「＋ 견적서 엑셀 올리기」(금액·등록 권한자 · z1191z76 이름)")
 CALLS.clear()
 r = q(cl.post, "/api/project-quote/attach/%d" % P9, files={"file": ("나중에 받은 견적서.pdf", b"%PDF-1.4 x", "application/pdf")})
 with D.db_session() as c:

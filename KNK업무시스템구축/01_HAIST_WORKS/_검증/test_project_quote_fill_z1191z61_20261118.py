@@ -75,6 +75,11 @@ AI.ai_available = lambda: AIRESP["avail"]
 AI.ai_vision = lambda img, mime, prompt, **k: (CALLS.append(("vision", len(img), prompt)) or (True, AIRESP["v"]))
 AI.ai_chat = lambda prompt, **k: (CALLS.append(("chat", 0, prompt)) or (True, AIRESP["v"]))
 cl = TestClient(M.app, follow_redirects=False)
+# z1191z76 (대표 11-19 「견적서 등록은 무조건 엑셀파일만」): 운영은 이제 엑셀만 받는다. 이 시험은 읽기·보관·빼기를 보려고
+#   예전 파일 종류(PDF·사진)를 그대로 쓴다 — 엑셀만 규칙은 test_project_quote_excel_only_z1191z76_20261119.py 에서 본다.
+M._Z76_XL_EXTS = M._qr61.EXTS
+M._z76_is_excel = lambda name, raw: True
+M._Z76_XL_MSG = "PDF·엑셀(xlsx·xls)·사진(png·jpg) 파일만 올릴 수 있습니다."
 OK = FAIL = 0
 
 
