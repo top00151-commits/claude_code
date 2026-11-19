@@ -138,7 +138,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       <thead><tr><th>이름</th><th>직책</th><th>부서</th><th>법인</th><th>휴대폰</th><th>이메일</th></tr></thead>
       <tbody>
       {% for s in staff %}
-        <tr><td><b>{{ s.name }}</b></td><td>{{ s.rank or '—' }}</td><td>{{ s.team_name or '—' }}</td>
+        <tr><td><b>{{ s.name_disp or s.name }}</b></td><td>{{ s.rank or '—' }}</td><td>{{ s.team_name or '—' }}</td>
           <td><span class="cx-corp{% if s.corp == 'KNK VINA' %} vn{% endif %}">{{ s.corp }}</span></td>
           <td style="font-family:monospace;font-size:12.5px;">{% if s.phone_tel %}<a class="cx-tel" href="{{ s.phone_tel }}" title="누르면 전화(휴대폰)">📞 {{ s.phone_disp }}</a>{% else %}—{% endif %}</td>
           <td style="font-size:12.5px;">{{ s.email or '—' }}</td></tr>

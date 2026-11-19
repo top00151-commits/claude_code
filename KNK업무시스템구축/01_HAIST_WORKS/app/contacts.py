@@ -631,6 +631,13 @@ def tel_href(p: str) -> str:
     return ("tel:" + d) if len(re.sub(r"\D", "", d)) >= 3 else ""
 
 
+def _z80_plain(s) -> str:
+    """z1191z80: 베트남어 성조·đ 를 뺀 소문자(찾기용) — 「Nguyễn Văn Thịnh」 → 「nguyen van thinh」."""
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(s or "")).replace("đ", "d").replace("Đ", "D")
+    return "".join(ch for ch in t if unicodedata.category(ch) != "Mn").lower()
+
+
 def list_staff(c, q: str = "") -> list[dict]:
     """z1191z77: 우리 회사 직원(재직 · 이름 있음) — 이름 · 직책 · 부서 · 법인 · 휴대폰 · 이메일. 따로 저장할 필요 없음(인사 명부 그대로)."""
     cols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
@@ -639,8 +646,10 @@ def list_staff(c, q: str = "") -> list[dict]:
     _en = "u.entity" if "entity" in cols else "''"
     _em = "u.email" if "email" in cols else "''"
     _no = "u.employee_no" if "employee_no" in cols else "''"
+    _vi = "u.name_vi" if "name_vi" in cols else "''"   # z1191z80
+    _ne = "u.name_en" if "name_en" in cols else "''"
     rows = c.execute(
-        f"SELECT u.id, u.name, COALESCE({_rk},'') AS rank, COALESCE({_ph},'') AS phone, COALESCE({_em},'') AS email, "
+        f"SELECT u.id, u.name, COALESCE({_vi},'') AS name_vi, COALESCE({_ne},'') AS name_en, COALESCE({_rk},'') AS rank, COALESCE({_ph},'') AS phone, COALESCE({_em},'') AS email, "
         f"COALESCE({_en},'') AS entity, COALESCE({_no},'') AS emp_no, COALESCE(t.name,'') AS team_name, "
         "COALESCE(t.display_order, 999) AS t_ord "
         "FROM users u LEFT JOIN teams t ON t.id = u.team_id "
@@ -653,8 +662,13 @@ def list_staff(c, q: str = "") -> list[dict]:
         d = dict(r)
         en = (d["entity"] or "").upper()
         d["corp"] = "KNK VINA" if (en == "VN" or str(d["emp_no"]).upper().startswith("VN")) else "KNK"
+        # z1191z80 (대표 11-19): 주소록 직원 이름 — 베트남 직원은 「팅_Nguyễn Văn Thịnh」(한글 이름 _ 베트남어 이름) ·
+        #   베트남어 이름이 없으면(한국인 주재원 등) 이름만
+        _nv = (d.get("name_vi") or "").strip()
+        d["name_disp"] = (d["name"].strip() + "_" + _nv) if (d["corp"] == "KNK VINA" and _nv and _nv != d["name"].strip()) else d["name"].strip()
         if qq:
-            hay = " ".join(str(d.get(k) or "") for k in ("name", "rank", "team_name", "email", "phone", "corp")).lower()
+            hay = " ".join(str(d.get(k) or "") for k in ("name", "name_vi", "name_en", "rank", "team_name", "email", "phone", "corp")).lower()
+            hay += " " + _z80_plain(d.get("name_vi"))   # 성조 없이 「thinh」 으로도 찾기
             if not (qq in hay or (dg and dg in re.sub(r"\D", "", d["phone"] or ""))):
                 continue
         out.append(d)
@@ -926,7 +940,7 @@ def vcards_all(c, user=None, tab: str = "", corp: str = "") -> str:
     """내가 볼 수 있는 연락처 → vCard 묶음 (.vcf 한 파일에 여러 장). v5H226z580.
     z1191z77: tab(private·dept·company)을 주면 그 책갈피 것만 · staff = 우리 회사 직원."""
     if tab == "staff":
-        return "".join(to_vcard({"name": r["name"], "position": r["rank"], "company": r["corp"], "department": r["team_name"],
+        return "".join(to_vcard({"name": r.get("name_disp") or r["name"], "position": r["rank"], "company": r["corp"], "department": r["team_name"],
                                  "mobile": r["phone"], "email": r["email"]}) for r in list_staff(c)
                        if corp not in ("kr", "vn") or staff_corp_key(r) == corp)   # z1191z79: 본사·법인 따로
     rows = list_contacts(c, user=user)
