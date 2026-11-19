@@ -914,12 +914,21 @@ def to_vcard(ct: dict) -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
-def vcards_all(c, user=None, tab: str = "") -> str:
+STAFF_CORPS = (("", "전체"), ("kr", "KNK 본사"), ("vn", "KNK VINA 법인"))   # z1191z79
+
+
+def staff_corp_key(r: dict) -> str:
+    """z1191z79: 직원 → kr(KNK 본사) · vn(KNK VINA 법인) — list_staff 의 corp 와 같은 판단(법인 VN 또는 사번 VN…)."""
+    return "vn" if (r.get("corp") == "KNK VINA") else "kr"
+
+
+def vcards_all(c, user=None, tab: str = "", corp: str = "") -> str:
     """내가 볼 수 있는 연락처 → vCard 묶음 (.vcf 한 파일에 여러 장). v5H226z580.
     z1191z77: tab(private·dept·company)을 주면 그 책갈피 것만 · staff = 우리 회사 직원."""
     if tab == "staff":
         return "".join(to_vcard({"name": r["name"], "position": r["rank"], "company": r["corp"], "department": r["team_name"],
-                                 "mobile": r["phone"], "email": r["email"]}) for r in list_staff(c))
+                                 "mobile": r["phone"], "email": r["email"]}) for r in list_staff(c)
+                       if corp not in ("kr", "vn") or staff_corp_key(r) == corp)   # z1191z79: 본사·법인 따로
     rows = list_contacts(c, user=user)
     if tab in ("private", "dept", "company"):
         rows = [r for r in rows if tab_of(r) == tab]

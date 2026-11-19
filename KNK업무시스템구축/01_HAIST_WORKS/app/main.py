@@ -22026,6 +22026,14 @@ async def contacts_list(req: Request):
         d["phone_tel"] = _contacts.tel_href(d.get("phone"))
     items.sort(key=lambda d: (d["name_disp"] or "").lower())
     counts = {"all": len(items), "staff": len(staff)}
+    # z1191z79 (대표 11-19 「우리회사직원은 본사,법인 인원을 따로 볼수있게」): 직원 = 전체 · KNK 본사 · KNK VINA 법인
+    corp = (req.query_params.get("corp") or "").strip().lower()
+    if corp not in ("kr", "vn"):
+        corp = ""
+    counts["staff_kr"] = sum(1 for d in staff if _contacts.staff_corp_key(d) == "kr")
+    counts["staff_vn"] = sum(1 for d in staff if _contacts.staff_corp_key(d) == "vn")
+    if corp:
+        staff = [d for d in staff if _contacts.staff_corp_key(d) == corp]
     for _t in ("private", "dept", "company"):
         counts[_t] = sum(1 for d in items if d["tab"] == _t)
     shown = items if tab == "all" else [d for d in items if d["tab"] == tab]
@@ -22035,7 +22043,7 @@ async def contacts_list(req: Request):
             _r = c.execute("SELECT name FROM teams WHERE id=?", (u.get("team_id"),)).fetchone()
             my_team = (_r[0] if _r else "") or ""
     return ctx(req, "contacts_list.html", user=u, contacts=shown, q=q,
-               total=len(items), tab=tab, counts=counts, staff=staff, my_team=my_team)
+               total=len(items), tab=tab, counts=counts, staff=staff, my_team=my_team, corp=corp)
 
 
 @app.get("/contacts/new")
@@ -22119,10 +22127,13 @@ async def contacts_vcards_all(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     _tab = (req.query_params.get("tab") or "").strip()   # z1191z77: 책갈피 것만
+    _corp = (req.query_params.get("corp") or "").strip().lower()   # z1191z79: 직원 본사·법인
     with db_session() as c:
-        text = _contacts.vcards_all(c, user=u, tab=_tab)
+        text = _contacts.vcards_all(c, user=u, tab=_tab, corp=_corp)
     from urllib.parse import quote
     fn = {"private": "개인연락처.vcf", "dept": "부서연락처.vcf", "company": "전사연락처.vcf", "staff": "직원연락처.vcf"}.get(_tab, "연락처.vcf")
+    if _tab == "staff" and _corp in ("kr", "vn"):
+        fn = {"kr": "직원연락처_KNK본사.vcf", "vn": "직원연락처_KNK_VINA.vcf"}[_corp]
     headers = {"Content-Disposition":
                f"attachment; filename=contacts.vcf; filename*=UTF-8''{quote(fn)}"}
     return StreamingResponse(io.BytesIO(text.encode("utf-8")),

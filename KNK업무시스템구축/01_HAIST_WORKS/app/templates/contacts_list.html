@@ -52,6 +52,13 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
 .cx-staff td, .cx-staff th { white-space:nowrap; }
 .cx-corp { font-size:11px; font-weight:800; padding:1px 7px; border-radius:999px; background:#fef2f2; color:#A5282C; }
 .cx-corp.vn { background:#ecfdf5; color:#047857; }
+/* z1191z79: 직원 = 전체 · KNK 본사 · KNK VINA 법인 */
+.cx-corps { display:flex; gap:6px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
+.cx-corpf { padding:6px 14px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#475569; font-size:13px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.cx-corpf:hover { border-color:#1d4ed8; color:#1d4ed8; }
+.cx-corpf.on { background:#A5282C; border-color:#A5282C; color:#fff; }
+.cx-corpf .n { display:inline-block; min-width:18px; margin-left:3px; padding:0 6px; border-radius:999px; background:#e2e8f0; color:#334155; font-size:11.5px; text-align:center; }
+.cx-corpf.on .n { background:#fff; color:#A5282C; }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}
@@ -65,7 +72,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       {# v5H226z579 (대표 지시): 휴대폰(갤럭시)에 전체 연락처 한 번에 — vCard 다운로드 + 가져오기 안내 #}
       <button type="button" class="btn" style="background:#0ea5e9;color:#fff;border:1px solid #0ea5e9;font-weight:800;" onclick="cxPhoneSave()" title="휴대폰에 전체 연락처 한 번에 추가">📱 휴대폰에 전체 저장</button>
-      <a class="btn btn-secondary" href="/contacts/vcards.vcf{% if tab != 'all' %}?tab={{ tab }}{% endif %}" title="지금 책갈피의 연락처 vCard — 휴대폰·메일·아웃룩 가져오기">📇 {% if tab == 'all' %}전체{% else %}이 책갈피{% endif %} vCard</a>
+      <a class="btn btn-secondary" href="/contacts/vcards.vcf{% if tab != 'all' %}?tab={{ tab }}{% if tab == 'staff' and corp %}&corp={{ corp }}{% endif %}{% endif %}" title="지금 책갈피의 연락처 vCard — 휴대폰·메일·아웃룩 가져오기">📇 {% if tab == 'all' %}전체{% else %}이 책갈피{% endif %} vCard</a>
       <a class="btn btn-secondary" href="/contacts/outlook.csv" title="아웃룩 가져오기용 CSV">📨 Outlook CSV</a>
       <a class="btn btn-secondary" href="/contacts/export.csv" title="전체 연락처 CSV 다운로드">📊 CSV</a>
       <a class="btn btn-secondary" href="/contacts/import-vcf" title="휴대폰 .vcf 또는 아웃룩 .csv 파일을 올려 한 번에 등록">📥 연락처 가져오기</a>
@@ -76,7 +83,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
   </div>
 
   <form class="cx-search" method="GET" action="/contacts">
-    <input type="hidden" name="tab" value="{{ tab }}">
+    <input type="hidden" name="tab" value="{{ tab }}">{% if corp %}<input type="hidden" name="corp" value="{{ corp }}">{% endif %}
     <input type="text" name="q" value="{{ q }}" placeholder="이름 · 회사 · 이메일 · 부서 · 전화번호(숫자만 · 뒷자리 4개도 됨)">
     <button type="submit" class="btn btn-secondary">🔍 검색</button>
     {% if q %}<a href="/contacts?tab={{ tab }}" class="btn btn-secondary">✕ 초기화</a>{% endif %}
@@ -95,10 +102,18 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
     {% if tab == 'private' %}🔒 <b>개인 연락처</b> — <b>나만</b> 볼 수 있습니다. 같이 써야 할 거래처 담당자는 골라서 [👥 우리 부서로] · [🌐 전사로]를 누르세요.
     {% elif tab == 'dept' %}👥 <b>부서 연락처</b> — <b>우리 부서원 누구나</b> 볼 수 있습니다{% if my_team %}({{ my_team }}){% endif %}. 부서가 함께 연락하는 거래처 담당자를 여기에 모읍니다.
     {% elif tab == 'company' %}🌐 <b>전사 공개 연락처</b> — <b>우리 회사 전체 누구나</b> 볼 수 있습니다. 여러 부서가 함께 쓰는 고객사·협력사 대표 번호를 여기에 둡니다.
-    {% elif tab == 'staff' %}🏢 <b>우리 회사 직원</b> — 재직 중인 직원 {{ counts.staff }}명(인사 명부 그대로). 동료 번호는 <b>따로 저장하지 않아도</b> 여기서 찾고, 번호를 누르면 바로 전화합니다. 휴대폰에 넣으려면 [📇 이 책갈피 vCard].
+    {% elif tab == 'staff' %}🏢 <b>우리 회사 직원</b> — 재직 중인 직원 {{ counts.staff }}명(KNK 본사 {{ counts.staff_kr }} · KNK VINA 법인 {{ counts.staff_vn }} · 인사 명부 그대로). 동료 번호는 <b>따로 저장하지 않아도</b> 여기서 찾고, 번호를 누르면 바로 전화합니다. 휴대폰에 넣으려면 [📇 이 책갈피 vCard].
     {% else %}내가 볼 수 있는 연락처 전부입니다 — 🔒 개인 {{ counts.private }} · 👥 부서 {{ counts.dept }} · 🌐 전사 {{ counts.company }}. 여러 명을 골라 공유 범위를 한 번에 바꿀 수 있습니다.{% endif %}
   </div>
 
+  {% if tab == 'staff' %}
+    {# z1191z79 (대표 11-19): 본사 · 법인 따로 #}
+    <div class="cx-corps" role="group" aria-label="본사·법인 나눠 보기">
+      {% for ck, cl in [('', '전체'), ('kr', 'KNK 본사'), ('vn', 'KNK VINA 법인')] %}
+      <a class="cx-corpf{% if corp == ck %} on{% endif %}" href="/contacts?tab=staff{% if ck %}&corp={{ ck }}{% endif %}{{ _qs }}">{{ cl }} <span class="n">{{ counts.staff if not ck else counts['staff_' ~ ck] }}</span></a>
+      {% endfor %}
+    </div>
+  {% endif %}
   {% if contacts and tab != 'staff' %}
   <div class="cx-toolbar">
     <span class="cx-share" title="고른 연락처의 공유 범위를 한 번에 바꿉니다(내가 등록한 것만)"><span>고른 <b id="cxSelN2">0</b>명 →</span>
@@ -130,7 +145,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty"><div class="ico">🏢</div><div class="ttl">{% if q %}'{{ q }}' 직원을 찾지 못했습니다{% else %}직원 명부가 비어 있습니다{% endif %}</div></div>{% endif %}
+    {% else %}<div class="empty"><div class="ico">🏢</div><div class="ttl">{% if q %}'{{ q }}' 직원을 찾지 못했습니다{% elif corp %}이 법인 직원이 없습니다{% else %}직원 명부가 비어 있습니다{% endif %}</div></div>{% endif %}
     {% elif contacts %}
     <table class="tbl" id="cxTbl">
       <colgroup>
@@ -219,7 +234,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
         ⚠ 이건 ‘그 시점 복사’라, 이후 연락처가 바뀌면 <b>다시 받아야</b> 반영됩니다.
       </div>
       <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-        <a class="btn btn-primary" href="/contacts/vcards.vcf{% if tab != 'all' %}?tab={{ tab }}{% endif %}" onclick="setTimeout(cxPhoneClose,300);">⬇ 연락처 파일 받기</a>
+        <a class="btn btn-primary" href="/contacts/vcards.vcf{% if tab != 'all' %}?tab={{ tab }}{% if tab == 'staff' and corp %}&corp={{ corp }}{% endif %}{% endif %}" onclick="setTimeout(cxPhoneClose,300);">⬇ 연락처 파일 받기</a>
         <button type="button" class="btn btn-secondary" onclick="cxPhoneClose()">닫기</button>
       </div>
     </div>
