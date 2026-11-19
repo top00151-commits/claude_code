@@ -1,0 +1,42 @@
+{# z1191z83 관리 화면 공통 모양(관리 홈·직원·한 사람·권한 넘기기·부서) — 한 곳에서만 정한다 #}
+<style>
+.az-wrap{padding:0 var(--content-pad);margin-bottom:var(--space-6,32px);}
+.az-help{font-size:12.5px;color:var(--mute);line-height:1.7;margin:2px 0 12px;}
+.az-help b{color:var(--ink);}
+.az-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+.az-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;}
+.az-k{display:block;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-decoration:none;color:var(--ink);transition:border-color .12s,background .12s;}
+.az-k:hover{border-color:var(--knk-red);background:#fffaf8;}
+.az-k b{font-size:15px;font-weight:800;display:block;}
+.az-k .n{float:right;font-size:12px;color:var(--mute);font-weight:600;}
+.az-k p{margin:6px 0 0;font-size:12.5px;color:var(--mute);line-height:1.6;}
+.az-h{font-size:12px;font-weight:800;color:var(--knk-red);margin:16px 0 6px;letter-spacing:.02em;}
+.az-row{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:9px 2px;border-top:1px solid var(--line);font-size:13px;}
+.az-row:first-of-type{border-top:0;}
+.az-pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:10px;background:var(--paper-2);color:var(--mute);white-space:nowrap;}
+.az-pill.on{background:#e0ecff;color:#1d4ed8;}
+.az-pill.warn{background:#fff4d6;color:#92400e;}
+.az-pill.red{background:#fee2e2;color:#b91c1c;}
+.az-pill.ok{background:#e7f6ec;color:#166534;}
+.az-btn{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;font-weight:700;padding:7px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;}
+.az-btn:hover{border-color:var(--knk-red);}
+.az-btn.pri{background:var(--knk-red);border-color:var(--knk-red);color:#fff;}
+.az-btn[disabled]{opacity:.45;cursor:not-allowed;}
+.az-in{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff;}
+.az-sw{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;}
+.az-sw input{opacity:0;width:0;height:0;}
+.az-sw span{position:absolute;inset:0;border-radius:11px;background:#d4d4d8;cursor:pointer;transition:background .15s;}
+.az-sw span::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;}
+.az-sw input:checked + span{background:#2563eb;}
+.az-sw input:checked + span::after{left:21px;}
+.az-sw input:disabled + span{cursor:not-allowed;opacity:.55;}
+.az-msg{display:none;margin:0 0 12px;padding:9px 13px;border-radius:9px;font-size:13px;line-height:1.65;}
+.az-msg.ok{display:block;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;}
+.az-msg.err{display:block;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;}
+.az-tbl{width:100%;border-collapse:collapse;font-size:13px;background:#fff;}
+.az-tbl th{text-align:left;font-size:12px;color:var(--knk-red);font-weight:800;padding:8px 10px;border-bottom:2px solid var(--line);background:var(--paper-2);position:sticky;top:0;}
+.az-tbl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+.az-tbl tr.go{cursor:pointer;}
+.az-tbl tr.go:hover td{background:#fffaf0;}
+.az-sub{display:block;font-size:11.5px;color:var(--mute);margin-top:1px;}
+</style>

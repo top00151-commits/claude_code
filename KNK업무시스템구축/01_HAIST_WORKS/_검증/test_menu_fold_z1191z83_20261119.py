@@ -127,8 +127,7 @@ g, fl, head, sd = parse(render("/home", role="ceo", position="대표이사"))
 chk([h for h, _, _ in fl] == FOLD_CEO, "접은 묶음 = %d개 · 실제 %s" % (len(FOLD_CEO), [h for h, _, _ in fl]))
 chk("(%d)" % len(FOLD_CEO) in head, "묶음 머리 개수 (%d)" % len(FOLD_CEO))
 chk(hrefs(g, G_HOME) == ["/home"], "통합 플랫폼 묶음 = 업무현황 하나(대표 대시도 접음)")
-chk(hrefs(g, G_ADMIN) == ["/admin", "/admin/permissions", "/admin/fx-rates", "/admin/ai-settings", "/admin/reset-demo", "/admin/test-data"],
-    "관리 묶음 그대로(2단계에서 정리) · 실제 %s" % hrefs(g, G_ADMIN))
+chk(hrefs(g, G_ADMIN) == ["/admin"], "관리 묶음 = 「⚙️ 관리」 하나(2단계 · 나머지는 관리 홈으로) · 실제 %s" % hrefs(g, G_ADMIN))
 chk(sd.index('<div class="sb-group">' + G_ADMIN) < sd.index('<details class="sb-fold"'), "접은 묶음은 관리 아래(맨 아래)")
 allh = [h for n, its in g for h, _, _ in its] + [h for h, _, _ in fl]
 chk(all(allh.count(p) == 1 for p in BEFORE_HOME + BEFORE_COMMON + ["/dashboard", "/workflow/team", "/workflow"]),

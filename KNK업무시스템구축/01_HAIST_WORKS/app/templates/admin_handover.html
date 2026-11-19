@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>권한 넘기기 · 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_admin_z83.html" %}
+{# z1191z83 (대표 11-19 「권한을 넘기고」 → 고름: 담당 교체 + 기간 맡기기 둘 다 · 맡기는 동안 보낸 사람 권한은 그대로).
+   넘기는 것 = 센터 보기·등록 4칸 + 담당 사업부(역할·관리자 권한은 넘기지 않음 — 대표만 줌).
+   기간 맡기기가 끝나면 받은 사람에게 **더해졌던 것만** 뺀다(원래 있던 것은 그대로). 월 02:00~07:30 NAS 백업 시간엔 07:30 뒤로 미룸. #}
+<style>
+.ah-kind{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.ah-kind label{display:block;border:2px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;background:#fff;}
+.ah-kind input{display:none;}
+.ah-kind label:has(input:checked){border-color:#2563eb;background:#f5f9ff;}
+.ah-kind b{font-size:15px;}
+.ah-kind p{margin:4px 0 0;font-size:12.5px;color:var(--mute);}
+.ah-items label{display:inline-flex;align-items:center;gap:5px;margin:3px 12px 3px 0;font-size:13px;cursor:pointer;}
+.ah-items input{width:15px;height:15px;accent-color:#2563eb;}
+.ah-items .none{color:var(--mute);font-size:12.5px;}
+.ah-prev{display:none;margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--paper-2);font-size:13px;line-height:1.8;}
+.ah-del{display:none;}
+.ah-kind-delegate .ah-del{display:flex;}
+.ah-kind-delegate .ah-tr{display:none;}
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리</a> · <b>권한 넘기기</b></div>
+    <h1 class="page-title">🔁 권한 <em>넘기기</em></h1>
+  </div></div>
+  <div class="az-wrap">
+    <div id="ahMsg" class="az-msg"></div>
+    <div class="az-card" id="ahForm">
+      <div class="ah-kind">
+        <label><input type="radio" name="kind" value="transfer" checked><b>🔀 담당 교체</b><p>계속 넘깁니다 · 보낸 사람 것은 남기거나 뺍니다</p></label>
+        <label><input type="radio" name="kind" value="delegate"><b>🗓 기간 맡기기</b><p>휴가·출장 동안만 · 끝나는 때 저절로 원래대로 · 보낸 사람 것은 그대로</p></label>
+      </div>
+      <div class="az-row"><span>보내는 사람</span>
+        <select class="az-in" id="ahFrom" style="min-width:280px"><option value="">— 고르기 —</option>
+          {% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if s.id == frm }}>{{ s.name }} · {{ s.team_name or '부서 없음' }} · {{ s.employee_no or '' }}</option>{% endfor %}</select></div>
+      <div class="az-row"><span>받는 사람</span>
+        <select class="az-in" id="ahTo" style="min-width:280px"><option value="">— 고르기 —</option>
+          {% for s in staff %}<option value="{{ s.id }}">{{ s.name }} · {{ s.team_name or '부서 없음' }} · {{ s.employee_no or '' }}</option>{% endfor %}</select></div>
+      <div class="az-row" style="align-items:flex-start"><span style="padding-top:4px">넘길 것<span class="az-sub">보내는 사람이 가진 것만 나옵니다</span></span>
+        <div class="ah-items" id="ahItems" style="text-align:right;max-width:70%"><span class="none">보내는 사람을 먼저 골라 주세요</span></div></div>
+      <div class="az-row ah-tr"><span>보낸 사람 것은</span>
+        <span><label style="margin-right:12px"><input type="radio" name="keep" value="1" checked> 남김</label><label><input type="radio" name="keep" value="0"> 뺌 (완전히 넘김)</label></span></div>
+      <div class="az-row ah-del"><span>기간 <span class="az-sub">{{ tz_lbl }}</span></span>
+        <span><input class="az-in" type="datetime-local" id="ahStart" value="{{ now_local }}"> ~ <input class="az-in" type="datetime-local" id="ahEnd"></span></div>
+      <div class="az-row"><span>메모 <span class="az-sub">(선택) 예: 연차 · 인수인계</span></span><input class="az-in" id="ahNote" maxlength="200" style="width:280px"></div>
+      <div class="ah-prev" id="ahPrev"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+        <button class="az-btn" type="button" onclick="ahPreview()">미리보기</button>
+        <button class="az-btn pri" type="button" id="ahGo" onclick="ahApply()" disabled>넘기기</button>
+      </div>
+    </div>
+
+    <div class="az-h">🗓 지금 맡겨 둔 것</div>
+    <div class="az-card">
+      {% for g in live %}
+      <div class="az-row"><span>{{ g.from_name }} → <b>{{ g.to_name }}</b> · {{ g.items_lbl }}{% if g.note %}<span class="az-sub">{{ g.note }}</span>{% endif %}</span>
+        <span>{% if g.status == 'pending' %}<span class="az-pill">{{ g.since }} 시작</span>{% endif %} <span class="az-pill warn">{{ g.until }} 까지</span>
+          <button class="az-btn" type="button" onclick="ahEnd({{ g.id }}, '{{ g.status }}')">{{ '취소' if g.status == 'pending' else '일찍 끝내기' }}</button></span></div>
+      {% else %}<div class="az-row"><span style="color:var(--mute)">맡겨 둔 것이 없습니다</span></div>{% endfor %}
+    </div>
+    <div class="az-h">🕘 지난 넘기기</div>
+    <div class="az-card">
+      {% for g in past %}
+      <div class="az-row"><span>{{ '🔀 담당 교체' if g.kind == 'transfer' else '🗓 맡기기' }} · {{ g.from_name }} → <b>{{ g.to_name }}</b> · {{ g.items_lbl }}{% if g.end_note %}<span class="az-sub">{{ g.end_note }}</span>{% endif %}</span>
+        <span class="az-pill">{{ g.created }}{% if g.kind == 'delegate' %} ~ {{ g.ended or g.until }}{% endif %}</span></div>
+      {% else %}<div class="az-row"><span style="color:var(--mute)">아직 없습니다</span></div>{% endfor %}
+    </div>
+  </div>
+</main></div>
+<script>
+(function () {
+  var STAFF = {}; {% for s in staff %}STAFF[{{ s.id }}] = {{ s['items']|tojson }};{% endfor %}
+  var LBL = {{ item_label|tojson }};
+  var ALL = {{ items_all|tojson }};
+  function q(s) { return document.querySelector(s); }
+  function kind() { return q('input[name=kind]:checked').value; }
+  function body() {
+    var items = []; document.querySelectorAll('#ahItems input:checked').forEach(function (el) { items.push(el.value); });
+    return {kind: kind(), from: q('#ahFrom').value, to: q('#ahTo').value, items: items,
+            remove: kind() === 'transfer' && q('input[name=keep]:checked').value === '0',
+            starts: q('#ahStart').value, ends: q('#ahEnd').value, note: q('#ahNote').value};
+  }
+  function reset() { q('#ahPrev').style.display = 'none'; q('#ahGo').disabled = true; }
+  function items() {
+    var f = q('#ahFrom').value, box = q('#ahItems');
+    if (!f) { box.innerHTML = '<span class="none">보내는 사람을 먼저 골라 주세요</span>'; return; }
+    var have = STAFF[f] || [];
+    if (!have.length) { box.innerHTML = '<span class="none">이 사람은 넘길 권한이 없습니다(센터 보기·등록 · 담당 사업부 모두 꺼짐)</span>'; return; }
+    box.innerHTML = ALL.filter(function (k) { return have.indexOf(k) >= 0; }).map(function (k) {
+      return '<label><input type="checkbox" value="' + k + '" checked> ' + LBL[k] + '</label>'; }).join('');
+    box.querySelectorAll('input').forEach(function (el) { el.addEventListener('change', reset); });
+  }
+  document.querySelectorAll('input[name=kind]').forEach(function (el) { el.addEventListener('change', function () {
+    q('#ahForm').classList.toggle('ah-kind-delegate', kind() === 'delegate'); reset(); }); });
+  ['#ahFrom', '#ahTo', '#ahStart', '#ahEnd'].forEach(function (s) { q(s).addEventListener('change', function () { if (s === '#ahFrom') items(); reset(); }); });
+  document.querySelectorAll('input[name=keep]').forEach(function (el) { el.addEventListener('change', reset); });
+  function msg(ok, t) { var m = q('#ahMsg'); m.className = 'az-msg ' + (ok ? 'ok' : 'err'); m.textContent = (ok ? '✅ ' : '⚠ ') + t; window.scrollTo(0, 0); }
+  window.ahPreview = function () {
+    var b = body();
+    if (b.kind === 'delegate' && !b.ends) { msg(false, '끝나는 날짜·시각을 넣어 주세요'); return; }
+    fetch('/admin/handover/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b)})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        var p = q('#ahPrev');
+        if (!j.ok) { msg(false, j.msg); reset(); return; }
+        q('#ahMsg').className = 'az-msg';
+        var h = '<b>미리보기</b><br>';
+        h += j.added.length ? ('<b>' + j.to + '</b>에게 더해짐: ' + j.added.join(' · ')) : (j.to + '에게 더해지는 것 없음(이미 다 있음)');
+        if (j.already.length) h += '<br>이미 있는 것(그대로): ' + j.already.join(' · ');
+        if (b.kind === 'transfer') h += '<br>' + (j.removed.length ? ('<b>' + j.from + '</b>에게서 빠짐: ' + j.removed.join(' · ')) : (j.from + '은(는) 그대로'));
+        else h += '<br>' + j.from + '은(는) 그대로 · 끝나는 때 ' + j.to + '에게 더해진 것만 저절로 빠짐';
+        p.innerHTML = h; p.style.display = 'block'; q('#ahGo').disabled = false;
+      });
+  };
+  window.ahApply = function () {
+    var b = body();
+    fetch('/admin/handover/apply', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b)})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        msg(j.ok, j.msg); if (j.ok) setTimeout(function () { location.href = '/admin/handover'; }, 1400);
+      });
+  };
+  window.ahEnd = function (id, st) {
+    if (!confirm(st === 'pending' ? '시작 전에 취소할까요?' : '지금 끝낼까요? 받은 사람에게 더해졌던 것이 원래대로 돌아갑니다.')) return;
+    fetch('/admin/handover/' + id + '/end', {method:'POST'}).then(function (r) { return r.json(); }).then(function (j) {
+      msg(j.ok, j.msg); if (j.ok) setTimeout(function () { location.reload(); }, 1200); });
+  };
+  items();
+})();
+</script>
+</body></html>

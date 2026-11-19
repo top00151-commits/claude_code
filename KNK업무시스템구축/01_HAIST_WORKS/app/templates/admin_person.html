@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{{ p.name }} · 직원 · 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_admin_z83.html" %}
+{# z1191z83 (대표 11-19): 직원 한 사람 = 할 수 있는 것이 한 장에. 예전엔 사용자 수정·권한 한꺼번에·정보 열람 권한 세 화면에 흩어져 있었다.
+   저장 전 「N가지 바뀜」 · 화면을 연 뒤 남이 먼저 바꿨으면 멈춤(서버) · 관리자·임원·대표 역할은 대표만(대표 11-19). #}
+<style>
+.ap-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+.ap-av{width:46px;height:46px;border-radius:50%;background:#e0ecff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;}
+.ap-cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start;}
+@media (max-width:900px){.ap-cols{grid-template-columns:1fr;}}
+.ap-why{font-size:11.5px;color:var(--mute);}
+.ap-biz label{display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:13px;cursor:pointer;}
+.ap-biz input{accent-color:#2563eb;width:15px;height:15px;}
+.ap-bar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:10px 16px;margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:12px;}
+.ap-bar .chg{font-size:13px;font-weight:800;color:var(--mute);margin-right:auto;}
+.ap-bar .chg.on{color:#b45309;}
+.ap-like{display:none;margin:8px 0 0;padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;font-size:13px;}
+.ap-hist{max-height:420px;overflow:auto;}
+tr.ap-dirty td,div.ap-dirty{box-shadow:inset 3px 0 0 #f59e0b;}
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리</a> · <a href="/admin/staff">직원</a> · <b>{{ p.name }}</b></div>
+  </div></div>
+  <div class="az-wrap">
+    <div id="apMsg" class="az-msg"></div>
+    <div class="ap-head">
+      <div class="ap-av">{{ (p.name or '?')[:2] }}</div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:18px;font-weight:800">{{ p.name }} {% if p.rank %}<span style="font-size:14px;color:var(--mute)">{{ p.rank }}</span>{% endif %}
+          {% if not cur.is_active %}<span class="az-pill red">🔒 잠금(퇴사)</span>{% endif %}</div>
+        <div class="az-sub" style="font-size:12.5px">사번 {{ p.employee_no or p.login_id or '—' }} · {{ corp }} · {{ p.team_name or '부서 없음' }} · {{ role_label.get(pv.role, pv.role) }}{% if p.email %} · {{ p.email }}{% endif %}</div>
+      </div>
+      {% if not read_only %}<button class="az-btn" type="button" onclick="apLikeOpen()">📋 ○○○과 똑같이</button>{% endif %}
+      <a class="az-btn" href="/admin/handover?frm={{ p.id }}">🔁 권한 넘기기</a>
+      <a class="az-btn" href="/admin/users/{{ p.id }}/edit" title="이름·사번·이메일·비밀번호">✏ 기본 정보 고치기</a>
+    </div>
+    <div id="apLike" class="ap-like">
+      <b>누구와 똑같이 할까요?</b> 센터 보기·등록과 담당 사업부만 그 사람과 같게 맞춥니다(역할·관리자 권한은 복사하지 않음). 맞춘 뒤 아래 <b>저장</b>을 눌러야 바뀝니다.<br>
+      <input class="az-in" id="apLikeIn" list="apStaff" placeholder="이름 또는 사번" style="width:260px;margin-top:6px">
+      <datalist id="apStaff">{% for s in staff %}<option value="{{ s.name }} · {{ s.employee_no or '' }} · {{ s.team_name or '' }}" data-id="{{ s.id }}"></option>{% endfor %}</datalist>
+      <button class="az-btn pri" type="button" onclick="apLikeGo()">이 사람처럼 맞추기</button>
+      <button class="az-btn" type="button" onclick="document.getElementById('apLike').style.display='none'">닫기</button>
+      <span id="apLikeRes" style="margin-left:6px"></span>
+    </div>
+    {% if read_only %}<p class="az-help">⚠ 대표 계정은 대표만 바꿀 수 있습니다. 보기만 됩니다.</p>{% endif %}
+
+    <div class="ap-cols">
+      <div>
+        <div class="az-card">
+          <div class="az-h" style="margin-top:0">📊 매출영업센터</div>
+          {% macro sw(f, lbl, extra='') -%}
+          {% set lk = f in pv.locked %}
+          <div class="az-row" data-row="{{ f }}"><span>{{ lbl }}{% if extra %} <span class="ap-why">· {{ extra }}</span>{% endif %}{% if lk %} <span class="ap-why">· {{ role_label.get(pv.role) }} 역할로 항상 켜짐</span>{% endif %}</span>
+            <label class="az-sw"><input type="checkbox" data-k="{{ f }}" {{ 'checked' if (cur[f] or lk) }} {{ 'disabled' if (lk or read_only) }}><span></span></label></div>
+          {%- endmacro %}
+          {{ sw('can_view_sales', '보기') }}
+          {{ sw('can_use_sales', '등록·수정', '견적·수주·프로젝트 등록') }}
+          <div class="az-row ap-biz" data-row="biz_divs"><span>담당 사업부 <span class="ap-why">· 제작요청 알림을 받는 사업부(없으면 전 사업부)</span></span>
+            <span>{% for k, v in bizs %}<label><input type="checkbox" data-biz="{{ k }}" {{ 'checked' if k in cur.biz_divs.split(',') }} {{ 'disabled' if read_only }}>{{ v }}</label>{% endfor %}</span></div>
+          <div class="az-h">📦 자재구매센터</div>
+          {{ sw('can_view_logistics', '보기') }}
+          {{ sw('can_use_logistics', '등록·수정', '발주·구매 서류 만들기 포함') }}
+          <div class="az-h">🔐 민감 정보 보기 <span class="ap-why" style="font-weight:400">— 부서마다 정합니다 · <a href="/admin/field-access">부서별로 정하기 →</a></span></div>
+          {% for s in pv.sens %}
+          <div class="az-row"><span>{{ s.label }} <span class="ap-why">· {{ s.why }}</span></span>
+            <span class="az-pill {{ 'ok' if s.ok else '' }}">{{ '보임' if s.ok else '안 보임' }}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <div class="az-card">
+          <div class="az-h" style="margin-top:0">🏢 소속 · 역할</div>
+          <div class="az-row" data-row="team_id"><span>부서</span>
+            <select class="az-in" data-k="team_id" {{ 'disabled' if read_only }}><option value="">(부서 없음)</option>
+              {% for t in teams %}<option value="{{ t.id }}" {{ 'selected' if (cur.team_id|string) == (t.id|string) }}>{{ '법인 · ' if t.entity == 'VN' else '' }}{{ t.name }}</option>{% endfor %}</select></div>
+          <div class="az-row" data-row="role"><span>역할{% if role_note %}<span class="az-sub">{{ role_note }}</span>{% endif %}</span>
+            <select class="az-in" data-k="role" {{ 'disabled' if (not can_role or read_only) }}>
+              {% for r in role_opts %}<option value="{{ r }}" {{ 'selected' if r == pv.role }}>{{ role_label[r] }}</option>{% endfor %}
+              {% if pv.role not in role_opts %}<option value="{{ pv.role }}" selected>{{ role_label.get(pv.role, pv.role) }}</option>{% endif %}</select></div>
+          <div class="az-row" data-row="is_active"><span>재직 <span class="ap-why">· 끄면 로그인할 수 없음(퇴사·잠금) · 자료는 그대로</span></span>
+            <label class="az-sw"><input type="checkbox" data-k="is_active" {{ 'checked' if cur.is_active }} {{ 'disabled' if (not can_lock or read_only) }}><span></span></label></div>
+        </div>
+        {% if deleg %}
+        <div class="az-h">🔁 진행 중인 맡기기</div>
+        <div class="az-card">{% for g in deleg %}
+          <div class="az-row"><span>{{ g.from_name }} → <b>{{ g.to_name }}</b> · {{ g.items_lbl }}</span><span class="az-pill warn">{{ g.until }} 까지</span></div>{% endfor %}
+        </div>{% endif %}
+        <div class="az-h">🕘 바뀐 기록</div>
+        <div class="az-card ap-hist">
+          {% for h in hist %}
+          <div class="az-row"><span>{{ h.field }}: {{ h.old_value or '—' }} → <b>{{ h.new_value or '—' }}</b>{% if h.note %}<span class="az-sub">{{ h.note }}</span>{% endif %}</span>
+            <span class="az-pill">{{ h.when }} · {{ h.actor_name or '시스템' }}</span></div>
+          {% else %}<div class="az-row"><span style="color:var(--mute)">아직 바뀐 기록이 없습니다</span></div>{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% if not read_only %}
+    <div class="ap-bar"><span class="chg" id="apChg">바뀐 것 없음</span>
+      <button class="az-btn" type="button" onclick="location.reload()">되돌리기</button>
+      <button class="az-btn pri" type="button" id="apSave" onclick="apSave()" disabled>저장</button></div>
+    {% endif %}
+  </div>
+</main></div>
+<script>
+(function () {
+  var OLD = {{ cur|tojson }};
+  var LOCK = {{ pv.locked|tojson }};
+  var LBL = {can_view_sales:'매출 보기', can_use_sales:'매출 등록·수정', can_view_logistics:'자재 보기', can_use_logistics:'자재 등록·수정',
+             biz_divs:'담당 사업부', role:'역할', team_id:'부서', is_active:'재직'};
+  function q(s) { return document.querySelector(s); }
+  function cur() {
+    var v = {};
+    document.querySelectorAll('[data-k]').forEach(function (el) {
+      var k = el.getAttribute('data-k');
+      if (el.type === 'checkbox') v[k] = (LOCK.indexOf(k) >= 0) ? OLD[k] : (el.checked ? 1 : 0); else v[k] = el.value;
+    });
+    var b = []; document.querySelectorAll('[data-biz]').forEach(function (el) { if (el.checked) b.push(el.getAttribute('data-biz')); });
+    v.biz_divs = ['T','M','L','E'].filter(function (k) { return b.indexOf(k) >= 0; }).join(',');
+    return v;
+  }
+  function diff() {
+    var v = cur(), d = [];
+    Object.keys(v).forEach(function (k) { if (String(v[k]) !== String(OLD[k] == null ? '' : OLD[k])) d.push(k); });
+    return d;
+  }
+  function paint() {
+    var d = diff(), el = q('#apChg'), bt = q('#apSave');
+    document.querySelectorAll('[data-row]').forEach(function (r) { r.classList.toggle('ap-dirty', d.indexOf(r.getAttribute('data-row')) >= 0); });
+    if (!el) return;
+    el.textContent = d.length ? (d.length + '가지 바뀜 — ' + d.map(function (k) { return LBL[k] || k; }).join(' · ')) : '바뀐 것 없음';
+    el.classList.toggle('on', d.length > 0); bt.disabled = !d.length;
+  }
+  // 등록·수정을 켜면 보기도 켬 · 보기를 끄면 등록·수정도 끔(서버 규칙과 같다)
+  function link(e) {
+    var k = e.target.getAttribute('data-k');
+    var pair = {can_use_sales:'can_view_sales', can_use_logistics:'can_view_logistics'};
+    var rev = {can_view_sales:'can_use_sales', can_view_logistics:'can_use_logistics'};
+    if (pair[k] && e.target.checked) { var v = q('[data-k="' + pair[k] + '"]'); if (v && !v.disabled) v.checked = true; }
+    if (rev[k] && !e.target.checked) { var u = q('[data-k="' + rev[k] + '"]'); if (u && !u.disabled) u.checked = false; }
+    paint();
+  }
+  document.querySelectorAll('[data-k],[data-biz]').forEach(function (el) { el.addEventListener('change', link); });
+  window.addEventListener('beforeunload', function (e) { if (diff().length && !window._apSaving) { e.preventDefault(); e.returnValue = ''; } });
+  window.apSave = function () {
+    var d = diff(); if (!d.length) return;
+    var v = cur(), m = q('#apMsg');
+    if (String(v.is_active) === '0' && String(OLD.is_active) === '1' && !confirm('{{ p.name }} 계정을 잠급니다(퇴사). 로그인할 수 없게 됩니다. 자료는 그대로입니다. 잠글까요?')) return;
+    window._apSaving = true; q('#apSave').disabled = true;
+    fetch('/admin/staff/{{ p.id }}/save', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({old: OLD, new: v})})
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        m.className = 'az-msg ' + (j.ok ? 'ok' : 'err'); m.textContent = (j.ok ? '✅ ' : '⚠ ') + j.msg; window.scrollTo(0, 0);
+        if (j.ok) setTimeout(function () { location.reload(); }, 900); else { window._apSaving = false; paint(); }
+      }).catch(function () { m.className = 'az-msg err'; m.textContent = '⚠ 저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.'; window._apSaving = false; paint(); });
+  };
+  window.apLikeOpen = function () { q('#apLike').style.display = 'block'; q('#apLikeIn').focus(); };
+  window.apLikeGo = function () {
+    var val = q('#apLikeIn').value, id = null;
+    document.querySelectorAll('#apStaff option').forEach(function (o) { if (o.value === val) id = o.getAttribute('data-id'); });
+    var res = q('#apLikeRes');
+    if (!id) { res.textContent = '목록에서 사람을 골라 주세요'; res.style.color = '#b91c1c'; return; }
+    fetch('/admin/staff/{{ p.id }}/like?src=' + id).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { res.textContent = j.msg; res.style.color = '#b91c1c'; return; }
+      ['can_view_sales','can_use_sales','can_view_logistics','can_use_logistics'].forEach(function (k) {
+        var el = q('[data-k="' + k + '"]'); if (el && !el.disabled) el.checked = !!j.vals[k];
+      });
+      var bs = (j.vals.biz_divs || '').split(',');
+      document.querySelectorAll('[data-biz]').forEach(function (el) { el.checked = bs.indexOf(el.getAttribute('data-biz')) >= 0; });
+      paint();
+      res.style.color = '#1d4ed8'; res.textContent = j.name + '(' + (j.team || '부서 없음') + ')처럼 맞췄습니다 — 아래에서 확인하고 저장하세요';
+    });
+  };
+  paint();
+})();
+</script>
+</body></html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>직원 · 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_admin_z83.html" %}
+<style>
+.az-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px;}
+.az-tab{padding:6px 13px;border:1px solid var(--line);border-radius:16px;font-size:13px;text-decoration:none;color:var(--mute);background:#fff;}
+.az-tab.on{border-color:var(--knk-red);color:var(--knk-red);font-weight:800;}
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리</a> · <b>직원</b></div>
+    <h1 class="page-title">👤 <em>직원</em></h1>
+  </div></div>
+  <div class="az-wrap">
+    <p class="az-help">사람을 누르면 그 사람이 <b>할 수 있는 것</b>이 한 장에 나옵니다. 여러 명을 한꺼번에 바꾸려면 <a href="/admin/users/perms">🔑 여러 명 권한 한꺼번에</a>.</p>
+    <form class="az-tabs" method="get" action="/admin/staff">
+      <input class="az-in" type="search" name="q" value="{{ q }}" placeholder="이름 · 사번 · 부서" style="width:240px">
+      <input type="hidden" name="corp" value="{{ corp }}"><input type="hidden" name="state" value="{{ state }}">
+      <button class="az-btn" type="submit">찾기</button>
+      {% set qs = '&q=' ~ (q|urlencode) %}
+      <a class="az-tab{% if state != 'locked' and not corp %} on{% endif %}" href="/admin/staff?state=active{{ qs }}">재직 전체 {{ cnt.kr + cnt.vn }}</a>
+      <a class="az-tab{% if state != 'locked' and corp == 'kr' %} on{% endif %}" href="/admin/staff?corp=kr{{ qs }}">본사 {{ cnt.kr }}</a>
+      <a class="az-tab{% if state != 'locked' and corp == 'vn' %} on{% endif %}" href="/admin/staff?corp=vn{{ qs }}">법인 {{ cnt.vn }}</a>
+      <a class="az-tab{% if state == 'locked' %} on{% endif %}" href="/admin/staff?state=locked{{ qs }}">🔒 잠금(퇴사) {{ cnt.locked }}</a>
+    </form>
+    <table class="az-tbl">
+      <thead><tr><th style="width:26%">이름</th><th style="width:24%">부서</th><th style="width:12%">역할</th><th>할 수 있는 것</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr class="go" onclick="location.href='/admin/staff/{{ r.id }}'">
+        <td><a href="/admin/staff/{{ r.id }}"><b>{{ r.name }}</b></a>{% if r.name_vi %} <span style="color:var(--mute)">{{ r.name_vi }}</span>{% endif %}<span class="az-sub">사번 {{ r.employee_no or r.login_id or '—' }}{% if r.rank %} · {{ r.rank }}{% endif %}</span></td>
+        <td>{{ r.corp }} · {{ r.team_name or '부서 없음' }}</td>
+        <td>{% if r.role and r.role != 'member' %}<span class="az-pill {{ 'red' if r.role in ('admin','ceo') else 'warn' }}">{{ r.role_lbl }}</span>{% else %}<span style="color:var(--mute)">일반</span>{% endif %}</td>
+        <td>{% for ch in r.chips %}<span class="az-pill on">{{ ch }}</span> {% endfor %}{% if r.biz_lbl %}<span class="az-pill">{{ r.biz_lbl }}</span>{% endif %}{% if not r.chips and not r.biz_lbl %}<span style="color:var(--mute)">—</span>{% endif %}</td>
+      </tr>
+      {% else %}<tr><td colspan="4" style="color:var(--mute);padding:20px">찾는 직원이 없습니다</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main></div>
+</body></html>

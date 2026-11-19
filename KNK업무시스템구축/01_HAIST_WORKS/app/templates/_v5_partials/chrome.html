@@ -652,12 +652,8 @@ var CH = {
   {% if _role in ('ceo','admin') %}
   <div class="sb-group">{{ i.ch_g_admin }}</div>
   {{ a('/admin',             i.ch_m_admin,    'M-04-01') }}
-  {{ a('/admin/permissions', i.ch_m_perm, 'M-04-02') }}
-  {# v5H226z900 (대표 지시): 월 기준환율 입력 — 외화 매출 원화 환산 #}
-  {{ a('/admin/fx-rates', i.ch_m_fx, 'M-04-11') }}
-  {% if _role in ('ceo','admin') %}{{ a('/admin/ai-settings', i.ch_m_ai, 'M-04-08') }}{% endif %}
-  {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', i.ch_m_demo, 'M-04-09') }}{% endif %}
-  {% if _role in ('ceo','admin') %}{{ a('/admin/test-data', i.ch_m_testdata, 'M-04-10') }}{% endif %}
+  {# z1191z83 (대표 11-19): 관리 묶음 = 「⚙️ 관리」 하나. 월 기준환율·AI 모델 설정 = 관리 홈 「회사 설정」 카드 ·
+     데모 초기화·검증 데이터 = 「점검·위험 도구」(접어 둠) · 옛 「권한 위임」(실제 권한과 연결 안 됨 · 기록 0건) = 메뉴에서 뺌(주소는 그대로). #}
   {% endif %}
 
   {# z1191z83 (대표 11-19): 「🗂 지금 안 쓰는 메뉴」 — 기본 접힘 · 누르면 펼침 · 사람마다 기억(이 기기) · 지금 그 화면이면 저절로 펼침.

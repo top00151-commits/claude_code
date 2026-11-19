@@ -1593,7 +1593,7 @@ T = {
                     "vi": "Cài làm ứng dụng KNK Eum WORKS (biểu tượng trên màn hình chính)"},
     "ch_logout": {"ko": "나가기",
                  "vi": "Đăng xuất"},
-    "ch_m_admin": {"ko": "⚙️ 관리자",
+    "ch_m_admin": {"ko": "⚙️ 관리",  # z1191z83
                   "vi": "⚙️ Quản trị viên"},
     "ch_m_ai": {"ko": "🤖 AI 모델 설정",
                "vi": "🤖 Cài đặt mô hình AI"},

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>부서 · 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_admin_z83.html" %}
+</head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/admin">관리</a> · <b>부서</b></div>
+    <h1 class="page-title">👥 <em>부서</em></h1>
+  </div></div>
+  <div class="az-wrap">
+    <p class="az-help">부서마다 팀장과 <b>민감 정보(매출금액·구매단가·구매처)를 볼 수 있는지</b> 정합니다. 부서 사람은 모두 같은 규칙을 따릅니다.
+      <a class="az-btn" href="/admin/field-access" style="margin-left:8px">🔐 부서별 민감 정보 보기 정하기</a>
+      <a class="az-btn" href="/admin/teams/new">＋ 부서 추가</a></p>
+    <table class="az-tbl">
+      <thead><tr><th style="width:28%">부서</th><th style="width:16%">팀장</th><th style="width:8%">인원</th><th>민감 정보 보기</th><th style="width:70px"></th></tr></thead>
+      <tbody>
+      {% for t in teams %}
+      <tr>
+        <td><b>{{ t.name }}</b><span class="az-sub">{{ t.corp }} · 코드 {{ t.code or '—' }}{% if t.parent_name %} · 위 부서 {{ t.parent_name }}{% endif %}</span></td>
+        <td>{{ t.leader_name or '—' }}</td>
+        <td><a href="/admin/staff?q={{ t.name|urlencode }}">{{ t.n }}명</a></td>
+        <td>{% for s in t.sens %}<span class="az-pill ok">{{ s }}</span> {% else %}<span style="color:var(--mute)">—</span>{% endfor %}</td>
+        <td><a class="az-btn" href="/admin/teams/{{ t.id }}/edit">수정</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main></div>
+</body></html>

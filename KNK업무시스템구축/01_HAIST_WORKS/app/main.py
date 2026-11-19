@@ -10320,8 +10320,8 @@ async def team_permissions_save(req: Request, team_id: int):
             # write implies read (등록 권한 있으면 보기 자동 ON)
             if sales: v_sales = 1
             if logi:  v_logi = 1
-            # is_admin 은 ceo/admin만 변경 가능
-            if is_admin_actor:
+            # is_admin 은 대표만 변경 가능 — z1191z83 (대표 11-19 「관리자 권한은 대표만」 · 전에는 ceo/admin)
+            if u["role"] == "ceo":
                 adm = 1 if form.get(f"adm_{mid}") else 0
                 c.execute(
                     "UPDATE users SET can_view_sales=?, can_use_sales=?, "
@@ -13139,7 +13139,7 @@ def feed_page(req: Request, sel_date: str = ""):
 # =====================================================
 # ADMIN — 관리자 페이지
 # =====================================================
-@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/console", response_class=HTMLResponse)   # z1191z83: 예전 관리자 화면 — /admin 은 새 관리 홈(app/admin_people.py)
 async def admin_page(req: Request):
     u = require(req, ["admin", "ceo"])
     if not u:
@@ -16826,6 +16826,15 @@ async def admin_users_edit_submit(req: Request, uid: int):
     name = (form.get("name") or "").strip()
     if not name:
         return RedirectResponse(f"/admin/users/{uid}/edit?error=required", 303)
+    # z1191z83 (대표 11-19 「관리자 권한은 대표만」): 관리자·임원·대표 역할로 주거나 빼기 · 대표 계정 고치기 · 내 역할 바꾸기는 막는다
+    with db_session() as c:
+        _r83 = c.execute("SELECT role FROM users WHERE id=?", (uid,)).fetchone()
+    _old83 = (_r83[0] if _r83 else "") or "member"
+    _new83 = form.get("role", "member") or "member"
+    if u.get("role") != "ceo" and (_old83 == "ceo" or (_new83 != _old83 and (_new83 in ("admin", "executive", "ceo") or _old83 in ("admin", "executive", "ceo")))):
+        return RedirectResponse(f"/admin/users/{uid}/edit?error=ceo_only", 303)
+    if uid == u.get("id") and _new83 != _old83:
+        return RedirectResponse(f"/admin/users/{uid}/edit?error=self_role", 303)
     with db_session() as c:
         # v5H113 LOW#18: 변경 전 스냅샷
         old_row = c.execute(
@@ -16926,7 +16935,7 @@ async def admin_users_edit_submit(req: Request, uid: int):
                 )
             except Exception:
                 pass
-    return RedirectResponse("/admin", 303)
+    return RedirectResponse(f"/admin/staff/{uid}", 303)   # z1191z83: 저장 뒤 그 사람 화면으로
 
 
 @app.get("/admin/teams/new", response_class=HTMLResponse)
@@ -16971,7 +16980,7 @@ async def admin_teams_new_submit(req: Request):
              form.get("leader_id") or None,
              _ptid)
         )
-    return RedirectResponse("/admin", 303)
+    return RedirectResponse("/admin/depts", 303)   # z1191z83
 
 
 @app.get("/admin/teams/{tid:int}/edit", response_class=HTMLResponse)
@@ -17056,7 +17065,7 @@ async def admin_teams_edit_submit(req: Request, tid: int):
                 )
             except Exception:
                 pass
-    return RedirectResponse("/admin", 303)
+    return RedirectResponse("/admin/depts", 303)   # z1191z83
 
 
 # =====================================================
@@ -57435,3 +57444,19 @@ try:
     print("[WFB] workflow lego builder routes registered (z104)")
 except Exception as _e:
     print(f"[WFB ERR] {_e}")
+
+# z1191z83 (대표 11-19 「관리 항목 … 실무 담당자 입장에서 다시 정리」): 새 관리 화면 — /admin 홈 · 직원 · 한 사람 · 권한 넘기기 · 부서
+#   권한 판단 함수는 그대로 쓰고 같은 칸만 고친다. 실패하면 기동을 막지 않도록 감싸되 크게 알린다(예전 화면 /admin/console 은 남음).
+try:
+    from . import admin_people as _z83ap
+    _z83ap.register_admin_people(app, {
+        "ctx": ctx, "require": require, "db_session": db_session,
+        "kst_now": _kst_wall_now, "nas_quiet": _nas_quiet_now,
+        "locked_for_role": _z1191f_locked, "imply": _z1191f_imply,
+        "can_view_field": can_view_field, "load_policy": load_field_access_policy, "field_labels": FIELD_ACCESS_LABELS,
+        "can_view_work_patterns": can_view_work_patterns,
+    })
+    print("[z83] 관리 화면(/admin · 직원 · 권한 넘기기 · 부서) 등록")
+except Exception as _e83:
+    import traceback as _tb83
+    print(f"[z83 ERR] 관리 화면 등록 실패: {_e83}\n{_tb83.format_exc()}")

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_admin_z83.html" %}
+{# z1191z83 (대표 11-19 「관리자·권한 위임 메뉴도 쓰기가 상당히 어려워 — 실무 담당자 입장에서 다시 정리」):
+   관리 홈 = 사람 찾기가 맨 위(관리 일은 대부분 「이 사람에게 무엇을」에서 시작) → 하려는 일 카드 → 최근 바뀐 권한 → 점검·위험 도구(접어 둠). #}
+<style>
+.az-find{display:flex;gap:8px;align-items:center;margin:0 0 14px;}
+.az-find input{flex:1;max-width:520px;padding:10px 13px;font-size:14px;}
+.az-tools summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);padding:10px 14px;border:1px dashed var(--line);border-radius:10px;margin-top:14px;}
+.az-tools summary::-webkit-details-marker{display:none;}
+.az-tools[open] summary{color:var(--ink);}
+.az-tools .lst{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px;}
+.az-tools .lst a{display:block;padding:9px 12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink);font-size:13px;background:#fff;}
+.az-tools .lst a:hover{border-color:var(--knk-red);}
+.az-tools .lst a small{display:block;color:var(--mute);font-size:11.5px;margin-top:2px;}
+.az-tools .lst a.danger{border-color:#fecaca;}
+</style></head><body>
+<div class="app">{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><b>관리</b></div>
+    <h1 class="page-title">⚙️ <em>관리</em></h1>
+  </div></div>
+  <div class="az-wrap">
+    <form class="az-find" action="/admin/staff" method="get">
+      <input class="az-in" type="search" name="q" placeholder="직원 이름 · 사번 · 부서로 찾기 — 찾은 사람을 누르면 그 사람 화면" autofocus>
+      <button class="az-btn pri" type="submit">찾기</button>
+      <a class="az-btn" href="/admin/sync-employees" title="메신저(이음)에 등록된 직원을 미리 보고 가져옵니다">＋ 새 직원 (메신저에서 가져오기)</a>
+    </form>
+
+    <div class="az-grid">
+      <a class="az-k" href="/admin/staff"><span class="n">재직 {{ n_active }} · 잠금 {{ n_locked }}</span><b>👤 직원</b>
+        <p>이 사람이 할 수 있는 것 보기·바꾸기 · 「○○○과 똑같이」 · 부서 이동 · 퇴사 잠금 · 바뀐 기록</p></a>
+      <a class="az-k" href="/admin/depts"><span class="n">{{ n_teams }}개</span><b>👥 부서</b>
+        <p>팀장 · 본사/법인 · 인원 · 부서별 민감 정보 보기(매출금액·구매단가·구매처)</p></a>
+      <a class="az-k" href="/admin/handover"><span class="n">맡겨 둔 것 {{ n_deleg }}건</span><b>🔁 권한 넘기기</b>
+        <p>담당 교체(계속 넘김) · 기간 맡기기(휴가·출장 — 끝나면 저절로 원래대로)</p></a>
+      <div class="az-k" style="cursor:default"><b>🏢 회사 설정</b>
+        <p><a href="/admin/fx-rates">💱 월 기준환율</a> · <a href="/admin/ai-settings">🤖 AI 모델 설정</a><br>
+           <a href="/admin/sync-employees">🔄 메신저 직원 동기화</a> · <a href="/admin/users/perms">🔑 여러 명 권한 한꺼번에</a></p></div>
+    </div>
+
+    <div class="az-h">최근 바뀐 권한</div>
+    <div class="az-card">
+      {% for r in recent %}
+      <div class="az-row"><span><a href="/admin/staff/{{ r.target_id }}"><b>{{ r.target_name or '—' }}</b></a> — {{ r.field }}: {{ r.old_value or '—' }} → <b>{{ r.new_value or '—' }}</b>{% if r.note %} <span class="az-sub" style="display:inline">· {{ r.note }}</span>{% endif %}</span>
+        <span class="az-pill">{{ r.when }} · {{ r.actor_name or '시스템' }}</span></div>
+      {% else %}<div class="az-row"><span style="color:var(--mute)">아직 기록이 없습니다</span></div>{% endfor %}
+    </div>
+
+    <details class="az-tools">
+      <summary>🧰 점검·위험 도구 <span style="font-size:12px">— 자주 쓰지 않거나 자료를 지울 수 있는 도구 · 누르면 펼침</span> <span style="margin-left:auto">▸</span></summary>
+      <div class="lst">
+        <a href="/admin/console">📋 예전 관리자 화면<small>사용자·팀·프로젝트·고객사 표(예전 그대로)</small></a>
+        <a href="/admin/field-access">🔐 정보 열람 권한<small>부서별 매출금액·구매단가·구매처</small></a>
+        <a href="/admin/customer-health">🔎 고객사 연결성 점검</a>
+        {% if can_work_patterns %}<a href="/admin/work-patterns">📋 직원 업무 패턴</a>
+        <a href="/dept/activity-dashboard">📊 수주 전 활동</a>{% endif %}
+        <a class="danger" href="/admin/test-data">🧪 검증 데이터 관리<small>⚠ 자료를 숨기거나 지울 수 있음</small></a>
+        <a class="danger" href="/admin/reset-demo">🗑 데모 초기화<small>⚠ 자료를 지울 수 있음 — 미리보기부터</small></a>
+        <a href="/admin/permissions">옛 「권한 위임」<small>쓰지 않음 — 실제 권한과 연결되지 않은 장치(기록 0건)</small></a>
+      </div>
+    </details>
+  </div>
+</main></div>
+</body></html>

@@ -82,7 +82,7 @@ print("=" * 78)
 print("§1 서버")
 print("=" * 78)
 with contextlib.redirect_stdout(io.StringIO()):
-    r = cl.get("/admin")
+    r = cl.get("/admin/console")   # z1191z83: 예전 관리자 화면은 /admin/console (/admin = 새 관리 홈)
 h = r.text
 n_vn = h.count('data-corp="베트남법인" data-dept=')
 n_kr = h.count('data-corp="본사" data-dept=')
@@ -116,7 +116,7 @@ with sync_playwright() as p:
     pg = ctx.new_page()
     pg.on("pageerror", lambda e: out["page_errors"].append(str(e)[:200]))
     pg.on("dialog", lambda d: d.dismiss())
-    pg.goto(BASEURL + "/admin")
+    pg.goto(BASEURL + "/admin/console")   # z1191z83
     try:
         pg.wait_for_load_state("networkidle", timeout=15000)
     except Exception:

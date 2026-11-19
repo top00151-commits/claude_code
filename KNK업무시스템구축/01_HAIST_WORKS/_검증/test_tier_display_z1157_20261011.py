@@ -94,11 +94,11 @@ def order_in(html):
 
 for url, what in [("/home/2026-10-12", "오늘 업무(fetch_customers)"), ("/daily/2026-10-12", "일일업무(fetch_customers)"),
                   ("/issues/new", "이슈 등록"), ("/stock/issue", "재고 출고(세션 05 화면 · 대표 「같이 바꿈」)"),
-                  ("/admin", "관리자 고객 표")]:
+                  ("/admin/console", "관리자 고객 표")]:   # z1191z83: 예전 관리자 화면 주소
     r = cl.get(url)
     o = order_in(r.text)
     check("%s %s → 200 · VIP 먼저(%s)" % (what, url, " ".join(o)), r.status_code == 200 and o == WANT, (r.status_code, o))
-h = cl.get("/admin").text
+h = cl.get("/admin/console").text   # z1191z83
 check("관리자 고객 표: 알약 색 = 기준 한 곳(VIP pill-danger · 신규 pill-warn · 옛 A 회색)",
       '<span class="pill pill-danger">VIP</span>' in h and '<span class="pill pill-warn">신규</span>' in h
       and '<span class="pill pill-muted">A</span>' in h and "role-badge role-admin\">VIP" not in h)
