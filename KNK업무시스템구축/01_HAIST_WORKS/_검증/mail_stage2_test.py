@@ -137,7 +137,10 @@ print("== ④ 소속 시각 ==")
 kor = m._mail_snooze_from("tomorrow", 9)
 vn = m._mail_snooze_from("tomorrow", 7)
 d = (datetime.strptime(vn, "%Y-%m-%d %H:%M:%S") - datetime.strptime(kor, "%Y-%m-%d %H:%M:%S")).total_seconds() / 3600
-check("같은 「내일 아침 9시」: 베트남이 본사보다 서버 시각 2시간 늦음", abs(d - 2) < 0.01, (kor, vn))
+# 11-20 시험 고침: 한국 00:00~02:00 에는 베트남이 아직 전날 → 「내일」 날짜가 하루 다름(각자 소속 날짜 기준이 맞음) → 2 - 24 = -22시간
+_same_day = m._mail_local_today(9) == m._mail_local_today(7)
+check("같은 「내일 아침 9시」: 베트남이 본사보다 서버 시각 2시간 늦음(한국 자정~2시엔 베트남 날짜가 하루 앞이라 -22시간)",
+      abs(d - 2) < 0.01 if _same_day else abs(d + 22) < 0.01, (kor, vn, _same_day))
 check("기한 단추: 오늘·내일·금요일·다음 주 월요일", all(re.match(r"^\d{4}-\d{2}-\d{2}$", m._mail_due_from(x, 9)) for x in ("today", "tomorrow", "fri", "nextmon"))
       and datetime.strptime(m._mail_due_from("fri", 9), "%Y-%m-%d").weekday() == 4 and datetime.strptime(m._mail_due_from("nextmon", 9), "%Y-%m-%d").weekday() == 0)
 check("서버 시각 → 현지 표시 왕복", m._mail_local_label(m._mail_local_to_server(datetime(2030, 1, 2, 9, 0), 7), 7) == "1/2 09:00")
