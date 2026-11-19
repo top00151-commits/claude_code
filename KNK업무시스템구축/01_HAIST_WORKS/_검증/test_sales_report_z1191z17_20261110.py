@@ -134,8 +134,8 @@ check(abs(B["T"]["total"] - (13620000 + 3300 * 1400)) < 1 and abs(B["M"]["total"
 check(abs(B["CT"]["total"] - 500000) < 1 and abs(B["CM"]["total"] - 560000) < 1 and B["CT"]["label"].endswith("소모품(검사기)") and B["CM"]["label"].endswith("소모품(자동화)"),
       "소모품(검사기) 500,000 · 소모품(자동화) 560,000 따로")
 check(abs(B["M"]["cats"]["상품"] - 210000) < 1 and abs(B["T"]["cats"]["장비"] - B["T"]["total"]) < 1, "사업부 안 구분: 자동화 상품 · 검사기 장비")
-hs = [a for a in R["cust_rows"] if a["name"] == "한국성전"]
-check(hs and abs(hs[0]["total"] - (13620000 + 500000)) < 1 and hs[0]["cnt"] == 5, "고객사: 한국성전 = 호기 4 + 소모품 1 (수주÷호기 나눔 포함)", hs)
+hs = [a for a in R["cust_rows"] if a["name"] == "한국성전(주)"]   # z1191z74: 고객사 = 등록명
+check(hs and abs(hs[0]["total"] - (13620000 + 500000)) < 1 and hs[0]["cnt"] == 5, "고객사: 한국성전(주) = 호기 4 + 소모품 1 (수주÷호기 나눔 포함)", hs)
 V = {a["name"]: a["total"] for a in R["vina_rows"]}
 check(abs(V.get("DRT", 0) - (150 + 1000) * 1400) < 1, "KNK VINA 2차: DRT2 · DREAMTECH VINA → DRT 로 묶음", V)
 check(abs(V.get("SEVT", 0) - 2800000) < 1 and abs(V.get("KNK VINA", 0) - 420000) < 1 and "(2차 없음)" not in V and abs(V.get("DSV,DRT", 0) - 560000) < 1,

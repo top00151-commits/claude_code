@@ -28438,6 +28438,21 @@ def _z17_lines(c, rates, oi_map, basis):
     missing, fx_fb = set(), {}
     alias = {r[0]: (r[1] or "") for r in c.execute("SELECT id, alias FROM customers")}
     names = {r[0]: (r[1] or "") for r in c.execute("SELECT id, name FROM customers")}
+    # z1191z74 (대표 11-19 「매출보고서쪽도 동일하게」 = z1191z73): 고객사 = 등록명 · 등록명이 같은 고객사(한 회사의 여러 종사업장 —
+    #   드림텍 본사·아산·동탄)는 등록명 한 줄로 합산하고 사업장(시스템명)은 cust_br 로 따로 둔다(펼쳐 보기 · 줄 단위 표시).
+    _z74cnt, _z74first = {}, {}
+    for _i in sorted(names):
+        _k = "".join(str(names[_i] or "").split())
+        if _k:
+            _z74cnt[_k] = _z74cnt.get(_k, 0) + 1
+            _z74first.setdefault(_k, str(names[_i]).strip())
+
+    def _z74(cid):
+        n = str(names.get(cid) or "").strip()
+        k = "".join(n.split())
+        if not k:
+            return (str(alias.get(cid) or "").strip(), None)
+        return (_z74first[k], (str(alias.get(cid) or "").strip() or n) if _z74cnt[k] > 1 else None)
     vina_ids = {i for i, n in names.items() if str(n).upper().replace(" ", "") == "KNKVINA"}
     # 소모품은 고객사 번호 없이 이름만 적힌 것이 있다 → 정식명·시스템명이 **딱 한 곳**과 같을 때만 그 고객사로(같은 고객이 두 줄로 갈리지 않게)
     _nm2id = {}
@@ -28480,7 +28495,8 @@ def _z17_lines(c, rates, oi_map, basis):
         biz = d["biz"] if d["biz"] in ("T", "M", "L", "E") else "E"
         base = {"code": d["code"] or "", "pname": d["pname"] or "", "pid": d["pid"], "so": d["so"] or "", "label": d["lbl"] or "",
                 "model": d["model"] or "", "biz": biz, "cat": _Z17_CAT_BY_KEY.get(_key, "기타"),
-                "cust": (alias.get(cid) or names.get(cid) or d["pcname"] or "—") if cid else (d["pcname"] or "—"),
+                "cust": (_z74(cid)[0] or d["pcname"] or "—") if cid else (d["pcname"] or "—"),   # z1191z74: 등록명
+                "cust_br": _z74(cid)[1] if cid else None,   # z1191z74: 종사업장(시스템명) — 한 회사 여러 사업장일 때만
                 "cust2": _z17_norm2(c2), "is_vina": cid in vina_ids, "ccy": (d["ccy"] or "KRW").upper(), "kind": "project"}
         if basis == "tax":
             tx = (oi_map or {}).get(d["iid"]) or {}
@@ -28526,7 +28542,8 @@ def _z17_lines(c, rates, oi_map, basis):
             cid = next(iter(_hit)) if len(_hit) == 1 else None
         biz = "C" + (d["bd"] if d["bd"] in ("T", "M") else "E")
         base = {"code": d["mgmt_code"] or "", "pname": "소모품", "pid": None, "so": d["co_no"] or "", "label": "", "model": d["model_name"] or "",
-                "biz": biz, "cat": "소모품", "cust": (alias.get(cid) or names.get(cid) or d["customer_name"] or "—") if cid else (d["customer_name"] or "—"),
+                "biz": biz, "cat": "소모품", "cust": (_z74(cid)[0] or d["customer_name"] or "—") if cid else (d["customer_name"] or "—"),   # z1191z74
+                "cust_br": _z74(cid)[1] if cid else None,
                 "cust2": _z17_norm2(d["secondary_customer"]),
                 "is_vina": (cid in vina_ids) or str(d["customer_name"] or "").upper().replace(" ", "") == "KNKVINA",
                 "ccy": (d["currency"] or "KRW").upper(), "kind": "consumable"}
@@ -28615,6 +28632,19 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     for k_, a in agg.items():
         a["so_n"] = len(_so.get(k_, ()))
     cust_rows = sorted(agg.values(), key=lambda a: -a["total"])
+    # z1191z74: 한 회사 여러 종사업장 — 등록명 줄 밑에 펼쳐 볼 사업장(시스템명)별 합계
+    _kid = {}
+    for x in lines:
+        if x.get("cust_br"):
+            kd = _kid.setdefault(x["cust"], {}).setdefault(x["cust_br"], {"name": x["cust_br"], "total": 0.0, "cnt": 0, "_s": set()})
+            kd["total"] += x["krw"]; kd["cnt"] += 1; kd["_s"].add(_z33_sok(x))
+            _z23_fx_add(kd, x)
+    for a in cust_rows:
+        kids = sorted(_kid.get(a["name"], {}).values(), key=lambda q: (-q["total"], q["name"]))
+        for q in kids:
+            q["so_n"] = len(q.pop("_s"))
+            q["fx_txt"] = _z23_fx_txt(q.get("fx"))
+        a["children"] = kids
     vl = [x for x in lines if x["is_vina"]]
     va, _so = {}, {}
     for x in vl:
@@ -28630,7 +28660,7 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     pa = {}
     for x in lines:
         k = (x["code"], x["kind"])
-        a = pa.setdefault(k, {"code": x["code"], "pname": x["pname"], "pid": x["pid"], "cust": x["cust"], "biz": x["biz"],
+        a = pa.setdefault(k, {"code": x["code"], "pname": x["pname"], "pid": x["pid"], "cust": x.get("cust_br") or x["cust"], "biz": x["biz"],   # z1191z74: 줄 단위는 사업장
                               "total": 0.0, "cnt": 0, "sos": set(), "_sok": set()})
         a["total"] += x["krw"]; a["cnt"] += 1; a["sos"].add(x["so"]); a["_sok"].add(_z33_sok(x))
         _z23_fx_add(a, x)
@@ -29065,6 +29095,10 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         notes.append(("· WORKS 매출 자료는 %s년 %d월부터 있습니다 — 그 전 기간과의 비교는 「%s」로 둡니다"
                       % (_Z18_DATA_FROM[:4], int(_Z18_DATA_FROM[5:7]), _Z18_NA), True))
     notes.append(("· 고객사 = 수주에 적힌 1차 발주처 기준 (매출 홈 첫 화면 TOP5 는 프로젝트 고객 기준이라 다를 수 있음)", True))
+    _br = [a for a in cr if a.get("children")]   # z1191z74
+    if _br:
+        notes.append(("· 고객사 이름 = 등록명 · %s = 종사업장 %s 합산 — 「고객사」 시트에서 왼쪽 + 를 누르면 나눠 보입니다"
+                      % (" · ".join(a["name"] for a in _br), " · ".join("/".join(q["name"] for q in a["children"]) for a in _br)), True))
     notes.append(("· 백만원 아래는 반올림해 보여 줍니다 — 칸을 더한 값과 합계가 조금 다를 수 있음 (셀 값·뒤 시트는 원)", True))
     for t, ok in notes:
         r += 1
@@ -29141,18 +29175,41 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     w2 = sheet("고객사", "고객사별 (수주 1차 발주처)", [7, 30, 17, 9, 10, 17, 17, 7])
     head(w2, _Z68_HR, ["순위", "고객사", "금액", "비중", "누적 비중", "%s 금액" % prev_word, "증감", "건수"])   # z1191z33: 줄 → 건수(수주 수)
     rr, acc = _Z68_HR, 0.0
+    # z1191z74: 한 회사 여러 종사업장 — 등록명 줄 밑에 사업장(시스템명) 줄 · 엑셀 그룹으로 접어 둠(왼쪽 + 를 누르면 펼침)
+    _pcb = {}
+    for x in prv:
+        if x.get("cust_br"):
+            _pcb[(x["cust"], x["cust_br"])] = _pcb.get((x["cust"], x["cust_br"]), 0.0) + x["krw"]
+    f_kid = Font(name=FN, size=9.5, color=_KX68.MUTED)
+    _grouped = False
     for i, a in enumerate(cr, 1):
         rr += 1
         acc += a["total"]
         pv = pc.get(a["name"], 0)
         put(w2, rr, 1, i, al=a_c)
-        put(w2, rr, 2, a["name"])
+        put(w2, rr, 2, a["name"] + ("  (+ %d곳)" % len(a["children"]) if a.get("children") else ""))
         put(w2, rr, 3, r0(a["total"]), nf=NF_W)
         put(w2, rr, 4, (a["total"] / cur_total) if cur_total else 0, nf=NF_P)
         put(w2, rr, 5, (acc / cur_total) if cur_total else 0, nf=NF_P)
         pcell(w2, rr, 6, pv, NF_W)
         pcell(w2, rr, 7, a["total"] - pv, NF_W)
         put(w2, rr, 8, a["so_n"], al=a_c)
+        for q in (a.get("children") or []):
+            rr += 1
+            qv = _pcb.get((a["name"], q["name"]), 0)
+            put(w2, rr, 1, "", font=f_kid)
+            put(w2, rr, 2, "   └ " + q["name"], font=f_kid)
+            put(w2, rr, 3, r0(q["total"]), nf=NF_W, font=f_kid)
+            put(w2, rr, 4, (q["total"] / cur_total) if cur_total else 0, nf=NF_P, font=f_kid)
+            put(w2, rr, 5, "", font=f_kid)
+            pcell(w2, rr, 6, qv, NF_W, font=f_kid)
+            pcell(w2, rr, 7, q["total"] - qv, NF_W, font=f_kid)
+            put(w2, rr, 8, q["so_n"], al=a_c, font=f_kid)
+            w2.row_dimensions[rr].outlineLevel = 1
+            w2.row_dimensions[rr].hidden = True
+            _grouped = True
+    if _grouped:
+        w2.sheet_properties.outlinePr.summaryBelow = False   # + 단추가 등록명 줄 옆에
     rr += 1
     put(w2, rr, 1, "", fill=fill_tot)
     put(w2, rr, 2, "합계 (%d곳)" % len(cr), font=f_b, fill=fill_tot)
@@ -29219,7 +29276,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     for x in rep["lines"]:
         rr += 1
         vals = [x["date"], x["nth"], x["code"], x["so"], x["label"], x["pname"], x["model"],
-                _Z18_BIZ_TXT.get(x["biz"], x["biz"]), x["cat"], x["cust"], x["cust2"], "Y" if x["is_vina"] else "", x["ccy"]]
+                _Z18_BIZ_TXT.get(x["biz"], x["biz"]), x["cat"], x.get("cust_br") or x["cust"], x["cust2"], "Y" if x["is_vina"] else "", x["ccy"]]
         for i, v in enumerate(vals):
             put(w2, rr, 1 + i, v, al=a_c if i in (0, 1, 4, 8, 11, 12) else None)
         put(w2, rr, 14, x["amt"], nf='#,##0.##;[Red]-#,##0.##' if x["ccy"] != "KRW" else NF_W)

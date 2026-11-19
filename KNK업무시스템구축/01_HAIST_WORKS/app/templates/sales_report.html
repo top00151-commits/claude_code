@@ -94,7 +94,7 @@
           <h3>고객사별 <span class="sub">— 수주에 적힌 1차 발주처(없으면 프로젝트 고객) · 큰 순</span></h3>
           <div class="rp-scroll"><table class="rp-t">
             <thead><tr><th class="n rp-rk" title="합계(원) 큰 순서">#</th><th>고객사</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n" title="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
-            <tbody>{% for a in rep.cust_rows %}<tr><td class="n rp-rk">{{ loop.index }}</td><td>{{ a.name }}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.so_n }}</td></tr>{% endfor %}</tbody>
+            <tbody>{% for a in rep.cust_rows %}{% set gi = loop.index %}<tr><td class="n rp-rk">{{ loop.index }}</td><td>{{ a.name }}{% if a.children %}<button type="button" class="z73-tg" data-z73="r{{ gi }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});"><span>▸ </span>{{ a.children|length }}곳</button>{% endif %}</td><td class="n">{{ '{:,.0f}'.format(a.total) }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.so_n }}</td></tr>{% for q in (a.children or []) %}<tr class="z73-ch z73p-r{{ gi }}" hidden><td class="n rp-rk"></td><td><span class="z73-br">└</span> {{ q.name }}</td><td class="n">{{ '{:,.0f}'.format(q.total) }}</td><td class="n rp-fx">{{ q.fx_txt }}</td><td class="n">{{ q.so_n }}</td></tr>{% endfor %}{% endfor %}</tbody>
             <tfoot><tr><td></td><td>합계 ({{ rep.cust_rows|length }}곳)</td><td class="n">{{ '{:,.0f}'.format(rep.total) }}</td><td class="n rp-fx">{{ rep.fx_total_txt }}</td><td class="n">{{ rep.so_n }}</td></tr></tfoot>
           </table></div>
         </section>
@@ -122,7 +122,7 @@
           <summary style="cursor:pointer;font-weight:800;">상세 줄 {{ rep.cnt }}줄 보기 <span class="sub">— 어떤 호기·소모품을 더한 숫자인지 (엑셀 「상세」 시트와 같음)</span></summary>
           <div class="rp-scroll" style="margin-top:8px;"><table class="rp-t">
             <thead><tr><th>날짜</th><th>차수</th><th>관리번호</th><th>수주번호</th><th>호기</th><th>모델명</th><th>구분</th><th>고객사</th><th>2차</th><th>통화</th><th class="n">금액</th><th class="n">원화</th></tr></thead>
-            <tbody>{% for x in rep.lines[:3000] %}<tr><td>{{ x.date }}</td><td>{{ x.nth }}</td><td>{{ x.code }}</td><td>{{ x.so }}</td><td>{{ x.label }}</td><td>{{ x.model }}</td><td>{{ x.cat }}</td><td>{{ x.cust }}</td><td>{{ x.cust2 }}</td><td>{{ x.ccy }}</td><td class="n">{{ '{:,.2f}'.format(x.amt) if x.ccy != 'KRW' else '{:,.0f}'.format(x.amt) }}</td><td class="n">{{ '{:,.0f}'.format(x.krw) }}</td></tr>{% endfor %}</tbody>
+            <tbody>{% for x in rep.lines[:3000] %}<tr><td>{{ x.date }}</td><td>{{ x.nth }}</td><td>{{ x.code }}</td><td>{{ x.so }}</td><td>{{ x.label }}</td><td>{{ x.model }}</td><td>{{ x.cat }}</td><td>{{ x.cust_br or x.cust }}</td><td>{{ x.cust2 }}</td><td>{{ x.ccy }}</td><td class="n">{{ '{:,.2f}'.format(x.amt) if x.ccy != 'KRW' else '{:,.0f}'.format(x.amt) }}</td><td class="n">{{ '{:,.0f}'.format(x.krw) }}</td></tr>{% endfor %}</tbody>
           </table>{% if rep.cnt > 3000 %}<div class="sub">앞 3,000줄만 보입니다 — 전체는 엑셀로</div>{% endif %}</div>
         </details>
       </section>
@@ -134,6 +134,13 @@
       md.addEventListener('change', function(){ q.style.display = md.value === 'quarter' ? '' : 'none'; m.style.display = md.value === 'month' ? '' : 'none'; });
     })();
     </script>
+  <style>/* z1191z74: 한 회사 여러 종사업장 펼치기(고객사별 매출과 같은 모양) */
+  .z73-tg { margin-left:6px; padding:1px 8px; font-size:11px; font-weight:700; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; vertical-align:1px; }
+  .z73-tg:hover, .z73-tg[aria-expanded="true"] { border-color:#A5282C; color:#A5282C; background:#fdf2f2; }
+  tr.z73-ch td { background:#f8fafc; font-size:12px; color:#334155; }
+  tr.z73-ch td:nth-child(2) { padding-left:22px; }
+  .z73-br { color:#94a3b8; }
+  </style>
   </main>
 </div>
 </body>
