@@ -454,8 +454,10 @@ from starlette.testclient import TestClient  # noqa: E402
 check("미들웨어 순서(바깥→안): https 강제 → 메일 전용 넘김 → 압축 → 세션",
       [getattr(x.cls, "__name__", "") for x in m.app.user_middleware] == ["BaseHTTPMiddleware", "Guard", "GZipMiddleware", "SessionMiddleware"],
       [getattr(x.cls, "__name__", "") for x in m.app.user_middleware])
-check("기동 훅 순서: startup(DB) → 입구", [f.__name__ for f in m.app.router.on_startup] == ["startup", "_mail_site_listen_start"],
-      [f.__name__ for f in m.app.router.on_startup])
+# 11-20 고침: 다른 기능의 기동 훅이 뒤에 더해져도(세션 01 z83 `_z83_start_tick` 등) 「DB 먼저 → 메일 입구」 순서만 확인
+_hooks = [f.__name__ for f in m.app.router.on_startup]
+check("기동 훅 순서: startup(DB) → 입구", _hooks[:1] == ["startup"] and "_mail_site_listen_start" in _hooks
+      and _hooks.index("_mail_site_listen_start") > _hooks.index("startup"), _hooks)
 check("main 이 쓰는 mail_site 가 이 시험이 보는 것과 같은 모듈", m._mail_site is ms)
 
 
