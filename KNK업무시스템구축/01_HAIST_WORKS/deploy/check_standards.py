@@ -1381,6 +1381,10 @@ def check_date_fallback(files):
         con.execute("ALTER TABLE consumable_orders ADD COLUMN mgmt_code TEXT")
         con.execute("ALTER TABLE consumable_orders ADD COLUMN co_no TEXT")
         con.executescript("UPDATE orders SET order_no='SO-'||id; UPDATE consumable_orders SET co_no='CO-'||id, mgmt_code='001C2604';")
+        # z1191z72: 운영처럼 고객사 표 · 고객사 번호 칸(매출 고객사 = 고객사 번호 → 시스템명)
+        con.executescript("CREATE TABLE customers(id INTEGER PRIMARY KEY, name TEXT, alias TEXT);"
+                          "ALTER TABLE projects ADD COLUMN customer_id INTEGER;"
+                          "ALTER TABLE consumable_orders ADD COLUMN customer_id INTEGER;")
         rates = {"USD": {"2026-08": 1500.0}}
         oi_map = {3: {"t1d": "2026-08-20", "t1a": 1720000.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""},
                   4: {"t1d": "2026-09-15", "t1a": 10.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""}}
