@@ -31,6 +31,12 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .dr-tbl td { padding:6px 8px; border-bottom:1px solid #eef0f4; vertical-align:top; }
 .dr-tbl td.r { font-variant-numeric:tabular-nums; white-space:nowrap; }
 .dr-tbl tbody tr:hover td { background:#fffbeb; }
+/* z1191z73: 한 회사 여러 종사업장 — 등록명 한 줄(합산) · ▸ 펼치면 시스템명별 */
+.z73-tg { margin-left:6px; padding:1px 8px; font-size:11px; font-weight:700; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; vertical-align:1px; }
+.z73-tg:hover, .z73-tg[aria-expanded="true"] { border-color:#A5282C; color:#A5282C; background:#fdf2f2; }
+.dr-tbl tr.z73-ch td { background:#f8fafc; font-size:12px; }
+.dr-tbl tr.z73-ch .cu { font-weight:600; color:#334155; padding-left:14px; }
+.z73-br { color:#94a3b8; }
 .dr-tbl .n { color:#94a3b8; text-align:right; font-variant-numeric:tabular-nums; }
 .dr-tbl .nw { white-space:nowrap; }
 .dr-tbl .z { color:#cbd5e1; font-weight:400; }
@@ -107,15 +113,26 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
         <th class="r" data-sort="n" title="이 기간 매출이 있는 수주번호 + 소모품 발주 수">수주 건수</th>
       </tr></thead>
       <tbody>
-      {% for r in dr.rows %}
-        <tr>
+      {% for r in dr.rows %}{% set gi = loop.index %}
+        <tr data-z73="d{{ gi }}">
           <td class="n" data-v="{{ loop.index }}">{{ loop.index }}</td>
-          <td data-v="{{ r.cust }}"><a class="cu" href="/sales/drill?cust={{ r.cust|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="{{ r.cust }} — 수주별로 보기">{{ r.cust }} ›</a></td>
+          <td data-v="{{ r.cust }}"><a class="cu" href="/sales/drill?cust={{ r.cust|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="{{ r.cust }} — 수주별로 보기">{{ r.cust }} ›</a>{% if r.children %}
+            <button type="button" class="z73-tg" data-z73="d{{ gi }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});"><span>▸ </span>{{ r.children|length }}곳</button>{% endif %}</td>
           <td class="r" data-v="{{ r.order }}">{{ dz(r.order, 'c-o') }}</td>
           <td class="r" data-v="{{ r.prog }}"><b>{{ dz(r.prog, 'c-p') }}</b></td>
           <td class="r" data-v="{{ r.final }}">{{ dz(r.final, 'c-f') }}</td>
           <td class="r dr-dim" data-v="{{ r.n }}">{{ r.n }}</td>
         </tr>
+        {% for q in r.children %}
+        <tr class="z73-ch z73p-d{{ gi }}" hidden>
+          <td class="n"></td>
+          <td><a class="cu" href="/sales/drill?cust={{ q.cust|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="{{ q.cust }} — 이 사업장 수주별로 보기"><span class="z73-br">└</span> {{ q.cust }} ›</a></td>
+          <td class="r">{{ dz(q.order, 'c-o') }}</td>
+          <td class="r">{{ dz(q.prog, 'c-p') }}</td>
+          <td class="r">{{ dz(q.final, 'c-f') }}</td>
+          <td class="r dr-dim">{{ q.n }}</td>
+        </tr>
+        {% endfor %}
       {% endfor %}
       </tbody>
       <tfoot><tr>
@@ -203,7 +220,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     var ths=T.querySelectorAll('thead th[data-sort]');
     ths.forEach(function(th, i){
       th.addEventListener('click', function(){
-        var num = th.getAttribute('data-sort')==='n', tb=T.tBodies[0], rows=[].slice.call(tb.rows);
+        var num = th.getAttribute('data-sort')==='n', tb=T.tBodies[0], rows=[].slice.call(tb.rows).filter(function(r){ return !r.classList.contains('z73-ch'); });   // z1191z73: 펼친 줄은 제 회사 밑에
         var dir = th.getAttribute('data-dir')==='d' ? 'a' : (th.getAttribute('data-dir')==='a' ? 'd' : (num && i>0 ? 'd' : 'a'));
         ths.forEach(function(x){ x.removeAttribute('data-dir'); var a=x.querySelector('.ar'); if(a) a.remove(); });
         th.setAttribute('data-dir', dir);
@@ -213,7 +230,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
           var r = num ? (parseFloat(x)||0)-(parseFloat(y)||0) : x.localeCompare(y, 'ko');
           return dir==='d' ? -r : r;
         });
-        rows.forEach(function(r){ tb.appendChild(r); });
+        rows.forEach(function(r){ tb.appendChild(r); var g=r.getAttribute('data-z73'); if(g) tb.querySelectorAll('.z73p-'+g).forEach(function(x){ tb.appendChild(x); }); });
       });
     });
   })();

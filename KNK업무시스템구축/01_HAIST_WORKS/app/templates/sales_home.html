@@ -390,11 +390,19 @@ a.z45-all:hover { text-decoration:underline; }
             <tbody>
               {% for c in (s3.top_customers or []) %}
               <tr>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a></td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a>{% if c.children %}<button type="button" class="z73-tg" data-z73="t{{ loop.index }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});" style="margin-left:6px;padding:1px 8px;font-size:11px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;"><span>▸ </span>{{ c.children|length }}곳</button>{% endif %}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(c.order) }}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(c.prog) }}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(c.final) }}</td>
               </tr>
+              {% set ti = loop.index %}{% for q in (c.children or []) %}{# z1191z73: 펼치면 종사업장(시스템명)별 #}
+              <tr class="z73p-t{{ ti }}" hidden style="background:#f8fafc;font-size:12px;">
+                <td style="padding:5px 8px 5px 26px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ q.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ q.customer_name }} — 이 사업장 수주 보기" style="font-weight:600;color:#334155;"><span style="color:#94a3b8;">└</span> {{ q.customer_name }} <span class="z45-go">›</span></a></td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(q.order) }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(q.prog) }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(q.final) }}</td>
+              </tr>
+              {% endfor %}
               {% else %}
               <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</td></tr>
               {% endfor %}

@@ -108,25 +108,7 @@ names = sorted({x[2] for x in L})
 trip = lambda d: (round(d["order"]), round(d["prog"]), round(d["final"]))
 R = {r["cust"]: r for r in DA["rows"]}
 
-print("§1 고객사 = 시스템명(고객사 번호 기준)")
-check(names == sorted(["삼성전기", "드림텍(본사)", "드림텍(아산)", "드림텍(동탄)", "가상무별칭(주)", "번호없는고객"]), "깊이 보기 고객사 이름 = 시스템명(시스템명 없으면 정식명 · 번호 없으면 저장된 글자)", names)
-check("삼성전기(주)" not in R and "(주) 드림텍" not in R, "정식명 「삼성전기(주)」·「(주) 드림텍」 줄은 없음", list(R))
-check(trip(R["삼성전기"]) == (3400000, 3400000, 1400000), "삼성전기 = 정식명으로 적힌 건 + 시스템명으로 적힌 건 + 소모품(정식명) 한 줄로(수주 340만 · 진행 340만 · 최종 140만)", trip(R["삼성전기"]))
-check([round(R[k]["order"]) for k in ("드림텍(본사)", "드림텍(아산)", "드림텍(동탄)")] == [300000, 400000, 500000], "같은 정식명 「(주) 드림텍」 본사·아산·동탄이 지점별로 나뉨(30만 · 40만 · 50만)", [trip(R[k]) for k in ("드림텍(본사)", "드림텍(아산)", "드림텍(동탄)")])
-check(trip(DA["tot"]) == (round(S["kpi"]["order"]), round(S["kpi"]["prog"]), round(S["kpi"]["final"])) == (5900000, 5900000, 1800000), "합계는 그대로(전체 = 매출 홈 카드)", trip(DA["tot"]))
-TOP = [t["customer_name"] for t in S["top_customers"]]
-check(TOP[0] == "삼성전기" and all("(주) 드림텍" != t for t in TOP), "매출 홈 TOP5 첫째 = 삼성전기(시스템명)", TOP)
-
-print("§2 고객사 눌러 들어가기(수주별)")
-check(sorted(r["so"] for r in DS["rows"]) == ["C-1", "T-260505-1", "T-260505-2"] and trip(DS["tot"]) == trip(R["삼성전기"]), "삼성전기 → 수주 3줄(정식명·시스템명으로 적힌 건 · 소모품) · 합계 = 표 줄", [r["so"] for r in DS["rows"]])
-check([r["so"] for r in DD["rows"]] == ["T-260505-4"], "드림텍(아산) → 아산 수주만", [r["so"] for r in DD["rows"]])
-h = q(cl.get, "/sales/drill?mode=year&year=2026").text
-check('/sales/drill?cust=%EC%82%BC%EC%84%B1%EC%A0%84%EA%B8%B0&amp;' in h, "고객사별 매출 화면: 「삼성전기」 줄 · 누르면 ?cust=삼성전기")
-check("삼성전기(주)" not in h and "(주) 드림텍" not in h, "고객사별 매출 화면에 정식명이 안 보임")
-hh = q(cl.get, "/sales?mode=year&year=2026").text
-check("cust=%EC%82%BC%EC%84%B1%EC%A0%84%EA%B8%B0&amp;" in hh, "매출 홈 TOP 고객사 = 시스템명 · 링크도 시스템명")
-check("삼성전기(주)" not in hh and "(주) 드림텍" not in hh and "드림텍(본사)" in hh, "매출 홈 어디에도 정식명 없음(진행·최근 프로젝트 목록 포함)")
-
+# §1·§2(매출 집계 고객사 이름)는 z1191z73 에서 「등록명 + 종사업장 펼치기」로 바뀜 → test_sales_cust_group_z1191z73_20261119.py
 print("§3 납품·수금")
 hs = q(cl.get, "/sales/shipments-receipts").text
 cells = re.findall(r'<span class="sr-v" title="([^"]*)">([^<]*)</span>', hs)
