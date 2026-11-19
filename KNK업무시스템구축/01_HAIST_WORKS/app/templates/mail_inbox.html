@@ -151,6 +151,16 @@
   .mbx-fold .fbadge{background:#dc2626;color:#fff;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:999px;line-height:1.7}
   .mbx-fold.on .fbadge{background:#fff;color:var(--knk-red)}
   .mbx-fold-div{height:1px;background:var(--line);margin:7px 4px}
+  /* 11-19 왼쪽 위 즐겨찾기·메일함 — 폴더를 굴려도 맨 위에 그대로(왼쪽 칸 안에서 붙어 있음) · 머리 누르면 접기 */
+  .mbx-side-top{position:sticky;top:-8px;z-index:5;margin:-8px -8px 0;padding:8px 8px 6px;background:#fafbfc;border-bottom:1px solid var(--line);box-shadow:0 4px 8px -6px rgba(0,0,0,.18)}
+  .mbx-side-top + .mbx-fold-div{display:none}
+  .mbx-sec-h{display:flex;align-items:center;gap:2px;cursor:pointer;user-select:none;border-radius:6px}
+  .mbx-sec-h:hover{background:#eef0f2;color:var(--ink)}
+  .mbx-sec-h:focus-visible{outline:2px solid #93c5fd}
+  .mbx-sec-h .mf-tg{width:12px;margin-left:-4px}
+  .mbx-sec-h.closed .mf-tg{transform:rotate(-90deg)}
+  .mbx-sec.closed{display:none}
+  @media(max-width:900px),(max-height:520px){.mbx-side-top{position:static;margin:0;padding:0;border:0;box-shadow:none;background:none}.mbx-side-top + .mbx-fold-div{display:block}}
   /* 받은 메일 폴더(아웃룩식 · 11-17) — 묶음 ▾ 접기 · 숫자=안 읽은 메일(아웃룩처럼 파란 글자) */
   .mf-gh{font-weight:700}
   .mf-tg{display:inline-flex;width:14px;justify-content:center;color:var(--mute);font-size:10px;flex:none;transition:transform .12s}
@@ -394,8 +404,11 @@
 
     {# 좌: 메일함 + 분류 + 거래처 폴더 + 보기 (대표 지시: 분류 폴더 왼쪽) #}
     <nav class="mbx-side" aria-label="메일함·폴더">
+      {# 11-19 대표 「즐겨찾기·메일함은 스크롤에서 빼고 · 접을 수 있게」: 이 상자는 왼쪽 칸 맨 위에 붙어 있고(폴더만 굴러감) · 머리를 누르면 접힘(이 컴퓨터에 기억) #}
+      <div class="mbx-side-top">
       <a href="/mail/compose" class="mbx-write" title="새 메일 쓰기">✏️ 메일 쓰기</a>
-      <div class="mbx-fold-h">즐겨찾기</div>
+      <div class="mbx-fold-h mbx-sec-h" data-sec="fav" role="button" tabindex="0" title="눌러서 접기·펼치기" onclick="mbxSecToggle('fav')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mbxSecToggle('fav')}"><span class="mf-tg">▾</span>즐겨찾기</div>
+      <div class="mbx-sec" data-sec="fav">
       {% set _fdok = (fd_choices|default([]))|map(attribute='id')|list %}
       <a href="/mail/inbox" class="mbx-fold {{ 'on' if _all_on else '' }}"{% if cur_arc|default(false) %} data-drop="unarchive" data-dname="받은편지함"{% endif %}>
         <span class="fname">📥 받은편지함</span>
@@ -404,12 +417,27 @@
       </a>
       <a href="/mail/inbox?star=1" class="mbx-fold {{ 'on' if cur_star|default(false) else '' }}"{% if box=='in' %} data-drop="star" data-dname="중요"{% endif %} title="★ 를 눌러 중요 표시한 메일"><span class="fname">⭐ 중요</span></a>
       <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
-      <div class="mbx-fold-h" style="margin-top:4px">메일함</div>
+      </div>
+      <div class="mbx-fold-h mbx-sec-h" data-sec="box" role="button" tabindex="0" title="눌러서 접기·펼치기" onclick="mbxSecToggle('box')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mbxSecToggle('box')}" style="margin-top:4px"><span class="mf-tg">▾</span>메일함</div>
+      <div class="mbx-sec" data-sec="box">
       <a href="/mail/sent" class="mbx-fold {{ 'on' if box=='sent' else '' }}"><span class="fname">📤 보낸편지함</span></a>
       <a href="/mail/inbox?arc=1" class="mbx-fold {{ 'on' if cur_arc|default(false) else '' }}"{% if box=='in' and not cur_arc|default(false) %} data-drop="archive" data-dname="보관함"{% endif %} title="📦 보관한 메일 — 받은편지함에서만 빠지고 지우지 않음(찾기·폴더에는 그대로 나옴)"><span class="fname">📦 보관함</span>{% if arc_n|default(0) %}<span class="cnt">{{ '{:,}'.format(arc_n) }}</span>{% endif %}</a>
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}" title="쓰다가 저장한 메일(임시 저장)"><span class="fname">📝 임시보관함</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"{% if box=='in' %} data-drop="delete" data-dname="휴지통"{% endif %}><span class="fname">🗑 휴지통</span></a>
       <a href="/mail/blocked" class="mbx-fold {{ 'on' if box=='blocked' else '' }}" title="스팸·피싱으로 보이는 메일이 저절로 모이는 곳(지우지 않음) — 아는 사람(주소록·거래처·내가 메일 보낸 사람)은 옮기지 않음 · 「✓ 스팸 아님」 한 번이면 그 사람은 다시 안 옮김"><span class="fname">🚫 스팸함</span>{% if spam_n|default(0) %}<span class="cnt">{{ '{:,}'.format(spam_n) }}</span>{% endif %}</a>
+      </div>
+      <script>
+      /* 접기 상태 바로 적용(깜빡임 없이) — 왼쪽 칸을 새로 그린 뒤에도 다시 부름 */
+      window.mbxSecInit=function(root){ var st={}; try{ st=JSON.parse(localStorage.getItem('mbxSecClosed')||'{}'); }catch(e){}
+        (root||document).querySelectorAll('.mbx-side .mbx-sec-h').forEach(function(h){ var k=h.getAttribute('data-sec'), b=h.nextElementSibling, c=!!st[k];
+          h.classList.toggle('closed', c); h.setAttribute('aria-expanded', c?'false':'true'); if(b && b.classList.contains('mbx-sec')) b.classList.toggle('closed', c); }); };
+      window.mbxSecToggle=function(k){ var st={}; try{ st=JSON.parse(localStorage.getItem('mbxSecClosed')||'{}'); }catch(e){}
+        if(st[k]) delete st[k]; else st[k]=1; try{ localStorage.setItem('mbxSecClosed', JSON.stringify(st)); }catch(e){}
+        var h=document.querySelector('.mbx-side .mbx-sec-h[data-sec="'+k+'"]'), b=h && h.nextElementSibling, c=!!st[k];
+        if(h){ h.classList.toggle('closed', c); h.setAttribute('aria-expanded', c?'false':'true'); } if(b && b.classList.contains('mbx-sec')) b.classList.toggle('closed', c); };
+      try{ mbxSecInit(); }catch(e){}
+      </script>
+      </div>
 
       {% if box=='in' and mf %}
       {# 받은 메일 폴더(아웃룩식 · 대표 11-17 「아웃룩을 이런 식으로 구분해서 사용하고 있어」) — 보낸 사람으로 자동 · 숫자=안 읽은 메일 #}
@@ -948,6 +976,7 @@ async function mbxSideRefresh(){
     var st=os.scrollTop; os.innerHTML=ns.innerHTML; os.scrollTop=st;
     os.querySelectorAll('.mf-g').forEach(function(g){ var k=keep[g.getAttribute('data-g')]; if(k){ g.classList.toggle('closed',k[0]); g.classList.toggle('showzero',k[1]); } });
     try{ mfSubInit(os); }catch(_){}
+    try{ mbxSecInit(os); }catch(_){}
   }catch(e){}
 }
 var MBX_FREE={'gmail.com':1,'naver.com':1,'daum.net':1,'hanmail.net':1,'nate.com':1,'kakao.com':1,'hotmail.com':1,'outlook.com':1,'yahoo.com':1,'icloud.com':1,'live.com':1};
@@ -1070,9 +1099,10 @@ async function mbxDropDo(tg, ids){
     var el=(e.target && e.target.closest) ? e.target : null;
     var tg=el ? el.closest('.mbx-side [data-drop], #mailTools [data-drop]') : null;
     // 접힌 묶음 머리·「＋ 메일 없는 N곳」 위에 잠깐 머물면 펼침
-    var hov = el ? (el.closest('.mbx-side .mf-zero-more') || el.closest('.mbx-side .mf-k[data-sgk]') || ((tg && tg.classList.contains('mf-gh')) ? tg : null)) : null;
+    var hov = el ? (el.closest('.mbx-side .mbx-sec-h.closed') || el.closest('.mbx-side .mf-zero-more') || el.closest('.mbx-side .mf-k[data-sgk]') || ((tg && tg.classList.contains('mf-gh')) ? tg : null)) : null;
     if(hov!==openEl){ clearTimeout(openT); openEl=hov;
-      if(hov) openT=setTimeout(function(){ var sk=hov.getAttribute && hov.getAttribute('data-sgk');
+      if(hov) openT=setTimeout(function(){ if(hov.classList.contains('mbx-sec-h')){ if(hov.classList.contains('closed')) mbxSecToggle(hov.getAttribute('data-sec')); return; }
+        var sk=hov.getAttribute && hov.getAttribute('data-sgk');
         if(sk){ var bx=document.querySelector('.mf-sub[data-sg="'+sk+'"]'); if(bx && bx.classList.contains('closed')) mfSubToggle(null, sk); return; }
         var g=hov.closest('.mf-g'); if(g){ g.classList.remove('closed'); if(hov.classList.contains('mf-zero-more')) g.classList.add('showzero'); } }, 650); }
     document.querySelectorAll('.mbx-side .drop-on, #mailTools .drop-on').forEach(function(x){ if(x!==tg) x.classList.remove('drop-on'); });
@@ -1325,8 +1355,9 @@ function mfToggle(ev, key){
     // 고른 폴더가 왼쪽 목록에서 안 보이면 보이는 데까지만 굴림(보이면 그대로)
     setTimeout(function(){
       var on=document.querySelector('.mbx-side .mf-g .mbx-fold.on, .mbx-side a.mf-gh.on'), side=document.querySelector('.mbx-side');
-      if(on && side){ var a=on.getBoundingClientRect(), b=side.getBoundingClientRect();
-        if(a.top<b.top || a.bottom>b.bottom){ side.scrollTop += (a.top-b.top) - 40; } }
+      if(on && side){ var a=on.getBoundingClientRect(), b=side.getBoundingClientRect(), tp=side.querySelector('.mbx-side-top');
+        var t0=b.top + ((tp && getComputedStyle(tp).position==='sticky') ? tp.offsetHeight : 0);
+        if(!on.closest('.mbx-side-top') && (a.top<t0 || a.bottom>b.bottom)){ side.scrollTop += (a.top-t0) - 40; } }
     }, 60);
   }catch(e){}
 })();

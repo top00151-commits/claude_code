@@ -157,6 +157,16 @@ try:
           all(x in h for x in ("'ArrowDown'", "mbxCmd('reply')", "mbxCmd('replyall')", "mbxCmd('forward')", "'Delete':'delete'", "'e':'archive'", "'u':'read'", "'Insert':'star'")) and "isContentEditable" in h)
     check("지우거나 보관하면 그 자리의 다음 메일이 열림(아웃룩처럼)", "loadPane(_nx.dataset.mailId, _nx)" in h)
     check("왼쪽 이름: 즐겨찾기 · 메일함 · 임시보관함", ">즐겨찾기</div>" in h and ">메일함</div>" in h and "📝 임시보관함" in h)
+    # 11-19 대표 「즐겨찾기·메일함은 스크롤에서 빼고 · 접을 수 있게」
+    _st = h[h.find('<div class="mbx-side-top">'):]
+    check("왼쪽 위 고정 상자(sticky) 안에 즐겨찾기·메일함 · 폴더는 그 밖(굴러감)",
+          '<div class="mbx-side-top">' in h and ".mbx-side-top{position:sticky" in h
+          and _st.find(">즐겨찾기</div>") < _st.find(">메일함</div>") < _st.find("🚫 스팸함") < _st.find("📁 폴더") and _st.find("📁 폴더") > 0)
+    check("즐겨찾기·메일함 머리 누르면 접기 · 이 컴퓨터에 기억 · 키보드(Enter)도",
+          all(x in h for x in ('data-sec="fav"', 'data-sec="box"', "mbxSecToggle('fav')", "mbxSecToggle('box')", "mbxSecClosed", ".mbx-sec.closed{display:none}", "event.key==='Enter'")))
+    check("왼쪽 칸 새로 그린 뒤(끌어서 옮긴 뒤)에도 접은 것 유지 · 끌고 가다 접힌 머리 위에 머물면 펼침",
+          "mbxSecInit(os)" in h and ".mbx-side .mbx-sec-h.closed" in h)
+    check("좁은 화면(휴대폰)·아주 낮은 창은 고정 안 함", "@media(max-width:900px),(max-height:520px){.mbx-side-top{position:static" in h)
     vp = k.get("/mail/%d/pane" % ids["s1"]).text
     check("읽기 칸: 제목 → (머리글자) 보낸 사람 줄 + 같은 줄 오른쪽 답장 단추 → 표시 한 줄",
           0 < vp.find('class="mv-subj"') < vp.find('class="mv-av"') < vp.find('class="mv-hwho"') < vp.find('class="mv-actions"') < vp.find('class="mv-chips"'), vp[:300])
