@@ -145,6 +145,9 @@
   .mf-tg-x{visibility:hidden}
   .mf-g.closed .mf-tg{transform:rotate(-90deg)}
   .mf-g.closed .mf-kids{display:none}
+  .mf-sub.closed{display:none}
+  .mbx-side .mf-stg{margin-left:-14px;margin-right:0}
+  .mbx-side .mf-k[data-sgk].sub-closed .mf-stg{transform:rotate(-90deg)}
   .mf-k{padding-left:29px}
   .mf-k.mf-zero:not(.on){color:var(--mute)}
   .mf-u{font-size:11.5px;font-weight:700;color:#2563eb}
@@ -443,14 +446,20 @@
         {% for k in g.children %}
           {% set _kid = (k.key[1:]|int) if (k.key[:1] == 'f' and k.key[1:].isdigit()) else 0 %}
           <a href="/mail/inbox?fd={{ k.key }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" {% if _kid and _kid in _fdok %}data-drop="pin" data-fid="{{ _kid }}" data-fkey="{{ k.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k.name }}"{% else %}data-drop="no" data-why="{{ k.name }} 은(는) 보낸 직원의 부서로 저절로 나뉘는 폴더라 옮겨 넣을 수 없어요"{% endif %} title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
-            <span class="fname">{{ k.name }}</span>{% if k.u %}<span class="mf-u">{{ k.u }}</span>{% endif %}
+            {% if k.children %}<span class="mf-tg mf-stg" onclick="return mfSubToggle(event,'{{ k.key }}')" title="펼치기·접기">▾</span>{% endif %}<span class="fname">{{ k.name }}</span>{% if k.u %}<span class="mf-u">{{ k.u }}</span>{% endif %}
           </a>
+          {% if k.children %}
+          {# 11-19 대표 「본사·베트남도 접을 수 있게 — 계속 펼쳐져 있으니 너무 길어」: 처음엔 접힘 · 지금 보는 폴더가 안에 있으면 펼침 · 펼친 것은 이 컴퓨터에 기억 #}
+          {% set _subon = cur_fd|default('') in ([k.key] + (k.children|map(attribute='key')|list)) %}
+          <div class="mf-sub{{ '' if _subon else ' closed' }}" data-sg="{{ k.key }}"{% if _subon %} data-cur="1"{% endif %}>
+          {% endif %}
           {% for k2 in (k.children or []) %}
           {# 11-18 대표: 「20_베트남법인」 안 부서(번호 없는 부서 = 베트남 법인) — 한 칸 더 들여 씀 #}
           <a href="/mail/inbox?fd={{ k2.key }}" class="mbx-fold mf-k mf-k2 {{ 'on' if cur_fd|default('') == k2.key else '' }}" data-drop="no" data-why="{{ k2.name }} 은(는) 보낸 직원의 부서로 저절로 나뉘는 폴더라 옮겨 넣을 수 없어요" title="{{ k2.name }}(베트남 법인) — 받은 메일 {{ k2.n }}통{% if k2.u %} · 안 읽음 {{ k2.u }}통{% endif %}">
             <span class="fname">{{ k2.name }}</span>{% if k2.u %}<span class="mf-u">{{ k2.u }}</span>{% endif %}
           </a>
           {% endfor %}
+          {% if k.children %}</div>{% endif %}
         {% endfor %}
         {% if _zero %}<span class="mf-zero-more" onclick="mfShowZero(event,'{{ g.key }}')" title="받은 메일이 없는 폴더도 보기">＋ 메일 없는 {{ _zero|length }}곳</span>{% endif %}
         </div>
@@ -920,6 +929,7 @@ async function mbxSideRefresh(){
     var keep={}; os.querySelectorAll('.mf-g').forEach(function(g){ keep[g.getAttribute('data-g')]=[g.classList.contains('closed'), g.classList.contains('showzero')]; });
     var st=os.scrollTop; os.innerHTML=ns.innerHTML; os.scrollTop=st;
     os.querySelectorAll('.mf-g').forEach(function(g){ var k=keep[g.getAttribute('data-g')]; if(k){ g.classList.toggle('closed',k[0]); g.classList.toggle('showzero',k[1]); } });
+    try{ mfSubInit(os); }catch(_){}
   }catch(e){}
 }
 var MBX_FREE={'gmail.com':1,'naver.com':1,'daum.net':1,'hanmail.net':1,'nate.com':1,'kakao.com':1,'hotmail.com':1,'outlook.com':1,'yahoo.com':1,'icloud.com':1,'live.com':1};
@@ -1041,9 +1051,11 @@ async function mbxDropDo(tg, ids){
     var el=(e.target && e.target.closest) ? e.target : null;
     var tg=el ? el.closest('.mbx-side [data-drop]') : null;
     // 접힌 묶음 머리·「＋ 메일 없는 N곳」 위에 잠깐 머물면 펼침
-    var hov = el ? (el.closest('.mbx-side .mf-zero-more') || ((tg && tg.classList.contains('mf-gh')) ? tg : null)) : null;
+    var hov = el ? (el.closest('.mbx-side .mf-zero-more') || el.closest('.mbx-side .mf-k[data-sgk]') || ((tg && tg.classList.contains('mf-gh')) ? tg : null)) : null;
     if(hov!==openEl){ clearTimeout(openT); openEl=hov;
-      if(hov) openT=setTimeout(function(){ var g=hov.closest('.mf-g'); if(g){ g.classList.remove('closed'); if(hov.classList.contains('mf-zero-more')) g.classList.add('showzero'); } }, 650); }
+      if(hov) openT=setTimeout(function(){ var sk=hov.getAttribute && hov.getAttribute('data-sgk');
+        if(sk){ var bx=document.querySelector('.mf-sub[data-sg="'+sk+'"]'); if(bx && bx.classList.contains('closed')) mfSubToggle(null, sk); return; }
+        var g=hov.closest('.mf-g'); if(g){ g.classList.remove('closed'); if(hov.classList.contains('mf-zero-more')) g.classList.add('showzero'); } }, 650); }
     document.querySelectorAll('.mbx-side .drop-on').forEach(function(x){ if(x!==tg) x.classList.remove('drop-on'); });
     if(!tg) return;
     if(tg.dataset.drop==='no'){ if(Date.now()-whyT>2500){ whyT=Date.now(); mbxToast('⛔ '+(tg.dataset.why||'여기에는 놓을 수 없어요'), null, true); } return; }
@@ -1259,6 +1271,25 @@ function mfShowZero(ev, key){
   return false;
 }
 /* ── 받은 메일 폴더 묶음 ▾ 접기·펴기 (11-17) — 이 브라우저에만 기억(없어도 펼친 채로 동작) ── */
+/* 본사·베트남법인 같은 아래 묶음 접기·펴기(11-19) — 처음엔 접힘 · 펼친 것만 이 컴퓨터에 기억 · 지금 보는 폴더가 안에 있으면 펼침 */
+function mfSubToggle(ev, key){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  var box=document.querySelector('.mf-sub[data-sg="'+key+'"]'); if(!box) return false;
+  var closed=box.classList.toggle('closed');
+  var hd=document.querySelector('.mbx-side .mf-k[data-sgk="'+key+'"]'); if(hd) hd.classList.toggle('sub-closed', closed);
+  try{ var st=JSON.parse(localStorage.getItem('mfSubOpen')||'{}'); if(closed) delete st[key]; else st[key]=1; localStorage.setItem('mfSubOpen', JSON.stringify(st)); }catch(e){}
+  return false;
+}
+function mfSubInit(root){
+  var st={}; try{ st=JSON.parse(localStorage.getItem('mfSubOpen')||'{}'); }catch(e){}
+  (root||document).querySelectorAll('.mbx-side .mf-sub[data-sg]').forEach(function(box){
+    var key=box.getAttribute('data-sg');
+    if(st[key] && !box.dataset.cur) box.classList.remove('closed');
+    var hd=box.previousElementSibling;
+    if(hd && hd.classList.contains('mf-k')){ hd.setAttribute('data-sgk', key); hd.classList.toggle('sub-closed', box.classList.contains('closed')); }
+  });
+}
+try{ mfSubInit(); }catch(e){}
 function mfToggle(ev, key){
   ev.preventDefault(); ev.stopPropagation();
   var g=document.querySelector('.mf-g[data-g="'+key+'"]'); if(!g) return false;

@@ -209,6 +209,13 @@ try:
 
     check("베트남 부서 순서 = VN 뒤 번호대로(VN00 → VN05 → VN09)", mf._lead_num("VN00_총괄") < mf._lead_num("VN05_조립팀") < mf._lead_num("VN09_구매팀") and mf._lead_num("23_NEXT2028") == 23)
 
+    hz = k.get("/mail/inbox").text
+    check("본사·베트남법인 접기(11-19 대표 「계속 펼쳐져 있으니 너무 길어」): 처음엔 접힘 · ▾ 단추 · 펼친 것만 기억",
+          '<div class="mf-sub closed" data-sg="th"' in hz and '<div class="mf-sub closed" data-sg="tv"' in hz and "mfSubToggle(event,'th')" in hz and "mfSubOpen" in hz)
+    check("지금 보는 폴더가 안에 있으면 펼친 채로(베트남 부서 폴더를 볼 때 베트남법인 펼침)",
+          '<div class="mf-sub" data-sg="tv" data-cur="1"' in k.get("/mail/inbox?fd=%s" % vnode[0]["children"][0]["key"]).text)
+    check("끌다가 접힌 본사·베트남법인 위에 잠깐 두면 펼침", "el.closest('.mbx-side .mf-k[data-sgk]')" in hz)
+
     print("== 3f. 메일 부서 폴더 고치기(11-19 대표 「부서이름 수정·삭제·추가」 → 메일에서만) ==")
     tk_hq = "t981"
     with _db.db_session() as c:
