@@ -271,10 +271,10 @@ put("그룹으로 온 메일", "c@cust-e.example", owner=STAFF1, to="knksales@kn
 gs = k.get("/api/mail/groups/guess?addr=knksales@knknara.co.kr").json()["items"]
 check("받은 메일로 찾아보기 = 이 주소로 온 메일이 들어간 메일함(2명)", {x["email"] for x in gs} == {"boss@knknara.co.kr", "s1@knknara.co.kr"}, gs)
 hg = km.get("/mail/groups").text
-check("묶음·그룹 메일 화면 = 회사 그룹(주소·3명·명단) · 내 묶음 · 부서 묶음", "knksales@knknara.co.kr" in hg and "3명" in hg and "A과제 고객" in hg and "시험영업팀 전체" in hg and "＋ 그룹 메일 등록" in hg)
+check("묶음·그룹 메일 화면 = 회사 그룹(주소·3명·명단) · 내 묶음 · 부서 묶음", "knksales@knknara.co.kr" in hg and "3명" in hg and "A과제 고객" in hg and "시험영업팀 전체" in hg and "📥 하이웍스 파일로 올리기" in hg and "＋ 하나씩 등록" in hg)
 as_(U_MEM)
 hg2 = km.get("/mail/groups").text
-check("직원도 회사 그룹 메일 명단은 봄 · 등록 단추는 없음", "knksales@knknara.co.kr" in hg2 and "＋ 그룹 메일 등록" not in hg2)
+check("직원도 회사 그룹 메일 명단은 봄 · 등록 단추는 없음", "knksales@knknara.co.kr" in hg2 and "📥 하이웍스 파일로 올리기" not in hg2 and "＋ 하나씩 등록" not in hg2)
 as_(U_CEO)
 check("쓰기 화면 — 그룹 메일이면 「N명이 받습니다」 + 명단 · 명단 없는 사내 주소 알림 · 묶음 펼쳐 넣기",
       'id="cGrpInfo"' in cp and "명</b>이 받습니다" in cp and "직원 주소가 아닌 사내 주소입니다" in cp and "it.expand.map(acFmt)" in cp)

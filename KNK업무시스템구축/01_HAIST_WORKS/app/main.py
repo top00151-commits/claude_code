@@ -23013,6 +23013,11 @@ async def mail_tools_page(req: Request):
         except Exception:
             pass
         st["ar_info"] = _mail_autoreply_info(c, u)   # 11-19 2단계-나 🏖
+        try:   # 11-20 그룹 메일 명단(하이웍스 파일) 마지막으로 올린 때
+            st["grp_imp"] = _mwork.import_last(c)
+            st["grp_n"] = c.execute("SELECT COUNT(*) FROM mail_groups WHERE kind='company'").fetchone()[0]
+        except Exception:
+            st["grp_imp"], st["grp_n"] = {}, 0
         try:
             st["sig_n"] = len(_mailbox.get_signatures(c, u["id"]) or [])
         except Exception:
@@ -24765,7 +24770,9 @@ async def mail_groups_page(req: Request):
         g["people"] = [dict(m, disp=(m.get("name") or "")) for m in g["members"]]
     for g in data["dept"]:
         g["people"] = [dict(m, disp=_mw_disp(m)) for m in g["members"]]
-    return ctx(req, "mail_groups.html", user=u, data=data, can_company=_mw_admin(u))
+    with db_session() as c:
+        imp_last = _mwork.import_last(c)
+    return ctx(req, "mail_groups.html", user=u, data=data, can_company=_mw_admin(u), imp_last=imp_last)
 
 
 @app.post("/mail/groups/save")
@@ -24793,6 +24800,37 @@ async def mail_groups_delete(req: Request, gid: int):
     with db_session() as c:
         ok, msg = _mwork.delete_group(c, u["id"], gid, is_admin=_mw_admin(u))
     return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
+
+
+@app.post("/mail/groups/import")
+async def mail_groups_import(req: Request):
+    """11-20 대표 — 하이웍스 「그룹메일」 파일(.xls=HTML 표 · .xlsx · .csv)을 올려 회사 그룹 메일 명단을 한꺼번에 맞춤(관리자).
+    mode=preview → 바뀔 것만 보여 줌(저장 안 함) · mode=apply → 반영 + 원본↔저장 대조."""
+    u = get_user(req)
+    if not u or not _mw_admin(u):
+        return JSONResponse({"ok": False, "message": "관리자만 올릴 수 있습니다."}, 403)
+    f = await req.form()
+    up = f.get("file")
+    if not up or not hasattr(up, "read"):
+        return JSONResponse({"ok": False, "message": "파일을 골라 주세요."}, 400)
+    data = await up.read(5 * 1024 * 1024 + 1)
+    if len(data) > 5 * 1024 * 1024:
+        return JSONResponse({"ok": False, "message": "파일이 너무 큽니다(5MB까지)."}, 400)
+    fn = getattr(up, "filename", "") or ""
+    pr = _mwork.parse_group_file(data, fn)
+    if pr["error"]:
+        return JSONResponse({"ok": False, "message": pr["error"], "warnings": pr["warnings"][:30]}, 400)
+    mode = (f.get("mode") or "preview").strip()
+    with db_session() as c:
+        if mode != "apply":
+            plan = _mwork.import_plan(c, pr["groups"])
+            return JSONResponse({"ok": True, "mode": "preview", "plan": plan, "warnings": pr["warnings"][:30],
+                                 "groups": len(pr["groups"]), "file": fn[:120]})
+        res = _mwork.import_apply(c, u["id"], pr["groups"], remove_missing=(f.get("remove_missing") or "1") == "1",
+                                  filename=fn, who=u.get("name") or "")
+    print("[MAIL-GRP] 그룹 메일 파일 반영(user=%s): 그룹 %s · 새 %s · 바뀜 %s · 지움 %s · 대조 %s"
+          % (u["id"], res["groups"], res["added"], res["updated"], res["removed"], "OK" if res["verify_ok"] else "다름"), flush=True)
+    return JSONResponse({"ok": True, "mode": "apply", "res": res, "warnings": pr["warnings"][:30]})
 
 
 @app.get("/api/mail/groups/guess")

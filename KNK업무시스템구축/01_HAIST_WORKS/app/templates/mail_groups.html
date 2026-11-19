@@ -35,6 +35,20 @@
   .gp-sug div{padding:7px 10px;cursor:pointer;font-size:13px;border-top:1px solid #f1f1f1}
   .gp-sug div:hover{background:#eff6ff}
   .gp-guess{margin-top:8px;font-size:12.5px;color:var(--mute);line-height:1.7}
+  .gp-last{padding:8px 16px;font-size:12.5px;color:var(--mute);border-bottom:1px solid #f0f1f3}
+  .gp-imp{padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}
+  .gp-imp[hidden]{display:none}
+  .gp-imp-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
+  .gp-imp-how{font-size:12.5px;color:var(--mute);line-height:1.8;margin:8px 0;padding-left:20px}
+  .gp-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;font-size:13px;color:var(--mute);cursor:pointer;background:var(--mt-surface,#fff)}
+  .gp-drop.on{border-color:#2563eb;background:#eff6ff}
+  .gp-sumbox{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 8px}
+  .gp-sumbox span{font-size:13px;font-weight:800;border-radius:9px;padding:6px 12px;background:var(--mt-surface,#fff);border:1px solid var(--line)}
+  .gp-sumbox .new{border-color:#86efac;color:#166534}.gp-sumbox .chg{border-color:#93c5fd;color:#1e3a8a}.gp-sumbox .mis{border-color:#fdba74;color:#9a3412}
+  .gp-chg{font-size:12.5px;line-height:1.7;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--mt-surface,#fff);padding:8px 12px}
+  .gp-chg .a{color:#166534}.gp-chg .r{color:#b91c1c}
+  .gp-res{margin-top:10px;font-size:13.5px;font-weight:700}
+  html[data-mt="dark"] .gp-imp{background:#111827}
   html[data-mt="dark"] .gp-ed{background:#111827}
   html[data-mt="dark"] .gp-sum .n{background:#1e293b;color:#bfdbfe}
 </style>
@@ -50,7 +64,20 @@
     {# ── 회사 그룹 메일 ── #}
     <div class="gp-card">
       <div class="gp-h"><b>🏢 회사 그룹 메일</b><small>knksales@ 처럼 <b>주소 하나로 여러 명이 받는 공용 주소</b> — 누가 받는지 여기서 확인 · 메일 쓰기·읽기에서도 「👥 N명」으로 보임{% if not can_company %} · 등록·고치기는 관리자{% endif %}</small>
-        {% if can_company %}<button type="button" class="btn btn-primary" onclick="gpEdit('company', null)">＋ 그룹 메일 등록</button>{% endif %}</div>
+        {% if can_company %}<button type="button" class="btn btn-primary" onclick="gpImpOpen()">📥 하이웍스 파일로 올리기</button><button type="button" class="btn btn-secondary" onclick="gpEdit('company', null)">＋ 하나씩 등록</button>{% endif %}</div>
+      {% if imp_last and imp_last.at %}<div class="gp-last">📥 마지막으로 올린 파일: <b>{{ imp_last.at[:16] }}</b> · {{ imp_last.by }} · 그룹 {{ imp_last.groups }}개 · {{ imp_last.people }}명{% if imp_last.ok %} · ✅ 원본과 같음{% else %} · ⚠ 원본과 다른 그룹 있음{% endif %}</div>{% endif %}
+      {% if can_company %}
+      <div class="gp-imp" id="gpImp" hidden>
+        <div class="gp-imp-h"><b>📥 하이웍스 그룹 메일 파일로 명단 맞추기</b> <button type="button" class="btn btn-secondary" style="padding:3px 10px" onclick="document.getElementById('gpImp').hidden=true">닫기</button></div>
+        <ol class="gp-imp-how">
+          <li>하이웍스 <b>관리자 화면 → 그룹 메일</b>에서 목록을 <b>엑셀로 내려받기</b> → 「knknara.co.kr_그룹메일.xls」</li>
+          <li>그 파일을 아래에 끌어다 놓거나 「파일 고르기」 → <b>바뀌는 것을 먼저 보여 드립니다</b>(아직 저장 안 함)</li>
+          <li>맞으면 <b>「✓ 이대로 반영」</b> → 반영 뒤 원본 파일과 저장된 명단을 그룹마다 대조합니다</li>
+        </ol>
+        <label class="gp-drop" id="gpDrop"><input type="file" id="gpFile" accept=".xls,.xlsx,.csv,.htm,.html" hidden onchange="gpImpPick(this.files[0])">📄 여기로 파일을 끌어다 놓기 · <u>파일 고르기</u> <small>(.xls · .xlsx · .csv)</small></label>
+        <div id="gpImpOut"></div>
+      </div>
+      {% endif %}
       <div class="gp-ed" id="gpEd-company" hidden></div>
       {% for g in data.company %}
       <details class="gp-row"><summary class="gp-sum"><span class="nm">{{ g.name }}</span><span class="ad">{{ g.address }}</span><span class="n">{{ g.n }}명</span>{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</summary>
@@ -130,6 +157,39 @@ async function gpSave(){ var m=document.getElementById('gpMsg'); var fd=new Form
   m.textContent='저장 중...'; m.style.color='var(--mute)';
   try{ var r=await fetch('/mail/groups/save',{method:'POST',body:fd}); var j=await r.json(); m.textContent=(j.ok?'✅ ':'⚠ ')+(j.message||''); m.style.color=j.ok?'var(--success)':'var(--knk-red)'; if(j.ok) setTimeout(function(){ location.reload(); }, 700); }
   catch(e){ m.textContent='⚠ 네트워크 오류'; m.style.color='var(--knk-red)'; } }
+/* 11-20 하이웍스 그룹 메일 파일 올리기 — 미리 보기 → 반영 → 대조 */
+var GP_FILE=null;
+function gpImpOpen(){ var b=document.getElementById('gpImp'); b.hidden=false; b.scrollIntoView({block:'nearest'}); }
+(function(){ var d=document.getElementById('gpDrop'); if(!d) return;
+  ['dragenter','dragover'].forEach(function(ev){ d.addEventListener(ev, function(e){ e.preventDefault(); d.classList.add('on'); }); });
+  ['dragleave','drop'].forEach(function(ev){ d.addEventListener(ev, function(e){ e.preventDefault(); d.classList.remove('on'); }); });
+  d.addEventListener('drop', function(e){ var f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) gpImpPick(f); });
+  if(location.hash==='#import') gpImpOpen(); })();
+function gpList(arr, cls, max){ max=max||12; return (arr||[]).slice(0,max).map(function(x){ return '<span class="'+cls+'">'+gpEsc(x)+'</span>'; }).join(', ')+((arr||[]).length>max?' 외 '+((arr||[]).length-max)+'명':''); }
+async function gpImpPick(f){ if(!f) return; GP_FILE=f; var o=document.getElementById('gpImpOut'); o.innerHTML='<div class="gp-res" style="color:var(--mute)">「'+gpEsc(f.name)+'」 읽는 중…</div>';
+  var fd=new FormData(); fd.append('file', f); fd.append('mode','preview');
+  try{ var r=await fetch('/mail/groups/import',{method:'POST',body:fd}); var j=await r.json();
+    if(!j.ok){ o.innerHTML='<div class="gp-res" style="color:var(--knk-red)">⚠ '+gpEsc(j.message||'읽지 못했습니다')+'</div>'+(j.warnings&&j.warnings.length?'<div class="gp-chg">'+j.warnings.map(gpEsc).join('<br>')+'</div>':''); return; }
+    var p=j.plan, h='<div class="gp-sumbox"><span>📄 그룹 '+j.groups+'개 · '+p.people+'명</span><span class="new">＋ 새 그룹 '+p.new.length+'</span><span class="chg">✏ 바뀐 그룹 '+p.changed.length+'</span><span>＝ 그대로 '+p.same+'</span><span class="mis">− 파일에 없는 그룹 '+p.missing.length+'</span></div><div class="gp-chg">';
+    p.new.forEach(function(x){ h+='<div>＋ <b>'+gpEsc(x.name)+'</b> '+gpEsc(x.address)+' · '+x.n+'명</div>'; });
+    p.changed.forEach(function(x){ h+='<div>✏ <b>'+gpEsc(x.name)+'</b> '+gpEsc(x.address)+' · '+x.n+'명'+(x.old_name!==x.name?' (이름: '+gpEsc(x.old_name)+' → '+gpEsc(x.name)+')':'')+
+      (x.add.length?'<br>&nbsp;&nbsp;들어옴: '+gpList(x.add,'a'):'')+(x.rem.length?'<br>&nbsp;&nbsp;빠짐: '+gpList(x.rem,'r'):'')+'</div>'; });
+    p.missing.forEach(function(x){ h+='<div>− <b>'+gpEsc(x.name)+'</b> '+gpEsc(x.address)+' · '+(x.from_file?'지난번 파일로 올린 그룹 → <b>지움</b>':'손으로 등록한 그룹 → <b>남김</b>')+'</div>'; });
+    if(!p.new.length && !p.changed.length && !p.missing.length) h+='<div>바뀐 것이 없습니다 — 지금 명단과 파일이 같습니다.</div>';
+    h+='</div>'+(j.warnings&&j.warnings.length?'<div class="gp-chg" style="margin-top:6px;color:#92400e">⚠ '+j.warnings.map(gpEsc).join('<br>⚠ ')+'</div>':'');
+    h+='<label style="display:block;margin-top:8px;font-size:12.5px"><input type="checkbox" id="gpRmMiss" checked> 파일에 없는 그룹 중 <b>지난번 파일로 올린 것</b>은 지우기(하이웍스에서 없앤 그룹) · 손으로 등록한 것은 언제나 남김</label>';
+    h+='<div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn btn-primary" onclick="gpImpApply()">✓ 이대로 반영</button><button type="button" class="btn btn-secondary" onclick="document.getElementById(\'gpImpOut\').innerHTML=\'\'">취소</button></div>';
+    o.innerHTML=h;
+  }catch(e){ o.innerHTML='<div class="gp-res" style="color:var(--knk-red)">⚠ 네트워크 오류</div>'; } }
+async function gpImpApply(){ if(!GP_FILE) return; var o=document.getElementById('gpImpOut'), rm=document.getElementById('gpRmMiss');
+  var fd=new FormData(); fd.append('file', GP_FILE); fd.append('mode','apply'); fd.append('remove_missing', rm && rm.checked ? '1':'0');
+  o.insertAdjacentHTML('beforeend','<div class="gp-res" style="color:var(--mute)">반영하는 중…</div>');
+  try{ var r=await fetch('/mail/groups/import',{method:'POST',body:fd}); var j=await r.json();
+    if(!j.ok){ o.insertAdjacentHTML('beforeend','<div class="gp-res" style="color:var(--knk-red)">⚠ '+gpEsc(j.message||'반영하지 못했습니다')+'</div>'); return; }
+    var x=j.res; o.innerHTML='<div class="gp-res" style="color:'+(x.verify_ok?'var(--success)':'var(--knk-red)')+'">'+(x.verify_ok?'✅ 반영했습니다 — 원본 파일과 저장된 명단이 그룹마다 같습니다':'⚠ 반영했지만 원본과 다른 그룹이 있습니다: '+x.verify_bad.map(gpEsc).join(', '))+
+      '<br><span style="font-weight:600;color:var(--mute)">그룹 '+x.groups+'개 · '+x.people+'명 · 새 '+x.added+' · 바뀜 '+x.updated+' · 그대로 '+x.same+' · 지움 '+x.removed+(x.kept?' · 남김 '+x.kept:'')+'</span></div>';
+    setTimeout(function(){ location.href='/mail/groups'; }, 2200);
+  }catch(e){ o.insertAdjacentHTML('beforeend','<div class="gp-res" style="color:var(--knk-red)">⚠ 네트워크 오류 — 다시 올려 주세요</div>'); } }
 async function gpDel(id, name){ if(!confirm('「'+name+'」을(를) 지울까요?')) return;
   try{ var r=await fetch('/mail/groups/'+id+'/delete',{method:'POST'}); var j=await r.json(); if(j.ok) location.reload(); else alert(j.message||'지우지 못했습니다'); }catch(e){ alert('네트워크 오류'); } }
 </script>

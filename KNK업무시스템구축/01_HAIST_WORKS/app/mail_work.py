@@ -498,3 +498,252 @@ def list_files(c, uid, *, q="", kind="", direction="", days=0, who="", limit=100
         r["kind"] = kind_of(r["filename"])
         r["who"] = (r["from_name"] or r["from_email"] or "") if r["direction"] == "in" else (r["to_email"] or "").split(",")[0]
     return rows, more
+
+
+
+# ═══════════════ ④-2 회사 그룹 메일 명단 — 하이웍스 「그룹메일」 파일 올리기(대표 2026-11-20) ═══════════════
+# 하이웍스 관리자 화면에서 받은 「knknara.co.kr_그룹메일.xls」(속은 HTML 표) · 엑셀(.xlsx) · CSV 모두 읽음.
+# 칸: 그룹명( 계정수 ) · 그룹메일주소 · 사용자명 · 메일주소 — 그룹 첫 줄에만 그룹 칸이 있고 다음 줄은 사람만(rowspan).
+# 흐름: 올리기 → 미리 보기(새 그룹·바뀐 그룹(+/-)·그대로·파일에 없는 그룹) → 「✓ 이대로 반영」 → 원본↔저장 대조(✅/⚠).
+_IMP_KEY = "mail_groups_import_last"
+_GRP_HDR = {"group": ("그룹명", "group name", "group"), "gaddr": ("그룹메일주소", "그룹 메일 주소", "group email", "group address"),
+            "uname": ("사용자명", "이름", "name"), "uaddr": ("메일주소", "메일 주소", "email", "e-mail")}
+
+
+def _rows_from_html(text):
+    from html.parser import HTMLParser
+
+    class _P(HTMLParser):
+        def __init__(s):
+            super().__init__()
+            s.rows, s.cur, s.cell = [], None, None
+
+        def handle_starttag(s, t, a):
+            if t == "tr":
+                s.cur = []
+            elif t in ("td", "th"):
+                s.cell = []
+
+        def handle_endtag(s, t):
+            if t in ("td", "th") and s.cell is not None and s.cur is not None:
+                s.cur.append(" ".join("".join(s.cell).split()))
+                s.cell = None
+            elif t == "tr" and s.cur is not None:
+                s.rows.append(s.cur)
+                s.cur = None
+
+        def handle_data(s, d):
+            if s.cell is not None:
+                s.cell.append(d)
+    p = _P()
+    p.feed(text)
+    return p.rows
+
+
+def _rows_from_xlsx(data):
+    import io as _io
+    from openpyxl import load_workbook
+    wb = load_workbook(_io.BytesIO(data), read_only=True, data_only=True)
+    ws = wb.worksheets[0]
+    out = []
+    for r in ws.iter_rows(values_only=True):
+        out.append(["" if v is None else str(v).strip() for v in r])
+    return out
+
+
+def _rows_from_csv(text):
+    import csv as _csv
+    import io as _io
+    return [[(x or "").strip() for x in r] for r in _csv.reader(_io.StringIO(text))]
+
+
+def parse_group_file(data, filename=""):
+    """→ {"groups":[{name, address, declared, members:[{name,email}]}], "warnings":[...], "error": ""}"""
+    out = {"groups": [], "warnings": [], "error": ""}
+    if not data:
+        out["error"] = "빈 파일입니다."
+        return out
+    if data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+        out["error"] = "옛 엑셀(.xls) 형식은 읽지 못합니다 — 하이웍스에서 받은 파일을 그대로 올리거나, 엑셀에서 「다른 이름으로 저장 → .xlsx」 해 주세요."
+        return out
+    try:
+        if data[:2] == b"PK":
+            rows = _rows_from_xlsx(data)
+        else:
+            text = None
+            for enc in ("utf-8-sig", "cp949", "euc-kr"):
+                try:
+                    text = data.decode(enc)
+                    break
+                except Exception:
+                    continue
+            if text is None:
+                text = data.decode("utf-8", "replace")
+            rows = _rows_from_html(text) if "<t" in text[:5000].lower() else _rows_from_csv(text)
+    except Exception as e:
+        out["error"] = "파일을 읽지 못했습니다(%s)." % str(e)[:80]
+        return out
+    hi, col = -1, {}
+    for i, r in enumerate(rows[:20]):
+        low = [(x or "").replace(" ", "").lower() for x in r]
+        found = {}
+        for k in ("gaddr", "group", "uaddr", "uname"):
+            for j, cell in enumerate(low):
+                if j in found.values():
+                    continue
+                if any(cell.startswith(n.replace(" ", "").lower()) for n in _GRP_HDR[k]):
+                    found[k] = j
+                    break
+        if {"group", "gaddr", "uaddr"} <= set(found):
+            hi, col = i, found
+            break
+    if hi < 0:
+        out["error"] = "「그룹명 · 그룹메일주소 · 사용자명 · 메일주소」 머리 줄을 찾지 못했습니다 — 하이웍스 그룹 메일 목록 파일인지 확인해 주세요."
+        return out
+    ncol = len(rows[hi])
+    groups, seen_addr = [], {}
+    cur = None
+    for ln, r in enumerate(rows[hi + 1:], start=hi + 2):
+        if not any((x or "").strip() for x in r):
+            continue
+        if len(r) >= ncol:
+            gname, gaddr = r[col["group"]].strip(), r[col["gaddr"]].strip().lower()
+            uname = r[col["uname"]].strip() if "uname" in col else ""
+            uaddr = r[col["uaddr"]].strip().lower()
+        elif len(r) == 2:                      # 하이웍스 표: 그룹 칸이 위 줄에 합쳐짐(rowspan) → 사람만
+            gname, gaddr, uname, uaddr = "", "", r[0].strip(), r[1].strip().lower()
+        else:
+            out["warnings"].append("%d번째 줄: 칸 수가 맞지 않아 건너뜀" % ln)
+            continue
+        if gaddr:
+            if not _ADDR_RE.fullmatch(gaddr):
+                out["warnings"].append("%d번째 줄: 그룹 주소가 올바르지 않아 그 그룹을 건너뜀 (%s)" % (ln, gname[:30]))
+                cur = None
+                continue
+            m = re.match(r"^(.*?)\s*\(\s*(\d+)\s*\)\s*$", gname)
+            nm, declared = ((m.group(1).strip(), int(m.group(2))) if m else (gname, None))
+            if gaddr in seen_addr:
+                cur = seen_addr[gaddr]
+            else:
+                cur = {"name": (nm or gaddr.split("@")[0])[:60], "address": gaddr, "declared": declared, "members": [], "_seen": set()}
+                seen_addr[gaddr] = cur
+                groups.append(cur)
+        if cur is None:
+            continue
+        if uaddr:
+            if not _ADDR_RE.fullmatch(uaddr):
+                out["warnings"].append("%d번째 줄: 사람 주소가 올바르지 않아 건너뜀 (%s)" % (ln, cur["name"][:30]))
+                continue
+            if uaddr not in cur["_seen"] and len(cur["members"]) < 2000:
+                cur["_seen"].add(uaddr)
+                cur["members"].append({"name": uname[:60], "email": uaddr})
+    for g in groups:
+        g.pop("_seen", None)
+        if g["declared"] is not None and g["declared"] != len(g["members"]):
+            out["warnings"].append("「%s」: 파일에 적힌 계정수 %d · 읽은 사람 %d" % (g["name"], g["declared"], len(g["members"])))
+    out["groups"] = [g for g in groups if g["members"]]
+    if len(out["groups"]) > 500:
+        out["error"] = "그룹이 너무 많습니다(500개까지)."
+    if not out["groups"] and not out["error"]:
+        out["error"] = "읽은 그룹이 없습니다."
+    return out
+
+
+def _ensure_src(c):
+    try:
+        c.execute("ALTER TABLE mail_groups ADD COLUMN src TEXT")
+    except Exception:
+        pass
+
+
+def import_plan(c, groups):
+    """미리 보기 — 지금 등록된 회사 그룹 메일과 비교."""
+    ensure(c)
+    _ensure_src(c)
+    now = {}
+    for r in c.execute("SELECT * FROM mail_groups WHERE kind='company'").fetchall():
+        d = _grp_row(c, r)
+        now[d["address"]] = d
+    plan = {"new": [], "changed": [], "same": 0, "missing": [], "people": 0}
+    names = _staff_by_email(c, [m["email"] for g in groups for m in g["members"]])
+
+    def disp(m):
+        return (names.get(m["email"]) or {}).get("name") or m.get("name") or m["email"]
+    faddr = set()
+    for g in groups:
+        faddr.add(g["address"])
+        plan["people"] += len(g["members"])
+        old = now.get(g["address"])
+        if not old:
+            plan["new"].append({"name": g["name"], "address": g["address"], "n": len(g["members"])})
+            continue
+        oe = {m.get("email") for m in old["members"]}
+        ne = {m["email"] for m in g["members"]}
+        add = [disp(m) for m in g["members"] if m["email"] not in oe]
+        rem = [(m.get("name") or m.get("email")) for m in old["members"] if m.get("email") not in ne]
+        if add or rem or old["name"] != g["name"]:
+            plan["changed"].append({"name": g["name"], "old_name": old["name"], "address": g["address"], "n": len(ne), "add": add, "rem": rem})
+        else:
+            plan["same"] += 1
+    for a, d in now.items():
+        if a not in faddr:
+            plan["missing"].append({"name": d["name"], "address": a, "n": d["n"], "from_file": (d.get("src") == "file")})
+    return plan
+
+
+def import_apply(c, uid, groups, *, remove_missing=True, filename="", who=""):
+    """반영 — 파일에 있는 그룹은 명단을 파일대로(직원은 웍스 이름) · 파일에 없는 그룹은 「파일로 올린 것」만 지움(손으로 등록한 것은 남김).
+    끝나면 원본↔저장 대조(대표규정: 엑셀 올리기 = 원본과 저장 전 항목 대조)."""
+    ensure(c)
+    _ensure_src(c)
+    st = _staff_by_email(c, [m["email"] for g in groups for m in g["members"]])
+    res = {"added": 0, "updated": 0, "same": 0, "removed": 0, "kept": 0}
+    plan = import_plan(c, groups)
+    same_addr = {g["address"] for g in groups} - {x["address"] for x in plan["new"]} - {x["address"] for x in plan["changed"]}
+    for g in groups:
+        mem = []
+        for m in g["members"]:
+            s = st.get(m["email"])
+            d = {"name": (s or {}).get("name") or m.get("name") or "", "email": m["email"]}
+            if s:
+                d["staff"] = 1
+            mem.append(d)
+        js = json.dumps(mem, ensure_ascii=False)
+        r = c.execute("SELECT id FROM mail_groups WHERE kind='company' AND address=?", (g["address"],)).fetchone()
+        if r:
+            c.execute("UPDATE mail_groups SET name=?, members=?, src='file', updated_at=datetime('now','localtime'), updated_by=? WHERE id=?",
+                      (g["name"], js, uid, r["id"]))
+            res["same" if g["address"] in same_addr else "updated"] += 1
+        else:
+            c.execute("INSERT INTO mail_groups(kind, owner_id, name, address, members, note, updated_by, src) VALUES('company', NULL, ?, ?, ?, '', ?, 'file')",
+                      (g["name"], g["address"], js, uid))
+            res["added"] += 1
+    for x in plan["missing"]:
+        if remove_missing and x["from_file"]:
+            c.execute("DELETE FROM mail_groups WHERE kind='company' AND address=?", (x["address"],))
+            res["removed"] += 1
+        else:
+            res["kept"] += 1
+    stored = {d["address"]: {m.get("email") for m in d["members"]} for d in
+              (_grp_row(c, r) for r in c.execute("SELECT * FROM mail_groups WHERE kind='company'").fetchall())}
+    bad = [g["name"] for g in groups if stored.get(g["address"]) != {m["email"] for m in g["members"]}]
+    res["verify_ok"] = not bad
+    res["verify_bad"] = bad[:20]
+    res["groups"] = len(groups)
+    res["people"] = sum(len(g["members"]) for g in groups)
+    info = {"at": "", "by": who, "file": (filename or "")[:120], "groups": res["groups"], "people": res["people"], "ok": res["verify_ok"]}
+    try:
+        info["at"] = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+        c.execute("INSERT INTO app_settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                  (_IMP_KEY, json.dumps(info, ensure_ascii=False)))
+    except Exception:
+        pass
+    return res
+
+
+def import_last(c):
+    try:
+        r = c.execute("SELECT value FROM app_settings WHERE key=?", (_IMP_KEY,)).fetchone()
+        return json.loads(r[0]) if r and r[0] else {}
+    except Exception:
+        return {}
