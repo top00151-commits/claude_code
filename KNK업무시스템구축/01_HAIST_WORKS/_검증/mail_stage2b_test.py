@@ -254,7 +254,7 @@ check("받아 온 뒤(저장 끝난 뒤) 자동 응답 부름 · 새 메일만",
 check("예약 시계 = 메일 수집 서버에서만 · 나스 백업 시간엔 쉼", "_sch_th.Timer(90, _mail_sched_tick)" in src and "if not _nas_quiet_now():" in src)
 
 print("== ⑨ 화면 ==")
-check("쓰기 화면 「⏱ 예약」 · 때 고르기(내일 8·9·14시 · 다음 주 월 · 직접)", 'id="cSchedBtn"' in hc and "cmpSchedGo(\\'tom8\\')" in hc and "cmpSchedGo(\\'nextmon9\\')" in hc and 'id="scAt"' in hc)
+check("쓰기 화면 「⏱ 예약」 · 때 고르기(내일 8·9·14시 · 다음 주 월 · 직접 = 웍스 달력 — 11-19 고른 뒤 확인 → 보내기)", 'id="cSchedBtn"' in hc and "cmpSchedQuick(\\'tom8\\',this)" in hc and "cmpSchedQuick(\\'nextmon9\\',this)" in hc and 'id="scDate"' in hc)
 k.post("/mail/autoreply", data={"enabled": "1", "start_date": today, "end_date": "2099-12-31", "body": "출장 중입니다"})
 hi = km.get("/mail/inbox").text
 check("받은편지함 위 「🏖 부재중 자동 응답 켜짐」(설정·끄기)", 'class="mbx-arbar' in hi and "부재중 자동 응답 켜짐" in hi and 'href="/mail/autoreply"' in hi)

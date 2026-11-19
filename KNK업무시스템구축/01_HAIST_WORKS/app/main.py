@@ -24370,6 +24370,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             sig_list = []
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_from = _mail_from_address_for(c, u)
+        _sched_off = _mail_off(c, u)   # 11-19 예약 달력 — 보는 사람 소속(본사 +9 · 베트남 +7) 기준 날짜·시각
         my_addr = (my_from or "").lower()
         # 내 계정으로 보내도 되는 사람인가 / 이미 연결돼 있나 (안내문·진입경로용)
         can_link = _mail.via_fetch_allowed(c, u["id"])
@@ -24444,6 +24445,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=my_from, ai_on=mail_ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,
+               sched_off=_sched_off,
                sig_html=("" if draft else sig), sig_list=sig_list)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 

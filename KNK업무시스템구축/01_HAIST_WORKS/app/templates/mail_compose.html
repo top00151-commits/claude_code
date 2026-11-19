@@ -52,6 +52,18 @@
   .sc-when small{display:block;font-weight:500;color:var(--mt-mute,#6b7280);font-size:12px}
   .sc-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
   .sc-pick input{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+  /* 11-19 대표 「웍스 달력 기준 · 확인 눌러 닫기 · 예약 날짜(요일) 시간 표시 → 보내기로 최종」 */
+  .sc-when button.on{border-color:#2563eb;background:#eff6ff;box-shadow:0 0 0 2px #93c5fd inset}
+  .sc-pick input.knk-cal{width:120px;cursor:pointer;background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
+  .sc-pick select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
+  .sc-prev{margin:12px 0 2px;padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1e3a8a;font-size:14px;font-weight:700}
+  .sc-prev.bad{background:#fef2f2;color:#991b1b}
+  .cmp-sched{display:inline-flex;align-items:center;gap:8px;margin-left:6px;padding:5px 6px 5px 12px;border-radius:999px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:800;white-space:nowrap}
+  .cmp-sched[hidden]{display:none}
+  .cmp-sched button{font:inherit;font-size:12px;font-weight:700;border:0;border-radius:999px;padding:3px 9px;cursor:pointer;background:#fff;color:#1e3a8a}
+  .cmp-sched button.x{color:#991b1b}
+  html[data-mt="dark"] .cmp-sched, html[data-mt="dark"] .sc-prev{background:#1e293b;color:#bfdbfe;border-color:#334155}
+  html[data-mt="dark"] .cmp-sched button{background:#0f172a;color:#bfdbfe}
   .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
   .cmp-pick:hover{background:#e0e7ff}
   .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
@@ -136,6 +148,7 @@
       <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
       {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일 주소로 보내기 연결">📮 내 회사 주소 연결{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
+      <span class="cmp-sched" id="cSchedTag" hidden title="이 때에 서버가 보냅니다 — 창을 닫아도 됩니다">⏱ <span id="cSchedTxt"></span> 예약 <button type="button" onclick="cmpSchedule()">바꾸기</button><button type="button" class="x" onclick="cmpSchedClear()">✕ 예약 빼기</button></span>
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
@@ -208,6 +221,7 @@
   })();
   </script>
 </main></div>
+{% include "_v5_partials/knk_datepicker.html" %}
 <div class="sc-wrap" id="scWrap" hidden onclick="if(event.target===this) scClose()"><div class="sc-box" id="scBox" role="dialog" aria-modal="true" aria-label="보내기 전 확인"></div></div>
 <div class="sc-undo" id="scUndo" hidden role="status" aria-live="polite"><span class="n" id="scUndoN">10</span><span><b>초 뒤에 보냅니다</b> · <span id="scUndoWho"></span></span>
   <button type="button" class="cancel" onclick="cmpUndoCancel()">↺ 보내기 취소</button><button type="button" onclick="cmpUndoNow()">지금 보내기</button></div>
@@ -753,6 +767,7 @@ function abPut(target){
 
   window.sendMail=function(){
     if(window._cmpCounting) return;
+    if(SCHED) return cmpSchedSend();
     var r=checks();
     if(r.stop){ cmsg('⚠ '+r.stop,'red'); return; }
     if(!r.warns.length){ startUndo(r); return; }
@@ -764,19 +779,67 @@ function abPut(target){
     window._scLast=r;
   };
   window.cmpStartUndo=function(){ startUndo(window._scLast||checks()); };
-  /* 11-19 2단계-나 ⏱ 예약 — 보내기 전 확인(같은 검사)을 보여 주고, 때를 고르면 서버에 맡김(창을 닫아도 그때 나감) */
+  /* 11-19 2단계-나 ⏱ 예약 → 11-19 대표 「달력은 웍스 기준 · 날짜·시간 고른 뒤 『확인』으로 닫기 · 그 자리에 예약 날짜(요일) 시간 표시 · 그걸 보고 『보내기』로 예약 완료」
+     ① ⏱ 예약 → 「언제 보낼까요?」: 빠른 단추(고르기만) · 날짜 = 웍스 표준 달력(KnkCal · 일요일 시작 · 공휴일 K/V) · 시각 = 오전/오후 시 + 분(5분 단위)
+     ② 「✓ 확인」 → 창 닫힘 → 도구 줄에 「⏱ 11월 20일(금) 오전 9:00 예약」 + 바꾸기 · ✕ 예약 빼기 / 「📤 보내기」 → 「⏱ 예약 보내기」
+     ③ 「⏱ 예약 보내기」 → 보내기 전 확인(같은 검사) → 서버에 맡김(창을 닫아도 그때 나감) · 시각 = 보는 사람 소속(본사 +9 · 베트남 +7) 기준 */
+  var SCHED=null, SCHED_OFF={{ (sched_off or 9)|int }};
+  var DOW='일월화수목금토';
+  function scP2(n){ return (n<10?'0':'')+n; }
+  function scNowLocal(){ var d=new Date(Date.now()+SCHED_OFF*3600000); return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),d.getUTCHours(),d.getUTCMinutes()); }
+  function scToday(){ var d=new Date(Date.now()+SCHED_OFF*3600000); return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()); }
+  function scIso(ms){ var d=new Date(ms); return d.getUTCFullYear()+'-'+scP2(d.getUTCMonth()+1)+'-'+scP2(d.getUTCDate()); }
+  function scMs(date,h,m){ var p=(date||'').split('-'); if(p.length!==3) return NaN; return Date.UTC(+p[0],+p[1]-1,+p[2],+h,+m); }
+  function scHM(h,m){ return (h<12?'오전 ':'오후 ')+((h%12)||12)+':'+scP2(m); }
+  function scLabel(date,h,m){ var p=date.split('-'), d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])), y=new Date(scToday()).getUTCFullYear();
+    return (+p[0]!==y? p[0]+'년 ':'')+(+p[1])+'월 '+(+p[2])+'일('+DOW[d.getUTCDay()]+') '+scHM(+h,+m); }
+  function scValid(date,h,m){ var t=scMs(date,h,m), n=scNowLocal(); return !isNaN(t) && t>=n+2*60000 && t<=n+90*86400000; }
+  function scFields(){ return {d:document.getElementById('scDate'), h:document.getElementById('scH'), m:document.getElementById('scM')}; }
+  function scPrev(){ var f=scFields(), el=document.getElementById('scPrev'); if(!f.d||!el) return;
+    var ok=scValid(f.d.value,f.h.value,f.m.value), n=new Date(scNowLocal());
+    el.className='sc-prev'+(ok?'':' bad');
+    el.textContent= !f.d.value ? '날짜를 골라 주세요' : (ok ? '📅 '+scLabel(f.d.value,f.h.value,f.m.value)+' 에 보냅니다'
+      : '⚠ 2분 뒤 ~ 90일 안에서 골라 주세요 (지금 '+scHM(n.getUTCHours(),n.getUTCMinutes())+')');
+    var b=document.getElementById('scOk'); if(b) b.disabled=!ok; }
+  window.cmpSchedQuick=function(k, btn){ var f=scFields(), t=scToday(), D=86400000, d, h;
+    if(k==='tom8'){ d=t+D; h=8; } else if(k==='tom9'){ d=t+D; h=9; } else if(k==='tom14'){ d=t+D; h=14; }
+    else { var wd=(new Date(t).getUTCDay()+6)%7; d=t+((7-wd)||7)*D; h=9; }
+    f.d.value=scIso(d); f.h.value=String(h); f.m.value='0';
+    document.querySelectorAll('.sc-when button').forEach(function(b){ b.classList.toggle('on', b===btn); }); scPrev(); };
   window.cmpSchedule=function(){
     if(window._cmpCounting) return;
+    var cur=SCHED||{date:scIso(scToday()+86400000), h:9, m:0};
+    var hs='', ms='';
+    for(var h=0;h<24;h++) hs+='<option value="'+h+'"'+(h===+cur.h?' selected':'')+'>'+(h<12?'오전 ':'오후 ')+((h%12)||12)+'시</option>';
+    for(var m=0;m<60;m+=5) ms+='<option value="'+m+'"'+(m===+cur.m?' selected':'')+'>'+scP2(m)+'분</option>';
+    scOpen('<h3>⏱ 언제 보낼까요?</h3><div class="sc-sub">고른 뒤 「✓ 확인」 → 위 「⏱ 예약 보내기」로 보내면 예약됩니다 · 창을 닫아도 그때 서버가 보냅니다 · 시각은 내 소속('+(SCHED_OFF===7?'베트남':'본사')+') 기준</div>'+
+      '<div class="sc-when"><button type="button" onclick="cmpSchedQuick(\'tom8\',this)">내일 아침 8시<small>출근 전에 도착</small></button><button type="button" onclick="cmpSchedQuick(\'tom9\',this)">내일 오전 9시</button>'+
+      '<button type="button" onclick="cmpSchedQuick(\'tom14\',this)">내일 오후 2시</button><button type="button" onclick="cmpSchedQuick(\'nextmon9\',this)">다음 주 월요일 9시</button></div>'+
+      '<div class="sc-pick"><b>직접 고르기</b> 날짜 <input type="text" class="knk-cal" id="scDate" readonly value="'+cur.date+'" title="눌러서 달력에서 고르기"> 시각 <select id="scH">'+hs+'</select><select id="scM">'+ms+'</select></div>'+
+      '<div class="sc-prev" id="scPrev"></div>'+
+      '<div class="sc-btns"><button type="button" class="back" onclick="if(window.KnkCal) KnkCal.hide(); scClose()">← 닫기</button><button type="button" class="go" id="scOk" onclick="cmpSchedOk()">✓ 확인</button></div>');
+    var f=scFields();
+    if(window.KnkCal) KnkCal.attach(f.d);
+    ['change','input'].forEach(function(ev){ [f.d,f.h,f.m].forEach(function(e){ e.addEventListener(ev, function(){ document.querySelectorAll('.sc-when button.on').forEach(function(b){ b.classList.remove('on'); }); scPrev(); }); }); });
+    scPrev();
+  };
+  window.cmpSchedOk=function(){ var f=scFields(); if(!scValid(f.d.value,f.h.value,f.m.value)){ scPrev(); return; }
+    SCHED={date:f.d.value, h:+f.h.value, m:+f.m.value, at:f.d.value+'T'+scP2(+f.h.value)+':'+scP2(+f.m.value)};
+    if(window.KnkCal) KnkCal.hide(); scClose(); scShow(); cmsg('',''); };
+  window.cmpSchedClear=function(){ SCHED=null; scShow(); cmsg('예약을 뺐습니다 — 「📤 보내기」를 누르면 바로 보냅니다',''); };
+  function scShow(){ var tag=document.getElementById('cSchedTag'), b=document.getElementById('cSendBtn');
+    if(SCHED){ document.getElementById('cSchedTxt').textContent=scLabel(SCHED.date,SCHED.h,SCHED.m); tag.hidden=false; b.textContent='⏱ 예약 보내기'; b.title=scLabel(SCHED.date,SCHED.h,SCHED.m)+' 에 보내도록 예약합니다'; }
+    else { tag.hidden=true; b.textContent='📤 보내기'; b.title=''; } }
+  function cmpSchedSend(){
+    if(!scValid(SCHED.date,SCHED.h,SCHED.m)){ cmsg('⚠ 예약 시각('+scLabel(SCHED.date,SCHED.h,SCHED.m)+')이 너무 가깝거나 지났습니다 — 「바꾸기」로 다시 골라 주세요','red'); return; }
     var r=checks();
     if(r.stop){ cmsg('⚠ '+r.stop,'red'); return; }
-    var warn=r.warns.length ? r.warns.map(function(w){ return '<div class="sc-item'+(w.info?' info':'')+'"><span class="ic">'+w.ic+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
-        (w.who?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+'</div></div>'; }).join('') : '';
-    scOpen('<h3>⏱ 언제 보낼까요?</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+' · 창을 닫아도 그때 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 취소 가능</div>'+warn+
-      '<div class="sc-when"><button type="button" onclick="cmpSchedGo(\'tom8\')">내일 아침 8시<small>출근 전에 도착</small></button><button type="button" onclick="cmpSchedGo(\'tom9\')">내일 오전 9시</button>'+
-      '<button type="button" onclick="cmpSchedGo(\'tom14\')">내일 오후 2시</button><button type="button" onclick="cmpSchedGo(\'nextmon9\')">다음 주 월요일 9시</button></div>'+
-      '<div class="sc-pick">직접 고르기 <input type="datetime-local" id="scAt"> <button type="button" class="btn btn-primary" onclick="var v=document.getElementById(\'scAt\').value; if(v) cmpSchedGo(v);">이때 보내기</button></div>'+
-      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button></div>');
-  };
+    var lab=scLabel(SCHED.date,SCHED.h,SCHED.m), hasWarn=r.warns.some(function(w){ return !w.info; });
+    scOpen('<h3>⏱ '+esc(lab)+' 에 보낼까요?</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+(r.P.cBcc.ok.length?' · 숨은참조 '+r.P.cBcc.ok.length+'명':'')+' · 창을 닫아도 그때 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 취소 가능</div>'+
+      r.warns.map(function(w){ return '<div class="sc-item'+(w.info?' info':'')+'"><span class="ic">'+w.ic+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
+        (w.who?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+'</div></div>'; }).join('')+
+      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button><button type="button" class="'+(hasWarn?'warn':'go')+'" onclick="scClose();cmpSchedGo(\''+SCHED.at+'\')">'+(hasWarn?'그래도 예약':'⏱ 예약 보내기')+'</button></div>');
+  }
   window.cmpSchedGo=async function(at){
     scClose(); var fd=gather(); fd.append('at', at); setSend(true); cmsg('⏱ 예약하는 중...','');
     try{ var r=await fetch('/mail/schedule',{method:'POST',body:fd}); var j={}; try{ j=await r.json(); }catch(_){ j={ok:false,message:'서버 응답을 읽지 못했습니다'}; }
