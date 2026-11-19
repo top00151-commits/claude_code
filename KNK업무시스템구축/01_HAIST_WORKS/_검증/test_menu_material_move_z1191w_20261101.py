@@ -72,6 +72,8 @@ def groups(html):
     """사이드바를 위에서 아래로 읽어 [(묶음 이름, [(주소, 이름, 표시 켜짐)])]"""
     side = html[html.index('<aside class="sidebar"'):]
     side = side[:side.index("</aside>")]
+    if '<details class="sb-fold"' in side:  # z1191z83: 맨 아래 「🗂 지금 안 쓰는 메뉴」 묶음은 따로(시험 test_menu_fold_z1191z83)
+        side = side[:side.index('<details class="sb-fold"')]
     out = []
     for m in TOK.finditer(side):
         if m.group(3) is None:
@@ -98,15 +100,15 @@ for p in MOVED:
     chk(sum(h == p for _, its in g for h, _, _ in its) == 1, "사이드바 전체에 %s 1개뿐" % p)
 chk(logi[logi.index("/rates") + 1:logi.index("/rates") + 4] == ["/catalog", "/materials/requests", "/materials/new-review"],
     "자리 = 환율 → 자재 카탈로그 → 자재 요청서 → 신규 자재 검토")
-chk(logi == ["/logistics", "/parts", "/bom/upload", "/po", "/po/new", "/stock/movements", "/stock/issues", "/rates",
+chk(logi == ["/logistics", "/parts", "/bom/upload", "/po", "/po/new", "/stock/movements", "/rates",  # z1191z83: 출고 요청 → 접은 묶음
              "/catalog", "/materials/requests", "/materials/new-review"],
     "자재구매센터 다른 메뉴 순서 그대로(권한 없는 BOM·구매처 제외) · 실제 %s" % logi)
 labels = dict((h, n) for _, its in g for h, n, _ in its)
 chk(labels.get("/catalog") == KO["ch_m_catalog"] and labels.get("/materials/requests") == KO["ch_m_matreq"], "이름 그대로(자재 카탈로그 · 자재 요청서)")
 
 print("§2 통합 플랫폼 · 매출영업센터 화면 — 두 메뉴가 어디에도 없음")
-EXPECT_COMMON = ["/dept/schedule", "/contacts", "/meetings", "/voice-notes", "/dept/requests", "/work-orders", "/rnd",
-                 "/notifications", "/calendar", "/tickets", "/changes", "/issues", "/search"]
+# z1191z83(대표 11-19): 공통은 많이 쓰는 것만 — 나머지는 맨 아래 접은 묶음(test_menu_fold_z1191z83)
+EXPECT_COMMON = ["/dept/schedule", "/meetings", "/voice-notes", "/contacts", "/notifications"]
 for path, hub in (("/home", "통합 플랫폼"), ("/sales", "매출영업센터"), ("/dept/schedule", "전사 일정표")):
     g = groups(render(path))
     allh = [h for _, its in g for h, _, _ in its]

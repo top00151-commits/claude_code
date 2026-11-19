@@ -593,7 +593,7 @@ var CH = {
     {# v5H226z929 (대표 지시): 은행 입금내역으로 수금 대조(1단계=파일 읽기·미리보기) — 재무 권한만 #}
     {% if (user.role or '')|lower in ('ceo','executive') or ((user.role or '')|lower == 'admin' and user.can_use_sales) %}{{ a('/sales/bank-recon', i.ch_m_bank, 'M-01-17') }}{% endif %}{# z1191g: 관리자는 매출 등록 체크가 있어야(경로와 같게) #}
     {{ a('/export',                i.ch_m_export,      'M-01-10') }}
-    {{ a('/as',                    i.ch_m_as,    'M-01-12') }}
+    {# z1191z83: 🛠 A/S 관리 → 「🗂 지금 안 쓰는 메뉴」 묶음(대표 11-19 · 5주 열람 2 · 등록 0) #}
   {% elif _at == 'logi' %}
     <div class="sb-group">{{ i.ch_g_logi }}</div>
     {{ a('/logistics',         i.ch_m_logi,     'M-02-01') }}
@@ -609,7 +609,7 @@ var CH = {
     {{ a('/stock/movements',   i.ch_m_stock,      'M-02-07') }}
     {# WP-01(게이트 v3 F-01 · 2026-07-24): 메뉴가 승인 없이 즉시 차감하는 /stock/issue 로 가던 것을
        출고 요청 목록(/stock/issues)으로 교체. 직접 차감 화면은 서버에서도 잠김. #}
-    {{ a('/stock/issues',      i.ch_m_issues, 'M-02-08') }}
+    {# z1191z83: 📤 출고 요청(준비 중) → 「🗂 지금 안 쓰는 메뉴」 묶음(대표 11-19) #}
     {{ a('/rates',             i.ch_m_rates,        'M-02-13') }}
     {# z1191w (대표 지시 2026-11-01): 자재 카탈로그·자재 요청서 = 공통 → 자재구매센터. 메뉴 자리만 옮겼다 — 경로는 전처럼 로그인만 보면 열린다. #}
     {{ a('/catalog',            i.ch_m_catalog, 'M-02-29') }}
@@ -618,14 +618,8 @@ var CH = {
   {% else %}
     <div class="sb-group">{{ i.ch_tab_home }}</div>
     {{ a('/home',          i.ch_m_home,     'M-00-01') }}
-    {{ a('/daily',         i.ch_m_daily,     'M-00-02') }}
-    {{ a('/now',           i.ch_m_now,  'M-00-03') }}
-    {{ a('/board/company', i.ch_m_board,       'M-00-10') }}
-    {{ a('/team',          i.ch_m_team,  'M-00-07') }}
-    {{ a('/weekly',        i.ch_m_weekly,    'M-05-02') }}
-    {% if _role in ('ceo','admin','executive','leader') %}
-    {{ a('/dashboard',     i.ch_m_dash,    'M-05-01') }}
-    {% endif %}
+    {# z1191z83 (대표 11-19 「안 쓰는 메뉴 싹 정리 · 접어두기를 한쪽으로」): 일일업무·실시간 진행·게시판·팀 대시보드·주간 보고·대표 대시
+       → 맨 아래 「🗂 지금 안 쓰는 메뉴」 묶음으로 옮김(주소·기능·자료 그대로). #}
   {% endif %}
 
   {# ─────────── 구분선 ─────────── #}
@@ -646,31 +640,14 @@ var CH = {
   {% set _is_leader = _role in ('ceo','admin','leader','manager') or '팀장' in _pos or '부장' in _pos or '이사' in _pos or '대표' in _pos or '관리자' in _pos %}
   {% set _is_pm = _role in ('ceo','admin') or user.dept in ('영업','영업팀','경영','경영기획','기획','관리','관리팀','PM') or _is_leader %}
   {# z108f (2026-05-17): "쉬운이름(용어)" 표기 — 사람 친화 #}
-  {% if _is_leader %}
-  {{ a('/workflow/team',      i.ch_m_wf_team,   'M-00-17') }}
-  {% endif %}
-  {% if _is_pm %}
-  {{ a('/workflow',           i.ch_m_wf, 'M-00-18') }}
-  {% endif %}
-  {{ a('/contacts',      i.ch_m_contacts, 'M-00-16') }}
+  {# z1191z83 (대표 11-19): 공통은 많이 쓰는 것만 — 회의록·음성 메모·연락처·알림함(전사 일정표는 위 z898 대로 맨 위).
+     우리 팀 현황·일 순서 만들기·부서 요청함·내가 시킨 일·연구개발 과제·캘린더·티켓·변경 공지·이슈·AS·검색
+     → 맨 아래 「🗂 지금 안 쓰는 메뉴」 묶음(운영 5주 열람 0~11 · 대부분 등록 자료 0건). 메일함은 이음 📧 전용(2026-06-14) 그대로. #}
   {{ a('/meetings',      i.ch_m_meet,      'M-00-17') }}
   {# z1144(대표 지시 2026-10-08): 회의가 아닌 녹음도 정리 — 내 것만 보인다 #}
   {{ a('/voice-notes',   i.ch_m_voice,   'M-00-26') }}
-  {# v5H226z421 (대표 지시): 수주 전 부서 협업 — 영업이 부서에 검토·조사 요청 → 팀장 PM 지정 → 구성원 #}
-  {{ a('/dept/requests', i.ch_m_deptreq,  'M-00-19') }}
-  {# v5H226z571 (대표 지시): 단계 시스템 제거 — '내 부서 단계 작업' 사이드바 항목 폐지(부서일정표로 일원화) #}
-  {# v5H226z496·z898 (대표 지시): 전사 일정표(부서 일정표)는 공통 메뉴 맨 위(자재 카탈로그 위)로 이동됨 — 위쪽 참조. #}
-  {# v5H226z521 (대표 지시): 지시자 대시보드 — 내가 시킨 일/우리 부서로 보낸 일 추적 #}
-  {{ a('/work-orders', i.ch_m_wo, 'M-00-23') }}
-  {# v5H226z578 (대표 지시): 부서 자체 연구개발(R&D) 과제 — 매출과 별개 #}
-  {{ a('/rnd', i.ch_m_rnd, 'M-00-24') }}
-  {# 메일함 메뉴 제거 — 메일 진입은 KNK Eum 메신저 📧 아이콘 전용(별도 창). 메일 라우트/기능은 유지. (대표 지시 2026-06-14) #}
+  {{ a('/contacts',      i.ch_m_contacts, 'M-00-16') }}
   {{ a('/notifications', i.ch_m_noti,    'M-00-09') }}
-  {{ a('/calendar',      i.ch_m_cal,    'M-00-08') }}
-  {{ a('/tickets',       i.ch_m_ticket,      'M-00-12') }}
-  {{ a('/changes',       i.ch_m_changes, 'M-00-04') }}
-  {{ a('/issues',        i.ch_m_issue,  'M-00-05') }}
-  {{ a('/search',        i.ch_m_search,      'M-00-11') }}
 
   {% if _role in ('ceo','admin') %}
   <div class="sb-group">{{ i.ch_g_admin }}</div>
@@ -682,6 +659,56 @@ var CH = {
   {% if _role in ('ceo','admin') %}{{ a('/admin/reset-demo', i.ch_m_demo, 'M-04-09') }}{% endif %}
   {% if _role in ('ceo','admin') %}{{ a('/admin/test-data', i.ch_m_testdata, 'M-04-10') }}{% endif %}
   {% endif %}
+
+  {# z1191z83 (대표 11-19): 「🗂 지금 안 쓰는 메뉴」 — 기본 접힘 · 누르면 펼침 · 사람마다 기억(이 기기) · 지금 그 화면이면 저절로 펼침.
+     지운 것은 없다: 주소·기능·자료 그대로 · 빅터 메뉴 찾기(menu_catalog)도 그대로. 다시 자주 쓰면 위로 꺼내면 된다. #}
+  {% set _fold %}
+  {{ a('/daily',         i.ch_m_daily,     'M-00-02') }}
+  {{ a('/now',           i.ch_m_now,  'M-00-03') }}
+  {{ a('/weekly',        i.ch_m_weekly,    'M-05-02') }}
+  {{ a('/calendar',      i.ch_m_cal,    'M-00-08') }}
+  {{ a('/board/company', i.ch_m_board,       'M-00-10') }}
+  {{ a('/team',          i.ch_m_team,  'M-00-07') }}
+  {% if _role in ('ceo','admin','executive','leader') %}{{ a('/dashboard',     i.ch_m_dash,    'M-05-01') }}{% endif %}
+  {% if _is_leader %}{{ a('/workflow/team',      i.ch_m_wf_team,   'M-00-17') }}{% endif %}
+  {% if _is_pm %}{{ a('/workflow',           i.ch_m_wf, 'M-00-18') }}{% endif %}
+  {{ a('/dept/requests', i.ch_m_deptreq,  'M-00-19') }}
+  {{ a('/work-orders', i.ch_m_wo, 'M-00-23') }}
+  {{ a('/rnd', i.ch_m_rnd, 'M-00-24') }}
+  {{ a('/tickets',       i.ch_m_ticket,      'M-00-12') }}
+  {{ a('/changes',       i.ch_m_changes, 'M-00-04') }}
+  {{ a('/issues',        i.ch_m_issue,  'M-00-05') }}
+  {{ a('/as',            i.ch_m_as,    'M-01-12') }}
+  {{ a('/stock/issues',  i.ch_m_issues, 'M-02-08') }}
+  {{ a('/search',        i.ch_m_search,      'M-00-11') }}
+  {% endset %}
+  <style>
+  .sb-fold { margin: 14px 0 0; border-top: 1px solid var(--line); padding-top: 6px; }
+  .sb-fold > summary { list-style: none; display: flex; align-items: center; gap: 6px; padding: 9px 14px; margin: 1px var(--space-2, 8px);
+    border-radius: var(--radius-sm, 6px); cursor: pointer; font-size: 13px; color: var(--mute); user-select: none; }
+  .sb-fold > summary::-webkit-details-marker { display: none; }
+  .sb-fold > summary:hover { background: var(--amber-glow); color: var(--ink); }
+  .sb-fold > summary .sb-fold-n { font-size: 11px; }
+  .sb-fold > summary .sb-fold-arrow { margin-left: auto; transition: transform .15s; }
+  .sb-fold[open] > summary .sb-fold-arrow { transform: rotate(90deg); }
+  .sb-fold[open] > summary { color: var(--ink); }
+  .sb-fold .sb-fold-hint { font-size: 11px; color: var(--mute); padding: 0 14px 6px 22px; line-height: 1.5; }
+  .sb-fold .sb-item { opacity: .85; }
+  </style>
+  <details class="sb-fold" id="sbFold">
+    <summary title="{{ i.ch_fold_t }}"><span>{{ i.ch_g_fold }}</span> <span class="sb-fold-n">({{ (_fold|string).count('class="sb-item') }})</span><span class="sb-fold-arrow" aria-hidden="true">▸</span></summary>
+    <div class="sb-fold-hint">{{ i.ch_fold_hint }}</div>
+    {{ _fold }}
+  </details>
+  <script>
+  (function () {
+    var d = document.getElementById('sbFold'); if (!d) return;
+    var K = 'knk.sbFold';
+    if (d.querySelector('.sb-item.active')) { d.open = true; }
+    else { try { if (localStorage.getItem(K) === '1') d.open = true; } catch (e) {} }
+    d.addEventListener('toggle', function () { try { localStorage.setItem(K, d.open ? '1' : '0'); } catch (e) {} });
+  })();
+  </script>
 
   <div class="sb-group">&nbsp;</div>
   <a class="sb-item" href="/guide" target="_blank"><span>{{ i.ch_m_guide }}</span> <span class="menu-code">M-00-13</span></a>

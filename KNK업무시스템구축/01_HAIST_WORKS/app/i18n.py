@@ -1568,6 +1568,13 @@ T = {
                   "vi": "「{raw}」 — định dạng số không đúng. Hãy nhập lại: dấu chấm (.) = thập phân · dấu phẩy (,) = hàng nghìn. (Chưa lưu)"},
     "ch_g_admin": {"ko": "관리",
                   "vi": "Quản trị"},
+    "ch_g_fold": {"ko": "🗂 지금 안 쓰는 메뉴",  # z1191z83
+                  "vi": "🗂 Menu ít dùng", "en": "🗂 Rarely used menus"},
+    "ch_fold_t": {"ko": "누르면 펼쳐집니다 — 지운 메뉴는 없습니다",
+                  "vi": "Bấm để mở — không menu nào bị xoá", "en": "Click to open — nothing was removed"},
+    "ch_fold_hint": {"ko": "지금 거의 쓰지 않는 메뉴를 모아 두었습니다. 기능·자료는 그대로입니다.",
+                     "vi": "Các menu hiện ít dùng được gom lại đây. Chức năng và dữ liệu vẫn giữ nguyên.",
+                     "en": "Menus that are rarely used now. Features and data are unchanged."},
     "ch_g_common": {"ko": "공통",
                    "vi": "Dùng chung"},
     "ch_g_logi": {"ko": "자재·구매",
