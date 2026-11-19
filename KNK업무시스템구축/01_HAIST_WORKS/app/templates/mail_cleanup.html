@@ -4,7 +4,8 @@
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
   /* 보낸 곳별 정리 (대표 지시 2026-11-16) — 받은편지함을 보낸 곳별로 묶어 한 번에 정리 */
-  .cl-wrap{max-width:1100px}
+  .cl-wrap{padding:0 var(--content-pad,32px) 32px;box-sizing:border-box}  /* 11-19 풀폭(모니터 비율 자동) */
+  .cl-wrap .page-head{padding-left:0;padding-right:0}
   .cl-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:13px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
   .cl-help b{color:var(--ink)}
   .cl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}

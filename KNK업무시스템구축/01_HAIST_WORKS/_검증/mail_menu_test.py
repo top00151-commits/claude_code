@@ -168,6 +168,20 @@ try:
     check("칸 구분선 또렷하게(11-19 대표 「구분선이 잘 안 보여」): 테마마다 경계선·손잡이 줄 색 · 칸 사이 줄 양쪽 선 · 스크롤 막대 회색",
           hk.count("--mt-sep:") == 3 and hk.count("--mt-gutter:") == 3 and "html[data-mt] .mbx-gutter{ background:var(--mt-gutter) !important; box-shadow:inset 1px 0 0 var(--mt-sep)" in hk
           and "html[data-mt] .main{ scrollbar-color:var(--mt-thumb) var(--mt-track); }" in hk)
+    # 11-19 대표 「화면 구성 비율이 안 맞지? 이런 게 많은데 · 모니터 크기 비율에 자동으로 맞게」 — 회사 표준(시트여백·자동 높이)
+    import re as _re
+    _caps = []
+    for _f in ("mail_compose", "mail_tools", "mail_folders", "mail_folders_general", "mail_cleanup", "mail_signature", "mail_rules", "mail_account", "mail_view_win"):
+        _src = open(os.path.join(ROOT, "app", "templates", _f + ".html"), encoding="utf-8").read()
+        for _cls in ("cmp-card", "mt-wrap", "mf-wrap", "gn-wrap", "cl-wrap", "sig-card", "rl-card", "ac-card", "mw-wrap"):
+            _m = _re.search(r"\." + _cls + r"\{([^}]*)\}", _src)
+            if _m and ("max-width" in _m.group(1) or "margin:0 auto" in _m.group(1)):
+                _caps.append(_f + "." + _cls)
+    check("메일 화면 래퍼에 폭 캡(max-width)·가운데 정렬 없음 — 모니터 폭 꽉(좌우 여백만)", not _caps, _caps)
+    _hc2 = km.get("/mail/compose").text
+    check("메일 쓰기: 쓰는 칸 높이 = 화면 남은 높이(창 크기 바꾸면 다시) · 카드 풀폭",
+          "window.cmpFitEditor=fit" in _hc2 and "addEventListener('resize', later)" in _hc2 and "padding:18px;margin:0 var(--content-pad,32px) 24px}" in _hc2)
+    check("설정·정리: 넓은 모니터면 정리 칸 6개 한 줄", "@media(min-width:1800px){.mt-tiles{grid-template-columns:repeat(6,minmax(0,1fr))}}" in km.get("/mail/tools").text)
     _tw = k.get("/mail/tools").text
     check("WORKS 화면(앱 아님)에는 테마 안 들어감(회사 다른 화면 그대로)", "knkmail.theme" not in h and 'id="mtThemeRow"' not in _tw and 'class="mail-app-top"' not in h)
 

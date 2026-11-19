@@ -3,7 +3,8 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .ac-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;max-width:720px;margin-bottom:14px}
+  .ac-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 14px}
+  .ac-fld input,.ac-fld select{max-width:640px}  /* 입력 칸만 알맞은 길이(표준 §1-4) */
   .ac-box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0 14px;font-size:13px;line-height:1.85}
   .ac-ok{border-color:#6ee7b7;background:#ecfdf5}
   .ac-no{border-color:#fcd34d;background:#fffbeb}

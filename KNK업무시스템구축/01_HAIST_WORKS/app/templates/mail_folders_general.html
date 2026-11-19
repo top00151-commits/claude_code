@@ -4,7 +4,8 @@
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
   /* 「일반」 정리(대표 지시 2026-11-17 「일반에 남은 메일 정리해줘」) — 보낸 곳별로 묶어 한 번에 폴더로 */
-  .gn-wrap{max-width:1180px}
+  .gn-wrap{padding:0 var(--content-pad,32px) 32px;box-sizing:border-box}  /* 11-19 풀폭(모니터 비율 자동) */
+  .gn-wrap .page-head{padding-left:0;padding-right:0}
   .gn-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:12px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
   .gn-help b{color:var(--ink)}
   .gn-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px}

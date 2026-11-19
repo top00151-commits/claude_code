@@ -241,7 +241,7 @@ try:
     cp = k.get("/mail/compose").text
     check("보내기 단추 한 번(위 한 줄 · 늘 붙어 있게)", cp.count("onclick=\"sendMail()\"") == 1 and 'id="cSendBtn"' in cp and "position:sticky" in cp)
     check("받는 사람·참조 옆 「📇 주소록」", cp.count("📇 주소록</button>") == 2 and "abOpen('cTo')" in cp and "abOpen('cCc')" in cp)
-    check("쓰기 칸 넓게(1120px)", "max-width:1120px" in cp)
+    check("쓰기 칸 넓게 — 11-19 대표 「모니터 비율에 자동」: 1120px 캡 없앰 → 모니터 폭 꽉", "max-width:1120px" not in cp and "padding:18px;margin:0 var(--content-pad,32px) 24px}" in cp)
     em = [x["email"] for x in k.get("/api/mail/contacts?browse=1").json()["items"]]
     check("주소록 고르기: 전사 공개·내 개인·내 부서 공유는 보임", {"all@pub.example", "mine@priv.example", "dept@team.example"} <= set(em), em)
     check("주소록 고르기: 남의 「나만」 연락처는 안 보임", "secret@priv.example" not in em, em)
