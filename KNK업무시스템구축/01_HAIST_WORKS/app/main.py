@@ -28716,23 +28716,26 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
 
     # ── 모양
     FN = "맑은 고딕"
-    f_base = Font(name=FN, size=10)
-    f_b = Font(name=FN, size=10, bold=True)
-    f_title = Font(name=FN, size=18, bold=True)
-    f_sub = Font(name=FN, size=10, color="555555")
-    f_sec = Font(name=FN, size=11, bold=True, color="7A1C1F")
-    f_head = Font(name=FN, size=10, bold=True, color="3A0D0F")
-    f_note = Font(name=FN, size=9, color="555555")
+    # z1191z68 (대표 11-19 「매출보고서 도 KNK양식으로」): 웍스 회사 색 · 머리 줄 KNK 빨강 · 맨 위 KNK 로고
+    from app import knk_xlsx as _KX68
+    f_base = Font(name=FN, size=10, color=_KX68.INK)
+    f_b = Font(name=FN, size=10, bold=True, color=_KX68.INK)
+    f_title = Font(name=FN, size=18, bold=True, color=_KX68.INK)
+    f_sub = Font(name=FN, size=10, color=_KX68.MUTED)
+    f_sec = Font(name=FN, size=11, bold=True, color=_KX68.KNK_RED)
+    f_head = Font(name=FN, size=10, bold=True, color="FFFFFF")
+    f_note = Font(name=FN, size=9, color=_KX68.MUTED)
     f_warn = Font(name=FN, size=9, color="B45309")
-    fill_head = PatternFill("solid", fgColor="F3DEDE")
-    fill_tot = PatternFill("solid", fgColor="EFEFEF")
-    fill_main = PatternFill("solid", fgColor="FFF8E6")
-    thin = Side(style="thin", color="BFBFBF")
-    med = Side(style="medium", color="7A1C1F")
+    fill_head = PatternFill("solid", fgColor=_KX68.KNK_RED)
+    fill_tot = PatternFill("solid", fgColor="EAEEE9")      # 웍스 --knk-bg-subtle
+    fill_main = PatternFill("solid", fgColor="F6ECEC")     # 웍스 --knk-brand-subtle
+    fill_bar = PatternFill("solid", fgColor=_KX68.KNK_RED)
+    thin = Side(style="thin", color="C9D1CA")
+    med = Side(style="medium", color=_KX68.KNK_RED)
     box = Border(left=thin, right=thin, top=thin, bottom=thin)
     a_c = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    a_l = Alignment(horizontal="left", vertical="center")
-    a_r = Alignment(horizontal="right", vertical="center")
+    a_l = Alignment(horizontal="left", vertical="center", indent=1)    # z1191z68: 칸 끝에 붙지 않게
+    a_r = Alignment(horizontal="right", vertical="center", indent=1)
     NF_M = '#,##0.0,,;[Red]-#,##0.0,,;"-"'     # 원 값을 백만원으로 보여 줌(셀 값은 원)
     NF_W = '#,##0;[Red]-#,##0;"-"'
     NF_P = '0.0%;[Red]-0.0%;"-"'
@@ -28769,6 +28772,22 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
             return put(ws_, r_, col, r0(v), font=font, fill=fill, nf=nf)
         return put(ws_, r_, col, _Z18_NA, font=f_note, fill=fill, al=a_c)
 
+    def logo(ws_):
+        """맨 위 KNK 로고 줄(1행) — 공용 양식과 같은 그림."""
+        img = _KX68._logo_image()
+        if img is not None:
+            ws_.add_image(img, "A1")
+        else:
+            put(ws_, 1, 1, "KNK", font=Font(name=FN, size=20, bold=True, color=_KX68.KNK_RED), border=None)
+        ws_.row_dimensions[1].height = 34
+
+    def bar(ws_, row_, ncol):
+        """KNK 빨강 띠."""
+        for col_ in range(1, ncol + 1):
+            ws_.cell(row=row_, column=col_).fill = fill_bar
+        ws_.row_dimensions[row_].height = 3
+        ws_.row_dimensions[row_ + 1].height = 7
+
     def setup(ws, title_rows=None, fit_height=0):
         ws.page_setup.orientation = "landscape"
         ws.page_setup.paperSize = 9
@@ -28779,10 +28798,13 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         ws.page_margins.top = 0.5
         ws.page_margins.bottom = 0.6
         ws.print_options.horizontalCentered = True
-        ws.oddFooter.left.text = "HAIST WORKS 매출 보고서"
+        ws.oddFooter.left.text = "매출 보고서"
         ws.oddFooter.left.size = 8
-        ws.oddFooter.right.text = "&P / &N"
+        ws.oddFooter.center.text = "&P / &N"
+        ws.oddFooter.center.size = 8
+        ws.oddFooter.right.text = "KNK 이음웍스"
         ws.oddFooter.right.size = 8
+        ws.oddFooter.right.color = _KX68.KNK_RED
         if title_rows:
             ws.print_title_rows = title_rows
 
@@ -28795,27 +28817,27 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     ws.sheet_view.showGridLines = False
     for i, w in enumerate([24] + [13] * 9, 1):
         ws.column_dimensions[_gcl(i)].width = w
-    ws.merge_cells("A1:G1")
-    put(ws, 1, 1, "%s 매출 보고" % rep["period_label"], font=f_title, border=None)
-    ws.row_dimensions[1].height = 30
+    logo(ws)
     ws.merge_cells("A2:G2")
-    put(ws, 2, 1, "기술영업팀 · " + sub, font=f_sub, border=None)
+    put(ws, 2, 1, "%s 매출 보고" % rep["period_label"], font=f_title, border=None)
+    ws.row_dimensions[2].height = 30
     ws.merge_cells("A3:G3")
-    put(ws, 3, 1, "단위: 백만원 (셀 값은 원 · 원 단위는 뒤 시트) · 작성일 %s · 자료: HAIST WORKS 매출 보고서"
+    put(ws, 3, 1, "기술영업팀 · " + sub, font=f_sub, border=None)
+    ws.merge_cells("A4:G4")
+    put(ws, 4, 1, "단위: 백만원 (셀 값은 원 · 원 단위는 뒤 시트) · 작성일 %s · 자료: KNK 이음웍스 매출 보고서"
         % now.strftime("%Y-%m-%d %H:%M"), font=f_sub, border=None)
     for i, t in enumerate(("작성", "검토", "팀장")):
         col = 8 + i
-        put(ws, 1, col, t, font=f_b, fill=fill_tot, al=a_c)
-        ws.merge_cells(start_row=2, start_column=col, end_row=3, end_column=col)
-        for rr in (2, 3):
+        put(ws, 2, col, t, font=f_b, fill=fill_tot, al=a_c)
+        ws.merge_cells(start_row=3, start_column=col, end_row=4, end_column=col)
+        for rr in (3, 4):
             ws.cell(row=rr, column=col).border = box
-    ws.row_dimensions[2].height = 22
     ws.row_dimensions[3].height = 22
-    for col in range(1, 11):
-        ws.cell(row=4, column=col).border = Border(top=med)
+    ws.row_dimensions[4].height = 22
+    bar(ws, 5, 10)
 
     # 1. 총괄
-    r = 5
+    r = 7
     put(ws, r, 1, "1. 총괄", font=f_sec, border=None)
     r += 1
     if mode == "year":
@@ -28970,15 +28992,20 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         put(ws, r, 1, t, font=f_note if ok else f_warn, border=None)
     setup(ws, fit_height=1)
 
-    # ════ 뒤 시트 공통 ════
+    # ════ 뒤 시트 공통 ════ (z1191z68: 머리 줄 = 6행 · 공용 KNK 양식과 같음)
+    _Z68_HR = 6
     def sheet(name, title, widths):
         w2 = wb.create_sheet(name)
         for i, w in enumerate(widths, 1):
             w2.column_dimensions[_gcl(i)].width = w
-        w2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(widths))
-        put(w2, 1, 1, "%s — %s" % (rep["period_label"], title), font=Font(name=FN, size=13, bold=True), border=None)
+        w2.sheet_view.showGridLines = False
+        logo(w2)
         w2.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(widths))
-        put(w2, 2, 1, sub + " · 단위: 원", font=f_sub, border=None)
+        put(w2, 2, 1, "%s — %s" % (rep["period_label"], title), font=Font(name=FN, size=13, bold=True, color=_KX68.INK), border=None)
+        w2.row_dimensions[2].height = 24
+        w2.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(widths))
+        put(w2, 3, 1, sub + " · 단위: 원", font=f_sub, border=None)
+        bar(w2, 4, len(widths))
         return w2
 
     def finish(w2, hr, last_row, ncol, filt=False):
@@ -28991,8 +29018,8 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     ms = ytd
     w2 = sheet("월별 추이", "사업부 월별 추이 (%d년 %s · %s)" % (year, ytd_txt, _Z17_BASIS[basis]),
                [18] + [14] * len(ms) + [16, 16, 10])
-    head(w2, 4, ["사업부"] + ["%d월" % m for m in ms] + ["누계", "전년 누계", "증감률"])
-    rr = 4
+    head(w2, _Z68_HR, ["사업부"] + ["%d월" % m for m in ms] + ["누계", "전년 누계", "증감률"])
+    rr = _Z68_HR
     ycur = _z18_pick(L, year, ms)
     yprv = _z18_pick(L, year - 1, ms)
     for k, _lb in _Z17_BIZ:
@@ -29028,12 +29055,12 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         for i, m in enumerate(ms):
             put(w2, rr, 2 + i, r0(S([x for x in lb if int(x["date"][5:7]) == m])), font=f_note, nf=NF_W)
         put(w2, rr, 2 + len(ms), r0(S(lb)), font=f_note, nf=NF_W)
-    finish(w2, 4, rr, len(ms) + 4)
+    finish(w2, _Z68_HR, rr, len(ms) + 4)
 
     # 고객사
     w2 = sheet("고객사", "고객사별 (수주 1차 발주처)", [7, 30, 17, 9, 10, 17, 17, 7])
-    head(w2, 4, ["순위", "고객사", "금액", "비중", "누적 비중", "%s 금액" % prev_word, "증감", "건수"])   # z1191z33: 줄 → 건수(수주 수)
-    rr, acc = 4, 0.0
+    head(w2, _Z68_HR, ["순위", "고객사", "금액", "비중", "누적 비중", "%s 금액" % prev_word, "증감", "건수"])   # z1191z33: 줄 → 건수(수주 수)
+    rr, acc = _Z68_HR, 0.0
     for i, a in enumerate(cr, 1):
         rr += 1
         acc += a["total"]
@@ -29055,12 +29082,12 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     pcell(w2, rr, 6, pt, NF_W, font=f_b, fill=fill_tot)
     pcell(w2, rr, 7, cur_total - pt, NF_W, font=f_b, fill=fill_tot)
     put(w2, rr, 8, rep["so_n"], font=f_b, fill=fill_tot, al=a_c)
-    finish(w2, 4, rr - 1, 8, filt=True)
+    finish(w2, _Z68_HR, rr - 1, 8, filt=True)
 
     # KNK VINA 2차
     w2 = sheet("KNK VINA 2차", "KNK VINA 2차 고객사별 (드림텍 계열 = DRT)", [7, 40, 17, 11, 17, 7])
-    head(w2, 4, ["순위", "2차 고객사", "금액", "VINA 안 비중", "%s 금액" % prev_word, "건수"])   # z1191z33: 순위 · 줄 → 건수
-    rr = 4
+    head(w2, _Z68_HR, ["순위", "2차 고객사", "금액", "VINA 안 비중", "%s 금액" % prev_word, "건수"])   # z1191z33: 순위 · 줄 → 건수
+    rr = _Z68_HR
     for i, a in enumerate(vr, 1):
         rr += 1
         nm = vname(a)
@@ -29077,12 +29104,12 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     put(w2, rr, 4, 1.0 if vt else 0, font=f_b, fill=fill_tot, nf=NF_P)
     pcell(w2, rr, 5, sum(pv2.values()), NF_W, font=f_b, fill=fill_tot)
     put(w2, rr, 6, rep["vina_so_n"], font=f_b, fill=fill_tot, al=a_c)
-    finish(w2, 4, rr - 1, 6)
+    finish(w2, _Z68_HR, rr - 1, 6)
 
     # 프로젝트
     w2 = sheet("프로젝트", "프로젝트별", [7, 12, 34, 22, 15, 30, 17, 9, 7])
-    head(w2, 4, ["순위", "관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "금액", "비중", "건수"])   # z1191z33
-    rr = 4
+    head(w2, _Z68_HR, ["순위", "관리번호", "프로젝트명", "고객사", "사업부", "수주번호", "금액", "비중", "건수"])   # z1191z33
+    rr = _Z68_HR
     for i, a in enumerate(rep["proj_rows"], 1):
         rr += 1
         put(w2, rr, 1, i, al=a_c)
@@ -29101,14 +29128,14 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     put(w2, rr, 7, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_W)
     put(w2, rr, 8, 1.0 if cur_total else 0, font=f_b, fill=fill_tot, nf=NF_P)
     put(w2, rr, 9, rep["so_n"], font=f_b, fill=fill_tot, al=a_c)
-    finish(w2, 4, rr - 1, 9, filt=True)
+    finish(w2, _Z68_HR, rr - 1, 9, filt=True)
 
     # 상세
     hd = ["날짜", "차수", "관리번호", "수주번호", "호기", "프로젝트명", "모델명", "사업부", "구분", "고객사", "2차 고객사",
           "KNK VINA", "통화", "금액(그 통화)", "원화"]
     w2 = sheet("상세", "상세 줄 (호기·소모품 · 세금계산서는 차수마다 한 줄)", [11, 6, 11, 14, 8, 26, 18, 14, 8, 20, 18, 9, 6, 15, 16])
-    head(w2, 4, hd)
-    rr = 4
+    head(w2, _Z68_HR, hd)
+    rr = _Z68_HR
     for x in rep["lines"]:
         rr += 1
         vals = [x["date"], x["nth"], x["code"], x["so"], x["label"], x["pname"], x["model"],
@@ -29122,7 +29149,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
         put(w2, rr, col, "", fill=fill_tot)
     put(w2, rr, 6, "합계 (%d줄)" % rep["cnt"], font=f_b, fill=fill_tot)
     put(w2, rr, 15, r0(cur_total), font=f_b, fill=fill_tot, nf=NF_W)
-    finish(w2, 4, rr - 1, 15, filt=True)
+    finish(w2, _Z68_HR, rr - 1, 15, filt=True)
 
     buf = io.BytesIO()
     wb.save(buf)

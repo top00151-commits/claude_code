@@ -168,9 +168,18 @@ check(r5.status_code == 200 and "spreadsheetml" in r5.headers.get("content-type"
 check(("매出" not in cd) and ("매출보고_" in cd) and ("2026년5월_%s.xlsx" % today) in cd, "파일 이름 = 매출보고_<기준>_2026년5월_<오늘>.xlsx", cd)
 check(wb.sheetnames == ["보고", "월별 추이", "고객사", "KNK VINA 2차", "프로젝트", "상세"], "시트 6개(보고 먼저)", wb.sheetnames)
 ws = wb["보고"]
-check(ws["A1"].value == "2026년 5월 매출 보고", "제목 「2026년 5월 매출 보고」", ws["A1"].value)
-check("백만원" in (ws["A3"].value or "") and "작성일" in (ws["A3"].value or ""), "단위 백만원 · 작성일 줄", ws["A3"].value)
-check([ws["H1"].value, ws["I1"].value, ws["J1"].value] == ["작성", "검토", "팀장"], "결재칸 작성/검토/팀장")
+check(ws["A2"].value == "2026년 5월 매출 보고", "제목 「2026년 5월 매출 보고」(z1191z68: 1행은 KNK 로고)", ws["A2"].value)
+# z1191z68 (대표 11-19 「매출보고서 도 KNK양식으로」): 시트마다 KNK 로고 · 빨강 띠 · 빨강 머리 줄
+_h68 = [row for row in ws.iter_rows() if row[0].value == "구분"]
+check(all(len(w_._images) == 1 and w_._images[0].anchor._from.row == 0 for w_ in wb.worksheets), "z68 시트마다 맨 위 KNK 로고 그림", [len(w_._images) for w_ in wb.worksheets])
+check(ws["A5"].fill.fgColor.rgb.endswith("A5282C") and _h68 and _h68[0][0].fill.fgColor.rgb.endswith("A5282C") and _h68[0][0].font.color.rgb.endswith("FFFFFF"),
+      "z68 1장: 5행 KNK 빨강 띠 · 머리 칸 KNK 빨강 바탕 흰 글", _h68 and _h68[0][0].fill.fgColor.rgb)
+_w68 = wb["상세"]
+check(_w68["A2"].value.endswith("상세 줄 (호기·소모품 · 세금계산서는 차수마다 한 줄)") and _w68["A4"].fill.fgColor.rgb.endswith("A5282C") and _w68["A6"].value == "날짜"
+      and _w68["A6"].fill.fgColor.rgb.endswith("A5282C") and _w68.freeze_panes == "A7" and _w68.print_title_rows == "$6:$6" and (_w68.oddFooter.right.text or "") == "KNK 이음웍스",
+      "z68 뒤 시트: 2행 제목 · 4행 빨강 띠 · 6행 머리(빨강) · 고정·인쇄 머리 6행 · 꼬리 「KNK 이음웍스」", (_w68["A6"].value, _w68.freeze_panes, _w68.print_title_rows))
+check("백만원" in (ws["A4"].value or "") and "작성일" in (ws["A4"].value or ""), "단위 백만원 · 작성일 줄", ws["A4"].value)
+check([ws["H2"].value, ws["I2"].value, ws["J2"].value] == ["작성", "검토", "팀장"], "결재칸 작성/검토/팀장")
 check(ws.page_setup.orientation == "landscape" and int(ws.page_setup.paperSize) == 9 and ws.page_setup.fitToWidth == 1
       and ws.page_setup.fitToHeight == 1, "인쇄: A4 가로 · 한 장(폭·높이 맞춤)")
 main = row_of(ws, M._Z17_BASIS["tax"] + " 매출")
@@ -226,7 +235,7 @@ check(mq1 is not None and mq1[2].value == "자료 부족" and mq1[4].value == "�
 _, wby = xl("basis=tax&mode=year&year=2026")
 wy = wby["보고"]
 my = row_of(wy, M._Z17_BASIS["tax"] + " 매출")
-check(my is not None and wy.cell(row=6, column=3).value == "2025년(전년)" and my[2].value == "자료 부족" and my[5].value is None,
+check(my is not None and wy.cell(row=8, column=3).value == "2025년(전년)" and my[2].value == "자료 부족" and my[5].value is None,
       "연간 = 올해·전년·증감·증감률 4칸 · 전년 자료 부족", my and [x.value for x in my[1:6]])
 r_s, wbs = xl("basis=ship&mode=month&year=2026&m=5")
 _, s3 = rep("ship", "month", "5")
