@@ -52,6 +52,33 @@
   .sc-when small{display:block;font-weight:500;color:var(--mt-mute,#6b7280);font-size:12px}
   .sc-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
   .sc-pick input{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+  /* 11-19 대표 「1단계」 — 📝 양식 · ⏳ 답 받기 · 👥 그룹 메일 명단 */
+  mark.knk-ph{background:#fef08a;color:inherit;border-radius:3px;padding:0 2px}
+  .cmp-tpl-pop{position:absolute;z-index:80;width:min(420px,92vw);max-height:420px;overflow:auto;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:8px}
+  .cmp-tpl-pop[hidden]{display:none}
+  .cmp-tpl-pop input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;margin-bottom:6px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .cmp-tpl-sec{font-size:11.5px;font-weight:800;color:var(--mute);padding:6px 6px 3px}
+  .cmp-tpl-it{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px}
+  .cmp-tpl-it:hover{background:#eff6ff}
+  .cmp-tpl-it .t{flex:1;font-weight:600}
+  .cmp-tpl-it .lg{font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;background:#eef2ff;color:#3730a3}
+  .cmp-tpl-foot{border-top:1px solid var(--line);margin-top:6px;padding:7px 6px 2px;font-size:12px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .cmp-wait{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--mt-text2,#374151);border:1px solid var(--line);border-radius:9px;padding:3px 4px 3px 9px;background:var(--mt-surface,#fff)}
+  .cmp-wait select{font:inherit;font-size:12.5px;border:0;background:transparent;color:inherit;cursor:pointer}
+  .cmp-wait.on{border-color:#93c5fd;background:#eff6ff;color:#1e3a8a}
+  .cmp-wait.no{opacity:.55}
+  .cmp-grp{margin:2px 0 4px 96px;display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+  .cmp-grp[hidden]{display:none}
+  .cmp-grp .g{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:9px;padding:6px 10px;line-height:1.6}
+  .cmp-grp .g.u{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  .cmp-grp .g button{font:inherit;font-size:12px;font-weight:700;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;padding:0 2px}
+  .cmp-grp .ppl{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .cmp-grp .ppl[hidden]{display:none}
+  .cmp-grp .ppl span{background:#fff;border:1px solid #bfdbfe;border-radius:999px;padding:1px 8px;color:#1e3a8a}
+  @media(max-width:700px){.cmp-grp{margin-left:0}}
+  html[data-mt="dark"] .cmp-grp .g{background:#1e293b;border-color:#334155;color:#bfdbfe}
+  html[data-mt="dark"] .cmp-grp .ppl span{background:#0f172a;border-color:#334155;color:#bfdbfe}
+  html[data-mt="dark"] mark.knk-ph{background:#854d0e;color:#fef9c3}
   /* 11-19 대표 「웍스 달력 기준 · 확인 눌러 닫기 · 예약 날짜(요일) 시간 표시 → 보내기로 최종」 */
   .sc-when button.on{border-color:#2563eb;background:#eff6ff;box-shadow:0 0 0 2px #93c5fd inset}
   .sc-pick input.knk-cal{width:120px;cursor:pointer;background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
@@ -144,6 +171,8 @@
     <div class="cmp-actions cmp-actions-top">
       <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <button type="button" class="btn btn-secondary js-send" id="cSchedBtn" onclick="cmpSchedule()" {% if not ready %}disabled{% endif %} title="정한 때에 보내기 — 창을 닫아도 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 바꾸거나 취소">⏱ 예약</button>
+      <label class="cmp-wait" id="cWaitBox" title="바깥 거래처에 보내는 메일 — 이 날까지 답이 없으면 받은편지함 위에 알려 드림 · 답이 오면 저절로 빠짐">⏳ 답 받기 <select id="cWait"><option value="0">안 함</option><option value="1">내일까지</option><option value="2">2일 안</option><option value="3">3일 안</option><option value="5">5일 안</option><option value="7">1주 안</option></select></label>
+      <input type="hidden" id="cNudgeOf" value="{{ prefill.nudge_of|default('') }}">
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
@@ -158,6 +187,7 @@
     <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
+    <div class="cmp-grp" id="cGrpInfo" hidden></div>
     <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}" data-knk-no-draft></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}" data-knk-no-draft></div>
     {% if ai_on %}
@@ -174,13 +204,15 @@
       <button type="button" data-cmd="insertUnorderedList" title="글머리 목록">• 목록</button>
       <button type="button" id="cLink" title="링크 넣기">🔗 링크</button>
       <button type="button" id="cClear" title="서식 지우기">✕ 서식</button>
+      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📝 양식</button>
+        <div class="cmp-tpl-pop" id="cTplPop" hidden></div></span>
       {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">✍ <select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}">{{ g.name }}</option>{% endfor %}<option value="none">서명 없음</option></select></label>{% endif %}
     </div>
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
     <textarea id="cPrefillHtml" style="display:none">{{ prefill.body_html }}</textarea>
     <input type="hidden" id="cFwdSrc" value="{{ prefill.fwd_src }}">
-    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }};</script>
+    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }}; window.CMP_ME = {{ (me_name|default(''))|tojson }}; window.CMP_NUDGE_TPL = {{ (prefill.nudge_tpl|default(''))|tojson }};</script>
     <script>window.CMP_FWD = {{ (prefill.fwd_atts or [])|tojson }};</script>
     <textarea id="cSigHtml" style="display:none">{{ sig_html|default('') }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
@@ -728,7 +760,9 @@ function abPut(target){
     fd.append('bcc', document.getElementById('cBcc').value.trim());
     fd.append('subject', document.getElementById('cSubj').value.trim());
     fd.append('body', ed.innerText);
-    fd.append('body_html', ed.innerHTML);
+    fd.append('body_html', cmpCleanHtml());   // 11-19 양식 빈칸의 노란 표시는 빼고 보냄
+    var _wt=document.getElementById('cWait'); if(_wt && !_wt.disabled && +_wt.value>0) fd.append('wait_days', _wt.value);
+    var _nd=document.getElementById('cNudgeOf'); if(_nd && _nd.value) fd.append('nudge_of', _nd.value);
     NORMAL.forEach(function(f){ fd.append('files', f); });
     fd.append('large_tokens', LARGE.join(','));
     var src=(document.getElementById('cFwdSrc')||{}).value||''; if(src && FWD.length){ fd.append('fwd_src', src); FWD.forEach(function(a){ fd.append('fwd_att', a.id); }); }
@@ -749,6 +783,7 @@ function abPut(target){
     var subj=document.getElementById('cSubj').value.trim();
     var own=ownText().trim(), isFwd=!!((document.getElementById('cFwdSrc')||{}).value);
     if(!subj) W.push({ic:'✉', t:'제목이 비어 있습니다', d:'받는 쪽에는 「(제목 없음)」으로 보입니다.'});
+    var _ph=cmpLeftPh(); if(_ph.length) W.push({ic:'📝', t:'양식의 빈칸을 아직 안 채웠습니다: '+_ph.slice(0,6).join(' '), d:'노란 칸을 채워 주세요(본문에서 Tab 키로 차례로 이동).'});
     if(!own && !isFwd) W.push({ic:'📝', t:'본문이 비어 있습니다', d:'서명만 들어 있습니다.'});
     if(attCount()===0 && (ATT_WORDS.test(own) || ATT_WORDS.test(subj))) W.push({ic:'📎', t:'「첨부」라고 쓰셨는데 붙인 파일이 없습니다', d:'파일을 붙이려면 「고치기」 → 아래 「📎 첨부」.'});
     var dom={}, order=[];
@@ -915,14 +950,16 @@ function abPut(target){
   function lastTok(v){ v=v||''; var q=false, ang=0, cut=-1;   // 따옴표·꺾쇠 안의 쉼표는 나누지 않음
     for(var i=0;i<v.length;i++){ var ch=v[i]; if(ch==='"'&&!ang) q=!q; else if(ch==='<'&&!q) ang++; else if(ch==='>'&&!q&&ang) ang--; else if((ch===','||ch===';')&&!q&&!ang) cut=i; }
     return {pre:v.slice(0, cut<0?0:cut), tok:v.slice(cut+1).trim()}; }
-  function acFmt(it){ var nm=(it.name||'').replace(/["<>]/g,'').trim(); if(!nm) return it.email; if(/[,;]/.test(nm)) nm='"'+nm+'"'; return nm+' <'+it.email+'>'; }
+  function acFmt(it){ var nm=(it.name||'').replace(/^👥\s*/,'').replace(/["<>]/g,'').trim(); if(!nm) return it.email; if(/[,;]/.test(nm)) nm='"'+nm+'"'; return nm+' <'+it.email+'>'; }
   window.cmpAcFmt=acFmt;
   function setupAC(input){
     if(!input) return;
     var box=null, items=[], timer=null, cur=-1;
     function close(){ if(box){ box.remove(); box=null; } items=[]; cur=-1; }
     function choose(i){ var it=items[i]; if(!it)return; var lt=lastTok(input.value);
-      input.value=(lt.pre? lt.pre.trim()+', ':'')+acFmt(it)+', '; close(); input.focus(); input.classList.remove('cmp-bad'); window._cDirty=true; }
+      var ins = (it.expand && it.expand.length) ? it.expand.map(acFmt).join(', ') : acFmt(it);   // 11-19 묶음 = 한 명씩 펼쳐 넣음
+      input.value=(lt.pre? lt.pre.trim()+', ':'')+ins+', '; close(); input.focus(); input.classList.remove('cmp-bad'); window._cDirty=true;
+      if(window.cmpGrpCheck) cmpGrpCheck(); }
     function hl(i){ if(!box) return; var els=box.querySelectorAll('.ac-it'); if(!els.length) return; cur=(i+els.length)%els.length;
       els.forEach(function(e,k){ e.classList.toggle('on', k===cur); }); try{ els[cur].scrollIntoView({block:'nearest'}); }catch(_){} }
     input.addEventListener('keydown', function(e){
@@ -943,7 +980,8 @@ function abPut(target){
         nm.textContent=(it.name||'')+(it.company? ' · '+it.company:'')+(it.position? ' '+it.position:'');  // textContent=XSS 안전
         if(it.src){ var sb=document.createElement('span'); sb.className='ac-src'; sb.textContent=it.src; nm.appendChild(sb); }
         d.addEventListener('mouseenter',function(){ hl(i); });
-        var em=document.createElement('div'); em.style.cssText='color:var(--mute);font-size:11.5px'; em.textContent=it.email;
+        var em=document.createElement('div'); em.style.cssText='color:var(--mute);font-size:11.5px';
+        em.textContent = it.email || ((it.expand||[]).slice(0,4).map(function(x){ return x.name||x.email; }).join(', ')+((it.expand||[]).length>4?' 외 '+((it.expand||[]).length-4)+'명':''));
         d.appendChild(nm); d.appendChild(em);
         d.addEventListener('mousedown',function(e){ e.preventDefault(); choose(i); });
         box.appendChild(d);
@@ -967,6 +1005,99 @@ function abPut(target){
   setupAC(document.getElementById('cTo'));
   setupAC(document.getElementById('cCc'));
   setupAC(document.getElementById('cBcc'));
+
+  /* ══ 11-19 대표 「1단계」 ══════════════════════════════════════════════
+     ① 📝 양식 — 고르면 제목(비어 있을 때만)·본문(쓰던 자리 또는 맨 위)에 넣음 · [빈칸]은 노랗게 · Tab 으로 다음 빈칸 · [내 이름] 저절로
+     ② ⏳ 답 받기 — 바깥 거래처가 있을 때만 · 보낸 뒤 그 날까지 답이 없으면 받은편지함 위에 알림
+     ④ 👥 받는 사람 칸의 회사 그룹 메일(knksales@ 등) → 누가 받는지 명단 · 명단 없는 사내 주소도 알려 줌 */
+  var ED2=document.getElementById('cBody');
+  var ME_KEYS=['[내 이름]','[my name]','[tên tôi]'];
+  var FIXED_TAG=/^\[(KNK|확인 요청|Follow-up|Nhắc lại|자동 회신)\]$/i;   // 제목 머리 표시 — 빈칸 아님
+  function escH(t){ var d=document.createElement('div'); d.textContent=t==null?'':String(t); return d.innerHTML; }
+  function fillMe(t){ var me=window.CMP_ME||''; if(!me) return t; ME_KEYS.forEach(function(k){ t=t.split(k).join(me); }); return t; }
+  function tplHtml(body){ return escH(fillMe(body||'')).replace(/\[([^\]\n]{1,30})\]/g, function(all, x){ return FIXED_TAG.test(all) ? all : '<mark class="knk-ph">['+x+']</mark>'; }).replace(/\n/g,'<br>'); }
+  window.cmpCleanHtml=function(){ var t=ED2.cloneNode(true); t.querySelectorAll('mark.knk-ph').forEach(function(m){ while(m.firstChild) m.parentNode.insertBefore(m.firstChild, m); m.remove(); }); return t.innerHTML; };
+  window.cmpLeftPh=function(){ var out=[];
+    ED2.querySelectorAll('mark.knk-ph').forEach(function(m){ var x=(m.textContent||'').trim(); if(/^\[[^\]]+\]$/.test(x) && out.indexOf(x)<0) out.push(x); });
+    var sj=document.getElementById('cSubj').value, mm=sj.match(/\[[^\]]{1,30}\]/g)||[];
+    mm.forEach(function(x){ if((window._tplPh||[]).indexOf(x)>=0 && out.indexOf(x)<0) out.push(x); });
+    return out; };
+  function selPh(m){ try{ var r=document.createRange(); r.selectNodeContents(m); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); m.scrollIntoView({block:'nearest'}); }catch(_){ } }
+  function insertTpl(t, atTop){
+    var subj=document.getElementById('cSubj');
+    if(t.subject && !subj.value.trim()){ subj.value=fillMe(t.subject); }
+    window._tplPh=(window._tplPh||[]).concat((((t.subject||'')+'\n'+(t.body||'')).match(/\[[^\]\n]{1,30}\]/g)||[]).filter(function(x){ return !FIXED_TAG.test(x); }));
+    var html='<div class="knk-tpl">'+tplHtml(t.body)+'</div>';
+    var sel=window.getSelection(), inEd=!atTop && sel && sel.rangeCount && ED2.contains(sel.getRangeAt(0).startContainer) && !(sel.getRangeAt(0).startContainer===ED2 && ED2.innerText.trim());
+    if(inEd){ ED2.focus(); document.execCommand('insertHTML', false, html); }
+    else { var d=document.createElement('div'); d.innerHTML=html; var first=d.firstChild;
+      var blank=ED2.firstChild; if(blank && blank.nodeType===1 && !blank.textContent.trim() && !blank.classList.contains('knk-sig')) ED2.replaceChild(first, blank); else ED2.insertBefore(first, ED2.firstChild); }
+    window._cDirty=true;
+    var m=ED2.querySelector('mark.knk-ph'); if(m){ ED2.focus(); selPh(m); }
+  }
+  window.cmpInsertTpl=insertTpl;
+  ED2.addEventListener('keydown', function(e){
+    if(e.key!=='Tab') return;
+    var ms=[].slice.call(ED2.querySelectorAll('mark.knk-ph')).filter(function(m){ return /^\[[^\]]+\]$/.test((m.textContent||'').trim()); });
+    if(!ms.length) return;
+    e.preventDefault();
+    var sel=window.getSelection(), cur=sel.rangeCount?sel.getRangeAt(0).startContainer:null, idx=-1;
+    ms.forEach(function(m,i){ if(cur && (m===cur || m.contains(cur) || (m.compareDocumentPosition(cur) & Node.DOCUMENT_POSITION_FOLLOWING))) idx=i; });
+    var nx = e.shiftKey ? ms[(idx-1+ms.length)%ms.length] : ms[(idx+1)%ms.length];
+    if(idx>=0 && ms[idx].contains(cur) && !e.shiftKey && ms.length===1) nx=ms[0];
+    selPh(nx);
+  });
+  var TPLS=null, pop=document.getElementById('cTplPop');
+  async function tplLoad(){ if(TPLS) return TPLS; try{ var r=await fetch('/api/mail/templates'); TPLS=await r.json(); }catch(e){ TPLS={mine:[],company:[],builtin:[],lang_name:{}}; } return TPLS; }
+  function tplRender(q){ var L=TPLS.lang_name||{}, html='', all=[]; q=(q||'').trim().toLowerCase();
+    [['mine','⭐ 내 양식'],['company','🏢 회사 양식'],['builtin','📚 기본 양식']].forEach(function(sec){
+      var it=(TPLS[sec[0]]||[]).filter(function(t){ return !q || (t.title+' '+t.subject+' '+(L[t.lang]||'')).toLowerCase().indexOf(q)>=0; });
+      if(!it.length) return; html+='<div class="cmp-tpl-sec">'+sec[1]+'</div>';
+      it.forEach(function(t){ html+='<div class="cmp-tpl-it" data-i="'+all.length+'"><span class="t">'+escH(t.title)+'</span><span class="lg">'+escH(L[t.lang]||t.lang)+'</span></div>'; all.push(t); }); });
+    if(!all.length) html+='<div style="padding:10px;color:var(--mute);font-size:13px">맞는 양식이 없어요</div>';
+    html+='<div class="cmp-tpl-foot"><span>노란 [빈칸] → Tab 키로 차례로</span><a href="/mail/templates" target="_blank" rel="noopener">✏ 양식 만들기·고치기</a></div>';
+    var box=pop.querySelector('.lst'); box.innerHTML=html;
+    box.querySelectorAll('.cmp-tpl-it').forEach(function(el){ el.addEventListener('mousedown', function(e){ e.preventDefault(); pop.hidden=true; insertTpl(all[+el.dataset.i]); }); });
+  }
+  document.getElementById('cTplBtn').addEventListener('click', async function(e){
+    e.preventDefault(); if(!pop.hidden){ pop.hidden=true; return; }
+    pop.innerHTML='<input type="text" placeholder="🔍 양식 찾기 (견적, 발주, Quotation…)"><div class="lst"><div style="padding:10px;color:var(--mute)">불러오는 중…</div></div>'; pop.hidden=false;
+    var qi=pop.querySelector('input'); await tplLoad(); tplRender(''); qi.focus(); qi.addEventListener('input', function(){ tplRender(qi.value); });
+    qi.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ pop.hidden=true; } if(ev.key==='Enter'){ ev.preventDefault(); var f=pop.querySelector('.cmp-tpl-it'); if(f) f.dispatchEvent(new MouseEvent('mousedown')); } });
+  });
+  document.addEventListener('mousedown', function(e){ if(!pop.hidden && !pop.contains(e.target) && e.target.id!=='cTplBtn') pop.hidden=true; });
+  // 다시 묻기로 열었으면 — 재촉 글을 맨 위에 넣고 3일 다시 기다림
+  if(window.CMP_NUDGE_TPL){ tplLoad().then(function(T){ var t=(T.builtin||[]).find(function(x){ return x.key===window.CMP_NUDGE_TPL; }); if(t) insertTpl({body:t.body}, true);
+    var w=document.getElementById('cWait'); if(w) w.value='3'; if(window.cmpWaitCheck) cmpWaitCheck(); }); }
+
+  // ② ⏳ 답 받기 — 바깥 거래처가 있을 때만
+  window.cmpWaitCheck=function(){ var box=document.getElementById('cWaitBox'), w=document.getElementById('cWait'); if(!w) return;
+    var all=(document.getElementById('cTo').value+','+document.getElementById('cCc').value);
+    var P=parseAddrs(all).ok, ext=P.filter(function(p){ return !isOurs(p.addr); });
+    var none = P.length>0 && ext.length===0;
+    w.disabled=none; box.classList.toggle('no', none); box.classList.toggle('on', !none && +w.value>0);
+    box.title = none ? '받는 사람이 모두 사내 직원입니다 — 사내 업무는 이음 요청이 독촉·회신까지 챙겨 줍니다' : '바깥 거래처에 보내는 메일 — 이 날까지 답이 없으면 받은편지함 위에 알려 드림 · 답이 오면 저절로 빠짐'; };
+  document.getElementById('cWait').addEventListener('change', cmpWaitCheck);
+
+  // ④ 👥 회사 그룹 메일 명단 · 명단 없는 사내 주소
+  var GRP={}, gTimer=null, gLast='';
+  window.cmpGrpCheck=function(){ clearTimeout(gTimer); gTimer=setTimeout(async function(){
+    if(window.cmpWaitCheck) cmpWaitCheck();
+    var all=['cTo','cCc','cBcc'].map(function(i){ var e=document.getElementById(i); return e?e.value:''; }).join(',');
+    var ads=parseAddrs(all).ok.map(function(p){ return p.addr.toLowerCase(); }).filter(isOurs);
+    var key=ads.join(','); if(key===gLast) return; gLast=key;
+    var need=ads.filter(function(a){ return !(a in GRP); });
+    if(need.length){ try{ var r=await fetch('/api/mail/addrinfo?a='+encodeURIComponent(need.join(','))); var j=await r.json(); Object.assign(GRP, j.info||{}); window._grpAdmin=!!j.admin; }catch(e){} }
+    var box=document.getElementById('cGrpInfo'), html='';
+    ads.forEach(function(a){ var g=GRP[a]; if(!g) return;
+      if(g.kind==='group'){ var ppl=g.members.map(function(m){ return '<span title="'+escH(m.email)+'">'+escH(m.disp||m.email)+'</span>'; }).join('');
+        html+='<div class="g">👥 <b>'+escH(a)+'</b> = <b>'+escH(g.name)+'</b> 그룹 메일 · <b>'+g.n+'명</b>이 받습니다'+(g.note?' · '+escH(g.note):'')+
+          ' <button type="button" onclick="var p=this.parentNode.querySelector(\'.ppl\'); p.hidden=!p.hidden; this.textContent=p.hidden?\'명단 보기 ▾\':\'접기 ▴\'">'+(g.n>12?'명단 보기 ▾':'접기 ▴')+'</button><div class="ppl"'+(g.n>12?' hidden':'')+'>'+ppl+'</div></div>'; }
+      else if(g.kind==='unknown'){ html+='<div class="g u">❔ <b>'+escH(a)+'</b> — 직원 주소가 아닌 사내 주소입니다(그룹 메일이면 여러 명이 받을 수 있음) · 명단이 아직 등록 안 됨'+(window._grpAdmin?' · <a href="/mail/groups" target="_blank" rel="noopener">👥 그룹 메일 등록</a>':' · 관리자가 「👥 묶음·그룹 메일」에 등록하면 명단이 보입니다')+'</div>'; } });
+    box.innerHTML=html; box.hidden=!html;
+  }, 350); };
+  ['cTo','cCc','cBcc'].forEach(function(i){ var e=document.getElementById(i); if(e){ e.addEventListener('input', cmpGrpCheck); e.addEventListener('change', cmpGrpCheck); e.addEventListener('blur', cmpGrpCheck); } });
+  cmpGrpCheck();
 })();
 </script>
 </body></html>

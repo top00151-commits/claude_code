@@ -22931,7 +22931,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
         except Exception:
             _flag_c, _snz_n = {"n": 0, "due": 0}, 0
         _ar_info = _mail_autoreply_info(c, u)
-    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n,
+        _wait_c = _mwork.count_waiting(c, u["id"], _mtoday, _mailbox._normalize_subject)   # 11-19 1단계 ②
+    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n, wait_c=_wait_c,
                      flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n, ar_info=_ar_info,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
                      fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
@@ -24131,6 +24132,13 @@ async def mail_contacts_api(req: Request, q: str = "", browse: int = 0):
         return JSONResponse({"ok": False}, 401)
     with db_session() as c:
         items = _mailbox.search_contacts(c, q, limit=(300 if browse else 8), user=u, browse=bool(browse))
+        if q and not browse:   # 11-19 1단계 ④ — 회사 그룹 메일 · 내 묶음 · 부서 묶음을 맨 위에
+            try:
+                _gi = _mwork.ac_items(c, u["id"], q)
+                _ge = {g["email"].lower() for g in _gi if g.get("email")}
+                items = _gi + [i for i in items if (i.get("email") or "").lower() not in _ge]
+            except Exception as e:
+                print("[MAIL-GRP] 자동완성 묶음 실패: %s" % str(e)[:120], flush=True)
     return JSONResponse({"ok": True, "items": items})
 
 
@@ -24355,7 +24363,7 @@ def _mail_quote_html(m, kind: str) -> str:
 
 @app.get("/mail/compose", response_class=HTMLResponse)
 async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
-                            forward: int = 0, draft: int = 0, to: str = ""):
+                            forward: int = 0, draft: int = 0, to: str = "", nudge: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -24437,6 +24445,20 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                                            for a in _mailbox.list_attachments(c, forward, inline=False)]
                 except Exception as e:
                     print("[MAIL-FWD] 첨부 목록 실패(mail=%s): %s" % (forward, str(e)[:120]), flush=True)
+        elif nudge:
+            # 11-19 1단계 ② ⏳ 다시 묻기 — 원래 받는 사람·참조 그대로 · 「[확인 요청] 원래 제목」 · 정중한 글 + 원래 메일 인용 · 다시 3일 기다림
+            m = _mailbox.get_mail(c, nudge, u["id"])
+            if m and m.get("direction") == "out":
+                import re as _re_nd
+                subj = _re_nd.sub(r"^\s*(\[(확인 요청|Follow-up|Nhắc lại)\]\s*)+", "", (m.get("subject") or "").strip())
+                _ko = bool(_re_nd.search(r"[가-힣]", (m.get("subject") or "") + (m.get("body_text") or "")[:400]))
+                prefill["to"] = m.get("to_email") or ""
+                prefill["cc"] = m.get("cc") or ""
+                prefill["subject"] = ("[확인 요청] " if _ko else "[Follow-up] ") + subj
+                prefill["body"] = sigblock
+                prefill["body_html"] = _mail_quote_html(m, "reply")
+                prefill["nudge_of"] = str(nudge)
+                prefill["nudge_tpl"] = "b-nudge-ko" if _ko else "b-nudge-en"
         else:
             prefill["body"] = sigblock
             _to = (to or "").strip()
@@ -24445,7 +24467,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=my_from, ai_on=mail_ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,
-               sched_off=_sched_off,
+               sched_off=_sched_off, me_name=(u.get("name") or ""),
                sig_html=("" if draft else sig), sig_list=sig_list)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
@@ -24540,7 +24562,7 @@ async def _mail_collect_atts(u, form):
 
 
 def _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments, total, large_tokens,
-                    draft_id="", _tk=None, extra_headers=None) -> dict:
+                    draft_id="", _tk=None, extra_headers=None, wait_days=0, nudge_of=0) -> dict:
     """실제로 보내고 보낸편지함에 기록 — 지금 보내기·⏱ 예약·🏖 자동 응답이 함께 씀. 결과 dict(ok·message·sent_n·refused · status)."""
     _rep = {}
     with db_session() as c:
@@ -24565,13 +24587,32 @@ def _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments,
                 with _MAIL_SEND_LOCK:
                     _MAIL_SEND_SEEN[_tk] = (_ms_time.time(), {"ok": True, "message": msg, "sent_n": len(_rep.get("sent") or []),
                                                                "refused": [{"addr": a, "why": w} for a, w in (_rep.get("refused") or {}).items()]})
+            _oid = None
             try:
-                _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
-                                        from_name=u.get("name") or "", to_email=to_email,
-                                        subject=subject, body=send_body, cc=cc, bcc=bcc,
-                                        body_html=send_html, size=len(send_body or "") + total)
+                _oid = _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
+                                               from_name=u.get("name") or "", to_email=to_email,
+                                               subject=subject, body=send_body, cc=cc, bcc=bcc,
+                                               body_html=send_html, size=len(send_body or "") + total)
             except Exception as e:
                 print("[MAIL-SEND] 보낸편지함 기록 실패(user=%s): %s" % (u["id"], str(e)[:160]), flush=True)
+            # 11-19 1단계 — ③ 보낸 첨부도 보관(📎 첨부 모아 찾기 · 같은 내용은 파일 하나) · ② ⏳ 답 기다리기 · 다시 묻기면 원래 메일은 목록에서 뺌
+            if _oid:
+                try:
+                    if attachments:
+                        _mailbox._save_attachments(c, _oid, [{"filename": a[0], "mime": a[2], "size": len(a[1] or b""), "data": a[1]}
+                                                             for a in attachments])
+                except Exception as e:
+                    print("[MAIL-SEND] 보낸 첨부 보관 실패(mail=%s): %s" % (_oid, str(e)[:120]), flush=True)
+                try:
+                    if int(wait_days or 0) > 0:
+                        _wd = (_mail_now_local(_mail_off(c, u)).date() + timedelta(days=min(int(wait_days), 60))).isoformat()
+                        _mwork.set_wait(c, u["id"], _oid, _wd)
+                    if int(nudge_of or 0) > 0:
+                        _mwork.ensure(c)
+                        c.execute("UPDATE mail_messages SET wait_state='nudged' WHERE id=? AND user_id=? AND direction='out' AND wait_state='wait'",
+                                  (int(nudge_of), u["id"]))
+                except Exception as e:
+                    print("[MAIL-WAIT] 답 기다리기 표시 실패(mail=%s): %s" % (_oid, str(e)[:120]), flush=True)
             if draft_id:
                 try:
                     _mailbox.delete_draft(c, int(draft_id), u["id"])
@@ -24590,7 +24631,12 @@ async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subj
     attachments, total, err = await _mail_collect_atts(u, form)
     if err is not None:
         return err
-    res = _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments, total, large_tokens, draft_id, _tk)
+    try:
+        _wdays, _nof = int(form.get("wait_days") or 0), int(form.get("nudge_of") or 0)
+    except Exception:
+        _wdays, _nof = 0, 0
+    res = _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments, total, large_tokens, draft_id, _tk,
+                          wait_days=_wdays, nudge_of=_nof)
     st = res.pop("status", None)
     return JSONResponse(res, st) if st else JSONResponse(res)
 
@@ -24630,6 +24676,188 @@ def _mail_autoreply_info(c, u) -> dict:
                 "over": bool(st.get("end_date") and st["end_date"] < today)}
     except Exception:
         return {}
+
+
+# ─── 11-19 대표 「1단계 진행해」 — ① 자주 쓰는 글 ② 답 기다리기 ③ 첨부 모아 찾기 ④ 받는 사람 묶음·회사 그룹 메일 ───
+#   메일만 하는 것(app/mail_work.py) · 웍스 직원·부서 명단은 읽기만 · 이음 요청·웍스 위임·포털과 겹치지 않게
+from . import mail_work as _mwork
+
+
+def _mw_admin(u):
+    return bool(u and u.get("role") in ("admin", "ceo"))
+
+
+def _mw_disp(m):
+    try:
+        return vname_full({"name": m.get("name") or "", "rank": m.get("rank") or "", "team_name": m.get("team_name") or ""}) or (m.get("name") or "")
+    except Exception:
+        return m.get("name") or ""
+
+
+@app.get("/mail/templates", response_class=HTMLResponse)
+async def mail_templates_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        data = _mwork.list_templates(c, u["id"])
+    return ctx(req, "mail_templates.html", user=u, data=data, lang_name=_mwork.LANG_NAME, can_company=_mw_admin(u),
+               me_name=u.get("name") or "")
+
+
+@app.get("/api/mail/templates")
+async def mail_templates_api(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        data = _mwork.list_templates(c, u["id"])
+    return JSONResponse({"ok": True, "me": u.get("name") or "", "lang_name": _mwork.LANG_NAME, **data})
+
+
+@app.post("/mail/templates/save")
+async def mail_templates_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    f = await req.form()
+    try:
+        tid = int(f.get("id") or 0)
+    except Exception:
+        tid = 0
+    with db_session() as c:
+        ok, msg, nid = _mwork.save_template(c, u["id"], tid=tid, title=f.get("title") or "", subject=f.get("subject") or "",
+                                            body=f.get("body") or "", lang=f.get("lang") or "ko",
+                                            company=(f.get("company") or "") in ("1", "on", "true"), is_admin=_mw_admin(u))
+    return JSONResponse({"ok": ok, "message": msg, "id": nid}, 200 if ok else 400)
+
+
+@app.post("/mail/templates/{tid}/delete")
+async def mail_templates_delete(req: Request, tid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        ok, msg = _mwork.delete_template(c, u["id"], tid, is_admin=_mw_admin(u))
+    return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
+
+
+@app.get("/mail/groups", response_class=HTMLResponse)
+async def mail_groups_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        data = _mwork.list_groups(c, u["id"])
+        info = _mwork.addr_info(c, [g["address"] for g in data["company"] if g.get("address")])
+    for g in data["company"]:
+        g["people"] = [dict(m, disp=_mw_disp(m)) for m in (info.get(g["address"]) or {}).get("members", [])]
+    for g in data["mine"]:
+        g["people"] = [dict(m, disp=(m.get("name") or "")) for m in g["members"]]
+    for g in data["dept"]:
+        g["people"] = [dict(m, disp=_mw_disp(m)) for m in g["members"]]
+    return ctx(req, "mail_groups.html", user=u, data=data, can_company=_mw_admin(u))
+
+
+@app.post("/mail/groups/save")
+async def mail_groups_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    f = await req.form()
+    try:
+        gid = int(f.get("id") or 0)
+    except Exception:
+        gid = 0
+    with db_session() as c:
+        ok, msg, nid = _mwork.save_group(c, u["id"], gid=gid, kind=f.get("kind") or "mine", name=f.get("name") or "",
+                                         address=f.get("address") or "", members_text=f.get("members") or "",
+                                         note=f.get("note") or "", is_admin=_mw_admin(u))
+    return JSONResponse({"ok": ok, "message": msg, "id": nid}, 200 if ok else 400)
+
+
+@app.post("/mail/groups/{gid}/delete")
+async def mail_groups_delete(req: Request, gid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        ok, msg = _mwork.delete_group(c, u["id"], gid, is_admin=_mw_admin(u))
+    return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
+
+
+@app.get("/api/mail/groups/guess")
+async def mail_groups_guess(req: Request, addr: str = ""):
+    """관리자 돕기 — 이 공용 주소로 온 메일이 실제로 들어간 메일함(이음웍스로 받아 오는 사람만 · 정답은 하이웍스 관리자 화면)."""
+    u = get_user(req)
+    if not u or not _mw_admin(u):
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    with db_session() as c:
+        rows = _mwork.guess_members(c, addr)
+    return JSONResponse({"ok": True, "items": rows})
+
+
+@app.get("/api/mail/addrinfo")
+async def mail_addrinfo_api(req: Request, a: str = ""):
+    """메일 쓰기·읽기 — 주소가 회사 그룹 메일이면 명단(누가 받는지) · 사내 직원 · 명단 없는 사내 주소 · 바깥."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        info = _mwork.addr_info(c, _mwork.addrs_in(a))
+    for v in info.values():
+        if v.get("kind") == "group":
+            for m in v["members"]:
+                m["disp"] = _mw_disp(m) if m.get("staff") else (m.get("name") or m.get("email"))
+        elif v.get("kind") == "staff":
+            v["disp"] = _mw_disp(v)
+    return JSONResponse({"ok": True, "info": info, "admin": _mw_admin(u)})
+
+
+@app.post("/mail/{mail_id}/wait")
+async def mail_wait_set(req: Request, mail_id: int):
+    """⏳ 답 기다리기 — days(1~60) · 0 = 그만 · done=1 = 「답 받음」으로 끝."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    f = await req.form()
+    with db_session() as c:
+        if (f.get("done") or "") == "1":
+            _mwork.ensure(c)
+            n = c.execute("UPDATE mail_messages SET wait_state='done' WHERE id=? AND user_id=? AND direction='out'", (mail_id, u["id"])).rowcount
+            return JSONResponse({"ok": bool(n), "message": "✓ 답 받음으로 끝냈습니다" if n else "메일을 찾지 못했습니다"})
+        try:
+            days = max(0, min(60, int(f.get("days") or 0)))
+        except Exception:
+            days = 0
+        until = (_mail_now_local(_mail_off(c, u)).date() + timedelta(days=days)).isoformat() if days else ""
+        ok, msg = _mwork.set_wait(c, u["id"], mail_id, until)
+    return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
+
+
+@app.get("/mail/waiting", response_class=HTMLResponse)
+async def mail_waiting_page(req: Request, all: int = 0):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        today = _mail_local_today(_mail_off(c, u))
+        rows = _mwork.list_waiting(c, u["id"], today, _mailbox._normalize_subject, include_done=bool(all))
+    return ctx(req, "mail_waiting.html", user=u, rows=rows, today=today, show_all=bool(all))
+
+
+@app.get("/mail/files", response_class=HTMLResponse)
+async def mail_files_page(req: Request, q: str = "", kind: str = "", d: str = "", days: int = 0, who: str = "", off: int = 0):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    off = max(0, int(off or 0))
+    with db_session() as c:
+        rows, more = _mwork.list_files(c, u["id"], q=q, kind=kind, direction=d, days=days, who=who, limit=100, offset=off)
+    from urllib.parse import urlencode as _ue_f
+    keep = [(k, v) for k, v in (("q", q), ("kind", kind), ("d", d), ("days", days or ""), ("who", who)) if v]
+    return ctx(req, "mail_files.html", user=u, rows=rows, more=more, off=off, q=q, kind=kind, d=d, days=days, who=who,
+               kinds=_mwork.KINDS, keep_q=_ue_f(keep), keep_nk=_ue_f([kv for kv in keep if kv[0] != "kind"]))
 
 
 @app.get("/mail/autoreply", response_class=HTMLResponse)
@@ -25455,6 +25683,12 @@ async def mail_counts_api(req: Request):
             out["sched"], out["sched_fail"] = sc["n"], sc["fail"]
         except Exception:
             pass
+        if not lite:   # 11-19 1단계 ② ⏳ 답 기다리는 메일(답이 왔는지 살펴보는 일이라 1분마다는 안 함)
+            try:
+                wc = _mwork.count_waiting(c, u["id"], _mail_local_today(_off), _mailbox._normalize_subject)
+                out["wait"], out["wait_due"] = wc["all"], wc["due"]
+            except Exception:
+                pass
         try:
             lt = _mailbox.latest_inbox(c, u["id"])   # 새 메일 알아보기(번호 · 보낸 사람 · 제목) — 내 메일만 · 이 창에만 보임
             if lt:

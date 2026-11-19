@@ -21,12 +21,19 @@
       {% if who_info.co_href %}<a href="{{ who_info.co_href }}">🏢 {{ who_info.co_name }} 메일 모두</a>{% endif %}
       <a href="{{ who_info.compose_href }}">✏️ 이 사람에게 메일 쓰기</a>
     </span></span>{% else %}{{ m.from_name }} &lt;{{ m.from_email }}&gt;{% endif %}{% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}{% if sender_contact %} <span class="mv-ct-inline on" title="주소록에 이미 있는 사람">📇 주소록에 있음</span>{% else %} <a href="#" id="mvContactInline" class="mv-ct-inline" onclick="mailToContact();return false" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</a>{% endif %}{% endif %}</div>
-      <div class="mv-hsub">받는 사람 {{ m.to_email }}{% if m.cc %} · 참조 {{ m.cc }}{% endif %} · {{ (m.received_at or '')[:16] }}{% if m.lang and m.lang != 'ko' %} · {{ {'en':'영어','vi':'베트남어','zh':'중국어','ja':'일본어'}.get(m.lang, m.lang) }}{% endif %}</div>
+      <div class="mv-grp" id="mvGrp" hidden></div>
+      <div class="mv-hsub" id="mvHsub" data-addrs="{{ (m.to_email or '') ~ ',' ~ (m.cc or '') ~ ',' ~ (m.to_all or '') }}">받는 사람 {{ m.to_email }}{% if m.cc %} · 참조 {{ m.cc }}{% endif %} · {{ (m.received_at or '')[:16] }}{% if m.lang and m.lang != 'ko' %} · {{ {'en':'영어','vi':'베트남어','zh':'중국어','ja':'일본어'}.get(m.lang, m.lang) }}{% endif %}</div>
     </div>
     <div class="mv-actions">
       {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>
       <a href="/mail/compose?replyall={{ m.id }}" class="btn btn-secondary">↩↩ 전체답장</a>{% endif %}
       <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
+      {% if m.direction == 'out' %}{# 11-19 1단계 ② ⏳ 답 기다리기 — 바깥 거래처에 보낸 메일 #}
+        {% if m.wait_state == 'wait' %}<button type="button" class="btn btn-secondary" style="border-color:#93c5fd;background:#eff6ff;color:#1e3a8a" onclick="mvWait(0)" title="눌러서 그만 기다리기 · 답이 오면 저절로 빠짐">⏳ {{ (m.wait_until or '')[5:]|replace('-','/') }}까지 답 기다림 ✕</button>
+        <a href="/mail/compose?nudge={{ m.id }}" class="btn btn-secondary" title="원래 받는 사람에게 「[확인 요청] 원래 제목」">✉ 다시 묻기</a>
+        {% elif m.wait_state == 'replied' %}{% if m.wait_reply_id %}<a href="/mail/{{ m.wait_reply_id }}" class="btn btn-secondary" style="color:#166534">✅ 답 옴 — 보기</a>{% endif %}
+        {% else %}<button type="button" class="btn btn-secondary" onclick="mvWait(3)" title="3일 안에 답이 없으면 받은편지함 위에 알려 드림(바깥 거래처에 보낸 메일만)">⏳ 답 기다리기</button>{% endif %}
+      {% endif %}
       {% if m.direction != 'out' %}<button type="button" id="mvStarBtn" class="btn btn-secondary mv-star{{ ' on' if m.is_starred else '' }}" onclick="mvStar()" title="중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 · 다시 누르면 풀림">{{ '⭐ 중요' if m.is_starred else '☆ 중요 표시' }}</button>{% endif %}
       {% if m.direction != 'out' %}<button type="button" id="mvArcBtn" class="btn btn-secondary" onclick="mvArchive()" data-on="{{ 1 if m.is_archived else 0 }}" title="{{ '받은편지함으로 되돌리기' if m.is_archived else '받은편지함에서 빼기 — 지우지 않음 · 📦 보관함·찾기·폴더에는 그대로' }}">{{ '📥 받은편지함으로' if m.is_archived else '📦 보관' }}</button>{% endif %}
       <button type="button" class="btn btn-secondary" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
@@ -494,4 +501,17 @@
   if(!window._mvWhoBound){ window._mvWhoBound=true;
     document.addEventListener('click', function(ev){ var p=document.getElementById('mvWhoPop'); if(p && !p.hidden && !p.contains(ev.target)) p.hidden=true; }); }
 })();
+/* 11-19 1단계 — ② ⏳ 답 기다리기 · ④ 👥 받는 사람 중 회사 그룹 메일이면 누가 받았는지 */
+window.mvWait=async function(days){ var id={{ m.id }}, inPane={{ 'true' if pane else 'false' }}; var fd=new FormData(); fd.append('days', String(days||0));
+  try{ var r=await fetch('/mail/'+id+'/wait',{method:'POST',body:fd}); var j=await r.json();
+    if(j.ok){ if(window.mbxToast) mbxToast(j.message); else alert(j.message); setTimeout(function(){ if(inPane && typeof loadPane==='function') loadPane(id, document.querySelector('.mbx-row.active, [data-mid].active')); else location.reload(); }, 500); }
+    else alert(j.message||'바꾸지 못했습니다'); }catch(e){ alert('네트워크 오류'); } };
+(function(){ var h=document.getElementById('mvHsub'), box=document.getElementById('mvGrp'); if(!h || !box) return;
+  var a=(h.getAttribute('data-addrs')||'').toLowerCase().match(/[a-z0-9._%+\-]+@knknara\.co\.kr/g); if(!a || !a.length) return;
+  fetch('/api/mail/addrinfo?a='+encodeURIComponent(a.join(','))).then(function(r){ return r.json(); }).then(function(j){
+    var html=''; Object.keys(j.info||{}).forEach(function(ad){ var g=j.info[ad]; if(g.kind!=='group') return;
+      var esc=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
+      html+='<div class="mv-grp-i">👥 <b>'+esc(ad)+'</b> = '+esc(g.name)+' 그룹 메일 · <b>'+g.n+'명</b> <button type="button" onclick="var p=this.nextElementSibling; p.hidden=!p.hidden">명단 ▾</button><span class="mv-grp-p"'+(g.n>12?' hidden':'')+'>'+
+        g.members.map(function(m){ return '<span title="'+esc(m.email)+'">'+esc(m.disp||m.email)+'</span>'; }).join('')+'</span></div>'; });
+    if(html){ box.innerHTML=html; box.hidden=false; } }).catch(function(){}); })();
 </script>

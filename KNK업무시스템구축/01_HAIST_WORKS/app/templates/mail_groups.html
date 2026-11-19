@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>받는 사람 묶음·그룹 메일 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 11-19 대표 「1단계」 ④ 👥 받는 사람 묶음 + 「그룹 메일(knksales@ 같은 공용 주소)에 누가 등록돼 있는지 쉽게」 */
+  .gp-wrap{padding:0 var(--content-pad,32px) 32px}
+  @media(max-width:700px){.gp-wrap{padding:0 12px 24px}}
+  .gp-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);margin-bottom:16px;overflow:hidden}
+  .gp-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;background:var(--mt-panel,#fafbfc);border-bottom:1px solid var(--line)}
+  .gp-h b{font-size:15px}
+  .gp-h small{color:var(--mute);font-size:12.5px;flex:1;min-width:200px}
+  .gp-row{border-top:1px solid #f0f1f3}
+  .gp-row:first-of-type{border-top:0}
+  .gp-sum{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;list-style:none;flex-wrap:wrap}
+  .gp-sum::-webkit-details-marker{display:none}
+  .gp-sum .nm{font-weight:700;font-size:14px}
+  .gp-sum .ad{font-size:12.5px;color:#1d4ed8;font-family:ui-monospace,Consolas,monospace}
+  .gp-sum .n{margin-left:auto;font-size:12.5px;font-weight:800;border-radius:999px;padding:2px 10px;background:#eff6ff;color:#1e3a8a}
+  .gp-sum .note{font-size:12px;color:var(--mute);flex-basis:100%}
+  .gp-ppl{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px}
+  .gp-p{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--mt-surface,#fff)}
+  .gp-p.ext{border-style:dashed}
+  .gp-p small{color:var(--mute)}
+  .gp-tools{padding:0 16px 12px;display:flex;gap:8px}
+  .gp-empty{padding:14px 16px;font-size:13px;color:var(--mute);line-height:1.7}
+  .gp-ed{padding:14px 16px;border-top:1px solid var(--line);background:#fcfcfd}
+  .gp-ed[hidden]{display:none}
+  .gp-ed label.l{display:block;font-size:12.5px;color:var(--mute);margin:8px 0 4px}
+  .gp-ed input[type=text],.gp-ed textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .gp-ed textarea{min-height:150px;line-height:1.6;font-family:inherit}
+  .gp-add{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;position:relative}
+  .gp-add input{flex:1;min-width:200px}
+  .gp-sug{position:absolute;top:38px;left:0;right:0;z-index:50;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.12);max-height:240px;overflow:auto}
+  .gp-sug div{padding:7px 10px;cursor:pointer;font-size:13px;border-top:1px solid #f1f1f1}
+  .gp-sug div:hover{background:#eff6ff}
+  .gp-guess{margin-top:8px;font-size:12.5px;color:var(--mute);line-height:1.7}
+  html[data-mt="dark"] .gp-ed{background:#111827}
+  html[data-mt="dark"] .gp-sum .n{background:#1e293b;color:#bfdbfe}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 받는 사람 묶음·그룹 메일</div>
+    <h1 class="page-title">👥 받는 사람 <em>묶음 · 그룹 메일</em></h1>
+  </div><div><a href="/mail/compose" class="btn btn-secondary">✏️ 새 메일</a> <a href="/mail/tools" class="btn btn-secondary">← 설정·정리</a></div></div>
+
+  <div class="gp-wrap">
+    {# ── 회사 그룹 메일 ── #}
+    <div class="gp-card">
+      <div class="gp-h"><b>🏢 회사 그룹 메일</b><small>knksales@ 처럼 <b>주소 하나로 여러 명이 받는 공용 주소</b> — 누가 받는지 여기서 확인 · 메일 쓰기·읽기에서도 「👥 N명」으로 보임{% if not can_company %} · 등록·고치기는 관리자{% endif %}</small>
+        {% if can_company %}<button type="button" class="btn btn-primary" onclick="gpEdit('company', null)">＋ 그룹 메일 등록</button>{% endif %}</div>
+      <div class="gp-ed" id="gpEd-company" hidden></div>
+      {% for g in data.company %}
+      <details class="gp-row"><summary class="gp-sum"><span class="nm">{{ g.name }}</span><span class="ad">{{ g.address }}</span><span class="n">{{ g.n }}명</span>{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</summary>
+        <div class="gp-ppl">{% for m in g.people %}<span class="gp-p{{ '' if m.staff else ' ext' }}" title="{{ m.email }}">{{ m.disp or m.email }}{% if not m.staff %} <small>{{ m.email }}</small>{% endif %}</span>{% endfor %}</div>
+        {% if can_company %}<div class="gp-tools"><button type="button" class="btn btn-secondary" onclick="gpEdit('company', {{ g.id }})">✏ 명단 고치기</button><button type="button" class="btn btn-secondary" style="color:var(--knk-red)" data-name="{{ g.name }}" onclick="gpDel({{ g.id }}, this.dataset.name)">🗑 지우기</button></div>{% endif %}
+      </details>
+      {% else %}
+      <div class="gp-empty">아직 등록된 그룹 메일이 없습니다.{% if can_company %} 「＋ 그룹 메일 등록」 → 주소(예: knksales@knknara.co.kr)와 받는 사람을 넣으세요. <b>정확한 명단은 하이웍스 관리자 화면</b>(그룹 메일 설정)에 있습니다 — 「📬 받은 메일로 찾아보기」가 도와 드립니다.{% else %} 관리자에게 등록을 요청하세요.{% endif %}</div>
+      {% endfor %}
+    </div>
+
+    {# ── 내 묶음 ── #}
+    <div class="gp-card">
+      <div class="gp-h"><b>⭐ 내 묶음</b><small>「삼성 ○○ 과제 담당 5명」처럼 자주 함께 보내는 사람 — 받는 사람 칸에 묶음 이름을 치면 <b>한꺼번에 들어감</b>(한 명씩 보임) · 나만 보임</small>
+        <button type="button" class="btn btn-primary" onclick="gpEdit('mine', null)">＋ 묶음 만들기</button></div>
+      <div class="gp-ed" id="gpEd-mine" hidden></div>
+      {% for g in data.mine %}
+      <details class="gp-row"><summary class="gp-sum"><span class="nm">{{ g.name }}</span><span class="n">{{ g.n }}명</span>{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</summary>
+        <div class="gp-ppl">{% for m in g.people %}<span class="gp-p" title="{{ m.email }}">{{ m.disp or m.email }} <small>{{ m.email }}</small></span>{% endfor %}</div>
+        <div class="gp-tools"><button type="button" class="btn btn-secondary" onclick="gpEdit('mine', {{ g.id }})">✏ 고치기</button><button type="button" class="btn btn-secondary" style="color:var(--knk-red)" data-name="{{ g.name }}" onclick="gpDel({{ g.id }}, this.dataset.name)">🗑 지우기</button></div>
+      </details>
+      {% else %}<div class="gp-empty">아직 없어요 — 「＋ 묶음 만들기」</div>{% endfor %}
+    </div>
+
+    {# ── 부서 묶음(웍스 부서 · 읽기만) ── #}
+    <div class="gp-card">
+      <div class="gp-h"><b>🏢 부서 묶음</b><small>이음웍스 부서·직원 명단에서 <b>저절로</b>(여기서 고치지 않음 — 부서 이동은 웍스 인사에서) · 받는 사람 칸에 부서 이름을 치면 부서원이 한꺼번에</small></div>
+      {% for g in data.dept %}
+      <details class="gp-row"><summary class="gp-sum"><span class="nm">{{ g.name }}</span><span class="n">{{ g.n }}명</span></summary>
+        <div class="gp-ppl">{% for m in g.people %}<span class="gp-p" title="{{ m.email }}">{{ m.disp }}</span>{% endfor %}</div>
+      </details>
+      {% else %}<div class="gp-empty">메일 주소가 있는 부서원이 없습니다.</div>{% endfor %}
+    </div>
+  </div>
+</main></div>
+<script>
+var GP={company:{{ data.company|tojson }}, mine:{{ data.mine|tojson }}}, CAN_CO={{ 'true' if can_company else 'false' }};
+function gpEsc(t){ var d=document.createElement('div'); d.textContent=t==null?'':String(t); return d.innerHTML; }
+function gpMemText(g){ return (g.members||[]).map(function(m){ return m.name ? (m.name+' <'+m.email+'>') : m.email; }).join('\n'); }
+function gpEdit(kind, id){
+  document.querySelectorAll('.gp-ed').forEach(function(e){ e.hidden=true; e.innerHTML=''; });
+  var g = id ? (GP[kind]||[]).find(function(x){ return x.id===id; }) : {name:'', address:'', note:'', members:[]};
+  var box=document.getElementById('gpEd-'+kind); if(!g || !box) return;
+  box.innerHTML='<input type="hidden" id="gpId" value="'+(id||'')+'"><input type="hidden" id="gpKind" value="'+kind+'">'+
+    '<label class="l">'+(kind==='company'?'그룹 이름 (예: 기술영업 공용)':'묶음 이름 (예: 삼성 A과제 담당)')+'</label><input type="text" id="gpName" maxlength="60" value="'+gpEsc(g.name)+'">'+
+    (kind==='company'?'<label class="l">그룹 메일 주소</label><input type="text" id="gpAddr" placeholder="knksales@knknara.co.kr" value="'+gpEsc(g.address)+'">':'')+
+    '<label class="l">설명 <small>(선택 — 예: 견적·발주 문의 받는 주소)</small></label><input type="text" id="gpNote" maxlength="300" value="'+gpEsc(g.note||'')+'">'+
+    '<label class="l">받는 사람 <small>(한 줄에 한 명 · 「이름 &lt;주소&gt;」 또는 주소만 · 직원은 저절로 웍스 이름으로)</small></label>'+
+    '<div class="gp-add"><input type="text" id="gpFind" placeholder="🔍 직원·연락처 이름으로 찾아 더하기" autocomplete="off"><div class="gp-sug" id="gpSug" hidden></div></div>'+
+    '<textarea id="gpMem" style="margin-top:6px">'+gpEsc(gpMemText(g))+'</textarea>'+
+    (kind==='company'?'<div class="gp-guess">💡 정확한 명단은 <b>하이웍스 관리자 화면 → 그룹 메일</b>에 있습니다. <button type="button" class="btn btn-secondary" style="padding:3px 10px;font-size:12px" onclick="gpGuess()">📬 받은 메일로 찾아보기</button> — 이 주소로 온 메일이 실제로 들어간 메일함(이음웍스로 메일을 받아 오는 사람만)을 보여 드립니다 · 맞는 사람만 더하세요<div id="gpGuessOut"></div></div>':'')+
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn btn-primary" onclick="gpSave()">💾 저장</button><button type="button" class="btn btn-secondary" onclick="this.closest(\'.gp-ed\').hidden=true">닫기</button><span id="gpMsg" style="font-size:13px"></span></div>';
+  box.hidden=false; document.getElementById('gpName').focus();
+  var f=document.getElementById('gpFind'), sug=document.getElementById('gpSug'), tm=null;
+  f.addEventListener('input', function(){ clearTimeout(tm); var q=f.value.trim(); if(!q){ sug.hidden=true; return; }
+    tm=setTimeout(async function(){ try{ var r=await fetch('/api/mail/contacts?q='+encodeURIComponent(q)); var j=await r.json();
+      var it=(j.items||[]).filter(function(x){ return x.email; }); if(!it.length){ sug.hidden=true; return; }
+      sug.innerHTML=it.map(function(x,i){ return '<div data-i="'+i+'">'+gpEsc((x.name||'')+(x.position?' '+x.position:'')+(x.company?' · '+x.company:''))+' <small style="color:var(--mute)">'+gpEsc(x.email)+'</small></div>'; }).join('');
+      sug.hidden=false; sug.querySelectorAll('div').forEach(function(d){ d.addEventListener('mousedown', function(e){ e.preventDefault(); var x=it[+d.dataset.i];
+        gpAddLine((x.name||'').replace(/^👥\s*/,'')+' <'+x.email+'>'); f.value=''; sug.hidden=true; }); });
+    }catch(e){ sug.hidden=true; } }, 180); });
+  f.addEventListener('blur', function(){ setTimeout(function(){ sug.hidden=true; }, 150); });
+}
+function gpAddLine(line){ var t=document.getElementById('gpMem'); var em=(line.match(/<([^>]+)>/)||[])[1]||line;
+  if(t.value.toLowerCase().indexOf(em.toLowerCase())>=0) return; t.value=(t.value.trim()?t.value.trim()+'\n':'')+line; }
+async function gpGuess(){ var a=(document.getElementById('gpAddr')||{}).value||''; var o=document.getElementById('gpGuessOut');
+  if(!a.trim()){ o.textContent='먼저 그룹 메일 주소를 넣어 주세요.'; return; } o.textContent='찾는 중...';
+  try{ var r=await fetch('/api/mail/groups/guess?addr='+encodeURIComponent(a.trim())); var j=await r.json(); var it=j.items||[];
+    if(!it.length){ o.textContent='이 주소로 온 메일을 받은 메일함을 찾지 못했습니다(이음웍스로 메일을 받아 오는 사람이 적으면 안 나올 수 있어요) — 하이웍스 관리자 화면 명단을 넣어 주세요.'; return; }
+    o.innerHTML='<div style="margin-top:6px">'+it.map(function(x,i){ return '<span class="gp-p" style="display:inline-block;margin:2px">'+gpEsc(x.name)+' <small>'+x.n+'통 · 마지막 '+gpEsc(x.last)+'</small> <a href="javascript:void(0)" data-i="'+i+'">＋ 더하기</a></span>'; }).join('')+'</div>';
+    o.querySelectorAll('a[data-i]').forEach(function(a){ a.addEventListener('click', function(){ var x=it[+a.dataset.i]; gpAddLine(x.name+' <'+x.email+'>'); a.textContent='✓'; }); });
+  }catch(e){ o.textContent='⚠ 네트워크 오류'; } }
+async function gpSave(){ var m=document.getElementById('gpMsg'); var fd=new FormData();
+  fd.append('id', document.getElementById('gpId').value); fd.append('kind', document.getElementById('gpKind').value);
+  fd.append('name', document.getElementById('gpName').value); fd.append('address', (document.getElementById('gpAddr')||{}).value||'');
+  fd.append('note', document.getElementById('gpNote').value); fd.append('members', document.getElementById('gpMem').value);
+  m.textContent='저장 중...'; m.style.color='var(--mute)';
+  try{ var r=await fetch('/mail/groups/save',{method:'POST',body:fd}); var j=await r.json(); m.textContent=(j.ok?'✅ ':'⚠ ')+(j.message||''); m.style.color=j.ok?'var(--success)':'var(--knk-red)'; if(j.ok) setTimeout(function(){ location.reload(); }, 700); }
+  catch(e){ m.textContent='⚠ 네트워크 오류'; m.style.color='var(--knk-red)'; } }
+async function gpDel(id, name){ if(!confirm('「'+name+'」을(를) 지울까요?')) return;
+  try{ var r=await fetch('/mail/groups/'+id+'/delete',{method:'POST'}); var j=await r.json(); if(j.ok) location.reload(); else alert(j.message||'지우지 못했습니다'); }catch(e){ alert('네트워크 오류'); } }
+</script>
+</body></html>

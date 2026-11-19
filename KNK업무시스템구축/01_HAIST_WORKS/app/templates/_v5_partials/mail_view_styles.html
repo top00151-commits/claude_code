@@ -35,7 +35,7 @@
   .mv-more-box .warn{color:#9a3412}
   .mv-more-box hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
   @media print{.mv-more{display:none}}
-  @media print{ .mv-actions, .mv-nav, .mv-fu, .mv-reply, .mv-fd, .mv-warn-btn, .mbx-toast, .mail-app-fixed, .mw-close{display:none !important} body,html{background:#fff !important} }
+  @media print{ .mv-actions, .mv-nav, .mv-fu, .mv-grp, .mv-reply, .mv-fd, .mv-warn-btn, .mbx-toast, .mail-app-fixed, .mw-close{display:none !important} body,html{background:#fff !important} }
   /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 · 📋 할 일·일정 상자 */
   .mv-fu>summary.on{background:#fff7ed;border-color:#fdba74;color:#c2410c}
   .mv-fu-box{min-width:360px;max-width:min(460px,92vw);padding:8px 12px 12px;white-space:normal}
@@ -105,6 +105,15 @@
   .mv-hname{font-weight:700;word-break:break-all}
   .mv-hname .mv-who{font-weight:800}
   .mv-hsub{color:var(--mute);font-size:12.5px;word-break:break-all}
+  /* 11-19 1단계 ④ 받는 사람 중 회사 그룹 메일 — 누가 받았는지 */
+  .mv-grp{display:flex;flex-direction:column;gap:3px;margin:3px 0 2px}
+  .mv-grp-i{font-size:12.5px;color:#1e3a8a;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 9px}
+  .mv-grp-i button{font:inherit;font-size:12px;font-weight:700;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer}
+  .mv-grp-p{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .mv-grp-p[hidden]{display:none}
+  .mv-grp-p span{background:#fff;border:1px solid #bfdbfe;border-radius:999px;padding:1px 8px}
+  html[data-mt="dark"] .mv-grp-i{background:#1e293b;border-color:#334155;color:#bfdbfe}
+  html[data-mt="dark"] .mv-grp-p span{background:#0f172a;border-color:#334155}
   .mv-hrow .mv-actions{flex:0 1 auto;margin:0;padding:0;border:0;background:none;display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end}
   .mv-hrow .mv-actions .btn{padding:5px 10px;font-size:12.5px}
   .mv-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 0 52px;font-size:12.5px}

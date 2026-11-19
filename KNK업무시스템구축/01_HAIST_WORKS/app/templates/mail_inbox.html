@@ -413,6 +413,10 @@
   {# 11-19 2단계-나 🏖 부재중 자동 응답 켜짐 — 잊지 않게 늘 보임 #}
   <div class="mbx-arbar{{ ' over' if ar_info.over else '' }}">🏖 <b>부재중 자동 응답 {{ '켜짐' if ar_info.live else ('기간이 지났습니다(보내지 않음)' if ar_info.over else '예약됨') }}</b> <span>{{ ar_info.start[5:]|replace('-','/') }} ~ {{ ar_info.end[5:]|replace('-','/') }}</span> <a href="/mail/autoreply">설정 · 끄기 ›</a></div>
   {% endif %}
+  {% if box=='in' and wait_c|default(none) and wait_c.due %}
+  {# 11-19 1단계 ② ⏳ 바깥 거래처에 보낸 메일 — 기한까지 답이 없으면 #}
+  <div class="mbx-arbar over" id="mbxWaitBar">⏳ <b>답 안 온 메일 {{ wait_c.due }}통</b> <span>바깥 거래처에 보낸 메일 중 정한 날까지 답이 없는 것</span> <a href="/mail/waiting">보기 · 다시 묻기 ›</a></div>
+  {% endif %}
   {% if not ai_on %}
   <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 관리자가 AI 설정을 켜 두었을 때 작동합니다.</div>
   {% endif %}
@@ -450,12 +454,14 @@
       <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
       <a href="/mail/inbox?flag=1" class="mbx-fold {{ 'on' if cur_flag|default(false) else '' }}" title="🚩 기한을 정한 메일 — 기한 순 · 오늘까지(지난 것 포함)는 빨간 숫자"><span class="fname">🚩 기한</span>{% if flag_due_n|default(0) %}<span class="fbadge">{{ flag_due_n }}</span>{% elif flag_n|default(0) %}<span class="cnt">{{ flag_n }}</span>{% endif %}</a>
       <a href="/mail/inbox?snz=1" class="mbx-fold {{ 'on' if cur_snz|default(false) else '' }}" title="⏰ 다시 알림 — 정한 때까지 받은편지함에서 숨겨 둔 메일 · 시간이 되면 안 읽음으로 돌아옴"><span class="fname">⏰ 다시 알림</span>{% if snz_n|default(0) %}<span class="cnt">{{ snz_n }}</span>{% endif %}</a>
+      <a href="/mail/waiting" class="mbx-fold" title="⏳ 바깥 거래처에 보내고 답을 기다리는 메일 — 답이 오면 저절로 빠짐 · 기한이 지나면 주황 숫자"><span class="fname">⏳ 답 기다림</span>{% if wait_c|default(none) and wait_c.all %}<span class="cnt"{% if wait_c.due %} style="background:#fed7aa;color:#9a3412"{% endif %}>{{ wait_c.all }}</span>{% endif %}</a>
       </div>
       <div class="mbx-fold-h mbx-sec-h" data-sec="box" role="button" tabindex="0" title="눌러서 접기·펼치기" onclick="mbxSecToggle('box')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mbxSecToggle('box')}" style="margin-top:4px"><span class="mf-tg">▾</span>메일함</div>
       <div class="mbx-sec" data-sec="box">
       <a href="/mail/sent" class="mbx-fold {{ 'on' if box=='sent' else '' }}"><span class="fname">📤 보낸편지함</span></a>
       <a href="/mail/inbox?arc=1" class="mbx-fold {{ 'on' if cur_arc|default(false) else '' }}"{% if box=='in' and not cur_arc|default(false) %} data-drop="archive" data-dname="보관함"{% endif %} title="📦 보관한 메일 — 받은편지함에서만 빠지고 지우지 않음(찾기·폴더에는 그대로 나옴)"><span class="fname">📦 보관함</span>{% if arc_n|default(0) %}<span class="cnt">{{ '{:,}'.format(arc_n) }}</span>{% endif %}</a>
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}" title="쓰다가 저장한 메일(임시 저장)"><span class="fname">📝 임시보관함</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
+      <a href="/mail/files" class="mbx-fold" title="받은·보낸 메일의 첨부만 모아 보기 — 종류(PDF·엑셀·도면·사진)·기간·거래처·파일 이름으로 찾기"><span class="fname">📎 첨부 모아 보기</span></a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"{% if box=='in' %} data-drop="delete" data-dname="휴지통"{% endif %}><span class="fname">🗑 휴지통</span></a>
       <a href="/mail/blocked" class="mbx-fold {{ 'on' if box=='blocked' else '' }}" title="스팸·피싱으로 보이는 메일이 저절로 모이는 곳(지우지 않음) — 아는 사람(주소록·거래처·내가 메일 보낸 사람)은 옮기지 않음 · 「✓ 스팸 아님」 한 번이면 그 사람은 다시 안 옮김"><span class="fname">🚫 스팸함</span>{% if spam_n|default(0) %}<span class="cnt">{{ '{:,}'.format(spam_n) }}</span>{% endif %}</a>
       </div>
