@@ -22038,7 +22038,7 @@ async def contacts_list(req: Request):
         counts[_t] = sum(1 for d in items if d["tab"] == _t)
     shown = items if tab == "all" else [d for d in items if d["tab"] == tab]
     # z1191z81: 총괄 = 모든 부서 주소록 → 부서 책갈피에서 부서별로 골라 보기
-    chief = _contacts.is_chief_user(u)
+    chief = _contacts.chief_scope(u)   # z1191z82: "" · "all"(본사 총괄) · "vn"(법인 총괄)
     dept_teams, dteam = [], (req.query_params.get("team") or "").strip()
     if chief:
         _dt = {}

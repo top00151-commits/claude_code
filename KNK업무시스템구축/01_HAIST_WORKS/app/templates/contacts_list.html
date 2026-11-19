@@ -94,13 +94,13 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
   <nav class="cx-tabs" aria-label="연락처 구분">
     <a class="cx-tab{% if tab == 'all' %} on{% endif %}" href="/contacts?tab=all{{ _qs }}">전체<span class="n">{{ counts.all }}</span></a>
     <a class="cx-tab{% if tab == 'private' %} on{% endif %}" href="/contacts?tab=private{{ _qs }}" title="나만 볼 수 있는 연락처">🔒 개인<span class="n">{{ counts.private }}</span></a>
-    <a class="cx-tab{% if tab == 'dept' %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}" title="{% if chief %}총괄 — 모든 부서 주소록{% else %}우리 부서원 누구나 볼 수 있는 연락처{% endif %}">👥 부서공유{% if chief %} <small style="font-weight:600;">(모든 부서 · 총괄)</small>{% elif my_team %} <small style="font-weight:600;">({{ my_team }})</small>{% endif %}<span class="n">{{ counts.dept }}</span></a>
+    <a class="cx-tab{% if tab == 'dept' %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}" title="{% if chief == 'vn' %}법인 총괄 — 법인 부서공유 전부{% elif chief %}본사 총괄 — 본사·법인 모든 부서공유{% else %}우리 부서원 누구나 볼 수 있는 연락처{% endif %}">👥 부서공유{% if chief %} <small style="font-weight:600;">({{ '법인 부서 · 법인 총괄' if chief == 'vn' else '모든 부서 · 총괄' }})</small>{% elif my_team %} <small style="font-weight:600;">({{ my_team }})</small>{% endif %}<span class="n">{{ counts.dept }}</span></a>
     <a class="cx-tab{% if tab == 'company' %} on{% endif %}" href="/contacts?tab=company{{ _qs }}" title="우리 회사 전체 누구나 볼 수 있는 연락처">🌐 전사공유<span class="n">{{ counts.company }}</span></a>
     <a class="cx-tab{% if tab == 'staff' %} on{% endif %}" href="/contacts?tab=staff{{ _qs }}" title="재직 중인 직원 — 인사 명부 그대로(따로 저장할 필요 없음)">🏢 우리 회사 직원<span class="n">{{ counts.staff }}</span></a>
   </nav>
   <div class="cx-tabnote">
     {% if tab == 'private' %}🔒 <b>개인 연락처</b> — <b>나만</b> 볼 수 있습니다. 같이 써야 할 담당자는 골라서 [📋 부서공유로 복사](내 것은 그대로 남음) · [🌐 전사공유로 이동]을 누르세요.
-    {% elif tab == 'dept' %}👥 <b>부서공유 연락처</b> — <b>우리 부서원 누구나</b> 볼 수 있습니다{% if my_team and not chief %}({{ my_team }}){% endif %}{% if chief %} · <b>총괄은 모든 부서 주소록</b>을 봅니다{% endif %}.
+    {% elif tab == 'dept' %}👥 <b>부서공유 연락처</b> — <b>우리 부서원 누구나</b> 볼 수 있습니다{% if my_team and not chief %}({{ my_team }}){% endif %}{% if chief %} · {% if chief == 'vn' %}<b>법인 총괄은 법인 부서공유 전부</b>를 봅니다{% else %}<b>본사 총괄은 본사·법인 모든 부서공유</b>를 봅니다{% endif %}{% endif %}.
       넣는 길: [🔒 개인]에서 골라 [📋 부서공유로 복사] · <a href="/contacts/new?vis=dept">＋ 부서공유 연락처 바로 등록</a> · 이음에서 고객사·협력사를 초대하면 자동. 이 부서공유 연락처는 부서원 누구나 [🌐 전사공유로 이동]할 수 있습니다.
     {% elif tab == 'company' %}🌐 <b>전사공유 연락처</b> — <b>우리 회사 전체 누구나</b> 볼 수 있습니다. 개인·부서 주소록에서 볼 수 있는 담당자가 [🌐 전사공유로 이동]하거나 <a href="/contacts/new?vis=company">＋ 전사공유 연락처 바로 등록</a>합니다.
     {% elif tab == 'staff' %}🏢 <b>우리 회사 직원</b> — 재직 중인 직원 {{ counts.staff }}명(KNK 본사 {{ counts.staff_kr }} · KNK VINA 법인 {{ counts.staff_vn }} · 인사 명부 그대로). 동료 번호는 <b>따로 저장하지 않아도</b> 여기서 찾고, 번호를 누르면 바로 전화합니다. 휴대폰에 넣으려면 [📇 이 책갈피 vCard].
@@ -110,7 +110,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
   {% if tab == 'dept' and chief and dept_teams %}
     {# z1191z81 (대표 11-19 「총괄 부서원은 각 부서 주소록들도 다 볼수있게」): 부서별로 골라 보기 #}
     <div class="cx-corps" role="group" aria-label="부서별 주소록">
-      <a class="cx-corpf{% if not dteam %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}">모든 부서 <span class="n">{{ counts.dept }}</span></a>
+      <a class="cx-corpf{% if not dteam %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}">{{ '법인 부서 전체' if chief == 'vn' else '모든 부서' }} <span class="n">{{ counts.dept }}</span></a>
       {% for dt in dept_teams %}<a class="cx-corpf{% if dteam == (dt.id|string) %} on{% endif %}" href="/contacts?tab=dept&team={{ dt.id }}{{ _qs }}">{{ dt.name }} <span class="n">{{ dt.n }}</span></a>{% endfor %}
     </div>
   {% endif %}

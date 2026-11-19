@@ -117,7 +117,7 @@ print("§2 총괄 = 모든 부서 주소록")
 CUR["u"] = UZ
 hz = q(cl.get, "/contacts?tab=dept").text
 check(set(ids(hz)) == {A3, C2}, "총괄님: 영업팀·구매팀 부서 주소록 모두", ids(hz))
-check("(모든 부서 · 총괄)" in hz and "총괄은 모든 부서 주소록" in hz, "책갈피·설명에 「모든 부서 · 총괄」")
+check("(모든 부서 · 총괄)" in hz and "본사 총괄은 본사·법인 모든 부서공유" in hz, "책갈피·설명에 「모든 부서 · 총괄」(z1191z82: 본사 총괄 글)")
 chips = re.findall(r'class="cx-corpf[^"]*" href="/contacts\?tab=dept[^"]*">([^<]+?) <span class="n">(\d+)</span>', hz)
 check(chips == [("모든 부서", "2"), ("가상구매팀", "1"), ("가상영업팀", "1")] or chips == [("모든 부서", "2"), ("가상영업팀", "1"), ("가상구매팀", "1")], "부서별 고르기 단추(모든 부서 · 부서마다 개수)", chips)
 check(ids(q(cl.get, "/contacts?tab=dept&team=%d" % T2).text) == [C2], "구매팀만 골라 보기")

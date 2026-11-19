@@ -146,6 +146,17 @@ r = post({"inviter_employee_no": "T781", "contacts": [dict(P1, name="여러명1"
 check([x["status"] for x in r["results"]] == ["created", "created"], "여러 명 한 번에(이메일이 같아도 휴대폰이 다르면 다른 사람)", r)
 check("이음" in q(cl.get, "/contacts?tab=dept").text, "목록에 출처 「이음」 표시")
 
+print("§5 z1191z82 — 초대한 직원의 개인 카드(직접 등록)는 건드리지 않음")
+with D.db_session() as c:
+    MINE = ins(c, "shared_contacts", {"name": "가영업 본인 카드", "mobile": "010-8282-0001", "department": "", "note": "직접 적은 메모",
+                                      "created_by": UA["id"], "visibility": "private", "source": "manual"})
+r = post({"inviter_employee_no": "T781", "contacts": [{"name": "시험고객", "mobile": "01082820001", "department": "기술", "company": "시험회사", "eum_invite_id": 801}]}).json()["results"][0]
+x = row(MINE)
+check(r["status"] == "created" and r["contact_id"] != MINE and r["visibility"] == "dept", "같은 번호가 내 개인 카드에 있어도 → 부서공유에 새로 저장", r)
+check(x["department"] == "" and x["note"] == "직접 적은 메모" and x["visibility"] == "private", "내 개인 카드는 그대로(부서·비고 안 바뀜)", x)
+r2 = post({"inviter_employee_no": "VN781", "contacts": [{"name": "부서없는초대", "mobile": "0912345678", "eum_invite_id": 502}]}).json()["results"][0]
+check(r2["status"] in ("updated", "exists") and r2["visibility"] == "private", "부서 없는 직원이 같은 사람을 다시 보내면 → 이음에서 들어온 그 개인 저장분을 찾음(두 번 안 만듦)", r2)
+
 print()
 print("결과: PASS %d / FAIL %d" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)

@@ -512,18 +512,30 @@ def find_duplicates(c, mobile: str = "", email: str = "", phone: str = "",
 VISIBILITIES = ("private", "dept", "company")   # v5H226z580 공유 범위
 
 
-def is_chief_user(user) -> bool:
-    """z1191z81 (대표 11-19 「총괄 부서원은 각 부서 주소록들도 다 볼수있게」): 소속 부서 이름에 「총괄」(본사 총괄 · 법인 총괄)."""
+def chief_scope(user) -> str:
+    """z1191z81·z82: 총괄이 보는 부서공유 범위 — "" = 총괄 아님 · "all" = 본사 총괄(본사+법인 모두) · "vn" = 법인 총괄(법인 부서만).
+    대표 11-19 「법인총괄은 법인 공유연락처만 … 본사총괄은 법인 공유연락처까지도 모두」. 총괄 = 부서 이름에 「총괄」 · 법인 = teams.entity 'VN'."""
     tid = (user or {}).get("team_id")
     if not tid:
-        return False
+        return ""
     try:
         with db_session() as _c:
-            r = _c.execute("SELECT name FROM teams WHERE id=?", (int(tid),)).fetchone()
-        return bool(r and "총괄" in (r[0] or ""))
+            _tc = {r[1] for r in _c.execute("PRAGMA table_info(teams)").fetchall()}
+            r = _c.execute("SELECT name, " + ("COALESCE(entity,'')" if "entity" in _tc else "''") + " FROM teams WHERE id=?", (int(tid),)).fetchone()
+        if not (r and "총괄" in (r[0] or "")):
+            return ""
+        return "vn" if str(r[1] or "").strip().upper() == "VN" else "all"
     except Exception as _e:
         print(f"[z1191z81] 총괄 확인 실패: {_e}")
-        return False
+        return ""
+
+
+def is_chief_user(user) -> bool:
+    """z1191z81: 총괄인지(본사·법인 상관없이)."""
+    return bool(chief_scope(user))
+
+
+_Z82_VN_TEAMS = "(SELECT id FROM teams WHERE UPPER(TRIM(COALESCE(entity,'')))='VN')"
 
 
 def _vis_clause(user) -> tuple[str, list]:
@@ -534,8 +546,12 @@ def _vis_clause(user) -> tuple[str, list]:
         return "", []
     uid = user.get("id")
     tid = user.get("team_id")
-    if is_chief_user(user):   # z1191z81: 총괄 = 모든 부서 주소록
+    _cs = chief_scope(user)
+    if _cs == "all":   # z1191z81·z82: 본사 총괄 = 본사+법인 모든 부서공유
         return ("(sc.created_by=? OR sc.visibility='company' OR sc.visibility='dept')", [uid])
+    if _cs == "vn":    # z1191z82: 법인 총괄 = 법인 부서공유만(+ 자기 부서)
+        return ("(sc.created_by=? OR sc.visibility='company' OR (sc.visibility='dept' AND (sc.share_team_id=? OR sc.share_team_id IN "
+                + _Z82_VN_TEAMS + ")))", [uid, tid])
     return (
         "(sc.created_by=? OR sc.visibility='company'"
         " OR (sc.visibility='dept' AND sc.share_team_id IS NOT NULL AND sc.share_team_id=?))",
@@ -702,7 +718,7 @@ def _eum_clip(v, n=200):
 
 def upsert_from_eum(c, inviter: dict, item: dict) -> dict:
     """이음 초대 담당자 한 명 → 초대한 직원 부서의 부서 연락처.
-    같은 사람 = (부서 연락처(그 부서) · 전사 연락처 · 초대한 직원 본인 것) 가운데
+    같은 사람 = (부서 연락처(그 부서) · 전사 연락처 · 초대한 직원 본인 것 가운데 이음에서 들어온 것(z1191z82)) 가운데
       ① 이음 초대 번호가 같은 것 → ② 휴대폰 숫자가 같은 것 → ③ 이메일이 같은 것(휴대폰이 한쪽이라도 비어 있을 때만).
     있으면 새로 안 만들고 **빈 칸만** 채움(있는 값은 안 덮어씀) — 같은 고객을 여러 방에 다시 초대하므로.
     초대한 직원에게 부서가 없으면 그 직원의 🔒 개인 연락처로(잃지 않게).
@@ -731,7 +747,9 @@ def upsert_from_eum(c, inviter: dict, item: dict) -> dict:
         note = (note + " · " + tag).strip(" ·")
     data = {"name": name, "position": _eum_clip(item.get("position"), 100), "company": _eum_clip(item.get("company"), 200),
             "department": _eum_clip(item.get("department"), 200), "mobile": mobile, "email": email, "note": note}
-    scope = "(sc.visibility='company' OR (sc.visibility='dept' AND sc.share_team_id=?) OR sc.created_by=?)"
+    # z1191z82: 초대한 직원의 개인 카드(직접 등록 · 명함 등)는 찾지 않는다 — 대표 시험 초대(본인 번호)가 대표 개인 카드에 합쳐졌던 일(11-19 1543).
+    #   본인 것은 이음에서 들어온 것(source='eum' · 부서 없는 직원의 개인 저장분)만 같은 사람 후보.
+    scope = "(sc.visibility='company' OR (sc.visibility='dept' AND sc.share_team_id=?) OR (sc.created_by=? AND sc.source='eum'))"
     sp = [tid if tid else -1, uid]
     row = None
     if tag:
@@ -797,8 +815,17 @@ def can_see(contact: dict, user: dict) -> bool:
     if vis == "dept" and contact.get("share_team_id") and \
        contact.get("share_team_id") == user.get("team_id"):
         return True
-    if vis == "dept" and is_chief_user(user):   # z1191z81: 총괄 = 모든 부서 주소록
-        return True
+    if vis == "dept":   # z1191z81·z82: 본사 총괄 = 모든 부서공유 · 법인 총괄 = 법인 부서공유만
+        _cs = chief_scope(user)
+        if _cs == "all":
+            return True
+        if _cs == "vn" and contact.get("share_team_id"):
+            try:
+                with db_session() as _c:
+                    r = _c.execute("SELECT 1 FROM teams WHERE id=? AND UPPER(TRIM(COALESCE(entity,'')))='VN'", (contact.get("share_team_id"),)).fetchone()
+                return bool(r)
+            except Exception as _e:
+                print(f"[z1191z82] 법인 부서 확인 실패: {_e}")
     return False
 
 
