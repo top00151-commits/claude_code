@@ -120,8 +120,8 @@
   {% if not ready %}
   <div class="form-card" style="border-color:var(--amber);margin:0 var(--content-pad,32px) 12px;">
     <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">⚠ 아직 <b>보내기 설정(발송망)</b>이 안 돼 있어 실제 발송이 안 됩니다.
-      {% if can_link %}<a href="/mail/account"><b>📮 내 메일 계정 연결</b></a>에서 내 회사 메일주소를 한 번 연결하면 바로 보낼 수 있습니다.
-      {% elif is_admin %}<a href="/admin/mail-send"><b>메일 보내기 설정</b></a>에서 발송망(Cloudflare/AWS SMTP)을 먼저 등록하세요.
+      {% if can_link %}<a href="/mail/account"><b>📮 내 회사 주소 연결</b></a>에서 내 회사 메일주소를 한 번 연결하면 바로 보낼 수 있습니다.
+      {% elif is_admin %}<a href="/admin/mail-send"><b>메일 보내기 설정</b></a>에서 보내기 설정을 먼저 해 주세요.
       {% else %}관리자에게 보내기 설정을 요청하세요.{% endif %}
     </div>
   </div>
@@ -135,7 +135,7 @@
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
-      {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일주소로 보내기 연결">📮 내 계정{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
+      {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일 주소로 보내기 연결">📮 내 회사 주소 연결{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
@@ -181,12 +181,12 @@
             <div id="cDrop" style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;font-size:12px;color:var(--mute);">여기로 파일을 <b>끌어다 놓기</b><br><span style="font-size:11px;">여러 개 가능 · 10MB↑ 자동 대용량</span></div>
           </div>
         </div>
-        <span style="font-size:11px;color:var(--mute);margin-left:8px;">10MB 넘으면 자동 <b>대용량(NAS 링크·30일)</b></span>
+        <span style="font-size:11px;color:var(--mute);margin-left:8px;">10MB 넘으면 자동 <b>대용량 링크(회사 저장소 · 30일)</b></span>
         <input type="file" id="cFiles" multiple data-knk-no-dropzone style="display:none">
         <div id="cAttList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px;"></div>
       </div>
     </div>
-    <div id="cTail" style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부한 파일이 <b>10MB</b>를 넘으면 자동으로 <b>대용량(NAS 다운로드 링크·30일 유효)</b>으로 보냅니다. (작은 파일은 메일에 그대로 첨부)</div>
+    <div id="cTail" style="font-size:11.5px;color:var(--mute);margin-top:8px;">※ 첨부한 파일이 <b>10MB</b>를 넘으면 자동으로 <b>대용량 링크(회사 저장소에서 내려받기 · 30일)</b>으로 보냅니다. (작은 파일은 메일에 그대로 첨부)</div>
   </div>
   <script>
   /* 11-19 쓰는 칸 높이 = 화면 남은 높이(노트북·큰 모니터 자동) — 아래 첨부 줄·안내까지 한 화면에 · 글이 길면 칸이 늘고 화면이 굴러감 */

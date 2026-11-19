@@ -366,7 +366,7 @@
     </div>
     <form class="mbx-search" method="get" action="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}">
       <input type="text" name="q" value="{{ q|default('') }}" autocomplete="off"
-             placeholder="🔍 {{ '받는사람·제목·본문으로 찾기' if box=='sent' else '사람·회사·제목·내용·첨부 이름으로 찾기 (띄어 쓰면 모두 들어간 메일)' }}">
+             placeholder="🔍 {{ '받는사람·제목·본문으로 찾기' if box=='sent' else ('받은편지함에서 찾기 — 사람·회사·제목·내용' if box in ('trash','blocked','draft') else '사람·회사·제목·내용·첨부 이름으로 찾기 (띄어 쓰면 모두 들어간 메일)') }}">
       {% if box=='in' %}
       <input type="hidden" name="cat" value="{{ cur_cat|default('') }}">
       <input type="hidden" name="cust" value="{{ cur_cust|default('') }}">
@@ -414,7 +414,7 @@
   <div class="mbx-arbar{{ ' over' if ar_info.over else '' }}">🏖 <b>부재중 자동 응답 {{ '켜짐' if ar_info.live else ('기간이 지났습니다(보내지 않음)' if ar_info.over else '예약됨') }}</b> <span>{{ ar_info.start[5:]|replace('-','/') }} ~ {{ ar_info.end[5:]|replace('-','/') }}</span> <a href="/mail/autoreply">설정 · 끄기 ›</a></div>
   {% endif %}
   {% if not ai_on %}
-  <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 AI 키가 설정돼 있을 때 작동합니다.</div>
+  <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 관리자가 AI 설정을 켜 두었을 때 작동합니다.</div>
   {% endif %}
 
   {% if box=='trash' and mails %}
@@ -548,8 +548,8 @@
         <button type="button" class="c" data-cmd="replyall" title="전체 답장 (Shift+R)">↩↩ <span class="t">전체 답장</span></button>
         <button type="button" class="c" data-cmd="forward" title="전달 (Shift+F)">↪ <span class="t">전달</span></button>
         <span class="sep"></span>
-        <button type="button" class="c" data-cmd="read" title="읽음 ↔ 안 읽음 (U)">✉ <span class="t">읽음·안 읽음</span></button>
-        <button type="button" class="c" data-cmd="star" title="중요 표시 (Insert)">⭐ <span class="t">중요</span></button>
+        <button type="button" class="c" data-cmd="read" title="읽음 ↔ 안 읽음 (U)">◐ <span class="t">읽음·안 읽음</span></button>
+        <button type="button" class="c" data-cmd="star" title="중요 표시 (S 또는 Insert)">⭐ <span class="t">중요</span></button>
       </div>
       <details class="mbx-viewdd"><summary title="화면 나누는 방식 — 이 컴퓨터에서 기억">🗔 <span class="t2">보기</span> ▾</summary>
         <div class="mbx-viewmenu">
@@ -667,7 +667,7 @@
         {% endfor %}
       {% elif box=='blocked' %}
         {# 스팸함(옛 차단함): 스팸·피싱으로 보여 옮긴 메일 · 다시 안 받기 · 회사 차단목록 — 열기 / ✓ 스팸 아님 (삭제 아님) #}
-        <div class="mf-cur" style="background:#fef2f2;border-color:#fecaca">🚫 <b>스팸함</b> <span>{{ mails|length }}통 · 스팸·피싱으로 보여 저절로 옮긴 메일과 「다시 안 받기」 한 곳 — 지우지 않습니다 · 정상 메일이면 「✓ 스팸 아님」</span></div>
+        <div class="mf-cur" style="background:#fef2f2;border-color:#fecaca">🚫 <b>스팸함</b> <span>{{ '{:,}'.format(spam_n|default(mails|length)) }}통{% if spam_n|default(0) > mails|length %}(최근 {{ mails|length }}통 보임){% endif %} · 스팸·피싱으로 보여 저절로 옮긴 메일과 「다시 안 받기」 한 곳 — 지우지 않습니다 · 정상 메일이면 「✓ 스팸 아님」</span></div>
         {% if not mails %}<div style="padding:40px 16px;text-align:center;color:var(--mt-mute,#6b7280)">스팸함이 비어 있습니다 👍</div>{% endif %}
         {% for m in mails %}
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
@@ -705,7 +705,7 @@
       {% elif cur_arc|default(false) %}
       📦 보관한 메일이 없습니다.<br><br><span style="font-size:12.5px;">다 본 메일을 열어 <b>📦 보관</b>을 누르면 받은편지함에서 빠지고 여기에 모입니다(지우지 않음).<br>⚙ 설정·정리 → <b>오래된 메일 한 번에 보관</b>도 있습니다.</span>
       {% elif box=='sent' %}
-      📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">왼쪽 <b>✏️ 메일 쓰기</b>로 첫 메일을 보내보세요.</span>
+      📭 보낸 메일이 없습니다.<br><br><span style="font-size:12.5px;">위 <b>✏️ 새 메일</b>로 첫 메일을 보내 보세요.</span>
       {% elif box=='draft' %}
       📝 임시보관함이 비어 있습니다.
       {% elif box=='trash' %}
@@ -983,7 +983,8 @@ async function mbxPost(fd){
 }
 async function mbxBulk(op){
   var ids=mbxPicked(); if(!ids.length) return;
-  if(op==='delete' && !confirm(ids.length+'통을 휴지통으로 옮길까요?\n(휴지통에서 되살릴 수 있습니다)')) return;
+  // 11-19 3단계 — 삭제는 어디서나 같게: 묻지 않고 휴지통으로 + 아래 「↺ 되돌리기」(전에는 여기만 묻고 되돌리기 없음)
+  if(op==='delete' && window.mbxCmd){ mbxCmd('delete', ids); if(window.mbxSelClear) mbxSelClear(); return; }
   var fd=new FormData(); fd.append('op', op); fd.append('ids', ids.join(','));
   var j=await mbxPost(fd); if(j) location.reload();
 }
@@ -1037,7 +1038,7 @@ async function mbxSideRefresh(){
 var MBX_FREE={'gmail.com':1,'naver.com':1,'daum.net':1,'hanmail.net':1,'nate.com':1,'kakao.com':1,'hotmail.com':1,'outlook.com':1,'yahoo.com':1,'icloud.com':1,'live.com':1};
 async function mbxDropDo(tg, ids){
   var op=tg.dataset.drop, name=tg.dataset.dname||'', prev={};
-  ids.forEach(function(i){ var r=mbxRowsOf(i)[0]; prev[i]= r ? {pin:r.dataset.pin||'', fd:r.dataset.fd||'', star:!!r.querySelector('.mbx-star.on'), unread:r.classList.contains('unread'), arc:r.dataset.arc==='1', dir:r.dataset.dir||'in', from:(r.dataset.from||'').trim().toLowerCase()} : null; });
+  ids.forEach(function(i){ var r=mbxRowsOf(i)[0]; prev[i]= r ? {reply:!!r.querySelector('.mbx-reply'), pin:r.dataset.pin||'', fd:r.dataset.fd||'', star:!!r.querySelector('.mbx-star.on'), unread:r.classList.contains('unread'), arc:r.dataset.arc==='1', dir:r.dataset.dir||'in', from:(r.dataset.from||'').trim().toLowerCase()} : null; });
   var inb=ids.filter(function(i){ return !prev[i] || prev[i].dir!=='out'; });
   if(op==='pin'){
     if(!inb.length){ mbxToast('📤 보낸 메일은 폴더에 넣을 수 없어요 (폴더는 받은 메일만)', null, true); return; }
@@ -1098,6 +1099,7 @@ async function mbxDropDo(tg, ids){
            unarchive:'📥 '+n+'통을 받은편지함으로 돌렸어요', star:'⭐ '+n+'통을 중요로 표시했어요',
            'delete':'🗑 '+n+'통을 휴지통으로 옮겼어요'}[op] || ('✓ '+n+'통');
   if(op==='pin' && ids.length>inb.length) msg+=' · 보낸 메일 '+(ids.length-inb.length)+'통은 빼고';
+  if(op==='archive' && ids.some(function(i){ return prev[i] && prev[i].reply; })) msg+=' · ↩ 「회신 필요」에서도 빠졌어요(아직 답할 메일이면 ↺ 되돌리기)';   // 11-19 3단계: 조용히 빠지지 않게
   var acts=[['↺ 되돌리기', undo]];
   // 같은 회사(같은 주소) 메일만 끌었으면 「이 회사 메일 모두」 — 지난·앞으로 올 메일까지(규칙)
   if(op==='pin'){
@@ -1341,7 +1343,7 @@ async function mbxDropDo(tg, ids){
     item('🗗 새 창으로 열기', function(){ mbxOpenWin(r.dataset.mailId); }, {k:'더블클릭'});
     hr();
     item(unread ? '✓ 읽음으로' : '● 안 읽음으로', function(){ readToggle(ids); }, {k:'U'});
-    item(star ? '☆ 중요 풀기' : '⭐ 중요 표시', function(){ mbxCmd('star', ids); }, {k:'Insert'});
+    item(star ? '☆ 중요 풀기' : '⭐ 중요 표시', function(){ mbxCmd('star', ids); }, {k:'S'});
     item('🚩 기한 정하기 ▸', function(){ setTimeout(function(){ mbxFollowMenu('flag', r, ids); }, 0); });
     if(!out) item('⏰ 다시 알림 ▸', function(){ setTimeout(function(){ mbxFollowMenu('snz', r, ids); }, 0); });
     hr();
@@ -1349,7 +1351,7 @@ async function mbxDropDo(tg, ids){
     item('📁 이 메일만 다른 폴더로 ▸', function(){ setTimeout(function(){ mbxMoveMenu(r, ids); }, 0); });
     if(from && !out){
       item('🔍 이 사람 메일 모두 보기', function(){ location.href='/mail/inbox?who='+encodeURIComponent(from); });
-      if(!/@knknara\.co\.kr$/i.test(from)) item('🚫 스팸함으로 · 이 사람 다시 안 받기', async function(){
+      if(!/@knknara\.co\.kr$/i.test(from)) item('🔕 다시 안 받기(나만 · 스팸함으로)', async function(){
         if(!confirm(from+' 의 메일을 다시 안 받을까요? (나에게만)\n\n지금 것도 앞으로 오는 것도 스팸함으로 갑니다. 지우지 않으며 스팸함에서 「✓ 스팸 아님」으로 되돌릴 수 있습니다.')) return;
         try{ var rr=await fetch('/mail/'+r.dataset.mailId+'/mute-sender',{method:'POST'}); var j=await rr.json();
           if(j.ok){ location.reload(); } else alert('⚠ '+(j.message||'하지 못했습니다')); }catch(_){ alert('네트워크 오류'); } });
@@ -1391,7 +1393,7 @@ async function mbxDropDo(tg, ids){
       if(n!==i){ e.preventDefault(); openRow(rows[n]); }
       return;
     }
-    var map={'Delete':'delete','e':'archive','E':'archive','u':'read','U':'read','Insert':'star'};
+    var map={'Delete':'delete','e':'archive','E':'archive','u':'read','U':'read','Insert':'star','s':'star','S':'star'};   // 11-19 3단계: 노트북(Insert 없음) = S
     if(k==='n'||k==='N'){ e.preventDefault(); location.href='/mail/compose'; return; }
     if(k==='r' && !e.shiftKey){ e.preventDefault(); mbxCmd('reply'); return; }
     if((k==='R'||k==='r') && e.shiftKey){ e.preventDefault(); mbxCmd('replyall'); return; }

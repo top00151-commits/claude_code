@@ -59,7 +59,7 @@
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 폴더 관리</div>
     <h1 class="page-title">📁 메일 <em>폴더</em></h1>
-  </div><div><a href="/mail/inbox" class="btn btn-secondary">← 메일함</a></div></div>
+  </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
 
   {% if msg %}<div class="mf-msg">✓ {{ msg }}</div>{% endif %}
 
@@ -67,7 +67,7 @@
     받은 메일은 <b>보낸 사람으로 저절로</b> 폴더에 나뉩니다(아웃룩 규칙과 같습니다 · <b>나에게만</b> 적용).
     <br>· <b>고객사·업체</b> — 주소록·거래처 담당자 이메일, 같은 회사 주소(@ 뒤), 서명의 회사 이름이 폴더 이름과 같을 때. 이음웍스 거래처인데 폴더가 없으면 「기타 고객사」로.
     <br>· <b>케이엔케이</b> — 우리 회사 주소(@knknara.co.kr)는 직원 명부의 부서로(명부에 없으면 서명의 부서 이름).
-    <br>· 어디에도 안 걸리면 <b>「일반」</b>. 메일을 열어 <b>「📁 이 폴더로」</b>를 고르면 그 회사(개인 메일은 그 주소)에서 온 메일이 지난 것·앞으로 올 것 모두 그 폴더로 갑니다.
+    <br>· 어디에도 안 걸리면 <b>「일반」</b>. 메일을 열어 <b>「📁 다른 폴더로…」</b>에서 고르면 그 회사(개인 메일은 그 주소)에서 온 메일이 지난 것·앞으로 올 것 모두 그 폴더로 갑니다.
     <br>· 폴더 이름 옆 <b>다른 이름</b>(영문 이름·회사 주소)도 같이 봅니다 — 예: 「드림텍」 옆에 Dreamtech 를 적어 두면 @dreamtech… 주소와 영문 서명도 드림텍으로.
     <br>· 폴더를 지워도 <b>메일은 지워지지 않습니다</b>(자동 분류나 「일반」으로 돌아갑니다).
     {% if gen.n %}<br>· 「일반」에 <b>{{ gen.n }}통</b> 남아 있습니다 → <a href="/mail/folders/general"><b>🧹 일반 정리하기</b></a>(보낸 곳별로 묶어 한 번에){% endif %}
@@ -179,7 +179,7 @@
         <input type="hidden" name="op" value="delrule"><input type="hidden" name="id" value="{{ r.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
     </div>
     {% else %}
-    <div class="mf-empty">아직 없습니다. 메일을 열어 「📁 이 폴더로」를 고르면 여기에 생깁니다.</div>
+    <div class="mf-empty">아직 없습니다. 메일을 열어 「📁 다른 폴더로…」에서 「이 회사 메일 모두」를 고르면 여기에 생깁니다.</div>
     {% endfor %}
   </div>
 </div>

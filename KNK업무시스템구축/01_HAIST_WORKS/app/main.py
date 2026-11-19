@@ -25342,7 +25342,7 @@ async def mail_blocked_page(req: Request):
         mails = _mailbox.list_blocked(c, u["id"])
         unread = _mailbox.count_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
-        spam_n = len(mails)
+        spam_n = _mailbox.count_blocked(c, u["id"])   # 11-19 3단계: 목록(300통 한도) 길이가 아니라 실제 통수
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
                ai_on=mail_ai_enabled_for(u), box="blocked", drafts_n=drafts_n, spam_n=spam_n)

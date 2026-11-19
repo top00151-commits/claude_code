@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>메일 자동분류 규칙 · KNK</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 종류 규칙 · KNK 메일</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
@@ -21,7 +21,7 @@
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 자동분류 규칙</div>
-    <h1 class="page-title">⚙ 메일 <em>자동분류 규칙</em></h1>
+    <h1 class="page-title">🏷 메일 <em>종류 규칙</em> <small style="font-size:13px;color:var(--mute);font-weight:500">견적·발주·세금계산서 나누기</small></h1>
   </div></div>
 
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
@@ -29,7 +29,7 @@
 
   <div class="rl-card">
     <div style="font-size:13px;color:var(--mute);margin-bottom:10px;line-height:1.7;">
-      보낸사람(이메일·도메인·이름)이나 제목에 특정 단어가 들어가면 <b>그 분류로 자동 지정</b>합니다.
+      보낸 사람(메일 주소·회사 주소(@ 뒤)·이름)이나 제목에 특정 단어가 들어가면 <b>그 분류로 자동 지정</b>합니다.
       규칙이 있으면 AI 자동분류보다 <b>우선</b>합니다(위 규칙부터 먼저 적용).
       <br>예: 보낸사람에 <code>@taxoffice.co.kr</code> 포함 → 세금계산서 / 제목에 <code>발주</code> 포함 → 발주
     </div>
@@ -52,7 +52,7 @@
       <b style="font-size:13.5px;">내 규칙 {{ rules|length }}개</b>
       <span style="flex:1"></span>
       <button type="button" class="btn btn-secondary" onclick="applyRules()" {% if not rules %}disabled{% endif %}>🔁 기존 메일에 지금 적용</button>
-      <a href="/mail/inbox" class="btn btn-secondary">← 메일함</a>
+      <a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a>
     </div>
     {% if rules %}
     <ul class="rl-list">

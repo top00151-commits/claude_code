@@ -20,6 +20,8 @@
   .mail-tools { display:flex; align-items:center; gap:2px; padding:4px 12px; background:var(--mt-surface,#fff); border-bottom:1px solid var(--line,#e5e7eb);
                 box-shadow:0 2px 6px rgba(0,0,0,.05); overflow-x:auto; scrollbar-width:none; }
   .mail-tools::-webkit-scrollbar { height:0; }
+  /* 11-19 3단계 — 좁은 화면: 오른쪽에 메뉴가 더 있으면 끝을 흐리게(옆으로 밀면 더 있다는 표시) */
+  .mail-tools.more { -webkit-mask-image:linear-gradient(to right,#000 82%,transparent); mask-image:linear-gradient(to right,#000 82%,transparent); }
   .mail-tools a, .mail-tools button { display:inline-flex; align-items:center; gap:5px; height:34px; padding:0 10px; border-radius:8px; border:0; background:none;
                 font:inherit; font-size:13px; color:var(--mt-text,#1f2937); text-decoration:none; white-space:nowrap; cursor:pointer; flex:none; }
   .mail-tools a:hover, .mail-tools button:hover { background:var(--mt-hover,#f1f3f5); }
@@ -135,7 +137,8 @@
   · 메일을 <b>끌어서</b> 왼쪽 폴더나 위 ⭐ 중요 · 📦 보관함 · 🗑 휴지통에 놓으면 옮겨짐(아래 안내에서 ↺ 되돌리기)<br>
   · 네모(☐)로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
   · 목록 위 「🗔 보기」 = 읽기 칸 오른쪽·아래·끄기<br>
-  <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>Insert</kbd> 중요 · <kbd>N</kbd> 새 메일
+  <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요 · <kbd>N</kbd> 새 메일
+  <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb"><b>📱 휴대폰에서</b> 메일을 누르면 크게 열림 · 열린 메일 위 단추로 답장·전달·삭제·보관 · 「🚩 기한·알림」 · 도구 줄은 옆으로 밀면 더 있음(스팸함·설정·도움말)</div>
   <div style="text-align:right;margin-top:6px"><button type="button" onclick="mailHelpToggle()" style="border:1px solid var(--mt-line,#e5e7eb);background:var(--mt-surface,#fff);border-radius:8px;padding:4px 12px;cursor:pointer;font:inherit">닫기</button></div>
 </div>
 <script>
@@ -157,6 +160,9 @@
   function setH(){ var f=document.querySelector('.mail-app-fixed'); if(f) document.documentElement.style.setProperty('--mail-fixed-h', f.getBoundingClientRect().height+'px'); }
   setH(); window.addEventListener('resize', setH); window.addEventListener('load', setH);
 })();
+(function(){ var t=document.getElementById('mailTools'); if(!t) return;
+  function f(){ t.classList.toggle('more', t.scrollLeft + t.clientWidth < t.scrollWidth - 6); }
+  t.addEventListener('scroll', f, {passive:true}); window.addEventListener('resize', f); setTimeout(f, 50); })();
 window.mailCountsRefresh=async function(lite){
   try{ var r=await fetch('/api/mail/counts'+(lite?'?lite=1':''),{headers:{'X-Requested-With':'fetch'}}); if(!r.ok) return; var j=await r.json();
     function put(id, n){ var e=document.getElementById(id); if(!e) return; e.textContent = n>999 ? '999+' : String(n||0); e.hidden=!n; }

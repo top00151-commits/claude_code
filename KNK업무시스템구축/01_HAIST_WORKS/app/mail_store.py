@@ -1067,9 +1067,27 @@ def group_threads(mails: list) -> list:
     """list_inbox() 결과(받은시각 내림차순)를 같은 제목 대화로 묶는다.
     반환: [{key, latest(대표=최신), count, unread_count, items(최신순)}] — 그룹은 최신 대화 먼저.
     입력이 이미 내림차순이라 키 첫 등장 = 그 대화의 최신 → 그룹 순서가 자연히 최신순."""
+    # 11-19 3단계 — 같은 제목이라도 상대 회사(주소 @ 뒤)가 다르면 다른 대화(「견적 요청」이 여러 회사에서 와도 섞이지 않게).
+    #   우리 회사 사람끼리 주고받은 메일은 같은 제목의 바깥 회사가 하나뿐이면 그 대화에 붙인다.
+    def _dom(m):
+        if (m.get("direction") or "in") == "out":
+            a = (m.get("to_email") or "").split(",")[0]
+        else:
+            a = m.get("from_email") or ""
+        a = a.strip().lower()
+        d = a.rsplit("@", 1)[-1].strip(" >") if "@" in a else ""
+        return "" if (not d or any(d == o or d.endswith("." + o) for o in _OUR_DOMAINS)) else d
+    subj_doms = {}
+    for m in mails:
+        subj_doms.setdefault(_normalize_subject(m.get("subject")), set()).add(_dom(m))
     order, groups = [], {}
     for m in mails:
-        key = _normalize_subject(m.get("subject"))
+        sj = _normalize_subject(m.get("subject"))
+        d = _dom(m)
+        if not d:
+            ext = subj_doms.get(sj, set()) - {""}
+            d = next(iter(ext)) if len(ext) == 1 else ""
+        key = sj + "\x1f" + d
         g = groups.get(key)
         if g is None:
             g = {"key": key, "latest": m, "count": 0, "unread_count": 0, "items": []}
