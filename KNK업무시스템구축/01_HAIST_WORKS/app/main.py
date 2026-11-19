@@ -13,6 +13,13 @@ import logging as _logging_z1191l
 # z1191l: 아래 `log.warning(...)` 7곳(소모품 이력·수주 제품·고객 지도·HS 세관 파싱)이 이 이름 없이 쓰여
 #   그 길(예외 처리)로 가면 경고 대신 NameError 로 멈췄다 → 모듈 이름 하나로 정의한다.
 log = _logging_z1191l.getLogger("knk")
+# z1191z84 (대표 2026-11-20 「토큰 기록 고쳐」): 서버 접속 기록에 `/sso/land?token=<JWT>` 같은 로그인 토큰 값이 그대로 찍혔다
+#   → 기록 직전에 비밀 이름 변수 값만 *** 로 가린다(주소·로그인 동작은 그대로). app/log_redact.py
+try:
+    from . import log_redact as _z84lr
+    _z84lr.install()
+except Exception as _e84:
+    print(f"[z84 ERR] 토큰 가리기 거름망 설치 실패: {_e84}")
 from .i18n import LANGS, t as i18n_t, get_all_translations, USER_LANGS, USER_LANG_NAMES, user_lang_label, rank_label
 from . import menu_catalog as _menu  # Phase 1 (2026-04-29): M-코드 카탈로그
 from .database import (db_session, init_db, seed_all, seed_sample_tasks,
