@@ -16,39 +16,39 @@
   .mt-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:14px}
   @media(max-width:900px){.mt-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:560px){.mt-tiles{grid-template-columns:1fr;grid-auto-rows:auto}.mt-wrap{padding:0 12px 32px}.mt-sec{flex-wrap:wrap;white-space:nowrap}.mt-sec small{flex-basis:100%;white-space:normal}.mt-tile{min-height:0}}
-  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:16px 18px;min-height:168px}
-  .mt-tile .mt-tt{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#374151}
+  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:var(--mt-surface,#fff);padding:16px 18px;min-height:168px}
+  .mt-tile .mt-tt{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--mt-text2,#374151)}
   .mt-tile .mt-tt .ic{font-size:20px}
   .mt-tile .num{font-size:28px;font-weight:800;line-height:1.15;color:var(--ink);min-height:32px;display:flex;align-items:center}
   .mt-tile .num small{font-size:14px;font-weight:600;color:var(--mute);margin-left:3px}
   .mt-tile .why{font-size:12.5px;color:var(--mute);line-height:1.5;flex:1}
   .mt-tile .go{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;background:var(--knk-red);color:#fff}
-  .mt-tile .go.sub{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .mt-tile .go.sub{background:var(--mt-surface,#fff);color:var(--ink);border:1px solid var(--line);font-weight:600}
   .mt-tile .go[disabled]{opacity:.45;cursor:default}
   .mt-tile.clean{background:#f6fbf7;border-color:#cfe8d6}
   .mt-tile.clean .num{color:#15803d;font-size:19px}
   .mt-tile.warn{border-color:#fecaca;background:#fffafa}
   .mt-tile select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;margin:0 2px}
   /* ② 설정 — 줄 */
-  .mt-list{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+  .mt-list{border:1px solid var(--line);border-radius:14px;background:var(--mt-surface,#fff);overflow:hidden}
   .mt-row{display:flex;align-items:center;gap:14px;padding:13px 16px;border-top:1px solid #f0f1f3;text-decoration:none;color:var(--ink)}
   .mt-row:first-child{border-top:0}
-  a.mt-row:hover,button.mt-row:hover{background:#fafbfc}
+  a.mt-row:hover,button.mt-row:hover{background:var(--mt-panel,#fafbfc)}
   .mt-row .ic{font-size:21px;width:28px;text-align:center;flex:none}
   .mt-row .tx{flex:1;min-width:0}
   .mt-row .t{font-size:14.5px;font-weight:700}
   .mt-row .d{font-size:12.5px;color:var(--mute);margin-top:2px;line-height:1.5}
-  .mt-row .st{flex:none;font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:#f1f5f9;color:#475569;white-space:nowrap}
+  .mt-row .st{flex:none;font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--mt-hover,#f1f5f9);color:var(--mt-text2,#475569);white-space:nowrap}
   .mt-row .st.ok{background:#e8f6ec;color:#15803d}
   .mt-row .st.no{background:#fff7ed;color:#c2410c}
-  .mt-row .arr{flex:none;color:#9ca3af;font-size:18px}
-  .mt-row select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:#fff}
+  .mt-row .arr{flex:none;color:var(--mt-mute,#9ca3af);font-size:18px}
+  .mt-row select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--mt-surface,#fff)}
   .mt-sw{flex:none;position:relative;width:46px;height:26px;border-radius:999px;background:#d1d5db;border:0;cursor:pointer;transition:background .15s}
-  .mt-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+  .mt-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--mt-surface,#fff);box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
   .mt-sw.on{background:#16a34a}
   .mt-sw.on::after{left:23px}
-  .mt-keys{font-size:12.5px;color:#374151;line-height:1.9}
-  .mt-keys kbd{display:inline-block;min-width:20px;text-align:center;border:1px solid #d1d5db;border-bottom-width:2px;border-radius:5px;padding:0 5px;font-family:inherit;font-size:11.5px;background:#f9fafb;margin-right:3px}
+  .mt-keys{font-size:12.5px;color:var(--mt-text2,#374151);line-height:1.9}
+  .mt-keys kbd{display:inline-block;min-width:20px;text-align:center;border:1px solid var(--mt-line,#d1d5db);border-bottom-width:2px;border-radius:5px;padding:0 5px;font-family:inherit;font-size:11.5px;background:var(--mt-panel,#f9fafb);margin-right:3px}
   .mt-adm{margin-top:22px;border:1px dashed #d6d3d1;border-radius:14px;background:#fbfaf8;padding:4px 14px}
   .mt-adm>summary{cursor:pointer;padding:10px 2px;font-size:14.5px;font-weight:800;color:#57534e;list-style:none}
   .mt-adm>summary::-webkit-details-marker{display:none}
@@ -117,6 +117,11 @@
       <span class="st {{ 'ok' if has_acct else 'no' }}">{{ '연결됨' if has_acct else '연결 안 됨' }}</span><span class="arr">›</span></a>
     <a class="mt-row" href="/mail/folders"><span class="ic">📁</span><span class="tx"><span class="t">폴더 관리</span><span class="d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 메일이 어느 폴더로 갈지 내가 정한 규칙</span></span>
       <span class="st">{% if folder_n %}폴더 {{ folder_n }}개{% if rule_n %} · 규칙 {{ rule_n }}개{% endif %}{% else %}폴더 없음{% endif %}</span><span class="arr">›</span></a>
+    {% if mail_app %}
+    {# 11-19 대표 「테마 3가지 — 골라서 쓰게」 · 메일 앱 화면에만(도구 줄 🎨 와 같은 설정) #}
+    <div class="mt-row" style="flex-wrap:wrap" id="mtThemeRow"><span class="ic">🎨</span><span class="tx"><span class="t">화면 테마</span><span class="d" style="display:block">누르면 바로 바뀜 · 이 컴퓨터에만 · 위 도구 줄 「🎨 테마」와 같은 설정</span></span>
+      <div style="flex-basis:100%;margin-top:8px">{% include "_v5_partials/mail_theme_cards.html" %}</div></div>
+    {% endif %}
     <div class="mt-row"><span class="ic">🗔</span><span class="tx"><span class="t">보기 방식</span><span class="d" style="display:block">메일 내용을 어디에 보일지 — 작은 모니터면 「끄기(목록만, 누르면 크게)」가 편해요 · 이 컴퓨터에만</span></span>
       <select id="mtView" onchange="mtViewSet(this.value)" title="받은편지함 「🗔 보기」와 같은 설정">
         <option value="auto">자동 — 화면 크기에 맞춤</option><option value="right">오른쪽(세 칸)</option><option value="bottom">아래(목록 위·내용 아래)</option><option value="list">끄기(목록만, 누르면 크게)</option>

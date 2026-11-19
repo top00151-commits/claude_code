@@ -5,14 +5,14 @@
 <style>
   /* 「일반」 정리(대표 지시 2026-11-17 「일반에 남은 메일 정리해줘」) — 보낸 곳별로 묶어 한 번에 폴더로 */
   .gn-wrap{max-width:1180px}
-  .gn-help{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
+  .gn-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:12px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
   .gn-help b{color:var(--ink)}
   .gn-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
   .gn-q{flex:1;min-width:160px;max-width:300px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
-  .gn-list{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+  .gn-list{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);overflow:hidden}
   .gn-row{display:grid;grid-template-columns:28px minmax(190px,1.3fr) 70px minmax(180px,1.6fr) minmax(210px,auto);gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
   .gn-row:last-child{border-bottom:0}
-  .gn-row.head{background:#f8fafc;font-size:12px;color:var(--mute);font-weight:700}
+  .gn-row.head{background:var(--mt-panel,#f8fafc);font-size:12px;color:var(--mute);font-weight:700}
   .gn-row.done{background:#f0fdf4}
   .gn-row.sug{background:#fffbeb}
   .gn-row input[type=checkbox]{width:17px;height:17px;cursor:pointer}
@@ -26,9 +26,9 @@
   .gn-subj .h{font-size:11.5px;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gn-subj .d{font-size:11px;color:var(--mute)}
   .gn-act{display:flex;gap:6px;align-items:center;justify-content:flex-end}
-  .gn-act select{font-size:12.5px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:7px;max-width:190px;background:#fff}
-  .gn-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
-  .gn-btn:hover{background:#f3f4f6}
+  .gn-act select{font-size:12.5px;padding:4px 6px;border:1px solid var(--mt-line,#cbd5e1);border-radius:7px;max-width:190px;background:var(--mt-surface,#fff)}
+  .gn-btn{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
+  .gn-btn:hover{background:var(--mt-hover,#f3f4f6)}
   .gn-btn.go{background:#1d4ed8;border-color:#1d4ed8;color:#fff;font-weight:700}
   .gn-ok{font-size:12px;color:#047857;font-weight:700;white-space:nowrap}
   .gn-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
@@ -88,7 +88,7 @@
   <div class="gn-sel">
     {% if sug_n %}<button type="button" class="gn-btn go" onclick="gnSuggested()">💡 추천대로 모두 옮기기 ({{ sug_n }}곳)</button>{% endif %}
     <span style="margin-left:auto">고른 줄을</span>
-    <select id="gnBulk" style="font-size:13px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:7px">
+    <select id="gnBulk" style="font-size:13px;padding:5px 7px;border:1px solid var(--mt-line,#cbd5e1);border-radius:7px">
       <option value="">폴더 고르기…</option>
       {% for f in choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
     </select>

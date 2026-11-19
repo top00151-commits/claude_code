@@ -2,11 +2,12 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ m.subject or '(제목 없음)' }} · KNK 메일</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_view_styles.html" %}
+{% include "_v5_partials/mail_theme.html" %}
 <style>
   /* 메일 새 창(11-19 대표 「더블클릭하면 해당 메일만 새 창으로」) — 웍스 메뉴·폴더 없이 메일만 */
-  html,body{background:#f3f4f6}
+  html,body{background:var(--mt-hover,#f3f4f6)}
   .mw-wrap{max-width:1100px;margin:0 auto;padding:14px 18px 30px}
-  .mw-wrap .mv-head{background:#fff;border:1px solid var(--line);border-radius:12px}
+  .mw-wrap .mv-head{background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px}
 </style>
 </head><body>
 <main class="main mw-wrap" data-dn="main">

@@ -11,7 +11,7 @@
 {% endif %}
 
 <div class="mv-head">
-  <h1 class="mv-subj">{{ m.subject }}{% if m.category and m.category != '일반' %}<span class="mv-badge" style="background:{{ BG.get(m.category,'#f3f4f6') }};color:{{ FG.get(m.category,'#4b5563') }}">{{ m.category }}</span>{% endif %}</h1>
+  <h1 class="mv-subj">{{ m.subject }}{% if m.category and m.category != '일반' %}<span class="mv-badge" style="background:{{ BG.get(m.category,'var(--mt-hover,#f3f4f6)') }};color:{{ FG.get(m.category,'var(--mt-text2,#4b5563)') }}">{{ m.category }}</span>{% endif %}</h1>
   <div class="mv-hrow">
     <div class="mv-av" aria-hidden="true">{{ ((m.from_name or m.from_email or '?')|trim)[:1]|upper }}</div>
     <div class="mv-hwho">

@@ -3,60 +3,60 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .cmp-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:1120px}
+  .cmp-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;max-width:1120px}
   .cmp-from{font-size:12px;color:var(--mute);padding:4px 2px 10px;border-bottom:1px solid var(--line)}
   .cmp-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:10px 2px}
   .cmp-row label{width:84px;font-size:13px;color:var(--mute);flex:none}
   .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
   .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
   /* z1168(대표 지시): 같은 단추줄을 위에도 — 긴 메일에서 끝까지 안 내려가도 보낼 수 있게 */
-  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding:8px 0 10px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:#fff}
+  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding:8px 0 10px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:var(--mt-surface,#fff)}
   .mail-app-top ~ .main .cmp-actions-top{top:50px}   /* 앱(kmail) 머리띠 아래에 붙게 */
   .cmp-keep{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 12px;margin:0 0 10px;font-size:13px;color:#78350f}
   .cmp-keep[hidden]{display:none}
-  .cmp-keep button{border:1px solid #fcd34d;background:#fff;border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
+  .cmp-keep button{border:1px solid #fcd34d;background:var(--mt-surface,#fff);border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
   .cmp-keep button.x{font-weight:400;color:#92400e}
   .cmp-keep-n{color:#a16207;font-size:12px}
   .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
   .cmp-pick:hover{background:#e0e7ff}
   .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
   .ab-wrap[hidden]{display:none}
-  .ab-box{background:#fff;border-radius:14px;width:min(640px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+  .ab-box{background:var(--mt-surface,#fff);border-radius:14px;width:min(640px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
   .ab-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
   .ab-h b{font-size:15px}.ab-h input{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit}
   .ab-list{overflow:auto;flex:1;padding:4px 6px}
   .ab-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;font-size:13.5px;cursor:pointer}
   .ab-row:hover{background:#f5f7ff}
-  .ab-row .co{color:var(--mute);font-size:12.5px}.ab-row .em{margin-left:auto;color:#475569;font-size:12px}
+  .ab-row .co{color:var(--mute);font-size:12.5px}.ab-row .em{margin-left:auto;color:var(--mt-text2,#475569);font-size:12px}
   .ab-f{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
   .ab-empty{padding:30px;text-align:center;color:var(--mute);font-size:13px}
   .ac-box div:hover{background:#f5f7ff}
-  .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:#fafafa;margin-top:8px}
-  .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
+  .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:var(--mt-panel,#fafafa);margin-top:8px}
+  .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
   .cmp-tb>button:hover,.cmp-color:hover{background:#f0f0f0}
   .cmp-color{position:relative;font-weight:700;min-width:30px}
   .cmp-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-  .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:#fff}
-  .cmp-editor:empty:before{content:attr(data-ph);color:#9ca3af}
+  .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:var(--mt-surface,#fff)}
+  .cmp-editor:empty:before{content:attr(data-ph);color:var(--mt-mute,#9ca3af)}
   .cmp-editor img{max-width:100%;height:auto;cursor:pointer}
   .cmp-editor img.imgsel{outline:2px solid #7c3aed;outline-offset:1px}
-  .img-tb{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
-  .img-tb button{height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:12px}
+  .img-tb{position:absolute;z-index:70;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+  .img-tb button{height:26px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:5px;cursor:pointer;padding:0 7px;font-size:12px}
   .img-tb button:hover{background:#f0f0f0}
   .img-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
   .crop-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center}
-  .crop-box{background:#fff;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:94vw}
+  .crop-box{background:var(--mt-surface,#fff);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:94vw}
   .crop-stage{position:relative;overflow:hidden;background:#222;align-self:center;line-height:0}
   .crop-stage img{display:block;max-width:82vw;max-height:58vh;user-select:none;-webkit-user-drag:none}
   .crop-sel{position:absolute;border:2px dashed #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;box-sizing:border-box}
   .crop-sel .br{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;background:#7c3aed;border:2px solid #fff;border-radius:50%;cursor:se-resize}
   .cmp-editor table td,.cmp-editor table th{min-width:24px}
   .cmp-editor td.tblsel{outline:2px solid #7c3aed;outline-offset:-2px}
-  .paste-pop{position:absolute;z-index:80;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;gap:6px;align-items:center;font-size:12px}
-  .paste-pop button{height:28px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;padding:0 10px;font-size:12px}
+  .paste-pop{position:absolute;z-index:80;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;gap:6px;align-items:center;font-size:12px}
+  .paste-pop button{height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;padding:0 10px;font-size:12px}
   .paste-pop button:hover{background:#f0f0f0}
-  .tbl-tb{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
-  .tbl-tb button{height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;padding:0 7px;font-size:11.5px}
+  .tbl-tb{position:absolute;z-index:70;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+  .tbl-tb button{height:26px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:5px;cursor:pointer;padding:0 7px;font-size:11.5px}
   .tbl-tb button:hover{background:#f0f0f0}
   .tbl-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
   /* ── 폰(≤640px): 메일 쓰기 — 입력칸 16px(자동확대 방지)·버튼 큼직 (대표 지시 2026-06-14 모바일) ── */
@@ -133,7 +133,7 @@
       <div style="flex:1;">
         <div style="position:relative;display:inline-block;">
           <button type="button" class="btn btn-secondary" id="cAttachBtn" title="파일 첨부">📎 첨부</button>
-          <div id="cAttachMenu" style="display:none;position:absolute;z-index:60;top:36px;left:0;width:290px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;">
+          <div id="cAttachMenu" style="display:none;position:absolute;z-index:60;top:36px;left:0;width:290px;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;">
             <button type="button" class="btn btn-secondary" id="cPickBtn" style="width:100%;margin-bottom:8px;">📁 내 컴퓨터에서 파일 선택</button>
             <div id="cDrop" style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;font-size:12px;color:var(--mute);">여기로 파일을 <b>끌어다 놓기</b><br><span style="font-size:11px;">여러 개 가능 · 10MB↑ 자동 대용량</span></div>
           </div>

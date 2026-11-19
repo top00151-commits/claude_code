@@ -3,7 +3,7 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .rl-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;max-width:760px;margin-bottom:14px}
+  .rl-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;max-width:760px;margin-bottom:14px}
   .rl-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .rl-form select,.rl-form input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none}
   .rl-form input[name=pattern]{flex:1;min-width:180px}
@@ -61,7 +61,7 @@
         <span class="rl-when">{{ '보낸사람' if r.match_type=='sender' else '제목' }}에</span>
         <span class="rl-pat">“{{ r.pattern }}”</span>
         <span class="rl-arrow">포함 →</span>
-        <span class="rl-cat" style="background:{{ BG.get(r.category,'#f3f4f6') }};color:{{ FG.get(r.category,'#4b5563') }}">{{ r.category }}</span>
+        <span class="rl-cat" style="background:{{ BG.get(r.category,'var(--mt-hover,#f3f4f6)') }};color:{{ FG.get(r.category,'var(--mt-text2,#4b5563)') }}">{{ r.category }}</span>
         <button type="button" class="rl-del" onclick="delRule({{ r.id }})">삭제</button>
       </li>
       {% endfor %}

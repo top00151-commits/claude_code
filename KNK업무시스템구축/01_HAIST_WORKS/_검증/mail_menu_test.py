@@ -153,6 +153,21 @@ try:
     check("kmail 쓰기 화면도 같은 도구 줄 · 보내기 단추줄은 고정 줄 바로 아래", 'id="mailTools"' in hc and "임시보관함" in hc and ".cmp-actions-top { top:var(--mail-fixed-h,0px) !important; }" in hc)
     check("kmail ⚙ 설정·정리 200 · 도구 줄 받은편지함 길 있음", km.get("/mail/tools").status_code == 200 and 'href="/mail/inbox" data-k="in"' in km.get("/mail/tools").text)
 
+    print("== 4-1. 화면 테마 3가지(11-19 대표 「누런 바탕이라 눈이 아프고 글씨가 잘 안 보임 · 골라서 쓰게」) ==")
+    check("테마 셋(밝게·부드럽게·어둡게) · 기본 = 밝게 · 이 컴퓨터에 기억 · 화면 그리기 전에 적용",
+          all(x in hk for x in ('html[data-mt="clear"]', 'html[data-mt="soft"]', 'html[data-mt="dark"]', "knkmail.theme", "setAttribute('data-mt', t)"))
+          and hk.find("knkmail.theme") < hk.find('class="mail-app-top"'))
+    check("도구 줄 「🎨 테마」 → 카드 셋(누르면 바로) · Esc·바깥 누르면 닫힘",
+          "mailThemeToggle(event)" in tools and 'id="mailThemePop"' in hk and all(("mailThemeSet('%s')" % k_) in hk for k_ in ("clear", "soft", "dark")) and "e.key==='Escape'" in hk)
+    _tt = km.get("/mail/tools").text
+    check("⚙ 설정·정리에도 「화면 테마」 카드 셋(같은 설정)", 'id="mtThemeRow"' in _tt and _tt.count('class="mt-card"') == 6, _tt.count('class="mt-card"'))
+    check("메일 본문·쓰는 칸은 어느 테마에서나 흰 종이(받는 사람 모양 그대로)",
+          "html[data-mt] .mv-frame{ background:#fff !important" in hk and "html[data-mt] .cmp-editor{ background:#fff !important; color:#111 !important; }" in hk)
+    check("화면 글 속 고정 색 = 테마 값(없으면 원래 색) — 기본 모양 그대로", "var(--mt-surface,#fff)" in hk and "var(--mt-surface,#fffdf5)" in hk)
+    check("새 창(더블클릭)도 같은 테마", "knkmail.theme" in km.get("/mail/%d?win=1" % M_CUST).text)
+    _tw = k.get("/mail/tools").text
+    check("WORKS 화면(앱 아님)에는 테마 안 들어감(회사 다른 화면 그대로)", "knkmail.theme" not in h and 'id="mtThemeRow"' not in _tw and 'class="mail-app-top"' not in h)
+
     print("== 5. 읽기 화면 ==")
     p = k.get("/mail/%d/pane" % M_CUST).text
     act = p[p.find('class="mv-actions"'):p.find('id="mvMore"')]

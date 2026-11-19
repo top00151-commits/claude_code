@@ -1,5 +1,6 @@
 {# 메일 '앱(독립 창)' 모드 헤더 — KNK Eum 등에서 ?app=1 로 별도 창 실행 시 사용.
    WORKS 사이드바 대신 슬림 메일 상단바 + 본문 전체폭. ?app=0 으로 WORKS 전체화면 복귀. #}
+{% include "_v5_partials/mail_theme.html" %}
 <style>
   body .app { display:block !important; min-width:auto !important; height:auto !important; overflow:visible !important; }
   body .main { width:100% !important; grid-column:auto !important; padding-right:0 !important; overflow:visible !important; }
@@ -16,12 +17,12 @@
   .mail-app-fixed { position:sticky; top:0; z-index:60; }
   .mail-app-fixed .mail-app-top { position:static; }
   /* 늘 보이는 도구 줄 — 매일 쓰는 곳으로 바로 */
-  .mail-tools { display:flex; align-items:center; gap:2px; padding:4px 12px; background:#fff; border-bottom:1px solid var(--line,#e5e7eb);
+  .mail-tools { display:flex; align-items:center; gap:2px; padding:4px 12px; background:var(--mt-surface,#fff); border-bottom:1px solid var(--line,#e5e7eb);
                 box-shadow:0 2px 6px rgba(0,0,0,.05); overflow-x:auto; scrollbar-width:none; }
   .mail-tools::-webkit-scrollbar { height:0; }
   .mail-tools a, .mail-tools button { display:inline-flex; align-items:center; gap:5px; height:34px; padding:0 10px; border-radius:8px; border:0; background:none;
-                font:inherit; font-size:13px; color:#1f2937; text-decoration:none; white-space:nowrap; cursor:pointer; flex:none; }
-  .mail-tools a:hover, .mail-tools button:hover { background:#f1f3f5; }
+                font:inherit; font-size:13px; color:var(--mt-text,#1f2937); text-decoration:none; white-space:nowrap; cursor:pointer; flex:none; }
+  .mail-tools a:hover, .mail-tools button:hover { background:var(--mt-hover,#f1f3f5); }
   .mail-tools .new { background:var(--knk-red,#b91c1c); color:#fff; font-weight:700; padding:0 13px; margin-right:6px; }
   .mail-tools .new:hover { background:var(--knk-red,#b91c1c); filter:brightness(.95); }
   .mail-tools .on { background:#fdecec; color:var(--knk-red,#b91c1c); font-weight:700; }
@@ -29,18 +30,18 @@
   .mail-tools .bd { min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#2563eb; color:#fff; font-size:11px; font-weight:700;
                 display:inline-flex; align-items:center; justify-content:center; }
   .mail-tools .bd.r { background:#dc2626; }
-  .mail-tools .bd.g { background:#e5e7eb; color:#374151; }
+  .mail-tools .bd.g { background:var(--mt-line,#e5e7eb); color:var(--mt-text2,#374151); }
   .mail-tools .bd[hidden] { display:none; }
-  .mail-tools .sep { width:1px; height:20px; background:#e5e7eb; margin:0 4px; flex:none; }
+  .mail-tools .sep { width:1px; height:20px; background:var(--mt-line,#e5e7eb); margin:0 4px; flex:none; }
   .mail-tools .sp { flex:1; min-width:8px; }
   .mail-tools .sw.on { background:#e8f6ec; color:#15803d; }
   .mail-tools a.drop-on, .mail-tools .drop-on { background:#dbeafe !important; box-shadow:inset 0 0 0 2px #2563eb; }
-  .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:#fff; border:1px solid #e5e7eb; border-radius:12px;
-                box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:#1f2937; }
+  .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:var(--mt-surface,#fff); border:1px solid var(--mt-line,#e5e7eb); border-radius:12px;
+                box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:var(--mt-text,#1f2937); }
   .mail-help[hidden] { display:none; }
   .mail-help h4 { margin:0 0 6px; font-size:14px; }
-  .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid #d1d5db; border-bottom-width:2px; border-radius:5px; padding:0 5px;
-                font-family:inherit; font-size:11.5px; background:#f9fafb; }
+  .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid var(--mt-line,#d1d5db); border-bottom-width:2px; border-radius:5px; padding:0 5px;
+                font-family:inherit; font-size:11.5px; background:var(--mt-panel,#f9fafb); }
   @media(max-width:1180px){ .mail-tools .t { display:none; } .mail-tools .new .t { display:inline; } }
   /* 「새 메일」은 위 도구 줄 한 곳만(목록 위 명령 줄·왼쪽 「메일 쓰기」 큰 단추는 앱 화면에서 숨김 — 같은 단추 셋은 헷갈림) */
   .mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }
@@ -56,7 +57,7 @@
   .mail-app-top .me { display:inline-flex; align-items:center; gap:7px; font-size:12.5px;
     background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
     padding:4px 11px; border-radius:999px; white-space:nowrap; }
-  .mail-app-top .me .av { width:20px; height:20px; border-radius:50%; background:#fff;
+  .mail-app-top .me .av { width:20px; height:20px; border-radius:50%; background:var(--mt-surface,#fff);
     color:var(--knk-red,#b91c1c); font-weight:800; font-size:11px; display:inline-flex;
     align-items:center; justify-content:center; }
   .mail-app-top .me b { font-weight:700; }
@@ -115,10 +116,16 @@
   <a href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">🗑</span><span class="t">휴지통</span></a>
   <a href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
+  <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
   <button type="button" class="sw" id="mtBigTop" onclick="mailBigToggle()" title="글자 크게 보기 — 켜고 끄기(이 컴퓨터에만)"><span class="ic">🔠</span><span class="t">글자 크게</span></button>
   <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
   <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
 </nav>
+</div>
+<div class="mail-theme-pop" id="mailThemePop" hidden role="dialog" aria-label="화면 테마 고르기">
+  <h4>🎨 화면 테마</h4>
+  <div class="sub">누르면 바로 바뀝니다 · 이 컴퓨터에 기억 · 메일 본문은 어느 테마에서나 보낸 사람 모양(흰 종이) 그대로</div>
+  {% include "_v5_partials/mail_theme_cards.html" %}
 </div>
 <div class="mail-help" id="mailHelp" hidden>
   <h4>❔ 메일 쓰는 법</h4>
@@ -128,7 +135,7 @@
   · 네모(☐)로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
   · 목록 위 「🗔 보기」 = 읽기 칸 오른쪽·아래·끄기<br>
   <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>Insert</kbd> 중요 · <kbd>N</kbd> 새 메일
-  <div style="text-align:right;margin-top:6px"><button type="button" onclick="mailHelpToggle()" style="border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:4px 12px;cursor:pointer;font:inherit">닫기</button></div>
+  <div style="text-align:right;margin-top:6px"><button type="button" onclick="mailHelpToggle()" style="border:1px solid var(--mt-line,#e5e7eb);background:var(--mt-surface,#fff);border-radius:8px;padding:4px 12px;cursor:pointer;font:inherit">닫기</button></div>
 </div>
 <script>
 /* 11-19 늘 보이는 도구 줄 — 지금 화면 표시 · 숫자 · 글자 크게 · 도움말 */

@@ -12,12 +12,12 @@
   .mbx-search input[type=text]{flex:1;min-width:180px;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none}
   .mbx-search input[type=date]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:12.5px}
   .mbx-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-  .mbx-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink);text-decoration:none;background:#fff;cursor:pointer}
+  .mbx-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--ink);text-decoration:none;background:var(--mt-surface,#fff);cursor:pointer}
   .mbx-chip.on{background:var(--knk-red);color:#fff;border-color:var(--knk-red)}
   /* 3분할: 좌(폴더) | 거터 | 중(목록) | 거터 | 우(내용). 폭은 CSS 변수 → 거터 드래그로 조절 */
   .mbx-split{--mbx-c1:212px;--mbx-c2:404px;display:grid;
     grid-template-columns:var(--mbx-c1) 6px var(--mbx-c2) 6px minmax(0,1fr);
-    border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--mt-surface,#fff)}
   .mbx-split.np{grid-template-columns:var(--mbx-c1) 6px minmax(0,1fr)}
   /* ── 보기 방식(11-18 대표 「작은 모니터에서 세 칸은 못 본다」) — 아웃룩 「읽기 창: 오른쪽·아래·끄기」 + 폴더 칸 접기 ──
      자리 이름(grid-area)으로 배치: 같은 화면 조각을 칸만 바꿔 놓는다. 900px 이하(휴대폰·태블릿 세로)는 지금처럼 한 줄로 쌓음. */
@@ -25,7 +25,7 @@
     grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) var(--mbx-c2) 6px minmax(0,1fr)}
   /* 11-19 받은편지함: 목록 칸 위 명령 줄 칸(lh) — 폭이 목록 칸과 같다 */
   .mbx-split.has-lh{grid-template-areas:"side g1 lh g2 read" "side g1 list g2 read";grid-template-rows:auto minmax(0,1fr)}
-  .mbx-split>.mbx-lhead{grid-area:lh;min-width:0;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:5px 8px;border-bottom:1px solid var(--line);background:#fafbfc;container-type:inline-size}
+  .mbx-split>.mbx-lhead{grid-area:lh;min-width:0;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:5px 8px;border-bottom:1px solid var(--line);background:var(--mt-panel,#fafbfc);container-type:inline-size}
   .mbx-lhead .mbx-cmd{flex:1;min-width:0}
   .mbx-lhead .mbx-viewdd{margin-left:auto}
   .mbx-lhead .mbx-viewmenu{left:auto;right:0}
@@ -55,34 +55,34 @@
   .mbx-split.v-list>.mbx-gutter[data-g="2"]{display:none}
   .mbx-split.v-list>.mbx-readpane{grid-area:list;display:none;z-index:2}
   .mbx-split.v-list.reading>.mbx-readpane{display:block}
-  .mbx-readback{position:sticky;top:-14px;z-index:6;display:flex;align-items:center;gap:10px;margin:-14px -16px 12px;padding:8px 14px;background:#fff;border-bottom:1px solid var(--line)}
-  .mbx-readback button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-  .mbx-readback button:hover{background:#f1f5f9}
+  .mbx-readback{position:sticky;top:-14px;z-index:6;display:flex;align-items:center;gap:10px;margin:-14px -16px 12px;padding:8px 14px;background:var(--mt-surface,#fff);border-bottom:1px solid var(--line)}
+  .mbx-readback button{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:8px;padding:5px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .mbx-readback button:hover{background:var(--mt-hover,#f1f5f9)}
   .mbx-readback span{color:var(--mute);font-size:12px}
   /* 보기 단추(위 찾기 줄 왼쪽) */
   .mbx-viewctl{display:flex;gap:6px;align-items:center}
-  .mbx-viewctl>button,.mbx-viewdd>summary{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;color:var(--ink);font-weight:600;list-style:none;white-space:nowrap}
+  .mbx-viewctl>button,.mbx-viewdd>summary{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:var(--mt-surface,#fff);font-size:12.5px;cursor:pointer;color:var(--ink);font-weight:600;list-style:none;white-space:nowrap}
   .mbx-viewdd>summary::-webkit-details-marker{display:none}
-  .mbx-viewctl>button:hover,.mbx-viewdd>summary:hover{background:#f5f6f8}
+  .mbx-viewctl>button:hover,.mbx-viewdd>summary:hover{background:var(--mt-hover,#f5f6f8)}
   .mbx-viewctl>button[hidden]{display:none}
   .mbx-viewdd{position:relative}
-  .mbx-viewmenu{position:absolute;left:0;top:40px;z-index:40;width:290px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.14);padding:10px 12px;font-size:13px}
+  .mbx-viewmenu{position:absolute;left:0;top:40px;z-index:40;width:290px;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.14);padding:10px 12px;font-size:13px}
   .mbx-viewmenu b{display:block;font-size:11.5px;color:var(--mute);margin:6px 0 4px}
   .mbx-viewmenu label{display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:7px;cursor:pointer}
-  .mbx-viewmenu label:hover{background:#f5f6f8}
-  .mbx-viewmenu .pic{font-family:monospace;color:#64748b;font-size:12px;margin-left:auto;letter-spacing:-1px}
+  .mbx-viewmenu label:hover{background:var(--mt-hover,#f5f6f8)}
+  .mbx-viewmenu .pic{font-family:monospace;color:var(--mt-mute,#64748b);font-size:12px;margin-left:auto;letter-spacing:-1px}
   .mbx-viewmenu .note{margin-top:8px;font-size:11.5px;color:var(--mute);line-height:1.5}
   @media(max-width:900px){.mbx-viewctl{display:none}}
-  .mbx-gutter{background:#eef0f2;cursor:col-resize;position:relative}
+  .mbx-gutter{background:var(--mt-hover,#eef0f2);cursor:col-resize;position:relative}
   .mbx-gutter:hover,.mbx-gutter.dragging{background:var(--knk-red)}
   .mbx-gutter::after{content:"";position:absolute;left:1px;right:1px;top:50%;transform:translateY(-50%);height:30px;border-radius:3px;background:rgba(0,0,0,.12)}
   .mbx-gutter:hover::after{background:rgba(255,255,255,.7)}
-  .mbx-side{height:100%;overflow:auto;padding:8px;background:#fafbfc}
-  .mbx-listcol{height:100%;overflow:auto;min-width:0;background:#fff}
-  .mbx-readpane{height:100%;overflow:auto;padding:14px 16px;background:#f7f8fa}
+  .mbx-side{height:100%;overflow:auto;padding:8px;background:var(--mt-panel,#fafbfc)}
+  .mbx-listcol{height:100%;overflow:auto;min-width:0;background:var(--mt-surface,#fff)}
+  .mbx-readpane{height:100%;overflow:auto;padding:14px 16px;background:var(--mt-panel,#f7f8fa)}
   .mbx-readpane.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mute);text-align:center;font-size:13px;line-height:1.9;gap:8px;font-weight:500}
   .mbx-readpane.empty .mbx-rp-ico{font-size:34px;opacity:.6}
-  .mbx-rp-tips{margin-top:18px;max-width:440px;text-align:left;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;color:#374151}
+  .mbx-rp-tips{margin-top:18px;max-width:440px;text-align:left;background:var(--mt-surface,#fff);border:1px solid var(--mt-line,#e5e7eb);border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;color:var(--mt-text2,#374151)}
   .mbx-rp-tips div+div{margin-top:6px}
   .mbx-rp-tips a{color:#c2410c}
   .mbx-reply{font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 6px;vertical-align:middle;white-space:nowrap}
@@ -92,7 +92,7 @@
   /* 좌측 폴더/메일함 네비 */
   .mbx-fold-h{font-size:10.5px;font-weight:700;color:var(--mute);padding:8px 8px 4px;letter-spacing:.03em}
   .mbx-fold{display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:8px;font-size:12.5px;color:var(--ink);text-decoration:none;margin-bottom:1px;cursor:pointer}
-  .mbx-fold:hover{background:#eef0f2}
+  .mbx-fold:hover{background:var(--mt-hover,#eef0f2)}
   /* 끌어서 옮기기(11-18) — 끄는 동안: 놓을 수 없는 곳은 흐리게 · 놓을 곳 위는 파랗게 */
   body.mbx-dragging .mbx-side .mbx-fold:not([data-drop]),body.mbx-dragging .mbx-side [data-drop="no"],body.mbx-dragging .mbx-side .mbx-write{opacity:.38}
   body.mbx-dragging .mbx-side [data-drop]:not([data-drop="no"]){box-shadow:inset 0 0 0 1px #bfdbfe}
@@ -103,21 +103,21 @@
   .mbx-toast[hidden]{display:none}
   .mbx-toast button{border:1px solid #4b5563;background:#374151;color:#fff;border-radius:8px;padding:4px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
   .mbx-toast button:hover{background:#4b5563}
-  .mbx-toast button.x{border:0;background:none;color:#9ca3af;font-weight:400;padding:2px 4px}
+  .mbx-toast button.x{border:0;background:none;color:var(--mt-mute,#9ca3af);font-weight:400;padding:2px 4px}
   .mbx-toast.warn{background:#7c2d12}
-  .mbx-rp-tip{margin-top:14px;font-size:12px;color:#6b7280;line-height:1.6}
-  .mbx-side .mf-k2{padding-left:40px;font-size:12px;color:#4b5563}
+  .mbx-rp-tip{margin-top:14px;font-size:12px;color:var(--mt-mute,#6b7280);line-height:1.6}
+  .mbx-side .mf-k2{padding-left:40px;font-size:12px;color:var(--mt-text2,#4b5563)}
   .mbx-side .mf-k2::before{content:'└';color:#cbd5e1;margin-right:2px}
   /* ── 2단계 아웃룩식 목록 줄(11-18): ① 보낸 사람 · 시각 ② 제목 · 📎 ③ 꼬리표 · 본문 첫 줄 · 안 읽음 = 왼쪽 파란 줄 + 굵게 ── */
   .mbx-r1{display:flex;align-items:baseline;gap:8px;min-width:0}
   .mbx-r1 .mbx-from{flex:1;min-width:0;max-width:none;font-size:13.5px;font-weight:600;color:var(--ink)}
   .mbx-rs{display:flex;align-items:baseline;gap:8px;min-width:0;margin-top:1px}
-  .mbx-rs .mbx-subj{flex:1;min-width:0;font-size:13px;font-weight:400;color:#1f2937}
+  .mbx-rs .mbx-subj{flex:1;min-width:0;font-size:13px;font-weight:400;color:var(--mt-text,#1f2937)}
   .mbx-rs .mbx-att{flex:none;font-size:11.5px;color:var(--mute)}
   .mbx-r2{margin-top:2px}
-  .mbx-pv{flex:1;min-width:0;font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mbx-row.unread,.mbx-headlink.unread{background:#fff;box-shadow:inset 3px 0 0 #2563eb}
-  .mbx-thread-head.unread{background:#fff}
+  .mbx-pv{flex:1;min-width:0;font-size:12px;color:var(--mt-mute,#6b7280);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbx-row.unread,.mbx-headlink.unread{background:var(--mt-surface,#fff);box-shadow:inset 3px 0 0 #2563eb}
+  .mbx-thread-head.unread{background:var(--mt-surface,#fff)}
   .mbx-row.unread .mbx-from,.mbx-headlink.unread .mbx-from{font-weight:800}
   .mbx-row.unread .mbx-subj,.mbx-headlink.unread .mbx-subj{font-weight:700;color:#1d4ed8}
   .mbx-row.unread .mbx-time,.mbx-headlink.unread .mbx-time{color:#1d4ed8;font-weight:700}
@@ -125,7 +125,7 @@
   /* 명령 줄(아웃룩 리본 자리) — 고른 메일(네모) 또는 열어 둔 메일에 바로 */
   .mbx-cmd{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
   .mbx-cmd .c{display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 9px;border:0;background:none;border-radius:8px;font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer;white-space:nowrap}
-  .mbx-cmd .c:hover{background:#eef0f3}
+  .mbx-cmd .c:hover{background:var(--mt-hover,#eef0f3)}
   .mbx-cmd .c.new{background:var(--knk-red);color:#fff;font-weight:700;padding:0 12px;margin-right:4px}
   .mbx-cmd .c.new:hover{filter:brightness(.95)}
   .mbx-cmd .c.off{color:#b6bcc6}
@@ -134,7 +134,7 @@
 
   @media(max-width:900px){.mbx-cmd{display:none}.mbx-split>.mbx-lhead{display:none}}
   /* 오른쪽 클릭 메뉴 · 이동 메뉴 */
-  .mbx-ctx{position:fixed;z-index:9500;min-width:230px;max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px;font-size:13px}
+  .mbx-ctx{position:fixed;z-index:9500;min-width:230px;max-height:70vh;overflow:auto;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px;font-size:13px}
   .mbx-ctx[hidden]{display:none}
   .mbx-ctx .i{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:7px 10px;border-radius:7px;cursor:pointer;white-space:nowrap}
   .mbx-ctx .i:hover,.mbx-ctx .i.hl{background:#eef2ff}
@@ -149,13 +149,13 @@
   .mbx-fold .cnt{font-size:11px;opacity:.6}
   .mbx-fold.on .cnt{opacity:.9}
   .mbx-fold .fbadge{background:#dc2626;color:#fff;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:999px;line-height:1.7}
-  .mbx-fold.on .fbadge{background:#fff;color:var(--knk-red)}
+  .mbx-fold.on .fbadge{background:var(--mt-surface,#fff);color:var(--knk-red)}
   .mbx-fold-div{height:1px;background:var(--line);margin:7px 4px}
   /* 11-19 왼쪽 위 즐겨찾기·메일함 — 폴더를 굴려도 맨 위에 그대로(왼쪽 칸 안에서 붙어 있음) · 머리 누르면 접기 */
-  .mbx-side-top{position:sticky;top:-8px;z-index:5;margin:-8px -8px 0;padding:8px 8px 6px;background:#fafbfc;border-bottom:1px solid var(--line);box-shadow:0 4px 8px -6px rgba(0,0,0,.18)}
+  .mbx-side-top{position:sticky;top:-8px;z-index:5;margin:-8px -8px 0;padding:8px 8px 6px;background:var(--mt-panel,#fafbfc);border-bottom:1px solid var(--line);box-shadow:0 4px 8px -6px rgba(0,0,0,.18)}
   .mbx-side-top + .mbx-fold-div{display:none}
   .mbx-sec-h{display:flex;align-items:center;gap:2px;cursor:pointer;user-select:none;border-radius:6px}
-  .mbx-sec-h:hover{background:#eef0f2;color:var(--ink)}
+  .mbx-sec-h:hover{background:var(--mt-hover,#eef0f2);color:var(--ink)}
   .mbx-sec-h:focus-visible{outline:2px solid #93c5fd}
   .mbx-sec-h .mf-tg{width:12px;margin-left:-4px}
   .mbx-sec-h.closed .mf-tg{transform:rotate(-90deg)}
@@ -175,15 +175,15 @@
   .mf-u{font-size:11.5px;font-weight:700;color:#2563eb}
   .mbx-fold.on .mf-u,.mbx-fold.on .mf-tg{color:#fff}
   .mf-cur{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:13px;color:#1e3a8a}
-  .mf-cur span{color:#64748b;font-size:12px}
+  .mf-cur span{color:var(--mt-mute,#64748b);font-size:12px}
   .mf-cur a{margin-left:auto;font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:600}
   .mf-cur a.mf-cur-go{background:#1d4ed8;color:#fff;border-radius:999px;padding:3px 11px}
   .mf-cur a.mf-cur-go + a{margin-left:0}
   /* 메일 목록 행 — 제목 우선(굵게·한 줄 전체), 보낸사람·요약은 아래 작게 (대표 지시: 리스트 잘 보이게) */
   .mbx-list{display:flex;flex-direction:column}
   .mbx-row{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
-  .mbx-row:hover{background:#f9fafb}
-  .mbx-row.unread{background:#fffdf5}
+  .mbx-row:hover{background:var(--mt-panel,#f9fafb)}
+  .mbx-row.unread{background:var(--mt-surface,#fffdf5)}
   .mbx-row.active{background:#eef2ff !important}
   .mbx-star{font-size:15px;cursor:pointer;color:#d1d5db;background:none;border:0;padding:2px 0 0;line-height:1;flex:none}
   .mbx-star.on{color:#f59e0b}
@@ -194,19 +194,19 @@
   .mbx-time{flex:none;font-size:11px;color:var(--mute);white-space:nowrap}
   .mbx-r2{display:flex;align-items:center;gap:7px;margin-top:3px;min-width:0}
   .mbx-badge{flex:none;font-size:10.5px;padding:1px 7px;border-radius:6px;white-space:nowrap}
-  .mbx-from{flex:none;max-width:46%;font-size:12px;font-weight:600;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbx-from{flex:none;max-width:46%;font-size:12px;font-weight:600;color:var(--mt-text2,#374151);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mbx-sum{flex:1;min-width:0;font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mbx-empty{padding:48px 16px;text-align:center;color:var(--mute);line-height:1.7}
   /* ── 11-18 메뉴 단순하게(대표 「쉽게 보이고 쉽게 사용」) ── */
   .mbx-write{display:block;text-align:center;background:var(--knk-red);color:#fff;border-radius:10px;padding:10px 0;font-size:14.5px;font-weight:800;text-decoration:none;margin:2px 0 8px}
   .mbx-write:hover{filter:brightness(1.07)}
-  .mbx-tools{margin-top:4px;color:#374151}
+  .mbx-tools{margin-top:4px;color:var(--mt-text2,#374151)}
   .mbx-more{position:relative}
-  .mbx-more>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--mute);padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;white-space:nowrap}
+  .mbx-more>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--mute);padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--mt-surface,#fff);white-space:nowrap}
   .mbx-more>summary::-webkit-details-marker{display:none}
-  .mbx-more[open]>summary{color:var(--ink);border-color:#cbd5e1}
-  .mbx-more-box{position:absolute;z-index:20;top:36px;left:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.12);padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:max-content;max-width:86vw;font-size:12.5px}
-  .mbx-chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
+  .mbx-more[open]>summary{color:var(--ink);border-color:var(--mt-line,#cbd5e1)}
+  .mbx-more-box{position:absolute;z-index:20;top:36px;left:0;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.12);padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:max-content;max-width:86vw;font-size:12.5px}
+  .mbx-chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--mt-surface,#fff);position:sticky;top:0;z-index:2}
   .mf-cur + .mbx-chips{top:37px}
   .mbx-fdtag{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#eef2ff;color:#3730a3;white-space:nowrap;max-width:40%;overflow:hidden;text-overflow:ellipsis}
   .mf-zero-more{font-size:11.5px;color:var(--mute);cursor:pointer;padding:3px 9px 5px 29px;display:block}
@@ -217,8 +217,8 @@
   /* ── 11-18 2단계 쉽게 찾기·구분·보기 ── */
   .mbx-adv{flex-direction:column;align-items:stretch;gap:8px;min-width:520px;left:auto;right:0}
   .mbx-adv-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-  .mbx-adv-row>b{width:66px;font-size:12.5px;color:#374151}
-  .mbx-rad{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;background:#fff}
+  .mbx-adv-row>b{width:66px;font-size:12.5px;color:var(--mt-text2,#374151)}
+  .mbx-rad{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;background:var(--mt-surface,#fff)}
   .mbx-rad input{display:none}
   .mbx-rad.on,.mbx-rad:has(input:checked){background:var(--ink);color:#fff;border-color:var(--ink)}
   .mbx-res{background:#fefce8;border-bottom:1px solid #fde68a;padding:8px 12px;font-size:13px;line-height:1.6;color:#713f12}
@@ -226,15 +226,15 @@
   .mbx-res-fd{color:#854d0e}
   .mbx-res-x{margin-left:8px;color:#1d4ed8;text-decoration:none;font-weight:600;white-space:nowrap}
   .mbx-chips-n{margin-left:auto;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap}
-  .mbx-day{position:sticky;top:44px;z-index:1;background:#f8fafc;color:#64748b;font-size:12px;font-weight:700;padding:5px 12px;border-bottom:1px solid var(--line)}
+  .mbx-day{position:sticky;top:44px;z-index:1;background:var(--mt-panel,#f8fafc);color:var(--mt-mute,#64748b);font-size:12px;font-weight:700;padding:5px 12px;border-bottom:1px solid var(--line)}
   .mbx-row.robot .mbx-main,.mbx-headlink.robot .mbx-main{opacity:.6}
   .mbx-cc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#ede9fe;color:#5b21b6;white-space:nowrap}
-  .mbx-ad{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#f3f4f6;color:#6b7280;white-space:nowrap}
-  .mbx-att{flex:none;margin-left:auto;font-size:12px;color:#475569;white-space:nowrap}
+  .mbx-ad{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:var(--mt-hover,#f3f4f6);color:var(--mt-mute,#6b7280);white-space:nowrap}
+  .mbx-att{flex:none;margin-left:auto;font-size:12px;color:var(--mt-text2,#475569);white-space:nowrap}
   .mbx-sent{font-size:11px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:6px;padding:1px 6px;vertical-align:middle}
   .mbx-fdtag.fk-customer,.mbx-fdtag.fk-other_customer{background:#dbeafe;color:#1e40af}
   .mbx-fdtag.fk-vendor{background:#dcfce7;color:#166534}
-  .mbx-fdtag.fk-staff{background:#f1f5f9;color:#334155}
+  .mbx-fdtag.fk-staff{background:var(--mt-hover,#f1f5f9);color:var(--mt-text2,#334155)}
   .mf-dot{width:9px;height:9px;border-radius:3px;flex:none;background:#cbd5e1}
   .mf-dot.fk-customer,.mf-dot.fk-other_customer{background:#3b82f6}
   .mf-dot.fk-vendor{background:#22c55e}
@@ -248,7 +248,7 @@
   .mbx-row.picked,.mbx-headlink.picked{background:#eef2ff !important}
   .mbx-sel{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:13px}
   .mbx-sel[hidden]{display:none}
-  .mbx-sel button,.mbx-sel select{border:1px solid #c7d2fe;background:#fff;border-radius:8px;padding:4px 9px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .mbx-sel button,.mbx-sel select{border:1px solid #c7d2fe;background:var(--mt-surface,#fff);border-radius:8px;padding:4px 9px;font-size:12.5px;cursor:pointer;font-family:inherit}
   .mbx-sel button:hover{background:#f5f7ff}
   .mbx-sel button.del{color:#b91c1c;border-color:#fecaca}
   .mbx-sel button.lnk{border:0;background:none;color:#1d4ed8;padding:4px 4px}
@@ -271,15 +271,15 @@
   .mbx-thread{border-bottom:1px solid var(--line)}
   .mbx-thread .mbx-row{border-bottom:0}
   .mbx-thread-head{display:flex;align-items:flex-start;gap:2px;padding:0}
-  .mbx-thread-head.unread{background:#fffdf5}
+  .mbx-thread-head.unread{background:var(--mt-surface,#fffdf5)}
   .mbx-thread-head.active,.mbx-headlink.active{background:#eef2ff}
-  .mbx-twist{flex:none;width:22px;align-self:stretch;border:0;background:none;color:#9ca3af;cursor:pointer;font-size:12px;line-height:1;padding:11px 0 0 6px}
+  .mbx-twist{flex:none;width:22px;align-self:stretch;border:0;background:none;color:var(--mt-mute,#9ca3af);cursor:pointer;font-size:12px;line-height:1;padding:11px 0 0 6px}
   .mbx-twist:hover{color:var(--knk-red)}
   .mbx-headlink{flex:1;display:flex;align-items:flex-start;gap:9px;min-width:0;text-decoration:none;color:var(--ink);padding:9px 12px 9px 0}
-  .mbx-tcount{flex:none;font-size:10px;font-weight:700;color:#475569;background:#eef2f7;border-radius:999px;padding:1px 7px}
+  .mbx-tcount{flex:none;font-size:10px;font-weight:700;color:var(--mt-text2,#475569);background:#eef2f7;border-radius:999px;padding:1px 7px}
   .mbx-tcount.has-unread{background:#dc2626;color:#fff}
-  .mbx-thread-kids{background:#fbfcfe;border-top:1px dashed var(--line)}
-  .mbx-row.mbx-child{padding-left:30px;background:#fbfcfe}
+  .mbx-thread-kids{background:var(--mt-panel,#fbfcfe);border-top:1px dashed var(--line)}
+  .mbx-row.mbx-child{padding-left:30px;background:var(--mt-panel,#fbfcfe)}
   /* 좁은 화면(태블릿 세로·휴대폰): 한 칸으로 쌓고 읽기창은 풀페이지로 폴백 */
   @media(max-width:900px){
     .mbx-split,.mbx-split.np{display:flex;flex-direction:column;height:auto !important;border:0}
@@ -299,7 +299,7 @@
     .mbx-actions .btn{flex:1 1 auto;text-align:center;font-size:12.5px;padding:9px 7px}
     /* 폴더 접기 토글 버튼 */
     .mbx-foldtoggle{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 8px;
-      padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;
+      padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);
       font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
     .mbx-foldtoggle .chev{margin-left:auto;transition:transform .15s;color:var(--mute)}
     .mbx-split.folders-collapsed .mbx-side{display:none}
@@ -613,7 +613,7 @@
       {% elif box=='blocked' %}
         {# 스팸함(옛 차단함): 스팸·피싱으로 보여 옮긴 메일 · 다시 안 받기 · 회사 차단목록 — 열기 / ✓ 스팸 아님 (삭제 아님) #}
         <div class="mf-cur" style="background:#fef2f2;border-color:#fecaca">🚫 <b>스팸함</b> <span>{{ mails|length }}통 · 스팸·피싱으로 보여 저절로 옮긴 메일과 「다시 안 받기」 한 곳 — 지우지 않습니다 · 정상 메일이면 「✓ 스팸 아님」</span></div>
-        {% if not mails %}<div style="padding:40px 16px;text-align:center;color:#6b7280">스팸함이 비어 있습니다 👍</div>{% endif %}
+        {% if not mails %}<div style="padding:40px 16px;text-align:center;color:var(--mt-mute,#6b7280)">스팸함이 비어 있습니다 👍</div>{% endif %}
         {% for m in mails %}
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
           <div class="mbx-main">
@@ -744,7 +744,7 @@ async function loadPane(id, rowEl, q){
   var pane=document.getElementById('readPane'); if(!pane) return;
   clearActive(); if(rowEl) rowEl.classList.add('active');
   pane.classList.remove('empty');
-  pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#9ca3af">메일 불러오는 중…</div>';
+  pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:var(--mt-mute,#9ca3af)">메일 불러오는 중…</div>';
   try{
     var r=await fetch('/mail/'+id+'/pane'+(q||''),{headers:{'X-Requested-With':'fetch'}});
     if(!r.ok){ pane.innerHTML='<div style="padding:48px 16px;text-align:center;color:#b91c1c">메일을 불러오지 못했습니다.</div>'; return; }
