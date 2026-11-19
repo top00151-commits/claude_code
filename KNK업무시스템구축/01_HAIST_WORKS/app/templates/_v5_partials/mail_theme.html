@@ -19,20 +19,20 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
 </script>
 <style>
   html[data-mt="clear"]{ color-scheme:light;
-    --mt-bg:#eceff3; --mt-surface:#ffffff; --mt-panel:#f6f7f9; --mt-hover:#eceff3; --mt-line:#dde2e8;
+    --mt-bg:#eceff3; --mt-surface:#ffffff; --mt-panel:#f6f7f9; --mt-hover:#eceff3; --mt-line:#cfd6de; --mt-sep:#a9b3bf; --mt-gutter:#dce1e7; --mt-thumb:#9aa4b0; --mt-track:#e3e7ec;
     --mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e; --mt-sel:#e2ecfd; --mt-unread:#1d4ed8; --mt-link:#1d4ed8;
     --paper:#eceff3; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f6f7f9; --warm-tan:#e5e7eb;
-    --ink:#111827; --ink-soft:#374151; --mute:#56606e; --mute-2:#9aa3af; --line:#dde2e8; --line-strong:#cbd2da; --line-soft:#eef0f3; }
+    --ink:#111827; --ink-soft:#374151; --mute:#56606e; --mute-2:#9aa3af; --line:#cfd6de; --line-strong:#a9b3bf; --line-soft:#eef0f3; }
   html[data-mt="soft"]{ color-scheme:light;
-    --mt-bg:#d3dce5; --mt-surface:#edf1f5; --mt-panel:#e1e8ee; --mt-hover:#d5dee7; --mt-line:#bfcad6;
+    --mt-bg:#d3dce5; --mt-surface:#edf1f5; --mt-panel:#e1e8ee; --mt-hover:#d5dee7; --mt-line:#b2bfcc; --mt-sep:#8f9fb1; --mt-gutter:#c3ceda; --mt-thumb:#8696a8; --mt-track:#cdd6df;
     --mt-text:#16202c; --mt-text2:#2d3949; --mt-mute:#4a5768; --mt-sel:#c6d9ef; --mt-unread:#1a4cb0; --mt-link:#1a4cb0;
     --paper:#d3dce5; --paper-2:#e1e8ee; --paper-3:#edf1f5; --paper-warm:#e1e8ee; --warm-tan:#c9d3de;
-    --ink:#16202c; --ink-soft:#2d3949; --mute:#4a5768; --mute-2:#8491a1; --line:#bfcad6; --line-strong:#adbac8; --line-soft:#dbe2e9; }
+    --ink:#16202c; --ink-soft:#2d3949; --mute:#4a5768; --mute-2:#8491a1; --line:#b2bfcc; --line-strong:#8f9fb1; --line-soft:#dbe2e9; }
   html[data-mt="dark"]{ color-scheme:dark;
-    --mt-bg:#111317; --mt-surface:#1c1f24; --mt-panel:#171a1e; --mt-hover:#282d34; --mt-line:#323840;
+    --mt-bg:#111317; --mt-surface:#1c1f24; --mt-panel:#171a1e; --mt-hover:#282d34; --mt-line:#363c45; --mt-sep:#525b67; --mt-gutter:#24282e; --mt-thumb:#5c6571; --mt-track:#1a1d21;
     --mt-text:#e8ebef; --mt-text2:#c6ccd4; --mt-mute:#9ba4b0; --mt-sel:#203454; --mt-unread:#8ab4f8; --mt-link:#8ab4f8;
     --paper:#111317; --paper-2:#171a1e; --paper-3:#1c1f24; --paper-warm:#171a1e; --warm-tan:#323840;
-    --ink:#e8ebef; --ink-soft:#c6ccd4; --mute:#9ba4b0; --mute-2:#6b7480; --line:#323840; --line-strong:#434a54; --line-soft:#22262c;
+    --ink:#e8ebef; --ink-soft:#c6ccd4; --mute:#9ba4b0; --mute-2:#6b7480; --line:#363c45; --line-strong:#4a525d; --line-soft:#22262c;
     --amber-glow:#3a3120; }
   /* 공통 — 바탕·글자 */
   html[data-mt], html[data-mt] body{ background:var(--mt-bg) !important; color:var(--mt-text); }
@@ -49,6 +49,24 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
   html[data-mt] input:not([type=checkbox]):not([type=radio]):not([type=color]), html[data-mt] select, html[data-mt] textarea{
     background-color:var(--mt-surface); color:var(--mt-text); border-color:var(--mt-line); }
   html[data-mt] input::placeholder, html[data-mt] textarea::placeholder{ color:var(--mt-mute); opacity:1; }
+  /* 11-19 대표 「페이지 구성별 구분선들이 잘 안 보여」 — 칸 경계는 진한 선(sep) · 칸 사이 손잡이 줄은 바탕과 다른 색 + 양쪽 선 */
+  html[data-mt] .mbx-split{ border-color:var(--mt-sep) !important; }
+  /* 스크롤 막대: 빨간 막대가 칸마다 서서 구분선처럼 보이던 것 → 차분한 회색(늘 보이는 굵기는 그대로) */
+  html[data-mt] .main{ scrollbar-color:var(--mt-thumb) var(--mt-track); }
+  html[data-mt] .main::-webkit-scrollbar-track{ background:var(--mt-track); }
+  html[data-mt] .main::-webkit-scrollbar-thumb, html[data-mt] .main::-webkit-scrollbar-thumb:hover{ background:var(--mt-thumb); border-color:var(--mt-track); background-clip:content-box; }
+  html[data-mt] .mbx-gutter{ background:var(--mt-gutter) !important; box-shadow:inset 1px 0 0 var(--mt-sep), inset -1px 0 0 var(--mt-sep); }
+  html[data-mt] .mbx-split.v-bottom>.mbx-gutter[data-g="2"]{ box-shadow:inset 0 1px 0 var(--mt-sep), inset 0 -1px 0 var(--mt-sep); }
+  html[data-mt] .mbx-gutter::after{ background:rgba(0,0,0,.28); }
+  html[data-mt="dark"] .mbx-gutter::after{ background:rgba(255,255,255,.30); }
+  html[data-mt] .mbx-gutter:hover, html[data-mt] .mbx-gutter.dragging{ background:var(--knk-red,#a5282c) !important; }
+  html[data-mt] .mbx-split>.mbx-lhead, html[data-mt] .mbx-side-top{ border-bottom-color:var(--mt-sep) !important; }
+  html[data-mt] .mbx-day{ border-top:1px solid var(--mt-line); border-bottom-color:var(--mt-sep) !important; }
+  html[data-mt] .mbx-row, html[data-mt] .mbx-thread{ border-bottom-color:var(--mt-line); }
+  html[data-mt] .mail-tools{ border-bottom-color:var(--mt-sep) !important; }
+  html[data-mt] .mv-head, html[data-mt] .mv-frame, html[data-mt] .mv-atts{ border-color:var(--mt-sep) !important; }
+  html[data-mt] .mbx-fold-div{ background:var(--mt-sep) !important; }
+  html[data-mt] .mbx-search input[type=text]{ border-color:var(--mt-sep); }
   /* 메일 본문·쓰는 칸 = 어느 테마에서나 흰 종이(받는 사람이 보는 모양 그대로) */
   html[data-mt] .mv-frame{ background:#fff !important; border-radius:8px; }
   html[data-mt] .cmp-editor{ background:#fff !important; color:#111 !important; }
@@ -72,6 +90,7 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
   html[data-mt="dark"] .mt-tile.clean{ background:#18271c !important; border-color:#2c4a33 !important; }
   html[data-mt="dark"] .mt-adm{ background:var(--mt-surface) !important; }
   html[data-mt="dark"] .cmp-keep, html[data-mt="dark"] .gn-row.sug, html[data-mt="dark"] .ac-box.ac-no{ background:#2a2516 !important; border-color:#55491d !important; color:#f1e3a8 !important; }
+  html[data-mt="dark"] .mv-ai{ background:#1a2840; border-color:#2b4a7a; color:#c8dcff; }
   html[data-mt="dark"] .mv-reply.on{ background:#2a2516; border-color:#55491d; color:#f1d78a; }
   html[data-mt="dark"] .mv-reply.on.lv2{ background:#2c1d1f; border-color:#6b2f34; color:#ffb4b8; }
   html[data-mt="dark"] .gn-sel{ background:#1a2840 !important; border-color:#2b4a7a !important; color:#c8dcff !important; }  html[data-mt="dark"] img.emoji{ filter:none; }

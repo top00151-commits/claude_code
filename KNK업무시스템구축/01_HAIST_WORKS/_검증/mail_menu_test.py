@@ -165,6 +165,9 @@ try:
           "html[data-mt] .mv-frame{ background:#fff !important" in hk and "html[data-mt] .cmp-editor{ background:#fff !important; color:#111 !important; }" in hk)
     check("화면 글 속 고정 색 = 테마 값(없으면 원래 색) — 기본 모양 그대로", "var(--mt-surface,#fff)" in hk and "var(--mt-surface,#fffdf5)" in hk)
     check("새 창(더블클릭)도 같은 테마", "knkmail.theme" in km.get("/mail/%d?win=1" % M_CUST).text)
+    check("칸 구분선 또렷하게(11-19 대표 「구분선이 잘 안 보여」): 테마마다 경계선·손잡이 줄 색 · 칸 사이 줄 양쪽 선 · 스크롤 막대 회색",
+          hk.count("--mt-sep:") == 3 and hk.count("--mt-gutter:") == 3 and "html[data-mt] .mbx-gutter{ background:var(--mt-gutter) !important; box-shadow:inset 1px 0 0 var(--mt-sep)" in hk
+          and "html[data-mt] .main{ scrollbar-color:var(--mt-thumb) var(--mt-track); }" in hk)
     _tw = k.get("/mail/tools").text
     check("WORKS 화면(앱 아님)에는 테마 안 들어감(회사 다른 화면 그대로)", "knkmail.theme" not in h and 'id="mtThemeRow"' not in _tw and 'class="mail-app-top"' not in h)
 
