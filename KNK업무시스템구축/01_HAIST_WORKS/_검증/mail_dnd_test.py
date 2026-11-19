@@ -162,6 +162,10 @@ try:
           0 < vp.find('class="mv-subj"') < vp.find('class="mv-av"') < vp.find('class="mv-hwho"') < vp.find('class="mv-actions"') < vp.find('class="mv-chips"'), vp[:300])
     check("읽기 칸: 「받은주소·받은시각」 표 대신 한 줄 「받는 사람 … · 시각」 · 서식/글자 탭은 ⋯ 안으로", "받은주소" not in vp and 'class="mv-hsub">받는 사람' in vp and '<div class="mv-viewtabs" hidden>' in vp or 'mv-viewtabs' not in vp)
 
+    check("명령 줄·보기 단추 = 목록 칸 바로 위 칸(목록과 같은 폭 · 11-19 대표) · 위 찾기 줄에는 없음",
+          h.find('class="mbx-lhead"') > 0 and h.find('id="mbxCmd"') > h.find('class="mbx-lhead"') and h.find('class="mbx-viewdd"') > h.find('class="mbx-lhead"')
+          and 'id="mbxCmd"' not in h[h.find('class="mbx-topbar"'):h.find('class="mbx-split')] and "has-lh" in h and "@container" in h)
+
     print("== 3d. ⚙ 설정·정리(11-18 대표 「딱 들어가면 바로바로 알 수 있게」) ==")
     tt = k.get("/mail/tools").text
     check("맨 위 「지금 내 메일」 — 스팸함·폴더 없는 메일·광고 보내는 곳·오래된 메일·휴지통·같은 메일 타일 + 단추",

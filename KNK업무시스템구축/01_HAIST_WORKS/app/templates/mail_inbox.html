@@ -23,6 +23,16 @@
      자리 이름(grid-area)으로 배치: 같은 화면 조각을 칸만 바꿔 놓는다. 900px 이하(휴대폰·태블릿 세로)는 지금처럼 한 줄로 쌓음. */
   .mbx-split{position:relative;grid-template-areas:"side g1 list g2 read";
     grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) var(--mbx-c2) 6px minmax(0,1fr)}
+  /* 11-19 받은편지함: 목록 칸 위 명령 줄 칸(lh) — 폭이 목록 칸과 같다 */
+  .mbx-split.has-lh{grid-template-areas:"side g1 lh g2 read" "side g1 list g2 read";grid-template-rows:auto minmax(0,1fr)}
+  .mbx-split>.mbx-lhead{grid-area:lh;min-width:0;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:5px 8px;border-bottom:1px solid var(--line);background:#fafbfc;container-type:inline-size}
+  .mbx-lhead .mbx-cmd{flex:1;min-width:0}
+  .mbx-lhead .mbx-viewdd{margin-left:auto}
+  .mbx-lhead .mbx-viewmenu{left:auto;right:0}
+  .mbx-lhead .mbx-viewdd>summary{height:32px}
+  @container (max-width:760px){.mbx-cmd .c .t{display:none}.mbx-cmd .c.new .t{display:inline}}
+  @container (max-width:560px){.mbx-cmd .c{padding:0 6px;gap:2px}.mbx-cmd .sep{margin:0 1px}.mbx-lhead .mbx-viewdd>summary{padding:0 8px}.mbx-lhead .mbx-viewdd .t2{display:none}}
+  @container (max-width:430px){.mbx-cmd .c.new .t{display:none}.mbx-cmd .sep{display:none}.mbx-cmd .c{padding:0 5px}}
   .mbx-split.np{grid-template-areas:"side g1 list";grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr)}
   .mbx-split>.mbx-side{grid-area:side}
   .mbx-split>.mbx-gutter[data-g="1"]{grid-area:g1}
@@ -36,10 +46,12 @@
   /* 읽기 칸 아래 */
   .mbx-split.v-bottom{grid-template-areas:"side g1 list" "side g1 g2" "side g1 read";
     grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr);grid-template-rows:var(--mbx-r1,50%) 6px minmax(0,1fr)}
+  .mbx-split.has-lh.v-bottom{grid-template-areas:"side g1 lh" "side g1 list" "side g1 g2" "side g1 read";grid-template-rows:auto var(--mbx-r1,45%) 6px minmax(0,1fr)}
   .mbx-split.v-bottom>.mbx-gutter[data-g="2"]{cursor:row-resize}
   .mbx-split.v-bottom>.mbx-gutter[data-g="2"]::after{left:50%;right:auto;top:1px;bottom:1px;height:auto;width:34px;transform:translateX(-50%)}
   /* 읽기 칸 끄기 — 목록만 넓게, 메일을 누르면 그 자리에서 크게(← 목록으로 · Esc) */
   .mbx-split.v-list{grid-template-areas:"side g1 list";grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr)}
+  .mbx-split.has-lh.v-list{grid-template-areas:"side g1 lh" "side g1 list";grid-template-rows:auto minmax(0,1fr)}
   .mbx-split.v-list>.mbx-gutter[data-g="2"]{display:none}
   .mbx-split.v-list>.mbx-readpane{grid-area:list;display:none;z-index:2}
   .mbx-split.v-list.reading>.mbx-readpane{display:block}
@@ -119,8 +131,8 @@
   .mbx-cmd .c.off{color:#b6bcc6}
   .mbx-cmd .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
   .mbx-cmd .mv{position:relative}
-  @media(max-width:1500px){.mbx-cmd .c .t{display:none}.mbx-cmd .c.new .t{display:inline}}
-  @media(max-width:900px){.mbx-cmd{display:none}}
+
+  @media(max-width:900px){.mbx-cmd{display:none}.mbx-split>.mbx-lhead{display:none}}
   /* 오른쪽 클릭 메뉴 · 이동 메뉴 */
   .mbx-ctx{position:fixed;z-index:9500;min-width:230px;max-height:70vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px;font-size:13px}
   .mbx-ctx[hidden]{display:none}
@@ -314,37 +326,6 @@
   <div class="mbx-topbar">
     <div class="mbx-viewctl">
       <button type="button" class="mbx-foldbtn" onclick="mbxFoldPop(event)" title="메일함·폴더 칸 열기(메일을 끌어 이 단추 위에 잠깐 두면 열림)" hidden>☰ 폴더</button>
-      {% if box=='in' %}
-      <div class="mbx-cmd" id="mbxCmd">
-        <button type="button" class="c new" onclick="location.href='/mail/compose'" title="새 메일 쓰기 (N)">✉ <span class="t">새 메일</span></button>
-        <button type="button" class="c" data-cmd="delete" title="삭제 — 휴지통으로 (Delete)">🗑 <span class="t">삭제</span></button>
-        <button type="button" class="c" data-cmd="archive" title="보관 — 받은편지함에서만 빼기 (E)">📦 <span class="t">보관</span></button>
-        <span class="mv"><button type="button" class="c" data-cmd="move" title="이 메일만 다른 폴더로">📁 <span class="t">이동</span> ▾</button></span>
-        <span class="sep"></span>
-        <button type="button" class="c" data-cmd="reply" title="답장 (R)">↩ <span class="t">답장</span></button>
-        <button type="button" class="c" data-cmd="replyall" title="전체 답장 (Shift+R)">↩↩ <span class="t">전체 답장</span></button>
-        <button type="button" class="c" data-cmd="forward" title="전달 (Shift+F)">↪ <span class="t">전달</span></button>
-        <span class="sep"></span>
-        <button type="button" class="c" data-cmd="read" title="읽음 ↔ 안 읽음 (U)">✉ <span class="t">읽음·안 읽음</span></button>
-        <button type="button" class="c" data-cmd="star" title="중요 표시 (Insert)">⭐ <span class="t">중요</span></button>
-      </div>
-      <details class="mbx-viewdd"><summary title="화면 나누는 방식 — 이 컴퓨터에서 기억">🗔 보기 ▾</summary>
-        <div class="mbx-viewmenu">
-          <b>읽기 칸(메일 내용)</b>
-          <label><input type="radio" name="mbxv" value="auto"> 자동 — 화면 크기에 맞춤 <span class="pic">추천</span></label>
-          <label><input type="radio" name="mbxv" value="right"> 오른쪽 <span class="pic">▯▯▯</span></label>
-          <label><input type="radio" name="mbxv" value="bottom"> 아래 — 목록 위·내용 아래 <span class="pic">▯▤</span></label>
-          <label><input type="radio" name="mbxv" value="list"> 끄기 — 목록만, 누르면 크게 <span class="pic">▯▭</span></label>
-          <b>폴더 칸</b>
-          <label><input type="radio" name="mbxf" value="auto"> 자동 — 좁으면 접기</label>
-          <label><input type="radio" name="mbxf" value="show"> 늘 보이기</label>
-          <label><input type="radio" name="mbxf" value="hide"> 접기 — 「☰ 폴더」로 열기</label>
-          <div class="note">이 컴퓨터에서만 기억합니다 · 칸 사이 경계선을 끌어 폭(아래 모드는 높이)도 바꿀 수 있어요</div>
-          <b>단축키(아웃룩과 같게)</b>
-          <div class="note" style="margin-top:0">더블클릭 새 창 · ↑↓ 다음 메일 · R 답장 · Shift+R 전체 답장 · Shift+F 전달 · Delete 삭제 · E 보관 · U 읽음↔안 읽음 · Insert 중요 · N 새 메일 · 메일 위에서 오른쪽 클릭 = 메뉴</div>
-        </div>
-      </details>
-      {% endif %}
     </div>
     <form class="mbx-search" method="get" action="{{ '/mail/sent' if box=='sent' else '/mail/inbox' }}">
       <input type="text" name="q" value="{{ q|default('') }}" autocomplete="off"
@@ -409,7 +390,7 @@
   </button>
 
   {# ── 3분할 본문 ── #}
-  <div class="mbx-split{{ '' if box=='in' else ' np' }}">
+  <div class="mbx-split{{ ' has-lh' if box=='in' else ' np' }}">
 
     {# 좌: 메일함 + 분류 + 거래처 폴더 + 보기 (대표 지시: 분류 폴더 왼쪽) #}
     <nav class="mbx-side" aria-label="메일함·폴더">
@@ -493,6 +474,40 @@
     <div class="mbx-gutter" data-g="1" title="끌어서 폭 조절"></div>
 
     {# 중: 메일 목록 #}
+    {% if box=='in' %}
+    {# 11-19 대표 「새 메일·삭제·보관 메뉴줄은 메일 리스트 위에 — 그 칸과 크기가 같이 조절되게」: 목록 칸 바로 위 칸(폭 = 목록 칸 · 경계선 끌면 같이) #}
+    <div class="mbx-lhead">
+      <div class="mbx-cmd" id="mbxCmd">
+        <button type="button" class="c new" onclick="location.href='/mail/compose'" title="새 메일 쓰기 (N)">✉ <span class="t">새 메일</span></button>
+        <button type="button" class="c" data-cmd="delete" title="삭제 — 휴지통으로 (Delete)">🗑 <span class="t">삭제</span></button>
+        <button type="button" class="c" data-cmd="archive" title="보관 — 받은편지함에서만 빼기 (E)">📦 <span class="t">보관</span></button>
+        <span class="mv"><button type="button" class="c" data-cmd="move" title="이 메일만 다른 폴더로">📁 <span class="t">이동</span> ▾</button></span>
+        <span class="sep"></span>
+        <button type="button" class="c" data-cmd="reply" title="답장 (R)">↩ <span class="t">답장</span></button>
+        <button type="button" class="c" data-cmd="replyall" title="전체 답장 (Shift+R)">↩↩ <span class="t">전체 답장</span></button>
+        <button type="button" class="c" data-cmd="forward" title="전달 (Shift+F)">↪ <span class="t">전달</span></button>
+        <span class="sep"></span>
+        <button type="button" class="c" data-cmd="read" title="읽음 ↔ 안 읽음 (U)">✉ <span class="t">읽음·안 읽음</span></button>
+        <button type="button" class="c" data-cmd="star" title="중요 표시 (Insert)">⭐ <span class="t">중요</span></button>
+      </div>
+      <details class="mbx-viewdd"><summary title="화면 나누는 방식 — 이 컴퓨터에서 기억">🗔 <span class="t2">보기</span> ▾</summary>
+        <div class="mbx-viewmenu">
+          <b>읽기 칸(메일 내용)</b>
+          <label><input type="radio" name="mbxv" value="auto"> 자동 — 화면 크기에 맞춤 <span class="pic">추천</span></label>
+          <label><input type="radio" name="mbxv" value="right"> 오른쪽 <span class="pic">▯▯▯</span></label>
+          <label><input type="radio" name="mbxv" value="bottom"> 아래 — 목록 위·내용 아래 <span class="pic">▯▤</span></label>
+          <label><input type="radio" name="mbxv" value="list"> 끄기 — 목록만, 누르면 크게 <span class="pic">▯▭</span></label>
+          <b>폴더 칸</b>
+          <label><input type="radio" name="mbxf" value="auto"> 자동 — 좁으면 접기</label>
+          <label><input type="radio" name="mbxf" value="show"> 늘 보이기</label>
+          <label><input type="radio" name="mbxf" value="hide"> 접기 — 「☰ 폴더」로 열기</label>
+          <div class="note">이 컴퓨터에서만 기억합니다 · 칸 사이 경계선을 끌어 폭(아래 모드는 높이)도 바꿀 수 있어요</div>
+          <b>단축키(아웃룩과 같게)</b>
+          <div class="note" style="margin-top:0">더블클릭 새 창 · ↑↓ 다음 메일 · R 답장 · Shift+R 전체 답장 · Shift+F 전달 · Delete 삭제 · E 보관 · U 읽음↔안 읽음 · Insert 중요 · N 새 메일 · 메일 위에서 오른쪽 클릭 = 메뉴</div>
+        </div>
+      </details>
+    </div>
+    {% endif %}
     <div class="mbx-listcol">
     {% if box=='in' and cur_fd|default('') %}
     {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
