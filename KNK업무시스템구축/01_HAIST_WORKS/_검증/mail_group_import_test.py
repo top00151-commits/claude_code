@@ -165,5 +165,19 @@ check("관리자 설정 화면 「📥 그룹 메일 명단 올리기(하이웍�
 hg = km.get("/mail/groups").text
 check("관리자 묶음 화면 「📥 하이웍스 파일로 올리기」 · 끌어다 놓기 · 마지막으로 올린 파일 ✅", "📥 하이웍스 파일로 올리기" in hg and 'id="gpDrop"' in hg and "마지막으로 올린 파일" in hg and "✅ 원본과 같음" in hg)
 
+print("== ⑤ 📇 주소록 창 「👥 그룹 메일 · 묶음」 탭(대표 11-20) ==")
+_U["v"] = dict(U_MEM)
+ga = k.get("/api/mail/groups/all").json()
+fs = next((g for g in ga.get("company", []) if g["address"] == "fsales@knknara.co.kr"), {})
+check("직원도 그룹 메일 목록·명단을 받음(주소·이름 직책 부서)", ga.get("ok") and fs and len(fs["members"]) == 2 and fs["members"][0]["name"] == "웍스이름"
+      and "가짜영업팀" in fs["members"][0]["disp"], fs)
+check("부서 묶음도 함께", any(g["name"] == "가짜영업팀 전체" for g in ga.get("dept", [])), ga.get("dept"))
+_U["v"] = dict(U_CEO)
+cpz = open(os.path.join(ROOT, "app", "templates", "mail_compose.html"), encoding="utf-8").read()
+check("주소록 창 탭 「📇 연락처 / 👥 그룹 메일 · 묶음」 · 펼치기 · 몇 사람만 고르기 · 그룹이면 「N명이 받음」",
+      'id="abTabG"' in cpz and "function abGLoad" in cpz and "fetch('/api/mail/groups/all')" in cpz and "펼치기 ▾" in cpz
+      and "function abMTick" in cpz and "명이 받음)" in cpz)
+check("주소록에서 넣으면 받는 사람 칸 아래 그룹 명단도 바로", "if(window.cmpGrpCheck) cmpGrpCheck();   // 11-20" in cpz)
+
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 sys.exit(1 if F else 0)

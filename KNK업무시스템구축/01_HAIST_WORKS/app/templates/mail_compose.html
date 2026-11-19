@@ -104,6 +104,21 @@
   .ab-row .co{color:var(--mute);font-size:12.5px}.ab-row .em{margin-left:auto;color:var(--mt-text2,#475569);font-size:12px}
   .ab-f{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
   .ab-empty{padding:30px;text-align:center;color:var(--mute);font-size:13px}
+  /* 11-20 대표 「주소록에 그룹메일 리스트 · 펼치기로 누가 포함됐는지 보고 보내기」 */
+  .ab-tabs{display:flex;gap:6px;padding:8px 14px 0;border-bottom:1px solid var(--line)}
+  .ab-tab{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;padding:6px 14px;background:var(--mt-panel,#f8fafc);color:var(--mute);cursor:pointer;margin-bottom:-1px}
+  .ab-tab.on{background:var(--mt-surface,#fff);color:var(--ink);border-color:var(--line)}
+  .ab-gsec{font-size:12px;font-weight:800;color:var(--mute);padding:8px 8px 3px}
+  .ab-grp{border-radius:8px}
+  .ab-grp .ab-row .gn{font-size:12px;font-weight:800;border-radius:999px;padding:1px 8px;background:#eff6ff;color:#1e3a8a;margin-left:auto;flex:none}
+  .ab-grp .ab-row .ad{color:#1d4ed8;font-size:12px}
+  .ab-xp{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:7px;padding:2px 9px;background:var(--mt-surface,#fff);color:var(--ink);cursor:pointer;flex:none}
+  .ab-mem{padding:2px 8px 8px 38px;display:flex;flex-direction:column;gap:1px}
+  .ab-mem[hidden]{display:none}
+  .ab-mem label{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 6px;border-radius:6px;cursor:pointer}
+  .ab-mem label:hover{background:#f5f7ff}
+  .ab-mem .em{margin-left:auto;color:var(--mute);font-size:11.5px}
+  .ab-mem .tip{font-size:11.5px;color:var(--mute);padding:2px 6px 4px}
   .ac-box div:hover{background:#f5f7ff}
   .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:var(--mt-panel,#fafafa);margin-top:8px}
   .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
@@ -260,6 +275,7 @@
 <div class="ab-wrap" id="abWrap" hidden onclick="if(event.target===this) abClose()">
   <div class="ab-box" role="dialog" aria-label="주소록에서 고르기">
     <div class="ab-h"><b>📇 주소록</b><input id="abQ" type="text" placeholder="이름·회사·주소로 찾기" oninput="abFind()" autocomplete="off"><button type="button" class="btn btn-secondary" onclick="abClose()">닫기</button></div>
+    <div class="ab-tabs"><button type="button" class="ab-tab on" id="abTabC" onclick="abTab('c')">📇 연락처</button><button type="button" class="ab-tab" id="abTabG" onclick="abTab('g')">👥 그룹 메일 · 묶음</button></div>
     <div class="ab-list" id="abList"><div class="ab-empty">불러오는 중…</div></div>
     <div class="ab-f"><span id="abN" style="font-size:12.5px;color:var(--mute)">0명 고름</span><span style="flex:1"></span>
       <button type="button" class="btn btn-primary" onclick="abPut('cTo')">받는 사람에 넣기</button>
@@ -308,7 +324,45 @@
 /* 📇 주소록에서 고르기(11-18 3단계) — 내가 볼 수 있는 연락처만(개인·부서·전사 공개 범위) · 여러 명 골라 받는 사람/참조에 */
 var _abItems=[], _abPick={}, _abTarget='cTo', _abT=null;
 function abEsc(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; }
-function abOpen(target){ _abTarget=target||'cTo'; _abPick={}; document.getElementById('abN').textContent='0명 고름'; document.getElementById('abWrap').hidden=false; var q=document.getElementById('abQ'); q.value=''; q.focus(); abLoad(''); }
+var _abMode='c', _abG=null, _abGItems=[];
+function abOpen(target){ _abTarget=target||'cTo'; _abPick={}; abCount(); document.getElementById('abWrap').hidden=false; var q=document.getElementById('abQ'); q.value=''; q.focus(); abTab(_abMode||'c'); }
+function abTab(m){ _abMode=m; document.getElementById('abTabC').classList.toggle('on', m==='c'); document.getElementById('abTabG').classList.toggle('on', m==='g');
+  var q=document.getElementById('abQ'); q.placeholder = m==='g' ? '그룹 이름·주소·사람 이름으로 찾기 (예: knksales, 영업)' : '이름·회사·주소로 찾기';
+  if(m==='g') abGLoad(q.value.trim()); else abLoad(q.value.trim()); }
+function abCount(){ var v=Object.values(_abPick), g=v.filter(function(x){ return x._grp; });
+  document.getElementById('abN').textContent = v.length+'명 고름' + (g.length ? ' (그룹 메일 '+g.length+'개 = '+g.reduce(function(s,x){ return s+x._grp; },0)+'명이 받음)' : ''); }
+/* 11-20 👥 그룹 메일 탭 — 회사 그룹 메일(주소 하나로 여러 명) · 내 묶음 · 부서 묶음 · 「펼치기」 = 누가 받는지 · 몇 사람만 골라도 됨 */
+async function abGLoad(q){
+  var box=document.getElementById('abList');
+  if(!_abG){ box.innerHTML='<div class="ab-empty">불러오는 중…</div>'; try{ var r=await fetch('/api/mail/groups/all'); _abG=await r.json(); }catch(e){ _abG={company:[],mine:[],dept:[]}; } }
+  q=(q||'').toLowerCase(); _abGItems=[];
+  function hit(g){ if(!q) return true; if((g.name+' '+(g.address||'')+' '+(g.note||'')).toLowerCase().indexOf(q)>=0) return true;
+    return (g.members||[]).some(function(m){ return ((m.disp||'')+' '+(m.email||'')).toLowerCase().indexOf(q)>=0; }); }
+  var html='';
+  [['company','🏢 회사 그룹 메일 — 주소 하나로 여러 명이 받음'],['mine','⭐ 내 묶음 — 고르면 한 명씩 들어감'],['dept','🏢 부서 묶음 — 고르면 부서원이 한 명씩 들어감']].forEach(function(sec){
+    var gs=(_abG[sec[0]]||[]).filter(hit); if(!gs.length) return;
+    html+='<div class="ab-gsec">'+sec[1]+' ('+gs.length+')</div>';
+    gs.forEach(function(g){ var gi=_abGItems.length; _abGItems.push({kind:sec[0], g:g}); var n=(g.members||[]).length;
+      var on = sec[0]==='company' ? !!_abPick[(g.address||'').toLowerCase()] : (n && g.members.every(function(m){ return _abPick[(m.email||'').toLowerCase()]; }));
+      html+='<div class="ab-grp"><label class="ab-row"><input type="checkbox" data-g="'+gi+'"'+(on?' checked':'')+' onchange="abGTick(this)"><b>'+abEsc(g.name)+'</b>'+
+        (g.address?' <span class="ad">'+abEsc(g.address)+'</span>':'')+'<span class="gn">'+n+'명</span>'+
+        '<button type="button" class="ab-xp" onclick="event.preventDefault();event.stopPropagation();abGXp(this)">펼치기 ▾</button></label>'+
+        '<div class="ab-mem" hidden>'+(sec[0]==='company'?'<div class="tip">위 그룹을 고르면 그룹 주소 하나로 보내고 아래 사람이 모두 받습니다 · 몇 사람에게만 보내려면 아래에서 고르세요</div>':'')+
+        (g.members||[]).map(function(m,mi){ var mo=!!_abPick[(m.email||'').toLowerCase()];
+          return '<label><input type="checkbox" data-g="'+gi+'" data-m="'+mi+'"'+(mo?' checked':'')+' onchange="abMTick(this)">'+abEsc(m.disp||m.name||m.email)+'<span class="em">'+abEsc(m.email)+'</span></label>'; }).join('')+'</div></div>'; }); });
+  if(!html) html='<div class="ab-empty">'+(q?'찾는 그룹이 없습니다':'등록된 그룹 메일·묶음이 없습니다 — ⚙ 설정·정리 → 「👥 받는 사람 묶음 · 그룹 메일」')+'</div>';
+  box.innerHTML=html;
+  if(q){ box.querySelectorAll('.ab-grp').forEach(function(el){ var it=_abGItems[+el.querySelector('input').dataset.g];
+    if(it && !(it.g.name+' '+(it.g.address||'')).toLowerCase().includes(q)){ var mm=el.querySelector('.ab-mem'), b=el.querySelector('.ab-xp'); mm.hidden=false; b.textContent='접기 ▴'; } }); }
+}
+function abGXp(btn){ var m=btn.closest('.ab-grp').querySelector('.ab-mem'); m.hidden=!m.hidden; btn.textContent=m.hidden?'펼치기 ▾':'접기 ▴'; }
+function abGTick(cb){ var it=_abGItems[+cb.dataset.g]; if(!it) return; var g=it.g;
+  if(it.kind==='company'){ var k=(g.address||'').toLowerCase(); if(cb.checked) _abPick[k]={name:g.name, email:g.address, _grp:(g.members||[]).length}; else delete _abPick[k]; }
+  else { (g.members||[]).forEach(function(m){ var k=(m.email||'').toLowerCase(); if(!k) return; if(cb.checked) _abPick[k]={name:m.name, email:m.email}; else delete _abPick[k]; });
+    cb.closest('.ab-grp').querySelectorAll('.ab-mem input').forEach(function(x){ x.checked=cb.checked; }); }
+  abCount(); }
+function abMTick(cb){ var it=_abGItems[+cb.dataset.g]; if(!it) return; var m=it.g.members[+cb.dataset.m]; if(!m) return; var k=(m.email||'').toLowerCase();
+  if(cb.checked) _abPick[k]={name:m.name, email:m.email}; else delete _abPick[k]; abCount(); }
 function abClose(){ document.getElementById('abWrap').hidden=true; }
 async function abLoad(q){
   var box=document.getElementById('abList');
@@ -318,9 +372,9 @@ async function abLoad(q){
     return '<label class="ab-row"><input type="checkbox" data-i="'+i+'"'+(on?' checked':'')+' onchange="abTick(this)"><b>'+abEsc(it.name||'(이름 없음)')+'</b>'+
       (it.position?' <span class="co">'+abEsc(it.position)+'</span>':'')+(it.company?' <span class="co">· '+abEsc(it.company)+'</span>':'')+'<span class="em">'+abEsc(it.email)+'</span></label>'; }).join('');
 }
-function abFind(){ clearTimeout(_abT); var q=document.getElementById('abQ').value.trim(); _abT=setTimeout(function(){ abLoad(q); }, 220); }
+function abFind(){ clearTimeout(_abT); var q=document.getElementById('abQ').value.trim(); _abT=setTimeout(function(){ if(_abMode==='g') abGLoad(q); else abLoad(q); }, 220); }
 function abTick(cb){ var it=_abItems[parseInt(cb.dataset.i,10)]; if(!it) return; var k=it.email.toLowerCase();
-  if(cb.checked) _abPick[k]=it; else delete _abPick[k]; document.getElementById('abN').textContent=Object.keys(_abPick).length+'명 고름'; }
+  if(cb.checked) _abPick[k]=it; else delete _abPick[k]; abCount(); }
 function abPut(target){
   var adds=Object.values(_abPick); if(!adds.length){ alert('넣을 사람을 골라 주세요.'); return; }
   var el=document.getElementById(target||_abTarget); if(!el) return;
@@ -329,6 +383,7 @@ function abPut(target){
   var cur=(el.value||'').trim().replace(/[,;]\s*$/,'');
   adds.forEach(function(it){ if(have.indexOf(it.email.toLowerCase())<0){ cur=(cur?cur+', ':'')+(window.cmpAcFmt?window.cmpAcFmt(it):it.email); have.push(it.email.toLowerCase()); } });
   el.value=cur; window._cDirty=true; abClose(); el.focus();
+  if(window.cmpGrpCheck) cmpGrpCheck();   // 11-20 그룹 메일을 넣었으면 받는 사람 칸 아래에 「N명이 받습니다」 명단
 }
 
 (function(){

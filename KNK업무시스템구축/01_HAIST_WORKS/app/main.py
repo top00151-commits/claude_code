@@ -24840,6 +24840,26 @@ async def mail_groups_import(req: Request):
     return JSONResponse({"ok": True, "mode": "apply", "res": res, "warnings": pr["warnings"][:30]})
 
 
+@app.get("/api/mail/groups/all")
+async def mail_groups_all_api(req: Request):
+    """11-20 대표 — 📇 주소록 창 「👥 그룹 메일」 탭: 회사 그룹 메일(명단) · 내 묶음 · 부서 묶음 — 이름은 「이름 직책 부서」."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        data = _mwork.list_groups(c, u["id"])
+        st = _mwork._staff_by_email(c, [m.get("email", "") for g in data["company"] + data["mine"] for m in g["members"]])
+
+    def _p(m):
+        s = st.get((m.get("email") or "").lower())
+        return {"email": m.get("email") or "", "name": (s or {}).get("name") or m.get("name") or "",
+                "disp": _mw_disp(s) if s else (m.get("name") or m.get("email") or "")}
+    out = {"company": [{"name": g["name"], "address": g["address"], "note": g.get("note") or "", "members": [_p(m) for m in g["members"]]} for g in data["company"]],
+           "mine": [{"name": g["name"], "note": g.get("note") or "", "members": [_p(m) for m in g["members"]]} for g in data["mine"]],
+           "dept": [{"name": g["name"], "members": [{"email": m["email"], "name": m["name"], "disp": _mw_disp(m)} for m in g["members"]]} for g in data["dept"]]}
+    return JSONResponse({"ok": True, **out})
+
+
 @app.get("/api/mail/groups/guess")
 async def mail_groups_guess(req: Request, addr: str = ""):
     """관리자 돕기 — 이 공용 주소로 온 메일이 실제로 들어간 메일함(이음웍스로 받아 오는 사람만 · 정답은 하이웍스 관리자 화면)."""
