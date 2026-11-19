@@ -91,9 +91,9 @@
     </div>
 
     <div class="meta">
-      등록: {{ contact.creator_name|default('—') }} · {{ contact.created_at|default('—') }}
+      등록: {{ contact.creator_name|default('—', true) }} · {{ contact.created_at|default('—', true) }}
       {% if contact.updated_at and contact.updated_at != contact.created_at %}
-        &nbsp;|&nbsp; 최종 수정: {{ contact.updater_name|default('—') }} · {{ contact.updated_at }}
+        &nbsp;|&nbsp; 최종 수정: {{ contact.updater_name|default('—', true) }} · {{ contact.updated_at }}
       {% endif %}
       &nbsp;|&nbsp; 출처:
       {% if contact.source == 'card' %}명함 사진{% elif contact.source == 'signature' %}메일 서명{% else %}직접 입력{% endif %}

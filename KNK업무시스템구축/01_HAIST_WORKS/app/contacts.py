@@ -527,19 +527,42 @@ def _vis_clause(user) -> tuple[str, list]:
     )
 
 
+def _z77_digits_sql(col: str) -> str:
+    """z1191z77: 전화번호 칸에서 - · 공백 · 점 · 괄호 · + 를 뺀 숫자만(검색용)."""
+    x = f"COALESCE({col},'')"
+    for ch in ("-", " ", ".", "(", ")", "+"):
+        x = f"REPLACE({x},'{ch}','')"
+    return x
+
+
+def phone_query_digits(q: str) -> str:
+    """z1191z77: 검색어가 전화번호 모양(숫자·- ·공백·점·괄호·+ 만, 숫자 3개 이상)이면 숫자만 돌려준다."""
+    q = (q or "").strip()
+    if q and re.fullmatch(r"[\d\-\s\.\(\)\+]+", q):
+        d = re.sub(r"\D", "", q)
+        if len(d) >= 3:
+            return d
+    return ""
+
+
 def list_contacts(c, q: str = "", user=None) -> list[dict]:
     """연락처 목록 — 가시성 필터(개인/부서/전사) 적용.
-    검색어 있으면 이름·회사·전화·이메일·부서·직책 LIKE."""
+    검색어 있으면 이름·회사·전화·이메일·부서·직책 LIKE.
+    z1191z77: 전화번호는 숫자만 넣어도(- · 띄어쓰기 상관없이 · 뒷자리 4개만도) 찾는다."""
     q = (q or "").strip()
     where, params = [], []
     if q:
         like = f"%{q}%"
-        where.append(
-            "(sc.name LIKE ? OR sc.company LIKE ? OR sc.mobile LIKE ?"
-            " OR sc.phone LIKE ? OR sc.email LIKE ? OR sc.department LIKE ?"
-            " OR sc.position LIKE ? OR sc.note LIKE ?)"
-        )
+        cond = ("sc.name LIKE ? OR sc.company LIKE ? OR sc.mobile LIKE ?"
+                " OR sc.phone LIKE ? OR sc.email LIKE ? OR sc.department LIKE ?"
+                " OR sc.position LIKE ? OR sc.note LIKE ?")
         params += [like] * 8
+        dg = phone_query_digits(q)
+        if dg:
+            cond += (" OR " + _z77_digits_sql("sc.mobile") + " LIKE ? OR " + _z77_digits_sql("sc.phone")
+                     + " LIKE ? OR " + _z77_digits_sql("sc.fax") + " LIKE ?")
+            params += [f"%{dg}%"] * 3
+        where.append("(" + cond + ")")
     vsql, vparams = _vis_clause(user)
     if vsql:
         where.append(vsql)
@@ -554,6 +577,88 @@ def list_contacts(c, q: str = "", user=None) -> list[dict]:
         params,
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── z1191z77 책갈피(개인 · 부서 · 전사) · 이름 보기 정리 · 우리 회사 직원 ──
+TAB_LABELS = (("all", "전체"), ("private", "🔒 개인"), ("dept", "👥 부서"), ("company", "🌐 전사"))
+
+
+def tab_of(contact: dict) -> str:
+    """연락처 → 책갈피. 개인 = 나만(등록한 본인만 보임) · 부서 = 부서원 누구나 · 전사 = 회사 전체 누구나."""
+    v = (contact.get("visibility") or "private").strip()
+    return v if v in ("dept", "company") else "private"
+
+
+def display_name(name: str) -> str:
+    """z1191z77: 화면에 보일 이름 — 메일에서 들어온 앞뒤 따옴표(' " `) · 인코딩 글자(=?utf-8?B?…?=)를 정리.
+    저장된 값은 그대로(보기만 정리)."""
+    n = (name or "").strip()
+    if "=?" in n and "?=" in n:
+        try:
+            from email.header import decode_header, make_header
+            n = str(make_header(decode_header(n))).strip()
+        except Exception:
+            pass
+    for _ in range(3):
+        if len(n) >= 2 and n[0] in "'\"`" and n[-1] in "'\"`":
+            n = n[1:-1].strip()
+        elif len(n) >= 1 and n[0] in "'\"`" and n.count(n[0]) == 1:
+            n = n[1:].strip()
+        else:
+            break
+    return n or (name or "").strip()
+
+
+def phone_display(p: str) -> str:
+    """z1191z77: 보기용 번호 — 한국 휴대폰(01X 11자리)·서울(02) 번호만 010-1234-5678 · 02-1234-5678 모양으로(저장값은 그대로)."""
+    raw = (p or "").strip()
+    d = re.sub(r"\D", "", raw)
+    if raw and re.fullmatch(r"[\d\s\-]+", raw):
+        if len(d) == 11 and d.startswith("01"):
+            return f"{d[:3]}-{d[3:7]}-{d[7:]}"
+        if len(d) == 10 and d.startswith("02"):
+            return f"02-{d[2:6]}-{d[6:]}"
+        if len(d) == 9 and d.startswith("02"):
+            return f"02-{d[2:5]}-{d[5:]}"
+        # 그 밖(지역번호 10자리 · 베트남 0912 345 678 등)은 나라·지역을 짐작하지 않고 그대로
+    return raw
+
+
+def tel_href(p: str) -> str:
+    """z1191z77: 누르면 전화 — tel: 주소(숫자·+ 만)."""
+    raw = (p or "").strip()
+    d = re.sub(r"[^\d+]", "", raw)
+    return ("tel:" + d) if len(re.sub(r"\D", "", d)) >= 3 else ""
+
+
+def list_staff(c, q: str = "") -> list[dict]:
+    """z1191z77: 우리 회사 직원(재직 · 이름 있음) — 이름 · 직책 · 부서 · 법인 · 휴대폰 · 이메일. 따로 저장할 필요 없음(인사 명부 그대로)."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+    _ph = "u.phone" if "phone" in cols else "''"
+    _rk = "u.rank" if "rank" in cols else "''"
+    _en = "u.entity" if "entity" in cols else "''"
+    _em = "u.email" if "email" in cols else "''"
+    _no = "u.employee_no" if "employee_no" in cols else "''"
+    rows = c.execute(
+        f"SELECT u.id, u.name, COALESCE({_rk},'') AS rank, COALESCE({_ph},'') AS phone, COALESCE({_em},'') AS email, "
+        f"COALESCE({_en},'') AS entity, COALESCE({_no},'') AS emp_no, COALESCE(t.name,'') AS team_name, "
+        "COALESCE(t.display_order, 999) AS t_ord "
+        "FROM users u LEFT JOIN teams t ON t.id = u.team_id "
+        "WHERE COALESCE(u.is_active,1)=1 AND TRIM(COALESCE(u.name,''))<>'' "
+        "ORDER BY t_ord, t.name, u.name").fetchall()
+    out = []
+    qq = (q or "").strip().lower()
+    dg = phone_query_digits(q)
+    for r in rows:
+        d = dict(r)
+        en = (d["entity"] or "").upper()
+        d["corp"] = "KNK VINA" if (en == "VN" or str(d["emp_no"]).upper().startswith("VN")) else "KNK"
+        if qq:
+            hay = " ".join(str(d.get(k) or "") for k in ("name", "rank", "team_name", "email", "phone", "corp")).lower()
+            if not (qq in hay or (dg and dg in re.sub(r"\D", "", d["phone"] or ""))):
+                continue
+        out.append(d)
+    return out
 
 
 def get_contact(c, cid: int):
@@ -730,9 +835,16 @@ def to_vcard(ct: dict) -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
-def vcards_all(c, user=None) -> str:
-    """내가 볼 수 있는 연락처 → vCard 묶음 (.vcf 한 파일에 여러 장). v5H226z580."""
-    return "".join(to_vcard(r) for r in list_contacts(c, user=user))
+def vcards_all(c, user=None, tab: str = "") -> str:
+    """내가 볼 수 있는 연락처 → vCard 묶음 (.vcf 한 파일에 여러 장). v5H226z580.
+    z1191z77: tab(private·dept·company)을 주면 그 책갈피 것만 · staff = 우리 회사 직원."""
+    if tab == "staff":
+        return "".join(to_vcard({"name": r["name"], "position": r["rank"], "company": r["corp"], "department": r["team_name"],
+                                 "mobile": r["phone"], "email": r["email"]}) for r in list_staff(c))
+    rows = list_contacts(c, user=user)
+    if tab in ("private", "dept", "company"):
+        rows = [r for r in rows if tab_of(r) == tab]
+    return "".join(to_vcard(dict(r, name=display_name(r.get("name")))) for r in rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

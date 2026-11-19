@@ -22007,10 +22007,35 @@ async def contacts_list(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     q = (req.query_params.get("q") or "").strip()
+    # z1191z77 (대표 11-19): 책갈피 — 전체 · 🔒 개인(나만) · 👥 부서(부서원 누구나) · 🌐 전사(회사 전체 누구나) · 🏢 우리 회사 직원
+    tab = (req.query_params.get("tab") or "all").strip()
+    if tab not in ("all", "private", "dept", "company", "staff"):
+        tab = "all"
     with db_session() as c:
         items = _contacts.list_contacts(c, q, user=u)   # v5H226z580 가시성 필터
-    return ctx(req, "contacts_list.html", user=u, contacts=items, q=q,
-               total=len(items))
+        staff = _contacts.list_staff(c, q)
+    for d in items:
+        d["tab"] = _contacts.tab_of(d)
+        d["name_disp"] = _contacts.display_name(d.get("name"))
+        for _k in ("mobile", "phone", "fax"):
+            d[_k + "_disp"] = _contacts.phone_display(d.get(_k))
+            d[_k + "_tel"] = _contacts.tel_href(d.get(_k))
+        d["mine"] = _contacts.can_edit(d, u)
+    for d in staff:
+        d["phone_disp"] = _contacts.phone_display(d.get("phone"))
+        d["phone_tel"] = _contacts.tel_href(d.get("phone"))
+    items.sort(key=lambda d: (d["name_disp"] or "").lower())
+    counts = {"all": len(items), "staff": len(staff)}
+    for _t in ("private", "dept", "company"):
+        counts[_t] = sum(1 for d in items if d["tab"] == _t)
+    shown = items if tab == "all" else [d for d in items if d["tab"] == tab]
+    my_team = ""
+    if u.get("team_id"):
+        with db_session() as c:
+            _r = c.execute("SELECT name FROM teams WHERE id=?", (u.get("team_id"),)).fetchone()
+            my_team = (_r[0] if _r else "") or ""
+    return ctx(req, "contacts_list.html", user=u, contacts=shown, q=q,
+               total=len(items), tab=tab, counts=counts, staff=staff, my_team=my_team)
 
 
 @app.get("/contacts/new")
@@ -22093,10 +22118,11 @@ async def contacts_vcards_all(req: Request):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    _tab = (req.query_params.get("tab") or "").strip()   # z1191z77: 책갈피 것만
     with db_session() as c:
-        text = _contacts.vcards_all(c, user=u)
+        text = _contacts.vcards_all(c, user=u, tab=_tab)
     from urllib.parse import quote
-    fn = "전사연락처.vcf"
+    fn = {"private": "개인연락처.vcf", "dept": "부서연락처.vcf", "company": "전사연락처.vcf", "staff": "직원연락처.vcf"}.get(_tab, "연락처.vcf")
     headers = {"Content-Disposition":
                f"attachment; filename=contacts.vcf; filename*=UTF-8''{quote(fn)}"}
     return StreamingResponse(io.BytesIO(text.encode("utf-8")),
@@ -22467,6 +22493,42 @@ async def contacts_bulk_delete(req: Request):
     if skipped:
         msg += f" (권한 없음 {skipped}명 건너뜀)"
     return JSONResponse({"ok": True, "deleted": deleted, "skipped": skipped, "message": msg})
+
+
+@app.post("/contacts/bulk-share")
+async def contacts_bulk_share(req: Request):
+    """z1191z77 (대표 11-19): 고른 연락처의 공유 범위를 한 번에 — 🔒 개인 · 👥 우리 부서 · 🌐 전사. body {ids, visibility}.
+    바꿀 수 있는 것 = 내가 등록한 것(관리자·대표는 전부 · 기존 규칙 can_edit 그대로). 부서 = 바꾸는 사람의 부서."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "요청 형식 오류."}, 400)
+    vis = str(body.get("visibility") or "").strip()
+    if vis not in _contacts.VISIBILITIES:
+        return JSONResponse({"ok": False, "message": "잘못된 공유 범위입니다."}, 400)
+    ids = [int(x) for x in (body.get("ids") or []) if str(x).isdigit()]
+    if not ids:
+        return JSONResponse({"ok": False, "message": "고른 연락처가 없습니다."}, 400)
+    tid = u.get("team_id") if vis == "dept" else None
+    if vis == "dept" and not tid:
+        return JSONResponse({"ok": False, "message": "소속 부서가 없어 부서 연락처로 바꿀 수 없습니다(관리자에게 부서 배정 요청)."}, 400)
+    done, skipped = 0, 0
+    with db_session() as c:
+        for cid in ids:
+            ct = _contacts.get_contact(c, cid)
+            if not ct or not _contacts.can_see(ct, u) or not _contacts.can_edit(ct, u):
+                skipped += 1
+                continue
+            _contacts.set_share(c, cid, vis, tid, u["id"])
+            done += 1
+    lab = {"private": "🔒 개인", "dept": "👥 부서", "company": "🌐 전사"}[vis]
+    msg = f"{done}명을 {lab} 연락처로 바꿨습니다."
+    if skipped:
+        msg += f" (내가 등록하지 않은 {skipped}명은 그대로)"
+    return JSONResponse({"ok": True, "done": done, "skipped": skipped, "message": msg})
 
 
 @app.post("/contacts/{cid:int}/share")
