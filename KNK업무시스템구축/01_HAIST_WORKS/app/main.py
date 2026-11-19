@@ -23347,11 +23347,12 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
+        dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
     return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off, fu=fu)
+               nav=nav, img_off=img_off, fu=fu, dl=dl)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -23405,11 +23406,12 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
+        dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off, fu=fu)
+               nav=nav, img_off=img_off, fu=fu, dl=dl)
 
 
 def _mail_who_info(m, folder_info):
@@ -24907,6 +24909,146 @@ async def mail_wait_set(req: Request, mail_id: int):
         until = (_mail_now_local(_mail_off(c, u)).date() + timedelta(days=days)).isoformat() if days else ""
         ok, msg = _mwork.set_wait(c, u["id"], mail_id, until)
     return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
+
+
+# ─── 11-20 대표 「맡기기는 (가)로, 원문은 복사로 진행해」 — 👉 맡기기: 메일 한 통 → 이음 요청(app/mail_delegate.py) ───
+#   서버 → 이음 서버만(공유키는 화면·로그·응답에 안 나감) · 🧪 시험 동안 사번 5·67·306 만(_mdlg.TEST_GROUP 한 곳)
+#   ⛔ 김정락–안지연 이음 1:1 방은 대상 아님 — 이음이 만드는 「📧 메일 업무」 그룹 방만 · 메일 쪽은 이음 방·메시지를 읽지 않음
+from . import mail_delegate as _mdlg
+from starlette.concurrency import run_in_threadpool as _mdlg_pool
+_MDLG_NOT_ALLOWED = "🧪 지금은 시험 기간이라 「👉 맡기기」는 김정락·안지연·이새롬만 쓸 수 있습니다."
+
+
+def _mdlg_ctx(c, u, mail_id):
+    """읽기 화면 — 단추를 보일지(시험 명단) · 이 메일에 맡긴 기록이 있는지(있을 때만 상태를 묻는다)."""
+    try:
+        return {"can": _mdlg.allowed(u), "n": _mdlg.count_for_mail(c, u["id"], mail_id)}
+    except Exception:
+        return {"can": False, "n": 0}
+
+
+@app.get("/api/mail/delegate/staff")
+async def mail_delegate_staff(req: Request, q: str = ""):
+    """담당자 고르기 — 웍스 직원 명단 읽기만(켜진 계정 · 사번 있음) · 「이름 직책 부서」."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not _mdlg.allowed(u):
+        return JSONResponse({"ok": False, "message": _MDLG_NOT_ALLOWED}, 403)
+    with db_session() as c:
+        rows = _mdlg.staff_search(c, q, limit=40)
+    me = _mdlg.emp_no(u)
+    return JSONResponse({"ok": True, "items": [{"emp": r["employee_no"], "name": r["name"], "disp": _mw_disp(r),
+                                                "me": r["employee_no"] == me} for r in rows]})
+
+
+@app.get("/api/mail/{mail_id:int}/delegate/form")
+async def mail_delegate_form(req: Request, mail_id: int):
+    """맡기기 창을 열 때 한 번 — 오늘(내 소속 날짜) · 첨부 개수·크기·한도."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not _mdlg.allowed(u):
+        return JSONResponse({"ok": False, "message": _MDLG_NOT_ALLOWED}, 403)
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾지 못했습니다."}, 404)
+        off = _mail_off(c, u)
+        atts = _mdlg.file_atts(c, mail_id)
+    lim = _mdlg.att_limits(atts)
+    return JSONResponse({"ok": True, "today": _mail_local_today(off), "tz": "베트남" if off == 7 else "한국",
+                         "atts": dict(lim, names=[a["filename"] or "첨부" for a in atts][:30]),
+                         "max_instr": _mdlg.MAX_INSTR, "max_assignees": _mdlg.MAX_ASSIGNEES})
+
+
+@app.post("/mail/{mail_id:int}/delegate")
+async def mail_delegate_create(req: Request, mail_id: int):
+    """👉 맡기기 → 이음 요청 만들기. 메일 원문은 복사(글자 본문 + 첨부) · 담당자·기한·결과 확인은 이음 요청이 맡는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not _mdlg.allowed(u):
+        return JSONResponse({"ok": False, "code": "not_in_test_group", "message": _MDLG_NOT_ALLOWED}, 403)
+    f = await req.form()
+    assignees = _mdlg.norm_assignees(f.get("assignees") or "")
+    due = (f.get("due") or "").strip()
+    instr = " ".join((f.get("instruction") or "").split())
+    rk = (f.get("result_kind") or "reply").strip()
+    with_files = (f.get("with_files") or "1") == "1"
+    idem = (f.get("idem_key") or "").strip()
+    if not _mdlg._IDEM_RE.match(idem):
+        idem = _mdlg.new_idem()
+    files, not_sent = [], []
+    with db_session() as c:
+        m = _mailbox.get_mail(c, mail_id, u["id"])
+        if not m:
+            return JSONResponse({"ok": False, "message": "메일을 찾지 못했습니다(내 메일만 맡길 수 있습니다)."}, 404)
+        off = _mail_off(c, u)
+        ok, msg = _mdlg.check_form(assignees=assignees, due=due, instruction=instr, result_kind=rk,
+                                   today_local=_mail_local_today(off))
+        if not ok:
+            return JSONResponse({"ok": False, "code": "form", "message": msg, "idem_key": idem}, 400)
+        st = _mdlg.staff_by_empno(c, assignees)
+        atts = _mdlg.file_atts(c, mail_id)
+        if with_files and atts:
+            lim = _mdlg.att_limits(atts)
+            if lim["over"]:
+                return JSONResponse({"ok": False, "code": "files_over", "idem_key": idem,
+                                     "message": lim["why"] + " — 「📎 첨부 함께 보내기」를 끄고 맡겨 주세요(파일은 이음 방에 따로 올리면 됩니다)."}, 400)
+            for a in atts:
+                g = _mailbox.get_attachment(c, a["id"], u["id"])
+                if g and g.get("data") is not None:
+                    files.append((a["filename"] or g["filename"], bytes(g["data"]), g["mime"]))
+                else:
+                    not_sent.append(a["filename"] or "첨부")
+            if sum(len(x[1]) for x in files) > _mdlg.MAX_TOTAL:
+                return JSONResponse({"ok": False, "code": "files_over", "idem_key": idem,
+                                     "message": "첨부 합계가 50MB를 넘어 한 번에 넘길 수 없습니다 — 「📎 첨부 함께 보내기」를 끄고 맡겨 주세요."}, 400)
+        payload, cut = _mdlg.build_payload(requester=_mdlg.emp_no(u), assignees=assignees, due=due, instruction=instr,
+                                           result_kind=rk, idem_key=idem, m=m)
+    # ⚠ DB 를 닫고 나서 이음을 부른다(기다리는 동안 DB 를 쥐지 않음 · 서버 한 줄을 막지 않게 따로 돌림)
+    res = await _mdlg_pool(_mdlg.call_create, payload, files or None)
+    if not res.get("ok"):
+        out = {"ok": False, "code": res.get("code"), "message": res.get("message") or "맡기지 못했습니다.", "idem_key": idem}
+        if res.get("bad"):
+            with db_session() as c:
+                nm = _mdlg.staff_by_empno(c, res["bad"], active_only=False)
+            out["bad"] = [{"emp": b, "disp": (_mw_disp(nm[b]) if b in nm else "") or ("사번 " + b)} for b in res["bad"]]
+            out["message"] = res["message"] + ": " + ", ".join(x["disp"] for x in out["bad"])
+        code = 400 if res.get("code") in ("assignee_invalid", "assignees_required", "too_many_assignees", "instruction_too_long",
+                                         "bad_due", "too_many_files", "files_too_large", "bad_file") else (
+            403 if res.get("code") in ("not_in_test_group", "requester_invalid", "forbidden") else 502)
+        return JSONResponse(out, code)
+    names = [{"employee_no": a, "name": (st.get(a) or {}).get("name") or a} for a in assignees]
+    with db_session() as c:
+        _mdlg.save(c, mail_id=mail_id, owner_id=u["id"], resp=res, assignees=names, instruction=instr, result_kind=rk)
+    print("[MAIL-DLG] 맡김(user=%s mail=%s): 요청 #%s · 담당 %d명 · 첨부 %d개%s" % (
+        u["id"], mail_id, res.get("request_no"), len(assignees), len(files), " · 다시 보냄" if res.get("existing") else ""), flush=True)
+    return JSONResponse({"ok": True, "existing": bool(res.get("existing")), "request_no": res.get("request_no"),
+                         "room_name": res.get("room_name") or "", "room_new": bool(res.get("room_new")),
+                         "win_url": res.get("win_url") or "", "url": res.get("url") or "",
+                         "due": _mdlg.due_label(res.get("due")), "due_default": bool(res.get("due_default")),
+                         "skipped": [{"name": str(x.get("name") or ""), "reason": str(x.get("reason") or "")}
+                                     for x in (res.get("skipped_files") or []) if isinstance(x, dict)][:20],
+                         "not_sent": not_sent[:20], "body_truncated": bool(cut or res.get("body_truncated"))})
+
+
+@app.get("/api/mail/{mail_id:int}/delegations")
+async def mail_delegations_api(req: Request, mail_id: int):
+    """읽기 화면 상태 띠 — 이 메일에 맡긴 요청들(내 것만)의 ref 만 모아 이음에 한 번 묻기(1분 안에 물은 것은 다시 안 물음)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        rows = _mdlg.rows_for_mail(c, u["id"], mail_id)
+        off = _mail_off(c, u)
+    if not rows:
+        return JSONResponse({"ok": True, "items": []})
+    items, err = await _mdlg_pool(_mdlg.call_status, [r["ref"] for r in rows])
+    with db_session() as c:
+        rows = _mdlg.apply_status(c, rows, items)
+    return JSONResponse({"ok": True, "items": [_mdlg.view_item(d, off) for d in rows], "warn": err})
 
 
 @app.get("/mail/waiting", response_class=HTMLResponse)

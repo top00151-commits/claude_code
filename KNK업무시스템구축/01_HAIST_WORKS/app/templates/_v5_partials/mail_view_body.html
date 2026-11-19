@@ -28,6 +28,7 @@
       {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>
       <a href="/mail/compose?replyall={{ m.id }}" class="btn btn-secondary">↩↩ 전체답장</a>{% endif %}
       <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary">↪ 전달</a>
+      {% if dl is defined and dl and dl.can %}{# 11-20 👉 맡기기 — 이음 요청으로(🧪 시험 명단만 · mail_delegate.TEST_GROUP) #}<button type="button" class="btn btn-secondary mv-dlg-btn" onclick="mvDlgOpen({{ m.id }})" title="이 메일을 직원에게 맡깁니다 — 이음 요청으로(원문 복사 · 담당·기한·독촉·결과 확인은 이음에서)">👉 맡기기</button>{% endif %}
       {% if m.direction == 'out' %}{# 11-19 1단계 ② ⏳ 답 기다리기 — 바깥 거래처에 보낸 메일 #}
         {% if m.wait_state == 'wait' %}<button type="button" class="btn btn-secondary" style="border-color:#93c5fd;background:#eff6ff;color:#1e3a8a" onclick="mvWait(0)" title="눌러서 그만 기다리기 · 답이 오면 저절로 빠짐">⏳ {{ (m.wait_until or '')[5:]|replace('-','/') }}까지 답 기다림 ✕</button>
         <a href="/mail/compose?nudge={{ m.id }}" class="btn btn-secondary" title="원래 받는 사람에게 「[확인 요청] 원래 제목」">✉ 다시 묻기</a>
@@ -100,6 +101,7 @@
     {% if m.direction != 'out' and m.risk_level and m.risk_level == 1 %}<span class="mv-chip ext" title="회사 밖에서 온 메일 — 모르는 발신이면 링크·첨부에 주의">ℹ️ 회사 밖에서 온 메일</span>{% endif %}
   </div>
 </div>
+{% include "_v5_partials/mail_delegate.html" %}
 
 {% if m.direction != 'out' and reply_info is defined and reply_info %}
 <div id="mvReply" class="mv-reply{{ ' on lv%d' % reply_info.lv if reply_info.lv else '' }}">
