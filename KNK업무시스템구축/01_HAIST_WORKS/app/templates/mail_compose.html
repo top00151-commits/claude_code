@@ -44,6 +44,14 @@
   .ac-box .ac-it.on{background:#eef2ff}
   .ac-box .ac-src{font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:0 5px;margin-left:5px}
   .cmp-bad{box-shadow:inset 0 -2px 0 #dc2626}
+  .cmp-sigsel{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--mute)}
+  .cmp-sigsel select{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .sc-when{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+  .sc-when button{font:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:10px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--mt-text,#111827);text-align:left}
+  .sc-when button:hover{border-color:#93c5fd;background:#eff6ff}
+  .sc-when small{display:block;font-weight:500;color:var(--mt-mute,#6b7280);font-size:12px}
+  .sc-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .sc-pick input{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
   .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
   .cmp-pick:hover{background:#e0e7ff}
   .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
@@ -123,6 +131,7 @@
     {# z1168(대표): 긴 메일에서도 끝까지 안 내려가고 보내기 → 11-18 「같은 단추는 한 번만」: 위 한 줄을 화면에 늘 붙여 두고 아래 같은 줄은 뺐다 #}
     <div class="cmp-actions cmp-actions-top">
       <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
+      <button type="button" class="btn btn-secondary js-send" id="cSchedBtn" onclick="cmpSchedule()" {% if not ready %}disabled{% endif %} title="정한 때에 보내기 — 창을 닫아도 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 바꾸거나 취소">⏱ 예약</button>
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
@@ -152,11 +161,13 @@
       <button type="button" data-cmd="insertUnorderedList" title="글머리 목록">• 목록</button>
       <button type="button" id="cLink" title="링크 넣기">🔗 링크</button>
       <button type="button" id="cClear" title="서식 지우기">✕ 서식</button>
+      {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">✍ <select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}">{{ g.name }}</option>{% endfor %}<option value="none">서명 없음</option></select></label>{% endif %}
     </div>
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
     <textarea id="cPrefillHtml" style="display:none">{{ prefill.body_html }}</textarea>
     <input type="hidden" id="cFwdSrc" value="{{ prefill.fwd_src }}">
+    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }};</script>
     <script>window.CMP_FWD = {{ (prefill.fwd_atts or [])|tojson }};</script>
     <textarea id="cSigHtml" style="display:none">{{ sig_html|default('') }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
@@ -366,7 +377,7 @@ function abPut(target){
     // 서명(HTML/이미지 가능)을 본문 위쪽(인용 앞)에 삽입. 드래프트는 sig_html 이 비어 중복 안 됨.
     var sg=document.getElementById('cSigHtml');
     if(ED && sg && sg.value.trim()){
-      var sig=document.createElement('div'); var v=sg.value;
+      var sig=document.createElement('div'); sig.className='knk-sig'; var v=sg.value;
       if(/<[a-z][\s\S]*>/i.test(v)) sig.innerHTML='--<br>'+v;   // HTML 서명
       else sig.innerText='--\n'+v;                              // 텍스트 서명(줄바꿈 보존)
       var blank=document.createElement('div'); blank.innerHTML='<br>';
@@ -374,6 +385,16 @@ function abPut(target){
       ED.insertBefore(blank, sig);
     }
   })();
+  // 11-19 2단계-나 — ✍ 서명 고르기: 본문 속 서명(.knk-sig)을 바꿔 넣음 · 「서명 없음」이면 뺌
+  window.cmpSigSwap=function(v){
+    var cur=ED.querySelector('.knk-sig');
+    if(v==='none'){ if(cur) cur.remove(); return; }
+    var g=(window.CMP_SIGS||[]).filter(function(x){ return String(x.slot)===String(v); })[0]; if(!g) return;
+    var el=document.createElement('div'); el.className='knk-sig'; var b=g.body||'';
+    if(/<[a-z][\s\S]*>/i.test(b)) el.innerHTML='--<br>'+b; else el.innerText='--\n'+b;
+    if(cur) cur.replaceWith(el); else { var blank=document.createElement('div'); blank.innerHTML='<br>'; ED.insertBefore(el, ED.firstChild); ED.insertBefore(blank, el); }
+    window._cDirty=true;
+  };
   var tb=document.getElementById('cTb');
   if(tb) tb.addEventListener('click',function(e){
     var b=e.target.closest('button'); if(!b)return; var cmd=b.getAttribute('data-cmd'); if(!cmd)return;
@@ -743,6 +764,26 @@ function abPut(target){
     window._scLast=r;
   };
   window.cmpStartUndo=function(){ startUndo(window._scLast||checks()); };
+  /* 11-19 2단계-나 ⏱ 예약 — 보내기 전 확인(같은 검사)을 보여 주고, 때를 고르면 서버에 맡김(창을 닫아도 그때 나감) */
+  window.cmpSchedule=function(){
+    if(window._cmpCounting) return;
+    var r=checks();
+    if(r.stop){ cmsg('⚠ '+r.stop,'red'); return; }
+    var warn=r.warns.length ? r.warns.map(function(w){ return '<div class="sc-item'+(w.info?' info':'')+'"><span class="ic">'+w.ic+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
+        (w.who?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+'</div></div>'; }).join('') : '';
+    scOpen('<h3>⏱ 언제 보낼까요?</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+' · 창을 닫아도 그때 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 취소 가능</div>'+warn+
+      '<div class="sc-when"><button type="button" onclick="cmpSchedGo(\'tom8\')">내일 아침 8시<small>출근 전에 도착</small></button><button type="button" onclick="cmpSchedGo(\'tom9\')">내일 오전 9시</button>'+
+      '<button type="button" onclick="cmpSchedGo(\'tom14\')">내일 오후 2시</button><button type="button" onclick="cmpSchedGo(\'nextmon9\')">다음 주 월요일 9시</button></div>'+
+      '<div class="sc-pick">직접 고르기 <input type="datetime-local" id="scAt"> <button type="button" class="btn btn-primary" onclick="var v=document.getElementById(\'scAt\').value; if(v) cmpSchedGo(v);">이때 보내기</button></div>'+
+      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button></div>');
+  };
+  window.cmpSchedGo=async function(at){
+    scClose(); var fd=gather(); fd.append('at', at); setSend(true); cmsg('⏱ 예약하는 중...','');
+    try{ var r=await fetch('/mail/schedule',{method:'POST',body:fd}); var j={}; try{ j=await r.json(); }catch(_){ j={ok:false,message:'서버 응답을 읽지 못했습니다'}; }
+      if(j.ok){ window._cmpSent=true; if(window.cKeepClear) window.cKeepClear(); cmsg(j.message,'green'); setTimeout(function(){ location.href='/mail/sent'; }, 1400); }
+      else { if(j.bad && j.bad.length) markBad(['cTo','cCc','cBcc']); cmsg('⚠ '+(j.message||'예약하지 못했습니다'),'red'); setSend(false); }
+    }catch(e){ cmsg('⚠ 네트워크 오류 — 예약됐는지 「보낸편지함」 위 「보낼 예정」을 확인해 주세요','red'); setSend(false); }
+  };
   function startUndo(r){
     var fd=gather();       // 지금 모습 그대로 담아 둠(세는 동안 고쳐도 섞이지 않게 — 고치려면 「보내기 취소」)
     var first=r.P.cTo.ok[0], nAll=r.n;

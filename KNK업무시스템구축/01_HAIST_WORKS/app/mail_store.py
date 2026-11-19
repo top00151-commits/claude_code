@@ -271,7 +271,9 @@ def _ensure_security_cols(c):
             # 11-19 대표 「1단계」 — 받은 메일의 「받는 사람」 전원(원문 To 그대로). to_email 은 첫 주소만이라 전체 답장 명단이 빠지던 것
             "to_all": "TEXT DEFAULT ''",
             # 11-19 2단계 — 🚩 기한(YYYY-MM-DD · 받는 사람 현지 날짜) · ⏰ 다시 알림(서버 시각 · 그때까지 받은편지함에서 숨김) · 돌아온 시각
-            "flag_due": "TEXT DEFAULT ''", "snooze_until": "TEXT DEFAULT ''", "snooze_back": "TEXT DEFAULT ''"}
+            "flag_due": "TEXT DEFAULT ''", "snooze_until": "TEXT DEFAULT ''", "snooze_back": "TEXT DEFAULT ''",
+            # 11-19 2단계-나 — ⏱ 예약 발송(direction='sched' 줄) · 보낼 때(서버 시각) · 상태 wait|sending|fail · 못 보낸 까닭 · 덧붙임(JSON)
+            "sched_at": "TEXT DEFAULT ''", "sched_state": "TEXT DEFAULT ''", "sched_err": "TEXT DEFAULT ''", "sched_meta": "TEXT DEFAULT ''"}
     try:
         have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
     except Exception:
@@ -1269,6 +1271,184 @@ def save_signature(c, user_id: int, body: str) -> None:
     )
 
 
+# ─── 11-19 2단계-나 ① 서명 여러 개 — 0번 = 지금 쓰는 기본 서명(mail_signatures 그대로) · 1·2번 = 더 만든 서명 ───
+def _ensure_sig_alt(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_signature_alts(
+        user_id INTEGER NOT NULL, slot INTEGER NOT NULL, name TEXT DEFAULT '', body TEXT DEFAULT '',
+        updated_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY(user_id, slot))""")
+
+
+def get_signatures(c, user_id: int) -> list:
+    """[{slot, name, body}] — 0 = 기본(늘 있음) · 1·2 = 내용이 있는 것만."""
+    _ensure_sig_alt(c)
+    out = [{"slot": 0, "name": "기본 서명", "body": get_signature(c, user_id)}]
+    for r in c.execute("SELECT slot, name, body FROM mail_signature_alts WHERE user_id=? AND slot IN (1,2) ORDER BY slot",
+                       (user_id,)).fetchall():
+        if (r["body"] or "").strip():
+            out.append({"slot": r["slot"], "name": (r["name"] or "").strip() or ("서명 %d" % (r["slot"] + 1)), "body": r["body"]})
+    return out
+
+
+def get_signature_slot(c, user_id: int, slot: int) -> dict:
+    if not slot:
+        return {"slot": 0, "name": "기본 서명", "body": get_signature(c, user_id)}
+    _ensure_sig_alt(c)
+    r = c.execute("SELECT name, body FROM mail_signature_alts WHERE user_id=? AND slot=?", (user_id, slot)).fetchone()
+    return {"slot": slot, "name": (r["name"] if r else "") or "", "body": (r["body"] if r else "") or ""}
+
+
+def save_signature_slot(c, user_id: int, slot: int, name: str, body: str) -> None:
+    if not slot:
+        return save_signature(c, user_id, body)
+    if slot not in (1, 2):
+        return
+    _ensure_sig_alt(c)
+    c.execute("INSERT INTO mail_signature_alts(user_id, slot, name, body, updated_at) VALUES(?,?,?,?,datetime('now','localtime')) "
+              "ON CONFLICT(user_id, slot) DO UPDATE SET name=excluded.name, body=excluded.body, updated_at=excluded.updated_at",
+              (user_id, slot, (name or "").strip()[:40], (body or "").strip()))
+
+
+# ─── 11-19 2단계-나 ② ⏱ 예약 발송 — direction='sched' 줄(목록·숫자에는 안 섞임) · 첨부는 그 줄에 저장 ───
+def create_scheduled(c, *, user_id: int, to_email: str, cc: str, bcc: str, subject: str, body: str, body_html: str,
+                     sched_at: str, meta: str = "", attachments=None) -> int:
+    _ensure_security_cols(c)
+    cur = c.execute(
+        "INSERT INTO mail_messages(user_id, direction, to_email, cc, bcc, subject, body_text, body_html, is_read, "
+        "sched_at, sched_state, sched_meta) VALUES(?,?,?,?,?,?,?,?,1,?,?,?)",
+        (user_id, "sched", to_email, cc, bcc, (subject or "(제목 없음)").strip(), body or "", body_html or "",
+         sched_at, "wait", meta or ""))
+    mid = cur.lastrowid
+    if attachments:
+        _save_attachments(c, mid, attachments)
+    return mid
+
+
+def list_scheduled(c, user_id: int) -> list:
+    _ensure_security_cols(c)
+    return [dict(r) for r in c.execute(
+        "SELECT id, to_email, cc, subject, sched_at, sched_state, sched_err, "
+        "(SELECT COUNT(*) FROM mail_attachments a WHERE a.mail_id=mail_messages.id) AS att_n "
+        "FROM mail_messages WHERE user_id=? AND direction='sched' AND is_deleted=0 ORDER BY sched_at", (user_id,)).fetchall()]
+
+
+def count_scheduled(c, user_id: int) -> dict:
+    _ensure_security_cols(c)
+    r = c.execute("SELECT COUNT(*) AS n, SUM(CASE WHEN sched_state='fail' THEN 1 ELSE 0 END) AS f FROM mail_messages "
+                  "WHERE user_id=? AND direction='sched' AND is_deleted=0", (user_id,)).fetchone()
+    return {"n": int(r["n"] or 0), "fail": int(r["f"] or 0)}
+
+
+def due_scheduled(c, limit: int = 20) -> list:
+    """보낼 때가 된 예약(모든 사람) — 번호 · 주인."""
+    _ensure_security_cols(c)
+    return [dict(r) for r in c.execute(
+        "SELECT id, user_id FROM mail_messages WHERE direction='sched' AND is_deleted=0 AND sched_state='wait' "
+        "AND sched_at<>'' AND sched_at <= datetime('now','localtime') ORDER BY sched_at LIMIT ?", (limit,)).fetchall()]
+
+
+def claim_scheduled(c, mail_id: int) -> bool:
+    """「보내는 중」으로 잡기 — 한 번만 잡힘(두 번 보내지 않게)."""
+    cur = c.execute("UPDATE mail_messages SET sched_state='sending' WHERE id=? AND direction='sched' AND sched_state='wait'", (mail_id,))
+    return bool(cur.rowcount)
+
+
+def scheduled_done(c, mail_id: int) -> None:
+    """보낸 뒤 — 예약 줄과 그 첨부를 지움(보낸편지함에는 보낸 메일이 따로 남음)."""
+    c.execute("DELETE FROM mail_attachments WHERE mail_id=?", (mail_id,))
+    c.execute("DELETE FROM mail_messages WHERE id=? AND direction='sched'", (mail_id,))
+
+
+def scheduled_fail(c, mail_id: int, err: str) -> None:
+    c.execute("UPDATE mail_messages SET sched_state='fail', sched_err=? WHERE id=? AND direction='sched'", ((err or "")[:300], mail_id))
+
+
+def scheduled_to_draft(c, user_id: int, mail_id: int) -> bool:
+    """예약 취소 → 📝 임시보관함으로(내용·받는 사람 그대로 · 첨부는 다시 붙여야)."""
+    cur = c.execute("UPDATE mail_messages SET direction='draft', sched_state='', sched_at='', received_at=datetime('now','localtime') "
+                    "WHERE id=? AND user_id=? AND direction='sched' AND sched_state IN ('wait','fail')", (mail_id, user_id))
+    if cur.rowcount:
+        c.execute("DELETE FROM mail_attachments WHERE mail_id=?", (mail_id,))
+    return bool(cur.rowcount)
+
+
+def scheduled_retry_now(c, user_id: int, mail_id: int) -> bool:
+    cur = c.execute("UPDATE mail_messages SET sched_state='wait', sched_err='', sched_at=datetime('now','localtime') "
+                    "WHERE id=? AND user_id=? AND direction='sched' AND sched_state IN ('wait','fail')", (mail_id, user_id))
+    return bool(cur.rowcount)
+
+
+# ─── 11-19 2단계-나 ③ 🏖 부재중 자동 응답 ───
+def _ensure_autoreply(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_autoreply(
+        user_id INTEGER PRIMARY KEY, enabled INTEGER DEFAULT 0, start_date TEXT DEFAULT '', end_date TEXT DEFAULT '',
+        subject TEXT DEFAULT '', body TEXT DEFAULT '', only_known INTEGER DEFAULT 1,
+        updated_at TEXT DEFAULT (datetime('now','localtime')))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_autoreply_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, addr TEXT, mail_id INTEGER,
+        sent_at TEXT DEFAULT (datetime('now','localtime')))""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_mar_log ON mail_autoreply_log(user_id, addr)")
+
+
+def get_autoreply(c, user_id: int) -> dict:
+    _ensure_autoreply(c)
+    r = c.execute("SELECT * FROM mail_autoreply WHERE user_id=?", (user_id,)).fetchone()
+    d = dict(r) if r else {"user_id": user_id, "enabled": 0, "start_date": "", "end_date": "", "subject": "", "body": "", "only_known": 1}
+    return d
+
+
+def save_autoreply(c, user_id: int, *, enabled: bool, start_date: str, end_date: str, subject: str, body: str, only_known: bool) -> None:
+    _ensure_autoreply(c)
+    c.execute("INSERT INTO mail_autoreply(user_id, enabled, start_date, end_date, subject, body, only_known, updated_at) "
+              "VALUES(?,?,?,?,?,?,?,datetime('now','localtime')) ON CONFLICT(user_id) DO UPDATE SET enabled=excluded.enabled, "
+              "start_date=excluded.start_date, end_date=excluded.end_date, subject=excluded.subject, body=excluded.body, "
+              "only_known=excluded.only_known, updated_at=excluded.updated_at",
+              (user_id, 1 if enabled else 0, start_date, end_date, (subject or "").strip()[:200], (body or "").strip()[:4000], 1 if only_known else 0))
+
+
+_AUTO_ADDR_RE = re.compile(r"(?:^|[._+-])(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounce|bounces|notification|notifications|"
+                           r"alert|alerts|newsletter|news|info-?mail|auto|daemon|system|admin)(?:[._+-]|@)", re.I)
+
+
+def autoreply_should(c, owner_id: int, mail: dict, today: str, my_addrs=(), auto_hdr: bool = False, bulk=()) -> tuple:
+    """이 메일에 부재중 자동 응답을 보낼까 — (보냄?, 까닭). 하나라도 걸리면 안 보냄(조심스럽게)."""
+    st = get_autoreply(c, owner_id)
+    if not st.get("enabled"):
+        return (False, "꺼짐")
+    if not (st.get("start_date") and st.get("end_date") and st["start_date"] <= today <= st["end_date"]):
+        return (False, "기간 밖")
+    frm = (mail.get("from_email") or "").strip().lower()
+    if not frm or "@" not in frm:
+        return (False, "보낸 사람 없음")
+    mine = {a.lower() for a in my_addrs if a}
+    if frm in mine:
+        return (False, "나 자신")
+    if auto_hdr:
+        return (False, "자동 발송 메일(뉴스레터·알림·자동 응답·반송)")
+    if _AUTO_ADDR_RE.search(frm.split("@")[0] + "@"):
+        return (False, "자동 발송 주소")
+    if mail.get("is_blocked") or int(mail.get("risk_level") or 0) >= 2:
+        return (False, "스팸·위험 메일")
+    if frm in set(bulk or ()):
+        return (False, "광고·알림으로 보이는 곳")
+    to_all = (mail.get("to_all") or mail.get("to_email") or "").lower()
+    if mine and not any(a in to_all for a in mine):
+        return (False, "나를 참조로만 넣은 메일")
+    if st.get("only_known") and not is_known_sender(c, owner_id, frm):
+        return (False, "모르는 사람(아는 사람에게만)")
+    _ensure_autoreply(c)
+    if c.execute("SELECT 1 FROM mail_autoreply_log WHERE user_id=? AND addr=? AND sent_at >= ?", (owner_id, frm, st["start_date"])).fetchone():
+        return (False, "이번 기간에 이미 보냄")
+    if (c.execute("SELECT COUNT(*) FROM mail_autoreply_log WHERE user_id=? AND sent_at >= datetime('now','localtime','-1 day')",
+                  (owner_id,)).fetchone()[0] or 0) >= 50:
+        return (False, "하루 50통 넘음")
+    return (True, "")
+
+
+def autoreply_log(c, owner_id: int, addr: str, mail_id: int) -> None:
+    _ensure_autoreply(c)
+    c.execute("INSERT INTO mail_autoreply_log(user_id, addr, mail_id) VALUES(?,?,?)", (owner_id, (addr or "").lower(), mail_id))
+
+
 def search_contacts(c, q: str, limit: int = 8, user=None, browse: bool = False):
     """전사 연락처(shared_contacts)에서 받는사람 자동완성 후보.
     (11-18) user 를 주면 연락처 공개 범위(내가 등록 · 전사 공유 · 내 부서 공유)만 — contacts._vis_clause 와 같은 규칙.
@@ -1610,6 +1790,16 @@ def parse_raw_email(raw) -> dict:
     except Exception:
         _auth = {}
     reply_to = parseaddr(_h("Reply-To"))[1]
+    # 11-19 2단계-나 — 자동으로 보낸 메일인가(부재중 자동 응답이 답하지 않게: 뉴스레터·알림·다른 자동 응답·반송)
+    try:
+        _as = (msg.get("Auto-Submitted") or "").strip().lower()
+        _pr = (msg.get("Precedence") or "").strip().lower()
+        auto_hdr = bool((_as and _as != "no") or _pr in ("bulk", "junk", "list", "auto_reply")
+                        or msg.get("List-Id") or msg.get("List-Unsubscribe") or msg.get("X-Autoreply")
+                        or msg.get("X-Autorespond") or msg.get("X-Auto-Response-Suppress")
+                        or (msg.get("Return-Path") or "").strip() == "<>")
+    except Exception:
+        auto_hdr = False
 
     text, html, atts = "", "", []
     if msg.is_multipart():
@@ -1663,7 +1853,7 @@ def parse_raw_email(raw) -> dict:
     return {
         "from_email": from_addr, "from_name": from_name, "to_email": to_addr, "to_all": _h("To"),
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
-        "message_id": message_id, "auth": _auth, "reply_to": reply_to,
+        "message_id": message_id, "auth": _auth, "reply_to": reply_to, "auto_hdr": auto_hdr,
     }
 
 

@@ -4,6 +4,10 @@
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
   .sig-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 24px}
+  .sig-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+  .sig-tab{padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:13px;text-decoration:none;color:var(--ink)}
+  .sig-tab.on{background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c);color:#fff;font-weight:700}
+  .sig-tab small{opacity:.7}
   .sig-tb{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
   .sig-tb button{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:13px}
   .sig-tb button:hover{background:var(--mt-hover,#f3f4f6)}
@@ -23,7 +27,12 @@
   </div></div>
 
   <div class="sig-card">
-    <div style="font-size:13px;color:var(--mute);margin-bottom:8px;">한 번 저장하면 <b>메일 쓰기·답장·전달</b> 시 본문에 자동으로 들어갑니다. <b>로고·이미지</b>도 넣을 수 있어요.</div>
+    {# 11-19 2단계-나 — 서명 여러 개: 기본 + 2개(예: English · Tiếng Việt) · 메일 쓰기에서 골라 바꿈 #}
+    <div class="sig-tabs">
+      {% for a in sig_alts|default([]) %}<a href="/mail/signature?slot={{ a.slot }}" class="sig-tab{{ ' on' if a.slot == sig_slot|default(0) else '' }}">{{ '✍ 기본 서명' if a.slot == 0 else ('✍ ' ~ (a.name or ('서명 ' ~ (a.slot + 1)))) }}{% if a.slot and not a.body %} <small>(비어 있음)</small>{% endif %}</a>{% endfor %}
+    </div>
+    {% if sig_slot|default(0) %}<div style="margin-bottom:8px"><label style="font-size:12.5px;color:var(--mute)">이 서명 이름 </label><input id="sigName" type="text" maxlength="40" value="{{ sig_name|default('') }}" placeholder="예) English · Tiếng Việt · 짧은 서명" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;width:min(320px,100%)"></div>{% endif %}
+    <div style="font-size:13px;color:var(--mute);margin-bottom:8px;">{% if sig_slot|default(0) %}메일 쓰기 화면 「✍ 서명」에서 골라 바꿔 넣을 수 있습니다(새 메일에는 기본 서명이 먼저 들어감).{% else %}한 번 저장하면 <b>메일 쓰기·답장·전달</b> 시 본문에 자동으로 들어갑니다. <b>로고·이미지</b>도 넣을 수 있어요.{% endif %}</div>
     <div class="sig-tb">
       <button type="button" onclick="sigCmd('bold')" title="굵게"><b>B</b></button>
       <button type="button" onclick="sigCmd('italic')" title="기울임"><i>I</i></button>
@@ -70,7 +79,8 @@
   window.saveSig=async function(){
     var html=ED.innerHTML.trim();
     if(html==='<br>'||html==='<div><br></div>') html='';
-    var fd=new FormData(); fd.append('body', html);
+    var fd=new FormData(); fd.append('body', html); fd.append('slot', '{{ sig_slot|default(0) }}');
+    var nm=document.getElementById('sigName'); if(nm) fd.append('name', nm.value.trim());
     smsg('저장 중...','');
     try{ var r=await fetch('/mail/signature',{method:'POST',body:fd}); var j=await r.json();
       if(j.ok){ smsg('✅ 저장했습니다','green'); } else { smsg('⚠ 저장 실패','red'); }

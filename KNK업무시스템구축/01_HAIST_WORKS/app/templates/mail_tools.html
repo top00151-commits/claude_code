@@ -112,8 +112,11 @@
   {# ② 설정 #}
   <div class="mt-sec">⚙ 설정 <small>한 번 정해 두면 계속 그대로</small></div>
   <div class="mt-list">
-    <a class="mt-row" href="/mail/signature"><span class="ic">✍</span><span class="tx"><span class="t">서명</span><span class="d" style="display:block">메일 끝에 붙는 이름·직책·연락처</span></span>
-      <span class="st {{ 'ok' if has_sig else 'no' }}">{{ '있음' if has_sig else '아직 없음' }}</span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/signature"><span class="ic">✍</span><span class="tx"><span class="t">서명</span><span class="d" style="display:block">메일 끝에 붙는 이름·직책·연락처 · 3개까지(예: 한국어·English·Tiếng Việt) — 메일 쓰기에서 골라 바꿈</span></span>
+      <span class="st {{ 'ok' if has_sig else 'no' }}">{{ ('있음' ~ ((' · ' ~ sig_n ~ '개') if sig_n|default(1) > 1 else '')) if has_sig else '아직 없음' }}</span><span class="arr">›</span></a>
+    {# 11-19 2단계-나 🏖 부재중 자동 응답 #}
+    <a class="mt-row" href="/mail/autoreply"><span class="ic">🏖</span><span class="tx"><span class="t">부재중 자동 응답</span><span class="d" style="display:block">출장·휴가 동안 메일을 보낸 사람에게 자동으로 회신 · 기간을 정하면 그때만 · 같은 사람에게 한 번만</span></span>
+      <span class="st {{ 'ok' if ar_info|default({}) and ar_info.live else '' }}">{% if ar_info|default({}) and ar_info.on %}{{ '켜짐' if ar_info.live else ('기간 지남' if ar_info.over else '예약됨') }} {{ ar_info.start[5:]|replace('-','/') }}~{{ ar_info.end[5:]|replace('-','/') }}{% else %}꺼짐{% endif %}</span><span class="arr">›</span></a>
     <a class="mt-row" href="/mail/account"><span class="ic">🔗</span><span class="tx"><span class="t">내 회사 주소 연결</span><span class="d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기</span></span>
       <span class="st {{ 'ok' if has_acct else 'no' }}">{{ '연결됨' if has_acct else '연결 안 됨' }}</span><span class="arr">›</span></a>
     <a class="mt-row" href="/mail/folders"><span class="ic">📁</span><span class="tx"><span class="t">폴더 관리</span><span class="d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 메일이 어느 폴더로 갈지 내가 정한 규칙</span></span>

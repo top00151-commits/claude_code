@@ -354,7 +354,7 @@ def _inline_data_images(html: str):
 def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
                from_email: str, to_email: str, subject: str, body: str,
                from_name: str = "", cc: str = "", attachments=None,
-               bcc: str = "", html: str = "", report=None) -> tuple[bool, str]:
+               bcc: str = "", html: str = "", report=None, extra_headers=None) -> tuple[bool, str]:
     """임의 SMTP 서버로 발송. login 계정과 From 이 달라도 됨(시스템 발송망용).
     bcc: 숨은참조(봉투 수신자에 포함, 전송 메시지엔 Bcc 헤더 없음). html: 서식 본문(대체).
     (11-19) 받는 사람·참조·숨은참조는 **한 명씩** 검사(틀린 주소가 하나라도 있으면 보내지 않고 그 주소를 알려 줌) ·
@@ -382,6 +382,9 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
         msg["Cc"] = _addr_header(cc_l)
     # 숨은참조는 헤더에 넣지 않는다(봉투 수신자로만) — 받는 사람들에게 절대 안 보이게
     msg["Subject"] = subject or "(제목 없음)"
+    for _hk, _hv in (extra_headers or {}).items():   # 11-19 2단계-나: 자동 응답 표시(Auto-Submitted 등) · 답장 이어 붙이기(In-Reply-To)
+        if _hk and _hv and _hk.lower() not in ("from", "to", "cc", "bcc", "subject"):
+            msg[_hk] = str(_hv)
     _stamp_required_headers(msg, from_email)   # ⭐Date·Message-ID (없으면 스팸 분류)
     msg.set_content(body or "")
     if html and html.strip():
@@ -644,7 +647,7 @@ def save_send_config(c, host: str, port: str, user: str, password: str) -> None:
 
 def send_system(c, from_email: str, to_email: str, subject: str, body: str,
                 from_name: str = "", cc: str = "", attachments=None,
-                bcc: str = "", html: str = "", owner_id=None, report=None) -> tuple[bool, str]:
+                bcc: str = "", html: str = "", owner_id=None, report=None, extra_headers=None) -> tuple[bool, str]:
     """회사 발송망(시스템 SMTP)으로 발송. from_email = 보내는 직원의 @우리도메인 주소.
     owner_id 가 '내 받기 계정으로 보내기' 대상이면 그 계정으로 SMTP 로그인하고,
     보내는 주소도 그 계정 주소로 맞춘다(제공사가 남의 주소로 보내기를 막으므로)."""
@@ -655,4 +658,4 @@ def send_system(c, from_email: str, to_email: str, subject: str, body: str,
         from_email = cfg["from"]
     return _smtp_send(cfg["host"], cfg["port"], cfg["user"], cfg["password"],
                       from_email, to_email, subject, body, from_name, cc, attachments,
-                      bcc=bcc, html=html, report=report)
+                      bcc=bcc, html=html, report=report, extra_headers=extra_headers)

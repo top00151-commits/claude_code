@@ -206,7 +206,7 @@ seen = {}
 
 
 def fake_smtp(host, port, login_user, login_pass, from_email, to_email,
-              subject, body, from_name="", cc="", attachments=None, bcc="", html="", report=None):
+              subject, body, from_name="", cc="", attachments=None, bcc="", html="", report=None, extra_headers=None):
     seen.clear()
     seen.update(host=host, port=port, user=login_user, pw=login_pass, frm=from_email)
     return (True, "발송 완료")

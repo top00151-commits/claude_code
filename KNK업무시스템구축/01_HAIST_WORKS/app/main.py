@@ -1288,6 +1288,12 @@ def startup():
     try:
         if os.environ.get("KNK_RUN_MAIL_FETCH", "1").strip().lower() not in ("0", "false", "no", "off"):
             _start_mail_fetch_scheduler()
+            # 11-19 2단계-나 ⏱ 예약 발송 — 1분마다(첫 회 90초 뒤)
+            import threading as _sch_th
+            _sch_t = _sch_th.Timer(90, _mail_sched_tick)
+            _sch_t.daemon = True
+            _sch_t.start()
+            print("[MAIL-SCHED] 예약 발송 시계 시작 — 1분마다")
         else:
             print("[MAIL-FETCH-AUTO] KNK_RUN_MAIL_FETCH=0 — 이 컨테이너에선 메일 자동수집 비활성(분리 모드)")
     except Exception as _e:
@@ -1759,6 +1765,9 @@ def _mailfetch_run_owner(owner_id):
     except Exception:
         ai_on = False
     stored = 0
+    _ar_cand = []   # 11-19 2단계-나 — 새로 들어온 메일(번호 · 자동 발송 표시) → 🏖 부재중 자동 응답
+    with db_session() as c:
+        _ar_max = c.execute("SELECT COALESCE(MAX(id),0) FROM mail_messages").fetchone()[0] or 0
     with db_session() as c:
         for key, raw in res.get("messages", []):
             try:
@@ -1775,6 +1784,8 @@ def _mailfetch_run_owner(owner_id):
                     auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""))
                 if mid:
                     stored += 1
+                    if mid > _ar_max:
+                        _ar_cand.append((mid, bool(parsed.get("auto_hdr"))))
             except Exception:
                 pass
         if protocol == "imap":
@@ -1787,6 +1798,10 @@ def _mailfetch_run_owner(owner_id):
         # 전체 백필+대량삭제를 돌리면 긴 쓰기 락이 걸려, 그 사이 로그인(sso_land→upsert_user)이
         # 'database is locked' 로 실패함. 잠금 안 걸리는 방식(busy_timeout·소량 배치·짧은 전용
         # 트랜잭션)으로 재설계 후 재도입 예정. 신규 1통저장(store_inbound)·수동 🔁·수동 압축은 유지.
+    try:
+        _mail_autoreply_run(owner_user, _ar_cand)   # 11-19 받아 온 저장을 끝낸 뒤(쓰기 잠금 풀린 뒤) 🏖 자동 응답
+    except Exception as _e:
+        print("[MAIL-AUTOREPLY run ERR] %s" % str(_e)[:160], flush=True)
     return (True, stored, "")
 
 
@@ -22765,8 +22780,9 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _snz_n = _mailbox.count_snoozed(c, u["id"])
         except Exception:
             _flag_c, _snz_n = {"n": 0, "due": 0}, 0
+        _ar_info = _mail_autoreply_info(c, u)
     _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n,
-                     flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n,
+                     flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n, ar_info=_ar_info,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
                      fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
                      prev_day=(prev or "")[:40], page_off=off,
@@ -22836,6 +22852,11 @@ async def mail_tools_page(req: Request):
             st["rule_n"] = len(_mail_folders.rules(c, u["id"]) or [])
         except Exception:
             pass
+        st["ar_info"] = _mail_autoreply_info(c, u)   # 11-19 2단계-나 🏖
+        try:
+            st["sig_n"] = len(_mailbox.get_signatures(c, u["id"]) or [])
+        except Exception:
+            st["sig_n"] = 1
     return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n, **st)
 
 
@@ -24009,13 +24030,15 @@ async def mail_ai_compose(req: Request):
 
 
 @app.get("/mail/signature", response_class=HTMLResponse)
-async def mail_signature_page(req: Request):
+async def mail_signature_page(req: Request, slot: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    slot = slot if slot in (0, 1, 2) else 0
     with db_session() as c:
-        sig = _mailbox.get_signature(c, u["id"])
-    return ctx(req, "mail_signature.html", user=u, sig=sig)
+        cur = _mailbox.get_signature_slot(c, u["id"], slot)
+        alts = [_mailbox.get_signature_slot(c, u["id"], k) for k in (0, 1, 2)]
+    return ctx(req, "mail_signature.html", user=u, sig=cur["body"], sig_slot=slot, sig_name=cur["name"], sig_alts=alts)
 
 
 @app.post("/mail/signature")
@@ -24025,8 +24048,12 @@ async def mail_signature_save(req: Request):
         return JSONResponse({"ok": False}, 401)
     form = await req.form()
     body = (form.get("body") or "")
+    try:
+        slot = int(form.get("slot") or 0)
+    except Exception:
+        slot = 0
     with db_session() as c:
-        _mailbox.save_signature(c, u["id"], body)
+        _mailbox.save_signature_slot(c, u["id"], slot if slot in (0, 1, 2) else 0, form.get("name") or "", body)
     return JSONResponse({"ok": True})
 
 
@@ -24187,6 +24214,10 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
     with db_session() as c:
         ready = _mail.system_send_ready(c, u["id"])
         sig = _mailbox.get_signature(c, u["id"])
+        try:
+            sig_list = _mailbox.get_signatures(c, u["id"])   # 11-19 2단계-나: 서명 여러 개(쓰기 화면에서 골라 바꾸기)
+        except Exception:
+            sig_list = []
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_from = _mail_from_address_for(c, u)
         my_addr = (my_from or "").lower()
@@ -24263,7 +24294,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=my_from, ai_on=mail_ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,
-               sig_html=("" if draft else sig))   # 드래프트는 본문에 서명이 이미 있어 중복 방지
+               sig_html=("" if draft else sig), sig_list=sig_list)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
 @app.post("/mail/send")
@@ -24323,8 +24354,8 @@ _MAIL_SEND_LOCK = _ms_thr.Lock()
 _MAIL_SEND_SEEN = {}   # (user_id, send_token) → (시각, 결과 dict | None=보내는 중) · 한 시간 기억
 
 
-async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subject, body, body_html,
-                        draft_id, large_tokens, _tk):
+async def _mail_collect_atts(u, form):
+    """화면에서 온 첨부(파일) + 전달 원래 첨부(내 메일 것만 · 고른 것만) → (첨부 목록, 합계, 오류 응답 | None)."""
     attachments, total = [], 0
     for f in form.getlist("files"):
         if hasattr(f, "read"):
@@ -24340,7 +24371,7 @@ async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subj
     if fwd_src.isdigit() and fwd_ids:
         with db_session() as c:
             if not _mailbox.get_mail(c, int(fwd_src), u["id"]):
-                return JSONResponse({"ok": False, "message": "전달할 원래 메일을 찾을 수 없습니다."}, 404)
+                return attachments, total, JSONResponse({"ok": False, "message": "전달할 원래 메일을 찾을 수 없습니다."}, 404)
             _ok_ids = {int(r["id"]) for r in c.execute(
                 "SELECT id FROM mail_attachments WHERE mail_id=? AND COALESCE(is_inline,0)=0", (int(fwd_src),)).fetchall()}
             for aid in fwd_ids:
@@ -24348,15 +24379,22 @@ async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subj
                     continue
                 a = _mailbox.get_attachment(c, int(aid), u["id"])
                 if not a:
-                    return JSONResponse({"ok": False, "message": "원래 첨부 파일을 읽지 못했습니다 — 그 첨부를 ✕ 로 빼고 다시 보내 주세요."}, 400)
+                    return attachments, total, JSONResponse({"ok": False, "message": "원래 첨부 파일을 읽지 못했습니다 — 그 첨부를 ✕ 로 빼고 다시 보내 주세요."}, 400)
                 total += len(a["data"])
                 attachments.append((a["filename"], a["data"], a["mime"]))
     if total > 24 * 1024 * 1024:
-        return JSONResponse({"ok": False, "message": "첨부 합계가 24MB를 넘습니다 — 큰 파일은 ✕ 로 뺀 뒤 「📎 첨부」로 다시 붙이면 자동으로 대용량 링크로 보냅니다."}, 400)
+        return attachments, total, JSONResponse({"ok": False, "message": "첨부 합계가 24MB를 넘습니다 — 큰 파일은 ✕ 로 뺀 뒤 「📎 첨부」로 다시 붙이면 자동으로 대용량 링크로 보냅니다."}, 400)
+    return attachments, total, None
+
+
+def _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments, total, large_tokens,
+                    draft_id="", _tk=None, extra_headers=None) -> dict:
+    """실제로 보내고 보낸편지함에 기록 — 지금 보내기·⏱ 예약·🏖 자동 응답이 함께 씀. 결과 dict(ok·message·sent_n·refused · status)."""
+    _rep = {}
     with db_session() as c:
         from_addr = _mail_from_address_for(c, u)
         if not _mail.system_send_ready(c, u["id"]):
-            return JSONResponse({"ok": False, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}, 400)
+            return {"ok": False, "status": 400, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}
         large_block = _mailbox.large_links_block(c, large_tokens, _WORKS_PUBLIC_BASE) if large_tokens else ""
         send_body = body + large_block
         send_html = ""
@@ -24366,10 +24404,9 @@ async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subj
                 import html as _htmlmod
                 send_html += ("<pre style='font-family:inherit;white-space:pre-wrap;margin:0'>"
                               + _htmlmod.escape(large_block) + "</pre>")
-        _rep = {}
         ok, msg = _mail.send_system(c, from_addr, to_email, subject, send_body,
                                     from_name=u.get("name") or "", cc=cc, attachments=attachments,
-                                    bcc=bcc, html=send_html, owner_id=u["id"], report=_rep)
+                                    bcc=bcc, html=send_html, owner_id=u["id"], report=_rep, extra_headers=extra_headers)
         if ok:
             # 보낸 직후 「보냈음」부터 기억 — 아래 기록에서 오류가 나도 다시 누르면 두 번 나가지 않게
             if _tk:
@@ -24393,7 +24430,281 @@ async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subj
     if ok and _tk:
         with _MAIL_SEND_LOCK:
             _MAIL_SEND_SEEN[_tk] = (_ms_time.time(), res)
-    return JSONResponse(res)
+    return res
+
+
+async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subject, body, body_html,
+                        draft_id, large_tokens, _tk):
+    attachments, total, err = await _mail_collect_atts(u, form)
+    if err is not None:
+        return err
+    res = _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments, total, large_tokens, draft_id, _tk)
+    st = res.pop("status", None)
+    return JSONResponse(res, st) if st else JSONResponse(res)
+
+
+# ─── 11-19 2단계-나 ⏱ 예약 발송 — 정한 때에 서버가 보냄(창을 닫아도) · 보내기 전 확인은 화면에서 똑같이 · 한 번만 보냄 ───
+def _mail_sched_from(key: str, off: int) -> str:
+    """예약 단추 → 서버 시각. tom8·tom9·tom14(내일 8·9·14시) · nextmon9 · 'YYYY-MM-DDTHH:MM'(현지). 2분 뒤 ~ 90일 안만."""
+    import re as _re
+    key = (key or "").strip()
+    now = _mail_now_local(off)
+    t = None
+    _base = datetime.combine(now.date(), datetime.min.time())
+    if key in ("tom8", "tom9", "tom14"):
+        t = _base + timedelta(days=1, hours=int(key[3:]))
+    elif key == "nextmon9":
+        t = _base + timedelta(days=((7 - now.weekday()) or 7), hours=9)
+    elif _re.match(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}$", key):
+        t = datetime.strptime(key.replace("T", " "), "%Y-%m-%d %H:%M")
+    if not t or t < now + timedelta(minutes=2) or t > now + timedelta(days=90):
+        return ""
+    return _mail_local_to_server(t, off)
+
+
+_AUTOREPLY_DEFAULT = ("안녕하세요. 메일 감사합니다.\n지금은 자리에 없어 바로 답을 드리기 어렵습니다. 돌아오는 대로 확인해 회신드리겠습니다.\n급한 일은 회사 대표번호로 연락 부탁드립니다.\n\n"
+                      "Thank you for your email. I am currently out of the office and will reply as soon as possible after I return.")
+
+
+def _mail_autoreply_info(c, u) -> dict:
+    """받은편지함 위 표시용 — 켜짐 · 기간 · 지금 동작 중인지(보는 사람 소속 날짜)."""
+    try:
+        st = _mailbox.get_autoreply(c, u["id"])
+        if not st.get("enabled"):
+            return {}
+        today = _mail_local_today(_mail_off(c, u))
+        live = bool(st.get("start_date") and st.get("end_date") and st["start_date"] <= today <= st["end_date"])
+        return {"on": True, "live": live, "start": st.get("start_date") or "", "end": st.get("end_date") or "",
+                "over": bool(st.get("end_date") and st["end_date"] < today)}
+    except Exception:
+        return {}
+
+
+@app.get("/mail/autoreply", response_class=HTMLResponse)
+async def mail_autoreply_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    with db_session() as c:
+        st = _mailbox.get_autoreply(c, u["id"])
+        today = _mail_local_today(_mail_off(c, u))
+        logs = [dict(r) for r in c.execute("SELECT addr, sent_at FROM mail_autoreply_log WHERE user_id=? ORDER BY id DESC LIMIT 20", (u["id"],)).fetchall()]
+        ready = _mail.system_send_ready(c, u["id"])
+    return ctx(req, "mail_autoreply.html", user=u, st=st, today=today, logs=logs, ready=ready, default_body=_AUTOREPLY_DEFAULT)
+
+
+@app.post("/mail/autoreply")
+async def mail_autoreply_save(req: Request):
+    """부재중 자동 응답 저장 — 켤 때는 기간(시작·끝 날짜) · 내용이 꼭 있어야 함 · 끝 날짜가 지나면 저절로 멈춤."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    import re as _re_ar
+    on = (form.get("enabled") or "") in ("1", "on", "true")
+    sd, ed = (form.get("start_date") or "").strip()[:10], (form.get("end_date") or "").strip()[:10]
+    body = (form.get("body") or "").strip()
+    if on:
+        if not (_re_ar.match(r"^\d{4}-\d{2}-\d{2}$", sd) and _re_ar.match(r"^\d{4}-\d{2}-\d{2}$", ed)):
+            return JSONResponse({"ok": False, "message": "시작·끝 날짜를 골라 주세요(끝 날짜가 지나면 저절로 멈춥니다)."}, 400)
+        if ed < sd:
+            return JSONResponse({"ok": False, "message": "끝 날짜가 시작 날짜보다 앞입니다."}, 400)
+        if not body:
+            return JSONResponse({"ok": False, "message": "보낼 내용을 적어 주세요."}, 400)
+    with db_session() as c:
+        today = _mail_local_today(_mail_off(c, u))
+        if on and ed < today:
+            return JSONResponse({"ok": False, "message": "끝 날짜가 이미 지났습니다."}, 400)
+        _mailbox.save_autoreply(c, u["id"], enabled=on, start_date=sd, end_date=ed, subject=form.get("subject") or "",
+                                body=body, only_known=(form.get("only_known") or "1") in ("1", "on", "true"))
+    return JSONResponse({"ok": True, "message": ("🏖 부재중 자동 응답을 켰습니다 (%s ~ %s)" % (sd[5:].replace("-", "/"), ed[5:].replace("-", "/"))) if on else "부재중 자동 응답을 껐습니다"})
+
+
+@app.post("/mail/schedule")
+async def mail_schedule_route(req: Request):
+    """⏱ 예약 발송 걸기 — 주소·첨부 검사는 「지금 보내기」와 같음 · 첨부는 이 예약에 저장(12MB 넘는 파일은 대용량 링크로)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    to_l, bad_t = _mail.parse_addr_list((form.get("to") or "").strip())
+    cc_l, bad_c = _mail.parse_addr_list((form.get("cc") or "").strip())
+    bcc_l, bad_b = _mail.parse_addr_list((form.get("bcc") or "").strip())
+    _bad = bad_t + bad_c + bad_b
+    if _bad:
+        return JSONResponse({"ok": False, "bad": _bad[:20], "message": "이 주소가 올바르지 않습니다: %s — 고친 뒤 다시 해 주세요." % ", ".join(_bad[:5])}, 400)
+    if not to_l:
+        return JSONResponse({"ok": False, "message": "받는 사람을 넣어 주세요."}, 400)
+    attachments, total, err = await _mail_collect_atts(u, form)
+    if err is not None:
+        return err
+    if any(len(d) > 12 * 1024 * 1024 for _n, d, _m in attachments):
+        return JSONResponse({"ok": False, "message": "예약 발송에는 12MB 넘는 파일을 붙일 수 없습니다 — 그 파일은 「📎 첨부」로 다시 붙이면 대용량 링크가 됩니다."}, 400)
+    import json as _json
+    with db_session() as c:
+        off = _mail_off(c, u)
+        at = _mail_sched_from(form.get("at") or "", off)
+        if not at:
+            return JSONResponse({"ok": False, "message": "보낼 때를 2분 뒤 ~ 90일 안에서 골라 주세요."}, 400)
+        if not _mail.system_send_ready(c, u["id"]):
+            return JSONResponse({"ok": False, "message": "보내기 설정이 안 돼 있어 예약할 수 없습니다."}, 400)
+        large_tokens = [t.strip() for t in (form.get("large_tokens") or "").split(",") if t.strip()]
+        mid = _mailbox.create_scheduled(
+            c, user_id=u["id"], to_email=_mail.addr_list_text(to_l), cc=_mail.addr_list_text(cc_l), bcc=_mail.addr_list_text(bcc_l),
+            subject=(form.get("subject") or "").strip(), body=(form.get("body") or ""), body_html=(form.get("body_html") or ""),
+            sched_at=at, meta=_json.dumps({"large_tokens": large_tokens}),
+            attachments=[{"filename": n, "mime": mm, "size": len(d), "content_id": "", "inline": False, "data": d} for n, d, mm in attachments])
+        did = (form.get("draft_id") or "").strip()
+        if did.isdigit():
+            _mailbox.delete_draft(c, int(did), u["id"])
+        label = _mail_local_label(at, off)
+    return JSONResponse({"ok": True, "id": mid, "at": at,
+                         "message": "⏱ %s에 보냅니다 — 「📤 보낸편지함」 위 「보낼 예정」에서 바꾸거나 취소할 수 있습니다" % label})
+
+
+@app.post("/mail/sched/{mail_id:int}/cancel")
+async def mail_sched_cancel(req: Request, mail_id: int):
+    """예약 취소 → 📝 임시보관함으로(내용·받는 사람 그대로)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        ok = _mailbox.scheduled_to_draft(c, u["id"], mail_id)
+    return JSONResponse({"ok": ok, "message": "예약을 취소했습니다 — 📝 임시보관함에 있습니다(첨부는 다시 붙여 주세요)" if ok else "이미 보냈거나 없는 예약입니다."})
+
+
+@app.post("/mail/sched/{mail_id:int}/now")
+async def mail_sched_now(req: Request, mail_id: int):
+    """예약 메일 지금 보내기(또는 못 보낸 것 다시) — 1분 안에 나감."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        ok = _mailbox.scheduled_retry_now(c, u["id"], mail_id)
+    if ok:
+        try:
+            _mail_sched_run_once()
+        except Exception as e:
+            print("[MAIL-SCHED now ERR] %s" % str(e)[:160], flush=True)
+    return JSONResponse({"ok": ok, "message": "보냈습니다(또는 곧 보냅니다) — 보낸편지함을 확인하세요" if ok else "이미 보냈거나 없는 예약입니다."})
+
+
+def _mail_notice(user_id, subject, text):
+    """메일 시스템이 나에게 남기는 알림(받은편지함에 한 통) — 예약 메일을 못 보냈을 때 등."""
+    try:
+        with db_session() as c:
+            _mailbox.store_inbound(c, to_email="notice@knknara.co.kr", from_email="knk-mail-notice@knknara.co.kr",
+                                   from_name="KNK 메일 알림", subject=subject, text=text, owner_id=user_id, run_ai=False,
+                                   message_id="notice-%s-%s@knk" % (user_id, _ms_time.time()))
+    except Exception as e:
+        print("[MAIL-NOTICE ERR] %s" % str(e)[:160], flush=True)
+
+
+def _mail_sched_run_once():
+    """보낼 때가 된 예약을 보냄 — 한 통씩 「보내는 중」으로 잡은 것만(두 번 안 보냄) · 실패하면 사유를 남기고 알림."""
+    import json as _json
+    with db_session() as c:
+        due = _mailbox.due_scheduled(c)
+    for d in due:
+        with db_session() as c:
+            if not _mailbox.claim_scheduled(c, d["id"]):
+                continue
+            row = dict(c.execute("SELECT * FROM mail_messages WHERE id=?", (d["id"],)).fetchone())
+            ur = c.execute("SELECT * FROM users WHERE id=?", (row["user_id"],)).fetchone()
+            atts, total = [], 0
+            for a in _mailbox.list_attachments(c, row["id"]):
+                g = _mailbox.get_attachment(c, a["id"], row["user_id"])
+                if g:
+                    atts.append((g["filename"], g["data"], g["mime"]))
+                    total += len(g["data"])
+        u = dict(ur) if ur else None
+        try:
+            meta = _json.loads(row.get("sched_meta") or "{}")
+        except Exception:
+            meta = {}
+        if not u or not u.get("is_active", 1):
+            with db_session() as c:
+                _mailbox.scheduled_fail(c, row["id"], "보내는 사람 계정을 찾을 수 없습니다")
+            continue
+        try:
+            res = _mail_send_core(u, row.get("to_email") or "", row.get("cc") or "", row.get("bcc") or "", row.get("subject") or "",
+                                  row.get("body_text") or "", row.get("body_html") or "", atts, total, meta.get("large_tokens") or [])
+        except Exception as e:
+            res = {"ok": False, "message": "보내는 중 오류: %s" % str(e)[:120]}
+        with db_session() as c:
+            if res.get("ok"):
+                _mailbox.scheduled_done(c, row["id"])
+            else:
+                _mailbox.scheduled_fail(c, row["id"], res.get("message") or "")
+        if not res.get("ok"):
+            _mail_notice(row["user_id"], "⚠ 예약 메일을 보내지 못했습니다 — " + (row.get("subject") or ""),
+                         "예약해 둔 메일을 보내지 못했습니다.\n\n제목: %s\n받는 사람: %s\n까닭: %s\n\n「📤 보낸편지함」 위 「보낼 예정」에서 「지금 다시 보내기」나 「취소(임시보관함으로)」를 누르세요."
+                         % (row.get("subject") or "", row.get("to_email") or "", res.get("message") or ""))
+        elif res.get("refused"):
+            _mail_notice(row["user_id"], "⚠ 예약 메일 일부 주소에 못 갔습니다 — " + (row.get("subject") or ""),
+                         "예약 메일은 보냈지만 아래 주소는 메일 서버가 받지 않았습니다.\n\n" +
+                         "\n".join("%s — %s" % (x["addr"], x["why"]) for x in res["refused"]))
+
+
+def _mail_sched_tick():
+    """1분마다 — 보낼 예약 보내기. 나스 백업 시간(월 02:00~07:30)엔 쉼(그 뒤에 보냄)."""
+    import threading as _th
+    try:
+        if not _nas_quiet_now():
+            _mail_sched_run_once()
+    except Exception as e:
+        print("[MAIL-SCHED tick ERR] %s" % str(e)[:200], flush=True)
+    finally:
+        t = _th.Timer(60, _mail_sched_tick)
+        t.daemon = True
+        t.start()
+
+
+# ─── 11-19 2단계-나 🏖 부재중 자동 응답 — 새로 받은 메일에만 · 조심스럽게(하나라도 걸리면 안 보냄) ───
+def _mail_autoreply_run(owner_user, cand):
+    """cand = [(메일 번호, 자동 발송 표시)] — 받아 온 직후 부름. 보낼 것은 기록부터 남기고(두 번 안 보냄) 보냄."""
+    if not cand:
+        return
+    uid = owner_user.get("id")
+    todo = []
+    with db_session() as c:
+        st = _mailbox.get_autoreply(c, uid)
+        if not st.get("enabled"):
+            return
+        off = _mail_off(c, owner_user)
+        today = _mail_local_today(off)
+        try:
+            mine = set(_mail_find.my_addresses(c, uid) or [])
+        except Exception:
+            mine = set()
+        try:
+            mine.add((_mail_from_address_for(c, owner_user) or "").lower())
+        except Exception:
+            pass
+        try:
+            bulk = _mail_find.bulk_senders(c, uid)
+        except Exception:
+            bulk = set()
+        for mid, auto in cand:
+            m = _mailbox.get_mail(c, mid, uid)
+            if not m:
+                continue
+            ok, why = _mailbox.autoreply_should(c, uid, m, today, mine, auto, bulk)
+            if ok:
+                _mailbox.autoreply_log(c, uid, m.get("from_email") or "", mid)
+                todo.append(m)
+    import html as _h
+    for m in todo:
+        subj = (st.get("subject") or "").strip() or ("[자동 회신] " + (m.get("subject") or ""))
+        body = (st.get("body") or "").strip()
+        try:
+            res = _mail_send_core(owner_user, m.get("from_email") or "", "", "", subj, body,
+                                  "<div>" + _h.escape(body).replace("\n", "<br>") + "</div>", [], 0, [],
+                                  extra_headers={"Auto-Submitted": "auto-replied", "X-Auto-Response-Suppress": "All", "Precedence": "auto_reply"})
+            if not res.get("ok"):
+                print("[MAIL-AUTOREPLY] 못 보냄(user=%s, mail=%s): %s" % (uid, m.get("id"), (res.get("message") or "")[:120]), flush=True)
+        except Exception as e:
+            print("[MAIL-AUTOREPLY ERR] %s" % str(e)[:160], flush=True)
 
 
 # ─── 🔒 메일 읽기 전용 조회 (AI 비서 '락아' 용 · 대표 지시 2026-11-09) ──────────
@@ -24574,9 +24885,17 @@ async def mail_sent_page(req: Request, q: str = ""):
         sent_n = _mailbox.count_sent(c, u["id"])
         unread = _mailbox.count_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
+        # 11-19 2단계-나 ⏱ 보낼 예정(내 것만 · 보는 사람 소속 시각)
+        try:
+            _off = _mail_off(c, u)
+            sched = _mailbox.list_scheduled(c, u["id"])
+            for _s in sched:
+                _s["at_label"] = _mail_local_label(_s.get("sched_at") or "", _off)
+        except Exception:
+            sched = []
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=mail_ai_enabled_for(u), box="sent", sent_n=sent_n, q=q, drafts_n=drafts_n)
+               ai_on=mail_ai_enabled_for(u), box="sent", sent_n=sent_n, q=q, drafts_n=drafts_n, sched=sched)
 
 
 @app.get("/admin/mail-send", response_class=HTMLResponse)
@@ -24977,6 +25296,11 @@ async def mail_counts_api(req: Request):
         try:
             fc = _mailbox.count_flag(c, u["id"], _mail_local_today(_off))
             out["flag"], out["flag_due"] = fc["n"], fc["due"]
+        except Exception:
+            pass
+        try:
+            sc = _mailbox.count_scheduled(c, u["id"])
+            out["sched"], out["sched_fail"] = sc["n"], sc["fail"]
         except Exception:
             pass
         try:

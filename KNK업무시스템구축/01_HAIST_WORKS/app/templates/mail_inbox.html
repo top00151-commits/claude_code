@@ -266,6 +266,20 @@
   .mbx-newbar{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;position:sticky;top:0;z-index:5}
   .mbx-newbar[hidden]{display:none}
   .mbx-newbar:hover{filter:brightness(1.06)}
+  .mbx-sched{border-bottom:1px solid var(--line);background:#f5f3ff;padding:8px 12px}
+  .mbx-sched-h{font-size:13px;color:#4c1d95;margin-bottom:6px}
+  .mbx-sched-h span{color:#6d28d9;font-size:12px}
+  .mbx-sched-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--mt-surface,#fff);border:1px solid #ddd6fe;border-radius:9px;padding:6px 10px;margin-top:5px;font-size:13px}
+  .mbx-sched-row.fail{border-color:#fca5a5;background:#fef2f2}
+  .mbx-sched-row .when{font-weight:800;color:#5b21b6;white-space:nowrap}
+  .mbx-sched-row.fail .when{color:#b91c1c}
+  .mbx-sched-row .who{color:var(--mute);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mbx-sched-row .subj{flex:1;min-width:120px;font-weight:600}
+  .mbx-sched-row .err{color:#b91c1c;font-weight:500}
+  .mbx-sched-row button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:7px;padding:3px 9px;cursor:pointer}
+  .mbx-arbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 2px 8px;padding:8px 12px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;border-radius:9px;font-size:13px}
+  .mbx-arbar.over{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  .mbx-arbar a{margin-left:auto;font-weight:700;color:inherit}
   .mbx-arc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;white-space:nowrap}
   @media(max-width:640px){.mbx-ck{width:20px;height:20px;opacity:.6}}
   .mbx-morerows .btn{min-width:220px}
@@ -395,6 +409,10 @@
   </div>
   <a href="/mail/compose" class="mbx-fab" title="새 메일 쓰기">✏️ 쓰기</a>
 
+  {% if box=='in' and ar_info|default({}) and ar_info.on %}
+  {# 11-19 2단계-나 🏖 부재중 자동 응답 켜짐 — 잊지 않게 늘 보임 #}
+  <div class="mbx-arbar{{ ' over' if ar_info.over else '' }}">🏖 <b>부재중 자동 응답 {{ '켜짐' if ar_info.live else ('기간이 지났습니다(보내지 않음)' if ar_info.over else '예약됨') }}</b> <span>{{ ar_info.start[5:]|replace('-','/') }} ~ {{ ar_info.end[5:]|replace('-','/') }}</span> <a href="/mail/autoreply">설정 · 끄기 ›</a></div>
+  {% endif %}
   {% if not ai_on %}
   <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 AI 키가 설정돼 있을 때 작동합니다.</div>
   {% endif %}
@@ -608,6 +626,20 @@
       {% set _bn = '/mail/inbox?' ~ (base_nc|default('')) %}
       {% for _k, _ic in (('견적','💲'),('발주','🛒'),('세금계산서','🧾')) %}<a href="{{ _bn }}{{ ('&cat=' ~ _k) if cur_cat|default('') != _k else '' }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ _na }}" class="mbx-chip kind {{ 'on' if cur_cat|default('') == _k else '' }}" title="{{ _k }} 메일만 모아 보기(AI·내 규칙 종류 + 제목 낱말) · 다시 누르면 풂">{{ _ic }} {{ _k }}{{ ' ✕' if cur_cat|default('') == _k else '' }}</a>{% endfor %}
       <span class="mbx-chips-n" title="지금 조건에 맞는 메일">{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>
+    </div>
+    {% endif %}
+    {% if box=='sent' and sched|default([]) %}
+    {# 11-19 2단계-나 ⏱ 보낼 예정 — 정한 때에 서버가 보냄 · 지금 보내기 · 취소(임시보관함으로) #}
+    <div class="mbx-sched">
+      <div class="mbx-sched-h">⏱ <b>보낼 예정 {{ sched|length }}통</b> <span>정한 때에 서버가 보냅니다(창을 닫아도) · 취소하면 📝 임시보관함으로</span></div>
+      {% for x in sched %}
+      <div class="mbx-sched-row{{ ' fail' if x.sched_state == 'fail' else '' }}" data-sid="{{ x.id }}">
+        <span class="when">{% if x.sched_state == 'fail' %}⚠ 못 보냄{% elif x.sched_state == 'sending' %}📤 보내는 중{% else %}⏱ {{ x.at_label }}{% endif %}</span>
+        <span class="who">→ {{ x.to_email }}</span>
+        <span class="subj">{{ x.subject }}{% if x.att_n %} <small>📎 {{ x.att_n }}</small>{% endif %}{% if x.sched_state == 'fail' and x.sched_err %}<small class="err"> — {{ x.sched_err }}</small>{% endif %}</span>
+        {% if x.sched_state in ('wait','fail') %}<button type="button" onclick="mbxSched({{ x.id }},'now')">{{ '지금 다시 보내기' if x.sched_state == 'fail' else '지금 보내기' }}</button><button type="button" onclick="mbxSched({{ x.id }},'cancel')">취소(임시보관함으로)</button>{% endif %}
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
     {% if box=='in' %}<div class="mbx-newbar" id="mbxNew" hidden onclick="location.reload()" title="눌러서 새 메일 보기">📥 새 메일이 왔습니다 <span id="mbxNewN"></span> — 눌러서 보기</div>{% endif %}
@@ -1430,5 +1462,11 @@ function mfToggle(ev, key){
     bar.hidden=false;
   });
 })();
+/* 11-19 2단계-나 ⏱ 예약 — 지금 보내기 · 취소(임시보관함으로) */
+async function mbxSched(id, act){
+  if(act==='cancel' && !confirm('이 예약을 취소할까요? 메일은 📝 임시보관함으로 옮겨집니다(첨부는 다시 붙여 주세요).')) return;
+  if(act==='now' && !confirm('지금 보낼까요?')) return;
+  try{ var r=await fetch('/mail/sched/'+id+'/'+act,{method:'POST'}); var j=await r.json(); alert((j.ok?'':'⚠ ')+(j.message||'')); location.reload(); }catch(e){ alert('네트워크 오류'); }
+}
 </script>
 </body></html>
