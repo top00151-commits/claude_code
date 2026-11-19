@@ -31962,6 +31962,8 @@ async def prod_request_update(request: Request, pid: int, prid: int):
                     _setcols.append("customer_name=?"); _setvals.append(_cust_name_v or None)
             _setvals.append(pid)
             c.execute(f"UPDATE projects SET {', '.join(_setcols)} WHERE id=?", _setvals)
+            if "sales_name" in form:   # z1191z69: 영업담당자(작성·수정 화면)
+                _z69_set_sales(c, pid, form.get("sales_name"), u)
             # 제작요청서 행(요청사항 2개 + 수정 메타) 제자리 갱신
             c.execute("UPDATE prod_requests SET cust_req=?, note=?, updated_at=?, updated_by_name=? WHERE id=?",
                       (_cust_req, _note, _now, _by, prid))
@@ -32228,6 +32230,8 @@ async def prod_request_new(request: Request, pid: int):
                     _setcols.append("customer_name=?"); _setvals.append(_cust_name_v or None)
             _setvals.append(pid)
             c.execute(f"UPDATE projects SET {', '.join(_setcols)} WHERE id=?", _setvals)
+            if "sales_name" in form:   # z1191z69: 영업담당자(작성·수정 화면)
+                _z69_set_sales(c, pid, form.get("sales_name"), u)
     except Exception as _e:
         print(f"[z787] 제작요청서 신규 작성(프로젝트 갱신) 실패: {_e}")
         return RedirectResponse(_dest("prod_upderr=1"), 303)
@@ -32539,6 +32543,53 @@ def _z58_pre(c, p, with_s, from_s):
     return pre
 
 
+# z1191z69 (대표 11-19): 제작요청서 — 작성자(발행한 사람)는 제목 줄에 작게 「작성자 기술영업팀 안지연프로」,
+#   오른쪽 위 칸은 「영업담당자」 = 프로젝트 영업담당자(projects.sales_name · 관리번호대장 「영업 담당」·작업일정표 「영업담당자」와 같은 값).
+def _z69_people(c, p, pr):
+    out = {"writer": "", "sales": "", "opts": []}
+    try:
+        if pr:
+            r = None
+            if pr.get("issued_by"):
+                r = c.execute("SELECT u.name, COALESCE(u.rank,'') AS rank, COALESCE(t.name,'') AS team FROM users u "
+                              "LEFT JOIN teams t ON t.id=u.team_id WHERE u.id=?", (int(pr["issued_by"]),)).fetchone()
+            if r:
+                out["writer"] = ("%s %s%s" % (r["team"], r["name"], r["rank"])).strip()
+            else:
+                out["writer"] = (pr.get("issued_by_name") or "").strip()
+        opts = [dict(x) for x in c.execute(
+            "SELECT u.name, COALESCE(u.rank,'') AS rank FROM users u JOIN teams t ON t.id=u.team_id "
+            "WHERE COALESCE(u.is_active,1)=1 AND t.name LIKE '%기술영업%' ORDER BY u.name").fetchall()]
+        out["opts"] = opts
+        nm = str((p or {}).get("sales_name") or "").strip()
+        if nm:
+            rk = next((o["rank"] for o in opts if o["name"] == nm), None)
+            if rk is None:
+                x = c.execute("SELECT COALESCE(rank,'') FROM users WHERE name=? AND COALESCE(is_active,1)=1 LIMIT 2", (nm,)).fetchall()
+                rk = x[0][0] if len(x) == 1 else ""
+            out["sales"] = ("%s %s" % (nm, rk)).strip()
+    except Exception as _e:
+        print(f"[z1191z69] 작성자·영업담당자 표시 실패: {_e}")
+    return out
+
+
+def _z69_set_sales(c, pid, raw, u):
+    """작성·수정 화면 「영업담당자」 → projects.sales_name(이름만 · 「안지연 프로」처럼 직책이 붙어 오면 이름만) · 바뀌면 변경 이력."""
+    v = " ".join(str(raw or "").split())[:40]
+    if " " in v:
+        head = v.split(" ", 1)[0]
+        if c.execute("SELECT 1 FROM users WHERE name=? LIMIT 1", (head,)).fetchone():
+            v = head
+    r = c.execute("SELECT COALESCE(sales_name,'') FROM projects WHERE id=?", (pid,)).fetchone()
+    old = (r[0] if r else "") or ""
+    if old.strip() == v:
+        return
+    c.execute("UPDATE projects SET sales_name=? WHERE id=?", (v or None, pid))
+    who = vname_full(u) or u.get("name") or ""
+    c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+              (pid, u.get("id"), "영업담당자", old, v, "z1191z69 제작요청서에서 · %s" % who))
+
+
 @app.get("/project/{pid}/prod-request/edit", response_class=HTMLResponse)
 async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
     u = get_user(request)
@@ -32681,10 +32732,15 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
                 _d = dict(_mr); _team_members.setdefault(_d["team_id"], []).append(_d)
     except Exception:
         _teams = []; _team_members = {}
+    try:   # z1191z69: 작성자(제목 줄 작게) · 영업담당자(칸) · 고를 사람(기술영업팀)
+        with db_session() as _c69:
+            _z69 = _z69_people(_c69, p, pr)
+    except Exception:
+        _z69 = {"writer": "", "sales": "", "opts": []}
     return ctx(request, "prod_request_edit.html", user=u, p=p, pr=pr, pr_images=pr_images,
                can_edit=can_view_sales(u), form_label=_form_label, biz_label=_biz_label,
                export_label=_export_label, biz_cur=_bd, create_mode=create_mode,
-               teams=_teams, team_members=_team_members, z48=_z48)
+               teams=_teams, team_members=_team_members, z48=_z48, z69=_z69)
 
 
 # v5H226z772 (대표 지시): 제작요청서 참고 이미지 추가/삭제 — 수정발행 화면에서 AJAX 업로드·삭제(영업·관리 권한자만).

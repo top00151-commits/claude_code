@@ -54,7 +54,11 @@ select.prq-in { appearance:auto; }
 .z48-prs { width:100%; border-collapse:collapse; background:#fff; table-layout:fixed; border:2px solid #222; margin:0; }
 .z48-prs + .z48-prs { border-top:0; }
 .z48-prs td { border:1px solid #222; padding:7px 10px; font-size:13.5px; text-align:center; vertical-align:middle; word-break:break-word; color:#1f2937; }
-.z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:#111; }
+.z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:#111; position:relative; }
+/* z1191z69: 작성자 = 제목 줄 오른쪽 아래에 칸 없이 작게 */
+.z69-writer { position:absolute; right:10px; bottom:4px; font-size:11.5px; font-weight:500; letter-spacing:0; color:#475569; }
+.z69-writer-m { font-size:11.5px; font-weight:500; letter-spacing:0; color:#475569; margin-top:2px; }
+.z69-hint { font-weight:400; font-size:11px; color:var(--mute,#64748b); }
 .z48-prs td.z48-h { background:#b8cce4; font-weight:700; white-space:nowrap; }
 .z48-prs td.z48-hk { background:#e6b8b7; font-weight:700; white-space:nowrap; }
 .z48-prs td.z48-l { text-align:left; }
@@ -351,6 +355,7 @@ select.prq-in { appearance:auto; }
             </div>
             <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
             <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>
+            <div class="pe-f"><label>영업담당자 <span class="z69-hint">(기술영업팀 · 고르거나 직접)</span></label><input class="prq-in" type="text" name="sales_name" list="z69SalesN" value="{{ p.sales_name or '' }}" placeholder="이 아이템 영업담당자" autocomplete="off"><datalist id="z69SalesN">{% for o in (z69.opts if z69 else []) %}<option value="{{ o.name }}">{{ o.name }} {{ o.rank }}</option>{% endfor %}</datalist></div>
           </div>
           <div class="prq-sec">🛠 제작 사양</div>
           <div class="prq-grid">
@@ -473,8 +478,8 @@ select.prq-in { appearance:auto; }
           <div id="z48Paper"{% if z48.z51.cx %} class="z51-cxp{% if z48.z51.cx.kind == 'replace' %} z58-rep{% endif %}"{% endif %}>
           <table class="z48-prs z48-desk">
             <colgroup><col style="width:4%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:16%"><col style="width:20%"><col style="width:9%"><col style="width:19%"></colgroup>
-            <tr><td colspan="8" class="z48-tt">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" title="구분 — 가리키는 수주의 발주유형">{{ z48.kind }}</span>{% endif %}</td></tr>
-            <tr><td colspan="3" class="z48-h">고객사</td><td colspan="3">{{ p.customer_name or '—' }}</td><td class="z48-h">작성자</td><td>{{ pr.issued_by_disp or pr.issued_by_name or '—' }}</td></tr>
+            <tr><td colspan="8" class="z48-tt">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" title="구분 — 가리키는 수주의 발주유형">{{ z48.kind }}</span>{% endif %}{% if z69 and z69.writer %}<span class="z69-writer" title="이 제작요청서를 작성(발행)한 사람">작성자 {{ z69.writer }}</span>{% endif %}</td></tr>
+            <tr><td colspan="3" class="z48-h">고객사</td><td colspan="3">{{ p.customer_name or '—' }}</td><td class="z48-h">영업담당자</td><td title="이 아이템을 진행하는 기술영업팀 영업담당자(수정발행 화면에서 고침)">{{ (z69 and z69.sales) or '—' }}</td></tr>
             <tr><td colspan="3" class="z48-h">고객사 담당자</td><td colspan="3">{{ p.cc_name or '—' }}{% if p.cc_name and p.cc_position %} {{ p.cc_position }}{% endif %}</td><td class="z48-h">MODEL</td><td>{{ pr.bundle_model or p.model_name or '—' }}</td></tr>
             {% if pr.gist %}<tr><td colspan="3" class="z48-h">요지</td><td colspan="5" class="z48-gist">{{ pr.gist }}</td></tr>{% endif %}
             <tr><td colspan="8" class="z48-h">각인</td></tr>
@@ -501,11 +506,11 @@ select.prq-in { appearance:auto; }
           {# 휴대폰 폭 — 같은 내용을 카드로(표는 숨김) #}
           <div class="z48-mob">
             <div class="z48-card">
-              <div class="z48-ch" style="font-size:16px;letter-spacing:3px;">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" style="font-size:12px;margin-left:8px;">{{ z48.kind }}</span>{% endif %}</div>
+              <div class="z48-ch" style="font-size:16px;letter-spacing:3px;">제작 요청서{% if z48.kind %}<span class="z48-bdg z48-{{ z48.kind_cls }}" style="font-size:12px;margin-left:8px;">{{ z48.kind }}</span>{% endif %}{% if z69 and z69.writer %}<div class="z69-writer-m">작성자 {{ z69.writer }}</div>{% endif %}</div>
               <div class="z48-mkv"><div class="k">고객사</div><div class="v">{{ p.customer_name or '—' }}</div></div>
               <div class="z48-mkv"><div class="k">담당자</div><div class="v">{{ p.cc_name or '—' }}{% if p.cc_name and p.cc_position %} {{ p.cc_position }}{% endif %}</div></div>
               <div class="z48-mkv"><div class="k">MODEL</div><div class="v">{{ pr.bundle_model or p.model_name or '—' }}</div></div>
-              <div class="z48-mkv"><div class="k">작성자</div><div class="v">{{ pr.issued_by_disp or pr.issued_by_name or '—' }}</div></div>
+              <div class="z48-mkv"><div class="k">영업담당자</div><div class="v">{{ (z69 and z69.sales) or '—' }}</div></div>
               {% if pr.gist %}<div class="z48-mkv"><div class="k">요지</div><div class="v" style="font-weight:700;color:#7c2d12;">{{ pr.gist }}</div></div>{% endif %}
               <div class="z48-mkv"><div class="k">각인</div><div class="v">{% if z48.eng %}{{ z48.eng|join(' / ') }}{% else %}—{% endif %}</div></div>
             </div>
@@ -590,6 +595,7 @@ select.prq-in { appearance:auto; }
             </div>
             <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
             <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>
+            <div class="pe-f"><label>영업담당자 <span class="z69-hint">(기술영업팀 · 고르거나 직접)</span></label><input class="prq-in" type="text" name="sales_name" list="z69SalesE" value="{{ p.sales_name or '' }}" placeholder="이 아이템 영업담당자" autocomplete="off"><datalist id="z69SalesE">{% for o in (z69.opts if z69 else []) %}<option value="{{ o.name }}">{{ o.name }} {{ o.rank }}</option>{% endfor %}</datalist></div>
           </div>
 
           <div class="prq-sec">🛠 제작 사양</div>
