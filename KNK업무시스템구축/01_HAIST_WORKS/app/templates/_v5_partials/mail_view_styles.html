@@ -35,6 +35,19 @@
   .mv-more-box .warn{color:#9a3412}
   .mv-more-box hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
   @media print{.mv-more{display:none}}
+  /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 · 📋 할 일·일정 상자 */
+  .mv-fu>summary.on{background:#fff7ed;border-color:#fdba74;color:#c2410c}
+  .mv-fu-box{min-width:360px;max-width:min(460px,92vw);padding:8px 12px 12px;white-space:normal}
+  .mv-fu-h{font-size:12.5px;font-weight:800;margin:8px 0 5px;color:var(--ink)}
+  .mv-fu-h small{font-weight:500;color:var(--mute);font-size:11.5px}
+  .mv-fu-now{font-size:11.5px;font-weight:700;color:#c2410c;background:#fff7ed;border-radius:6px;padding:1px 6px;margin-left:4px}
+  .mv-fu-now.late{color:#b91c1c;background:#fee2e2}
+  .mv-fu-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .mv-more-box .mv-fu-row button{display:inline-flex;border:1px solid var(--line);border-radius:7px;padding:4px 10px;font-size:12.5px;background:var(--mt-surface,#fff)}
+  .mv-more-box .mv-fu-row button.go{background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c);color:#fff;font-weight:700}
+  .mv-more-box .mv-fu-row button.x{color:#9a3412}
+  .mv-fu-row input{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;background:var(--mt-surface,#fff);color:var(--ink)}
+  @media(max-width:640px){ .mv-fu-box{position:fixed;left:8px;right:8px;top:auto;bottom:8px;min-width:0;max-width:none} }
   /* 11-18 보낸 사람 눌러 모아 보기 · 이전 대화 접기 */
   .mv-who-wrap{position:relative}
   .mv-who{color:#1d4ed8;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}

@@ -269,7 +269,9 @@ def _ensure_security_cols(c):
             # 11-18 대표 「3단계 진행해」 — 📦 보관(받은편지함에서만 빠짐 · 지우지 않음) · 📁 이 메일만 폴더
             "is_archived": "INTEGER DEFAULT 0", "fd_pin": "TEXT DEFAULT ''",
             # 11-19 대표 「1단계」 — 받은 메일의 「받는 사람」 전원(원문 To 그대로). to_email 은 첫 주소만이라 전체 답장 명단이 빠지던 것
-            "to_all": "TEXT DEFAULT ''"}
+            "to_all": "TEXT DEFAULT ''",
+            # 11-19 2단계 — 🚩 기한(YYYY-MM-DD · 받는 사람 현지 날짜) · ⏰ 다시 알림(서버 시각 · 그때까지 받은편지함에서 숨김) · 돌아온 시각
+            "flag_due": "TEXT DEFAULT ''", "snooze_until": "TEXT DEFAULT ''", "snooze_back": "TEXT DEFAULT ''"}
     try:
         have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
     except Exception:
@@ -661,11 +663,31 @@ def _dup_count_sql(c) -> str:
         return "1"
 
 
+KIND_WORDS = {
+    "견적": ("견적", "quotation", "quote", "rfq", "estimate", "báo giá", "bao gia"),
+    "발주": ("발주", "주문서", "purchase order", "p/o", "po no", "po#", "po :", "po:", "đơn đặt hàng", "don dat hang"),
+    "세금계산서": ("세금계산서", "계산서", "tax invoice", "invoice", "hóa đơn", "hoa don"),
+}
+
+
+def mail_kind(m) -> str:
+    """메일 종류 — 저장된 종류(AI·내 규칙)가 먼저, 「일반」이면 제목 낱말로(11-19 · AI 꺼진 직원도 모아 보기가 되게)."""
+    cat = (m.get("category") or "").strip()
+    if cat in KIND_WORDS:
+        return cat
+    subj = (m.get("subject") or "").lower()
+    for k, words in KIND_WORDS.items():
+        if any(w in subj for w in words):
+            return k
+    return ""
+
+
 def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                starred=None, unread=None, date_from: str = "", date_to: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None,
                senders=None, qf: str = "all", with_sent: bool = False, who: str = "", dom: str = "",
-               q_senders=None, noad=None, count_only: bool = False, arc: bool = False, fd_keys=None):
+               q_senders=None, noad=None, count_only: bool = False, arc: bool = False, fd_keys=None,
+               flagged: bool = False, snoozed: bool = False):
     """받은편지함 목록.
     (11-18 대표 「쉽게 찾기」) q = 띄어 쓴 낱말 **모두** 들어간 메일(낱말마다 보낸 사람·받는 사람·참조·제목·본문·첨부 파일 이름 중 한 곳) ·
     qf = all|from|subj|att(어디서 찾을지) · with_sent = 보낸 메일도 함께 · who/dom = 이 사람·이 회사와 주고받은 메일 ·
@@ -692,9 +714,22 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     _terms0 = search_terms(q)
     if arc:
         where += " AND direction='in' AND COALESCE(is_archived,0)=1"
-    elif senders is None and not _terms0 and not who and not dom and not starred and only_ids is None and not cust:
+    elif senders is None and not _terms0 and not who and not dom and not starred and only_ids is None and not cust \
+            and not flagged and not snoozed:
         where += " AND COALESCE(is_archived,0)=0"
-    if category and category in CATEGORIES:
+    # 11-19 2단계 — 🚩 기한 보기 · ⏰ 다시 알림 보기 · 그 밖에는 「다시 알림」 기다리는 메일을 숨김(시간이 되면 다시 보임)
+    if flagged:
+        where += " AND COALESCE(flag_due,'')<>''"
+    elif snoozed:
+        where += " AND (COALESCE(snooze_until,'')<>'' OR snooze_back >= datetime('now','localtime','-3 days'))"
+    elif only_ids is None:
+        where += " AND (COALESCE(snooze_until,'')='' OR snooze_until <= datetime('now','localtime'))"
+    if category and category in KIND_WORDS:
+        _kw = KIND_WORDS[category]
+        where += (" AND (category=? OR (COALESCE(category,'일반') IN ('일반','') AND ("
+                  + " OR ".join(["lower(subject) LIKE ?"] * len(_kw)) + ")))")
+        args += [category] + ["%" + w + "%" for w in _kw]
+    elif category and category in CATEGORIES:
         where += " AND category=?"
         args.append(category)
     if starred:
@@ -792,17 +827,21 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
             args += pargs
     if count_only:
         return int(c.execute(f"SELECT COUNT(*) FROM mail_messages WHERE {where}", args).fetchone()[0] or 0)
+    _order = ("flag_due ASC, received_at DESC, id DESC" if flagged else
+              ("CASE WHEN COALESCE(snooze_until,'')<>'' THEN 0 ELSE 1 END, snooze_until ASC, snooze_back DESC, id DESC" if snoozed
+               else "received_at DESC, id DESC"))
     rows = c.execute(
         f"""SELECT id, direction, from_email, from_name, to_email, cc, subject, category, lang,
                    is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
                    COALESCE(is_archived,0) AS is_archived, COALESCE(fd_pin,'') AS fd_pin,
+                   COALESCE(flag_due,'') AS flag_due, COALESCE(snooze_until,'') AS snooze_until, COALESCE(snooze_back,'') AS snooze_back,
                    {_dup_count_sql(c)} AS dup_count,
                    (SELECT COUNT(*) FROM mail_attachments a WHERE a.mail_id=mail_messages.id
                       AND COALESCE(a.is_inline,0)=0) AS att_n,
                    substr(COALESCE(summary,''),1,160) AS summary_short,
                    trim(replace(replace(replace(substr(COALESCE(body_text,''),1,240), char(13),' '), char(10),' '), char(9),' ')) AS preview
             FROM mail_messages WHERE {where}
-            ORDER BY received_at DESC, id DESC LIMIT ? OFFSET ?""",
+            ORDER BY {_order} LIMIT ? OFFSET ?""",
         (*args, limit, offset),
     ).fetchall()
     return [dict(r) for r in rows]
@@ -822,6 +861,72 @@ def _own_ids(c, user_id, ids, inbound_only=False) -> list:
     extra = " AND direction='in'" if inbound_only else ""
     return [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE user_id=? AND is_deleted=0" + extra +
                                     " AND id IN (" + q + ")", (user_id, *out)).fetchall()]
+
+
+def set_flag(c, user_id, ids, due: str = "") -> int:
+    """🚩 기한 정하기/풀기(11-19 2단계) — due='YYYY-MM-DD' · 빈 값 = 풀기. 받은·보낸 메일 모두."""
+    _ensure_security_cols(c)
+    due = (due or "").strip()[:10]
+    if due:
+        import re as _re
+        if not _re.match(r"^\d{4}-\d{2}-\d{2}$", due):
+            return 0
+    own = _own_ids(c, user_id, ids)
+    if not own:
+        return 0
+    q = ",".join("?" * len(own))
+    c.execute("UPDATE mail_messages SET flag_due=? WHERE user_id=? AND id IN (" + q + ")", (due, user_id, *own))
+    return len(own)
+
+
+def set_snooze(c, user_id, ids, until: str = "") -> int:
+    """⏰ 다시 알림(11-19 2단계) — until='YYYY-MM-DD HH:MM:SS'(서버 시각) 까지 받은편지함에서 숨김 · 읽음으로. 빈 값 = 풀기(바로 다시 보임)."""
+    _ensure_security_cols(c)
+    own = _own_ids(c, user_id, ids, inbound_only=True)
+    if not own:
+        return 0
+    q = ",".join("?" * len(own))
+    if until:
+        c.execute("UPDATE mail_messages SET snooze_until=?, snooze_back='', is_read=1, "
+                  "read_at=COALESCE(read_at, datetime('now','localtime')) WHERE user_id=? AND id IN (" + q + ")",
+                  (until, user_id, *own))
+    else:
+        c.execute("UPDATE mail_messages SET snooze_until='' WHERE user_id=? AND id IN (" + q + ")", (user_id, *own))
+    return len(own)
+
+
+def snooze_wake(c, user_id) -> int:
+    """시간이 된 「다시 알림」 메일 깨우기 — 안 읽음으로 되돌리고 「돌아온 시각」을 남김(⏰ 보기에 3일 동안 보임)."""
+    _ensure_security_cols(c)
+    cur = c.execute("UPDATE mail_messages SET is_read=0, read_at=NULL, snooze_back=snooze_until, snooze_until='' "
+                    "WHERE user_id=? AND COALESCE(snooze_until,'')<>'' AND snooze_until <= datetime('now','localtime')",
+                    (user_id,))
+    return cur.rowcount or 0
+
+
+def count_flag(c, user_id, today: str) -> dict:
+    """🚩 기한 숫자 — 전체 · 오늘까지(지난 것 포함)."""
+    _ensure_security_cols(c)
+    r = c.execute("SELECT COUNT(*) AS n, SUM(CASE WHEN flag_due<=? THEN 1 ELSE 0 END) AS due FROM mail_messages "
+                  "WHERE user_id=? AND is_deleted=0 AND COALESCE(flag_due,'')<>''", (today, user_id)).fetchone()
+    return {"n": int(r["n"] or 0), "due": int(r["due"] or 0)}
+
+
+def count_snoozed(c, user_id) -> int:
+    _ensure_security_cols(c)
+    r = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0 AND COALESCE(snooze_until,'')<>''",
+                  (user_id,)).fetchone()
+    return int(r[0] or 0)
+
+
+def latest_inbox(c, user_id):
+    """받은편지함 맨 위 새 메일(번호·보낸 사람·제목) — 새 메일이 왔는지 알아보기용(11-19 2단계 · 내 메일만)."""
+    _ensure_security_cols(c)
+    r = c.execute("SELECT id, from_name, from_email, subject FROM mail_messages WHERE user_id=? AND direction='in' "
+                  "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(is_archived,0)=0 "
+                  "AND (COALESCE(snooze_until,'')='' OR snooze_until <= datetime('now','localtime')) "
+                  "ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
+    return dict(r) if r else None
 
 
 def set_archived(c, user_id, ids, on=True) -> int:

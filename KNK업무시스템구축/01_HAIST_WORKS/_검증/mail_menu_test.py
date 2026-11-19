@@ -191,8 +191,8 @@ try:
     more = p[p.find('id="mvMore"'):p.find("</details>", p.find('id="mvMore"'))]
     check("밖: 답장 · 전체답장 · 전달 · 중요 · 삭제", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "↪ 전달", 'id="mvStarBtn"', "🗑 삭제")), act[:500])
     check("밖에서 빠진 것: 안읽음·할 일·번역·인쇄·다시 안 받기", not any(x in act for x in ("markUnread()", "mailToTask()", "translateMail(", "window.print()", "muteSender()")))
-    check("⋯ 더 보기 안: 안 읽음 · 할 일 · 주소록 · 번역 2 · 인쇄 · 다시 안 받기",
-          all(x in more for x in ("markUnread()", "mailToTask()", 'id="mvContactBtn"', "translateMail('ko')", "translateMail('vi')", "window.print()", "muteSender()")), more[:600])
+    check("⋯ 더 보기 안: 안 읽음 · 할 일·일정(→ 🚩 상자) · 주소록 · 번역 3 · 인쇄 · 다시 안 받기",
+          all(x in more for x in ("markUnread()", "📋 할 일·일정으로", 'id="mvContactBtn"', "translateMail('ko')", "translateMail('vi')", "translateMail('en')", "window.print()", "muteSender()")), more[:600])
     check("「↩ 답장 쓰기」(회신 띠) 중복 없음", "↩ 답장 쓰기" not in p)
     check("제목 옆 「일반」 꼬리표 없음", 'class="mv-badge"' not in p)
     check("「☆ 중요 표시」 처음 상태", "☆ 중요 표시" in act)

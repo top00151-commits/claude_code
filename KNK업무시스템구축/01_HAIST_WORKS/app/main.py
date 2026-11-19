@@ -22660,7 +22660,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
                           reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
                           who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = "",
-                          arc: int = 0):
+                          arc: int = 0, flag: int = 0, snz: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -22696,13 +22696,21 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             reply_map = {}
         _bulk = _mail_find.bulk_senders(c, u["id"])
         _qs = _mail_find.q_senders(mf, _terms) if (_terms and mf and not fd) else None
+        # 11-19 2단계 — 시간이 된 「⏰ 다시 알림」 메일은 안 읽음으로 돌아옴 · 🚩 기한 날짜 = 보는 사람 소속 날짜
+        try:
+            _mailbox.snooze_wake(c, u["id"])
+        except Exception:
+            pass
+        _moff = _mail_off(c, u)
+        _mtoday = _mail_local_today(_moff)
         _kw = dict(category=cat, q=q, starred=bool(star), unread=bool(unread),
                    date_from=df, date_to=dt, has_att=bool(att), cust=cust,
                    only_ids=(list(reply_map.keys()) if reply else None),
                    senders=(_mail_folders.senders_in(mf, fd) if fd else None),
                    qf=qf, with_sent=bool((_terms or who or dom) and where != "in"), who=who, dom=dom,
                    q_senders=_qs, noad=(_bulk if noad else None),
-                   arc=bool(arc), fd_keys=(sorted((mf or {}).get("keys_of", {}).get(fd, set())) if fd else None))
+                   arc=bool(arc), fd_keys=(sorted((mf or {}).get("keys_of", {}).get(fd, set())) if fd else None),
+                   flagged=bool(flag), snoozed=bool(snz and not flag))
         mails = _mailbox.list_inbox(c, u["id"], limit=_PAGE, offset=off, **_kw)
         total_n = _mailbox.list_inbox(c, u["id"], count_only=True, **_kw) or 0
         _kinds = _mail_find.folder_kinds(mf) if mf else {}
@@ -22714,6 +22722,11 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _inb = (_m.get("direction") or "in") == "in"
             _m["ad"] = bool(_inb and (_m.get("from_email") or "").strip().lower() in _bulk)
             _m["ccme"] = _mail_find.is_cc(_m, _mine)
+            _m["kind"] = _mailbox.mail_kind(_m)
+            _m["flag_late"] = bool(_m.get("flag_due") and _m["flag_due"] < _mtoday)
+            _m["flag_today"] = bool(_m.get("flag_due") and _m["flag_due"] == _mtoday)
+            _m["snz_label"] = _mail_local_label(_m.get("snooze_until") or "", _moff)
+            _m["snzb_label"] = _mail_local_label(_m.get("snooze_back") or "", _moff)
             # 목록 꼬리표 = 폴더 이름(11-18 대표 「쉽게 구분」) — 「일반」은 안 붙임(모두 같아 정보가 없음) · 색 = 묶음 갈래
             _m["fdname"], _m["fdkind"], _m["fdkey"] = "", "", ""
             if mf and _inb:
@@ -22743,14 +22756,22 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
     more_href = ("/mail/inbox?" + _ue(_keep_q + [("off", str(off + _PAGE)), ("frag", "1")])) if (off + len(mails) < total_n and len(mails) >= _PAGE) else ""
     _base_q = [(k, v) for k, v in req.query_params.multi_items()
                if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app")]
+    _base_nc = [(k, v) for k, v in _base_q if k != "cat"]   # 11-19 종류 단추(견적·발주·세금계산서)는 cat 만 바꿔 끼움
     with db_session() as c:
         _arc_n = _mailbox.count_archived(c, u["id"])
         _spam_n = _mailbox.count_blocked(c, u["id"])
+        try:
+            _flag_c = _mailbox.count_flag(c, u["id"], _mtoday)
+            _snz_n = _mailbox.count_snoozed(c, u["id"])
+        except Exception:
+            _flag_c, _snz_n = {"n": 0, "due": 0}, 0
     _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n,
+                     flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
                      fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
                      prev_day=(prev or "")[:40], page_off=off,
-                     base_q=_ue(_base_q), search_on=bool(_terms or who or dom or per or df or dt),
+                     base_q=_ue(_base_q), base_nc=_ue(_base_nc), cur_flag=bool(flag), cur_snz=bool(snz and not flag),
+                     search_on=bool(_terms or who or dom or per or df or dt),
                      terms=_terms, cur_qf=qf, cur_where=where, cur_per=per, cur_who=who, cur_dom=dom,
                      cur_noad=bool(noad), periods=_mail_find.PERIOD_NAMES,
                      fd_hits=(_mail_find.matched_folders(mf, _terms) if (_terms and not fd) else []),
@@ -23132,11 +23153,12 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
+        fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
     return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off)
+               nav=nav, img_off=img_off, fu=fu)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -23189,11 +23211,12 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         folder_info = _mail_folder_info(c, u["id"], m)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
+        fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off)
+               nav=nav, img_off=img_off, fu=fu)
 
 
 def _mail_who_info(m, folder_info):
@@ -23560,10 +23583,21 @@ async def mail_to_task(req: Request, mail_id: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    # 11-19 2단계 — 날짜를 고르면 그날 할 일(달력에도 그날로) · 없으면 오늘
+    try:
+        _f = await req.form()
+        _wd = (_f.get("work_date") or "").strip()
+    except Exception:
+        _wd = ""
+    import re as _re_td
+    if not _re_td.match(r"^\d{4}-\d{2}-\d{2}$", _wd or ""):
+        _wd = ""
     with db_session() as c:
         m = _mailbox.get_mail(c, mail_id, u["id"])
         if not m:
             return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 메일만)."}, 404)
+        if not _wd:
+            _wd = _mail_local_today(_mail_off(c, u))
         subj = ((m.get("subject") or "").strip() or "(제목 없음)")[:180]
         frm = (m.get("from_name") or "").strip()
         fmail = (m.get("from_email") or "").strip()
@@ -23573,14 +23607,14 @@ async def mail_to_task(req: Request, mail_id: int):
         if summ:
             notes += "\n" + summ
         notes += f"\n원문: {_WORKS_PUBLIC_BASE}/mail/{mail_id}"
-        c.execute(
+        _cur = c.execute(
             "INSERT INTO tasks(user_id, work_date, title, category, status, notes) "
             "VALUES(?,?,?,?,?,?)",
-            (u["id"], fake_today_iso(req), f"[메일] {subj}", "고객대응", "진행중", notes),
+            (u["id"], _wd, f"[메일] {subj}", "고객대응", "진행중", notes),
         )
-        tid = c.lastrowid
-    return JSONResponse({"ok": True, "task_id": tid,
-                         "message": "내 할 일(일일카드)에 추가했습니다."})
+        tid = _cur.lastrowid   # 11-19 고침: 전에는 c.lastrowid(연결에는 없음) → 늘 오류 · 저장도 되돌려졌음
+    return JSONResponse({"ok": True, "task_id": tid, "work_date": _wd,
+                         "message": "내 할 일(일일카드) %s에 추가했습니다." % _wd[5:].replace("-", "/")})
 
 
 @app.post("/mail/{mail_id:int}/to-contact")
@@ -24107,6 +24141,41 @@ def _mail_from_address_for(c, u) -> str:
     return _mail_from_address()
 
 
+def _mail_quote_html(m, kind: str) -> str:
+    """답장·전달 인용(11-19 2단계 · 아웃룩처럼) — 머리말(보낸 사람·날짜·받는 사람·참조·제목) + 원본 모양(표·서식) 그대로.
+    · 원본의 <style>·<head>·<link> 는 뺀다(쓰기 화면 전체 모양을 바꾸지 않게) · 위험한 것은 sanitize 가 먼저 뺌
+    · 원본 속 우리 서버 그림(/mail/…)·cid·data 그림은 받는 사람이 못 보거나 너무 커서 「[그림]」 표시로 · 바깥 https 그림은 그대로
+    · 원본 서식이 없거나 너무 크면 글자 그대로(줄바꿈 유지)."""
+    import html as _h
+    import re as _rq
+    esc = lambda t: _h.escape(t or "")
+    raw = (m.get("body_html") or "").strip()
+    body = ""
+    if raw and len(raw) <= 600000:
+        try:
+            body = _mailbox.sanitize_html_for_view(raw, int(m.get("id") or 0), [])
+            body = _rq.sub(r"(?is)<\s*(style|head|title)\b.*?<\s*/\s*\1\s*>", " ", body)
+            body = _rq.sub(r"(?is)<\s*/?\s*(html|body|link|meta|base)\b[^>]*>", " ", body)
+            body = _rq.sub(r"(?is)<img\b(?![^>]*\bsrc\s*=\s*[\"']https?://)[^>]*>", "[그림]", body)
+        except Exception:
+            body = ""
+    if not body.strip():
+        body = esc(m.get("body_text") or "").replace("\n", "<br>")
+    rows = [("보낸 사람", "%s &lt;%s&gt;" % (esc(m.get("from_name") or ""), esc(m.get("from_email") or ""))),
+            ("보낸 날짜", esc((m.get("received_at") or "")[:16]))]
+    _to = (m.get("to_all") or m.get("to_email") or "").strip()
+    if _to:
+        rows.append(("받는 사람", esc(_to[:600])))
+    if (m.get("cc") or "").strip():
+        rows.append(("참조", esc((m.get("cc") or "")[:600])))
+    rows.append(("제목", esc(m.get("subject") or "")))
+    mark = "──────── 원본 메일 ────────" if kind == "reply" else "──────── 전달된 메일 ────────"
+    head = "<br>".join("<b>%s:</b> %s" % (k, v) for k, v in rows)
+    return ('<div><br></div><div><br></div><div class="knk-quote">'
+            '<div style="font-size:12px;color:#555;border-top:1px solid #d1d5db;padding-top:8px;margin-top:6px">%s<br>%s</div>'
+            '<blockquote style="margin:8px 0 0 0;padding:0 0 0 10px;border-left:3px solid #d1d5db">%s</blockquote></div>') % (mark, head, body)
+
+
 @app.get("/mail/compose", response_class=HTMLResponse)
 async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                             forward: int = 0, draft: int = 0, to: str = ""):
@@ -24166,6 +24235,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                             cc_pairs.append((nm, a))
                     prefill["cc"] = _mail.addr_list_text(cc_pairs)
                 prefill["body"] = sigblock + "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
+                prefill["body_html"] = _mail_quote_html(m, "reply")   # 11-19 2단계 — 원본 모양(표·서식) 그대로 인용
         elif forward:
             m = _mailbox.get_mail(c, forward, u["id"])
             if m:
@@ -24177,6 +24247,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                        f"제목: {m.get('subject') or ''}\n"
                        f"받은시각: {m.get('received_at') or ''}\n\n")
                 prefill["body"] = sigblock + hdr + (m.get("body_text") or "")
+                prefill["body_html"] = _mail_quote_html(m, "forward")   # 11-19 2단계 — 원본 모양 그대로
                 # 11-19 전달 = 원래 첨부도 함께(견적서·도면·세금계산서) — 쓰기 화면에 보이고 ✕ 로 뺄 수 있음 · 보낼 때 서버가 다시 꺼냄
                 try:
                     prefill["fwd_src"] = str(forward)
@@ -24885,16 +24956,180 @@ async def mail_counts_api(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False}, 401)
-    out = {"ok": True, "unread": 0, "reply": 0, "drafts": 0, "spam": 0, "arc": 0}
+    out = {"ok": True, "unread": 0, "reply": 0, "drafts": 0, "spam": 0, "arc": 0, "flag": 0, "flag_due": 0, "snz": 0, "woke": 0}
+    lite = req.query_params.get("lite") == "1"   # 11-19 2단계: 1분마다 물어보는 가벼운 판(회신 필요 계산 빼고)
     with db_session() as c:
-        for k, fn in (("unread", lambda: _mailbox.count_unread(c, u["id"])), ("drafts", lambda: _mailbox.count_drafts(c, u["id"])),
-                      ("spam", lambda: _mailbox.count_blocked(c, u["id"])), ("arc", lambda: _mailbox.count_archived(c, u["id"])),
-                      ("reply", lambda: len(_mail_reply.scan(c, u["id"]) or {}))):
+        try:
+            out["woke"] = int(_mailbox.snooze_wake(c, u["id"]) or 0)   # ⏰ 시간이 된 것 깨우기
+        except Exception:
+            pass
+        _off = _mail_off(c, u)
+        fns = [("unread", lambda: _mailbox.count_unread(c, u["id"])), ("drafts", lambda: _mailbox.count_drafts(c, u["id"])),
+               ("spam", lambda: _mailbox.count_blocked(c, u["id"])), ("arc", lambda: _mailbox.count_archived(c, u["id"])),
+               ("snz", lambda: _mailbox.count_snoozed(c, u["id"]))]
+        if not lite:
+            fns.append(("reply", lambda: len(_mail_reply.scan(c, u["id"]) or {})))
+        for k, fn in fns:
             try:
                 out[k] = int(fn() or 0)
             except Exception:
                 pass
+        try:
+            fc = _mailbox.count_flag(c, u["id"], _mail_local_today(_off))
+            out["flag"], out["flag_due"] = fc["n"], fc["due"]
+        except Exception:
+            pass
+        try:
+            lt = _mailbox.latest_inbox(c, u["id"])   # 새 메일 알아보기(번호 · 보낸 사람 · 제목) — 내 메일만 · 이 창에만 보임
+            if lt:
+                out["latest"] = {"id": lt["id"], "from": (lt.get("from_name") or lt.get("from_email") or "")[:60],
+                                 "subj": (lt.get("subject") or "")[:120]}
+        except Exception:
+            pass
     return JSONResponse(out)
+
+
+# ─── 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 (날짜·시각 = 보는 사람 소속: 본사 +9 · 베트남 +7 — KNK 시간대 표준) ───
+def _mail_off(c, u) -> int:
+    try:
+        return 7 if _meeting_user_entity(c, u) == "VN" else 9
+    except Exception:
+        return 9
+
+
+def _mail_now_local(off: int):
+    from datetime import timezone as _tz
+    return datetime.now(_tz.utc).replace(tzinfo=None) + timedelta(hours=off)
+
+
+def _mail_local_today(off: int) -> str:
+    return _mail_now_local(off).date().isoformat()
+
+
+def _mail_local_to_server(t_loc, off: int) -> str:
+    """그 사람 현지 시각 → 서버 시각 글자(서버 DB 의 datetime('now','localtime') 과 같은 기준)."""
+    from datetime import timezone as _tz
+    ts = (t_loc - timedelta(hours=off)).replace(tzinfo=_tz.utc).timestamp()
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _mail_local_label(srv: str, off: int) -> str:
+    """서버 시각 글자 → 그 사람 현지 「11/20 09:00」."""
+    if not srv:
+        return ""
+    try:
+        from datetime import timezone as _tz
+        ts = datetime.strptime(srv[:19], "%Y-%m-%d %H:%M:%S").timestamp()
+        loc = datetime.fromtimestamp(ts, _tz.utc).replace(tzinfo=None) + timedelta(hours=off)
+        return "%d/%d %02d:%02d" % (loc.month, loc.day, loc.hour, loc.minute)
+    except Exception:
+        return srv[5:16]
+
+
+def _mail_due_from(key: str, off: int) -> str:
+    """🚩 기한 단추 → 날짜. today·tomorrow·fri(이번 주 금요일 · 지났으면 다음 주)·nextmon · 또는 'YYYY-MM-DD' 그대로."""
+    import re as _re
+    key = (key or "").strip()
+    if _re.match(r"^\d{4}-\d{2}-\d{2}$", key):
+        return key
+    d = _mail_now_local(off).date()
+    if key == "today":
+        return d.isoformat()
+    if key == "tomorrow":
+        return (d + timedelta(days=1)).isoformat()
+    if key == "fri":
+        k = (4 - d.weekday()) % 7
+        return (d + timedelta(days=k if k else 0)).isoformat()
+    if key == "nextmon":
+        return (d + timedelta(days=(7 - d.weekday()) or 7)).isoformat()
+    return ""
+
+
+def _mail_snooze_from(key: str, off: int) -> str:
+    """⏰ 다시 알림 단추 → 서버 시각. 1h·3h·tomorrow(내일 09:00)·nextmon(다음 주 월요일 09:00)·'YYYY-MM-DDTHH:MM'(현지)."""
+    import re as _re
+    key = (key or "").strip()
+    now = _mail_now_local(off)
+    t = None
+    if key == "1h":
+        t = now + timedelta(hours=1)
+    elif key == "3h":
+        t = now + timedelta(hours=3)
+    elif key == "tomorrow":
+        t = datetime.combine(now.date() + timedelta(days=1), datetime.min.time()).replace(hour=9)
+    elif key == "nextmon":
+        t = datetime.combine(now.date() + timedelta(days=(7 - now.weekday()) or 7), datetime.min.time()).replace(hour=9)
+    elif _re.match(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}$", key):
+        t = datetime.strptime(key.replace("T", " "), "%Y-%m-%d %H:%M")
+        if t <= now:
+            return ""
+    if not t:
+        return ""
+    return _mail_local_to_server(t, off)
+
+
+def _mail_follow_info(c, u, m) -> dict:
+    """읽기 화면의 🚩·⏰ 표시 — 오늘(보는 사람 소속) · 기한 지남 · 다시 알림 시각."""
+    try:
+        off = _mail_off(c, u)
+        today = _mail_local_today(off)
+        due = (m.get("flag_due") or "")
+        return {"today": today, "due": due, "late": bool(due and due < today),
+                "snz": _mail_local_label(m.get("snooze_until") or "", off)}
+    except Exception:
+        return {"today": "", "due": "", "late": False, "snz": ""}
+
+
+def _mail_ids_form(form) -> list:
+    out = []
+    for x in str(form.get("ids") or "").split(","):
+        x = x.strip()
+        if x.isdigit():
+            out.append(int(x))
+    return out[:500]
+
+
+@app.post("/mail/flag")
+async def mail_flag_route(req: Request):
+    """🚩 기한 정하기·풀기 — ids=1,2 · due=today|tomorrow|fri|nextmon|YYYY-MM-DD|''(풀기)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    ids = _mail_ids_form(form)
+    key = (form.get("due") or "").strip()
+    with db_session() as c:
+        off = _mail_off(c, u)
+        due = _mail_due_from(key, off) if key else ""
+        if key and not due:
+            return JSONResponse({"ok": False, "message": "날짜를 알아보지 못했습니다."}, 400)
+        n = _mailbox.set_flag(c, u["id"], ids, due)
+    if not n:
+        return JSONResponse({"ok": False, "message": "내 메일이 아닙니다."}, 404)
+    return JSONResponse({"ok": True, "n": n, "due": due,
+                         "message": ("🚩 %s까지 — 「🚩 기한」에 모입니다" % (due[5:].replace("-", "/"))) if due else "🚩 기한을 풀었습니다"})
+
+
+@app.post("/mail/snooze")
+async def mail_snooze_route(req: Request):
+    """⏰ 다시 알림 — 그때까지 받은편지함에서 숨겼다가, 시간이 되면 안 읽음으로 돌아옴. at=1h|3h|tomorrow|nextmon|YYYY-MM-DDTHH:MM|''(풀기)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    ids = _mail_ids_form(form)
+    key = (form.get("at") or "").strip()
+    with db_session() as c:
+        off = _mail_off(c, u)
+        until = _mail_snooze_from(key, off) if key else ""
+        if key and not until:
+            return JSONResponse({"ok": False, "message": "지난 시각이거나 알아보지 못한 시각입니다."}, 400)
+        n = _mailbox.set_snooze(c, u["id"], ids, until)
+    if not n:
+        return JSONResponse({"ok": False, "message": "내 받은 메일이 아닙니다."}, 404)
+    return JSONResponse({"ok": True, "n": n, "until": until,
+                         "message": ("⏰ %s에 다시 알려 드립니다 — 그때까지 받은편지함에서 숨김" % _mail_local_label(until, off)) if until
+                         else "⏰ 다시 알림을 풀었습니다 — 받은편지함에 바로 보입니다"})
 
 
 @app.post("/mail/{mail_id:int}/notspam")

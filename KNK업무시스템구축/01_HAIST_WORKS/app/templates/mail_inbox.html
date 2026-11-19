@@ -253,6 +253,19 @@
   .mbx-sel button.del{color:#b91c1c;border-color:#fecaca}
   .mbx-sel button.lnk{border:0;background:none;color:#1d4ed8;padding:4px 4px}
   .mbx-sel .sp{flex:1}
+  /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 · 종류 꼬리표 · 새 메일 띠 */
+  .mbx-flag{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:#fff7ed;color:#c2410c;white-space:nowrap}
+  .mbx-flag.today{background:#fef3c7;color:#92400e}
+  .mbx-flag.late{background:#fee2e2;color:#b91c1c}
+  .mbx-snz{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:#ede9fe;color:#5b21b6;white-space:nowrap}
+  .mbx-snz.back{background:#f3e8ff;color:#7e22ce}
+  .mbx-kind{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;white-space:nowrap}
+  .mbx-kind.k-견적{background:#eff6ff;color:#1d4ed8}.mbx-kind.k-발주{background:#ecfdf5;color:#047857}.mbx-kind.k-세금계산서{background:#fef3c7;color:#92400e}
+  .mbx-chip.kind{border-style:dashed}
+  .mbx-chip.kind.on{border-style:solid}
+  .mbx-newbar{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px;background:#2563eb;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;position:sticky;top:0;z-index:5}
+  .mbx-newbar[hidden]{display:none}
+  .mbx-newbar:hover{filter:brightness(1.06)}
   .mbx-arc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;white-space:nowrap}
   @media(max-width:640px){.mbx-ck{width:20px;height:20px;opacity:.6}}
   .mbx-morerows .btn{min-width:220px}
@@ -330,7 +343,7 @@
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
-  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false) and not cur_arc|default(false) and not cur_reply|default(false)) %}
+  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false) and not cur_arc|default(false) and not cur_reply|default(false) and not cur_flag|default(false) and not cur_snz|default(false)) %}
 
   {# ── 상단 컴팩트 메뉴: 검색 + 액션 (메뉴 최대한 상단) ── #}
   <div class="mbx-topbar">
@@ -417,6 +430,8 @@
       </a>
       <a href="/mail/inbox?star=1" class="mbx-fold {{ 'on' if cur_star|default(false) else '' }}"{% if box=='in' %} data-drop="star" data-dname="중요"{% endif %} title="★ 를 눌러 중요 표시한 메일"><span class="fname">⭐ 중요</span></a>
       <a href="/mail/inbox?reply=1" class="mbx-fold {{ 'on' if cur_reply|default(false) else '' }}" title="최근 {{ 14 }}일 받은 메일 중 회신이 필요해 보이는 메일(요청·질문 문구 · 아직 답장 안 함) — 규칙으로 추정"><span class="fname">↩ 회신 필요</span>{% if reply_n|default(0) %}<span class="fbadge">{{ reply_n }}</span>{% endif %}</a>
+      <a href="/mail/inbox?flag=1" class="mbx-fold {{ 'on' if cur_flag|default(false) else '' }}" title="🚩 기한을 정한 메일 — 기한 순 · 오늘까지(지난 것 포함)는 빨간 숫자"><span class="fname">🚩 기한</span>{% if flag_due_n|default(0) %}<span class="fbadge">{{ flag_due_n }}</span>{% elif flag_n|default(0) %}<span class="cnt">{{ flag_n }}</span>{% endif %}</a>
+      <a href="/mail/inbox?snz=1" class="mbx-fold {{ 'on' if cur_snz|default(false) else '' }}" title="⏰ 다시 알림 — 정한 때까지 받은편지함에서 숨겨 둔 메일 · 시간이 되면 안 읽음으로 돌아옴"><span class="fname">⏰ 다시 알림</span>{% if snz_n|default(0) %}<span class="cnt">{{ snz_n }}</span>{% endif %}</a>
       </div>
       <div class="mbx-fold-h mbx-sec-h" data-sec="box" role="button" tabindex="0" title="눌러서 접기·펼치기" onclick="mbxSecToggle('box')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mbxSecToggle('box')}" style="margin-top:4px"><span class="mf-tg">▾</span>메일함</div>
       <div class="mbx-sec" data-sec="box">
@@ -560,6 +575,11 @@
       <a href="/mail/inbox" class="mbx-res-x">✕ 찾기 끝</a>
     </div>
     {% endif %}
+    {% if cur_flag|default(false) %}
+    <div class="mf-cur">🚩 <b>기한</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 기한 순 · 지난 것은 빨강 · 메일을 열어 「🚩 기한·알림」에서 바꾸거나 풀기</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
+    {% elif cur_snz|default(false) %}
+    <div class="mf-cur">⏰ <b>다시 알림</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 위 = 기다리는 메일(그때까지 받은편지함에서 숨김) · 아래 = 최근 3일 안에 돌아온 메일</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
+    {% endif %}
     {% if cur_arc|default(false) %}
     <div class="mf-cur">📦 <b>보관함</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 받은편지함에서만 빠진 메일(지우지 않음) · 「📥 받은편지함으로」로 되돌림</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
     {% endif %}
@@ -585,9 +605,12 @@
       <a href="{{ _b }}&att=1{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if cur_att|default(false) else '' }}" title="첨부파일이 있는 메일만">📎 첨부</a>
       <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ '' if cur_noad|default(false) else '&noad=1' }}" class="mbx-chip {{ 'on' if cur_noad|default(false) else '' }}" title="은행·쇼핑몰·소식지처럼 사람이 아닌 곳에서 온 메일을 빼고 보기(지우지 않음) — 누를 때마다 켜고 끔">🔕 광고·알림 빼기</a>
       <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}{{ _na }}" class="mbx-chip {{ 'on' if thread_on|default(true) else '' }}" title="같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
+      {% set _bn = '/mail/inbox?' ~ (base_nc|default('')) %}
+      {% for _k, _ic in (('견적','💲'),('발주','🛒'),('세금계산서','🧾')) %}<a href="{{ _bn }}{{ ('&cat=' ~ _k) if cur_cat|default('') != _k else '' }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ _na }}" class="mbx-chip kind {{ 'on' if cur_cat|default('') == _k else '' }}" title="{{ _k }} 메일만 모아 보기(AI·내 규칙 종류 + 제목 낱말) · 다시 누르면 풂">{{ _ic }} {{ _k }}{{ ' ✕' if cur_cat|default('') == _k else '' }}</a>{% endfor %}
       <span class="mbx-chips-n" title="지금 조건에 맞는 메일">{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>
     </div>
     {% endif %}
+    {% if box=='in' %}<div class="mbx-newbar" id="mbxNew" hidden onclick="location.reload()" title="눌러서 새 메일 보기">📥 새 메일이 왔습니다 <span id="mbxNewN"></span> — 눌러서 보기</div>{% endif %}
     {% if mails %}
     <div class="mbx-list">
       {% if box=='in' %}
@@ -1234,6 +1257,35 @@ async function mbxDropDo(tg, ids){
     if(!fs.length){ item('(옮길 수 있는 폴더 없음)', null, {cls:'dis'}); return; }
     fs.forEach(function(f){ item((f.classList.contains('mf-k')?'　└ ':'')+'📁 '+(f.dataset.dname||''), function(){ mbxDropDo(f, ids); }, {cls: f.classList.contains('mf-k')?'sub':''}); });
   }
+  /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 (날짜·시각은 서버가 보는 사람 소속으로 계산) */
+  window.mbxFollowMenu=function(kind, anchorEl, ids){
+    if(!ids.length) return need();
+    menu.innerHTML='';
+    if(kind==='flag'){
+      head('🚩 기한 — '+ids.length+'통');
+      [['today','오늘까지'],['tomorrow','내일까지'],['fri','이번 주 금요일까지'],['nextmon','다음 주 월요일까지']].forEach(function(o){ item(o[1], function(){ mbxFollowDo('flag', ids, o[0]); }); });
+      var dd=document.createElement('div'); dd.className='i'; dd.innerHTML='<span>📅 날짜 고르기</span>';
+      var di=document.createElement('input'); di.type='date'; di.style.cssText='font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:2px 4px';
+      di.addEventListener('click', function(e){ e.stopPropagation(); }); di.addEventListener('change', function(){ if(di.value){ closeMenu(); mbxFollowDo('flag', ids, di.value); } });
+      dd.appendChild(di); menu.appendChild(dd);
+      hr(); item('🚩 기한 풀기', function(){ mbxFollowDo('flag', ids, ''); });
+    } else {
+      head('⏰ 다시 알림 — 그때까지 받은편지함에서 숨김');
+      [['1h','1시간 뒤'],['3h','3시간 뒤'],['tomorrow','내일 아침 9시'],['nextmon','다음 주 월요일 9시']].forEach(function(o){ item(o[1], function(){ mbxFollowDo('snz', ids, o[0]); }); });
+      hr(); item('⏰ 다시 알림 풀기', function(){ mbxFollowDo('snz', ids, ''); });
+    }
+    var rr=(anchorEl||document.body).getBoundingClientRect(); place(rr.left+40, rr.top+20);
+  };
+  window.mbxFollowDo=async function(kind, ids, val){
+    var fd=new FormData(); fd.append('ids', ids.join(',')); fd.append(kind==='flag'?'due':'at', val);
+    try{ var r=await fetch(kind==='flag'?'/mail/flag':'/mail/snooze',{method:'POST',body:fd}); var j=await r.json();
+      if(!j.ok){ mbxToast('⚠ '+(j.message||'하지 못했습니다'), null, true); return; }
+      mbxToast(j.message||'됐습니다');
+      if(kind==='snz' && val && !window._mbxSnzView){ ids.forEach(function(i){ mbxRowsOf(i).forEach(function(x){ x.remove(); }); }); }
+      else { setTimeout(function(){ location.reload(); }, 700); }
+      mbxSideRefresh(); if(window.mailCountsRefresh) mailCountsRefresh();
+    }catch(e){ mbxToast('⚠ 네트워크 오류', null, true); }
+  };
   window.mbxMoveMenu=function(anchorEl, ids){
     if(!ids.length) return need();
     menu.innerHTML=''; head('이 메일만 다른 폴더로 — '+ids.length+'통'); folderItems(ids);
@@ -1258,6 +1310,8 @@ async function mbxDropDo(tg, ids){
     hr();
     item(unread ? '✓ 읽음으로' : '● 안 읽음으로', function(){ readToggle(ids); }, {k:'U'});
     item(star ? '☆ 중요 풀기' : '⭐ 중요 표시', function(){ mbxCmd('star', ids); }, {k:'Insert'});
+    item('🚩 기한 정하기 ▸', function(){ setTimeout(function(){ mbxFollowMenu('flag', r, ids); }, 0); });
+    if(!out) item('⏰ 다시 알림 ▸', function(){ setTimeout(function(){ mbxFollowMenu('snz', r, ids); }, 0); });
     hr();
     item(window._mbxCurArc ? '📥 받은편지함으로' : '📦 보관', function(){ mbxCmd('archive', ids); }, {k:'E'});
     item('📁 이 메일만 다른 폴더로 ▸', function(){ setTimeout(function(){ mbxMoveMenu(r, ids); }, 0); });
@@ -1360,6 +1414,21 @@ function mfToggle(ev, key){
         if(!on.closest('.mbx-side-top') && (a.top<t0 || a.bottom>b.bottom)){ side.scrollTop += (a.top-t0) - 40; } }
     }, 60);
   }catch(e){}
+})();
+/* 11-19 2단계 — 새 메일이 오면 목록 위 파란 띠 「📥 새 메일이 왔습니다 — 눌러서 보기」 (쓰던 화면을 갑자기 바꾸지 않음) */
+(function(){
+  window._mbxSnzView = {{ 'true' if cur_snz|default(false) else 'false' }};
+  var bar=document.getElementById('mbxNew'); if(!bar) return;
+  // 기준 = 이 화면을 연 직후 처음 물어본 「맨 위 새 메일 번호」(폴더·기한 보기처럼 걸러진 목록에서도 헷갈리지 않게)
+  var baseId=null, base=null;
+  document.addEventListener('knkmail:counts', function(e){
+    var j=e.detail||{}; var lt=j.latest||null;
+    if(baseId===null){ baseId=(lt && lt.id) || 0; base=j.unread||0; return; }
+    if(!lt || !lt.id || lt.id<=baseId) return;
+    var n=Math.max(1, (j.unread||0)-base);
+    document.getElementById('mbxNewN').textContent='('+n+'통)';
+    bar.hidden=false;
+  });
 })();
 </script>
 </body></html>

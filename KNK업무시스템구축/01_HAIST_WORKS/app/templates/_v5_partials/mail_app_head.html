@@ -109,6 +109,7 @@
   <a href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
   <a href="/mail/inbox?star=1" data-k="star" data-drop="star" data-dname="중요" title="⭐ 중요 표시한 메일 — 메일을 끌어 여기에 놓으면 중요 표시"><span class="ic">⭐</span><span class="t">중요</span></a>
   <a href="/mail/inbox?reply=1" data-k="reply" title="회신이 필요해 보이는 메일(추정)"><span class="ic">↩</span><span class="t">회신 필요</span><span class="bd r" id="mtcReply" hidden></span></a>
+  <a href="/mail/inbox?flag=1" data-k="flag" title="🚩 기한을 정한 메일 — 빨간 숫자 = 오늘까지(지난 것 포함)"><span class="ic">🚩</span><span class="t">기한</span><span class="bd r" id="mtcFlag" hidden></span></a>
   <span class="sep"></span>
   <a href="/mail/sent" data-k="sent" title="보낸편지함"><span class="ic">📤</span><span class="t">보낸편지함</span></a>
   <a href="/mail/drafts" data-k="draft" title="쓰다가 저장한 메일"><span class="ic">📝</span><span class="t">임시보관함</span><span class="bd g" id="mtcDrafts" hidden></span></a>
@@ -148,7 +149,7 @@
     else if(p.indexOf('/mail/trash')===0) k='trash';
     else if(p.indexOf('/mail/blocked')===0) k='blocked';
     else if(p.indexOf('/mail/tools')===0) k='tools';
-    else if(p.indexOf('/mail/inbox')===0){ k = /[?&]star=1/.test(q) ? 'star' : (/[?&]reply=1/.test(q) ? 'reply' : (/[?&]arc=1/.test(q) ? 'arc' : (/[?&](fd|q|who|dom|cust)=/.test(q) ? '' : 'in'))); }
+    else if(p.indexOf('/mail/inbox')===0){ k = /[?&]star=1/.test(q) ? 'star' : (/[?&]reply=1/.test(q) ? 'reply' : (/[?&]flag=1/.test(q) ? 'flag' : (/[?&]arc=1/.test(q) ? 'arc' : (/[?&](fd|q|who|dom|cust|snz)=/.test(q) ? '' : 'in')))); }
     if(k){ var a=document.querySelector('#mailTools [data-k="'+k+'"]'); if(a) a.classList.add('on'); }
   }catch(e){}
 })();
@@ -156,13 +157,33 @@
   function setH(){ var f=document.querySelector('.mail-app-fixed'); if(f) document.documentElement.style.setProperty('--mail-fixed-h', f.getBoundingClientRect().height+'px'); }
   setH(); window.addEventListener('resize', setH); window.addEventListener('load', setH);
 })();
-window.mailCountsRefresh=async function(){
-  try{ var r=await fetch('/api/mail/counts',{headers:{'X-Requested-With':'fetch'}}); if(!r.ok) return; var j=await r.json();
+window.mailCountsRefresh=async function(lite){
+  try{ var r=await fetch('/api/mail/counts'+(lite?'?lite=1':''),{headers:{'X-Requested-With':'fetch'}}); if(!r.ok) return; var j=await r.json();
     function put(id, n){ var e=document.getElementById(id); if(!e) return; e.textContent = n>999 ? '999+' : String(n||0); e.hidden=!n; }
-    put('mtcUnread', j.unread); put('mtcReply', j.reply); put('mtcDrafts', j.drafts); put('mtcSpam', j.spam);
+    put('mtcUnread', j.unread); if(!lite) put('mtcReply', j.reply); put('mtcDrafts', j.drafts); put('mtcSpam', j.spam); put('mtcFlag', j.flag_due);
+    // 11-19 2단계 — 창 제목에 안 읽은 숫자 · 새 메일이면 받은편지함에 띠 · (켜 둔 사람만) 바탕화면 알림
+    try{ var t=document.title.replace(/^\(\d+\+?\)\s*/,''); document.title=(j.unread? '('+(j.unread>999?'999+':j.unread)+') ' : '')+t; }catch(_){}
+    try{ document.dispatchEvent(new CustomEvent('knkmail:counts',{detail:j})); }catch(_){}
+    try{ mailNotifyNew(j); }catch(_){}
   }catch(e){}
 };
 setTimeout(window.mailCountsRefresh, 200);
+// 1분마다 가볍게 다시(화면이 보일 때만 · 숨겨져 있어도 알림 켠 사람은 5분마다)
+(function(){ var last=Date.now();
+  setInterval(function(){ var vis=(document.visibilityState==='visible'); var on=false; try{ on=localStorage.getItem('knkmail.notify')==='1'; }catch(_){}
+    if(vis || (on && Date.now()-last>=290000)){ last=Date.now(); mailCountsRefresh(true); } }, 60000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ last=Date.now(); mailCountsRefresh(true); } });
+})();
+/* 새 메일 바탕화면 알림 — ⚙ 설정·정리에서 켠 사람만(이 컴퓨터) · 창이 안 보일 때만 · 같은 메일은 한 번만(창이 여러 개여도) */
+window.mailNotifyNew=function(j){
+  var lt=j && j.latest; if(!lt || !lt.id) return;
+  var on=false, seen=0; try{ on=localStorage.getItem('knkmail.notify')==='1'; seen=parseInt(localStorage.getItem('knkmail.notified')||'0',10)||0; }catch(_){}
+  if(!seen){ try{ localStorage.setItem('knkmail.notified', String(lt.id)); }catch(_){} return; }   // 처음엔 기준만 잡음
+  if(lt.id<=seen) return;
+  try{ localStorage.setItem('knkmail.notified', String(lt.id)); }catch(_){}
+  if(!on || !('Notification' in window) || Notification.permission!=='granted' || document.visibilityState==='visible') return;
+  try{ var n=new Notification('📥 새 메일 — '+(lt.from||''), {body: lt.subj||'', tag:'knkmail-new'}); n.onclick=function(){ try{ window.focus(); }catch(_){} location.href='/mail/inbox'; n.close(); }; }catch(_){}
+};
 window.mailBigShowTop=function(){ var on=false; try{ on=localStorage.getItem('knkmail.big')==='1'; }catch(e){} var b=document.getElementById('mtBigTop'); if(b) b.classList.toggle('on', on); };
 window.mailBigToggle=function(){
   try{ var on=localStorage.getItem('knkmail.big')==='1'; if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){}
