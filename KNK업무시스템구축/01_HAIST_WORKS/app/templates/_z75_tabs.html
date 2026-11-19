@@ -1,0 +1,15 @@
+{# z1191z75 (대표 2026-11-19): 매출영업센터 책갈피 — 🔢 숫자로 보기(/sales) · 📈 한눈에 보기(/sales/glance) · 기간은 그대로 따라감 #}
+{% set _z75on = z75_on|default('num') %}
+<nav class="z75-tabs" aria-label="매출영업센터 보기 방식">
+  <a href="/sales?{{ z75q }}" class="z75-tab{% if _z75on == 'num' %} on{% endif %}"{% if _z75on == 'num' %} aria-current="page"{% endif %}>🔢 숫자로 보기</a>
+  <a href="/sales/glance?{{ z75q }}" class="z75-tab{% if _z75on == 'glance' %} on{% endif %}"{% if _z75on == 'glance' %} aria-current="page"{% endif %}>📈 한눈에 보기 <span class="z75-tab-s">그래프</span></a>
+</nav>
+<style>
+.z75-tabs { display:flex; gap:4px; align-items:flex-end; margin:12px var(--content-pad, 24px) 0; border-bottom:2px solid #cbd5e1; }
+.z75-tab { position:relative; top:2px; padding:9px 18px 8px; border:2px solid #cbd5e1; border-bottom:0; border-radius:10px 10px 0 0;
+  background:#eef1f4; color:#475569; font-size:13.5px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.z75-tab:hover { background:#f8fafc; color:#1d4ed8; }
+.z75-tab.on { background:#fff; color:#0f172a; border-color:#cbd5e1; border-bottom:2px solid #fff; z-index:1; box-shadow:inset 0 3px 0 #A5282C; }
+.z75-tab-s { font-size:11px; font-weight:700; color:#64748b; margin-left:2px; }
+@media (max-width: 600px) { .z75-tab { padding:8px 12px 7px; font-size:12.5px; } .z75-tab-s { display:none; } }
+</style>

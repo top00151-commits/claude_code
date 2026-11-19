@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>매출영업센터 · 한눈에 보기 · KNK HAIST WORKS</title>
+{# z1191z75 (대표 2026-11-19): 「이 페이지를 한번에 쉽게 알아볼수있게 책갈피 형태로 페이지를 한장더 … 그래프나 다른 방식으로 …
+   누구나 쉽게 이해하고 알아볼수있게」 — 숫자는 매출 홈(/sales)과 같은 계산(_sales_3way) · 읽기만 #}
+<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
+{% include "_v5_partials/styles.html" %}
+<style>
+body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --g-bg:#f8fafc; }
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
+.z75-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px var(--content-pad) 0; font-size:12.5px; color:var(--g-ink3); }
+.z75-bar select { padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; }
+.z75-bar b { color:var(--g-ink2); }
+.z75-warn { margin:8px var(--content-pad) 0; padding:7px 12px; border:1px solid #fcd34d; background:#fffbeb; color:#b91c1c; border-radius:8px; font-size:12px; font-weight:700; }
+.z75-ask { margin:16px var(--content-pad) 6px; font-size:13px; font-weight:800; color:var(--g-ink2); }
+.z75-ask span { font-weight:600; color:var(--g-ink3); font-size:12px; margin-left:6px; }
+/* 위 3장 = 무엇으로 볼지 고르는 단추 */
+.z75-kpis { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; margin:0 var(--content-pad); }
+.z75-k { text-align:left; cursor:pointer; background:#fff; border:2px solid var(--g-line); border-radius:14px; padding:14px 18px 12px; font:inherit; color:inherit; position:relative; transition:border-color .15s, box-shadow .15s, transform .15s; }
+.z75-k:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(15,23,42,.08); }
+.z75-k[aria-pressed="true"] { border-color:var(--kc); box-shadow:0 0 0 3px color-mix(in srgb, var(--kc) 18%, transparent); background:color-mix(in srgb, var(--kc) 5%, #fff); }
+.z75-k[aria-pressed="true"]::after { content:"✓ 보는 중"; position:absolute; right:12px; top:10px; font-size:11px; font-weight:800; color:#fff; background:var(--kc); border-radius:999px; padding:2px 8px; }
+.z75-k .l { font-size:13px; font-weight:800; color:var(--kc); }
+.z75-k .l small { font-weight:600; color:var(--g-ink3); margin-left:4px; }
+.z75-k .v { font-size:34px; font-weight:900; color:var(--g-ink); margin-top:4px; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+.z75-k .d { font-size:12px; color:var(--g-ink3); margin-top:2px; }
+/* 한 줄 요약 */
+.z75-sum { margin:14px var(--content-pad) 0; padding:12px 16px; border-radius:12px; background:color-mix(in srgb, var(--kc) 8%, #fff); border:1px solid color-mix(in srgb, var(--kc) 30%, #fff); font-size:14.5px; color:var(--g-ink); line-height:1.6; }
+.z75-sum b { color:var(--kc); }
+.z75-grid { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:14px; margin:14px var(--content-pad) 0; }
+.z75-grid.b { grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); }
+.z75-card { background:#fff; border:1px solid var(--g-line); border-radius:14px; padding:16px 18px; min-width:0; }
+.z75-card h3 { margin:0 0 4px; font-size:15px; font-weight:800; color:var(--g-ink); display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.z75-card h3 .s { font-size:12px; font-weight:600; color:var(--g-ink3); }
+.z75-card h3 a { margin-left:auto; font-size:12px; font-weight:800; color:#1d4ed8; text-decoration:none; }
+.z75-card h3 a:hover { text-decoration:underline; }
+.z75-foot { margin-top:10px; font-size:12.5px; color:var(--g-ink2); }
+.z75-foot b { color:var(--g-ink); }
+/* 월별 막대 */
+.z75-mc { display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:6px; align-items:end; margin-top:12px; }
+.z75-mcol { display:flex; flex-direction:column; align-items:center; min-width:0; cursor:default; }
+.z75-mval { font-size:11.5px; font-weight:800; color:var(--g-ink2); white-space:nowrap; height:18px; font-variant-numeric:tabular-nums; }
+.z75-mwrap { height:190px; width:100%; display:flex; align-items:flex-end; justify-content:center; background:linear-gradient(to top, #f1f5f9 1px, transparent 1px) 0 0/100% 25%; border-bottom:2px solid #cbd5e1; }
+.z75-mbar { width:72%; max-width:46px; border-radius:6px 6px 0 0; background:var(--kc); min-height:0; transition:height .3s; }
+.z75-mlab { font-size:12px; font-weight:700; color:var(--g-ink3); margin-top:5px; }
+.z75-mcol.off .z75-mbar { opacity:.28; }
+.z75-mcol.off .z75-mval, .z75-mcol.off .z75-mlab { opacity:.5; }
+.z75-mcol.fut .z75-mlab { color:#cbd5e1; }
+.z75-mcol.best .z75-mlab { color:var(--kc); }
+.z75-mcol:hover .z75-mbar { filter:brightness(1.12); }
+/* 가로 막대(사업부·고객사) */
+.z75-hb { display:flex; flex-direction:column; gap:9px; margin-top:12px; }
+.z75-hr { display:grid; grid-template-columns:minmax(92px, 30%) minmax(0,1fr) auto; gap:10px; align-items:center; }
+.z75-hn { font-size:13px; font-weight:700; color:var(--g-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.z75-hn a { color:inherit; text-decoration:none; }
+.z75-hn a:hover { color:#1d4ed8; text-decoration:underline; }
+.z75-hn .rk { display:inline-block; min-width:20px; color:var(--g-ink3); font-weight:800; }
+.z75-ht { height:22px; background:#f1f5f9; border-radius:6px; overflow:hidden; }
+.z75-hf { height:100%; background:var(--kc); border-radius:6px; opacity:.88; }
+.z75-hv { min-width:104px; text-align:right; font-size:13px; font-weight:800; color:var(--g-ink); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.z75-hv i { display:inline-block; min-width:44px; font-style:normal; font-weight:700; font-size:12px; color:var(--kc); margin-left:6px; }
+.z75-kid { grid-column:2 / 4; margin-top:-5px; font-size:11.5px; color:var(--g-ink3); line-height:1.5; }
+.z75-big { font-size:36px; font-weight:900; color:var(--g-ink); letter-spacing:-.5px; }
+.z75-big small { font-size:14px; font-weight:700; color:var(--g-ink3); margin-left:4px; }
+/* 연도별 */
+.z75-yc { display:flex; gap:14px; align-items:flex-end; margin-top:10px; height:150px; padding:0 4px; border-bottom:2px solid #cbd5e1; }
+.z75-ycol { flex:1; max-width:90px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+.z75-ycol .yv { font-size:12px; font-weight:800; color:var(--g-ink2); white-space:nowrap; margin-bottom:3px; }
+.z75-ycol .yb { width:70%; border-radius:6px 6px 0 0; background:var(--kc); opacity:.35; }
+.z75-ycol.sel .yb { opacity:1; }
+.z75-ylab { display:flex; gap:14px; padding:4px 4px 0; }
+.z75-ylab span { flex:1; max-width:90px; text-align:center; font-size:12px; font-weight:800; color:var(--g-ink3); }
+.z75-ylab span.sel { color:var(--g-ink); }
+/* 진행 프로젝트 */
+.z75-pl { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.z75-pl li { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; font-size:12.5px; padding:7px 10px; border-radius:8px; background:var(--g-bg); }
+.z75-pl a { color:#1d4ed8; font-weight:800; text-decoration:none; font-family:ui-monospace, monospace; }
+.z75-pl .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--g-ink2); }
+.z75-pl .du { white-space:nowrap; font-weight:700; color:var(--g-ink2); }
+.z75-pl .du.late { color:#b91c1c; }
+.z75-pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:800; background:#fee2e2; color:#b91c1c; margin-left:8px; vertical-align:middle; }
+.z75-empty { padding:24px 0; text-align:center; color:var(--g-ink3); font-size:13px; }
+.z75-note { margin:14px var(--content-pad) 28px; font-size:12px; color:var(--g-ink3); line-height:1.7; }
+@media (max-width: 1100px) {
+  .z75-grid, .z75-grid.b { grid-template-columns:1fr; }
+  .z75-k .v { font-size:28px; }
+}
+@media (max-width: 760px) {
+  .z75-kpis { grid-template-columns:1fr; }
+  .z75-mc { gap:3px; }
+  .z75-mval { font-size:9.5px; writing-mode:vertical-rl; height:52px; transform:rotate(180deg); }
+  .z75-mwrap { height:150px; }
+  .z75-mlab { font-size:10.5px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  {% set active = 'sales_home' %}
+  {% set active_tab = 'sales' %}
+  {% include "_v5_partials/chrome.html" with context %}
+  <main class="main" data-dn="main" data-dn-tone="amber">
+    <header class="knk-page-head" data-dn="page-head">
+      <div>
+        <nav class="knk-breadcrumb"><b>매출영업센터</b></nav>
+        <h1 class="knk-page-title">매출영업센터</h1>
+        <p class="knk-page-meta">{{ today }} · 한눈에 보기</p>
+      </div>
+      <a href="/sales/report" style="align-self:center;padding:8px 14px;border:1px solid #1d4ed8;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:13px;text-decoration:none;white-space:nowrap;">📊 매출 보고서</a>
+    </header>
+    {% set z75_on = 'glance' %}
+    {% set z75q = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m %}
+    {% include "_z75_tabs.html" with context %}
+
+    <div class="z75-bar">
+      <span>📅 <b>기간</b></span>
+      <select id="gMode" aria-label="기간 종류">
+        <option value="year"{% if s3.mode=='year' %} selected{% endif %}>연간</option>
+        <option value="quarter"{% if s3.mode=='quarter' %} selected{% endif %}>분기별</option>
+        <option value="month"{% if s3.mode=='month' %} selected{% endif %}>월간</option>
+      </select>
+      <select id="gYear" aria-label="연도">
+        {% for y in year_span %}<option value="{{ y }}"{% if (y|string)==s3.sel_year %} selected{% endif %}>{{ y }}년</option>{% endfor %}
+      </select>
+      <select id="gQ" aria-label="분기"{% if s3.mode!='quarter' %} style="display:none;"{% endif %}>
+        {% for q in [1,2,3,4] %}<option value="{{ q }}"{% if (q|string)==s3.sel_q %} selected{% endif %}>{{ q }}분기</option>{% endfor %}
+      </select>
+      <select id="gM" aria-label="월"{% if s3.mode!='month' %} style="display:none;"{% endif %}>
+        {% for mm in range(1,13) %}<option value="{{ mm }}"{% if (mm|string)==s3.sel_m %} selected{% endif %}>{{ mm }}월</option>{% endfor %}
+      </select>
+      <span>· 금액은 <b>억·만 원</b>으로 줄여 보입니다(마우스를 올리면 정확한 원 단위) · 공급가(부가세 제외) · 외화는 그달 기준환율로 원화</span>
+    </div>
+    {% if s3.missing_fx or s3.fx_fallback %}
+    <div class="z75-warn">⚠ {% if s3.missing_fx %}환율 미입력: {{ s3.missing_fx|join(', ') }}(원화 0으로 계산) {% endif %}{% if s3.fx_fallback %}기준환율 미입력 달: {% for f in s3.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산 중){% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</div>
+    {% endif %}
+
+    <div class="z75-ask">무엇으로 볼까요?<span>카드를 누르면 아래 그래프가 모두 그 기준으로 바뀝니다</span></div>
+    <div class="z75-kpis" role="group" aria-label="볼 기준 고르기">
+      {% for g in G %}
+      <button type="button" class="z75-k" data-v="{{ g.key }}" style="--kc:{{ g.color }};" aria-pressed="{{ 'true' if g.key == view else 'false' }}"
+              title="{{ g.label }} {{ '{:,.0f}'.format(g.total) }}원">
+        <div class="l">{{ g.label }}<small>· {{ g.basis }}</small></div>
+        <div class="v">{{ g.txt }}</div>
+        <div class="d">{{ s3.period_label }}에 {{ g.desc }}{% if g.so or g.co %} · {% if g.so %}수주 {{ '{:,}'.format(g.so) }}건{% endif %}{% if g.so and g.co %} · {% endif %}{% if g.co %}소모품 {{ g.co }}건{% endif %}{% endif %}</div>
+      </button>
+      {% endfor %}
+    </div>
+
+    {% set P = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m %}
+    {% for g in G %}
+    <section class="z75-v" data-v="{{ g.key }}" style="--kc:{{ g.color }};"{% if g.key != view %} hidden{% endif %}>
+      <div class="z75-sum">📌 <b>{{ s3.period_label }} {{ g.label }} {{ g.txt }}</b> ({{ g.desc }}){% if g.summary %} — {{ g.summary }}{% endif %}</div>
+
+      <div class="z75-grid">
+        <div class="z75-card">
+          <h3>달마다 얼마나? <span class="s">{{ s3.sel_year }}년 1~12월 · {{ g.label }}{% if s3.mode != 'year' %} · 고른 기간은 진하게{% endif %}</span></h3>
+          <div class="z75-mc">
+            {% for x in g.months %}
+            <div class="z75-mcol{% if not x.in %} off{% endif %}{% if x.future %} fut{% endif %}{% if g.best and g.best.m == x.m %} best{% endif %}"
+                 title="{{ x.m }}월 {{ '{:,.0f}'.format(x.v) }}원 · 1~{{ x.m }}월 누적 {{ x.acc_txt }}">
+              <div class="z75-mval">{% if x.v %}{{ x.txt }}{% endif %}</div>
+              <div class="z75-mwrap"><div class="z75-mbar" style="height:{{ x.h }}%;"></div></div>
+              <div class="z75-mlab">{{ x.m }}월</div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="z75-foot">
+            {% if g.best %}가장 많은 달 <b>{{ g.best.m }}월 {{ g.best.txt }}</b> · 금액이 있는 {{ g.n_done }}개월 평균 <b>{{ g.avg_txt }}</b> · {{ s3.sel_year }}년 누적 <b>{{ g.months[-1].acc_txt }}</b>
+            {% else %}이 해에는 아직 금액이 없습니다.{% endif %}
+          </div>
+        </div>
+
+        <div class="z75-card">
+          <h3>사업부별 <span class="s">{{ s3.period_label }} · 큰 순</span></h3>
+          {% if g.biz %}
+          <div class="z75-hb">
+            {% for b in g.biz %}
+            <div class="z75-hr" title="{{ b.label }} {{ '{:,.0f}'.format(b.v) }}원">
+              <div class="z75-hn"><a href="/sales/drill?biz={{ b.biz }}&amp;{{ P }}">{{ b.label }}</a></div>
+              <div class="z75-ht"><div class="z75-hf" style="width:{{ b.w }}%;"></div></div><span class="z75-hv">{{ b.txt }}<i>{{ ('%.0f'|format(b.pct) ~ '%') if b.pct >= 1 else '1% 미만' }}</i></span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="z75-foot">사업부 이름을 누르면 그 사업부의 고객사별 금액이 나옵니다.</div>
+          {% else %}<div class="z75-empty">이 기간에는 금액이 없습니다</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="z75-grid b">
+        <div class="z75-card">
+          <h3>어느 고객사에서? <span class="s">{{ s3.period_label }} · 큰 순 · 등록명 기준</span><a href="/sales/drill?{{ P }}">고객사 전체 {{ g.n_cust }}곳 보기 ›</a></h3>
+          {% if g.cust %}
+          <div class="z75-hb">
+            {% for cst in g.cust %}
+            <div class="z75-hr" title="{{ cst.name }} {{ '{:,.0f}'.format(cst.v) }}원">
+              <div class="z75-hn"><span class="rk">{{ loop.index }}</span><a href="/sales/drill?cust={{ cst.name|urlencode }}&amp;{{ P }}">{{ cst.name }}</a></div>
+              <div class="z75-ht"><div class="z75-hf" style="width:{{ cst.w }}%;"></div></div><span class="z75-hv">{{ cst.txt }}<i>{{ ('%.0f'|format(cst.pct) ~ '%') if cst.pct >= 1 else '1% 미만' }}</i></span>
+              {% if cst.kids %}<div class="z75-kid">└ {% for k in cst.kids %}{{ k.name }} {{ k.txt }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% if g.rest_n %}<div class="z75-foot">그 밖 {{ g.rest_n }}곳 합계 <b>{{ g.rest_txt }}</b> ({{ '%.0f'|format(g.rest_pct) }}%)</div>{% endif %}
+          {% else %}<div class="z75-empty">이 기간에는 금액이 없습니다</div>{% endif %}
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px;min-width:0;">
+          <div class="z75-card">
+            <h3>해마다 얼마나? <span class="s">{{ g.label }}{% if s3.mode=='quarter' %} · 각 연도 {{ s3.sel_q }}분기{% elif s3.mode=='month' %} · 각 연도 {{ s3.sel_m }}월{% endif %}</span></h3>
+            {% if g.years %}
+            <div class="z75-yc">
+              {% for y in g.years %}
+              <div class="z75-ycol{% if y.sel %} sel{% endif %}" title="{{ y.year }}년 {{ '{:,.0f}'.format(y.v) }}원">
+                <div class="yv">{{ y.txt }}</div><div class="yb" style="height:{{ y.h }}%;"></div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="z75-ylab">{% for y in g.years %}<span class="{{ 'sel' if y.sel }}">{{ y.year }}</span>{% endfor %}</div>
+            {% else %}<div class="z75-empty">자료 없음</div>{% endif %}
+          </div>
+
+          <div class="z75-card">
+            <h3>지금 진행 중 <span class="s">기간과 상관없이 오늘 기준</span><a href="/sales?{{ P }}">숫자 화면에서 전체 목록 ›</a></h3>
+            <div class="z75-big">{{ open_proj.n|default(0) }}<small>개 프로젝트 · 출하 전 품목 {{ '{:,}'.format(open_proj.units|default(0)) }}개</small>{% if n_late %}<span class="z75-pill">납기 지남 {{ n_late }}개</span>{% endif %}</div>
+            {% if soon %}
+            <div class="z75-foot" style="margin-top:8px;">가까운 납기 순 5개</div>
+            <ul class="z75-pl">
+              {% for p in soon %}
+              <li><a href="/project/{{ p.pid }}">{{ p.code or '—' }}</a><span class="nm">{{ p.pname }}{% if p.cust %} · {{ p.cust }}{% endif %}</span><span class="du{% if p.due and p.due < today_iso %} late{% endif %}">{{ p.due or '납기 없음' }}{% if p.due and p.due < today_iso %} ⚠{% endif %}</span></li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+
+    <div class="z75-note">
+      · 숫자는 「🔢 숫자로 보기」와 같은 계산입니다 — 진행매출 = 출하(납품)일 · 수주매출 = 발주일 · 최종매출 = 세금계산서 발행일 기준.<br>
+      · 고객사 이름은 등록명입니다. 한 회사의 여러 사업장(예: 드림텍 본사·아산·동탄)은 합쳐서 막대 하나로 보이고, 아래 작은 글에 사업장별 금액이 나옵니다.
+    </div>
+
+    <script>
+    (function(){
+      // 기간을 바꾸면 같은 화면(한눈에 보기)으로 — 보던 기준(진행·수주·최종)은 그대로
+      var md=document.getElementById('gMode'), yr=document.getElementById('gYear'),
+          q=document.getElementById('gQ'), m=document.getElementById('gM');
+      var cur='{{ view }}';
+      function go(){
+        var mode=md.value, u='/sales/glance?mode='+encodeURIComponent(mode)+'&year='+encodeURIComponent(yr.value);
+        if(mode==='quarter' && q) u+='&q='+encodeURIComponent(q.value);
+        if(mode==='month' && m) u+='&m='+encodeURIComponent(m.value);
+        window.location.href=u+'&v='+encodeURIComponent(cur);
+      }
+      [md,yr,q,m].forEach(function(el){ if(el) el.addEventListener('change', go); });
+      // 위 카드 = 기준 고르기(누르면 아래 그래프 전부 바뀜 · 주소에도 남겨 새로고침해도 그대로)
+      var ks=document.querySelectorAll('.z75-k'), vs=document.querySelectorAll('.z75-v');
+      ks.forEach(function(k){
+        k.addEventListener('click', function(){
+          cur=k.getAttribute('data-v');
+          ks.forEach(function(x){ x.setAttribute('aria-pressed', x===k ? 'true' : 'false'); });
+          vs.forEach(function(s){ s.hidden = s.getAttribute('data-v')!==cur; });
+          try{ var u=new URL(window.location.href); u.searchParams.set('v', cur); history.replaceState(history.state, '', u.toString()); }catch(e){}
+        });
+      });
+    })();
+    </script>
+  </main>
+</div>
+</body>
+</html>

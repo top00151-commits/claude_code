@@ -193,6 +193,9 @@ a.z45-all:hover { text-decoration:underline; }
       {# z1191z17: 매출 보고서(세금계산서 기준 · 사업부·고객사·KNK VINA 2차·프로젝트 · 엑셀) #}
       <a href="/sales/report" style="align-self:center;padding:8px 14px;border:1px solid #1d4ed8;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:13px;text-decoration:none;white-space:nowrap;">📊 매출 보고서</a>
     </header>
+    {# z1191z75 (대표 11-19): 책갈피 — 🔢 숫자로 보기(이 화면) · 📈 한눈에 보기(그래프) #}
+    {% set z75q = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m %}
+    {% include "_z75_tabs.html" with context %}
 
     {# v5H226z925 (대표 지시): 매출 3지표 — 수주매출(발주일)·진행매출(출하일)·최종매출(세금계산서 발행일). 공급가(부가세 제외) #}
     <!-- KPI -->

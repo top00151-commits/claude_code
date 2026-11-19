@@ -28013,7 +28013,7 @@ _Z72_CUST_C = ("COALESCE((SELECT COALESCE(NULLIF(TRIM(cu72.alias),''), NULLIF(TR
                "WHERE cu72.id=consumable_orders.customer_id), NULLIF(TRIM(consumable_orders.customer_name),''), '')")
 
 
-def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None):
+def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=None):
     """v5H226z925 (대표 지시): 매출 홈 3지표 —
        ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
        ② 진행매출 = 출하일 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
@@ -28083,6 +28083,9 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None):
             _fr, _fym = _fx_pick(rates, _fc, dd[:7])
             if _fym and _fym != dd[:7]:
                 fx_fb.setdefault((_fc, _fym), set()).add(dd[:7])
+        if ym is not None:   # z1191z75: 한눈에 보기 — 달별 합계(모든 연도 · 연간으로 부를 때 쓴다)
+            _ymd = ym.setdefault(metric, {})
+            _ymd[dd[:7]] = _ymd.get(dd[:7], 0.0) + krw
         A = agg[metric]
         A["years"][yr] = A["years"].get(yr, 0.0) + krw
         if yr == sel:
@@ -28300,6 +28303,133 @@ async def sales_dashboard(request: Request):
                user=u, active="sales",
                proj_stats=proj_stats, sales_kpi=sales_kpi,
                s3=s3, year_span=year_span, open_proj=open_proj, today_iso=today.isoformat())
+
+
+# ── z1191z75 매출영업센터 「📊 한눈에 보기」 (대표 2026-11-19) ─────────────────────────────────────────
+#   「숫자로만 되어 있어 읽기가 불편하고 한눈에 안 들어온다 · 지금 페이지는 그냥 두고 책갈피로 한 장 더 · 그래프로 누구나 쉽게」
+#   숫자 = 매출 홈과 같은 _sales_3way(같은 기간 · 같은 줄) — 따로 다시 세지 않는다(두 화면 합계가 늘 같게).
+#   금액은 「억 · 만」으로 줄여 보이고, 정확한 원 단위는 마우스를 올리면(title) 보인다.
+_Z75_METRICS = (("prog", "진행매출", "출하(납품)한 금액", "#15803d", "출하일 기준"),
+                ("order", "수주매출", "주문(발주) 받은 금액", "#2563eb", "발주일 기준"),
+                ("final", "최종매출", "세금계산서 발행한 금액", "#b45309", "세금계산서 발행일 기준"))
+
+
+def _z75_won(v):
+    """금액을 한눈에: 368.0억 · 4,900만 · 0."""
+    try:
+        v = float(v or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    a = abs(v)
+    if a >= 1e8:
+        return "%s억" % "{:,.1f}".format(v / 1e8)
+    if a >= 1e4:
+        return "%s만" % "{:,.0f}".format(v / 1e4)
+    if a < 0.5:
+        return "0"
+    return "%s원" % "{:,.0f}".format(v)
+
+
+def _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today):
+    """한눈에 보기 화면 자료 — 지표(진행·수주·최종)마다 월별 · 사업부 · 고객사 · 연도별."""
+    sel = str(sel_year)
+    kpi = s3.get("kpi") or {}
+    out = []
+    for key, label, desc, color, basis in _Z75_METRICS:
+        total = float(kpi.get(key) or 0)
+        # 월별(고른 해 1~12월) — 고른 기간 밖의 달은 흐리게
+        md = (ymd or {}).get(key, {})
+        months, acc = [], 0.0
+        for mm in range(1, 13):
+            v = float(md.get("%s-%02d" % (sel, mm), 0.0))
+            acc += v
+            future = (sel == str(today.year) and mm > today.month) or (int(sel) > today.year if sel.isdigit() else False)
+            months.append({"m": mm, "v": v, "txt": _z75_won(v), "acc": acc, "acc_txt": _z75_won(acc),
+                           "in": _sales_period_ok(mm, mode, sel_q, sel_m), "future": future})
+        mmax = max([x["v"] for x in months] + [0.0])
+        for x in months:
+            x["h"] = round(100.0 * x["v"] / mmax, 1) if mmax > 0 and x["v"] > 0 else 0
+        done = [x for x in months if x["v"] > 0]
+        best = max(done, key=lambda x: x["v"]) if done else None
+        # 사업부(큰 순 · 0 은 뺀다)
+        brows = [b for b in (s3.get("biz_rows") or []) if float(b.get(key) or 0) > 0]
+        brows = sorted(brows, key=lambda b: -float(b.get(key) or 0))
+        bmax = max([float(b.get(key) or 0) for b in brows] + [0.0])
+        biz = [{"biz": b["biz"], "label": b["label"], "v": float(b[key]), "txt": _z75_won(b[key]),
+                "pct": (100.0 * float(b[key]) / total) if total else 0.0,
+                "w": round(100.0 * float(b[key]) / bmax, 1) if bmax else 0} for b in brows]
+        # 고객사(등록명 합산 · 종사업장은 아래 작은 글) — 매출 홈 합계와 같은 줄
+        cu, ch = {}, {}
+        for x in (lines or []):
+            if x[0] != key:
+                continue
+            cu[x[2]] = cu.get(x[2], 0.0) + x[3]
+            if len(x) > 5 and x[5]:
+                _c = ch.setdefault(x[2], {})
+                _c[x[5]] = _c.get(x[5], 0.0) + x[3]
+        cs = sorted([(n, v) for n, v in cu.items() if abs(v) >= 0.5], key=lambda t: (-t[1], t[0]))
+        top, rest = cs[:7], cs[7:]
+        cmax = max([v for _n, v in top] + [0.0])
+        cust = [{"name": n, "v": v, "txt": _z75_won(v), "pct": (100.0 * v / total) if total else 0.0,
+                 "w": round(100.0 * v / cmax, 1) if cmax > 0 and v > 0 else 0,
+                 "kids": [{"name": k, "txt": _z75_won(kv)} for k, kv in sorted(ch.get(n, {}).items(), key=lambda t: (-t[1], t[0]))]}
+                for n, v in top]
+        rest_v = sum(v for _n, v in rest)
+        # 연도별
+        yrs = sorted([{"year": y["year"], "v": float(y.get(key) or 0)} for y in (s3.get("years") or [])], key=lambda y: y["year"])
+        ymax = max([y["v"] for y in yrs] + [0.0])
+        for y in yrs:
+            y["txt"] = _z75_won(y["v"])
+            y["h"] = round(100.0 * y["v"] / ymax, 1) if ymax > 0 and y["v"] > 0 else 0
+            y["sel"] = (str(y["year"]) == sel)
+        # 한 줄 요약
+        bits = []
+        if biz:
+            bits.append("사업부 1위 %s %d%%" % (biz[0]["label"].split(" ", 1)[-1], round(biz[0]["pct"])))
+        if cust:
+            bits.append("고객사 1위 %s %d%%" % (cust[0]["name"], round(cust[0]["pct"])))
+        out.append({"key": key, "label": label, "desc": desc, "color": color, "basis": basis,
+                    "total": total, "txt": _z75_won(total),
+                    "so": int(kpi.get("%s_so" % key) or 0), "co": int(kpi.get("%s_co" % key) or 0),
+                    "months": months, "best": best, "avg_txt": _z75_won(sum(x["v"] for x in done) / len(done)) if done else "0",
+                    "n_done": len(done),
+                    "biz": biz, "cust": cust, "rest_n": len(rest), "rest_txt": _z75_won(rest_v),
+                    "rest_pct": (100.0 * rest_v / total) if total else 0.0, "n_cust": len(cs),
+                    "years": yrs, "summary": " · ".join(bits)})
+    return out
+
+
+@app.get("/sales/glance", response_class=HTMLResponse)
+async def sales_glance_page(request: Request):
+    """z1191z75: 매출영업센터 「📊 한눈에 보기」(읽기만) — 매출 홈과 같은 숫자를 그래프로."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    qp = request.query_params
+    mode, sel_year, sel_q, sel_m = _z45_period(qp)
+    view = (qp.get("v") or "prog").strip()
+    if view not in ("prog", "order", "final"):
+        view = "prog"
+    today = date.today()
+    oi_map, _pi = _board_tax_oi_map()
+    lines, ymd = [], {}
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+        if mode == "year":
+            s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines, ym=ymd)
+        else:   # 월별 그래프는 늘 그해 1~12월(고른 기간은 진하게)
+            s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines)
+            _sales_3way(c, rates, oi_map, "year", sel_year, sel_q, sel_m, ym=ymd)
+        open_proj = _z40_open_projects(c)
+    G = _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today)
+    _late = [p for p in (open_proj.get("projects") or []) if p.get("due") and p["due"] < today.isoformat()]
+    year_span = sorted(set(s3.get("year_choices") or [])
+                       | {str(today.year), str(today.year - 1), str(today.year - 2), str(sel_year)}, reverse=True)
+    return ctx(request, "sales_glance.html", user=u, active="sales",
+               s3=s3, G=G, view=view, open_proj=open_proj, n_late=len(_late),
+               soon=(open_proj.get("projects") or [])[:5], today_iso=today.isoformat(), year_span=year_span)
 
 
 # ── z1191z45 매출 홈 깊이 보기 (대표 2026-11-17) ─────────────────────────────────────────
