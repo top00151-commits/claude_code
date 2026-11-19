@@ -267,7 +267,9 @@ def _ensure_security_cols(c):
             return
     need = {"is_blocked": "INTEGER DEFAULT 0", "risk_level": "INTEGER DEFAULT 0", "risk_note": "TEXT",
             # 11-18 대표 「3단계 진행해」 — 📦 보관(받은편지함에서만 빠짐 · 지우지 않음) · 📁 이 메일만 폴더
-            "is_archived": "INTEGER DEFAULT 0", "fd_pin": "TEXT DEFAULT ''"}
+            "is_archived": "INTEGER DEFAULT 0", "fd_pin": "TEXT DEFAULT ''",
+            # 11-19 대표 「1단계」 — 받은 메일의 「받는 사람」 전원(원문 To 그대로). to_email 은 첫 주소만이라 전체 답장 명단이 빠지던 것
+            "to_all": "TEXT DEFAULT ''"}
     try:
         have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
     except Exception:
@@ -419,8 +421,9 @@ def assess_risk(from_email, to_email="", subject="", body="", html="", attachmen
 def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = "",
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
                   size=0, owner_id=None, run_ai: bool = True, attachments=None,
-                  message_id: str = "", auth=None, reply_to: str = ""):
+                  message_id: str = "", auth=None, reply_to: str = "", to_all: str = ""):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
+    to_all: 원문 「받는 사람」 머리 그대로(여러 명) — 전체 답장 명단용(11-19).
     owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None).
     attachments: parse_raw_email 이 만든 [{filename,mime,size,content_id,inline,data}, ...]."""
     owner = owner_id or resolve_recipient(c, to_email)
@@ -494,11 +497,11 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc,
             subject, body_text, body_html, category, lang, summary, raw_size,
-            dedup_hash, dup_count, is_blocked, risk_level, risk_note)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
          _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
-         category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote),
+         category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote, (to_all or "").strip()[:4000]),
     )
     mail_id = cur.lastrowid
     if attachments:
@@ -1053,14 +1056,21 @@ def category_counts(c, user_id: int) -> dict:
 def store_outbound(c, *, user_id: int, from_email: str, to_email: str, subject: str = "",
                    body: str = "", from_name: str = "", cc: str = "", bcc: str = "",
                    body_html: str = "", size=0):
-    """발송한 메일을 보낸편지함에 기록(direction='out')."""
+    """발송한 메일을 보낸편지함에 기록(direction='out').
+    (11-19) 받는 사람 여러 명 = 전원 기록(소문자 주소 · 쉼표) — 전에는 첫 주소만 남아 누구에게 갔는지 추적이 안 됐다."""
+    try:
+        from .mail_send import parse_addr_list as _pal
+        _tl = [a.lower() for _n, a in _pal(to_email)[0]]
+    except Exception:
+        _tl = []
+    to_rec = ", ".join(_tl) if _tl else _norm_addr(to_email)
     cur = c.execute(
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc, bcc,
             subject, body_text, body_html, category, is_read, raw_size)
            VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?)""",
         (user_id, "out", _norm_addr(from_email), (from_name or "").strip(),
-         _norm_addr(to_email), (cc or "").strip(), (bcc or "").strip(),
+         to_rec, (cc or "").strip(), (bcc or "").strip(),
          (subject or "(제목 없음)").strip(), body or "", body_html or "", "일반", int(size or 0)),
     )
     return cur.lastrowid
@@ -1190,6 +1200,37 @@ def search_contacts(c, q: str, limit: int = 8, user=None, browse: bool = False):
                     "company": r["company"] or "", "position": r["position"] or ""})
         if len(out) >= limit:
             break
+    # 11-19 대표 「1단계」 — 자동완성 후보에 사내 직원 · 내가 메일을 주고받은 사람도(연락처에 없어도)
+    #   찾는 낱말이 있을 때만 · 내 메일함 것만(남의 메일함 안 봄)
+    if q and not browse and len(out) < limit:
+        try:
+            for r in c.execute(
+                    "SELECT u.name, u.email, COALESCE(t.name,'') AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                    "WHERE u.is_active=1 AND u.email IS NOT NULL AND u.email<>'' "
+                    "AND (u.name LIKE ? OR u.email LIKE ?) ORDER BY u.name LIMIT ?", (like, like, int(limit))).fetchall():
+                em = (r["email"] or "").strip()
+                if em and em.lower() not in seen and "@" in em:
+                    seen.add(em.lower())
+                    out.append({"name": r["name"] or "", "email": em, "company": "KNK", "position": r["team_name"] or "", "src": "사내"})
+                    if len(out) >= limit:
+                        break
+        except Exception:
+            pass
+    if q and not browse and user and len(out) < limit:
+        try:
+            for r in c.execute(
+                    "SELECT from_email, MAX(from_name) AS from_name, MAX(received_at) AS t FROM mail_messages "
+                    "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
+                    "AND from_email<>'' AND (from_email LIKE ? OR from_name LIKE ?) "
+                    "GROUP BY from_email ORDER BY t DESC LIMIT ?", (user.get("id"), like, like, int(limit) * 2)).fetchall():
+                em = (r["from_email"] or "").strip()
+                if em and em.lower() not in seen:
+                    seen.add(em.lower())
+                    out.append({"name": r["from_name"] or "", "email": em, "company": em.split("@")[-1], "position": "", "src": "주고받은 메일"})
+                    if len(out) >= limit:
+                        break
+        except Exception:
+            pass
     return out
 
 
@@ -1515,7 +1556,7 @@ def parse_raw_email(raw) -> dict:
         body = (body or "").rstrip() + f"\n\n[첨부 {len(real_atts)}개: " \
             + ", ".join(a["filename"] for a in real_atts[:10]) + "]"
     return {
-        "from_email": from_addr, "from_name": from_name, "to_email": to_addr,
+        "from_email": from_addr, "from_name": from_name, "to_email": to_addr, "to_all": _h("To"),
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
         "message_id": message_id, "auth": _auth, "reply_to": reply_to,
     }

@@ -70,8 +70,9 @@ class FakeSMTP:
     def login(self, user, pw):
         FakeSMTP.seen["login_user"] = user
 
-    def send_message(self, msg):
-        # 진짜 smtplib 와 같이 Bcc 는 봉투로 옮기고 헤더에선 지운다
+    def send_message(self, msg, from_addr=None, to_addrs=None):
+        # 11-19: 봉투 수신자(to_addrs)를 직접 넘김 · 숨은참조는 머리에 아예 안 넣음
+        FakeSMTP.seen["to_addrs"] = list(to_addrs or [])
         FakeSMTP.seen["bcc_envelope"] = msg.get("Bcc")
         del msg["Bcc"]
         FakeSMTP.seen["msg"] = msg
@@ -155,8 +156,8 @@ try:
     ms._smtp_send("smtps.hiworks.com", 465, FROM, FAKE_PW, FROM, TO,
                   "제목", "본문", bcc="hidden@example.com")
     m4 = FakeSMTP.seen.get("msg")
-    check("Bcc 가 봉투 수신자로 쓰였다",
-          (FakeSMTP.seen.get("bcc_envelope") or "") == "hidden@example.com")
+    check("Bcc 가 봉투 수신자로 쓰였다(11-19: 봉투 목록으로 직접 · 머리에는 처음부터 없음)",
+          "hidden@example.com" in (FakeSMTP.seen.get("to_addrs") or []) and not FakeSMTP.seen.get("bcc_envelope"))
     check("Bcc 헤더는 전송 메시지에서 지워졌다", m4 is not None and m4.get("Bcc") is None)
     check("Bcc 가 있어도 Date·Message-ID 는 그대로", bool(m4 and m4.get("Date") and m4.get("Message-ID")))
 

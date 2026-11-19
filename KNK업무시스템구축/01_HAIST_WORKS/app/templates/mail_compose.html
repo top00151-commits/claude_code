@@ -18,6 +18,32 @@
   .cmp-keep button{border:1px solid #fcd34d;background:var(--mt-surface,#fff);border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
   .cmp-keep button.x{font-weight:400;color:#92400e}
   .cmp-keep-n{color:#a16207;font-size:12px}
+  /* 11-19 「1단계」 보내기 전 확인 창 · 보내기 취소 띠 · 자동완성 고르기 · 전달 첨부 */
+  .sc-wrap{position:fixed;inset:0;z-index:300;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:16px}
+  .sc-wrap[hidden]{display:none}
+  .sc-box{background:var(--mt-surface,#fff);color:var(--mt-text,#111827);border-radius:14px;width:min(620px,100%);max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:18px 20px}
+  .sc-box h3{margin:0 0 4px;font-size:17px}
+  .sc-sub{font-size:12.5px;color:var(--mt-mute,#6b7280);margin-bottom:12px}
+  .sc-item{display:flex;gap:10px;padding:10px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;margin-bottom:8px;font-size:13.5px;line-height:1.6;color:#713f12}
+  .sc-item.info{border-color:#bfdbfe;background:#eff6ff;color:#1e3a8a}
+  .sc-item .ic{font-size:18px;flex:none;line-height:1.3}
+  .sc-item b{display:block;font-size:14px}
+  .sc-item .who{font-size:12.5px;word-break:break-all}
+  .sc-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+  .sc-btns button{font:inherit;font-size:14px;font-weight:700;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
+  .sc-btns button.go{background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c);color:#fff}
+  .sc-btns button.warn{background:#b45309;border-color:#b45309;color:#fff}
+  .sc-undo{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:310;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    max-width:calc(100vw - 24px);padding:12px 16px;border-radius:12px;background:#1f2937;color:#fff;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .sc-undo[hidden]{display:none}
+  @media(max-width:640px){ .sc-undo{left:10px;right:10px;bottom:12px;transform:none;max-width:none;justify-content:space-between} .sc-undo>span:nth-child(2){flex:1;min-width:150px} }
+  .sc-undo .n{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--knk-red,#a5282c);font-weight:800}
+  .sc-undo button{font:inherit;font-size:13.5px;font-weight:700;border-radius:8px;padding:6px 13px;cursor:pointer;border:1px solid #4b5563;background:#374151;color:#fff}
+  .sc-undo button.cancel{background:#fff;color:#111827;border-color:#fff}
+  .sc-lock{pointer-events:none;opacity:.55}
+  .ac-box .ac-it.on{background:#eef2ff}
+  .ac-box .ac-src{font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:0 5px;margin-left:5px}
+  .cmp-bad{box-shadow:inset 0 -2px 0 #dc2626}
   .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
   .cmp-pick:hover{background:#e0e7ff}
   .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
@@ -63,6 +89,8 @@
   /* ── 폰(≤640px): 메일 쓰기 — 입력칸 16px(자동확대 방지)·버튼 큼직 (대표 지시 2026-06-14 모바일) ── */
   @media(max-width:640px){
     .app .main{padding:8px 10px}
+    .cmp-row{flex-wrap:wrap}                       /* 11-19 휴대폰: 참조 줄 「+ 숨은참조」가 화면 밖으로 잘리던 것 */
+    #bccToggle{margin-left:auto}
     .cmp-card{padding:13px;margin:0 0 16px}
     .cmp-row{gap:8px;padding:11px 2px}
     .cmp-row label{width:62px;font-size:12.5px}
@@ -96,19 +124,19 @@
     <div class="cmp-actions cmp-actions-top">
       <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
-      <a href="/mail/inbox" class="btn btn-secondary">취소</a>
+      <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
       {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일주소로 보내기 연결">📮 내 계정{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
     <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
-    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="email" placeholder="customer@example.com" value="{{ prefill.to }}" data-knk-no-draft>
+    <div class="cmp-row"><label>받는사람</label><input id="cTo" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="이름이나 주소를 치면 아래에 고를 사람이 나옵니다 (여러 명은 쉼표)" value="{{ prefill.to }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">📇 주소록</button></div>
-    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>
+    <div class="cmp-row"><label>참조(CC)</label><input id="cCc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
-    <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}" data-knk-no-draft></div>
+    <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}" data-knk-no-draft></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}" data-knk-no-draft></div>
     {% if ai_on %}
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
@@ -127,6 +155,9 @@
     </div>
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
+    <textarea id="cPrefillHtml" style="display:none">{{ prefill.body_html }}</textarea>
+    <input type="hidden" id="cFwdSrc" value="{{ prefill.fwd_src }}">
+    <script>window.CMP_FWD = {{ (prefill.fwd_atts or [])|tojson }};</script>
     <textarea id="cSigHtml" style="display:none">{{ sig_html|default('') }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
     <div class="cmp-row" style="border-bottom:0;align-items:flex-start;">
@@ -166,6 +197,9 @@
   })();
   </script>
 </main></div>
+<div class="sc-wrap" id="scWrap" hidden onclick="if(event.target===this) scClose()"><div class="sc-box" id="scBox" role="dialog" aria-modal="true" aria-label="보내기 전 확인"></div></div>
+<div class="sc-undo" id="scUndo" hidden role="status" aria-live="polite"><span class="n" id="scUndoN">10</span><span><b>초 뒤에 보냅니다</b> · <span id="scUndoWho"></span></span>
+  <button type="button" class="cancel" onclick="cmpUndoCancel()">↺ 보내기 취소</button><button type="button" onclick="cmpUndoNow()">지금 보내기</button></div>
 <div class="ab-wrap" id="abWrap" hidden onclick="if(event.target===this) abClose()">
   <div class="ab-box" role="dialog" aria-label="주소록에서 고르기">
     <div class="ab-h"><b>📇 주소록</b><input id="abQ" type="text" placeholder="이름·회사·주소로 찾기" oninput="abFind()" autocomplete="off"><button type="button" class="btn btn-secondary" onclick="abClose()">닫기</button></div>
@@ -194,6 +228,7 @@
       ids.forEach(function(i){ var e=document.getElementById(i); if(e && o[i]!=null) e.value=o[i]; });
       if(o.cBcc){ var r=document.getElementById('bccRow'); if(r) r.style.display=''; }
       var b=ed(); if(b && o.html!=null) b.innerHTML=o.html;
+      window._cDirty=true;   // 되살린 것도 지킴(창 닫힘 경고·자동 저장)
     }catch(e){}
     var k=document.getElementById('cKeep'); if(k) k.hidden=true;
   };
@@ -228,14 +263,15 @@ async function abLoad(q){
 }
 function abFind(){ clearTimeout(_abT); var q=document.getElementById('abQ').value.trim(); _abT=setTimeout(function(){ abLoad(q); }, 220); }
 function abTick(cb){ var it=_abItems[parseInt(cb.dataset.i,10)]; if(!it) return; var k=it.email.toLowerCase();
-  if(cb.checked) _abPick[k]=it.email; else delete _abPick[k]; document.getElementById('abN').textContent=Object.keys(_abPick).length+'명 고름'; }
+  if(cb.checked) _abPick[k]=it; else delete _abPick[k]; document.getElementById('abN').textContent=Object.keys(_abPick).length+'명 고름'; }
 function abPut(target){
   var adds=Object.values(_abPick); if(!adds.length){ alert('넣을 사람을 골라 주세요.'); return; }
   var el=document.getElementById(target||_abTarget); if(!el) return;
-  var cur=(el.value||'').split(/[,;]/).map(function(x){ return x.trim(); }).filter(Boolean);
-  var low=cur.map(function(x){ return x.toLowerCase(); });
-  adds.forEach(function(a){ if(low.indexOf(a.toLowerCase())<0){ cur.push(a); low.push(a.toLowerCase()); } });
-  el.value=cur.join(', '); abClose(); el.focus();
+  // 11-19 이름까지 넣음(「홍길동 <a@b>」) — 맞는 사람인지 눈으로 확인 · 이미 있는 주소는 안 겹침
+  var have=(window.cmpParseAddrs ? window.cmpParseAddrs(el.value).ok : []).map(function(p){ return p.addr.toLowerCase(); });
+  var cur=(el.value||'').trim().replace(/[,;]\s*$/,'');
+  adds.forEach(function(it){ if(have.indexOf(it.email.toLowerCase())<0){ cur=(cur?cur+', ':'')+(window.cmpAcFmt?window.cmpAcFmt(it):it.email); have.push(it.email.toLowerCase()); } });
+  el.value=cur; window._cDirty=true; abClose(); el.focus();
 }
 
 (function(){
@@ -265,7 +301,9 @@ function abPut(target){
     rm.addEventListener('click',function(){ var k=NORMAL.indexOf(file); if(k>=0)NORMAL.splice(k,1); row.remove(); });
     row.appendChild(tag); row.appendChild(rm);
   }
+  var LARGE_BUSY=0, LARGE_FAIL=0;   // 11-19 올리는 중·실패 — 그 동안은 보내기를 막음(링크 빠진 채 나가는 것 방지)
   async function uploadLarge(file){
+    LARGE_BUSY++;
     var row=attRow('🔗', file);
     var st=document.createElement('span'); st.textContent='⏳ 대용량 올리는 중...'; st.style.cssText='font-size:11px;color:var(--mute)';
     row.appendChild(st);
@@ -276,9 +314,21 @@ function abPut(target){
         var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕'; rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:4px';
         rm.addEventListener('click',function(){ var k=LARGE.indexOf(j.token); if(k>=0)LARGE.splice(k,1); row.remove(); });
         row.appendChild(rm);
-      } else { st.textContent='⚠ '+(j.message||'실패'); st.style.color='var(--knk-red)'; }
-    }catch(e){ st.textContent='⚠ 네트워크 오류'; st.style.color='var(--knk-red)'; }
+      } else { st.textContent='⚠ '+(j.message||'실패'); st.style.color='var(--knk-red)'; failRm(row); }
+    }catch(e){ st.textContent='⚠ 네트워크 오류'; st.style.color='var(--knk-red)'; failRm(row); }
+    finally{ LARGE_BUSY--; }
   }
+  function failRm(row){ LARGE_FAIL++; var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕ 빼기'; rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:6px;font-weight:700';
+    rm.addEventListener('click',function(){ LARGE_FAIL--; row.remove(); }); row.appendChild(rm); }
+  // 11-19 전달 — 원래 첨부(견적서·도면 등)를 함께 · ✕ 로 뺄 수 있음
+  var FWD=(window.CMP_FWD||[]).map(function(a){ return a; });
+  FWD.slice().forEach(function(a){
+    var row=attRow('📎', {name:a.filename, size:a.size});
+    var tag=document.createElement('span'); tag.textContent='원래 첨부'; tag.style.cssText='font-size:11px;color:var(--mute)';
+    var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕'; rm.title='이 첨부는 빼고 전달'; rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:2px';
+    rm.addEventListener('click',function(){ var k=FWD.indexOf(a); if(k>=0)FWD.splice(k,1); row.remove(); });
+    row.appendChild(tag); row.appendChild(rm);
+  });
   function normalTotal(){ var s=0; NORMAL.forEach(function(f){ s+=f.size; }); return s; }
   async function addFile(file){
     if(file.size > LARGE_TH || (normalTotal()+file.size) > NORMAL_BUDGET){ await uploadLarge(file); }
@@ -310,7 +360,9 @@ function abPut(target){
   // ── 서식 편집기(rich text) 초기화 + 툴바 ──
   var ED=document.getElementById('cBody');
   (function(){
-    var pf=document.getElementById('cPrefill'); if(ED && pf) ED.innerText = pf.value;
+    var pf=document.getElementById('cPrefill'), ph=document.getElementById('cPrefillHtml');
+    if(ED && ph && ph.value.trim()) ED.innerHTML = ph.value;     // 11-19 임시 메일 = 서식 그대로(서버가 안전하게 걸러 줌)
+    else if(ED && pf) ED.innerText = pf.value;
     // 서명(HTML/이미지 가능)을 본문 위쪽(인용 앞)에 삽입. 드래프트는 sig_html 이 비어 중복 안 됨.
     var sg=document.getElementById('cSigHtml');
     if(ED && sg && sg.value.trim()){
@@ -551,7 +603,7 @@ function abPut(target){
     if(show) document.getElementById('cBcc').focus(); });
 
   // ── 임시저장 ──
-  window.saveDraft=async function(){
+  window.saveDraft=async function(silent){
     var ed=document.getElementById('cBody');
     var fd=new FormData();
     fd.append('to', document.getElementById('cTo').value.trim());
@@ -561,11 +613,14 @@ function abPut(target){
     fd.append('body', ed.innerText);
     fd.append('body_html', ed.innerHTML);
     var did=document.getElementById('cDraftId').value; if(did) fd.append('draft_id', did);
-    cmsg('💾 저장 중...','');
+    if(!silent) cmsg('💾 저장 중...','');
     try{ var r=await fetch('/mail/draft/save',{method:'POST',body:fd}); var j=await r.json();
-      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; cmsg('💾 임시저장됨 — 「📝 임시보관함」에서 이어 쓸 수 있어요','green'); if(window.cKeepClear) window.cKeepClear(); }
-      else cmsg('⚠ 저장 실패','red');
-    }catch(e){ cmsg('⚠ 네트워크 오류','red'); }
+      if(j.ok){ document.getElementById('cDraftId').value=j.draft_id; window._cDirty=false;
+        var _d=new Date(); cmsg(silent ? ('💾 자동 저장 '+('0'+_d.getHours()).slice(-2)+':'+('0'+_d.getMinutes()).slice(-2)) : '💾 임시저장됨 — 「📝 임시보관함」에서 이어 쓸 수 있어요', silent?'':'green');
+        if(window.cKeepClear) window.cKeepClear(); return true; }
+      else if(!silent) cmsg('⚠ 저장 실패','red');
+    }catch(e){ if(!silent) cmsg('⚠ 네트워크 오류','red'); }
+    return false;
   };
 
   // ── AI로 정리 (요점 메모 → 정중한 업무 메일) ──
@@ -597,39 +652,181 @@ function abPut(target){
     finally{ if(btn)btn.disabled=false; }
   };
 
-  window.sendMail=async function(){
-    var to=document.getElementById('cTo').value.trim();
-    if(!to){ cmsg('받는사람을 입력하세요','red'); return; }
-    var sendBtns=document.querySelectorAll('.js-send');
-    function setSend(d){ sendBtns.forEach(function(b){ b.disabled=d; }); }   // 위·아래 보내기 단추 함께
-    setSend(true); cmsg('📤 보내는 중...','');
-    var fd=new FormData();
-    fd.append('to', to);
-    fd.append('cc', document.getElementById('cCc').value.trim());
-    fd.append('subject', document.getElementById('cSubj').value.trim());
+  /* ── 11-19 대표 「1단계 — 잘못 발송 막기」 ──────────────────────────────
+     ① 주소를 한 명씩 검사(틀리면 그 주소를 콕 집어 알림 · 보내지 않음)
+     ② 문제가 있을 때만 「보내기 전 확인」 창(빈 제목 · 「첨부」라 썼는데 파일 없음 · 받는 회사 여러 곳 · 많은 사람 · 숨은참조 · 빈 본문)
+     ③ 누르면 10초 뒤에 나감 — 그 사이 「↺ 보내기 취소」(지메일 방식 · 그 동안 실제로는 안 나감)
+     ④ 같은 메일 두 번 안 나가게(보내기 표 send_token — 네트워크 오류 뒤 다시 눌러도 안전) */
+  var OUR_DOMAINS=['knknara.co.kr'];
+  var SEND_DELAY=10;
+  var SEND_TOKEN=(window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2));
+  var ADDR_RE=/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+  function splitAddrs(sv){ var out=[], cur='', q=false, ang=0; sv=sv||'';
+    for(var i=0;i<sv.length;i++){ var ch=sv[i];
+      if(ch==='"' && !ang) q=!q; else if(ch==='<' && !q) ang++; else if(ch==='>' && !q && ang) ang--;
+      if((ch===','||ch===';'||ch==='\n') && !q && !ang){ if(cur.trim()) out.push(cur.trim()); cur=''; continue; }
+      cur+=ch; }
+    if(cur.trim()) out.push(cur.trim()); return out; }
+  function parseAddrs(sv){ var ok=[], bad=[], seen={};
+    splitAddrs(sv).forEach(function(t){ var nm='', ad=t, m=t.match(/^\s*(.*?)\s*<\s*([^<>]*?)\s*>\s*$/);
+      if(m){ nm=m[1].replace(/^"|"$/g,'').trim(); ad=m[2].trim(); } else ad=t.replace(/^"|"$/g,'').trim();
+      if(ad.toLowerCase().indexOf('mailto:')===0) ad=ad.slice(7);
+      if(!ADDR_RE.test(ad)){ bad.push(t); return; }
+      var k=ad.toLowerCase(); if(seen[k]) return; seen[k]=1; ok.push({name:nm, addr:ad}); });
+    return {ok:ok, bad:bad}; }
+  window.cmpParseAddrs=parseAddrs;
+  function isOurs(ad){ var d=(ad.split('@')[1]||'').toLowerCase(); return OUR_DOMAINS.some(function(o){ return d===o || d.slice(-(o.length+1))==='.'+o; }); }
+  function who(p){ return p.name ? (p.name+' <'+p.addr+'>') : p.addr; }
+  function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':String(t); return d.innerHTML; }
+  function ownText(){   // 내가 쓴 부분만(서명 「--」 · 원본 메일 · 전달된 메일 아래는 뺌)
+    var t=(document.getElementById('cBody').innerText||'');
+    var cut=t.length; ['\n--\n','──────── 원본 메일','──────── 전달된 메일'].forEach(function(mk){ var k=t.indexOf(mk); if(k>=0 && k<cut) cut=k; });
+    if(t.indexOf('--\n')===0) cut=0;
+    return t.slice(0,cut); }
+  var ATT_WORDS=/첨부|붙임|동봉|attach|enclos|đính kèm/i;
+  function attCount(){ return NORMAL.length + LARGE.length + FWD.length; }
+  function gather(){
     var ed=document.getElementById('cBody');
+    var fd=new FormData();
+    fd.append('to', document.getElementById('cTo').value.trim());
+    fd.append('cc', document.getElementById('cCc').value.trim());
+    fd.append('bcc', document.getElementById('cBcc').value.trim());
+    fd.append('subject', document.getElementById('cSubj').value.trim());
     fd.append('body', ed.innerText);
     fd.append('body_html', ed.innerHTML);
-    fd.append('bcc', document.getElementById('cBcc').value.trim());
     NORMAL.forEach(function(f){ fd.append('files', f); });
     fd.append('large_tokens', LARGE.join(','));
+    var src=(document.getElementById('cFwdSrc')||{}).value||''; if(src && FWD.length){ fd.append('fwd_src', src); FWD.forEach(function(a){ fd.append('fwd_att', a.id); }); }
     var did0=document.getElementById('cDraftId').value; if(did0) fd.append('draft_id', did0);
+    fd.append('send_token', SEND_TOKEN);
+    return fd;
+  }
+  function markBad(ids){ ['cTo','cCc','cBcc'].forEach(function(i){ var e=document.getElementById(i); if(e) e.classList.toggle('cmp-bad', ids.indexOf(i)>=0); }); }
+  function checks(){
+    var P={cTo:parseAddrs(document.getElementById('cTo').value), cCc:parseAddrs(document.getElementById('cCc').value), cBcc:parseAddrs(document.getElementById('cBcc').value)};
+    var badIds=[], bad=[]; Object.keys(P).forEach(function(k){ if(P[k].bad.length){ badIds.push(k); bad=bad.concat(P[k].bad); } });
+    markBad(badIds);
+    if(bad.length) return {stop:'이 주소가 올바르지 않습니다: '+bad.slice(0,5).join(', ')+' — 고친 뒤 보내 주세요.'};
+    if(!P.cTo.ok.length) return {stop:'받는 사람을 넣어 주세요.'};
+    if(LARGE_BUSY>0) return {stop:'⏳ 대용량 파일을 올리는 중입니다 — 다 올라간 뒤 보내 주세요(링크가 빠진 채 나가지 않게).'};
+    if(LARGE_FAIL>0) return {stop:'⚠ 올리지 못한 대용량 파일이 있습니다 — 「✕ 빼기」로 빼거나 다시 붙인 뒤 보내 주세요.'};
+    var all=P.cTo.ok.concat(P.cCc.ok, P.cBcc.ok), W=[];
+    var subj=document.getElementById('cSubj').value.trim();
+    var own=ownText().trim(), isFwd=!!((document.getElementById('cFwdSrc')||{}).value);
+    if(!subj) W.push({ic:'✉', t:'제목이 비어 있습니다', d:'받는 쪽에는 「(제목 없음)」으로 보입니다.'});
+    if(!own && !isFwd) W.push({ic:'📝', t:'본문이 비어 있습니다', d:'서명만 들어 있습니다.'});
+    if(attCount()===0 && (ATT_WORDS.test(own) || ATT_WORDS.test(subj))) W.push({ic:'📎', t:'「첨부」라고 쓰셨는데 붙인 파일이 없습니다', d:'파일을 붙이려면 「고치기」 → 아래 「📎 첨부」.'});
+    var dom={}, order=[];
+    all.forEach(function(p){ if(isOurs(p.addr)) return; var d=(p.addr.split('@')[1]||'').toLowerCase(); if(!dom[d]){ dom[d]=[]; order.push(d); } dom[d].push(who(p)); });
+    if(order.length>=2) W.push({ic:'🏢', t:'받는 회사가 '+order.length+'곳입니다 — 한 메일에 여러 회사가 섞여 있습니다', d:'다른 회사에 갈 내용(견적·가격)이 아닌지 확인해 주세요.',
+      who:order.map(function(d){ return d+' : '+dom[d].join(', '); })});
+    if(all.length>=10) W.push({ic:'👥', t:'받는 사람이 '+all.length+'명입니다', d:'맞는지 한 번 더 확인해 주세요.'});
+    if(P.cBcc.ok.length) W.push({ic:'🙈', info:true, t:'숨은참조 '+P.cBcc.ok.length+'명 — 다른 받는 사람에게는 안 보입니다', who:[P.cBcc.ok.map(who).join(', ')]});
+    return {warns:W, n:all.length, P:P};
+  }
+  function scOpen(html){ var w=document.getElementById('scWrap'); document.getElementById('scBox').innerHTML=html; w.hidden=false;
+    var b=w.querySelector('button.go, button.warn'); if(b) setTimeout(function(){ try{ w.querySelector('button.back').focus(); }catch(_){ } },30); }
+  window.scClose=function(){ document.getElementById('scWrap').hidden=true; };
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var w=document.getElementById('scWrap'); if(w && !w.hidden){ e.preventDefault(); scClose(); } } });
+  function setSend(d){ document.querySelectorAll('.js-send').forEach(function(b){ b.disabled=d; }); }
+
+  window.sendMail=function(){
+    if(window._cmpCounting) return;
+    var r=checks();
+    if(r.stop){ cmsg('⚠ '+r.stop,'red'); return; }
+    if(!r.warns.length){ startUndo(r); return; }
+    var hasWarn=r.warns.some(function(w){ return !w.info; });
+    scOpen('<h3>'+(hasWarn?'⚠ 보내기 전에 확인해 주세요':'보내기 전에 한 번 더')+'</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+(r.P.cBcc.ok.length?' · 숨은참조 '+r.P.cBcc.ok.length+'명':'')+'</div>'+
+      r.warns.map(function(w){ return '<div class="sc-item'+(w.info?' info':'')+'"><span class="ic">'+w.ic+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
+        (w.who?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+'</div></div>'; }).join('')+
+      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button><button type="button" class="'+(hasWarn?'warn':'go')+'" onclick="scClose();cmpStartUndo()">그래도 보내기</button></div>');
+    window._scLast=r;
+  };
+  window.cmpStartUndo=function(){ startUndo(window._scLast||checks()); };
+  function startUndo(r){
+    var fd=gather();       // 지금 모습 그대로 담아 둠(세는 동안 고쳐도 섞이지 않게 — 고치려면 「보내기 취소」)
+    var first=r.P.cTo.ok[0], nAll=r.n;
+    var bar=document.getElementById('scUndo'), num=document.getElementById('scUndoN');
+    document.getElementById('scUndoWho').textContent=(first.name||first.addr)+(nAll>1?' 외 '+(nAll-1)+'명':'')+'에게';
+    var left=SEND_DELAY; num.textContent=left; bar.hidden=false; window._cmpCounting=true; setSend(true);
+    var card=document.querySelector('.cmp-card'); if(card) card.classList.add('sc-lock');
+    cmsg('📤 '+left+'초 뒤에 보냅니다 — 아래 「↺ 보내기 취소」','');
+    var t=setInterval(function(){ left--; num.textContent=Math.max(left,0); cmsg('📤 '+Math.max(left,0)+'초 뒤에 보냅니다 — 아래 「↺ 보내기 취소」',''); if(left<=0){ stop(); doSend(fd); } }, 1000);
+    function stop(){ clearInterval(t); bar.hidden=true; window._cmpCounting=false; if(card) card.classList.remove('sc-lock'); }
+    window.cmpUndoCancel=function(){ stop(); setSend(false); cmsg('↺ 보내기를 취소했습니다 — 고친 뒤 다시 보내세요',''); };
+    window.cmpUndoNow=function(){ stop(); doSend(fd); };
+  }
+  async function doSend(fd){
+    setSend(true); cmsg('📤 보내는 중...','');
     try{
-      var r=await fetch('/mail/send',{method:'POST',body:fd});
-      var j=await r.json();
-      if(j.ok){ if(window.cKeepClear) window.cKeepClear(); cmsg('✅ 보냈습니다. 보낸편지함으로 이동합니다...','green'); setTimeout(function(){location.href='/mail/sent';},800); }
-      else { cmsg('⚠ '+(j.message||'발송 실패'),'red'); setSend(false); }
-    }catch(e){ cmsg('⚠ 네트워크 오류','red'); setSend(false); }
+      var r=await fetch('/mail/send',{method:'POST',body:fd}); var j={};
+      try{ j=await r.json(); }catch(_){ j={ok:false, message:'서버 응답을 읽지 못했습니다'}; }
+      if(j.ok){
+        window._cmpSent=true; if(window.cKeepClear) window.cKeepClear();
+        var rf=j.refused||[];
+        if(rf.length){
+          cmsg('⚠ 일부 주소에는 못 갔습니다','red');
+          scOpen('<h3>⚠ 보냈지만, 일부 주소에는 못 갔습니다</h3><div class="sc-sub">'+(j.sent_n||0)+'명에게는 보냈습니다. 아래 주소는 메일 서버가 받지 않았습니다 — 주소를 확인해 다시 보내 주세요.</div>'+
+            rf.map(function(x){ return '<div class="sc-item"><span class="ic">✉</span><div><b>'+esc(x.addr)+'</b><span class="who">'+esc(x.why||'')+'</span></div></div>'; }).join('')+
+            '<div class="sc-btns"><button type="button" class="go" onclick="location.href=\'/mail/sent\'">보낸편지함으로</button></div>');
+          return;
+        }
+        cmsg('✅ 보냈습니다'+(j.dup?'(이미 보낸 메일 — 두 번 보내지 않았습니다)':'')+'. 보낸편지함으로 이동합니다...','green');
+        setTimeout(function(){ location.href='/mail/sent'; }, 900);
+      } else {
+        if(j.bad && j.bad.length){ markBad(['cTo','cCc','cBcc'].filter(function(i){ var v=document.getElementById(i).value; return j.bad.some(function(b){ return v.indexOf(b)>=0; }); })); }
+        cmsg('⚠ '+(j.message||'보내지 못했습니다'),'red'); setSend(false);
+      }
+    }catch(e){ cmsg('⚠ 네트워크 오류 — 보내졌는지 확인이 안 됩니다. 다시 눌러도 같은 메일이 두 번 나가지는 않습니다.','red'); setSend(false); }
+  }
+
+  /* ── 11-19 쓰던 메일 지키기 — 창 닫힘 경고 · 「취소」는 묻고 · 30초마다 서버에도 자동 임시저장 ── */
+  window._cDirty=false; var AUTO_DRAFT=false, lastAuto='';
+  document.addEventListener('input', function(e){ if(e.target && (e.target.closest('.cmp-card'))) window._cDirty=true; }, true);
+  window.addEventListener('beforeunload', function(e){
+    if(window._cmpCounting || (window._cDirty && !window._cmpSent && !window._cmpLeaving)){ e.preventDefault(); e.returnValue=''; return ''; } });
+  function hasContent(){ return document.getElementById('cTo').value.trim() || document.getElementById('cSubj').value.trim() || ownText().trim().length>=5; }
+  setInterval(async function(){
+    if(!window._cDirty || window._cmpSent || window._cmpCounting || !hasContent()) return;
+    var sig=[document.getElementById('cTo').value, document.getElementById('cSubj').value, document.getElementById('cBody').innerHTML].join('\u0001');
+    if(sig===lastAuto) return;
+    var wasNew=!document.getElementById('cDraftId').value;
+    if(await window.saveDraft(true)){ lastAuto=sig; if(wasNew) AUTO_DRAFT=true; }
+  }, 30000);
+  window.cmpCancel=function(){
+    if(!window._cDirty && !AUTO_DRAFT){ window._cmpLeaving=true; if(window.cKeepClear) window.cKeepClear(); location.href='/mail/inbox'; return; }
+    scOpen('<h3>쓰던 메일을 어떻게 할까요?</h3><div class="sc-sub">임시보관함에 두면 나중에 이어 쓸 수 있습니다.</div>'+
+      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">계속 쓰기</button>'+
+      '<button type="button" onclick="cmpLeave(false)">🗑 버리고 나가기</button><button type="button" class="go" onclick="cmpLeave(true)">📝 임시보관함에 두고 나가기</button></div>');
+  };
+  window.cmpLeave=async function(keep){
+    window._cmpLeaving=true;
+    if(keep){ await window.saveDraft(true); }
+    else if(AUTO_DRAFT){ var did=document.getElementById('cDraftId').value; if(did){ try{ await fetch('/mail/draft/'+encodeURIComponent(did)+'/discard',{method:'POST'}); }catch(_){ } } }
+    if(window.cKeepClear) window.cKeepClear();
+    location.href = keep ? '/mail/drafts' : '/mail/inbox';
   };
 
   // ── 받는사람 자동완성 (전사 연락처) — 쉼표로 여러 명, 마지막 토큰 기준 ──
-  function lastTok(v){ var p=(v||'').split(','); return {pre:p.slice(0,-1).join(','), tok:p[p.length-1].trim()}; }
+  function lastTok(v){ v=v||''; var q=false, ang=0, cut=-1;   // 따옴표·꺾쇠 안의 쉼표는 나누지 않음
+    for(var i=0;i<v.length;i++){ var ch=v[i]; if(ch==='"'&&!ang) q=!q; else if(ch==='<'&&!q) ang++; else if(ch==='>'&&!q&&ang) ang--; else if((ch===','||ch===';')&&!q&&!ang) cut=i; }
+    return {pre:v.slice(0, cut<0?0:cut), tok:v.slice(cut+1).trim()}; }
+  function acFmt(it){ var nm=(it.name||'').replace(/["<>]/g,'').trim(); if(!nm) return it.email; if(/[,;]/.test(nm)) nm='"'+nm+'"'; return nm+' <'+it.email+'>'; }
+  window.cmpAcFmt=acFmt;
   function setupAC(input){
     if(!input) return;
-    var box=null, items=[], timer=null;
-    function close(){ if(box){ box.remove(); box=null; } items=[]; }
+    var box=null, items=[], timer=null, cur=-1;
+    function close(){ if(box){ box.remove(); box=null; } items=[]; cur=-1; }
     function choose(i){ var it=items[i]; if(!it)return; var lt=lastTok(input.value);
-      input.value=(lt.pre? lt.pre.trim()+', ':'')+it.email; close(); input.focus(); }
+      input.value=(lt.pre? lt.pre.trim()+', ':'')+acFmt(it)+', '; close(); input.focus(); input.classList.remove('cmp-bad'); window._cDirty=true; }
+    function hl(i){ if(!box) return; var els=box.querySelectorAll('.ac-it'); if(!els.length) return; cur=(i+els.length)%els.length;
+      els.forEach(function(e,k){ e.classList.toggle('on', k===cur); }); try{ els[cur].scrollIntoView({block:'nearest'}); }catch(_){} }
+    input.addEventListener('keydown', function(e){
+      if(!box || !items.length) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); hl(cur+1); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); hl(cur-1); }
+      else if((e.key==='Enter' || e.key==='Tab') && cur>=0){ e.preventDefault(); choose(cur); }
+      else if(e.key==='Escape'){ e.preventDefault(); close(); } });
     function render(list){
       close(); if(!list.length) return; items=list;
       box=document.createElement('div'); box.className='ac-box';
@@ -637,15 +834,18 @@ function abPut(target){
       box.style.cssText='position:absolute;z-index:9999;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.13);max-height:240px;overflow:auto;';
       box.style.left=(r.left+window.scrollX)+'px'; box.style.top=(r.bottom+window.scrollY+2)+'px'; box.style.width=Math.max(r.width,240)+'px';
       list.forEach(function(it,i){
-        var d=document.createElement('div'); d.style.cssText='padding:7px 11px;cursor:pointer;border-bottom:1px solid #f1f1f1';
+        var d=document.createElement('div'); d.className='ac-it'; d.style.cssText='padding:7px 11px;cursor:pointer;border-bottom:1px solid #f1f1f1';
         var nm=document.createElement('div'); nm.style.fontWeight='600'; nm.style.fontSize='13px';
         nm.textContent=(it.name||'')+(it.company? ' · '+it.company:'')+(it.position? ' '+it.position:'');  // textContent=XSS 안전
+        if(it.src){ var sb=document.createElement('span'); sb.className='ac-src'; sb.textContent=it.src; nm.appendChild(sb); }
+        d.addEventListener('mouseenter',function(){ hl(i); });
         var em=document.createElement('div'); em.style.cssText='color:var(--mute);font-size:11.5px'; em.textContent=it.email;
         d.appendChild(nm); d.appendChild(em);
         d.addEventListener('mousedown',function(e){ e.preventDefault(); choose(i); });
         box.appendChild(d);
       });
       document.body.appendChild(box);
+      hl(0);   // 첫 후보를 미리 고른 표시 — Enter·Tab 으로 넣음(마우스로 골라도 됨)
     }
     input.addEventListener('input',function(){
       var lt=lastTok(input.value);

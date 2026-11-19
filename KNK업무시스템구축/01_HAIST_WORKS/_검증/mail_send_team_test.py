@@ -203,7 +203,7 @@ class FakeSMTP:
     def login(self, u, p):
         sent["login"] += 1
 
-    def send_message(self, m):
+    def send_message(self, m, from_addr=None, to_addrs=None):
         sent["send_message"] += 1
 
 

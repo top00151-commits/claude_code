@@ -1772,7 +1772,7 @@ def _mailfetch_run_owner(owner_id):
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
                     owner_id=acct["owner_user_id"], run_ai=ai_on,
                     attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
-                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""))
+                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""))
                 if mid:
                     stored += 1
             except Exception:
@@ -23876,6 +23876,17 @@ async def mail_draft_save(req: Request):
     return JSONResponse({"ok": True, "draft_id": nid})
 
 
+@app.post("/mail/draft/{draft_id}/discard")
+async def mail_draft_discard(req: Request, draft_id: int):
+    """쓰기 화면 「취소 → 버리기」 때 자동 임시저장해 둔 것 지우기(11-19 · 내 임시 메일만)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        _mailbox.delete_draft(c, draft_id, u["id"])
+    return JSONResponse({"ok": True})
+
+
 @app.get("/mail/drafts", response_class=HTMLResponse)
 async def mail_drafts_page(req: Request):
     u = get_user(req)
@@ -24102,7 +24113,8 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
-    prefill = {"to": "", "cc": "", "bcc": "", "subject": "", "body": "", "draft_id": ""}
+    prefill = {"to": "", "cc": "", "bcc": "", "subject": "", "body": "", "draft_id": "", "body_html": "",
+               "fwd_src": "", "fwd_atts": []}
     with db_session() as c:
         ready = _mail.system_send_ready(c, u["id"])
         sig = _mailbox.get_signature(c, u["id"])
@@ -24112,12 +24124,28 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         # 내 계정으로 보내도 되는 사람인가 / 이미 연결돼 있나 (안내문·진입경로용)
         can_link = _mail.via_fetch_allowed(c, u["id"])
         acct_ok = bool(_mail.get_fetch_send_config(c, u["id"])) if can_link else False
+        # 11-19 「나」 주소 모음 — 전체 답장에서 나를 빼기(보내는 주소 · 회사 주소 · 연결한 계정 주소)
+        mine = {my_addr}
+        try:
+            mine.add(((u.get("email") or "")).strip().lower())
+            _fc = _mail.get_fetch_send_config(c, u["id"])
+            if _fc and _fc.get("from"):
+                mine.add(_fc["from"].strip().lower())
+        except Exception:
+            pass
+        mine.discard("")
         if draft:
             d = _mailbox.get_draft(c, draft, u["id"])
             if d:
                 prefill.update(to=d.get("to_email") or "", cc=d.get("cc") or "",
                                bcc=d.get("bcc") or "", subject=(d.get("subject") or "").replace("(제목 없음)", ""),
                                body=d.get("body_text") or "", draft_id=str(draft))
+                # 11-19 임시 메일은 표·그림·서식 그대로 이어 쓰기(전에는 글자만 → 서식이 빠진 채 나갈 수 있었음)
+                if (d.get("body_html") or "").strip():
+                    try:
+                        prefill["body_html"] = _mailbox.sanitize_html_for_view(d.get("body_html") or "", 0, [])
+                    except Exception:
+                        prefill["body_html"] = ""
         elif reply or replyall:
             m = _mailbox.get_mail(c, reply or replyall, u["id"])
             if m:
@@ -24125,15 +24153,18 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                 subj = (m.get("subject") or "").strip()
                 prefill["subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
                 if replyall:
-                    seen, cc_list = set(), []
-                    for fld in (m.get("to_email"), m.get("cc")):
-                        for a in (fld or "").replace(";", ",").split(","):
-                            a = a.strip()
+                    # 11-19 전체 답장 명단 — 원래 「받는 사람」 전원(to_all · 없으면 예전 칸) + 참조 · 나와 원래 보낸 사람은 뺌
+                    #   「이름 <주소>」·이름 속 쉼표도 한 명씩 바르게 나눔(전에는 문자열 통째 비교라 이름 붙은 내 주소가 안 빠졌다)
+                    skip = set(mine) | {(m.get("from_email") or "").strip().lower()}
+                    seen, cc_pairs = set(), []
+                    for fld in ((m.get("to_all") or m.get("to_email") or ""), (m.get("cc") or "")):
+                        for nm, a in _mail.parse_addr_list(fld)[0]:
                             al = a.lower()
-                            if a and al not in seen and al not in (my_addr, (m.get("from_email") or "").lower()):
-                                seen.add(al)
-                                cc_list.append(a)
-                    prefill["cc"] = ", ".join(cc_list)
+                            if al in skip or al in seen:
+                                continue
+                            seen.add(al)
+                            cc_pairs.append((nm, a))
+                    prefill["cc"] = _mail.addr_list_text(cc_pairs)
                 prefill["body"] = sigblock + "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
         elif forward:
             m = _mailbox.get_mail(c, forward, u["id"])
@@ -24146,6 +24177,13 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                        f"제목: {m.get('subject') or ''}\n"
                        f"받은시각: {m.get('received_at') or ''}\n\n")
                 prefill["body"] = sigblock + hdr + (m.get("body_text") or "")
+                # 11-19 전달 = 원래 첨부도 함께(견적서·도면·세금계산서) — 쓰기 화면에 보이고 ✕ 로 뺄 수 있음 · 보낼 때 서버가 다시 꺼냄
+                try:
+                    prefill["fwd_src"] = str(forward)
+                    prefill["fwd_atts"] = [{"id": a["id"], "filename": a.get("filename") or "첨부", "size": int(a.get("size") or 0)}
+                                           for a in _mailbox.list_attachments(c, forward, inline=False)]
+                except Exception as e:
+                    print("[MAIL-FWD] 첨부 목록 실패(mail=%s): %s" % (forward, str(e)[:120]), flush=True)
         else:
             prefill["body"] = sigblock
             _to = (to or "").strip()
@@ -24171,6 +24209,51 @@ async def mail_send_route(req: Request):
     body_html = (form.get("body_html") or "")
     draft_id = (form.get("draft_id") or "").strip()
     large_tokens = [t.strip() for t in (form.get("large_tokens") or "").split(",") if t.strip()]
+    # 11-19 대표 「1단계」 — 받는 사람·참조·숨은참조를 한 명씩 검사 → 틀린 주소는 콕 집어 알림(보내지 않음)
+    to_l, bad_t = _mail.parse_addr_list(to_email)
+    cc_l, bad_c = _mail.parse_addr_list(cc)
+    bcc_l, bad_b = _mail.parse_addr_list(bcc)
+    _bad = bad_t + bad_c + bad_b
+    if _bad:
+        return JSONResponse({"ok": False, "bad": _bad[:20],
+                             "message": "이 주소가 올바르지 않습니다: %s — 고친 뒤 다시 보내 주세요." % ", ".join(_bad[:5])}, 400)
+    if not to_l:
+        return JSONResponse({"ok": False, "message": "받는 사람을 넣어 주세요."}, 400)
+    to_email, cc, bcc = _mail.addr_list_text(to_l), _mail.addr_list_text(cc_l), _mail.addr_list_text(bcc_l)
+    # 같은 메일 두 번 막기 — 쓰기 화면마다 하나인 보내기 표(send_token). 이미 보냈으면 다시 안 보냄(네트워크 오류 뒤 다시 누름 등)
+    send_token = (form.get("send_token") or "").strip()[:64]
+    _tk = (u["id"], send_token) if send_token else None
+    if _tk:
+        with _MAIL_SEND_LOCK:
+            _now = _ms_time.time()
+            for _k in [k for k, v in _MAIL_SEND_SEEN.items() if _now - v[0] > 3600]:
+                _MAIL_SEND_SEEN.pop(_k, None)
+            _prev = _MAIL_SEND_SEEN.get(_tk)
+            if _prev:
+                if _prev[1] is None:
+                    return JSONResponse({"ok": False, "busy": True, "message": "보내는 중입니다 — 잠시만 기다려 주세요."}, 409)
+                _r = dict(_prev[1]); _r["dup"] = True
+                return JSONResponse(_r)
+            _MAIL_SEND_SEEN[_tk] = (_now, None)
+    try:
+        return await _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subject, body, body_html,
+                                   draft_id, large_tokens, _tk)
+    finally:
+        if _tk:
+            with _MAIL_SEND_LOCK:
+                _v = _MAIL_SEND_SEEN.get(_tk)
+                if _v and _v[1] is None:   # 결과가 안 남았으면(오류) 다시 보낼 수 있게 풀어 둠
+                    _MAIL_SEND_SEEN.pop(_tk, None)
+
+
+import threading as _ms_thr
+import time as _ms_time
+_MAIL_SEND_LOCK = _ms_thr.Lock()
+_MAIL_SEND_SEEN = {}   # (user_id, send_token) → (시각, 결과 dict | None=보내는 중) · 한 시간 기억
+
+
+async def _mail_send_do(req, u, form, to_email, cc, bcc, to_l, cc_l, bcc_l, subject, body, body_html,
+                        draft_id, large_tokens, _tk):
     attachments, total = [], 0
     for f in form.getlist("files"):
         if hasattr(f, "read"):
@@ -24180,10 +24263,25 @@ async def mail_send_route(req: Request):
             total += len(data)
             attachments.append((f.filename or "file", data,
                                 getattr(f, "content_type", "") or "application/octet-stream"))
+    # 11-19 전달 — 원래 첨부 함께(내 메일의 첨부만 · 고른 것만)
+    fwd_src = (form.get("fwd_src") or "").strip()
+    fwd_ids = [x for x in form.getlist("fwd_att") if str(x).isdigit()]
+    if fwd_src.isdigit() and fwd_ids:
+        with db_session() as c:
+            if not _mailbox.get_mail(c, int(fwd_src), u["id"]):
+                return JSONResponse({"ok": False, "message": "전달할 원래 메일을 찾을 수 없습니다."}, 404)
+            _ok_ids = {int(r["id"]) for r in c.execute(
+                "SELECT id FROM mail_attachments WHERE mail_id=? AND COALESCE(is_inline,0)=0", (int(fwd_src),)).fetchall()}
+            for aid in fwd_ids:
+                if int(aid) not in _ok_ids:
+                    continue
+                a = _mailbox.get_attachment(c, int(aid), u["id"])
+                if not a:
+                    return JSONResponse({"ok": False, "message": "원래 첨부 파일을 읽지 못했습니다 — 그 첨부를 ✕ 로 빼고 다시 보내 주세요."}, 400)
+                total += len(a["data"])
+                attachments.append((a["filename"], a["data"], a["mime"]))
     if total > 24 * 1024 * 1024:
-        return JSONResponse({"ok": False, "message": "첨부 합계가 24MB를 넘습니다. 큰 파일은 링크로 보내세요(대용량 첨부는 추후 기능)."}, 400)
-    if not _mail.is_valid_email(to_email):
-        return JSONResponse({"ok": False, "message": "받는 메일주소가 올바르지 않습니다."}, 400)
+        return JSONResponse({"ok": False, "message": "첨부 합계가 24MB를 넘습니다 — 큰 파일은 ✕ 로 뺀 뒤 「📎 첨부」로 다시 붙이면 자동으로 대용량 링크로 보냅니다."}, 400)
     with db_session() as c:
         from_addr = _mail_from_address_for(c, u)
         if not _mail.system_send_ready(c, u["id"]):
@@ -24197,20 +24295,34 @@ async def mail_send_route(req: Request):
                 import html as _htmlmod
                 send_html += ("<pre style='font-family:inherit;white-space:pre-wrap;margin:0'>"
                               + _htmlmod.escape(large_block) + "</pre>")
+        _rep = {}
         ok, msg = _mail.send_system(c, from_addr, to_email, subject, send_body,
                                     from_name=u.get("name") or "", cc=cc, attachments=attachments,
-                                    bcc=bcc, html=send_html, owner_id=u["id"])
+                                    bcc=bcc, html=send_html, owner_id=u["id"], report=_rep)
         if ok:
-            _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
-                                    from_name=u.get("name") or "", to_email=to_email,
-                                    subject=subject, body=send_body, cc=cc, bcc=bcc,
-                                    body_html=send_html, size=len(send_body or "") + total)
+            # 보낸 직후 「보냈음」부터 기억 — 아래 기록에서 오류가 나도 다시 누르면 두 번 나가지 않게
+            if _tk:
+                with _MAIL_SEND_LOCK:
+                    _MAIL_SEND_SEEN[_tk] = (_ms_time.time(), {"ok": True, "message": msg, "sent_n": len(_rep.get("sent") or []),
+                                                               "refused": [{"addr": a, "why": w} for a, w in (_rep.get("refused") or {}).items()]})
+            try:
+                _mailbox.store_outbound(c, user_id=u["id"], from_email=from_addr,
+                                        from_name=u.get("name") or "", to_email=to_email,
+                                        subject=subject, body=send_body, cc=cc, bcc=bcc,
+                                        body_html=send_html, size=len(send_body or "") + total)
+            except Exception as e:
+                print("[MAIL-SEND] 보낸편지함 기록 실패(user=%s): %s" % (u["id"], str(e)[:160]), flush=True)
             if draft_id:
                 try:
                     _mailbox.delete_draft(c, int(draft_id), u["id"])
                 except Exception:
                     pass
-    return JSONResponse({"ok": ok, "message": msg})
+    _refused = [{"addr": a, "why": w} for a, w in (_rep.get("refused") or {}).items()]
+    res = {"ok": ok, "message": msg, "sent_n": len(_rep.get("sent") or []), "refused": _refused}
+    if ok and _tk:
+        with _MAIL_SEND_LOCK:
+            _MAIL_SEND_SEEN[_tk] = (_ms_time.time(), res)
+    return JSONResponse(res)
 
 
 # ─── 🔒 메일 읽기 전용 조회 (AI 비서 '락아' 용 · 대표 지시 2026-11-09) ──────────
@@ -24668,7 +24780,7 @@ async def admin_mail_fetch_run(req: Request):
                     subject=parsed.get("subject", ""), text=parsed.get("text", ""),
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
                     owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
-                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""))
+                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""))
                 if mid:
                     stored += 1
             except Exception:

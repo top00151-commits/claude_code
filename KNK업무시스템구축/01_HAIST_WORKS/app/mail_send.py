@@ -93,8 +93,103 @@ def decrypt(token: str) -> str:
 
 
 def is_valid_email(addr: str) -> bool:
-    name, mail = parseaddr(addr or "")
-    return "@" in mail and "." in mail.split("@")[-1]
+    """주소 **하나**가 맞는지. (11-19) 파이썬 판에 따라 parseaddr 결과가 달라(3.12+ 는 'a@x, b@y' 를 ('','') 로)
+    받는 사람 여러 명 검사에 쓰면 안 된다 → 여러 명은 parse_addr_list 를 쓴다."""
+    ok, bad = parse_addr_list(addr)
+    return len(ok) == 1 and not bad
+
+
+# ─── 받는 사람 여러 명 — 한 명씩 나눠 검사(11-19 대표 「1단계 진행해」 · 잘못 발송 막기) ──────────
+# 파이썬 판과 상관없이 똑같이 동작하도록 직접 나눈다:
+#   쉼표·세미콜론·줄바꿈으로 나누되, 따옴표("Kim, Minsu") 와 꺾쇠(<...>) 안의 쉼표는 나누지 않는다.
+_ADDR_SPEC_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
+                           r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")
+
+
+def split_addr_list(s: str) -> list:
+    out, cur, q, ang = [], [], False, 0
+    for ch in (s or ""):
+        if ch == '"' and not ang:
+            q = not q
+        elif ch == "<" and not q:
+            ang += 1
+        elif ch == ">" and not q and ang:
+            ang -= 1
+        if ch in ",;\n\r" and not q and not ang:
+            tok = "".join(cur).strip()
+            if tok:
+                out.append(tok)
+            cur = []
+            continue
+        cur.append(ch)
+    tok = "".join(cur).strip()
+    if tok:
+        out.append(tok)
+    return out
+
+
+def parse_addr_list(s: str):
+    """'홍길동 <a@x.com>, b@y.com; "Kim, Minsu" <k@z.co.kr>' → ([(이름, 주소), ...], [틀린 조각, ...]).
+    같은 주소는 한 번만(대소문자 무시 · 처음 것 유지)."""
+    ok, bad, seen = [], [], set()
+    for tok in split_addr_list(s):
+        name, addr = "", tok
+        m = re.match(r'^\s*(.*?)\s*<\s*([^<>]*?)\s*>\s*$', tok, re.S)
+        if m:
+            name = m.group(1).strip().strip('"').strip()
+            addr = m.group(2).strip()
+        else:
+            addr = tok.strip().strip('"').strip()
+        if addr.lower().startswith("mailto:"):
+            addr = addr[7:]
+        if not _ADDR_SPEC_RE.match(addr):
+            bad.append(tok.strip())
+            continue
+        k = addr.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        ok.append((name, addr))
+    return ok, bad
+
+
+def addr_list_text(pairs) -> str:
+    """[(이름, 주소)] → '이름 <주소>, 주소' (화면·기록용 · 사람이 읽는 글)."""
+    out = []
+    for name, addr in pairs or []:
+        nm = (name or "").replace('"', "").replace("<", "").replace(">", "").strip()
+        if nm and any(ch in nm for ch in ",;@"):
+            nm = '"%s"' % nm          # 이름 속 쉼표는 따옴표로 감싸야 다시 읽어도 한 사람(「"Kim, Minsu" <k@x>」)
+        out.append(("%s <%s>" % (nm, addr)) if nm else addr)
+    return ", ".join(out)
+
+
+def _addr_header(pairs):
+    """헤더용 주소 목록 — 한글 이름도 규격대로(메일 프로그램마다 깨지지 않게)."""
+    from email.headerregistry import Address
+    out = []
+    for name, addr in pairs or []:
+        try:
+            out.append(Address(display_name=name or "", addr_spec=addr))
+        except Exception:
+            user_, _, dom_ = addr.rpartition("@")
+            out.append(Address(display_name=name or "", username=user_, domain=dom_))
+    return out
+
+
+def _send_err_text(e) -> str:
+    """메일 서버 오류를 사람이 읽을 말로(영어 원문은 괄호에 짧게)."""
+    import socket
+    raw = str(e)[:100]
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return "메일 서버가 응답하지 않습니다 — 잠시 뒤 다시 보내 주세요."
+    if isinstance(e, smtplib.SMTPSenderRefused):
+        return "메일 서버가 보내는 주소를 거부했습니다(%s)." % raw
+    if isinstance(e, smtplib.SMTPDataError):
+        return "메일 서버가 이 메일을 받지 않았습니다 — 첨부 크기·내용을 확인해 주세요(%s)." % raw
+    if isinstance(e, (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, ConnectionError, OSError)):
+        return "메일 서버에 연결하지 못했습니다 — 잠시 뒤 다시 보내 주세요(%s)." % raw
+    return "보내는 중 오류가 났습니다(%s)." % raw
 
 
 # ─── 자격증명 저장/조회 ──────────────────────────────────────────────
@@ -259,20 +354,33 @@ def _inline_data_images(html: str):
 def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
                from_email: str, to_email: str, subject: str, body: str,
                from_name: str = "", cc: str = "", attachments=None,
-               bcc: str = "", html: str = "") -> tuple[bool, str]:
+               bcc: str = "", html: str = "", report=None) -> tuple[bool, str]:
     """임의 SMTP 서버로 발송. login 계정과 From 이 달라도 됨(시스템 발송망용).
-    bcc: 숨은참조(봉투 수신자에 포함, 전송 메시지엔 Bcc 헤더 제거). html: 서식 본문(대체)."""
+    bcc: 숨은참조(봉투 수신자에 포함, 전송 메시지엔 Bcc 헤더 없음). html: 서식 본문(대체).
+    (11-19) 받는 사람·참조·숨은참조는 **한 명씩** 검사(틀린 주소가 하나라도 있으면 보내지 않고 그 주소를 알려 줌) ·
+    봉투 수신자 = 세 칸 전원(중복 제거) · 메일 서버가 일부만 거부하면 report['refused'] 에 담는다(성공으로 덮지 않음).
+    report(dict) 를 주면 sent=[실제로 넘긴 주소], refused={주소: 사유} 를 채운다."""
     if not is_valid_email(from_email):
         return (False, "보내는 메일주소가 올바르지 않습니다.")
-    if not is_valid_email(to_email):
-        return (False, "받는 메일주소가 올바르지 않습니다.")
+    to_l, bad_t = parse_addr_list(to_email)
+    cc_l, bad_c = parse_addr_list(cc)
+    bcc_l, bad_b = parse_addr_list(bcc)
+    bad = bad_t + bad_c + bad_b
+    if bad:
+        return (False, "주소가 올바르지 않습니다: %s" % ", ".join(bad[:5]))
+    if not to_l:
+        return (False, "받는 사람을 넣어 주세요.")
+    env, seen = [], set()
+    for _n, a in to_l + cc_l + bcc_l:
+        if a.lower() not in seen:
+            seen.add(a.lower())
+            env.append(a)
     msg = EmailMessage()
     msg["From"] = formataddr((from_name or from_email, from_email))
-    msg["To"] = to_email
-    if (cc or "").strip():
-        msg["Cc"] = cc.strip()
-    if (bcc or "").strip():
-        msg["Bcc"] = bcc.strip()   # send_message 가 봉투 수신자로 쓰고 헤더는 제거
+    msg["To"] = _addr_header(to_l)
+    if cc_l:
+        msg["Cc"] = _addr_header(cc_l)
+    # 숨은참조는 헤더에 넣지 않는다(봉투 수신자로만) — 받는 사람들에게 절대 안 보이게
     msg["Subject"] = subject or "(제목 없음)"
     _stamp_required_headers(msg, from_email)   # ⭐Date·Message-ID (없으면 스팸 분류)
     msg.set_content(body or "")
@@ -293,12 +401,33 @@ def _smtp_send(host: str, port: int, login_user: str, login_pass: str,
         ctx = ssl.create_default_context()
         with smtplib.SMTP_SSL(host, int(port or 465), context=ctx, timeout=30) as s:
             s.login(login_user, login_pass)
-            s.send_message(msg)   # To/Cc/Bcc 헤더에서 봉투 수신자 자동 추출 + Bcc 헤더 삭제
-        return (True, "발송 완료")
+            refused = s.send_message(msg, from_addr=from_email, to_addrs=env) or {}
     except smtplib.SMTPAuthenticationError:
         return (False, "발송망 로그인 실패 — 보내기 설정의 계정/비밀번호를 확인하세요.")
+    except smtplib.SMTPRecipientsRefused as e:
+        rr = getattr(e, "recipients", {}) or {}
+        if isinstance(report, dict):
+            report["sent"] = []
+            report["refused"] = {a: _refuse_why(v) for a, v in rr.items()}
+        return (False, "메일 서버가 받는 사람을 모두 거부했습니다: %s" % ", ".join(list(rr)[:5]))
     except Exception as e:
-        return (False, f"발송 오류: {str(e)[:120]}")
+        return (False, _send_err_text(e))
+    if isinstance(report, dict):
+        report["refused"] = {a: _refuse_why(v) for a, v in refused.items()}
+        report["sent"] = [a for a in env if a not in refused]
+    if refused:
+        return (True, "%d명에게 보냈습니다 · ⚠ 못 간 주소 %d: %s" % (len(env) - len(refused), len(refused), ", ".join(list(refused)[:5])))
+    return (True, "발송 완료")
+
+
+def _refuse_why(v) -> str:
+    """메일 서버 거부 사유(code, msg) → 짧은 글."""
+    try:
+        code, m = v
+        m = m.decode("utf-8", "replace") if isinstance(m, (bytes, bytearray)) else str(m)
+        return ("%s %s" % (code, m))[:120]
+    except Exception:
+        return str(v)[:120]
 
 
 def smtp_login_test(host: str, port, user: str, password: str) -> tuple[bool, str]:
@@ -515,7 +644,7 @@ def save_send_config(c, host: str, port: str, user: str, password: str) -> None:
 
 def send_system(c, from_email: str, to_email: str, subject: str, body: str,
                 from_name: str = "", cc: str = "", attachments=None,
-                bcc: str = "", html: str = "", owner_id=None) -> tuple[bool, str]:
+                bcc: str = "", html: str = "", owner_id=None, report=None) -> tuple[bool, str]:
     """회사 발송망(시스템 SMTP)으로 발송. from_email = 보내는 직원의 @우리도메인 주소.
     owner_id 가 '내 받기 계정으로 보내기' 대상이면 그 계정으로 SMTP 로그인하고,
     보내는 주소도 그 계정 주소로 맞춘다(제공사가 남의 주소로 보내기를 막으므로)."""
@@ -526,4 +655,4 @@ def send_system(c, from_email: str, to_email: str, subject: str, body: str,
         from_email = cfg["from"]
     return _smtp_send(cfg["host"], cfg["port"], cfg["user"], cfg["password"],
                       from_email, to_email, subject, body, from_name, cc, attachments,
-                      bcc=bcc, html=html)
+                      bcc=bcc, html=html, report=report)
