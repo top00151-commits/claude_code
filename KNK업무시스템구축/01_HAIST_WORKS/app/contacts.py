@@ -512,6 +512,20 @@ def find_duplicates(c, mobile: str = "", email: str = "", phone: str = "",
 VISIBILITIES = ("private", "dept", "company")   # v5H226z580 공유 범위
 
 
+def is_chief_user(user) -> bool:
+    """z1191z81 (대표 11-19 「총괄 부서원은 각 부서 주소록들도 다 볼수있게」): 소속 부서 이름에 「총괄」(본사 총괄 · 법인 총괄)."""
+    tid = (user or {}).get("team_id")
+    if not tid:
+        return False
+    try:
+        with db_session() as _c:
+            r = _c.execute("SELECT name FROM teams WHERE id=?", (int(tid),)).fetchone()
+        return bool(r and "총괄" in (r[0] or ""))
+    except Exception as _e:
+        print(f"[z1191z81] 총괄 확인 실패: {_e}")
+        return False
+
+
 def _vis_clause(user) -> tuple[str, list]:
     """v5H226z580 가시성 필터 (SQL 조각, 파라미터).
     내가 볼 수 있는 연락처 = ①내가 등록 + ②전사 공유 + ③내 부서로 공유.
@@ -520,6 +534,8 @@ def _vis_clause(user) -> tuple[str, list]:
         return "", []
     uid = user.get("id")
     tid = user.get("team_id")
+    if is_chief_user(user):   # z1191z81: 총괄 = 모든 부서 주소록
+        return ("(sc.created_by=? OR sc.visibility='company' OR sc.visibility='dept')", [uid])
     return (
         "(sc.created_by=? OR sc.visibility='company'"
         " OR (sc.visibility='dept' AND sc.share_team_id IS NOT NULL AND sc.share_team_id=?))",
@@ -580,7 +596,7 @@ def list_contacts(c, q: str = "", user=None) -> list[dict]:
 
 
 # ── z1191z77 책갈피(개인 · 부서 · 전사) · 이름 보기 정리 · 우리 회사 직원 ──
-TAB_LABELS = (("all", "전체"), ("private", "🔒 개인"), ("dept", "👥 부서"), ("company", "🌐 전사"))
+TAB_LABELS = (("all", "전체"), ("private", "🔒 개인"), ("dept", "👥 부서공유"), ("company", "🌐 전사공유"))
 
 
 def tab_of(contact: dict) -> str:
@@ -781,7 +797,53 @@ def can_see(contact: dict, user: dict) -> bool:
     if vis == "dept" and contact.get("share_team_id") and \
        contact.get("share_team_id") == user.get("team_id"):
         return True
+    if vis == "dept" and is_chief_user(user):   # z1191z81: 총괄 = 모든 부서 주소록
+        return True
     return False
+
+
+def can_move_company(contact: dict, user: dict) -> bool:
+    """z1191z81 (대표 「각 주소록에서 접근이 가능한 담당자가 해당 주소록을 "전사"로 이동」):
+    전사로 이동 = 등록한 본인·관리자 + 그 부서 주소록의 부서원(총괄 포함)."""
+    if can_edit(contact, user):
+        return True
+    if (contact or {}).get("visibility") == "dept" and can_see(contact, user):
+        return True
+    return False
+
+
+def copy_to_dept(c, cid: int, user: dict) -> dict:
+    """z1191z81 (대표 「개인주소록에 주소록을 복사」): 내 🔒 개인 연락처 → 내 부서 주소록에 **복사**(개인 것은 그대로 남김).
+    같은 사람(휴대폰 숫자 · 휴대폰 없으면 이메일 · 둘 다 없으면 이름+회사)이 이미 내 부서 주소록에 있으면 만들지 않음.
+    반환 {status: copied|exists|skipped, id, reason}."""
+    ct = get_contact(c, cid)
+    tid = (user or {}).get("team_id")
+    if not ct or not can_see(ct, user):
+        return {"status": "skipped", "id": None, "reason": "볼 수 없는 연락처"}
+    if not tid:
+        return {"status": "skipped", "id": None, "reason": "소속 부서 없음"}
+    if (ct.get("visibility") or "private") != "private" or ct.get("created_by") != user.get("id"):
+        return {"status": "skipped", "id": None, "reason": "내 개인 연락처만 복사"}
+    mob = re.sub(r"\D", "", ct.get("mobile") or "")
+    em = (ct.get("email") or "").strip().lower()
+    base = "SELECT id FROM shared_contacts sc WHERE sc.visibility='dept' AND sc.share_team_id=? AND "
+    if len(mob) >= 8:
+        hit = c.execute(base + _z77_digits_sql("sc.mobile") + "=? LIMIT 1", (tid, mob)).fetchone()
+    elif em:
+        hit = c.execute(base + "LOWER(TRIM(COALESCE(sc.email,'')))=? LIMIT 1", (tid, em)).fetchone()
+    else:
+        hit = c.execute(base + "TRIM(COALESCE(sc.name,''))=? AND TRIM(COALESCE(sc.company,''))=? LIMIT 1",
+                        (tid, (ct.get("name") or "").strip(), (ct.get("company") or "").strip())).fetchone()
+    if hit:
+        return {"status": "exists", "id": hit[0], "reason": "이미 부서공유 주소록에 있음"}
+    cur = c.execute(
+        "INSERT INTO shared_contacts (name, position, company, department, mobile, phone, fax, email, address, note, card_image, "
+        "source, customer_id, visibility, share_team_id, created_by, updated_by) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'dept', ?, ?, ?)",
+        (ct.get("name"), ct.get("position"), ct.get("company"), ct.get("department"), ct.get("mobile"), ct.get("phone"),
+         ct.get("fax"), ct.get("email"), ct.get("address"), ct.get("note"), ct.get("card_image"), ct.get("source") or "manual",
+         ct.get("customer_id"), tid, user.get("id"), user.get("id")))
+    return {"status": "copied", "id": cur.lastrowid, "reason": ""}
 
 
 def _norm_share(visibility, team_id) -> tuple[str, int | None]:

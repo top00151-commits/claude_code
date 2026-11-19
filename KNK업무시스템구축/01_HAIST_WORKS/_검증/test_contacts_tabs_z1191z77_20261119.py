@@ -129,7 +129,7 @@ check(CT.phone_query_digits("가영업") == "" and CT.phone_query_digits("12") =
 
 print("§4 고른 연락처 공유 범위 한 번에")
 r = q(cl.post, "/contacts/bulk-share", json={"ids": [A1, C3], "visibility": "dept"}).json()
-check(r["ok"] and r["done"] == 1 and r["skipped"] == 1 and "내가 등록하지 않은 1명" in r["message"], "가영업: 내 것 1명만 👥 부서로 · 남의 것(오전사)은 그대로", r)
+check(r["ok"] and r["done"] == 1 and r["skipped"] == 1 and "바꿀 수 없는 1명" in r["message"], "가영업: 내 것 1명만 👥 부서로 · 남의 것(오전사)은 그대로", r)
 with D.db_session() as c:
     row = dict(c.execute("SELECT visibility, share_team_id FROM shared_contacts WHERE id=?", (A1,)).fetchone())
     row3 = dict(c.execute("SELECT visibility FROM shared_contacts WHERE id=?", (C3,)).fetchone())
@@ -155,7 +155,7 @@ check(not r["ok"] and "소속 부서가 없어" in r["message"], "부서 없는 
 check(q(cl.post, "/contacts/bulk-share", json={"ids": [N1], "visibility": "all"}).status_code == 400, "이상한 범위 → 거절")
 CUR["u"] = UA
 h = q(cl.get, "/contacts").text
-check('onclick="cxShareSelected(\'dept\')"' in h and "👥 우리 부서로" in h and "🌐 전사로" in h and "🔒 개인으로" in h, "도구 줄 「고른 N명 → 🔒 개인으로 · 👥 우리 부서로 · 🌐 전사로」")
+check('onclick="cxCopyDept()"' in h and "📋 부서공유로 복사" in h and "🌐 전사공유로 이동" in h and "🔒 개인으로" in h, "도구 줄 「고른 N명 → 🔒 개인으로 · 📋 부서공유로 복사 · 🌐 전사공유로 이동」(z1191z81 이름)")
 
 print("§5 🏢 우리 회사 직원 — 인사 명부 그대로")
 h = q(cl.get, "/contacts?tab=staff").text

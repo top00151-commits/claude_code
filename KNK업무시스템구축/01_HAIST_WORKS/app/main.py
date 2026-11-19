@@ -22037,13 +22037,28 @@ async def contacts_list(req: Request):
     for _t in ("private", "dept", "company"):
         counts[_t] = sum(1 for d in items if d["tab"] == _t)
     shown = items if tab == "all" else [d for d in items if d["tab"] == tab]
+    # z1191z81: 총괄 = 모든 부서 주소록 → 부서 책갈피에서 부서별로 골라 보기
+    chief = _contacts.is_chief_user(u)
+    dept_teams, dteam = [], (req.query_params.get("team") or "").strip()
+    if chief:
+        _dt = {}
+        for d in items:
+            if d["tab"] == "dept":
+                _k = (d.get("share_team_id") or 0, d.get("share_team_name") or "부서 없음")
+                _dt[_k] = _dt.get(_k, 0) + 1
+        dept_teams = [{"id": k[0], "name": k[1], "n": v} for k, v in sorted(_dt.items(), key=lambda kv: (-kv[1], kv[0][1]))]
+        if tab == "dept" and dteam.isdigit():
+            shown = [d for d in shown if str(d.get("share_team_id") or "") == dteam]
+    for d in items:
+        d["movable"] = _contacts.can_move_company(d, u)
     my_team = ""
     if u.get("team_id"):
         with db_session() as c:
             _r = c.execute("SELECT name FROM teams WHERE id=?", (u.get("team_id"),)).fetchone()
             my_team = (_r[0] if _r else "") or ""
     return ctx(req, "contacts_list.html", user=u, contacts=shown, q=q,
-               total=len(items), tab=tab, counts=counts, staff=staff, my_team=my_team, corp=corp)
+               total=len(items), tab=tab, counts=counts, staff=staff, my_team=my_team, corp=corp,
+               chief=chief, dept_teams=dept_teams, dteam=dteam)
 
 
 @app.get("/contacts/new")
@@ -22054,8 +22069,9 @@ async def contacts_new(req: Request):
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
             "SELECT " + _CUST_PICK_COLS + " FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()]   # z1158
+    _pv = (req.query_params.get("vis") or "").strip()   # z1191z81: 부서·전사 책갈피에서 바로 등록
     return ctx(req, "contact_form.html", user=u, contact=None,
-               customers=customers, mode="new")
+               customers=customers, mode="new", pre_vis=_pv if _pv in ("dept", "company") else "private")
 
 
 @app.get("/contacts/scan")
@@ -22131,7 +22147,7 @@ async def contacts_vcards_all(req: Request):
     with db_session() as c:
         text = _contacts.vcards_all(c, user=u, tab=_tab, corp=_corp)
     from urllib.parse import quote
-    fn = {"private": "개인연락처.vcf", "dept": "부서연락처.vcf", "company": "전사연락처.vcf", "staff": "직원연락처.vcf"}.get(_tab, "연락처.vcf")
+    fn = {"private": "개인연락처.vcf", "dept": "부서공유연락처.vcf", "company": "전사공유연락처.vcf", "staff": "직원연락처.vcf"}.get(_tab, "연락처.vcf")
     if _tab == "staff" and _corp in ("kr", "vn"):
         fn = {"kr": "직원연락처_KNK본사.vcf", "vn": "직원연락처_KNK_VINA.vcf"}[_corp]
     headers = {"Content-Disposition":
@@ -22416,7 +22432,8 @@ async def contacts_detail(req: Request, cid: int):
     if not contact or not _contacts.can_see(contact, u):   # v5H226z580 가시성(개인은 본인만)
         return RedirectResponse("/contacts", 303)
     return ctx(req, "contact_detail.html", user=u, contact=contact,
-               can_edit=_contacts.can_edit(contact, u))
+               can_edit=_contacts.can_edit(contact, u),
+               can_move_company=_contacts.can_move_company(contact, u))   # z1191z81
 
 
 @app.get("/contacts/{cid:int}/edit")
@@ -22558,16 +22575,47 @@ async def contacts_bulk_share(req: Request):
     with db_session() as c:
         for cid in ids:
             ct = _contacts.get_contact(c, cid)
-            if not ct or not _contacts.can_see(ct, u) or not _contacts.can_edit(ct, u):
+            if not ct or not _contacts.can_see(ct, u) or not (
+                    _contacts.can_edit(ct, u) or (vis == "company" and _contacts.can_move_company(ct, u))):   # z1191z81
                 skipped += 1
                 continue
             _contacts.set_share(c, cid, vis, tid, u["id"])
             done += 1
-    lab = {"private": "🔒 개인", "dept": "👥 부서", "company": "🌐 전사"}[vis]
+    lab = {"private": "🔒 개인", "dept": "👥 부서공유", "company": "🌐 전사공유"}[vis]
     msg = f"{done}명을 {lab} 연락처로 바꿨습니다."
     if skipped:
-        msg += f" (내가 등록하지 않은 {skipped}명은 그대로)"
+        msg += f" (바꿀 수 없는 {skipped}명은 그대로)"
     return JSONResponse({"ok": True, "done": done, "skipped": skipped, "message": msg})
+
+
+@app.post("/contacts/bulk-copy-dept")
+async def contacts_bulk_copy_dept(req: Request):
+    """z1191z81 (대표 「각 부서에 주소록 등록은 개인주소록에 주소록을 복사」): 고른 내 🔒 개인 연락처 → 내 부서 주소록에 복사(개인 것은 남김)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "요청 형식 오류."}, 400)
+    ids = [int(x) for x in (body.get("ids") or []) if str(x).isdigit()]
+    if not ids:
+        return JSONResponse({"ok": False, "message": "고른 연락처가 없습니다."}, 400)
+    if not u.get("team_id"):
+        return JSONResponse({"ok": False, "message": "소속 부서가 없어 부서공유 주소록에 복사할 수 없습니다(관리자에게 부서 배정 요청)."}, 400)
+    res = []
+    with db_session() as c:
+        for cid in ids:
+            res.append(_contacts.copy_to_dept(c, cid, u))
+    n_c = sum(1 for r in res if r["status"] == "copied")
+    n_e = sum(1 for r in res if r["status"] == "exists")
+    n_s = sum(1 for r in res if r["status"] == "skipped")
+    msg = f"{n_c}명을 부서공유 주소록에 복사했습니다(내 개인 연락처는 그대로)."
+    if n_e:
+        msg += f" 이미 부서공유 주소록에 있는 {n_e}명은 건너뜀."
+    if n_s:
+        msg += f" 내 개인 연락처가 아닌 {n_s}명은 건너뜀."
+    return JSONResponse({"ok": True, "copied": n_c, "exists": n_e, "skipped": n_s, "results": res, "message": msg})
 
 
 @app.post("/contacts/{cid:int}/share")
@@ -22585,9 +22633,10 @@ async def contacts_share(req: Request, cid: int):
         contact = _contacts.get_contact(c, cid)
         if not contact:
             return JSONResponse({"ok": False, "message": "연락처를 찾을 수 없습니다."}, 404)
-        if not _contacts.can_edit(contact, u):
+        _ok81 = _contacts.can_edit(contact, u) or (vis == "company" and _contacts.can_move_company(contact, u))   # z1191z81
+        if not _ok81:
             return JSONResponse({"ok": False,
-                "message": "공유 설정 권한이 없습니다 (등록 본인·관리자만 가능)."}, 403)
+                "message": "공유 설정 권한이 없습니다 (등록 본인·관리자 · 전사 이동은 그 부서원도)."}, 403)
         tid = u.get("team_id") if vis == "dept" else None
         if vis == "dept" and not tid:
             return JSONResponse({"ok": False,

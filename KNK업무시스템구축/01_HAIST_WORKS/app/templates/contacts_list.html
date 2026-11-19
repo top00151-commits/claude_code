@@ -67,7 +67,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
     <div>
       <div class="crumbs"><b>연락처(주소록)</b></div>
       <h1 class="page-title">📇 <em>연락처</em> <span style="font-size:14px;color:var(--mute);font-weight:500;">— 내가 볼 수 있는 {{ total }}명</span></h1>
-      <div style="font-size:11.5px; color:var(--mute); margin-top:2px;">🔒 개인 = 나만 · 👥 부서 = 우리 부서원 누구나 · 🌐 전사 = 회사 전체 누구나 볼 수 있는 연락처입니다. 새로 등록하면 🔒 개인으로 들어가고, 필요한 것만 골라 👥 부서 · 🌐 전사로 바꿉니다.</div>
+      <div style="font-size:11.5px; color:var(--mute); margin-top:2px;">🔒 개인 = 나만 · 👥 부서공유 = 우리 부서원 누구나 · 🌐 전사공유 = 회사 전체 누구나 볼 수 있는 연락처입니다. 새로 등록하면 🔒 개인으로 들어가고, 필요한 것만 📋 부서공유로 복사 · 🌐 전사공유로 이동합니다.</div>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       {# v5H226z579 (대표 지시): 휴대폰(갤럭시)에 전체 연락처 한 번에 — vCard 다운로드 + 가져오기 안내 #}
@@ -78,7 +78,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       <a class="btn btn-secondary" href="/contacts/import-vcf" title="휴대폰 .vcf 또는 아웃룩 .csv 파일을 올려 한 번에 등록">📥 연락처 가져오기</a>
       <a class="btn btn-secondary" href="/contacts/scan">📷 명함으로</a>
       <a class="btn btn-secondary" href="/contacts/from-signature">📧 메일 서명으로</a>
-      <a class="btn btn-primary" href="/contacts/new">＋ 연락처 등록</a>
+      <a class="btn btn-primary" href="/contacts/new{% if tab in ('dept', 'company') %}?vis={{ tab }}{% endif %}">＋ {% if tab == 'dept' %}부서공유 {% elif tab == 'company' %}전사공유 {% endif %}연락처 등록</a>
     </div>
   </div>
 
@@ -94,18 +94,26 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
   <nav class="cx-tabs" aria-label="연락처 구분">
     <a class="cx-tab{% if tab == 'all' %} on{% endif %}" href="/contacts?tab=all{{ _qs }}">전체<span class="n">{{ counts.all }}</span></a>
     <a class="cx-tab{% if tab == 'private' %} on{% endif %}" href="/contacts?tab=private{{ _qs }}" title="나만 볼 수 있는 연락처">🔒 개인<span class="n">{{ counts.private }}</span></a>
-    <a class="cx-tab{% if tab == 'dept' %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}" title="우리 부서원 누구나 볼 수 있는 연락처">👥 부서{% if my_team %} <small style="font-weight:600;">({{ my_team }})</small>{% endif %}<span class="n">{{ counts.dept }}</span></a>
-    <a class="cx-tab{% if tab == 'company' %} on{% endif %}" href="/contacts?tab=company{{ _qs }}" title="우리 회사 전체 누구나 볼 수 있는 연락처">🌐 전사<span class="n">{{ counts.company }}</span></a>
+    <a class="cx-tab{% if tab == 'dept' %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}" title="{% if chief %}총괄 — 모든 부서 주소록{% else %}우리 부서원 누구나 볼 수 있는 연락처{% endif %}">👥 부서공유{% if chief %} <small style="font-weight:600;">(모든 부서 · 총괄)</small>{% elif my_team %} <small style="font-weight:600;">({{ my_team }})</small>{% endif %}<span class="n">{{ counts.dept }}</span></a>
+    <a class="cx-tab{% if tab == 'company' %} on{% endif %}" href="/contacts?tab=company{{ _qs }}" title="우리 회사 전체 누구나 볼 수 있는 연락처">🌐 전사공유<span class="n">{{ counts.company }}</span></a>
     <a class="cx-tab{% if tab == 'staff' %} on{% endif %}" href="/contacts?tab=staff{{ _qs }}" title="재직 중인 직원 — 인사 명부 그대로(따로 저장할 필요 없음)">🏢 우리 회사 직원<span class="n">{{ counts.staff }}</span></a>
   </nav>
   <div class="cx-tabnote">
-    {% if tab == 'private' %}🔒 <b>개인 연락처</b> — <b>나만</b> 볼 수 있습니다. 같이 써야 할 거래처 담당자는 골라서 [👥 우리 부서로] · [🌐 전사로]를 누르세요.
-    {% elif tab == 'dept' %}👥 <b>부서 연락처</b> — <b>우리 부서원 누구나</b> 볼 수 있습니다{% if my_team %}({{ my_team }}){% endif %}. 부서가 함께 연락하는 거래처 담당자를 여기에 모읍니다.
-    {% elif tab == 'company' %}🌐 <b>전사 공개 연락처</b> — <b>우리 회사 전체 누구나</b> 볼 수 있습니다. 여러 부서가 함께 쓰는 고객사·협력사 대표 번호를 여기에 둡니다.
+    {% if tab == 'private' %}🔒 <b>개인 연락처</b> — <b>나만</b> 볼 수 있습니다. 같이 써야 할 담당자는 골라서 [📋 부서공유로 복사](내 것은 그대로 남음) · [🌐 전사공유로 이동]을 누르세요.
+    {% elif tab == 'dept' %}👥 <b>부서공유 연락처</b> — <b>우리 부서원 누구나</b> 볼 수 있습니다{% if my_team and not chief %}({{ my_team }}){% endif %}{% if chief %} · <b>총괄은 모든 부서 주소록</b>을 봅니다{% endif %}.
+      넣는 길: [🔒 개인]에서 골라 [📋 부서공유로 복사] · <a href="/contacts/new?vis=dept">＋ 부서공유 연락처 바로 등록</a> · 이음에서 고객사·협력사를 초대하면 자동. 이 부서공유 연락처는 부서원 누구나 [🌐 전사공유로 이동]할 수 있습니다.
+    {% elif tab == 'company' %}🌐 <b>전사공유 연락처</b> — <b>우리 회사 전체 누구나</b> 볼 수 있습니다. 개인·부서 주소록에서 볼 수 있는 담당자가 [🌐 전사공유로 이동]하거나 <a href="/contacts/new?vis=company">＋ 전사공유 연락처 바로 등록</a>합니다.
     {% elif tab == 'staff' %}🏢 <b>우리 회사 직원</b> — 재직 중인 직원 {{ counts.staff }}명(KNK 본사 {{ counts.staff_kr }} · KNK VINA 법인 {{ counts.staff_vn }} · 인사 명부 그대로). 동료 번호는 <b>따로 저장하지 않아도</b> 여기서 찾고, 번호를 누르면 바로 전화합니다. 휴대폰에 넣으려면 [📇 이 책갈피 vCard].
-    {% else %}내가 볼 수 있는 연락처 전부입니다 — 🔒 개인 {{ counts.private }} · 👥 부서 {{ counts.dept }} · 🌐 전사 {{ counts.company }}. 여러 명을 골라 공유 범위를 한 번에 바꿀 수 있습니다.{% endif %}
+    {% else %}내가 볼 수 있는 연락처 전부입니다 — 🔒 개인 {{ counts.private }} · 👥 부서공유 {{ counts.dept }} · 🌐 전사공유 {{ counts.company }}. 여러 명을 골라 공유 범위를 한 번에 바꿀 수 있습니다.{% endif %}
   </div>
 
+  {% if tab == 'dept' and chief and dept_teams %}
+    {# z1191z81 (대표 11-19 「총괄 부서원은 각 부서 주소록들도 다 볼수있게」): 부서별로 골라 보기 #}
+    <div class="cx-corps" role="group" aria-label="부서별 주소록">
+      <a class="cx-corpf{% if not dteam %} on{% endif %}" href="/contacts?tab=dept{{ _qs }}">모든 부서 <span class="n">{{ counts.dept }}</span></a>
+      {% for dt in dept_teams %}<a class="cx-corpf{% if dteam == (dt.id|string) %} on{% endif %}" href="/contacts?tab=dept&team={{ dt.id }}{{ _qs }}">{{ dt.name }} <span class="n">{{ dt.n }}</span></a>{% endfor %}
+    </div>
+  {% endif %}
   {% if tab == 'staff' %}
     {# z1191z79 (대표 11-19): 본사 · 법인 따로 #}
     <div class="cx-corps" role="group" aria-label="본사·법인 나눠 보기">
@@ -116,10 +124,10 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
   {% endif %}
   {% if contacts and tab != 'staff' %}
   <div class="cx-toolbar">
-    <span class="cx-share" title="고른 연락처의 공유 범위를 한 번에 바꿉니다(내가 등록한 것만)"><span>고른 <b id="cxSelN2">0</b>명 →</span>
+    <span class="cx-share" title="고른 연락처를 한 번에 — 🔒 개인으로(내가 등록한 것) · 📋 부서공유로 복사(내 개인 것) · 🌐 전사공유로 이동(내 것·우리 부서공유 것)"><span>고른 <b id="cxSelN2">0</b>명 →</span>
       <button type="button" class="cx-sh" data-v="private" onclick="cxShareSelected('private')" disabled>🔒 개인으로</button>
-      <button type="button" class="cx-sh" data-v="dept" onclick="cxShareSelected('dept')" disabled>👥 우리 부서로</button>
-      <button type="button" class="cx-sh" data-v="company" onclick="cxShareSelected('company')" disabled>🌐 전사로</button></span>
+      <button type="button" class="cx-sh" data-v="copy" onclick="cxCopyDept()" disabled title="내 개인 연락처를 부서공유 주소록에 복사(개인 것은 그대로 남음)">📋 부서공유로 복사</button>
+      <button type="button" class="cx-sh" data-v="company" onclick="cxShareSelected('company')" disabled title="회사 전체 누구나 보게 전사공유로 옮김(부서공유 연락처는 그 부서원도 옮길 수 있음)">🌐 전사공유로 이동</button></span>
     <button type="button" class="btn btn-secondary" id="cxDelBtn" onclick="cxDelSelected()" disabled style="color:var(--knk-red);">🗑 선택 삭제 (<span id="cxSelN">0</span>)</button>
     <button type="button" class="btn btn-secondary" onclick="cxSelectNoMobile()" title="휴대폰 번호가 비어있는 연락처를 모두 선택">📵 휴대폰 없는 항목 선택</button>
     <div class="cx-colmenu">
@@ -153,7 +161,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
         <col data-col="company" style="width:190px"><col data-col="department" style="width:120px">
         <col data-col="mobile" style="width:130px"><col data-col="phone" style="width:130px">
         <col data-col="fax" style="width:120px"><col data-col="email" style="width:200px">
-        <col data-col="address" style="width:260px"><col data-col="vis" style="width:88px">
+        <col data-col="address" style="width:260px"><col data-col="vis" style="width:128px">
         <col data-col="source" style="width:72px"><col data-col="creator" style="width:110px">
         <col data-col="note" style="width:200px"><col style="width:56px">
       </colgroup>
@@ -177,7 +185,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       <tbody>
       {% for c in contacts %}
         <tr data-id="{{ c.id }}" onclick="cxRowGo(event, {{ c.id }})" style="cursor:pointer;">
-          <td class="cx-chkcol"><input type="checkbox" class="cx-row" data-id="{{ c.id }}" data-mobile="{{ (c.mobile or '')|trim }}" data-mine="{{ 1 if c.mine else 0 }}" onclick="event.stopPropagation(); cxSyncSel();"></td>
+          <td class="cx-chkcol"><input type="checkbox" class="cx-row" data-id="{{ c.id }}" data-mobile="{{ (c.mobile or '')|trim }}" data-mine="{{ 1 if c.mine else 0 }}" data-movable="{{ 1 if c.movable else 0 }}" data-tab="{{ c.tab }}" onclick="event.stopPropagation(); cxSyncSel();"></td>
           <td data-col="name" title="{{ c.name }}"><b>{{ c.name_disp }}</b></td>
           <td data-col="position">{{ c.position|default('—', true) }}</td>
           <td data-col="company">{{ c.company|default('—', true) }}</td>
@@ -189,8 +197,8 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
           <td data-col="address" style="font-size:12.5px;" title="{{ c.address|default('', true) }}">{{ c.address|default('—', true) }}</td>
           <td data-col="vis" class="center">
             {% set v = c.visibility|default('private') %}
-            {% if v == 'company' %}<span class="src-pill vis-co">🌐 전사</span>
-            {% elif v == 'dept' %}<span class="src-pill vis-dept" title="{{ c.share_team_name|default('', true) }}">👥 부서</span>
+            {% if v == 'company' %}<span class="src-pill vis-co">🌐 전사공유</span>
+            {% elif v == 'dept' %}<span class="src-pill vis-dept" title="{{ c.share_team_name|default('', true) }} 부서공유">👥 부서공유{% if chief and c.share_team_name %} · {{ c.share_team_name }}{% endif %}</span>
             {% else %}<span class="src-pill vis-me">🔒 개인</span>{% endif %}
           </td>
           <td data-col="source" class="center">
@@ -209,8 +217,8 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
     {% else %}
     <div class="empty">
       <div class="ico">📇</div>
-      <div class="ttl">{% if q %}'{{ q }}' 검색 결과가 없습니다{% elif tab == 'dept' %}아직 부서 연락처가 없습니다{% elif tab == 'company' %}아직 전사 공개 연락처가 없습니다{% else %}등록된 연락처가 없습니다{% endif %}</div>
-      {% if not q and tab in ('dept', 'company') and counts.private %}<div style="margin-top:6px;font-size:12.5px;color:var(--mute);">[🔒 개인] 책갈피에서 같이 쓸 연락처를 골라 [{{ '👥 우리 부서로' if tab == 'dept' else '🌐 전사로' }}]를 누르면 여기로 옵니다.</div>{% endif %}
+      <div class="ttl">{% if q %}'{{ q }}' 검색 결과가 없습니다{% elif tab == 'dept' %}아직 부서공유 연락처가 없습니다{% elif tab == 'company' %}아직 전사공유 연락처가 없습니다{% else %}등록된 연락처가 없습니다{% endif %}</div>
+      {% if not q and tab in ('dept', 'company') and counts.private %}<div style="margin-top:6px;font-size:12.5px;color:var(--mute);">[🔒 개인] 책갈피에서 같이 쓸 연락처를 골라 [{{ '📋 부서공유로 복사' if tab == 'dept' else '🌐 전사공유로 이동' }}]를 누르면 여기로 옵니다.</div>{% endif %}
       <div style="margin-top:14px; display:flex; gap:8px; justify-content:center;">
         <a class="btn btn-primary" href="/contacts/scan">📷 명함으로 등록</a>
         <a class="btn btn-secondary" href="/contacts/new">✏️ 직접 입력</a>
@@ -222,7 +230,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
   {# v5H226z579 (대표 지시): 휴대폰 전체 저장 안내 모달 — vCard 받기 + 갤럭시 가져오기 절차. SPA 규칙: .main 안 #}
   <div id="cxPhoneModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this) cxPhoneClose()">
     <div style="background:#fff; border-radius:14px; max-width:440px; width:100%; padding:22px; box-shadow:0 18px 50px rgba(0,0,0,.3);">
-      <div style="font-size:17px; font-weight:800; margin-bottom:6px;">📱 휴대폰에 {% if tab == 'all' %}내 연락처 전체{% else %}「{{ {'private':'🔒 개인','dept':'👥 부서','company':'🌐 전사','staff':'🏢 우리 회사 직원'}[tab] }}」 연락처{% endif %} 한 번에 추가</div>
+      <div style="font-size:17px; font-weight:800; margin-bottom:6px;">📱 휴대폰에 {% if tab == 'all' %}내 연락처 전체{% else %}「{{ {'private':'🔒 개인','dept':'👥 부서공유','company':'🌐 전사공유','staff':'🏢 우리 회사 직원'}[tab] }}」 연락처{% endif %} 한 번에 추가</div>
       <div style="font-size:13px; color:var(--qv-ink-2,#475569); line-height:1.7;">
         <b>① 아래 ‘연락처 파일 받기’</b>를 누르세요. (지금 고른 책갈피의 연락처만 들어갑니다)<br>
         <b>② 받은 파일</b>(.vcf)을 여세요.<br>
@@ -310,7 +318,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       save(LS_W,{}); save(LS_H, DEFAULT_HIDDEN.slice());
       // 기본 너비·기본 보임/숨김 복원
       var def={name:200,position:90,company:190,department:120,mobile:130,phone:130,fax:120,
-               email:200,address:260,vis:88,source:72,creator:110,note:200};
+               email:200,address:260,vis:128,source:72,creator:110,note:200};
       COLS.forEach(function(c){ var col=TBL.querySelector('col[data-col="'+c.k+'"]'); if(col) col.style.width=def[c.k]+'px';
         setColVisible(c.k, DEFAULT_HIDDEN.indexOf(c.k) < 0); });
       var pop=document.getElementById('cxColMenu'); if(pop) pop.style.display='none';
@@ -387,14 +395,30 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       var sel=rows().filter(function(x){return x.checked;});
       var ids=sel.map(function(x){return parseInt(x.getAttribute('data-id'),10);});
       if(!ids.length) return;
-      var lab={private:'🔒 개인(나만 보임)',dept:'👥 부서(우리 부서원 누구나 보임)',company:'🌐 전사(회사 전체 누구나 보임)'}[vis];
-      var notMine=sel.filter(function(x){return x.getAttribute('data-mine')!=='1';}).length;
-      if(!confirm(ids.length+'명을 '+lab+' 연락처로 바꿀까요?'+(notMine?'\n(내가 등록하지 않은 '+notMine+'명은 바뀌지 않습니다)':''))) return;
+      var lab={private:'🔒 개인(나만 보임)',dept:'👥 부서공유(우리 부서원 누구나 보임)',company:'🌐 전사공유(회사 전체 누구나 보임)'}[vis];
+      var attr=(vis==='company')?'data-movable':'data-mine';   /* z1191z81: 전사 이동은 부서원도 */
+      var notMine=sel.filter(function(x){return x.getAttribute(attr)!=='1';}).length;
+      if(!confirm(ids.length+'명을 '+lab+' 연락처로 '+(vis==='company'?'옮길':'바꿀')+'까요?'+(notMine?'\n(바꿀 수 없는 '+notMine+'명은 그대로)':''))) return;
       document.querySelectorAll('.cx-sh').forEach(function(b){ b.disabled=true; });
       try{
         var r=await fetch('/contacts/bulk-share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids,visibility:vis})});
         var j=await r.json();
         alert(j.message||(j.ok?'바꿨습니다.':'바꾸지 못했습니다.'));
+        if(j.ok) location.reload(); else cxSyncSel();
+      }catch(e){ alert('네트워크 오류: '+e.message); cxSyncSel(); }
+    };
+    /* z1191z81 (대표 「개인주소록에 주소록을 복사」): 내 개인 연락처 → 우리 부서 주소록에 복사(개인 것은 남김) */
+    window.cxCopyDept=async function(){
+      var sel=rows().filter(function(x){return x.checked;});
+      var ids=sel.map(function(x){return parseInt(x.getAttribute('data-id'),10);});
+      if(!ids.length) return;
+      var ok=sel.filter(function(x){return x.getAttribute('data-mine')==='1' && x.getAttribute('data-tab')==='private';}).length;
+      if(!confirm(ids.length+'명을 부서공유 주소록에 복사할까요?\n내 개인 연락처는 그대로 남고, 부서원 누구나 보게 됩니다.'+(ok<ids.length?'\n(내 개인 연락처가 아닌 '+(ids.length-ok)+'명은 건너뜁니다)':''))) return;
+      document.querySelectorAll('.cx-sh').forEach(function(b){ b.disabled=true; });
+      try{
+        var r=await fetch('/contacts/bulk-copy-dept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})});
+        var j=await r.json();
+        alert(j.message||(j.ok?'복사했습니다.':'복사하지 못했습니다.'));
         if(j.ok) location.reload(); else cxSyncSel();
       }catch(e){ alert('네트워크 오류: '+e.message); cxSyncSel(); }
     };

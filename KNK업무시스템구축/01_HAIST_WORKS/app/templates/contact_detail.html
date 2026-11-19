@@ -78,14 +78,24 @@
         <span style="font-size:12px; color:var(--mute); font-weight:600;">🔐 공유 범위</span>
         <span id="visBadge" style="font-size:12.5px; font-weight:700; padding:3px 10px; border-radius:6px;
               {% if _vis=='company' %}background:#dcfce7;color:#166534;{% elif _vis=='dept' %}background:#dbeafe;color:#1e40af;{% else %}background:#f1f5f9;color:#475569;{% endif %}">
-          {% if _vis=='company' %}🌐 전사 공유{% elif _vis=='dept' %}👥 부서 공유{% if contact.share_team_name %} · {{ contact.share_team_name }}{% endif %}{% else %}🔒 개인{% endif %}
+          {% if _vis=='company' %}🌐 전사공유{% elif _vis=='dept' %}👥 부서공유{% if contact.share_team_name %} · {{ contact.share_team_name }}{% endif %}{% else %}🔒 개인{% endif %}
         </span>
       </div>
+      {% if not can_edit and can_move_company and _vis == 'dept' %}{# z1191z81: 부서원 = 전사로 이동 #}
+      <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="z81ToCompany()">🌐 전사공유로 이동</button>
+        <span style="font-size:11.5px; color:var(--mute); align-self:center;">부서공유 연락처는 부서원 누구나 전사공유로 옮길 수 있습니다.</span>
+      </div>
+      <script>async function z81ToCompany(){ if(!confirm('회사 전체 누구나 보게 전사공유로 옮길까요?')) return;
+        const fd=new FormData(); fd.append('visibility','company');
+        const r=await fetch('/contacts/{{ contact.id }}/share',{method:'POST',body:fd}); const j=await r.json();
+        if(j.ok) location.reload(); else alert(j.message||'옮기지 못했습니다.'); }</script>
+      {% endif %}
       {% if can_edit %}
       <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
         <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('private')">🔒 개인</button>
-        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('dept')">👥 부서 공유{% if user.team_name %}({{ user.team_name }}){% endif %}</button>
-        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('company')">🌐 전사 공유</button>
+        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('dept')">👥 부서공유{% if user.team_name %}({{ user.team_name }}){% endif %}</button>
+        <button type="button" class="btn btn-secondary" style="font-size:12.5px; padding:6px 12px;" onclick="setShare('company')">🌐 전사공유</button>
       </div>
       {% endif %}
     </div>
@@ -96,7 +106,7 @@
         &nbsp;|&nbsp; 최종 수정: {{ contact.updater_name|default('—', true) }} · {{ contact.updated_at }}
       {% endif %}
       &nbsp;|&nbsp; 출처:
-      {% if contact.source == 'card' %}명함 사진{% elif contact.source == 'signature' %}메일 서명{% else %}직접 입력{% endif %}
+      {% if contact.source == 'card' %}명함 사진{% elif contact.source == 'signature' %}메일 서명{% elif contact.source == 'eum' %}이음 초대{% else %}직접 입력{% endif %}
     </div>
   </div>
 
@@ -123,7 +133,7 @@ function closeQR(){ document.getElementById('qrModal').style.display='none'; }
 {% if can_edit %}
 <script>
 async function setShare(vis){
-  const labels={private:'🔒 개인',dept:'👥 부서 공유',company:'🌐 전사 공유'};
+  const labels={private:'🔒 개인',dept:'👥 부서공유',company:'🌐 전사공유'};
   try{
     const fd=new FormData(); fd.append('visibility',vis);
     const r=await fetch('/contacts/{{ contact.id }}/share',{method:'POST',body:fd});
