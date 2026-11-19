@@ -121,13 +121,21 @@ html,body{background:#fff!important;overflow:auto!important;}
         {% if not ed and reg_lock %}<input type="hidden" name="lock_token" id="qLockTok" value="{{ reg_lock.token }}">{# z1191z57 #}
         <div id="qLockCover" class="z57-cover"{% if reg_lock.held %} hidden{% endif %}>
           <div class="z57-card">
-            <div class="z57-ttl">🔒 지금 <b id="qLockWho">{{ reg_lock.holder }}</b> 님이 등록 화면에서 작업 중입니다</div>
-            <div class="z57-sub" id="qLockSub">{% if reg_lock.since %}{{ reg_lock.since }}부터 · {% endif %}관리번호·수주번호가 겹치지 않게 등록은 한 번에 한 사람만 합니다.</div>
+            <div class="z57-ttl">🔒 지금 <b id="qLockWho">{{ reg_lock.holder }}</b> 님이 <b class="z70-biz">{{ reg_lock.biz_ko }}</b> 등록 화면에서 작업 중입니다</div>
+            <div class="z57-sub" id="qLockSub">{% if reg_lock.since %}{{ reg_lock.since }}부터 · {% endif %}관리번호·수주번호가 겹치지 않게 같은 종류 등록은 한 번에 한 사람만 합니다.</div>
+            <div class="z57-sub z70-told">🔔 작업 중인 분 화면에 <b>「기다리는 분이 있습니다 — 빨리 정리해 주세요」</b> 알림을 띄웠습니다.</div>
+            <div class="z57-sub z70-other">다른 종류({{ (reg_lock.others or [])|join(' · ') }})는 위 탭에서 <b>바로 등록</b>할 수 있습니다.</div>
             <div class="z57-sub">끝나면(저장하거나 창을 닫으면) <b>이 화면이 저절로 열립니다</b> — 기다리는 동안 다른 일을 하셔도 됩니다.</div>
             <div class="z57-sub z57-dim" id="qLockIdle"></div>
           </div>
         </div>
-        <div id="qLockBar" class="z57-bar"{% if not reg_lock.held %} hidden{% endif %}>🔒 지금 등록 화면은 <b>나만</b> 쓰는 중 — 저장하거나 창을 닫으면 다른 분이 열 수 있습니다<span id="qLockWait"></span></div>
+        {# z1191z70: 열고 있는 사람에게 — 누가 같은 종류를 열려고 기다리면 알림 창(확인 누르면 닫힘 · 새로 기다리는 분이 오면 다시) #}
+        <div id="qLockAsk" class="z70-ask" role="alertdialog" aria-live="assertive" hidden>
+          <div class="z70-ask-ttl">🔔 <b id="qLockAskWho"></b> 님이 지금 <b>{{ reg_lock.biz_ko }}</b> 등록 화면을 열려고 기다리고 있습니다</div>
+          <div class="z70-ask-sub">입력 중인 것을 빨리 마무리해 주세요 — <b>[등록]</b>으로 저장하거나, 등록하지 않을 거면 <b>창을 닫으면</b> 바로 넘어갑니다.</div>
+          <div class="z70-ask-btn"><button type="button" id="qLockAskOk">확인</button></div>
+        </div>
+        <div id="qLockBar" class="z57-bar"{% if not reg_lock.held %} hidden{% endif %}>🔒 지금 {{ reg_lock.biz_ko }} 등록 화면은 <b>나만</b> 쓰는 중 — 저장하거나 창을 닫으면 다른 분이 열 수 있습니다<span id="qLockWait"></span></div>
         {% endif %}
         <input type="hidden" name="biz_div" id="qBizDiv" value="{{ project.biz_div if ed else preset_biz|default('T') }}">
         {# v5H226z355(대표 지시): 기타(E)는 유형=OTHER, 그 외(T/M/L)는 NEW_EQUIP. 수정 모드는 기존 유형 보존 #}
@@ -1606,6 +1614,16 @@ function qIexApply(){
 .z57-ttl { font-size:16px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.45; }
 .z57-sub { font-size:13px; color:#334155; line-height:1.6; }
 .z57-dim { color:#64748b; font-size:12px; margin-top:4px; }
+/* z1191z70: 기다리는 분 알림(열고 있는 사람) · 가림막 안내 줄 */
+.z70-ask { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:9999; width:min(520px, calc(100vw - 32px)); box-sizing:border-box;
+  background:#fff; border:1px solid #fca5a5; border-left:6px solid #A5282C; border-radius:12px; padding:16px 18px 12px; box-shadow:0 12px 32px rgba(15,23,42,.25); }
+.z70-ask[hidden] { display:none; }
+.z70-ask-ttl { font-size:15.5px; font-weight:800; color:#7f1d1d; line-height:1.5; }
+.z70-ask-sub { font-size:13px; color:#334155; line-height:1.6; margin-top:6px; }
+.z70-ask-btn { text-align:right; margin-top:10px; }
+.z70-ask-btn button { padding:7px 22px; font-size:13.5px; font-weight:700; border-radius:8px; border:1px solid #A5282C; background:#A5282C; color:#fff; cursor:pointer; }
+.z70-told { margin-top:6px; color:#7f1d1d; }
+.z70-other { margin-top:2px; }
 .z57-bar { margin:0 0 10px; padding:7px 12px; border-radius:8px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-size:12.5px; }
 .z57-bar b { color:#047857; }
 .z57-wait { margin-left:8px; padding:1px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-weight:700; }
@@ -1658,28 +1676,44 @@ function qIexApply(){
     cover.hidden=held; bar.hidden=!held;
     if(!held){
       document.getElementById('qLockWho').textContent=j.holder||'다른 분';
-      document.getElementById('qLockSub').textContent=(j.since? j.since+'부터 · ':'')+'관리번호·수주번호가 겹치지 않게 등록은 한 번에 한 사람만 합니다.';
+      document.getElementById('qLockSub').textContent=(j.since? j.since+'부터 · ':'')+'관리번호·수주번호가 겹치지 않게 같은 종류 등록은 한 번에 한 사람만 합니다.';
       document.getElementById('qLockIdle').textContent=(j.idle_min>=1? '마지막 입력 '+j.idle_min+'분 전 · ':'')+'10분 동안 입력이 없으면 기다리는 분께 넘어옵니다.';
     } else {
       var w=document.getElementById('qLockWait'); w.innerHTML='';
       if(j.waiters && j.waiters.length){ var s=document.createElement('span'); s.className='z57-wait'; s.textContent='기다리는 분: '+j.waiters.join(', '); w.appendChild(s); }
     }
+    askFor(held ? (j.waiters||[]) : []);
     showNums(j);
     schedule();
   }
+  /* z1191z70: 열고 있는 사람 알림 — 새로 기다리는 분이 오면 창을 띄우고, 확인하면 그 분은 다시 띄우지 않음(떠났다 다시 오면 다시) */
+  var ask=document.getElementById('qLockAsk'), acked={}, title0=document.title;
+  if(ask && ask.parentNode!==document.body) document.body.appendChild(ask);
+  function askFor(ws){
+    if(!ask) return;
+    Object.keys(acked).forEach(function(k){ if(ws.indexOf(k)<0) delete acked[k]; });
+    var fresh=ws.filter(function(x){ return !acked[x]; });
+    if(fresh.length){ document.getElementById('qLockAskWho').textContent=fresh.join(', '); ask.hidden=false; document.title='🔔 기다리는 분 있음 · '+title0; }
+    else { ask.hidden=true; document.title=title0; }
+  }
+  var askOk=document.getElementById('qLockAskOk');
+  if(askOk) askOk.addEventListener('click', function(){
+    (document.getElementById('qLockAskWho').textContent||'').split(', ').forEach(function(x){ if(x) acked[x]=1; });
+    ask.hidden=true; document.title=title0;
+  });
   function beat(){
     if(busy) return; busy=true;
     fetch('/api/project-reg-lock/beat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())})
       .then(function(r){ return r.json(); }).then(apply).catch(function(){}).then(function(){ busy=false; });
   }
-  function schedule(){ if(timer) clearTimeout(timer); timer=setTimeout(beat, held?20000:8000); }
+  function schedule(){ if(timer) clearTimeout(timer); timer=setTimeout(beat, held?10000:8000); }   // z1191z70: 잡은 사람도 10초 — 기다리는 분 알림이 빨리 가게
   ['qPoType','qOrderDate','qManualChk'].forEach(function(id){ var e=document.getElementById(id); if(e) e.addEventListener('change', function(){ setTimeout(beat, 50); }); });
   window.addEventListener('pagehide', function(){
-    try{ navigator.sendBeacon('/api/project-reg-lock/release', new Blob([JSON.stringify({token:TOK.value})], {type:'application/json'})); }catch(e){}
+    try{ navigator.sendBeacon('/api/project-reg-lock/release', new Blob([JSON.stringify({token:TOK.value, biz_div:v('qBizDiv')})], {type:'application/json'})); }catch(e){}
   });
   document.getElementById('quickForm').addEventListener('submit', function(e){
     if(!held){ e.preventDefault(); e.stopImmediatePropagation();
-      alert('지금 '+(document.getElementById('qLockWho').textContent||'다른 분')+' 님이 등록 화면에서 작업 중입니다.\n입력한 내용은 그대로 있습니다 — 화면이 열리면 다시 [등록]하세요.'); }
+      alert('지금 '+(document.getElementById('qLockWho').textContent||'다른 분')+' 님이 같은 종류 등록 화면에서 작업 중입니다.\n입력한 내용은 그대로 있습니다 — 화면이 열리면 다시 [등록]하세요.'); }
   }, true);
   beat();
 })();

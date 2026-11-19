@@ -104,7 +104,7 @@ def beat(tok, **kw):
 def lock_set(**kw):
     with D.db_session() as c:
         for k, v in kw.items():
-            c.execute("UPDATE screen_locks SET %s=? WHERE name='project_new'" % k, (v,))
+            c.execute("UPDATE screen_locks SET %s=? WHERE name='project_new:T'" % k, (v,))
 
 
 print("§1 한 번에 한 사람")

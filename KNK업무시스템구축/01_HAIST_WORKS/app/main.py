@@ -38928,6 +38928,20 @@ import time as _z57_time
 _Z57_LOCK = "project_new"
 _Z57_TTL = 75
 _Z57_IDLE = 600
+# z1191z70 (대표 11-19): 잠금은 종류마다 따로 — 「project_new:T」·「:M」·「:L」·「:E」(관리번호·수주번호가 종류별 일련이라 서로 겹치지 않음)
+_Z70_BIZ = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}
+
+
+def _z70_name(biz):
+    b = str(biz or "T").strip().upper()
+    return "%s:%s" % (_Z57_LOCK, b if b in _Z70_BIZ else "T")
+
+
+def _z70_ko(biz):
+    b = str(biz or "T").strip().upper()
+    return _Z70_BIZ.get(b, "검사기")
+
+
 _Z57_GKEYS = {"project_name": ("프로젝트명", "name"), "model_name": ("모델명", "model_name"), "equip_name": ("장비명", "equip_name")}
 
 
@@ -38947,32 +38961,33 @@ def _z57_hm(t):
         return ""
 
 
-def _z57_take(u, token, active=True):
-    """등록 화면 잡기·신호. 반환 {held, holder, since, idle_min, waiters}."""
+def _z57_take(u, token, active=True, biz="T"):
+    """등록 화면 잡기·신호(종류마다 따로 · z1191z70). 반환 {held, holder, since, idle_min, waiters, biz_ko}."""
+    LK = _z70_name(biz)
     now = _z57_time.time()
     uid = int(u.get("id") or 0)
     nm = vname_full(u) or (u.get("name") or "")
     with db_session() as c:
         _z57_tables(c)
         c.execute("INSERT OR IGNORE INTO screen_locks(name, user_id, user_name, token, opened_at, beat_at, active_at) VALUES(?,?,?,?,?,?,?)",
-                  (_Z57_LOCK, uid, nm, token, now, now, now))
+                  (LK, uid, nm, token, now, now, now))
         cur = c.execute(
             "UPDATE screen_locks SET user_id=?, user_name=?, "
             "opened_at=CASE WHEN token=? THEN opened_at ELSE ? END, "
             "active_at=CASE WHEN token<>? OR ?=1 THEN ? ELSE active_at END, "
             "token=?, beat_at=? "
             "WHERE name=? AND (token=? OR user_id=? OR beat_at<? OR active_at<?)",
-            (uid, nm, token, now, token, (1 if active else 0), now, token, now, _Z57_LOCK, token, uid, now - _Z57_TTL, now - _Z57_IDLE))
+            (uid, nm, token, now, token, (1 if active else 0), now, token, now, LK, token, uid, now - _Z57_TTL, now - _Z57_IDLE))
         held = cur.rowcount == 1
         if held:
-            c.execute("DELETE FROM screen_lock_waits WHERE name=? AND user_id=?", (_Z57_LOCK, uid))
+            c.execute("DELETE FROM screen_lock_waits WHERE name=? AND user_id=?", (LK, uid))
         else:
-            c.execute("INSERT OR REPLACE INTO screen_lock_waits(name, user_id, user_name, beat_at) VALUES(?,?,?,?)", (_Z57_LOCK, uid, nm, now))
-        r = c.execute("SELECT user_name, opened_at, active_at FROM screen_locks WHERE name=?", (_Z57_LOCK,)).fetchone()
+            c.execute("INSERT OR REPLACE INTO screen_lock_waits(name, user_id, user_name, beat_at) VALUES(?,?,?,?)", (LK, uid, nm, now))
+        r = c.execute("SELECT user_name, opened_at, active_at FROM screen_locks WHERE name=?", (LK,)).fetchone()
         waiters = [x[0] for x in c.execute("SELECT user_name FROM screen_lock_waits WHERE name=? AND beat_at>? AND user_id<>? ORDER BY beat_at",
-                                            (_Z57_LOCK, now - 30, uid)).fetchall()] if held else []
+                                            (LK, now - 30, uid)).fetchall()] if held else []
     return {"held": held, "holder": (r[0] if r else ""), "since": _z57_hm(r[1]) if r else "",
-            "idle_min": (int((now - float(r[2] or now)) // 60) if r else 0), "waiters": waiters}
+            "idle_min": (int((now - float(r[2] or now)) // 60) if r else 0), "waiters": waiters, "biz_ko": _z70_ko(biz)}
 
 
 def _z57_next_numbers(biz_div, ptype, po_type, order_date, manual):
@@ -38997,12 +39012,12 @@ def _z57_next_numbers(biz_div, ptype, po_type, order_date, manual):
     return out
 
 
-def _z57_lock_other(u, token):
-    """저장 직전 확인: 다른 사람이 살아 있는 잠금을 쥐고 있으면 그 사람 이름 · 아니면 ''."""
+def _z57_lock_other(u, token, biz="T"):
+    """저장 직전 확인: 같은 종류(z1191z70)를 다른 사람이 살아 있는 잠금으로 쥐고 있으면 그 사람 이름 · 아니면 ''."""
     now = _z57_time.time()
     with db_session() as c:
         _z57_tables(c)
-        r = c.execute("SELECT user_id, user_name, token, beat_at FROM screen_locks WHERE name=?", (_Z57_LOCK,)).fetchone()
+        r = c.execute("SELECT user_id, user_name, token, beat_at FROM screen_locks WHERE name=?", (_z70_name(biz),)).fetchone()
     if not r or float(r[3] or 0) < now - _Z57_TTL:
         return ""
     if (token and r[2] == token) or int(r[0] or 0) == int(u.get("id") or 0):
@@ -39037,7 +39052,7 @@ async def api_z57_lock_beat(request: Request):
     tok = str(b.get("token") or "").strip()[:64]
     if len(tok) < 8:
         return JSONResponse({"ok": False, "error": "bad_token"}, 400)
-    st = _z57_take(u, tok, active=bool(b.get("active")))
+    st = _z57_take(u, tok, active=bool(b.get("active")), biz=b.get("biz_div"))
     if st["held"]:
         st.update(_z57_next_numbers(b.get("biz_div"), b.get("ptype"), b.get("po_type"), b.get("order_date"), bool(b.get("manual"))))
     st["ok"] = True
@@ -39057,9 +39072,12 @@ async def api_z57_lock_release(request: Request):
     tok = str(b.get("token") or "").strip()[:64]
     with db_session() as c:
         _z57_tables(c)
-        if tok:
-            c.execute("UPDATE screen_locks SET beat_at=0, active_at=0 WHERE name=? AND token=?", (_Z57_LOCK, tok))
-        c.execute("DELETE FROM screen_lock_waits WHERE name=? AND user_id=?", (_Z57_LOCK, int(u.get("id") or 0)))
+        if tok:   # z1191z70: 이 화면이 잡은 잠금(종류마다 따로)을 푼다
+            c.execute("UPDATE screen_locks SET beat_at=0, active_at=0 WHERE token=? AND (name=? OR name LIKE ?)", (tok, _Z57_LOCK, _Z57_LOCK + ":%"))
+        if b.get("biz_div"):
+            c.execute("DELETE FROM screen_lock_waits WHERE name=? AND user_id=?", (_z70_name(b.get("biz_div")), int(u.get("id") or 0)))
+        else:
+            c.execute("DELETE FROM screen_lock_waits WHERE (name=? OR name LIKE ?) AND user_id=?", (_Z57_LOCK, _Z57_LOCK + ":%", int(u.get("id") or 0)))
     return JSONResponse({"ok": True})
 
 
@@ -39657,11 +39675,13 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
     import secrets as _sec57
     _tok57 = _sec57.token_hex(12)
     try:
-        _reg57 = _z57_take(u, _tok57, active=True)
+        _reg57 = _z57_take(u, _tok57, active=True, biz=_bd)   # z1191z70: 이 종류만
     except Exception as _e57:
         print(f"[z1191z57] 등록 화면 잡기 실패(잠금 없이 연다): {_e57}")
         _reg57 = {"held": True, "holder": "", "since": "", "idle_min": 0, "waiters": []}
     _reg57["token"] = _tok57
+    _reg57["biz_ko"] = _z70_ko(_bd)   # z1191z70
+    _reg57["others"] = [v for k, v in _Z70_BIZ.items() if k != _bd] + ["소모품"]
     return ctx(request, "project_quick_form.html",
                user=u, active="sales_projects", embed=_embed, preset_biz=_bd,
                reg_lock=_reg57, field_guides=_z57_guides(), fg_can_edit=True,
@@ -39826,7 +39846,7 @@ async def projects_new_submit(request: Request):
         return RedirectResponse(url, status_code=303)
     # z1191z57: 다른 분이 등록 화면을 잡고 있으면 저장하지 않는다(화면이 먼저 막지만 서버도 한 번 더 · 입력은 이 기기에 남음)
     try:
-        _hold57 = _z57_lock_other(_u, (form.get("lock_token") or "").strip())
+        _hold57 = _z57_lock_other(_u, (form.get("lock_token") or "").strip(), biz_div)   # z1191z70: 같은 종류만
     except Exception:
         _hold57 = ""
     if _hold57:
