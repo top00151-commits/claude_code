@@ -136,15 +136,22 @@ try:
     check("「일반」 메일에는 폴더 꼬리표 안 붙임", "mbx-fdtag" not in gen_row, gen_row[:300])
     check("메일 없는 폴더는 접힘 — 「＋ 메일 없는 N곳」", "＋ 메일 없는 " in sd and "mfShowZero(" in h)
 
-    print("== 4. 앱 머리띠(kmail) — 같은 링크 두 번 없음 ==")
+    print("== 4. 앱 머리띠(kmail) — 빨간 줄 + 늘 보이는 도구 줄(11-19 대표 「고정」) ==")
     km = client(port=5053, host="kmail.knknara.co.kr")
     hk = km.get("/mail/inbox").text
-    head = hk[hk.find('class="mail-app-top"'):hk.find('class="mail-app-top"') + 3000]
-    check("kmail 받은편지함: 머리띠에 받은·보낸·쓰다 만·쓰기 링크 없음", 'href="/mail/sent"' not in head and 'href="/mail/compose"' not in head, head[:400])
+    top = hk[hk.find('class="mail-app-top"'):hk.find('id="mailTools"')]
+    tools = hk[hk.find('id="mailTools"'):hk.find('</nav>', hk.find('id="mailTools"'))]
+    check("빨간 줄에는 링크 없음(이름·이전·새로고침·사용자만) — 메일함 길은 도구 줄 한 곳", 'href="/mail/sent"' not in top and 'href="/mail/compose"' not in top, top[:300])
+    check("도구 줄: 새 메일·받은편지함·중요·회신 필요·보낸편지함·임시보관함·보관함·휴지통·스팸함·글자 크게·설정·정리·도움말",
+          all(x in tools for x in ('href="/mail/compose"', 'href="/mail/inbox"', 'href="/mail/inbox?star=1"', 'href="/mail/inbox?reply=1"', 'href="/mail/sent"',
+                                   'href="/mail/drafts"', 'href="/mail/inbox?arc=1"', 'href="/mail/trash"', 'href="/mail/blocked"', "mailBigToggle()", 'href="/mail/tools"', "mailHelpToggle")), tools[:300])
+    check("빨간 줄 + 도구 줄은 한 상자로 고정(스크롤해도 위에) · body 가 스크롤 상자가 되지 않게", '<div class="mail-app-fixed">' in hk and ".mail-app-fixed { position:sticky; top:0" in hk and "body { height:auto !important; min-height:100dvh !important; overflow:visible !important; }" in hk)
+    check("숫자는 바로바로(안 읽음·회신 필요·임시·스팸) · 「새 메일」은 도구 줄 한 곳만", "/api/mail/counts" in hk and "mtcUnread" in hk and ".mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }" in hk)
+    j = km.get("/api/mail/counts").json()
+    check("숫자 API 200 · 칸 다섯", j.get("ok") and all(x in j for x in ("unread", "reply", "drafts", "spam", "arc")), j)
     hc = km.get("/mail/compose").text
-    headc = hc[hc.find('class="mail-app-top"'):hc.find('class="mail-app-top"') + 3000]
-    check("kmail 쓰기 화면(왼쪽 메뉴 없음): 머리띠 링크 그대로 · 「임시보관함」", 'href="/mail/inbox"' in headc and "임시보관함" in headc, headc[:400])
-    check("kmail ⚙ 설정·정리 200 · 머리띠 링크 있음", km.get("/mail/tools").status_code == 200 and 'href="/mail/inbox">받은편지함</a>' in km.get("/mail/tools").text)
+    check("kmail 쓰기 화면도 같은 도구 줄 · 보내기 단추줄은 고정 줄 바로 아래", 'id="mailTools"' in hc and "임시보관함" in hc and ".cmp-actions-top { top:var(--mail-fixed-h,0px) !important; }" in hc)
+    check("kmail ⚙ 설정·정리 200 · 도구 줄 받은편지함 길 있음", km.get("/mail/tools").status_code == 200 and 'href="/mail/inbox" data-k="in"' in km.get("/mail/tools").text)
 
     print("== 5. 읽기 화면 ==")
     p = k.get("/mail/%d/pane" % M_CUST).text

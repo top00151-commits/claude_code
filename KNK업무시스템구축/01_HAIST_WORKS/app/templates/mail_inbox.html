@@ -772,8 +772,11 @@ function toggleThread(ev, btn){
   // 화면 높이에 맞춰 3분할이 바닥까지 차게
   function fillH(){
     if(narrow()){ split.style.height='auto'; return; }
-    var top=split.getBoundingClientRect().top;
+    var top=split.getBoundingClientRect().top + (window.scrollY||0);
     split.style.height=Math.max(360,(window.innerHeight-top-12))+'px';
+    // 11-19: 아래 여백 때문에 페이지가 조금 밀리면 그만큼 줄여 한 화면에 꼭 맞게(위 머리·도구 줄이 안 움직이게)
+    var over=document.documentElement.scrollHeight-window.innerHeight;
+    if(over>0 && over<200){ split.style.height=Math.max(360,(window.innerHeight-top-12-over))+'px'; }
   }
   fillH(); window.addEventListener('resize', fillH);
   // 거터 드래그
@@ -1032,6 +1035,7 @@ async function mbxDropDo(tg, ids){
   }
   mbxToast(msg, acts);
   mbxSideRefresh();
+  try{ if(window.mailCountsRefresh) window.mailCountsRefresh(); }catch(_){}
 }
 (function(){
   if(window._mbxBox!=='in') return;
@@ -1040,7 +1044,7 @@ async function mbxDropDo(tg, ids){
   function rowOf(t){ return (t && t.closest) ? t.closest('.mbx-list .mbx-row, .mbx-list .mbx-headlink') : null; }
   function finish(){
     document.body.classList.remove('mbx-dragging');
-    document.querySelectorAll('.mbx-list .dragsrc, .mbx-side .drop-on').forEach(function(x){ x.classList.remove('dragsrc','drop-on'); });
+    document.querySelectorAll('.mbx-list .dragsrc, .mbx-side .drop-on, #mailTools .drop-on').forEach(function(x){ x.classList.remove('dragsrc','drop-on'); });
     if(ghost){ ghost.remove(); ghost=null; } clearTimeout(openT); openEl=null;
   }
   document.addEventListener('dragstart', function(e){
@@ -1064,21 +1068,21 @@ async function mbxDropDo(tg, ids){
   document.addEventListener('dragover', function(e){
     if(!drag) return;
     var el=(e.target && e.target.closest) ? e.target : null;
-    var tg=el ? el.closest('.mbx-side [data-drop]') : null;
+    var tg=el ? el.closest('.mbx-side [data-drop], #mailTools [data-drop]') : null;
     // 접힌 묶음 머리·「＋ 메일 없는 N곳」 위에 잠깐 머물면 펼침
     var hov = el ? (el.closest('.mbx-side .mf-zero-more') || el.closest('.mbx-side .mf-k[data-sgk]') || ((tg && tg.classList.contains('mf-gh')) ? tg : null)) : null;
     if(hov!==openEl){ clearTimeout(openT); openEl=hov;
       if(hov) openT=setTimeout(function(){ var sk=hov.getAttribute && hov.getAttribute('data-sgk');
         if(sk){ var bx=document.querySelector('.mf-sub[data-sg="'+sk+'"]'); if(bx && bx.classList.contains('closed')) mfSubToggle(null, sk); return; }
         var g=hov.closest('.mf-g'); if(g){ g.classList.remove('closed'); if(hov.classList.contains('mf-zero-more')) g.classList.add('showzero'); } }, 650); }
-    document.querySelectorAll('.mbx-side .drop-on').forEach(function(x){ if(x!==tg) x.classList.remove('drop-on'); });
+    document.querySelectorAll('.mbx-side .drop-on, #mailTools .drop-on').forEach(function(x){ if(x!==tg) x.classList.remove('drop-on'); });
     if(!tg) return;
     if(tg.dataset.drop==='no'){ if(Date.now()-whyT>2500){ whyT=Date.now(); mbxToast('⛔ '+(tg.dataset.why||'여기에는 놓을 수 없어요'), null, true); } return; }
     e.preventDefault(); e.dataTransfer.dropEffect='move'; tg.classList.add('drop-on');
   });
   document.addEventListener('drop', function(e){
     if(!drag) return;
-    var tg=(e.target && e.target.closest) ? e.target.closest('.mbx-side [data-drop]') : null;
+    var tg=(e.target && e.target.closest) ? e.target.closest('.mbx-side [data-drop], #mailTools [data-drop]') : null;
     var d=drag; drag=null; finish();
     if(!tg || tg.dataset.drop==='no') return;
     e.preventDefault(); mbxDropDo(tg, d.ids);

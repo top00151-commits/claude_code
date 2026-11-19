@@ -24767,6 +24767,24 @@ async def mail_unblock_one(req: Request, mail_id: int):
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/mail/counts")
+async def mail_counts_api(req: Request):
+    """늘 보이는 도구 줄(11-19) 숫자 — 안 읽음 · 회신 필요 · 임시보관함 · 스팸함 · 보관함(읽기만 · 내 메일만)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    out = {"ok": True, "unread": 0, "reply": 0, "drafts": 0, "spam": 0, "arc": 0}
+    with db_session() as c:
+        for k, fn in (("unread", lambda: _mailbox.count_unread(c, u["id"])), ("drafts", lambda: _mailbox.count_drafts(c, u["id"])),
+                      ("spam", lambda: _mailbox.count_blocked(c, u["id"])), ("arc", lambda: _mailbox.count_archived(c, u["id"])),
+                      ("reply", lambda: len(_mail_reply.scan(c, u["id"]) or {}))):
+            try:
+                out[k] = int(fn() or 0)
+            except Exception:
+                pass
+    return JSONResponse(out)
+
+
 @app.post("/mail/{mail_id:int}/notspam")
 async def mail_not_spam(req: Request, mail_id: int):
     """✓ 스팸 아님(11-18) — 받은편지함으로 되돌리고, 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만).

@@ -9,8 +9,43 @@
      내부 스크롤이 없어지는데, html/body 는 여전히 잘라내므로 본문 아래쪽(단추줄)이 통째로 가려진다.
      → 앱 모드에서는 "문서가 스크롤하는 평범한 페이지"로 되돌린다.
      이 파일은 ?app=1 일 때만 포함되므로 일반 WORKS 화면(사이드바 셸)에는 영향 없음. */
-  html { height:auto !important; overflow-y:auto !important; }
-  body { height:auto !important; min-height:100dvh !important; overflow-y:visible !important; }
+  html { height:auto !important; overflow-y:auto !important; overflow-x:hidden !important; }
+  body { height:auto !important; min-height:100dvh !important; overflow:visible !important; }
+  /* 11-19 대표 「HAIST WORKS 메일함 줄과 아래 도구 줄은 고정 — 스크롤해도 위로 사라지지 않게」
+     🔴 전에는 body 의 overflow-x 때문에 body 가 「스크롤 상자」가 되어 position:sticky 가 먹지 않았다(위 줄이 같이 올라감) */
+  .mail-app-fixed { position:sticky; top:0; z-index:60; }
+  .mail-app-fixed .mail-app-top { position:static; }
+  /* 늘 보이는 도구 줄 — 매일 쓰는 곳으로 바로 */
+  .mail-tools { display:flex; align-items:center; gap:2px; padding:4px 12px; background:#fff; border-bottom:1px solid var(--line,#e5e7eb);
+                box-shadow:0 2px 6px rgba(0,0,0,.05); overflow-x:auto; scrollbar-width:none; }
+  .mail-tools::-webkit-scrollbar { height:0; }
+  .mail-tools a, .mail-tools button { display:inline-flex; align-items:center; gap:5px; height:34px; padding:0 10px; border-radius:8px; border:0; background:none;
+                font:inherit; font-size:13px; color:#1f2937; text-decoration:none; white-space:nowrap; cursor:pointer; flex:none; }
+  .mail-tools a:hover, .mail-tools button:hover { background:#f1f3f5; }
+  .mail-tools .new { background:var(--knk-red,#b91c1c); color:#fff; font-weight:700; padding:0 13px; margin-right:6px; }
+  .mail-tools .new:hover { background:var(--knk-red,#b91c1c); filter:brightness(.95); }
+  .mail-tools .on { background:#fdecec; color:var(--knk-red,#b91c1c); font-weight:700; }
+  .mail-tools .ic { font-size:15px; }
+  .mail-tools .bd { min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#2563eb; color:#fff; font-size:11px; font-weight:700;
+                display:inline-flex; align-items:center; justify-content:center; }
+  .mail-tools .bd.r { background:#dc2626; }
+  .mail-tools .bd.g { background:#e5e7eb; color:#374151; }
+  .mail-tools .bd[hidden] { display:none; }
+  .mail-tools .sep { width:1px; height:20px; background:#e5e7eb; margin:0 4px; flex:none; }
+  .mail-tools .sp { flex:1; min-width:8px; }
+  .mail-tools .sw.on { background:#e8f6ec; color:#15803d; }
+  .mail-tools a.drop-on, .mail-tools .drop-on { background:#dbeafe !important; box-shadow:inset 0 0 0 2px #2563eb; }
+  .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:#fff; border:1px solid #e5e7eb; border-radius:12px;
+                box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:#1f2937; }
+  .mail-help[hidden] { display:none; }
+  .mail-help h4 { margin:0 0 6px; font-size:14px; }
+  .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid #d1d5db; border-bottom-width:2px; border-radius:5px; padding:0 5px;
+                font-family:inherit; font-size:11.5px; background:#f9fafb; }
+  @media(max-width:1180px){ .mail-tools .t { display:none; } .mail-tools .new .t { display:inline; } }
+  /* 「새 메일」은 위 도구 줄 한 곳만(목록 위 명령 줄·왼쪽 「메일 쓰기」 큰 단추는 앱 화면에서 숨김 — 같은 단추 셋은 헷갈림) */
+  .mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }
+  /* 고정된 위(머리+도구 줄) 바로 아래에 붙는 줄 — 메일 쓰기 「📤 보내기」 단추줄(z1168 「끝까지 안 내려가도 보내기」)이 가려지지 않게 */
+  .cmp-actions-top { top:var(--mail-fixed-h,0px) !important; }
   .mail-app-top { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
                   background:var(--knk-red,#b91c1c); color:#fff; padding:9px 16px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   .mail-app-top .brand { font-weight:800; font-size:15px; margin-right:8px; }
@@ -53,15 +88,9 @@
     .mail-app-top .navbtn,.mail-app-top .install,.mail-app-top .reload{flex:none}
   }
 </style>
+<div class="mail-app-fixed">
 <div class="mail-app-top">
   <span class="brand">📧 HAIST WORKS 메일함</span>
-  {# 11-18 대표 「쉽게」: 왼쪽 메뉴가 있는 화면(받은편지함 등)에서는 같은 링크를 또 두지 않는다 — 쓰기·설정 화면에만 #}
-  {% if not mail_has_side|default(false) %}
-  <a href="/mail/inbox">받은편지함</a>
-  <a href="/mail/sent">보낸편지함</a>
-  <a href="/mail/drafts">임시보관함</a>
-  <a href="/mail/compose">✏️ 쓰기</a>
-  {% endif %}
   <span class="sp"></span>
   <button type="button" id="mailInstallBtn" class="install" onclick="mailInstallApp()" title="이 메일을 앱처럼 설치 — 바탕화면/홈 화면 아이콘으로 독립 실행">📲 앱 설치</button>
   <button type="button" class="navbtn" onclick="mailGoBack()" title="이전 페이지로 돌아가기">← 이전</button>
@@ -73,7 +102,69 @@
   </span>{% endif %}
   {# 「WORKS 전체화면」(?app=0) 버튼 제거 — 메일은 KNK Eum 전용 독립 창, WORKS는 KNK Eum 🌟 아이콘으로 별도 실행(역할 분리). (대표 지시 2026-06-14) #}
 </div>
+{# 11-19 대표 「메일함 줄과 검색 줄 사이에 기본으로 쓰는 도구·메뉴 아이콘 — 고정」: 매일 가는 곳 + 자주 쓰는 도구 · 지금 화면은 빨갛게 · 숫자는 바로바로 #}
+<nav class="mail-tools" id="mailTools" aria-label="메일 도구">
+  <a class="new" href="/mail/compose" title="새 메일 쓰기 (N)"><span class="ic">✏️</span><span class="t">새 메일</span></a>
+  <a href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
+  <a href="/mail/inbox?star=1" data-k="star" data-drop="star" data-dname="중요" title="⭐ 중요 표시한 메일 — 메일을 끌어 여기에 놓으면 중요 표시"><span class="ic">⭐</span><span class="t">중요</span></a>
+  <a href="/mail/inbox?reply=1" data-k="reply" title="회신이 필요해 보이는 메일(추정)"><span class="ic">↩</span><span class="t">회신 필요</span><span class="bd r" id="mtcReply" hidden></span></a>
+  <span class="sep"></span>
+  <a href="/mail/sent" data-k="sent" title="보낸편지함"><span class="ic">📤</span><span class="t">보낸편지함</span></a>
+  <a href="/mail/drafts" data-k="draft" title="쓰다가 저장한 메일"><span class="ic">📝</span><span class="t">임시보관함</span><span class="bd g" id="mtcDrafts" hidden></span></a>
+  <a href="/mail/inbox?arc=1" data-k="arc" data-drop="archive" data-dname="보관함" title="📦 보관함 — 메일을 끌어 여기에 놓으면 보관"><span class="ic">📦</span><span class="t">보관함</span></a>
+  <a href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">🗑</span><span class="t">휴지통</span></a>
+  <a href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
+  <span class="sp"></span>
+  <button type="button" class="sw" id="mtBigTop" onclick="mailBigToggle()" title="글자 크게 보기 — 켜고 끄기(이 컴퓨터에만)"><span class="ic">🔠</span><span class="t">글자 크게</span></button>
+  <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
+  <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
+</nav>
+</div>
+<div class="mail-help" id="mailHelp" hidden>
+  <h4>❔ 메일 쓰는 법</h4>
+  · 메일을 <b>한 번</b> 누르면 옆 칸에서 읽기 · <b>두 번(더블클릭)</b> 누르면 새 창<br>
+  · 메일 위에서 <b>오른쪽 클릭</b> = 답장·전달·중요·보관·폴더로·삭제 메뉴<br>
+  · 메일을 <b>끌어서</b> 왼쪽 폴더나 위 ⭐ 중요 · 📦 보관함 · 🗑 휴지통에 놓으면 옮겨짐(아래 안내에서 ↺ 되돌리기)<br>
+  · 네모(☐)로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
+  · 목록 위 「🗔 보기」 = 읽기 칸 오른쪽·아래·끄기<br>
+  <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>Insert</kbd> 중요 · <kbd>N</kbd> 새 메일
+  <div style="text-align:right;margin-top:6px"><button type="button" onclick="mailHelpToggle()" style="border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:4px 12px;cursor:pointer;font:inherit">닫기</button></div>
+</div>
 <script>
+/* 11-19 늘 보이는 도구 줄 — 지금 화면 표시 · 숫자 · 글자 크게 · 도움말 */
+(function(){
+  try{
+    var p=location.pathname, q=location.search, k='';
+    if(p.indexOf('/mail/compose')===0) k='new';
+    else if(p.indexOf('/mail/sent')===0) k='sent';
+    else if(p.indexOf('/mail/drafts')===0) k='draft';
+    else if(p.indexOf('/mail/trash')===0) k='trash';
+    else if(p.indexOf('/mail/blocked')===0) k='blocked';
+    else if(p.indexOf('/mail/tools')===0) k='tools';
+    else if(p.indexOf('/mail/inbox')===0){ k = /[?&]star=1/.test(q) ? 'star' : (/[?&]reply=1/.test(q) ? 'reply' : (/[?&]arc=1/.test(q) ? 'arc' : (/[?&](fd|q|who|dom|cust)=/.test(q) ? '' : 'in'))); }
+    if(k){ var a=document.querySelector('#mailTools [data-k="'+k+'"]'); if(a) a.classList.add('on'); }
+  }catch(e){}
+})();
+(function(){   // 고정된 위 높이를 CSS 값으로(메일 쓰기 단추줄이 그 아래에 붙게)
+  function setH(){ var f=document.querySelector('.mail-app-fixed'); if(f) document.documentElement.style.setProperty('--mail-fixed-h', f.getBoundingClientRect().height+'px'); }
+  setH(); window.addEventListener('resize', setH); window.addEventListener('load', setH);
+})();
+window.mailCountsRefresh=async function(){
+  try{ var r=await fetch('/api/mail/counts',{headers:{'X-Requested-With':'fetch'}}); if(!r.ok) return; var j=await r.json();
+    function put(id, n){ var e=document.getElementById(id); if(!e) return; e.textContent = n>999 ? '999+' : String(n||0); e.hidden=!n; }
+    put('mtcUnread', j.unread); put('mtcReply', j.reply); put('mtcDrafts', j.drafts); put('mtcSpam', j.spam);
+  }catch(e){}
+};
+setTimeout(window.mailCountsRefresh, 200);
+window.mailBigShowTop=function(){ var on=false; try{ on=localStorage.getItem('knkmail.big')==='1'; }catch(e){} var b=document.getElementById('mtBigTop'); if(b) b.classList.toggle('on', on); };
+window.mailBigToggle=function(){
+  try{ var on=localStorage.getItem('knkmail.big')==='1'; if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){}
+  var on2=false; try{ on2=localStorage.getItem('knkmail.big')==='1'; }catch(e){}
+  document.documentElement.classList.toggle('mbx-big', on2); mailBigShowTop();
+};
+mailBigShowTop();
+window.mailHelpToggle=function(ev){ if(ev) ev.stopPropagation(); var h=document.getElementById('mailHelp'); if(h) h.hidden=!h.hidden; };
+document.addEventListener('click', function(e){ var h=document.getElementById('mailHelp'); if(h && !h.hidden && !e.target.closest('#mailHelp')) h.hidden=true; });
 // ← 이전 페이지로 (히스토리 없으면 받은편지함으로)
 window.mailGoBack = function(){
   if (window.history && history.length > 1) { history.back(); }
