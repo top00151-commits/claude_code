@@ -21028,62 +21028,26 @@ async def projects_add_followup(req: Request, pid: int):
 
 
 # v5H67: 공통 엑셀 내보내기 헬퍼 — 모든 모듈에서 재사용
-def _make_xlsx_response(sheets: list, filename_prefix: str):
-    """다중 시트 엑셀 다운로드 응답 생성.
-    sheets: [{name, headers, rows}, ...]
-      - name: 시트명 (한글 OK)
-      - headers: 컬럼 헤더 리스트
-      - rows: 데이터 행 리스트 (각 행은 list 또는 tuple)
-    filename_prefix: 파일명 접두 (예: '공급사')
-    파일명 자동: '{prefix}_{YYYY-MM-DD}.xlsx'"""
+def _make_xlsx_response(sheets: list, filename_prefix: str, roundtrip: bool = False):
+    """다중 시트 엑셀 다운로드 응답 생성 — z1191z67: KNK 회사 양식(app/knk_xlsx.py)으로 통일.
+    sheets: [{name, headers, rows}, ...] · filename_prefix: 파일명 접두 (예: '공급사') → '{prefix}_{YYYY-MM-DD}.xlsx'
+    roundtrip=True = 받은 파일을 그대로 다시 올리는 경우(작업일정표→일괄업로드 · 공급사 올리기) — 1행 머리 줄 유지(읽는 쪽이 1행을 머리로 봄)."""
     try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from app import knk_xlsx as KX
     except ImportError:
         return JSONResponse({"error": "openpyxl 미설치"}, 500)
-    wb = Workbook()
-    knk_fill = PatternFill("solid", fgColor="A5282C")
-    white = Font(color="FFFFFF", bold=True)
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    first = True
-    for sh in sheets:
-        if first:
-            ws = wb.active
-            ws.title = sh["name"][:31]  # Excel sheet name 31자 제한
-            first = False
-        else:
-            ws = wb.create_sheet(sh["name"][:31])
-        ws.append(sh["headers"])
-        for col_idx, _ in enumerate(sh["headers"], 1):
-            cell = ws.cell(row=1, column=col_idx)
-            cell.font = white
-            cell.fill = knk_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = border
-        for row in sh["rows"]:
-            ws.append(list(row))
-        # 컬럼 너비 자동
-        for col in ws.columns:
-            max_len = 8
-            col_letter = col[0].column_letter
-            for cell in col:
-                v = str(cell.value) if cell.value is not None else ""
-                disp_len = sum(2 if ord(c) > 0x7F else 1 for c in v)
-                max_len = max(max_len, min(50, disp_len + 2))
-            ws.column_dimensions[col_letter].width = max_len
-        ws.freeze_panes = "A2"
-    import io
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    from urllib.parse import quote
+    now = _z61_now()
+    wb = KX.new_book(sheets[0]["name"] if sheets else filename_prefix, filename_prefix)
+    used = set()
+    for k, sh in enumerate(sheets):
+        ws = wb.active if k == 0 else wb.create_sheet("tmp")
+        ws.title = KX.safe_sheet_name(sh["name"], used)
+        rows = [list(r) for r in sh["rows"]]
+        title = sh["name"] if len(sheets) > 1 else filename_prefix
+        KX.table_sheet(ws, title, "%s건 · 내려받은 시각 %s · 이음웍스" % (format(len(rows), ","), now),
+                       KX.auto_cols(sh["headers"], rows), rows, freeze_cols=0, banner=not roundtrip)
     fname = f"{filename_prefix}_{date.today().isoformat()}.xlsx"
-    return StreamingResponse(
-        buf,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"},
-    )
+    return KX.xlsx_response(wb, fname, "KNK_export.xlsx")
 
 
 # ==========================================================
@@ -21361,8 +21325,8 @@ async def suppliers_export_xlsx(req: Request):
              r["contact"], r["phone"], r["email"], r["contact2"], r["phone2"], r["email2"],
              r["country"], r["currency"], r["payment_terms"],
              "활성" if r["is_active"] else "비활성", r["note"]] for r in rows]
-    return _make_xlsx_response(
-        [{"name": "공급사", "headers": headers, "rows": data}], "공급사")
+    return _make_xlsx_response(   # z1191z67: 공급사 올리기가 1행을 머리로 읽음 → 1행 머리 유지
+        [{"name": "공급사", "headers": headers, "rows": data}], "공급사", roundtrip=True)
 
 
 @app.get("/parts/export.xlsx")
@@ -31615,7 +31579,7 @@ def mgmt_ledger_excel(request: Request, biz: str = "", year: str = "", q: str = 
     n_so = sum(len([s for s in x["sos"] if not s["cancel"]]) for x in rows)
     COLS = [{"h": "#", "w": 5, "al": "c"}, {"h": "관리번호", "w": 12, "al": "c", "bold": True}, {"h": "사업부", "w": 9, "al": "c"},
             {"h": "발행월", "w": 9, "al": "c"}, {"h": "수주번호", "w": 19, "al": "c", "wrap": True}, {"h": "수주 수", "w": 7, "al": "c"},
-            {"h": "모델명", "w": 26, "wrap": True}, {"h": "설비명", "w": 30, "wrap": True}, {"h": "프로젝트명", "w": 14, "wrap": True},
+            {"h": "모델명", "w": 28, "wrap": True}, {"h": "설비명", "w": 36, "wrap": True}, {"h": "프로젝트명", "w": 14, "wrap": True},
             {"h": "고객사", "w": 14, "wrap": True}, {"h": "영업 담당", "w": 9, "al": "c"}, {"h": "상태", "w": 16, "al": "c", "wrap": True},
             {"h": "서버경로", "w": 36, "wrap": True}, {"h": "비고", "w": 30, "wrap": True}]
     data, dim = [], []
@@ -34271,23 +34235,9 @@ def _z46_xlsx_response(summary, details, prefix):
         ws = wb.active
         ws.title = _z46_sname(summary["name"], used)
         first = False
-        ws.append(summary["headers"])
-        thin = Side(style="thin", color="DDDDDD")
-        for j in range(1, len(summary["headers"]) + 1):
-            c = ws.cell(1, j)
-            c.font = Font(color="FFFFFF", bold=True)
-            c.fill = PatternFill("solid", fgColor="A5282C")
-            c.alignment = Alignment(horizontal="center", vertical="center")
-            c.border = Border(left=thin, right=thin, top=thin, bottom=thin)
-        for row in summary["rows"]:
-            ws.append(list(row))
-        for col in ws.columns:
-            ml = 8
-            for cell in col:
-                v = str(cell.value) if cell.value is not None else ""
-                ml = max(ml, min(50, sum(2 if ord(ch) > 0x7F else 1 for ch in v) + 2))
-            ws.column_dimensions[col[0].column_letter].width = ml
-        ws.freeze_panes = "A2"
+        from app import knk_xlsx as _KX67   # z1191z67: KNK 양식 · 1행 머리 유지(일괄업로드로 다시 올림)
+        _r67 = [list(r) for r in summary["rows"]]
+        _KX67.table_sheet(ws, summary["name"], "", _KX67.auto_cols(summary["headers"], _r67), _r67, freeze_cols=0, banner=False)
     for sh in details:
         sh["sheet"] = _z46_sname(sh["sheet"], used)
         _z46_write_detail(wb, sh, first)
@@ -34506,7 +34456,7 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
     sheets = [{"name": "일괄등록", "headers": headers, "rows": out_rows}]
     if _z46_sel:   # z1191z46: 고른 줄 + 수주마다 상세내역 시트
         return _z46_xlsx_response(sheets[0], _z46_detail_sheets(_z46_sel), _z46_fname)
-    return _make_xlsx_response(sheets, _z46_fname)
+    return _make_xlsx_response(sheets, _z46_fname, roundtrip=True)   # z1191z67: 일괄업로드가 1행을 머리로 읽음
 
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -38515,61 +38465,25 @@ def projects_export_xlsx(request: Request, q: str = "", div: str = "",
     _dates = [str(r.get("order_date") or "") for r in rows if (r.get("order_date") or "").strip()]
     _period = (min(_dates) + " ~ " + max(_dates)) if _dates else "전체 기간"
 
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
-    import io
-    from urllib.parse import quote
-    wb = Workbook(); ws = wb.active; ws.title = _div_label[:31]
-    # v5H226z226 (대표 지시): 컬럼 순서 = 관리코드·프로젝트명·장비명·모델명·고객사·출고형태·상태·수주액·발주일
-    headers = ["관리코드", "프로젝트명", "장비명", "모델명", "고객사", "출고형태", "상태", "수주액(원)", "발주일"]
-    ncol = len(headers)
-    knk = PatternFill("solid", fgColor="A5282C"); white = Font(color="FFFFFF", bold=True)
-    thin = Side(style="thin", color="DDDDDD"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    # row1 제목
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncol)
-    t1 = ws.cell(row=1, column=1, value=f"프로젝트 목록 — {_div_label}")
-    t1.font = Font(size=15, bold=True, color="A5282C"); t1.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[1].height = 26
-    # row2 부제 (사업부·상태·기간·건수·생성일)
-    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=ncol)
-    t2 = ws.cell(row=2, column=1,
-                 value=f"사업부: {_div_label}   ·   상태: {_status_label}   ·   기간(발주일): {_period}   ·   건수: {len(rows)}건   ·   생성일: {date.today().isoformat()}")
-    t2.font = Font(size=10, color="555555"); t2.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[2].height = 18
-    # row4 헤더
-    hrow = 4
-    for ci, htext in enumerate(headers, 1):
-        cell = ws.cell(row=hrow, column=ci, value=htext)
-        cell.font = white; cell.fill = knk
-        cell.alignment = Alignment(horizontal="center", vertical="center"); cell.border = border
+    from app import knk_xlsx as KX   # z1191z67: KNK 회사 양식
     _sf_lbl = {"ASSEMBLY": "ASS'Y", "PARTS": "부품", "ETC": "기타"}
+    COLS = [{"h": "관리코드", "w": 12, "al": "c", "bold": True}, {"h": "프로젝트명", "w": 32, "wrap": True}, {"h": "장비명", "w": 32, "wrap": True},
+            {"h": "모델명", "w": 26, "wrap": True}, {"h": "고객사", "w": 18, "wrap": True}, {"h": "출고형태", "w": 9, "al": "c"},
+            {"h": "상태", "w": 9, "al": "c"}, {"h": "수주액(원)", "w": 15, "al": "r", "fmt": "#,##0"}, {"h": "발주일", "w": 12, "al": "c"}]
+    data = []
     for r in rows:
         _sf = (r.get("shipment_form") or "").upper()
-        ws.append([
-            r.get("mgmt_code") or "—",
-            r.get("name") or r.get("project_name") or "—",
-            r.get("equip_name") or "—",
-            r.get("model_name") or "—",
-            r.get("customer_name") or "—",
-            _sf_lbl.get(_sf, "—") if _sf else "—",
-            r.get("status") or "—",
-            r.get("order_amount") or 0,
-            r.get("order_date") or "—",
-        ])
-    widths = [12, 32, 22, 18, 18, 9, 9, 15, 12]
-    for i, w in enumerate(widths, 1):
-        ws.column_dimensions[get_column_letter(i)].width = w
-    for rr in range(hrow + 1, hrow + 1 + len(rows)):
-        ws.cell(row=rr, column=8).number_format = '#,##0'
-    ws.freeze_panes = f"A{hrow + 1}"
-    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+        data.append([r.get("mgmt_code") or "—", r.get("name") or r.get("project_name") or "—", r.get("equip_name") or "—",
+                     r.get("model_name") or "—", r.get("customer_name") or "—", _sf_lbl.get(_sf, "—") if _sf else "—",
+                     r.get("status") or "—", r.get("order_amount") or 0, r.get("order_date") or "—"])
+    wb = KX.new_book(_div_label, "프로젝트 목록")
+    KX.table_sheet(wb.active, "프로젝트 목록 — %s" % _div_label,
+                   "사업부 %s · 상태 %s · 기간(발주일) %s · %d건 · 내려받은 시각 %s" % (_div_label, _status_label, _period, len(rows), _z61_now()),
+                   COLS, data, freeze_cols=1)
     _fn_div = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타", "C": "소모품"}.get(_div, "전체")
     _fn_view = "" if view in ("", "all") else f"_{_view_label}"
     fname = f"프로젝트_{_fn_div}{_fn_view}_{date.today().isoformat()}.xlsx"
-    return StreamingResponse(
-        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
+    return KX.xlsx_response(wb, fname, "KNK_projects.xlsx")
 
 
 @app.get("/projects/bulk-template.xlsx")
