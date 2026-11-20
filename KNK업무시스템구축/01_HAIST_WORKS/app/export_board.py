@@ -255,9 +255,11 @@ def register_export_board(app, d):
             return RedirectResponse("/home", 303)
         with db_session() as c:
             S = collect(c)
+            stp = XP.stamp(c)
         allx = sorted(S.values(), key=lambda s: (s["inv_date"] or "", s["invoice_no"]), reverse=True)
         live = [s for s in allx if not s["old"] and s["stage"] < 5]
-        warm_checks([s["invoice_no"] for s in live if s["check"] is None and (s["logs"] or s["ship"])])
+        # z1191z86: 아직 점검 안 한 건 + 단가 조건·고치기가 바뀐 뒤의 옛 점검(예전 판 결과 포함)도 뒤에서 다시
+        warm_checks([s["invoice_no"] for s in live if (s["logs"] or s["ship"]) and (s["check"] is None or (s["check"] or {}).get("stamp") != stp)])
         now = kst_now()
         cur_m = now.strftime("%Y-%m")
         done_m = [s for s in allx if s["stage"] == 5 and (s["ship"].get("paid_at") or s["ship"].get("updated_at") or "")[:7] == cur_m]
@@ -387,6 +389,7 @@ def register_export_board(app, d):
             res = X.check(doc, last, mine, rng)
         res["src_name"], res["src_how"] = fname, how
         res["rule"], res["rule_kind"] = XP.rule_text(*rng), kind
+        res["stamp"] = stp          # 조건·고치기가 바뀌면 보드가 뒤에서 다시 점검(건 화면을 안 열어도)
         with db_session() as c:
             c.execute("INSERT INTO export_ship_check(invoice_no, src, src_key, result, at) VALUES(?,?,?,?,?) "
                       "ON CONFLICT(invoice_no) DO UPDATE SET src=excluded.src, src_key=excluded.src_key, result=excluded.result, at=excluded.at",
@@ -785,4 +788,9 @@ def register_export_board(app, d):
                 c.execute("INSERT INTO export_price_rule_log(kind, old_value, new_value, by_user, at) VALUES(?,?,?,?,?)",
                           (k, XP.rule_text(rs[k]["up"], rs[k]["down"]), XP.rule_text(up, down), u.get("id"), ts))
                 changed += 1
+        if changed:
+            # 화면 약속 「진행 중인 건도 다시 점검」 — 보드를 열기 전에 뒤에서 미리(한 줄기 · 막혀 있으면 보드가 열릴 때)
+            with db_session() as c:
+                S = collect(c)
+            warm_checks([s["invoice_no"] for s in S.values() if not s["old"] and s["stage"] < 5 and (s["logs"] or s["ship"])])
         return JSONResponse({"ok": True, "changed": changed})

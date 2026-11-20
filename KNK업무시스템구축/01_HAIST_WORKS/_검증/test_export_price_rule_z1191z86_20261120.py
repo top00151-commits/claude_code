@@ -255,6 +255,31 @@ j6 = up(ITEMS, NO).json()
 chk(j6["hist"]["price"] == [] and j6["hist"]["rule"] == "단가는 안 봄" and cl.get("/export/hs-fill/%d/download" % j6["log_id"]).status_code == 200,
     "① 도 같은 조건(안 봄) → 받기 바로")
 
+print("§5b 조건만 바꿔도 보드가 뒤에서 다시 점검(건 화면을 안 열어도)")
+import time  # noqa: E402
+
+
+def warm_wait():
+    for _ in range(300):
+        if EB._BG_LOCK.acquire(blocking=False):
+            EB._BG_LOCK.release()
+            return
+        time.sleep(0.05)
+
+
+OLD["일반통관"] = {"up": None, "down": None}
+r = cl.post("/export/rules", json={"old": OLD, "new": {"일반통관": {"up": "5", "down": "5"}}})
+chk(r.status_code == 200, "일반통관 = 5%")
+warm_wait()
+bd = cl.get("/export").text
+warm_wait()
+bd = cl.get("/export").text
+chk("단가가 정한 범위 밖" in bd, "보드만 열어도 새 조건(5%)으로 다시 점검 → 「손이 필요한 일」에 단가 고르기", None)
+with D.db_session() as c:
+    st = json.loads(c.execute("SELECT result FROM export_ship_check WHERE invoice_no=?", (NO,)).fetchone()[0]).get("stamp")
+    cur = XP.stamp(c)
+chk(st == cur, "점검 결과에 조건 표시(stamp)가 남아 다음 변경을 알아챔")
+
 print("§6 화면 글")
 hf = cl.get("/export/hs-fill").text
 chk("window.XP" in hf and "xp-mount" in hf and "hfMount()" in hf and "hf-dl" in hf and "±' + tol" not in hf, "① 화면: 고르기 상자 · 받기 닫기 · 옛 ±tol 표 없음")
