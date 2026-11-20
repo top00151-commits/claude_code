@@ -76,6 +76,11 @@
   .cmp-grp .ppl[hidden]{display:none}
   .cmp-grp .ppl span{background:#fff;border:1px solid #bfdbfe;border-radius:999px;padding:1px 8px;color:#1e3a8a}
   @media(max-width:700px){.cmp-grp{margin-left:0}}
+  /* 11-20 2단계 — 받는 사람이 휴가면 작게 알려 줌(정보만 · 이음에 아무것도 안 보냄) */
+  .cmp-vac{flex-direction:row;flex-wrap:wrap;gap:4px 6px;font-size:12px}
+  .cmp-vac .v{border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;border-radius:999px;padding:1px 9px;line-height:1.7}
+  html[data-mt="dark"] .cmp-vac .v{background:#052e2b;border-color:#065f46;color:#a7f3d0}
+  @media print{.cmp-grp{display:none !important}}
   html[data-mt="dark"] .cmp-grp .g{background:#1e293b;border-color:#334155;color:#bfdbfe}
   html[data-mt="dark"] .cmp-grp .ppl span{background:#0f172a;border-color:#334155;color:#bfdbfe}
   html[data-mt="dark"] mark.knk-ph{background:#854d0e;color:#fef9c3}
@@ -203,6 +208,7 @@
       <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
     <div class="cmp-grp" id="cGrpInfo" hidden></div>
+    <div class="cmp-grp cmp-vac" id="cVacInfo" hidden></div>
     <div class="cmp-row" id="bccRow" style="{% if not prefill.bcc %}display:none;{% endif %}"><label>숨은참조</label><input id="cBcc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(받는 사람에게 안 보임, 쉼표로 여러 명)" value="{{ prefill.bcc }}" data-knk-no-draft></div>
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}" data-knk-no-draft></div>
     {% if ai_on %}
@@ -383,6 +389,7 @@ function abPut(target){
   var cur=(el.value||'').trim().replace(/[,;]\s*$/,'');
   adds.forEach(function(it){ if(have.indexOf(it.email.toLowerCase())<0){ cur=(cur?cur+', ':'')+(window.cmpAcFmt?window.cmpAcFmt(it):it.email); have.push(it.email.toLowerCase()); } });
   el.value=cur; window._cDirty=true; abClose(); el.focus();
+  if(window.cmpVacCheck) cmpVacCheck();   // 11-20 2단계 받는 사람 휴가 표시
   if(window.cmpGrpCheck) cmpGrpCheck();   // 11-20 그룹 메일을 넣었으면 받는 사람 칸 아래에 「N명이 받습니다」 명단
 }
 
@@ -1014,7 +1021,7 @@ function abPut(target){
     function choose(i){ var it=items[i]; if(!it)return; var lt=lastTok(input.value);
       var ins = (it.expand && it.expand.length) ? it.expand.map(acFmt).join(', ') : acFmt(it);   // 11-19 묶음 = 한 명씩 펼쳐 넣음
       input.value=(lt.pre? lt.pre.trim()+', ':'')+ins+', '; close(); input.focus(); input.classList.remove('cmp-bad'); window._cDirty=true;
-      if(window.cmpGrpCheck) cmpGrpCheck(); }
+      if(window.cmpGrpCheck) cmpGrpCheck(); if(window.cmpVacCheck) cmpVacCheck(); }
     function hl(i){ if(!box) return; var els=box.querySelectorAll('.ac-it'); if(!els.length) return; cur=(i+els.length)%els.length;
       els.forEach(function(e,k){ e.classList.toggle('on', k===cur); }); try{ els[cur].scrollIntoView({block:'nearest'}); }catch(_){} }
     input.addEventListener('keydown', function(e){
@@ -1153,6 +1160,24 @@ function abPut(target){
   }, 350); };
   ['cTo','cCc','cBcc'].forEach(function(i){ var e=document.getElementById(i); if(e){ e.addEventListener('input', cmpGrpCheck); e.addEventListener('change', cmpGrpCheck); e.addEventListener('blur', cmpGrpCheck); } });
   cmpGrpCheck();
+
+  // 11-20 2단계 🏖 받는 사람·참조에 휴가 중인 사내 직원이 있으면 칸 아래에 「○○ 휴가 중 ~11/24」(정보만 · 이음 명부는 서버가 5분에 한 번만 물음)
+  var VAC={}, vTimer=null, vLast='';
+  window.cmpVacCheck=function(){ clearTimeout(vTimer); vTimer=setTimeout(async function(){
+    var all=['cTo','cCc'].map(function(i){ var e=document.getElementById(i); return e?e.value:''; }).join(',');
+    var ads=parseAddrs(all).ok.map(function(p){ return p.addr.toLowerCase(); }).filter(isOurs);
+    ads=ads.filter(function(a,i){ return ads.indexOf(a)===i; });
+    var key=ads.join(','); if(key===vLast) return; vLast=key;
+    var need=ads.filter(function(a){ return !(a in VAC); });
+    if(need.length){ try{ var r=await fetch('/api/mail/vacation/addrs?a='+encodeURIComponent(need.join(','))); var j=await r.json();
+      need.forEach(function(a){ VAC[a]=(j.info||{})[a]||null; }); }catch(e){ return; } }
+    var box=document.getElementById('cVacInfo'), html='';
+    ads.forEach(function(a){ var v=VAC[a]; if(!v) return;
+      html+='<span class="v" title="'+escH(a)+' — 이음에 휴가로 등록돼 있음">🏖 '+escH(v.disp||a)+' 휴가 중'+(v.label?' '+escH(v.label):'')+'</span>'; });
+    box.innerHTML=html; box.hidden=!html;
+  }, 500); };
+  ['cTo','cCc'].forEach(function(i){ var e=document.getElementById(i); if(e){ e.addEventListener('input', cmpVacCheck); e.addEventListener('change', cmpVacCheck); e.addEventListener('blur', cmpVacCheck); } });
+  cmpVacCheck();
 })();
 </script>
 </body></html>

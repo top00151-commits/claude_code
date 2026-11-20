@@ -285,6 +285,25 @@
   .mbx-sched-row button{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:7px;padding:3px 9px;cursor:pointer}
   .mbx-arbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 2px 8px;padding:8px 12px;border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;border-radius:9px;font-size:13px}
   .mbx-arbar.over{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  /* 11-20 2단계 — ⑥ 메일 하루 숫자 한 줄 · 🏖 휴가 → 부재중 제안 */
+  .mbx-day{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 2px 8px;padding:6px 10px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:9px;font-size:13px}
+  .mbx-day-h{font-size:12px;font-weight:700;color:var(--mute);margin-right:2px;white-space:nowrap}
+  .mbx-day-i{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;text-decoration:none;white-space:nowrap;font-weight:600}
+  .mbx-day-i b{font-size:14px}
+  .mbx-day-i em{font-style:normal;font-size:12px;font-weight:700}
+  .mbx-day-i:hover{filter:brightness(.97)}
+  .mbx-day-i.red{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+  .mbx-day-i.warn{border-color:#fdba74;background:#fff7ed;color:#9a3412}
+  .mbx-day-i.zero{opacity:.45;border-color:var(--line);background:transparent;color:var(--mute);font-weight:500}
+  .mbx-vac[hidden]{display:none}
+  .mbx-vac .mbx-vac-go{margin-left:auto;background:#059669;color:#fff;border-radius:7px;padding:3px 12px;text-decoration:none}
+  .mbx-vac .mbx-vac-x{font:inherit;font-size:12px;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;padding:2px 4px}
+  html[data-mt="dark"] .mbx-day-i{background:#1e293b;border-color:#334155;color:#bfdbfe}
+  html[data-mt="dark"] .mbx-day-i.red{background:#3f1d1d;border-color:#7f1d1d;color:#fecaca}
+  html[data-mt="dark"] .mbx-day-i.warn{background:#3b2410;border-color:#9a3412;color:#fed7aa}
+  html[data-mt="dark"] .mbx-day-i.zero{background:transparent;border-color:var(--line);color:var(--mute)}
+  @media(max-width:640px){.mbx-day{gap:5px;padding:6px 8px}.mbx-day-h{width:100%}.mbx-day-i{padding:3px 8px;font-size:12.5px}.mbx-vac .mbx-vac-go{margin-left:0}}
+  @media print{.mbx-day,.mbx-vac{display:none !important}}
   .mbx-arbar a{margin-left:auto;font-weight:700;color:inherit}
   .mbx-arc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;white-space:nowrap}
   @media(max-width:640px){.mbx-ck{width:20px;height:20px;opacity:.6}}
@@ -419,9 +438,22 @@
   {# 11-19 2단계-나 🏖 부재중 자동 응답 켜짐 — 잊지 않게 늘 보임 #}
   <div class="mbx-arbar{{ ' over' if ar_info.over else '' }}">🏖 <b>부재중 자동 응답 {{ '켜짐' if ar_info.live else ('기간이 지났습니다(보내지 않음)' if ar_info.over else '예약됨') }}</b> <span>{{ ar_info.start[5:]|replace('-','/') }} ~ {{ ar_info.end[5:]|replace('-','/') }}</span> <a href="/mail/autoreply">설정 · 끄기 ›</a></div>
   {% endif %}
-  {% if box=='in' and wait_c|default(none) and wait_c.due %}
-  {# 11-19 1단계 ② ⏳ 바깥 거래처에 보낸 메일 — 기한까지 답이 없으면 #}
-  <div class="mbx-arbar over" id="mbxWaitBar">⏳ <b>답 안 온 메일 {{ wait_c.due }}통</b> <span>바깥 거래처에 보낸 메일 중 정한 날까지 답이 없는 것</span> <a href="/mail/waiting">보기 · 다시 묻기 ›</a></div>
+  {% if box=='in' %}
+  {# 11-20 2단계 🏖 이음에 휴가로 돼 있으면 「부재중 자동 응답을 켤까요?」 — 화면이 따로 물어봄(이음이 느려도 목록은 바로) · 저절로 켜지 않음 #}
+  <div class="mbx-arbar mbx-vac" id="mbxVac" hidden>🏖 <b>휴가로 등록돼 있어요<span id="mbxVacTil"></span></b> <span>부재중 자동 응답을 켤까요?</span>
+    <a href="/mail/autoreply" id="mbxVacGo" class="mbx-vac-go" title="휴가 기간을 채운 부재중 설정 화면으로 — 「💾 저장」을 눌러야 켜집니다">켜기 ›</a>
+    <button type="button" class="mbx-vac-x" onclick="mbxVacHide()" title="오늘은 이 안내를 다시 보이지 않음(이 기기)">오늘은 그만 보기</button></div>
+  {% endif %}
+  {% if box=='in' and day|default(none) and day.any %}
+  {# 11-20 2단계 ⑥ 메일 하루 숫자 — 누르면 그 목록 · 0 은 흐리게 · 휴가·회의·할 일은 넣지 않음(이음·포털·웍스 일)
+     (11-19 「⏳ 답 안 온 메일」 띠는 이 줄의 ⏳ 칸으로 합침 · 기한 지난 것이 있으면 주황) #}
+  <nav class="mbx-day" id="mbxDay" aria-label="오늘 챙길 메일">
+    <span class="mbx-day-h">오늘 챙길 메일</span>
+    <a href="/mail/inbox?reply=1" class="mbx-day-i{{ ' zero' if not day.reply else '' }}" title="회신이 필요해 보이는 받은 메일(규칙으로 추정 · 최근 14일)">↩ 회신 필요 <b>{{ day.reply }}</b></a>
+    <a href="/mail/inbox?flag=1" class="mbx-day-i{{ ' zero' if not day.flag else ' red' }}" title="🚩 기한이 오늘까지인 메일(지난 것 포함)">🚩 오늘까지 기한 <b>{{ day.flag }}</b></a>
+    <a href="/mail/waiting" class="mbx-day-i{{ ' zero' if not day.wait else (' warn' if day.wait_due else '') }}"{% if day.wait_due %} id="mbxWaitBar"{% endif %} title="바깥 거래처에 보내고 답을 기다리는 메일 — 답이 오면 저절로 빠짐">⏳ 답 기다림 <b>{{ day.wait }}</b>{% if day.wait_due %} <em>답 안 온 메일 {{ day.wait_due }}통</em>{% endif %}</a>
+    <a href="/mail/sent" class="mbx-day-i{{ ' zero' if not (day.sched or day.sched_fail) else (' red' if day.sched_fail else '') }}" title="오늘 서버가 보낼 예약 메일 — 📤 보낸편지함 맨 위에서 바꾸거나 취소">⏱ 오늘 예약 <b>{{ day.sched }}</b>{% if day.sched_fail %} <em>⚠ 못 보냄 {{ day.sched_fail }}</em>{% endif %}</a>
+  </nav>
   {% endif %}
   {% if not ai_on %}
   <div style="border:1px solid var(--amber);border-radius:8px;background:#fffbeb;padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">ℹ️ AI 자동 분류·요약·번역은 관리자가 AI 설정을 켜 두었을 때 작동합니다.</div>
@@ -1498,5 +1530,26 @@ async function mbxSched(id, act){
   if(act==='now' && !confirm('지금 보낼까요?')) return;
   try{ var r=await fetch('/mail/sched/'+id+'/'+act,{method:'POST'}); var j=await r.json(); alert((j.ok?'':'⚠ ')+(j.message||'')); location.reload(); }catch(e){ alert('네트워크 오류'); }
 }
+/* 11-20 2단계 🏖 이음에 휴가로 돼 있으면 부재중 자동 응답 제안 — 서버가 이음 명부를 5분에 한 번만 물음 · 실패하면 아무것도 안 보임 · 저절로 켜지 않음 */
+var _mbxVacToday='';
+function mbxVacHide(){
+  try{ localStorage.setItem('knkmail.vacHide', _mbxVacToday||'1'); }catch(e){}
+  var b=document.getElementById('mbxVac'); if(b) b.hidden=true;
+}
+(function(){
+  var bar=document.getElementById('mbxVac'); if(!bar) return;
+  setTimeout(async function(){
+    try{
+      var r=await fetch('/api/mail/vacation/me'); if(!r.ok) return; var j=await r.json();
+      if(!j || !j.show) return;
+      _mbxVacToday=j.today||'';
+      var hid=''; try{ hid=localStorage.getItem('knkmail.vacHide')||''; }catch(e){}
+      if(hid && hid===_mbxVacToday) return;
+      document.getElementById('mbxVacTil').textContent = j.label ? '('+j.label+')' : '';
+      if(j.href) document.getElementById('mbxVacGo').setAttribute('href', j.href);
+      bar.hidden=false;
+    }catch(e){}
+  }, 400);
+})();
 </script>
 </body></html>

@@ -22948,6 +22948,12 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _flag_c, _snz_n = {"n": 0, "due": 0}, 0
         _ar_info = _mail_autoreply_info(c, u)
         _wait_c = _mwork.count_waiting(c, u["id"], _mtoday, _mailbox._normalize_subject)   # 11-19 1단계 ②
+        # 11-20 2단계 ⑥ 메일 하루 숫자 — 오늘(보는 사람 소속 날짜) 보낼 예약 · 못 보낸 예약
+        try:
+            _end_loc = datetime.combine(_mail_now_local(_moff).date() + timedelta(days=1), datetime.min.time())
+            _sc_t = _mglance.count_sched_today(c, u["id"], _mail_local_to_server(_end_loc, _moff))
+        except Exception:
+            _sc_t = {"today": 0, "fail": 0}
         # 11-20 대표 「받은편지함 목록에도 👉 표시」 — 맡긴 메일 줄에 「👉 담당 · 상태」(저장된 마지막 상태 · 새 상태는 화면이 따로 물음)
         _dlg_m = _mdlg.marks_for(c, u["id"], [_m["id"] for _m in mails])
     for _m in mails:
@@ -22958,7 +22964,10 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _x = next((_i.get("dlg") for _i in (_t.get("items") or []) if _i.get("dlg")), None)
             if _x:
                 _L["dlg"] = dict(_x, thread=True)
-    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n, wait_c=_wait_c,
+    _day = {"reply": len(reply_map), "flag": int(_flag_c.get("due") or 0), "wait": int((_wait_c or {}).get("all") or 0),
+            "wait_due": int((_wait_c or {}).get("due") or 0), "sched": int(_sc_t.get("today") or 0), "sched_fail": int(_sc_t.get("fail") or 0)}
+    _day["any"] = any(_day[k] for k in ("reply", "flag", "wait", "sched", "sched_fail"))
+    _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n, wait_c=_wait_c, day=_day,
                      flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n, ar_info=_ar_info,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
                      fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
@@ -23358,11 +23367,12 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
+        lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
     return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off, fu=fu, dl=dl)
+               nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -23417,11 +23427,12 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
+        lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off, fu=fu, dl=dl)
+               nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg)
 
 
 def _mail_who_info(m, folder_info):
@@ -24714,6 +24725,97 @@ def _mail_autoreply_info(c, u) -> dict:
 # ─── 11-19 대표 「1단계 진행해」 — ① 자주 쓰는 글 ② 답 기다리기 ③ 첨부 모아 찾기 ④ 받는 사람 묶음·회사 그룹 메일 ───
 #   메일만 하는 것(app/mail_work.py) · 웍스 직원·부서 명단은 읽기만 · 이음 요청·웍스 위임·포털과 겹치지 않게
 from . import mail_work as _mwork
+# ─── 11-20 대표 「다음 진행해」 — 2단계: ⑥ 하루 숫자 · ⑦ 큰 파일 받아 간 시각 · 🏖 휴가(이음 명부 읽기만) · 🏢 거래처 진행 상황(웍스 읽기만) ───
+from . import mail_glance as _mglance
+
+
+def _mail_glance_view(c, u, m):
+    """읽기 화면 — (⑦ 내가 올린 큰 파일들의 받아 간 기록, 🏢 거래처 진행 상황). 실패하면 둘 다 안 보임(메일은 그대로 열림)."""
+    lgf, cpg = [], None
+    _off = _mail_off(c, u)
+    try:
+        lgf = _mglance.large_info_for_mail(c, u["id"], m, lambda s: _mail_local_label(s or "", _off))
+    except Exception as _e:
+        print("[MAIL-LARGE] 받아 간 기록 표시 실패: %s" % type(_e).__name__, flush=True)
+        lgf = []
+    try:
+        # 바깥 거래처가 보낸 메일만 · 매출 보기 권한(웍스 can_view_sales — 새 규칙 없음)이 있는 사람에게만
+        _fe = (m.get("from_email") or "").strip().lower()
+        if ((m.get("direction") or "in") == "in" and _fe and "@" in _fe and can_view_sales(u)
+                and _fe.rsplit("@", 1)[-1] not in _mailbox._OUR_DOMAINS):
+            _cid = _mglance.customer_of(c, _fe)
+            if _cid:
+                cpg = _mglance.customer_progress(c, _cid, with_money=True, money_fn=_fmt_money)
+    except Exception as _e:
+        print("[MAIL-CUST] 거래처 진행 상황 실패: %s" % type(_e).__name__, flush=True)
+        cpg = None
+    return lgf, cpg
+
+
+def _mail_my_emails(c, u) -> list:
+    out = []
+    try:
+        if u.get("email"):
+            out.append(str(u["email"]).strip().lower())
+        out += [a for a in (_mail_find.my_addresses(c, u["id"]) or []) if a]
+    except Exception:
+        pass
+    return list(dict.fromkeys([a.lower() for a in out if a and "@" in a]))
+
+
+@app.get("/api/mail/vacation/me")
+async def mail_vacation_me(req: Request):
+    """🏖 내가 이음에 휴가로 돼 있으면 「부재중 자동 응답을 켤까요?」 제안(저절로 켜지 않음).
+    이음 명부는 서버에서만 · 5분 캐시 · DB 를 닫은 뒤에 부름 · 실패해도 {"show": false}."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        _off = _mail_off(c, u)
+        today = _mail_local_today(_off)
+        st = _mailbox.get_autoreply(c, u["id"])
+        mine = _mail_my_emails(c, u)
+    out = {"ok": True, "show": False, "today": today}
+    if st.get("enabled") and (st.get("end_date") or "") >= today:
+        return JSONResponse(out)          # 이미 켜져 있음(또는 예약됨) → 제안 안 함
+    dd = await _mdlg_pool(_mglance.directory)
+    v = _mglance.my_vacation(dd, u.get("employee_no"), mine, _off)
+    if not v or (v["until"] and v["until"] < today):
+        return JSONResponse(out)
+    from urllib.parse import quote as _q
+    out.update(show=True, until=v["until"], label=v["label"],
+               href="/mail/autoreply?vac=" + _q(v["until"] or "1"))
+    return JSONResponse(out)
+
+
+@app.get("/api/mail/vacation/addrs")
+async def mail_vacation_addrs(req: Request, a: str = ""):
+    """받는 사람·참조 칸의 사내 직원 중 휴가 중인 사람만 {주소: 표시} — 쓰기 화면에 「○○ 휴가 중 ~11/24」(정보만 · 이음에 아무것도 안 보냄)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    addrs = [x.strip().lower() for x in (a or "").split(",") if "@" in x][:60]
+    if not addrs:
+        return JSONResponse({"ok": True, "info": {}})
+    with db_session() as c:
+        _off = _mail_off(c, u)
+        staff = {}
+        try:
+            ph = ",".join("?" * len(addrs))
+            for r in c.execute("SELECT lower(u.email) AS e, u.employee_no AS emp, u.name, COALESCE(u.rank,'') AS rank, "
+                               "COALESCE(t.name,'') AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                               "WHERE lower(u.email) IN (" + ph + ")", addrs).fetchall():
+                staff[r["e"]] = dict(r)
+        except Exception:
+            staff = {}
+    dd = await _mdlg_pool(_mglance.directory)
+    got = _mglance.vac_for_addrs(dd, addrs, {k: v.get("emp") for k, v in staff.items()}, _off)
+    info = {}
+    for ad, v in got.items():
+        s = staff.get(ad)
+        disp = _mw_disp(s) if s else " ".join(x for x in (v["name"], v["position"], v["dept"]) if x)
+        info[ad] = {"disp": disp or ad, "until": v["until"], "label": v["label"]}
+    return JSONResponse({"ok": True, "info": info})
 
 
 def _mw_admin(u):
@@ -25109,7 +25211,7 @@ async def mail_files_page(req: Request, q: str = "", kind: str = "", d: str = ""
 
 
 @app.get("/mail/autoreply", response_class=HTMLResponse)
-async def mail_autoreply_page(req: Request):
+async def mail_autoreply_page(req: Request, vac: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -25118,7 +25220,14 @@ async def mail_autoreply_page(req: Request):
         today = _mail_local_today(_mail_off(c, u))
         logs = [dict(r) for r in c.execute("SELECT addr, sent_at FROM mail_autoreply_log WHERE user_id=? ORDER BY id DESC LIMIT 20", (u["id"],)).fetchall()]
         ready = _mail.system_send_ready(c, u["id"])
-    return ctx(req, "mail_autoreply.html", user=u, st=st, today=today, logs=logs, ready=ready, default_body=_AUTOREPLY_DEFAULT)
+    # 11-20 2단계 🏖 휴가 제안에서 「켜기」 → 기간만 채워 보여 줌(**저장을 눌러야 켜짐** · 이미 켜져 있으면 손대지 않음)
+    vac_fill = None
+    if vac and not (st.get("enabled") and (st.get("end_date") or "") >= today):
+        import re as _re_vac
+        _ve = vac.strip()[:10] if _re_vac.match(r"^\d{4}-\d{2}-\d{2}$", vac.strip()[:10]) else ""
+        vac_fill = {"start": today, "end": (_ve if _ve >= today else ""), "label": _mglance.md_label(_ve) if _ve >= today else ""}
+    return ctx(req, "mail_autoreply.html", user=u, st=st, today=today, logs=logs, ready=ready, default_body=_AUTOREPLY_DEFAULT,
+               vac_fill=vac_fill)
 
 
 @app.post("/mail/autoreply")
@@ -25929,6 +26038,8 @@ async def mail_counts_api(req: Request):
         try:
             sc = _mailbox.count_scheduled(c, u["id"])
             out["sched"], out["sched_fail"] = sc["n"], sc["fail"]
+            _end_loc = datetime.combine(_mail_now_local(_off).date() + timedelta(days=1), datetime.min.time())
+            out["sched_today"] = _mglance.count_sched_today(c, u["id"], _mail_local_to_server(_end_loc, _off))["today"]   # 11-20 2단계 ⑥
         except Exception:
             pass
         if not lite:   # 11-19 1단계 ② ⏳ 답 기다리는 메일(답이 왔는지 살펴보는 일이라 1분마다는 안 함)

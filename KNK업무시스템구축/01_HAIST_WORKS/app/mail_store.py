@@ -2165,12 +2165,38 @@ def get_large_file(c, token: str):
     return d
 
 
+_LARGE_DL_OK = set()
+LARGE_DL_KEEP = 200     # 한 파일에 시각 기록은 200줄까지(처음 것 + 최근 것 · 횟수는 따로 다 셈 — 표가 끝없이 커지지 않게)
+
+
+def ensure_large_dl(c):
+    """⑦ 큰 파일 받아 간 시각(11-20 2단계) — 링크 번호 · 시각만(받아 간 사람의 주소·IP·브라우저는 적지 않음)."""
+    try:
+        k = c.execute("PRAGMA database_list").fetchone()[2] or ("mem:%x" % id(c))
+    except Exception:
+        k = "?"
+    if k in _LARGE_DL_OK:
+        return
+    c.execute("CREATE TABLE IF NOT EXISTS mail_large_dl(id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT NOT NULL, "
+              "at TEXT DEFAULT (datetime('now','localtime')))")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_mail_large_dl_tk ON mail_large_dl(token, id)")
+    _LARGE_DL_OK.add(k)
+
+
 def bump_large_download(c, token: str) -> None:
     try:
         c.execute("UPDATE mail_large_files SET download_count = download_count + 1 WHERE token=?",
                   (token,))
     except Exception:
         pass
+    try:   # 11-20 2단계 ⑦ — 받아 간 시각(서버 시각 · 보여 줄 때 보는 사람 소속 시각으로 바꿈)
+        ensure_large_dl(c)
+        c.execute("INSERT INTO mail_large_dl(token) VALUES(?)", (token,))
+        n = c.execute("SELECT COUNT(*) FROM mail_large_dl WHERE token=?", (token,)).fetchone()[0]
+        if int(n or 0) > LARGE_DL_KEEP:   # 처음 것과 최근 것은 남기고 그 사이 오래된 것부터 지움
+            c.execute("DELETE FROM mail_large_dl WHERE id=(SELECT id FROM mail_large_dl WHERE token=? ORDER BY id LIMIT 1 OFFSET 1)", (token,))
+    except Exception as e:
+        print("[MAIL-LARGE] 받아 간 시각 기록 실패: %s" % type(e).__name__, flush=True)
 
 
 def human_size(n) -> str:

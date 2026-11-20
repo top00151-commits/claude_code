@@ -102,6 +102,19 @@
   </div>
 </div>
 {% include "_v5_partials/mail_delegate.html" %}
+{% if cpg is defined and cpg %}{# 11-20 2단계 🏢 거래처 진행 상황 — 웍스 자료 읽기만(메일에서 고치지 않음) · 매출 보기 권한(can_view_sales) 있는 사람에게만 #}
+<details class="mv-cust" id="mvCust">
+  <summary>🏢 <b>{{ cpg.name }}</b> 진행 상황 <span class="mv-cust-sum">진행 중 {{ cpg.live_n }}건{% if cpg.orders %} · 최근 수주 {{ cpg.orders[0].order_date[5:]|replace('-','/') }}{% endif %}</span></summary>
+  <div class="mv-cust-box">
+    <div class="mv-cust-h">진행 중 프로젝트{% if cpg.live_n > cpg.live|length %} <small>(최근 {{ cpg.live|length }}건 · 모두 {{ cpg.live_n }}건)</small>{% endif %}</div>
+    {% for p in cpg.live %}<a class="mv-cust-row" href="/project/{{ p.id }}" target="_blank" rel="noopener" title="웍스 프로젝트 화면으로(새 창)">{% if p.code %}<span class="code">{{ p.code }}</span>{% endif %}<span class="nm">{{ p.name }}</span>{% if p.stage %}<span class="st">{{ p.stage }}</span>{% endif %}{% if p.status %}<span class="st">{{ p.status }}</span>{% endif %}{% if p.due %}<span class="dt">납기 {{ p.due[5:]|replace('-','/') }}</span>{% endif %}</a>
+    {% else %}<div class="mv-cust-none">진행 중인 프로젝트가 없습니다</div>{% endfor %}
+    {% if cpg.orders %}<div class="mv-cust-h">최근 수주</div>
+    {% for p in cpg.orders %}<a class="mv-cust-row" href="/project/{{ p.id }}" target="_blank" rel="noopener" title="웍스 프로젝트 화면으로(새 창)"><span class="dt">{{ p.order_date[2:]|replace('-','/') }}</span><span class="nm">{{ p.name }}</span>{% if p.amount %}<span class="amt">{{ p.amount }}</span>{% endif %}{% if p.status %}<span class="st">{{ p.status }}</span>{% endif %}</a>{% endfor %}{% endif %}
+    <div class="mv-cust-foot">웍스 자료(읽기만) · <a href="/customer/{{ cpg.id }}" target="_blank" rel="noopener">🏢 고객사 화면 ›</a></div>
+  </div>
+</details>
+{% endif %}
 
 {% if m.direction != 'out' and reply_info is defined and reply_info %}
 <div id="mvReply" class="mv-reply{{ ' on lv%d' % reply_info.lv if reply_info.lv else '' }}">
@@ -170,6 +183,18 @@
     </a>
     {% endif %}
   {% endfor %}
+</div>
+{% endif %}
+{% if lgf is defined and lgf %}{# 11-20 2단계 ⑦ 내가 보낸 큰 파일(대용량 링크) — 받아 간 횟수·시각(보는 사람 소속 시각 · 받아 간 사람 정보는 적지 않음) #}
+<div class="mv-lgf" id="mvLgf">
+  <div class="mv-atts-h">📦 큰 파일 받아 간 기록</div>
+  {% for f in lgf %}<div class="mv-lgf-row">
+    <span class="nm">📦 {{ f.name }} <small>({{ f.size_h }})</small></span>
+    {% if f.n %}<span class="got">✅ {% if f.first %}처음 받아 감 {{ f.first }} · {% endif %}{{ f.n }}번{% if f.last and f.n > 1 %} · 마지막 {{ f.last }}{% endif %}{% if not f.logged %} <small>(받아 간 시각은 이 기능 전이라 기록 없음)</small>{% endif %}</span>
+    {% else %}<span class="none">아직 받아 가지 않음</span>{% endif %}
+    {% if f.expired %}<span class="exp">링크 기간 지남</span>{% elif f.exp %}<span class="exp ok">링크 {{ f.exp }}까지</span>{% endif %}
+    {% if f.recent|length > 1 %}<details class="mv-lgf-more"><summary>최근 {{ f.recent|length }}번</summary>{% for t in f.recent %}<span>{{ t }}</span>{% endfor %}</details>{% endif %}
+  </div>{% endfor %}
 </div>
 {% endif %}
 {% if img_off is defined and img_off %}
