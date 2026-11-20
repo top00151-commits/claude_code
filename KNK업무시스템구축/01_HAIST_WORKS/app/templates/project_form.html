@@ -20,7 +20,7 @@ body {
    변동. 해결: width:100% 를 줘서 내용과 무관하게 항상 (max-width)880px 로 고정.
    (라이브 검증: width:100% 적용 시 체크 전/후 모두 880px, stable=true) */
 /* v5H226z212 (대표 지시): 여백이 많아 폼을 더 넓게 — 880→1100px (width:100% 유지로 폭 안정성 보존) */
-.pf-wrap { width: 100%; max-width: 1100px; margin: 0 auto var(--space-6); padding: 0 var(--content-pad); }
+.pf-wrap { width: 100%; margin: 0 0 var(--space-6); padding: 0 var(--content-pad); } /* z1191z87: 폭 상한 없앰 */
 .pf-hint { font-size: 12px; color: var(--qv-ink-3); margin: var(--space-2) 0 var(--space-5); line-height: 1.6; }
 /* v5H226z178 (2026-06-03 대표 지시): 등록 화면 '쉬워 보이게' 시각 정리 —
    섹션 헤더 부드럽게 + 여백 확대 + 친근 안내(긴 설명은 접기). 입력칸은 그대로. */

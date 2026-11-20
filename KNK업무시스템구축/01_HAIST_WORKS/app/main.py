@@ -13783,7 +13783,7 @@ async def admin_ti_from_xlsx_form(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     return HTMLResponse(
-        "<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 18px;color:#1f2937;'>"
+        "<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:32px 0;padding:0 24px;color:#1f2937;'>"
         "<h2>📄 엑셀 → 세금계산서/거래명세서만 반영</h2>"
         "<p style='color:#555;line-height:1.7;'>일괄등록과 <b>같은 양식</b> 엑셀을 올리면, <b>이미 등록된 관리번호</b>에 "
         "거래명세서·세금계산서(발행일·금액)만 반영합니다. <b style='color:#b45309;'>프로젝트·수주(SO)·호기는 절대 만들지 않습니다</b> "
@@ -13884,7 +13884,7 @@ async def admin_dup_so(req: Request):
             members.sort(key=lambda x: x["oid"])
             for d in members[1:]:
                 dups.append((members[0], d))
-    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1050px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
             "<h2>🧹 중복 수주(SO) 진단·정리</h2>",
             "<p style='color:#555;line-height:1.7;'>같은 프로젝트에 <b>발주일·납기·금액이 동일한 수주(SO)가 2개 이상</b>인 경우입니다(재업로드로 중복 생성된 흔적). "
             "가장 <b>오래된 1개(원본)는 보존</b>하고 나중에 생긴 것만 삭제 후보로 표시합니다. 아래 표를 확인하고 '중복 삭제 실행'을 누르세요.</p>"]
@@ -13982,7 +13982,7 @@ async def admin_ship_overdue(req: Request):
         except Exception as e:
             return HTMLResponse("<meta charset='utf-8'><p>조회 오류: " + _esc(str(e)) + "</p>")
     _sfk = {"ASSEMBLY": "완제품", "SEMI": "제품", "PARTS": "상품", "ETC": "기타"}
-    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1000px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
             "<h2>🚚 납품일 지난 건 일괄 출하 (미리보기)</h2>",
             "<p style='color:#555;line-height:1.7;'>오늘(<b>" + today + "</b>) 기준 <b>납품일이 지난</b> 호기/품목 중 아직 '출하'·'취소'가 아닌 건입니다. "
             "'출하 처리 실행'을 누르면 모두 <b>출하</b> 상태로 바꿉니다. (정식 출하전표가 아닌, 작업일정표 상태 변경 — 되돌리려면 해당 행 상태를 다시 변경)</p>"]
@@ -14123,7 +14123,7 @@ async def admin_order_dates_audit(req: Request):
             "ORDER BY o.project_id, o.id").fetchall()]
 
     n_of, n_onp, n_pf, n_pnp, n_due = len(orders_fill), len(orders_noparse), len(projs_fill), len(projs_noparse), len(due_empty)
-    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1080px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
             "<h2>📅 발주일 누락 진단·백필 (미리보기)</h2>",
             "<p style='color:#555;line-height:1.7;'>작업일정표는 <b>발주일·납기가 둘 다 없으면</b> 그 항목을 숨깁니다(그래서 '있던 게 갑자기 안 보임'). "
             "아래 <b>발주일이 빈 건</b>을 <b>수주번호에서 날짜를 뽑아</b>(예: <code>M-260707-1 → 2026-07-07</code>) 채웁니다. "
@@ -14348,7 +14348,7 @@ async def admin_model_equip_fix_page(req: Request):
         return RedirectResponse("/login", 303)
     return HTMLResponse(
         "<meta charset='utf-8'><title>모델·장비 빈칸 채움</title>"
-        "<div style='font-family:system-ui,sans-serif;max-width:820px;margin:30px auto;padding:0 16px;color:#1f2937;'>"
+        "<div style='font-family:system-ui,sans-serif;margin:30px 0;padding:0 24px;color:#1f2937;'>"
         "<h2>🔧 수주별 모델·장비 빈칸 채움 <span style='font-size:14px;color:#64748b;'>(부분수정·z1064)</span></h2>"
         "<p style='color:#555;line-height:1.7;'>로컬에서 만든 <b>pairs JSON</b>(oid·model·equip 목록)을 올려 "
         "수주(SO)의 <b>모델·장비 빈칸만</b> 채웁니다. 상태·통화·세금계산서·고객사는 <b>건드리지 않습니다</b>. "
@@ -14536,8 +14536,8 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
                 "style='font-family:monospace;color:#1d4ed8;font-weight:700;'>"
                 + _esc(d.get("mc") or "—") + "</a>")
 
-    B = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1180px;"
-         "margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    B = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;"
+         "margin:24px 0;padding:0 24px;color:#1f2937;'>",
          "<h2>🧾 소모품 매출 진단 — " + _esc(sel) + "년 <span style='font-size:14px;color:#15803d;'>(읽기전용)</span></h2>",
          "<p style='color:#555;line-height:1.75;'>매출 홈의 <b>수주매출</b> 계산을 <b>그대로 재현</b>해, 소모품 금액이 "
          "어디서 오는지 쪼개 봅니다. <b>이 화면은 아무것도 바꾸지 않습니다</b>(전부 조회).</p>"]
@@ -14980,7 +14980,7 @@ async def admin_proj_raw(req: Request, code: str = ""):
 
     def _esc(s):
         return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
             "<h2>🔬 관리번호 원시 데이터 보기 (읽기전용)</h2>",
             "<form method='get' style='margin:10px 0;'><input name='code' value='" + _esc(code) +
             "' placeholder='관리번호 예: 001M2605' style='padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;'>"
@@ -15063,7 +15063,7 @@ async def admin_unit_split_preview(req: Request):
         return RedirectResponse("/login", 303)
     def _esc(s):
         return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1100px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
             "<h2>🧩 완제품 호기 일괄 분할 (1줄 → N호기)</h2>",
             "<p style='color:#555;font-size:13px;line-height:1.7;'>z629 시절 <b>1줄(수량 N)</b>으로 저장된 <b>완제품(장비)</b>을 <b>호기별 N줄</b>로 분할합니다. "
             "부품·소모품·제품(반제품)·기타는 <b>제외</b>(거긴 1줄이 정상). 기존 데이터는 보존하며(재업로드 불필요), "
@@ -15206,7 +15206,7 @@ async def admin_fix_unit_price_preview(req: Request):
         return RedirectResponse("/login", 303)
     def _esc(s):
         return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;max-width:1200px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
             "<h2>🩹 단가/금액 폭주 복구 (미러에서 복원)</h2>",
             "<p style='color:#555;font-size:13px;line-height:1.7;'>클릭 폭주로 호기 단가/금액이 망가진 건을, <b>안 망가진 미러(projects 등록 단가)</b>로 복원합니다. "
             "대상 = 완제품 중 <b>금액≠단가×수량</b>(불일치)이거나 <b>금액이 미러 총액의 3배 초과</b>(과대)인 호기. "
@@ -20956,7 +20956,7 @@ async def admin_note_sweep(request: Request, v: str = "67", done: str = ""):
     with db_session() as c:
         groups = _note_sweep_targets978(c, _val)
     total = sum(len(rows) for _, _, _, rows in groups)
-    body = ["<meta charset='utf-8'><div style='font-family:sans-serif;max-width:860px;margin:36px auto;padding:0 16px;'>",
+    body = ["<meta charset='utf-8'><div style='font-family:sans-serif;margin:36px 0;padding:0 24px;'>",
             "<h2>🧹 비고 오염값 청소 (z978)</h2>",
             "<p style='font-size:14px;color:#555;'>비고류 칸 값이 <b>정확히 아래 값(공백 제외)</b>인 항목만 찾습니다. "
             "원인: 예전 엑셀 일괄등록이 헤더를 못 읽으면 열 위치를 추측해 엉뚱한 열(담당 사번 등)을 비고에 저장 — z978에서 폐지됨.</p>",
@@ -38308,7 +38308,7 @@ async def schedule_board_diag(request: Request):
 
     body = [
         "<meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'>",  # v5H226z361: 휴대폰 정상 표시
-        "<div style='font-family:Pretendard,system-ui,sans-serif;max-width:980px;margin:24px auto;padding:0 18px;color:#1f2937;'>",
+        "<div style='font-family:Pretendard,system-ui,sans-serif;margin:24px 0;padding:0 24px;color:#1f2937;'>",
         "<h1 style='font-size:22px;'>🔎 작업일정표 데이터 진단 — 사업부별 노출 가능 여부</h1>",
         "<p style='color:#666;font-size:13px;'>작업일정표는 <b>프로젝트의 발주일~납기가 그 달과 겹치는 건만</b> 표시하고, <b>관리번호 4번째 글자</b>로 사업부를 분류합니다. (읽기전용·수정 없음)</p>",
         "<table style='border-collapse:collapse;width:100%;font-size:13px;margin:10px 0 18px;'>",

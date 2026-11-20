@@ -77,6 +77,30 @@ BASELINE = {
     #    `.so-card.so-fullscreen .so-units-wrapper` = **전체화면(풀스크린) 전용** 규칙이라
     #    100vh 가 맞는 값이다(화면 전체를 쓰는 상태). z1009 예외 '사용자 높이조절'에 해당 → 면제.
     "project_detail.css": {"vh": 1},
+
+    # ── 화면 폭 상한(시트여백 · z1191z87 · 2026-11-20) ──
+    #    다른 세션 화면 — 세션 01 이 고치지 않는다(대표께 알림 · 그 세션이 고치면 0 으로)
+    "admin_mail_blocklist.html": {"wrapcap": 1},   # 세션 15(메일) — 차단 목록 .bl-wrap 820
+    "admin_mail_fetch.html": {"wrapcap": 1},       # 세션 15 — .mf-wrap 760
+    "admin_mail_purge.html": {"wrapcap": 1},       # 세션 15 — .mp-wrap 720
+    "admin_mail_send.html": {"wrapcap": 1},        # 세션 15 — .ms-card 860
+    "mail_autoreply.html": {"wrapcap": 2},         # 세션 15 — 부재중 응답 글 칸·안내(칸 단위)
+    "mail_inbox.html": {"wrapcap": 1},             # 세션 15 — 좁은 화면 전환 기준(폭 상한 아님)
+    "bom_tools.html": {"wrapcap": 1},              # 세션 05(BOM 독점) — .panes 760
+    "bom_upload.html": {"wrapcap": 1},             # 세션 05 — .bw 1100
+    "bom_upload_report.html": {"wrapcap": 1},      # 세션 05 — .rw 1100
+    "stock_qc.html": {"wrapcap": 1},               # 세션 05(자재구매) — .qc-body 900
+    #    앱 밖·견본 화면 — 로그인 카드 · 디자인 견본 갤러리 · 오류 안내 상자
+    "login.html": {"wrapcap": None},
+    "login_v5_design.html": {"wrapcap": None},
+    "guide_v5_design.html": {"wrapcap": None},
+    "empty.html": {"wrapcap": None},
+    "toasts.html": {"wrapcap": None},
+    "modals.html": {"wrapcap": None},
+    "error.html": {"wrapcap": None},
+    "error_simple.html": {"wrapcap": None},
+    "v5_login.css": {"wrapcap": None},
+    "_legacy_guide_v4.html": {"wrapcap": None},     # 안 쓰는 옛 가이드(지금 가이드 = guide.html)
 }
 
 
@@ -1429,6 +1453,40 @@ def split_baseline(hits, rule):
     return new, old
 
 
+# ── 화면 폭 상한(시트여백) — z1191z87 (대표 2026-11-20 「모니터 사이즈, 창 사이즈에 따라 자동으로 여백없이 … 모든 페이지」) ──
+#    화면 래퍼에 max-width 700px 이상 상한을 두면 넓은 모니터에서 오른쪽(또는 양쪽)이 휑하게 빈다(작업기록/시트여백_표준.md).
+#    예외(검사 안 함): @media 안 · 인쇄 양식(파일 이름에 print) · 창(모달) 본문(position:fixed 덮개 안) · 입력칸·글 단락 같은 칸 단위.
+#    면제(BASELINE "wrapcap"): 다른 세션 화면(손대지 않음 — 알리기만) · 로그인·디자인 견본 같은 앱 밖 화면. 늘어나면 잡는다.
+_WRAPCAP_SKIP_SEL = re.compile(r"(input|textarea|select|img|modal|toast|tip\b|pop|dialog|overlay|drop|menu|msg|bubble|label|chip|badge|\bp\b|\bh\d)", re.I)
+
+
+def check_wrap_cap(files):
+    bad = []
+    rule = re.compile(r"([^{}]*)\{([^{}]*)\}")
+    mw = re.compile(r"max-width\s*:\s*(\d{3,4})px", re.I)
+    for p in files:
+        name = os.path.basename(p)
+        if "print" in name or BASELINE.get(name, {}).get("wrapcap", 0) is None:
+            continue
+        raw = _read(p)
+        src = re.sub(r"\{\{.*?\}\}|\{%.*?%\}|\{#.*?#\}", lambda m: re.sub(r"[^\n]", " ", m.group(0)), raw, flags=re.S)
+        src = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", lambda m: re.sub(r"[^\n]", " ", m.group(0)), src)
+        for m in rule.finditer(src):
+            sel = m.group(1).strip().split("\n")[-1].strip()
+            decl = m.group(2)
+            k = mw.search(decl)
+            if (not k or int(k.group(1)) < 700 or _WRAPCAP_SKIP_SEL.search(sel) or "position:fixed" in decl.replace(" ", "")
+                    or "matchMedia" in sel + decl):          # 스크립트의 좁은 화면 판정(폭 상한 아님)
+                continue
+            bad.append((p, src.count("\n", 0, m.start(2)) + 1, (sel + "{" + " ".join(decl.split()))[:100]))
+        for m in re.finditer(r"style\s*=\s*[\"']([^\"']*max-width\s*:\s*(\d{3,4})px[^\"']*)[\"']", src):
+            seg = src[max(0, m.start() - 600):m.start()].replace(" ", "")
+            if int(m.group(2)) < 700 or seg.rfind("position:fixed") > seg.rfind("</div>"):   # 창(모달) 덮개 바로 안의 본문만 예외
+                continue
+            bad.append((p, src.count("\n", 0, m.start()) + 1, "(style) " + " ".join(m.group(1).split())[:90]))
+    return bad
+
+
 # ── 본문 앞 스크립트 = 화면 전환 때 안 돈다 (z1191z26 · 대표 신고 2026-11-16) ──
 #    면제: 화면 전환과 상관없는 것만. 사유를 적고, 늘어나면 잡는다.
 SPA_HEAD_ALLOW = {
@@ -1692,6 +1750,15 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 본문 앞 스크립트 : 화면 전환(본문만 교체)으로 들어와도 공용 함수가 있음 (chrome.html)")
+
+    wc_new, wc_old = split_baseline(check_wrap_cap(files), "wrapcap")
+    if wc_new:
+        fail += len(wc_new)
+        print("  ❌ 화면 폭 상한(시트여백) : 새로 %d건 → 래퍼 max-width·margin:0 auto 없이 창 폭 꽉(작업기록/시트여백_표준.md)" % len(wc_new))
+        for f, l, m in wc_new[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 화면 폭 상한(시트여백) : 새 위반 없음 (다른 세션·앱 밖 면제 %d건)" % wc_old)
 
     df_bad = check_date_fallback(files)
     if df_bad:
