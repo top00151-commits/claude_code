@@ -2,10 +2,10 @@
 <html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/><title>메일 가져오기 설정 · KNK Eum MAIL</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-  .mf-wrap{max-width:760px}
+  .mf-wrap{margin:0 0 var(--space-6);padding:0 var(--content-pad)} /* 대표 11-20: 폭 상한 없앰(창 폭 꽉) · 입력 칸만 상한 */
   .mf-row{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-bottom:10px}
   .mf-row label{font-size:13px;color:var(--mute);font-weight:600}
-  .mf-row input[type=text],.mf-row input[type=number],.mf-row input[type=password]{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box}
+  .mf-row input[type=text],.mf-row input[type=number],.mf-row input[type=password]{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;box-sizing:border-box;max-width:480px}
   .mf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
   .mf-status{border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:12px 14px;font-size:12.5px;color:var(--ink);line-height:1.9;margin-top:14px}
   .mf-status b{color:var(--mute);font-weight:700}

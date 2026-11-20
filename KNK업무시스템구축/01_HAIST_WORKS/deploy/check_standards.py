@@ -80,10 +80,6 @@ BASELINE = {
 
     # ── 화면 폭 상한(시트여백 · z1191z87 · 2026-11-20) ──
     #    다른 세션 화면 — 세션 01 이 고치지 않는다(대표께 알림 · 그 세션이 고치면 0 으로)
-    "admin_mail_blocklist.html": {"wrapcap": 1},   # 세션 15(메일) — 차단 목록 .bl-wrap 820
-    "admin_mail_fetch.html": {"wrapcap": 1},       # 세션 15 — .mf-wrap 760
-    "admin_mail_purge.html": {"wrapcap": 1},       # 세션 15 — .mp-wrap 720
-    "admin_mail_send.html": {"wrapcap": 1},        # 세션 15 — .ms-card 860
     "mail_autoreply.html": {"wrapcap": 2},         # 세션 15 — 부재중 응답 글 칸·안내(칸 단위)
     "mail_inbox.html": {"wrapcap": 1},             # 세션 15 — 좁은 화면 전환 기준(폭 상한 아님)
     "bom_tools.html": {"wrapcap": 1},              # 세션 05(BOM 독점) — .panes 760
