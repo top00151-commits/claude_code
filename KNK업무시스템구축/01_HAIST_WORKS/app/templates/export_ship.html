@@ -57,6 +57,10 @@
             {% endfor %}
           </ul>
           {% else %}<div class="ex-empty">점검할 파일이 없습니다 — 오른쪽 <b>서류철</b>에 최종 인보이스(엑셀)를 올리면 바로 점검합니다.</div>{% endif %}
+          {# z1191z86: 단가가 정한 범위 밖인 줄 — 허용(까닭) / 고치기 #}
+          <div id="price"></div>
+          <div id="xpNeed" class="ex-sub" style="margin-top:8px;"></div>
+          {% if ck and not s.px %}<div class="ex-sub" style="margin-top:6px;">단가 조건: {{ ck.get('rule') or '' }} · <a href="/export/rules">⚙ 조건 바꾸기</a></div>{% endif %}
         </div>
 
         <div class="ex-card"><div class="ex-h">🇻🇳 HS 자동 채움 기록 <small><a href="/export/hs-fill">① 인보이스 올리기 화면</a></small></div>
@@ -121,6 +125,21 @@
     <div style="height:28px"></div>
   </div>
 </main></div>
+{# z1191z86: 고르기 조각은 본문 안에(화면 전환 때 본문만 바뀌어도 돌게) #}
+{% include "_export_price_z86.html" %}
+<script>
+(function(){
+  var PX = {{ px_json|safe }};
+  var el = document.getElementById('price'), nd = document.getElementById('xpNeed');
+  function need(n){
+    if(!PX.need || !nd) return;
+    nd.innerHTML = n.open ? '⏳ 위 단가 줄을 다 고르면 자동 채움 파일을 받을 수 있습니다(남은 ' + n.open + '줄)'
+      : '<a class="ex-btn sm blue" href="/export/hs-fill/' + PX.need + '/download">⬇ 채운 파일 받기</a> — 단가 줄을 모두 골랐습니다';
+  }
+  PX.onChange = function(n){ need(n); };
+  if(el && window.XP){ need(XP.render(el, PX)); }
+})();
+</script>
 <script>
 (function(){
   var NO = {{ s.invoice_no|tojson }}, OLD = {{ cur_json|safe }}, KIND = {{ (s.kind or '')|tojson }};

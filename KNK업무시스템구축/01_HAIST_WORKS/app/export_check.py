@@ -8,7 +8,7 @@
   ④ HS 8자리 · 베트남어 품명
   ⑤ 원산지 · C/O 표시(한국산이 아닌데 C/O 「O」)
   ⑥ 인보이스 % 섞임 · 선적일(인보이스 날짜보다 앞 · 너무 뒤)
-  ⑦ 지난 수출과 비교 — 같은 규격이 지난번과 HS 다름 · 단가 30% 넘게 다름(특수관계 거래 — 세관 가격 심사 대비)
+  ⑦ 지난 수출과 비교 — 같은 규격이 지난번과 HS 다름 · 단가가 정한 범위(사용자 조건 · export_price) 밖(특수관계 거래 — 세관 가격 심사 대비)
 양식이 14가지로 달라(2026-01~11 실측 55개 파일) 칸은 머리글 글자로 찾는다. 파일은 바꾸지 않는다(읽기만).
 """
 from __future__ import annotations
@@ -261,10 +261,11 @@ def _w(level, title, detail="", rows=None):
     return {"level": level, "title": title, "detail": detail, "rows": (rows or [])[:8]}
 
 
-def check(doc: dict, hist: dict | None = None, hist_hs: dict | None = None) -> dict:
+def check(doc: dict, hist: dict | None = None, hist_hs: dict | None = None, rng=(15.0, 15.0)) -> dict:
     """read() 결과 → {facts, summary, items:[{level ok|warn|err|info, title, detail, rows}]}.
     hist = {규격 키: (단가, HS, 인보이스 번호, 날짜)} — 이 인보이스를 뺀 가장 최근 수출(지난 수출 이력에서).
-    hist_hs = {규격 키: HS} — 법인 회신으로 이 인보이스에 확정된 HS(회신 파일은 보관하지 않아 이력 줄로 본다)."""
+    hist_hs = {규격 키: HS} — 법인 회신으로 이 인보이스에 확정된 HS(회신 파일은 보관하지 않아 이력 줄로 본다).
+    rng = (오름 %, 내림 %) — 사용자가 정한 단가 조건(z1191z86 · None = 그쪽 안 봄)."""
     from .hs_fill import norm_key
     hist = hist or {}
     res = []
@@ -362,7 +363,8 @@ def check(doc: dict, hist: dict | None = None, hist_hs: dict | None = None) -> d
         elif gap > 14:
             res.append(_w("info", "선적일이 인보이스 날짜보다 %d일 뒤입니다" % gap, "지난 55건은 0~5일이었습니다"))
     # ⑦ 지난 수출과 비교
-    hs_diff, pr_diff, seen = [], [], set()
+    hs_diff, pr_diff, px, seen = [], [], [], set()
+    up, down = rng
     for it in its:
         k = norm_key(it["desc"])
         h = hist.get(k)
@@ -373,17 +375,22 @@ def check(doc: dict, hist: dict | None = None, hist_hs: dict | None = None) -> d
         hs_now = _s(it.get("hs")) or _s((hist_hs or {}).get(k))
         if _hs8(hs_now) and _hs8(hs0) and re.sub(r"\D", "", hs_now) != re.sub(r"\D", "", hs0):
             hs_diff.append("%s — 이번 %s / 지난번 %s (%s)" % (it["desc"][:30], hs_now, hs0, ino0))
-        if it.get("price") and p0 and abs(it["price"] - p0) / p0 > 0.30:
-            pr_diff.append("%s — 이번 %s / 지난번 %s (%s · %+d%%)" % (it["desc"][:30], _money(it["price"]), _money(p0), ino0,
-                                                                round((it["price"] - p0) / p0 * 100)))
+        if it.get("price") and p0:
+            dif = (it["price"] - p0) / p0 * 100
+            if (up is not None and dif > up + 1e-9) or (down is not None and dif < -down - 1e-9):
+                pr_diff.append("%s — 이번 %s / 지난번 %s (%s · %+.1f%%)" % (it["desc"][:30], _money(it["price"]), _money(p0), ino0, dif))
+                px.append({"key": k, "desc": it["desc"][:120], "now": round(it["price"], 4), "last": round(p0, 4), "diff": round(dif, 1),
+                           "last_inv": ino0, "last_date": (d0 or "")[:10]})
     known = sum(1 for it in its if norm_key(it["desc"]) in hist)
     if hs_diff:
         res.append(_w("warn", "지난번과 HS 가 다른 규격 %d" % len(hs_diff), "같은 물건을 다른 HS 로 신고하면 세관 사후 심사 때 문제가 됩니다 — 바꾼 까닭이 있는지 확인", hs_diff))
     if pr_diff:
-        res.append(_w("warn", "지난번보다 단가가 30%% 넘게 다른 규격 %d" % len(pr_diff),
-                      "본사↔법인 거래라 세관이 가격을 봅니다 — 인보이스 % 나 구매가가 바뀐 것인지 확인", pr_diff))
+        it_pr = _w("warn", "정한 단가 범위를 벗어난 규격 %d" % len(pr_diff),
+                   "본사↔법인 거래라 세관이 가격을 봅니다 — 줄마다 허용(까닭) 또는 고치기를 골라 주세요", pr_diff)
+        it_pr["px"] = px            # 줄마다 고르기(화면이 고른 것을 붙인다 · export_price.overlay)
+        res.append(it_pr)
     if known and not hs_diff and not pr_diff:
-        res.append(_w("ok", "지난 수출과 같은 규격 %d줄 — HS·단가 크게 다른 것 없음" % known))
+        res.append(_w("ok", "지난 수출과 같은 규격 %d줄 — HS 같고 단가는 정한 범위 안" % known))
     elif not known:
         res.append(_w("info", "지난 수출 이력에 같은 규격이 없습니다(처음 보내는 품목)"))
     lv = [x["level"] for x in res]

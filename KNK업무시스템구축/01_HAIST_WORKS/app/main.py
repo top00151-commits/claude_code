@@ -51651,11 +51651,21 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
     from . import hs_fill as _hf
     cn = res["counts"]
     forms = sorted({s["form"] for s in res["scan"]["sheets"]})
+    # z1191z86 (대표 11-20 「조건을 사용자가 넣을수있게」 · 「허용을 할 건지 말 건지를 선택을 받고 다음을 진행」):
+    #   단가 기준 = 사용자가 정한 조건(app/export_price.py · 선적 건 서류 점검과 같은 조건) · 범위 밖 줄은 허용/고치기를 골라야 받기가 열린다
+    from . import export_price as _xp
+    _ino = res["scan"]["invoice_no"] or ""
+    _pkind = _xp.kind_of([_hf.form_name(f) for f in forms])
     with db_session() as c:
         past = _hs_hist_past(c, {a["key"] for a in res["acts"]})
         n_hist = c.execute("SELECT COUNT(*) FROM export_hist_inv").fetchone()[0]
+        _rng = _xp.tol(_xp.rules(c), _pkind)
+        _skip, _ak = _xp.fixed(c), _xp.acks(c, _ino)
     prices = {(s["title"], it["row"]): it.get("price") for s in res["scan"]["sheets"] for it in s["items"]}
-    cmp = _hf.compare(res["acts"], prices, past, res["scan"]["invoice_no"] or "")
+    cmp = _hf.compare(res["acts"], prices, past, _ino, rng=_rng, skip=_skip)
+    _pn = _xp.overlay(cmp["price"], _ak)
+    with db_session() as c:
+        _xp.save_need(c, lid, _ino, cmp["price"])
     attention = []
     for a in res["acts"]:
         cat = _hf.category(a)
@@ -51700,7 +51710,9 @@ def _hs_fill_payload(lid: int, fname: str, res: dict, extra=None) -> dict:
            "summary": {k: cn[k] for k in ("total", "auto", "check", "need", "keep")}, "no_reply": cn["no_reply"],
            "attention": attention[:400], "hint": hint, "message": msg,
            "download_url": "/export/hs-fill/%d/download" % lid,
-           "hist": {"n_inv": n_hist, "matched": cmp["matched"], "checked": cmp["checked"], "tol": _hf.HIST_PRICE_TOL,
+           "hist": {"n_inv": n_hist, "matched": cmp["matched"], "checked": cmp["checked"],
+                    "tol": _rng[0] if _rng[0] == _rng[1] else None, "up": _rng[0], "down": _rng[1], "rule": _xp.rule_text(*_rng),
+                    "kind": _pkind, "reasons": list(_xp.REASONS), "n_open": _pn["open"], "n_allow": _pn["allow"], "n_fix": _pn["fix"],
                     "price": cmp["price"][:300], "hs": cmp["hs"][:300]}}
     out.update(extra or {})
     return out
@@ -52033,6 +52045,12 @@ async def export_hs_fill_download(req: Request, lid: int):
     if not r or not r["stored"] or not os.path.exists(p):
         return HTMLResponse("<p style='font-family:sans-serif;padding:20px'>채운 파일이 없습니다(보관 %d일이 지나 지웠거나 잘못된 주소). "
                             "<a href='/export/hs-fill'>돌아가기</a></p>" % _HS_FILL_KEEP_DAYS, status_code=404)
+    # z1191z86: 정한 단가 범위를 벗어난 줄을 아직 안 골랐으면 받기 전에 고르게 한다(선적 건 화면에서 고르면 바로 받을 수 있음)
+    from . import export_price as _xp
+    with db_session() as c:
+        _open, _ino = _xp.open_count(c, lid)
+    if _open:
+        return RedirectResponse("/export/s/%s?need=%d#price" % (_ino, lid), 303)
     from urllib.parse import quote as _q
     import re as _re_dl
     nm = r["file_name"] or "invoice.xlsx"

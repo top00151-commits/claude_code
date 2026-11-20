@@ -1179,16 +1179,20 @@ def row_images(data: bytes, sc) -> dict:
     return out
 
 
-def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
+def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL, rng=None, skip=None, before="") -> dict:
     """① 결과 줄 ↔ 지난 수출 이력 — 규격이 **그대로** 같은 줄만 본다(모델 글자만 같은 다른 품목의 단가를 섞지 않는다).
     acts = plan 결과 · prices = {(시트, 줄): 이번 단가} · past = {규격 키: [{invoice_no, inv_date, kind, hs, price, id}]}
     같은 인보이스(번호)의 이력은 빼고 본다(이 인보이스가 이미 이력에 들어가 있어도 자기와 비교하지 않게).
     반환 {matched, checked, price:[단가가 ±tol% 넘게 다른 줄], hs:[이번 HS ≠ 마지막 수출 HS], ev:{(시트, 줄): 근거 글},
           img:{(시트, 줄): 마지막 수출 사진}} — z1191r: 단가·HS 줄에도 그 규격의 마지막 사진(img)
-    ⚠화면에만 쓴다 — 법인에 보내는 파일·이음 방 글에는 넣지 않는다(단가)."""
+    ⚠화면에만 쓴다 — 법인에 보내는 파일·이음 방 글에는 넣지 않는다(단가).
+    z1191z86: rng = (오름 %, 내림 %) — 사용자가 정한 조건(None = 그쪽 안 봄 · 주면 tol 대신) ·
+      skip = 「고치기」로 고른 (인보이스, 규격, 단가 열쇠) — 단가 기준에서 뺀다 · before = 이 인보이스 날짜(그보다 앞선 수출만 「지난번」)."""
     out = {"matched": 0, "checked": 0, "price": [], "hs": [], "ev": {}, "img": {}}
+    skip = skip or set()
     for a in acts:
-        rows = [p for p in past.get(a["key"], []) if p.get("invoice_no") != own_invoice]
+        rows = [p for p in past.get(a["key"], []) if p.get("invoice_no") != own_invoice
+                and (not before or (p.get("inv_date") or "") < before)]
         if not rows:
             continue
         out["matched"] += 1
@@ -1215,13 +1219,18 @@ def compare(acts, prices, past, own_invoice="", tol=HIST_PRICE_TOL) -> dict:
                               "last_inv": lh.get("invoice_no") or "", "last_date": (lh.get("inv_date") or "")[:10],
                               "counts": hcnt, "n": len(invs), "img": img})
         cur = prices.get((a["sheet"], a["row"]))
-        lp = next((p for p in reversed(rows) if (p.get("price") or 0) > 0), None)
+        lp = next((p for p in reversed(rows) if (p.get("price") or 0) > 0
+                   and (p.get("invoice_no"), a["key"], "%.4f" % round(float(p["price"]), 4)) not in skip), None)
         if cur and cur > 0 and lp:
             out["checked"] += 1
             diff = (cur - lp["price"]) / lp["price"] * 100.0
-            if abs(diff) > tol:
+            if rng is not None:
+                bad = (rng[0] is not None and diff > rng[0] + 1e-9) or (rng[1] is not None and diff < -rng[1] - 1e-9)
+            else:
+                bad = abs(diff) > tol
+            if bad:
                 ps = [p["price"] for p in rows if (p.get("price") or 0) > 0]
-                out["price"].append({"sheet": a["sheet"], "row": a["row"], "desc": a["desc"], "now": round(cur, 4),
+                out["price"].append({"sheet": a["sheet"], "row": a["row"], "key": a["key"], "desc": a["desc"], "now": round(cur, 4),
                                      "last": round(lp["price"], 4), "diff": round(diff, 1),
                                      "last_inv": lp.get("invoice_no") or "", "last_date": (lp.get("inv_date") or "")[:10],
                                      "min": round(min(ps), 4), "max": round(max(ps), 4), "n": len(ps), "img": img})

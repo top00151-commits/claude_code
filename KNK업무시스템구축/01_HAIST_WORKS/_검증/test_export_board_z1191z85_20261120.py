@@ -138,7 +138,7 @@ hist = {norm_key("FAKE-SENSOR-100"): (12.0, "85365099", "KNK-260901-1", "2026-09
         norm_key("FAKE-CABLE-2M"): (3.5, "85442000", "KNK-260901-1", "2026-09-01")}
 r = X.check(X.read(make_inv("KNK-261101-1", "2026-11-01", ITEMS + [ITEMS[0]])), hist)
 chk(any(i["level"] == "warn" and "HS 가 다른 규격 1" in i["title"] for i in r["items"]), "지난번과 HS 다름 → 확인할 것")
-chk(any(i["level"] == "warn" and "단가가 30% 넘게 다른 규격 1" in i["title"] for i in r["items"]), "지난번보다 단가 +67% → 확인할 것(같은 규격 두 줄이어도 한 번)")
+chk(any(i["level"] == "warn" and "정한 단가 범위를 벗어난 규격 1" in i["title"] for i in r["items"]), "지난번보다 단가 +67% → 확인할 것(같은 규격 두 줄이어도 한 번 · z1191z86 처음 조건 ±20%)")
 chk(X.read(b"not an excel")["ok"] is False, "엑셀이 아니면 읽기 실패로(멈추지 않음)")
 
 print("§2 보드 — 이미 올린 인보이스로 저절로 건이 생김")
@@ -186,7 +186,7 @@ chk("FAKEMAKER" not in t, "제조사·공급사 이름은 안 보임(구매처 =
 with D.db_session() as c:
     ck = json.loads(c.execute("SELECT result FROM export_ship_check WHERE invoice_no=?", (today_no,)).fetchone()[0])
 chk(ck["src_how"] == "HS 자동 채움 파일" and ck["summary"]["lines"] == 3, "점검 출처 = 자동 채움 파일 · 3줄")
-chk(any("단가가 30% 넘게" in i["title"] for i in ck["items"]), "지난 수출 이력(1월 12.00)과 비교해 단가 다름을 찾음")
+chk(any("정한 단가 범위를 벗어난" in i["title"] for i in ck["items"]), "지난 수출 이력(1월 12.00)과 비교해 단가 다름을 찾음(z1191z86 사용자 조건)")
 chk(not any("HS 가 다른" in i["title"] for i in ck["items"]), "뒤에 나간 인보이스(2099)는 「지난번」 비교에 안 씀")
 r = cl.get("/export/s/KNK-261118-1")
 chk(r.status_code == 200 and "점검할 파일이 없습니다" in r.text, "파일 보관 지난 건 = 점검 없음 안내(멈추지 않음)")

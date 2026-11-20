@@ -286,6 +286,8 @@
     — 끝날 때까지 이 페이지를 벗어나거나 새로 고치지 마세요 · 다른 탭이나 프로그램으로 옮기는 것은 괜찮습니다</div>
 </main></div>
 
+{# z1191z86: 고르기 조각은 본문 안에(화면 전환 때 본문만 바뀌어도 돌게) #}
+{% include "_export_price_z86.html" %}
 <script>
 (function(){
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
@@ -335,7 +337,7 @@
     return '<div class="hf-ev" title="' + esc('적힌 품명: ' + a.vn_written + '\n사전 품명: ' + a.dict_vn) + '">품명 — 적힌 「'
       + esc(cut(a.vn_written, 34)) + '」 · 사전 「' + esc(cut(a.dict_vn, 34)) + '」</div>';
   }
-  /* z1191p: 지난 수출 이력과 비교 — 단가 ±tol% 넘게 다른 줄 · 마지막 수출과 HS 가 다른 줄(본사 화면에만) */
+  /* z1191p: 지난 수출 이력과 비교 — 단가가 정한 범위(z1191z86 사용자 조건) 밖인 줄 · 마지막 수출과 HS 가 다른 줄(본사 화면에만) */
   var SRC = {register:'📚 등록', reply:'③ 회신', dict:'HS 사전 올림', fill:'① 회신 필요 없음'};
   function money(v){ return v == null ? '' : Number(v).toLocaleString('en-US', {maximumFractionDigits: 4}); }
   /* z1191r: 지난 수출 사진 — 화면용으로 줄인 것 · 누르면 새 창에 크게
@@ -348,22 +350,12 @@
   function histBlock(j){
     var hi = j.hist; if(!hi) return '';
     if(!hi.n_inv){ return '<div class="hf-sub" style="margin-top:8px;">📚 지난 수출 이력이 아직 없습니다 — 아래 「📚 지난 수출 인보이스」에 올해 인보이스를 등록하면 같은 품목의 지난 HS·단가와 비교합니다.</div>'; }
-    var tol = hi.tol, pr = hi.price || [], hs = hi.hs || [];
+    var pr = hi.price || [], hs = hi.hs || [];
+    /* z1191z86: 단가 기준 = 사용자가 정한 조건(⚙ /export/rules) · 범위 밖 줄은 아래 상자에서 허용/고치기를 고른다(고르기 전엔 받기 닫힘) */
     var h = '<div class="hf-cmp"><b>📚 지난 수출과 비교</b> — 같은 규격이 이력에 있는 줄 <b>' + hi.matched + '</b>/' + j.summary.total
-      + ' · 단가를 견준 줄 ' + hi.checked + ' (기준 ±' + tol + '%)'
-      + (!pr.length && !hs.length ? ' · <span class="hf-ok">✓ 단가 ±' + tol + '% 넘는 줄·HS 다른 줄 없음</span>' : '') + '</div>';
-    if(pr.length){
-      var pImg = pr.some(function(p){ return p.img; });
-      h += '<div class="hf-sub" style="margin-top:8px;"><b>💲 단가가 지난 수출과 ±' + tol + '% 넘게 다른 줄 ' + pr.length + '개</b> — 빨강 = 올랐음 · 파랑 = 내렸음</div>'
-        + '<div class="hf-scroll"><table class="hf-tbl"><thead><tr><th>줄</th>' + (pImg ? '<th>지난 사진</th>' : '') + '<th>규격(Description)</th><th class="num">이번 단가</th><th class="num">지난 단가</th><th class="num">차이</th><th>지난 인보이스</th><th class="num">지난 범위(번)</th></tr></thead><tbody>';
-      pr.forEach(function(p){
-        h += '<tr><td class="num">' + esc(p.row) + '</td>' + (pImg ? '<td>' + thumb(p.img, true) + '</td>' : '') + '<td>' + esc(p.desc) + '</td><td class="num">' + money(p.now) + '</td><td class="num">' + money(p.last) + '</td>'
-          + '<td class="num ' + (p.diff > 0 ? 'hf-up' : 'hf-down') + '">' + (p.diff > 0 ? '+' : '') + p.diff + '%</td>'
-          + '<td style="font-size:11.5px;">' + esc(p.last_inv) + '<div class="hf-ev">' + esc(p.last_date) + '</div></td>'
-          + '<td class="num" style="font-size:11.5px;">' + money(p.min) + (p.max !== p.min ? ' ~ ' + money(p.max) : '') + ' (' + p.n + ')</td></tr>';
-      });
-      h += '</tbody></table></div>';
-    }
+      + ' · 단가를 견준 줄 ' + hi.checked + ' (조건: ' + esc((hi.kind ? hi.kind + ' · ' : '') + (hi.rule || '')) + ' · <a href="/export/rules" target="_blank" rel="noopener">⚙ 바꾸기</a>)'
+      + (!pr.length && !hs.length ? ' · <span class="hf-ok">✓ 정한 범위 밖 단가·HS 다른 줄 없음</span>' : '') + '</div>';
+    if(pr.length){ h += '<div class="xp-mount" data-lid="' + esc(j.log_id) + '"></div>'; }
     if(hs.length){
       var hImg = hs.some(function(x){ return x.img; });
       h += '<div class="hf-sub" style="margin-top:8px;"><b>🔀 HS 가 마지막 수출과 다른 줄 ' + hs.length + '개</b> — 이번 파일의 HS(적힌 값 또는 채운 값)와 지난 수출의 마지막 HS</div>'
@@ -424,8 +416,35 @@
     }
     return h + '<div class="hf-ev">올린 파일은 따로 보관합니다(' + (c.keep || 30) + '일) · 내려받는 파일은 최종 양식입니다</div></div>';
   }
+  /* z1191z86: 카드마다 단가 고르기 상자를 붙이고, 남은 줄이 있으면 받기·이음 글 복사를 닫는다 */
+  var CARDS = {};
+  function hfGate(lid, n){
+    var card = document.querySelector('.hf-res[data-lid="' + lid + '"]'), j = CARDS[lid];
+    if(!card || !j) return;
+    var dl = card.querySelector('.hf-dl'), cp = card.querySelector('.hf-cp');
+    var off = !!(j.invoice_no && n && n.open);
+    if(dl){
+      if(!dl.dataset.t) dl.dataset.t = dl.textContent;
+      dl.classList.toggle('xp-dl-off', off);
+      dl.textContent = off ? '⬇ 받기 — 아래 단가 줄 ' + n.open + '개를 먼저 골라 주세요' : dl.dataset.t;
+      if(off) dl.setAttribute('aria-disabled', 'true'); else dl.removeAttribute('aria-disabled');
+    }
+    if(cp) cp.disabled = off;
+  }
+  function hfMount(){
+    Array.prototype.forEach.call(document.querySelectorAll('.xp-mount:not([data-on])'), function(el){
+      var lid = el.dataset.lid, j = CARDS[lid];
+      el.dataset.on = '1';
+      if(!j || !window.XP) return;
+      var hi = j.hist || {};
+      hfGate(lid, XP.render(el, {no: j.invoice_no || '', rows: hi.price || [], rule: hi.rule, kind: hi.kind, reasons: hi.reasons || [],
+        thumb: function(p){ return thumb(p.img, true); },      /* z1191r: 지난 수출 사진 칸은 그대로 */
+        onChange: function(n){ hfGate(lid, n); }}));
+    });
+  }
   function renderCard(j, flash){
     var s = j.summary, lid = j.log_id;
+    CARDS[lid] = j;
     MSG[lid] = j.message || '';
     var h = '<div class="hf-res" data-lid="' + esc(lid) + '"><div class="hf-res-head"><b>' + esc(j.invoice_no || j.file_name) + '</b> · '
       + esc((j.forms || []).join('·')) + ' 양식 · ' + s.total + '줄' + (j.invoice_no ? ' <span class="hf-sub">' + esc(j.file_name) + '</span>' : '') + '</div>';
@@ -440,8 +459,8 @@
       + (s.keep ? '<span class="hf-chip">이미 적혀 있음 <b>' + s.keep + '</b></span>' : '')
       + '</div>';
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
-      + '<a class="hf-btn" href="' + esc(j.download_url) + '">' + (j.no_reply ? '⬇ 최종 파일 내려받기' : '⬇ 법인에 보낼 파일 내려받기') + '</a>'
-      + '<button class="hf-btn ghost" type="button" onclick="hfCopy(this,' + (+lid) + ')">📋 이음 방에 보낼 글 복사</button>'
+      + '<a class="hf-btn hf-dl" href="' + esc(j.download_url) + '">' + (j.no_reply ? '⬇ 최종 파일 내려받기' : '⬇ 법인에 보낼 파일 내려받기') + '</a>'
+      + '<button class="hf-btn ghost hf-cp" type="button" onclick="hfCopy(this,' + (+lid) + ')">📋 이음 방에 보낼 글 복사</button>'
       + '<span class="hf-sub" style="max-width:640px;">' + esc(j.message || '') + '</span></div>';
     if(j.hint){ h += '<div class="hf-hint">' + esc(j.hint) + '</div>'; }
     h += histBlock(j);
@@ -649,7 +668,7 @@
           var r = await fetch('/export/hs-fill', {method:'POST', body:fd, credentials:'same-origin'});
           var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
           if(!j.ok){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — ' + esc(j.error || '처리하지 못했습니다') + '</div>'; continue; }
-          slot.innerHTML = renderCard(j); ok++;
+          slot.innerHTML = renderCard(j); hfMount(); ok++;
         } catch(e){ slot.innerHTML = '<div class="hf-err"><b>' + esc(f.name) + '</b> — 통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
       }
     } finally { busy('fill'); }      // z1191s
@@ -672,6 +691,7 @@
       var cf = j.confirmed || {};
       card.outerHTML = renderCard(j, '✅ ' + (cf.desc || '') + ' → ' + (cf.hs || '')
         + (cf.dict_changed ? ' 사전 확정' : ' (사전은 이미 이 값) 파일 칸을 이 값으로 고침') + ' · 이 파일을 다시 만들었습니다 — 새로 내려받아 주세요');
+      hfMount();
       hfReloadLog();
     } catch(e){ Array.prototype.forEach.call(all, function(x){ x.disabled = false; }); alert('통신이 끊겼습니다 — ' + e); }
   };

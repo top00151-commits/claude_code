@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>단가 점검 조건 · 수출 관리 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_export_z85.html" %}
+{# z1191z86 (대표 2026-11-20 「조건을 사용자가 넣을수있게」): 지난번 수출 단가와 얼마나 달라지면 알릴지 — 수책통관·일반통관 따로.
+   적는 대로 「지난 수출에 대 보면 몇 줄이 걸리는지」를 바로 보여 준다(조건을 감으로 정하지 않게). #}
+<style>
+.xr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.xr-tbl th { text-align:left; font-size:11px; color:var(--knk-red,#b0271f); background:var(--paper-2,#f4f1e8); padding:7px 9px; border-bottom:2px solid var(--knk-red,#b0271f); }
+.xr-tbl td { padding:9px; border-bottom:1px solid #f0ebdd; vertical-align:middle; }
+.xr-in { width:78px; padding:6px 8px; border:1px solid var(--line,#d6d3d1); border-radius:7px; font-size:14px; text-align:right; }
+.xr-in.chg { background:#fff7d6; border-color:#d97706; }
+.xr-pv { font-size:12px; color:#374151; line-height:1.6; }
+.xr-pv b { font-size:13px; }
+.xr-bar { display:flex; height:9px; border-radius:5px; overflow:hidden; background:#e5e7eb; margin-top:4px; max-width:360px; }
+.xr-bar span { display:block; height:100%; }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main">
+  <div class="page-head ex-wrap">
+    <div><div class="crumbs"><a href="/export">수출 관리</a> · <b>단가 점검 조건</b></div>
+      <h1 class="page-title">⚙ 단가 점검 <em>조건</em></h1>
+      <div class="ex-sub">인보이스를 올릴 때 같은 규격의 <b>지난번 수출 단가</b>와 견줍니다 — 아래 범위를 넘으면 알리고, 올린 사람이 <b>허용(까닭)</b> 또는 <b>고치기</b>를 골라야 다음으로 넘어갑니다.</div></div>
+    <div class="ex-act"><a class="ex-btn" href="/export">← 보드</a><a class="ex-btn" href="/export/hs-fill">① 인보이스 올리기</a></div>
+  </div>
+  <div class="ex-wrap">
+    <div class="ex-card">
+      <div class="ex-h">💲 지난번보다 이만큼 달라지면 알림 <small>빈칸 = 그쪽은 보지 않음 · 처음 값 {{ '%g' % default_pct }}%</small></div>
+      <table class="xr-tbl">
+        <thead><tr><th>통관 구분</th><th>단가가 오를 때</th><th>단가가 내릴 때</th><th>지난 수출에 대 보면</th><th>마지막으로 바꾼 사람</th></tr></thead>
+        <tbody>
+        {% for k in kinds %}
+          <tr data-k="{{ k }}">
+            <td><b>{{ k }}</b><div class="ex-sub" style="margin:0">{{ '설비·부품 키트' if k == '수책통관' else '소모품·예비품' }}</div></td>
+            <td><input class="xr-in" data-f="up" inputmode="decimal" value="{{ ('%g' % rs[k].up) if rs[k].up is not none else '' }}"> % 넘으면</td>
+            <td><input class="xr-in" data-f="down" inputmode="decimal" value="{{ ('%g' % rs[k].down) if rs[k].down is not none else '' }}"> % 넘으면</td>
+            <td class="xr-pv" data-pv="{{ k }}"></td>
+            <td style="font-size:12px;">{{ rs[k].by_name or '처음 값' }}<div class="ex-sub" style="margin:0">{{ (rs[k].at or '')[:16] }}</div></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+        <button class="ex-btn blue" id="xrSave" type="button" disabled>저장</button>
+        <span class="ex-msg" id="xrMsg">바뀐 것 없음</span>
+      </div>
+      <div class="ex-sub" style="margin-top:10px;line-height:1.7;">
+        · 「지난번」 = 그 인보이스보다 앞서 나간 같은 규격(설명 글자 그대로)의 마지막 수출 단가입니다. 「고치기」로 고른 단가는 다음 비교 기준에서 뺍니다.<br>
+        · 저장하면 다음 ① 자동 채움과 선적 건의 서류 점검이 바로 이 조건을 씁니다(진행 중인 건도 다시 점검).<br>
+        · 구매 단가 대비 붙이는 % 는 구매 모듈을 연결한 뒤에 따로 봅니다.
+      </div>
+    </div>
+
+    <div class="ex-grid2">
+      <div class="ex-card"><div class="ex-h">🕘 조건을 바꾼 기록</div>
+        {% if logs %}<table class="ex-tbl"><thead><tr><th>언제</th><th>구분</th><th>전</th><th>후</th><th>누가</th></tr></thead><tbody>
+          {% for lg in logs %}<tr><td>{{ (lg.at or '')[:16] }}</td><td>{{ lg.kind }}</td><td>{{ lg.old_value }}</td><td><b>{{ lg.new_value }}</b></td><td>{{ lg.by_name }}</td></tr>{% endfor %}
+        </tbody></table>{% else %}<div class="ex-empty">아직 바꾼 적이 없습니다 — 처음 값 ±{{ '%g' % default_pct }}%(대표 11-20 결정)</div>{% endif %}
+      </div>
+      <div class="ex-card"><div class="ex-h">✍ 최근에 고른 것 <small>범위 밖 단가를 허용·고치기로 고른 기록</small></div>
+        {% if acks %}<table class="ex-tbl"><thead><tr><th>인보이스</th><th>규격</th><th class="num">이번</th><th class="num">차이</th><th>고른 것</th><th>누가 · 언제</th></tr></thead><tbody>
+          {% for a in acks %}<tr><td><a href="/export/s/{{ a.invoice_no }}#price">{{ a.invoice_no }}</a></td><td style="word-break:break-all">{{ (a.descr or '')[:40] }}</td>
+            <td class="num">{{ '%g' % (a.price_key|float) }}</td><td class="num">{{ ('%+.1f%%' % a.diff) if a.diff is not none else '' }}</td>
+            <td>{% if a.decision == 'allow' %}✓ 허용 — {{ a.reason }}{% else %}<b style="color:#b45309">✎ 고치기</b>{% endif %}</td>
+            <td style="font-size:11.5px">{{ a.by_name }}<div class="ex-sub" style="margin:0">{{ (a.at or '')[:16] }}</div></td></tr>{% endfor %}
+        </tbody></table>{% else %}<div class="ex-empty">아직 없습니다</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</main></div>
+<script>
+(function(){
+  var OLD = {{ cur_json|safe }}, D = {{ diffs_json|safe }};
+  var ins = Array.prototype.slice.call(document.querySelectorAll('.xr-in')), save = document.getElementById('xrSave'), msg = document.getElementById('xrMsg');
+  function num(v){ v = String(v).trim().replace('%', ''); if(v === '') return null; var x = parseFloat(v); return isNaN(x) ? NaN : x; }
+  function cur(){
+    var o = {};
+    document.querySelectorAll('tr[data-k]').forEach(function(tr){
+      var k = tr.dataset.k; o[k] = {up: num(tr.querySelector('[data-f=up]').value), down: num(tr.querySelector('[data-f=down]').value)};
+    });
+    return o;
+  }
+  function pv(){
+    var c = cur(), n = 0;
+    Object.keys(c).forEach(function(k){
+      var el = document.querySelector('[data-pv="' + k + '"]'), d = D[k] || [], up = c[k].up, dn = c[k].down;
+      if(!d.length){ el.innerHTML = '<span class="ex-sub">지난 수출 이력에 다시 나간 규격이 아직 없습니다</span>'; return; }
+      if((up !== null && isNaN(up)) || (dn !== null && isNaN(dn))){ el.innerHTML = '<span style="color:#b91c1c">숫자만 적어 주세요</span>'; return; }
+      var a = 0, b = 0;
+      d.forEach(function(x){ if(up !== null && x > up + 1e-9) a++; else if(dn !== null && x < -dn - 1e-9) b++; });
+      var t = d.length, pct = function(x){ return (x * 100 / t).toFixed(1); };
+      el.innerHTML = '같은 규격이 다시 나간 ' + t.toLocaleString() + '줄 중 <b>' + (a + b) + '줄(' + pct(a + b) + '%)</b>이 알림 — 오름 ' + a + ' · 내림 ' + b
+        + '<div class="xr-bar"><span style="width:' + pct(b) + '%;background:#1d4ed8"></span><span style="width:' + (100 - (a + b) * 100 / t).toFixed(1) + '%;background:#d1d5db"></span><span style="width:' + pct(a) + '%;background:#b91c1c"></span></div>';
+    });
+    ins.forEach(function(e){
+      var k = e.closest('tr').dataset.k, f = e.dataset.f, v = num(e.value), o = OLD[k][f];
+      var ch = !(v === o || (v !== null && o !== null && Math.abs(v - o) < 1e-9));
+      e.classList.toggle('chg', ch); if(ch) n++;
+    });
+    save.disabled = !n; msg.textContent = n ? '바뀐 칸 ' + n + '개 — 저장을 눌러 주세요' : '바뀐 것 없음';
+    return n;
+  }
+  ins.forEach(function(e){ e.addEventListener('input', pv); });
+  window.addEventListener('beforeunload', function(ev){ if(pv()){ ev.preventDefault(); ev.returnValue = ''; } });
+  save.onclick = async function(){
+    var c = cur(), bad = Object.keys(c).some(function(k){ return isNaN(c[k].up) || isNaN(c[k].down); });
+    if(bad){ msg.innerHTML = '<span style="color:#b91c1c">숫자만 적어 주세요</span>'; return; }
+    save.disabled = true; msg.textContent = '저장하는 중…';
+    try {
+      var r = await fetch('/export/rules', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({old: OLD, new: c})});
+      var j = await r.json().catch(function(){ return {ok:false, error:'응답을 읽지 못했습니다(' + r.status + ')'}; });
+      if(!j.ok){ msg.innerHTML = '<span style="color:#b91c1c">' + (j.error || '저장하지 못했습니다') + '</span>'; save.disabled = false; return; }
+      OLD = c; pv(); location.reload();
+    } catch(e){ msg.innerHTML = '<span style="color:#b91c1c">통신이 끊겼습니다 — ' + e + '</span>'; save.disabled = false; }
+  };
+  pv();
+})();
+</script>
+</body></html>

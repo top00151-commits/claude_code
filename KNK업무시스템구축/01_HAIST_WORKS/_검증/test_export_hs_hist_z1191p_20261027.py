@@ -338,8 +338,8 @@ r1 = quiet(cl.post, "/export/hs-fill", files={"file": ("Invoice&packinglist_VN(2
 p1 = r1.json()
 hi = p1.get("hist") or {}
 att_b = next((a for a in p1.get("attention", []) if a["desc"] == "NEW-PART-B1"), {})
-check("20 ① 결과 비교 — 이력 있는 줄 3/3 · 단가 14 ↔ 마지막 10(260101) +40% · B1 5.7 ↔ 5.6 은 안 넘음 · 기준 20",
-      r1.status_code == 200 and hi.get("n_inv") == 5 and hi.get("matched") == 3 and hi.get("tol") == 20.0
+check("20 ① 결과 비교 — 이력 있는 줄 3/3 · 단가 14 ↔ 마지막 10(260101) +40% · B1 5.7 ↔ 5.6 은 안 넘음 · 기준 15(z1191z86 대표 11-20 처음 값)",
+      r1.status_code == 200 and hi.get("n_inv") == 5 and hi.get("matched") == 3 and hi.get("tol") == 15.0
       and [(x["desc"], x["diff"], x["last"], x["last_inv"]) for x in hi.get("price", [])] == [("DCP32DN 15A", 40.0, 10.0, "KNK-260101-1")], hi)
 check("21 ① HS 다름 — FLOATING PIN-77 사전 값 84798939 로 채움 ↔ 마지막 수출 84799030",
       [(x["desc"], x["now"], x["last"]) for x in hi.get("hs", [])] == [("FLOATING PIN-77", "84798939", "84799030")], hi.get("hs"))
