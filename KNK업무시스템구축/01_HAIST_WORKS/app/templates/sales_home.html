@@ -378,10 +378,46 @@ a.z45-all:hover { text-decoration:underline; }
 
     <!-- TOP 5 고객사 / 최근 프로젝트 -->
     <div class="grid-2" data-dn="grid-customer-recent" data-dn-tone="blue">
-      {# v5H226z925: TOP5 — 3지표(수주/진행/최종), 진행매출 순 #}
+      {# v5H226z925: TOP5 — 3지표(수주/진행/최종), 진행매출 순
+         z1191z88 (대표 2026-11-20 「드림텍 매출이 서로 다른데 … 정확한 검산」 → 「1번으로 진행해」):
+           기본 = 청구처(세금계산서 받는 곳 = 수주 1차 발주처) — 매출 보고서와 같은 기준 · 「최종 고객」 = 프로젝트 고객 기준.
+           줄 아래 「이 중 …」 = 청구처와 최종 고객이 다른 몫(예: KNK VINA 청구 · 최종 고객 드림텍). #}
+      {%- macro z88rows(rows, tag, by) -%}
+              {% for c in (rows or []) %}
+              <tr>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}{{ '&amp;by=end' if by else '' }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a>{% if c.children %}<button type="button" class="z73-tg" data-z73="{{ tag }}{{ loop.index }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});" style="margin-left:6px;padding:1px 8px;font-size:11px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;"><span>▸ </span>{{ c.children|length }}곳</button>{% endif %}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(c.order) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(c.prog) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(c.final) }}</td>
+              </tr>
+              {% set ti = loop.index %}{% for q in (c.children or []) %}{# z1191z73: 펼치면 종사업장(시스템명)별 #}
+              <tr class="z73p-{{ tag }}{{ ti }}" hidden style="background:#f8fafc;font-size:12px;">
+                <td style="padding:5px 8px 5px 26px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ q.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}{{ '&amp;by=end' if by else '' }}" title="{{ q.customer_name }} — 이 사업장 수주 보기" style="font-weight:600;color:#334155;"><span style="color:#94a3b8;">└</span> {{ q.customer_name }} <span class="z45-go">›</span></a></td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(q.order) }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(q.prog) }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(q.final) }}</td>
+              </tr>
+              {% endfor %}
+              {% for v in (c.vias or []) %}{# z1191z88: 청구처 ↔ 최종 고객이 다른 몫 — 늘 보인다 #}
+              <tr class="z88-via" style="font-size:11.5px;color:#64748b;">
+                <td style="padding:3px 8px 4px 26px;border-bottom:1px dashed #e2e8f0;">↳ 이 중 {{ '청구처' if by else '최종 고객' }} <b style="color:#475569;">{{ v.customer_name }}</b></td>
+                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(v.order) }}</td>
+                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(v.prog) }}</td>
+                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(v.final) }}</td>
+              </tr>
+              {% endfor %}
+              {% else %}
+              <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</td></tr>
+              {% endfor %}
+      {%- endmacro -%}
       <div class="card" data-dn="top-customers">
         <h3>TOP 5 고객사 · {{ s3.period_label }} <span style="font-size:11px;color:var(--qv-ink-3);font-weight:600;">(진행매출 순)</span>
-          <a class="z45-all" href="/sales/drill?mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="이 기간 모든 고객사의 수주·진행·최종 매출">고객사 전체 보기 ›</a></h3>
+          <span class="z88-sw" role="group" aria-label="고객사 기준" style="display:inline-flex;gap:0;margin-left:8px;vertical-align:middle;">
+            <button type="button" data-z88="bill" class="on" title="세금계산서를 받는 곳(수주에 적힌 1차 발주처) — 매출 보고서와 같은 기준">청구처 기준</button>
+            <button type="button" data-z88="end" title="실제로 장비를 쓰는 고객(프로젝트 고객) — 예) KNK VINA 를 거친 드림텍 베트남 장비는 드림텍으로">최종 고객 기준</button>
+          </span>
+          <a class="z45-all" href="/sales/drill?mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" id="z88All" title="이 기간 모든 고객사의 수주·진행·최종 매출">고객사 전체 보기 ›</a></h3>
+        <div class="z88-note" id="z88Note" style="font-size:11.5px;color:#64748b;margin:-2px 0 6px;">청구처 = 세금계산서를 받는 곳(수주에 적힌 1차 발주처) · <b>매출 보고서와 같은 기준</b> · 「↳ 이 중 최종 고객」 = 실제로 쓰는 고객이 다른 몫</div>
         <div class="list-card list-scroll-sm" style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
             <thead><tr>
@@ -390,29 +426,40 @@ a.z45-all:hover { text-decoration:underline; }
               <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
               <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
-            <tbody>
-              {% for c in (s3.top_customers or []) %}
-              <tr>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a>{% if c.children %}<button type="button" class="z73-tg" data-z73="t{{ loop.index }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});" style="margin-left:6px;padding:1px 8px;font-size:11px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;"><span>▸ </span>{{ c.children|length }}곳</button>{% endif %}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(c.order) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(c.prog) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(c.final) }}</td>
-              </tr>
-              {% set ti = loop.index %}{% for q in (c.children or []) %}{# z1191z73: 펼치면 종사업장(시스템명)별 #}
-              <tr class="z73p-t{{ ti }}" hidden style="background:#f8fafc;font-size:12px;">
-                <td style="padding:5px 8px 5px 26px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ q.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ q.customer_name }} — 이 사업장 수주 보기" style="font-weight:600;color:#334155;"><span style="color:#94a3b8;">└</span> {{ q.customer_name }} <span class="z45-go">›</span></a></td>
-                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(q.order) }}</td>
-                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(q.prog) }}</td>
-                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(q.final) }}</td>
-              </tr>
-              {% endfor %}
-              {% else %}
-              <tr><td colspan="4" style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</td></tr>
-              {% endfor %}
+            <tbody id="z88Bill">
+{{ z88rows(s3.top_customers, 't', False) }}
+            </tbody>
+            <tbody id="z88End" hidden>
+{{ z88rows(s3.top_customers_end, 'e', True) }}
             </tbody>
           </table>
         </div>
       </div>
+      <style>
+        .z88-sw button{padding:2px 10px;font-size:11px;font-weight:700;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;}
+        .z88-sw button:first-child{border-radius:999px 0 0 999px;}
+        .z88-sw button:last-child{border-radius:0 999px 999px 0;border-left:none;}
+        .z88-sw button.on{background:#1e293b;border-color:#1e293b;color:#fff;}
+      </style>
+      <script>
+      (function(){
+        var sw = document.querySelector('.z88-sw'); if(!sw) return;
+        var NOTE = {bill: '청구처 = 세금계산서를 받는 곳(수주에 적힌 1차 발주처) · <b>매출 보고서와 같은 기준</b> · 「↳ 이 중 최종 고객」 = 실제로 쓰는 고객이 다른 몫',
+                    end: '최종 고객 = 실제로 장비를 쓰는 고객(프로젝트 고객) · 「↳ 이 중 청구처」 = 세금계산서를 다른 곳(예: KNK VINA)에 발행한 몫 · 합계는 청구처 기준과 같음'};
+        function show(k){
+          sw.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.dataset.z88 === k); });
+          document.getElementById('z88Bill').hidden = (k !== 'bill');
+          document.getElementById('z88End').hidden = (k !== 'end');
+          document.getElementById('z88Note').innerHTML = NOTE[k];
+          var a = document.getElementById('z88All'); if(a){ a.href = a.href.replace(/&by=end/, '') + (k === 'end' ? '&by=end' : ''); }
+          try { localStorage.setItem('knkSalesCustBasis', k); } catch(e){}
+        }
+        sw.addEventListener('click', function(e){ var b = e.target.closest('button[data-z88]'); if(b) show(b.dataset.z88); });
+        var k0 = 'bill';
+        try { k0 = (location.search.indexOf('by=end') >= 0) ? 'end' : (localStorage.getItem('knkSalesCustBasis') || 'bill'); } catch(e){}
+        if(k0 === 'end') show('end');
+      })();
+      </script>
 
       <div class="card" data-dn="recent-projects">
         <h3>최근 프로젝트</h3>

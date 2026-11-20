@@ -1404,6 +1404,7 @@ def check_date_fallback(files):
         # z1191z72: 운영처럼 고객사 표 · 고객사 번호 칸(매출 고객사 = 고객사 번호 → 시스템명)
         con.executescript("CREATE TABLE customers(id INTEGER PRIMARY KEY, name TEXT, alias TEXT);"
                           "ALTER TABLE projects ADD COLUMN customer_id INTEGER;"
+                          "ALTER TABLE orders ADD COLUMN customer_id INTEGER;"   # z1191z88: 매출 고객사 = 청구처(수주 1차 발주처)
                           "ALTER TABLE consumable_orders ADD COLUMN customer_id INTEGER;")
         rates = {"USD": {"2026-08": 1500.0}}
         oi_map = {3: {"t1d": "2026-08-20", "t1a": 1720000.0, "t2d": "", "t2a": "", "t3d": "", "t3a": ""},
