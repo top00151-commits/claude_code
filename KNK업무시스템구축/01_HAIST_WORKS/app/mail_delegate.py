@@ -469,6 +469,50 @@ def count_for_mail(c, owner_id, mail_id) -> int:
         return 0
 
 
+def rows_for_mails(c, owner_id, mail_ids):
+    """여러 메일(목록 한 화면)에 맡긴 기록 — 내 것만 · 지워진(gone) 것 빼고."""
+    ensure(c)
+    ids = [int(x) for x in dict.fromkeys(mail_ids or []) if str(x).isdigit()]
+    out = []
+    for i in range(0, len(ids), 500):
+        part = ids[i:i + 500]
+        q = "SELECT * FROM mail_delegations WHERE owner_id=? AND state<>'gone' AND mail_id IN (%s) ORDER BY id" % ",".join("?" * len(part))
+        out += [dict(r) for r in c.execute(q, [owner_id] + part).fetchall()]
+    return out
+
+
+def list_marks(rows) -> dict:
+    """목록 줄 표시 — 메일마다 가장 최근에 맡긴 것 하나 + 건수: {mail_id: {who, state, mark, n, mid}}."""
+    by = {}
+    for d in rows:
+        by.setdefault(d["mail_id"], []).append(d)
+    out = {}
+    for mid, ds in by.items():
+        d = ds[-1]
+        try:
+            names = [a.get("name") or a.get("employee_no") or "" for a in json.loads(d.get("assignees") or "[]")]
+        except Exception:
+            names = []
+        names = [n for n in names if n]
+        who = (names[0] + (" 외 %d명" % (len(names) - 1) if len(names) > 1 else "")) if names else "담당자"
+        st = d.get("state") or "working"
+        out[mid] = {"who": who, "state": st, "mark": STATE_MARK.get(st) or d.get("label") or "진행 중",
+                    "n": len(ds), "mid": mid}
+    return out
+
+
+def marks_for(c, owner_id, mail_ids) -> dict:
+    """받은편지함 목록 — 저장된 마지막 상태로 바로 그림(이음은 부르지 않음 · 새 상태는 화면이 따로 물음)."""
+    try:
+        return list_marks(rows_for_mails(c, owner_id, mail_ids))
+    except Exception as e:
+        print("[MAIL-DLG] 목록 표시 읽기 실패: %s" % type(e).__name__, flush=True)
+        return {}
+
+
+LIVE_STATES = ("working", "review", "declined")   # 아직 바뀔 수 있는 상태만 이음에 다시 묻는다
+
+
 def apply_status(c, rows, items):
     """이음 상태를 기록에 반영(gone = 지움 표시 · 이름은 이음 표시 이름으로)."""
     for d in rows:

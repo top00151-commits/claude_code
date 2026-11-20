@@ -253,6 +253,12 @@
   .mbx-sel button.del{color:#b91c1c;border-color:#fecaca}
   .mbx-sel button.lnk{border:0;background:none;color:#1d4ed8;padding:4px 4px}
   .mbx-sel .sp{flex:1}
+  /* 11-20 👉 맡김(이음 요청) 표시 — 진행 중 파랑 · 확인 대기 주황 · 처리 끝 초록 · 거절 빨강 · 종료/취소 회색 */
+  .mbx-dlg{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:#eff6ff;color:#1d4ed8;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  .mbx-dlg.st-review{background:#fff7ed;color:#c2410c}
+  .mbx-dlg.st-done{background:#ecfdf5;color:#047857}
+  .mbx-dlg.st-declined{background:#fee2e2;color:#b91c1c}
+  .mbx-dlg.st-closed,.mbx-dlg.st-cancelled{background:#f1f5f9;color:#64748b}
   /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 · 종류 꼬리표 · 새 메일 띠 */
   .mbx-flag{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:#fff7ed;color:#c2410c;white-space:nowrap}
   .mbx-flag.today{background:#fef3c7;color:#92400e}
@@ -1297,6 +1303,22 @@ async function mbxDropDo(tg, ids){
     if(!fs.length){ item('(옮길 수 있는 폴더 없음)', null, {cls:'dis'}); return; }
     fs.forEach(function(f){ item((f.classList.contains('mf-k')?'　└ ':'')+'📁 '+(f.dataset.dname||''), function(){ mbxDropDo(f, ids); }, {cls: f.classList.contains('mf-k')?'sub':''}); });
   }
+  /* 11-20 👉 맡김 표시 — 목록에 보이는 맡긴 메일만 모아 새 상태를 한 번 물음(서버가 1분 캐시 · 이음 대화는 읽지 않음) */
+  window.mbxDlgRefresh=function(root){
+    var els=Array.prototype.slice.call((root||document).querySelectorAll('.mbx-dlg[data-dlg]'));
+    var ids=[]; els.forEach(function(e){ var i=e.dataset.dlg; if(i && ids.indexOf(i)<0) ids.push(i); });
+    if(!ids.length) return;
+    fetch('/api/mail/delegations/marks?ids='+ids.slice(0,400).join(','), {credentials:'same-origin'}).then(function(r){ return r.json(); }).then(function(j){
+      if(!j || !j.ok) return;
+      els.forEach(function(e){ var d=(j.marks||{})[e.dataset.dlg];
+        if(!d){ e.remove(); return; }
+        e.className='mbx-dlg st-'+d.state;
+        e.textContent='👉 '+d.who+(d.mark?' · '+d.mark:'')+(d.n>1?' ('+d.n+'건)':''); });
+    }).catch(function(){});
+  };
+  try{ mbxDlgRefresh(document); }catch(e){}
+  try{ new MutationObserver(function(ms){ ms.forEach(function(m){ (m.addedNodes||[]).forEach(function(n){ if(n.nodeType===1 && n.querySelector && n.querySelector('.mbx-dlg[data-dlg]')) mbxDlgRefresh(n); }); }); })
+         .observe(document.querySelector('.mbx-list')||document.body, {childList:true, subtree:true}); }catch(e){}
   /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 (날짜·시각은 서버가 보는 사람 소속으로 계산) */
   window.mbxFollowMenu=function(kind, anchorEl, ids){
     if(!ids.length) return need();

@@ -405,6 +405,36 @@ fe.STATUS_CALLS.clear()
 got, err = md.call_status(many[:3] + ["NOTAREF", "12"])
 check("꼴이 틀린 열쇠는 묻지 않음 · 캐시된 것도 안 물음", fe.STATUS_CALLS == [] and len(got) == 3, fe.STATUS_CALLS)
 
+print("\n⑪ 받은편지함 목록 👉 표시(대표 11-20)")
+as_("ceo")
+md.cache_clear()
+fe.STATUS_CALLS.clear()
+M9 = put("RE: [견적] 검사 치구 3종 견적 요청", text="답장입니다.", recv="2026-11-20 10:00:00")   # 같은 대화 · 맡긴 메일보다 나중
+r = get("/mail/inbox?thread=0")
+check("목록 줄에 👉 표시(저장된 마지막 상태)", ('data-dlg="%d"' % M1) in r.text and "👉 조민혁(이음) 외 1명 · 📬 확인 대기" in r.text, r.text[:200])
+check("목록을 그릴 때는 이음을 부르지 않음", fe.STATUS_CALLS == [], fe.STATUS_CALLS)
+check("맡기지 않은 메일(답장) 줄에는 없음", ('data-dlg="%d"' % M9) not in r.text and ('data-mail-id="%d"' % M9) in r.text)
+r = get("/mail/inbox")
+check("대화로 묶이면 맨 위 줄(답장)에도 대화 안 맡긴 메일 표시", r.text.count('data-dlg="%d"' % M1) == 2 and "이 대화 안 다른 메일" in r.text, r.text.count('data-dlg="%d"' % M1))
+check("화면이 새 상태를 묻는 스크립트", "mbxDlgRefresh(document)" in r.text)
+fe.STATE[REF1] = {"state": "working", "label": "진행 중", "status": "in_progress", "assignees": [{"employee_no": "1102", "name": "조민혁(이음)"}]}
+j = get("/api/mail/delegations/marks?ids=%d,%d,%d" % (M1, M2, M9)).json()
+mk = (j.get("marks") or {}).get(str(M1)) or {}
+check("새 상태 묻기 — 맡긴 메일 ref 만 모아 한 번", len(fe.STATUS_CALLS) == 1 and REF1 in fe.STATUS_CALLS[0] and REF2 not in fe.STATUS_CALLS[0], fe.STATUS_CALLS)
+check("진행 중 → 「👉 조민혁(이음) · 진행 중」", mk.get("state") == "working" and mk.get("who") == "조민혁(이음)" and mk.get("mark") == "진행 중" and mk.get("n") == 1, mk)
+check("맡기지 않은 메일은 표시 없음 · 두 번 맡긴 메일은 건수", str(M9) not in (j.get("marks") or {}) and (j["marks"].get(str(M2)) or {}).get("n") == 2, j)
+fe.STATUS_CALLS.clear()
+with _db.db_session() as c:
+    c.execute("UPDATE mail_delegations SET state='closed', label='종료' WHERE ref=?", (REF1,))
+md.cache_clear()
+j = get("/api/mail/delegations/marks?ids=%d" % M1).json()
+check("끝난 상태(종료)는 이음에 다시 안 물음 · 「종료」 표시", fe.STATUS_CALLS == [] and j["marks"][str(M1)]["mark"] == "종료", (fe.STATUS_CALLS, j))
+as_("out")
+j = get("/api/mail/delegations/marks?ids=%d" % M1).json()
+check("남의 맡김 표시는 안 보임", j["ok"] and j["marks"] == {}, j)
+j = get("/api/mail/delegations/marks?ids=abc").json()
+check("숫자 아닌 번호는 무시", j["ok"] and j["marks"] == {}, j)
+
 print("\n⑩ 공유키 값이 어디에도 안 나옴")
 leak = [i for i, t in enumerate(RESP_TEXT) if KEY in t]
 check("응답·화면 %d개에 공유키 값 없음" % len(RESP_TEXT), not leak, leak[:3])

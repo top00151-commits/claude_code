@@ -22948,6 +22948,16 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _flag_c, _snz_n = {"n": 0, "due": 0}, 0
         _ar_info = _mail_autoreply_info(c, u)
         _wait_c = _mwork.count_waiting(c, u["id"], _mtoday, _mailbox._normalize_subject)   # 11-19 1단계 ②
+        # 11-20 대표 「받은편지함 목록에도 👉 표시」 — 맡긴 메일 줄에 「👉 담당 · 상태」(저장된 마지막 상태 · 새 상태는 화면이 따로 물음)
+        _dlg_m = _mdlg.marks_for(c, u["id"], [_m["id"] for _m in mails])
+    for _m in mails:
+        _m["dlg"] = _dlg_m.get(_m["id"])
+    for _t in (threads or []):          # 대화로 묶인 줄 — 맨 위 줄에 없으면 대화 안 다른 메일의 표시를 올려 보여 줌
+        _L = _t.get("latest")
+        if _L is not None and not _L.get("dlg"):
+            _x = next((_i.get("dlg") for _i in (_t.get("items") or []) if _i.get("dlg")), None)
+            if _x:
+                _L["dlg"] = dict(_x, thread=True)
     _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n, wait_c=_wait_c,
                      flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n, ar_info=_ar_info,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
@@ -25032,6 +25042,28 @@ async def mail_delegate_create(req: Request, mail_id: int):
                          "skipped": [{"name": str(x.get("name") or ""), "reason": str(x.get("reason") or "")}
                                      for x in (res.get("skipped_files") or []) if isinstance(x, dict)][:20],
                          "not_sent": not_sent[:20], "body_truncated": bool(cut or res.get("body_truncated"))})
+
+
+@app.get("/api/mail/delegations/marks")
+async def mail_delegation_marks_api(req: Request, ids: str = ""):
+    """받은편지함 목록 👉 표시 새로 고침 — 화면에 보이는 메일 중 맡긴 것만 · 아직 바뀔 수 있는 상태만 이음에 묻기(1분 캐시)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    want = [int(x) for x in (ids or "").split(",") if x.strip().isdigit()][:400]
+    if not want:
+        return JSONResponse({"ok": True, "marks": {}})
+    with db_session() as c:
+        rows = _mdlg.rows_for_mails(c, u["id"], want)
+    if not rows:
+        return JSONResponse({"ok": True, "marks": {}})
+    refs = [r["ref"] for r in rows if (r.get("state") or "working") in _mdlg.LIVE_STATES][:100]
+    err = ""
+    if refs:
+        items, err = await _mdlg_pool(_mdlg.call_status, refs)
+        with db_session() as c:
+            rows = _mdlg.apply_status(c, rows, items)
+    return JSONResponse({"ok": True, "marks": {str(k): v for k, v in _mdlg.list_marks(rows).items()}, "warn": err})
 
 
 @app.get("/api/mail/{mail_id:int}/delegations")
