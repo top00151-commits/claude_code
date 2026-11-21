@@ -2725,6 +2725,8 @@ def init_db():
             ("country",         "ALTER TABLE customers ADD COLUMN country TEXT"),        # 국가(해외 시)
             # v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행일 + N일 = 입금 예상일. 0/빈칸=미설정.
             ("pay_days",        "ALTER TABLE customers ADD COLUMN pay_days INTEGER DEFAULT 0"),  # 세금계산서 발행 후 N일 결제
+            # z1191z95 (대표 11-21): 결제 조건 종류 — cash/d15/eom/eom1/eom2/days(=pay_days) · 빈칸 = 기본(발행 후 60일)
+            ("pay_term",        "ALTER TABLE customers ADD COLUMN pay_term TEXT DEFAULT ''"),
         ]:
             if col not in cucols:
                 try:

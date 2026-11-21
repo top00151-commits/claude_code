@@ -164,7 +164,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
 
   {# ── ① 챙길 것 (마감이월·연체·조건미설정) — 상단 고정 ── #}
   {% if action %}
-  <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체·결제조건 미설정 ({{ action|length }}건)</div>
+  <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체 ({{ action|length }}건)</div>
   <div class="tbl-wrap tbl-sticky sr-scrollbox">
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}

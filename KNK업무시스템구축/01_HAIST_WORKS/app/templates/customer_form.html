@@ -192,14 +192,34 @@ body { overflow: hidden !important; }
           <label>팩스번호</label>
           <input type="text" name="fax" value="{{ customer.fax|default('') }}" placeholder="031-1234-5679">
         </div>
-        {# v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행일 + N일 = 입금 예상일 자동 예측(납품·수금 화면). 비우면 미설정. #}
+        {# v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행일 + N일 = 입금 예상일 자동 예측(납품·수금 화면). z1191z95: 고르기 6가지 + 기본 60일. #}
         <div class="fld">
           <label>결제조건 <span style="font-size:10px;color:var(--mute);font-weight:500;">— 입금 예상일 자동 계산</span></label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:12.5px;color:var(--mute);white-space:nowrap;">세금계산서 발행 후</span>
-            <input type="number" name="pay_days" min="0" max="3650" value="{{ customer.pay_days if (customer and customer.pay_days) else '' }}" placeholder="30" style="width:76px;text-align:right;">
-            <span style="font-size:12.5px;color:var(--mute);white-space:nowrap;">일 결제</span>
+          {# z1191z95 (대표 11-21): 고르기 6가지 · 안 고르면 기본 「세금계산서 발행 후 60일」 · 옛 일수만 있는 고객사 = 직접입력 #}
+          {% set _pt95 = ((customer.pay_term if customer else '') or '')|lower %}
+          {% set _pd95 = (customer.pay_days if (customer and customer.pay_days) else 0) %}
+          {% if not _pt95 and _pd95 %}{% set _pt95 = 'days' %}{% endif %}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <select name="pay_term" id="cfPayTerm" onchange="cfPayTermChanged()" style="min-width:230px;">
+              <option value="" {% if not _pt95 %}selected{% endif %}>기본 · 세금계산서 발행 후 {{ pay_default_days_z95 }}일</option>
+              {% for k, lb in pay_terms_z95 %}<option value="{{ k }}" {% if _pt95 == k %}selected{% endif %}>{{ loop.index }}. {{ lb }}</option>{% endfor %}
+            </select>
+            <span id="cfPayDaysBox" style="display:{{ 'inline-flex' if _pt95 == 'days' else 'none' }};align-items:center;gap:4px;">
+              <span style="font-size:12.5px;color:var(--mute);white-space:nowrap;">발행 후</span>
+              <input type="number" name="pay_days" id="cfPayDays" min="1" max="3650" value="{{ _pd95 or '' }}" placeholder="{{ pay_default_days_z95 }}" style="width:76px;text-align:right;">
+              <span style="font-size:12.5px;color:var(--mute);white-space:nowrap;">일</span>
+            </span>
           </div>
+          <div style="font-size:11px;color:var(--mute);margin-top:4px;line-height:1.5;">현금 = 발행일 당일 · 당월 말 = 발행한 달 말일 · 익월 말 = 다음 달 말일 · 익익월 말 = 다다음 달 말일 · 💰 입금 확인 화면의 입금 예정일이 이것으로 계산됩니다</div>
+          <script>
+          function cfPayTermChanged(){
+            var s = document.getElementById('cfPayTerm'), b = document.getElementById('cfPayDaysBox'), i = document.getElementById('cfPayDays');
+            var on = (s && s.value === 'days');
+            if (b) b.style.display = on ? 'inline-flex' : 'none';
+            if (i) { i.required = on; if (on && !i.value) { i.value = '{{ pay_default_days_z95 }}'; i.focus(); } }
+          }
+          (function(){ var i = document.getElementById('cfPayDays'), s = document.getElementById('cfPayTerm'); if (i && s) i.required = (s.value === 'days'); })();
+          </script>
         </div>
         <div class="fld">
           <label>대표 이메일</label>

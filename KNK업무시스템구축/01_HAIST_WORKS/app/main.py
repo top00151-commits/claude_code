@@ -27005,6 +27005,74 @@ async def admin_mail_purge_vacuum(req: Request):
         return JSONResponse({"ok": False, "message": "%s" % (str(e)[:120])})
 
 
+# ── z1191z95 (대표 11-21): 고객사 결제 조건 = 고르기 6가지 · 안 고르면 기본 「세금계산서 발행 후 60일」 ──
+#   입금 예정일 규칙은 여기 한 곳(💰 입금 확인 · 🚚 납품·수금 · 💰 미수금/채권 노화 · 수금 알림이 같이 씀)
+#   현금 = 발행일 당일 · 15일 = +15 · 당월 말 = 발행한 달 말일 · 익월 말 = 다음 달 말일 · 익익월 말 = 다다음 달 말일 · 직접입력 = +N일
+#   옛 입력(종류 없이 일수만 있는 고객사)은 「직접입력 N일」로 그대로 인정.
+PAY_TERMS_Z95 = [("cash", "현금"), ("d15", "세금계산서 발행 후 15일"), ("eom", "세금계산서 발행 후 당월 말"),
+                 ("eom1", "세금계산서 발행 후 익월 말"), ("eom2", "세금계산서 발행 후 익익월 말"), ("days", "직접입력")]
+PAY_DEFAULT_DAYS_Z95 = 60
+
+
+def _pay_term_norm_z95(term, days):
+    t = str(term or "").strip().lower()
+    try:
+        d = int(days or 0)
+    except (TypeError, ValueError):
+        d = 0
+    if t in ("cash", "d15", "eom", "eom1", "eom2"):
+        return t, 0
+    if t in ("days", "") and d > 0:
+        return "days", d
+    return "", 0          # 기본(발행 후 60일)
+
+
+def _pay_term_label_z95(term, days) -> str:
+    t, d = _pay_term_norm_z95(term, days)
+    if t == "days":
+        return "세금계산서 발행 후 %d일" % d
+    if t:
+        return dict(PAY_TERMS_Z95)[t]
+    return "기본 · 세금계산서 발행 후 %d일" % PAY_DEFAULT_DAYS_Z95
+
+
+def _pay_due_z95(issue, term, days):
+    """세금계산서 발행일(date) → 입금 예정일(date)."""
+    import calendar as _cal95
+    from datetime import date as _d95, timedelta as _td95
+    t, d = _pay_term_norm_z95(term, days)
+    if t == "cash":
+        return issue
+    if t == "d15":
+        return issue + _td95(days=15)
+    if t in ("eom", "eom1", "eom2"):
+        k = {"eom": 0, "eom1": 1, "eom2": 2}[t]
+        m0 = issue.month - 1 + k
+        y, m = issue.year + m0 // 12, m0 % 12 + 1
+        return _d95(y, m, _cal95.monthrange(y, m)[1])
+    if t == "days":
+        return issue + _td95(days=d)
+    return issue + _td95(days=PAY_DEFAULT_DAYS_Z95)
+
+
+def _pay_fields_z95(form) -> dict:
+    """고객사 폼 → {pay_term, pay_days}. 종류를 안 보내는 옛 화면이면 일수만(옛 규칙)."""
+    if "pay_term" not in form:
+        return {"pay_days": _pay_days_from_form(form)}
+    t = str(form.get("pay_term") or "").strip().lower()
+    if t in ("cash", "d15", "eom", "eom1", "eom2"):
+        return {"pay_term": t, "pay_days": 0}
+    if t == "days":
+        n = _pay_days_from_form(form)
+        return {"pay_term": "days" if n > 0 else "", "pay_days": n}
+    return {"pay_term": "", "pay_days": 0}
+
+
+tpl.env.globals["pay_terms_z95"] = PAY_TERMS_Z95
+tpl.env.globals["pay_default_days_z95"] = PAY_DEFAULT_DAYS_Z95
+tpl.env.globals["pay_term_label"] = _pay_term_label_z95
+
+
 def _pay_days_from_form(form) -> int:
     """v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일. 폼 pay_days 에서 숫자만 추출.
     빈칸/비정상=0(미설정). 0~3650일로 제한(오입력 방지)."""
@@ -27119,7 +27187,7 @@ async def customers_new_submit(req: Request):
         "is_overseas": _is_overseas,
         "country": _country,
         # v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일 결제 → 입금 예상일 예측
-        "pay_days": _pay_days_from_form(form),
+        **_pay_fields_z95(form),   # z1191z95: 결제 조건 종류 + 일수
     }
     contacts = _customer_contacts_from_form(form)
     with db_session() as c:
@@ -27182,7 +27250,8 @@ async def customers_edit_submit(req: Request, cid: int):
         # v5H112: name 변경 감지 → projects.customer_name 일괄 동기화 + 이력
         # v5H113: 핵심 7필드 전체 변경 이력화
         old_row = c.execute(
-            "SELECT name, biz_no, ceo_name, phone, email, address, is_active, note "
+            "SELECT name, biz_no, ceo_name, phone, email, address, is_active, note, "
+            "COALESCE(pay_days,0) AS pay_days, COALESCE(pay_term,'') AS pay_term "   # z1191z95: 결제 조건 이력용
             "FROM customers WHERE id=?", (cid,)
         ).fetchone()
         old_data = dict(old_row) if old_row else {}
@@ -27217,21 +27286,22 @@ async def customers_edit_submit(req: Request, cid: int):
             "is_overseas": 1 if (form.get("is_overseas") or "").strip() in ("1", "on", "true", "yes") else 0,
             "country": (form.get("country") or "").strip(),
             # v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일
-            "pay_days": _pay_days_from_form(form),
+            **_pay_fields_z95(form),   # z1191z95: 결제 조건 종류 + 일수
         }
         # v5H58: 등급(tier) 은 사용자 입력 받지 않음 — 기존 값 유지, 자동 재계산이 갱신
         c.execute(
             "UPDATE customers SET name=?, alias=?, biz_no=?, ceo_name=?, "
             "phone=?, email=?, address=?, is_active=?, note=?, "
             "business_type=?, business_item=?, zipcode=?, address_detail=?, fax=?, sub_biz_no=?, "
-            "is_overseas=?, country=?, pay_days=? "
+            "is_overseas=?, country=?, pay_days=?, pay_term=? "
             "WHERE id=?",
             (new_data["name"], new_data["alias"], new_data["biz_no"], new_data["ceo_name"],
              new_data["phone"], new_data["email"], new_data["address"],
              new_data["is_active"], new_data["note"],
              new_data["business_type"], new_data["business_item"], new_data["zipcode"],
              new_data["address_detail"], new_data["fax"], new_data["sub_biz_no"],
-             new_data["is_overseas"], new_data["country"], new_data["pay_days"], cid)
+             new_data["is_overseas"], new_data["country"], new_data.get("pay_days", old_data.get("pay_days") or 0),
+             new_data.get("pay_term", old_data.get("pay_term") or ""), cid)
         )
         # v5H226z147: 레거시 거래처(코드 없음)에 코드 보충
         try:
@@ -27274,6 +27344,15 @@ async def customers_edit_submit(req: Request, cid: int):
                 )
             except Exception:
                 pass
+        # z1191z95: 결제 조건 바뀌면 이력(글자 그대로 — 「기본 · 세금계산서 발행 후 60일」 → 「세금계산서 발행 후 익월 말」)
+        try:
+            _ol = _pay_term_label_z95(old_data.get("pay_term"), old_data.get("pay_days"))
+            _nl = _pay_term_label_z95(new_data.get("pay_term", old_data.get("pay_term")), new_data.get("pay_days", old_data.get("pay_days")))
+            if _ol != _nl:
+                c.execute("INSERT INTO customer_history(customer_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                          (cid, u.get("id"), "결제 조건", _ol, _nl, "입금 예정일 계산이 바뀜(z1191z95)"))
+        except Exception as _e95:
+            print(f"[z1191z95] 결제 조건 이력 실패: {_e95}")
         # 담당자: 전체 삭제 후 재삽입 (간단·신뢰)
         c.execute("DELETE FROM customer_contacts WHERE customer_id=?", (cid,))
         for ct in contacts:
@@ -49892,15 +49971,16 @@ def _rc_rows_z94(u):
             return {"rows": [], "groups": [], "kpi": {}, "today": today.isoformat()}
         _isexp = "COALESCE(oi.is_export,0)" if "is_export" in oic else "0"
         _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cuc else "0"
+        _pt = "COALESCE(cu.pay_term,'')" if "pay_term" in cuc else "''"   # z1191z95
         sel = ", ".join("oi.%s AS d%d, oi.%s AS a%d" % (dc, i, ac, i) for i, (dc, ac) in enumerate(tiers, 1))
         rows = c.execute(
             "SELECT o.id AS oid, o.order_no, o.project_id, COALESCE(o.status,'') AS st, "
             "COALESCE(o.currency,'KRW') AS ccy, COALESCE(o.total_amount,0) AS total, o.customer_id AS cid, "
-            "COALESCE(NULLIF(TRIM(cu.alias),''), cu.name, '-') AS cname, %s AS pay_days, "
+            "COALESCE(NULLIF(TRIM(cu.alias),''), cu.name, '-') AS cname, %s AS pay_days, %s AS pay_term, "
             "COALESCE(pj.mgmt_code,'') AS mgmt, COALESCE(pj.sales_name,'') AS sales, %s AS isexp, %s "
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "LEFT JOIN customers cu ON cu.id=o.customer_id LEFT JOIN projects pj ON pj.id=o.project_id "
-            "WHERE COALESCE(o.status,'') NOT IN ('CANCELLED','PAID') ORDER BY o.id, oi.id" % (_pd, _isexp, sel)).fetchall()
+            "WHERE COALESCE(o.status,'') NOT IN ('CANCELLED','PAID') ORDER BY o.id, oi.id" % (_pd, _pt, _isexp, sel)).fetchall()
         paid = {}
         for r in c.execute("SELECT order_id, COALESCE(currency,'KRW') AS ccy, COALESCE(SUM(amount),0) AS s "
                            "FROM receipts_payment GROUP BY order_id, COALESCE(currency,'KRW')").fetchall():
@@ -49911,7 +49991,8 @@ def _rc_rows_z94(u):
         if o is None:
             o = od[r["oid"]] = {"oid": r["oid"], "order_no": r["order_no"] or "#%d" % r["oid"], "pid": r["project_id"],
                                 "ccy": (r["ccy"] or "KRW").upper(), "cid": r["cid"], "cname": r["cname"] or "-",
-                                "pay_days": int(r["pay_days"] or 0), "mgmt": r["mgmt"] or "", "sales": r["sales"] or "",
+                                "pay_days": int(r["pay_days"] or 0), "pay_term": r["pay_term"] or "",
+                                "mgmt": r["mgmt"] or "", "sales": r["sales"] or "",
                                 "exp": 0, "inv": {}}
         if r["isexp"]:
             o["exp"] = 1
@@ -49944,12 +50025,11 @@ def _rc_rows_z94(u):
             if rem <= eps:
                 continue
             due, dday = "", None
-            if o["pay_days"] > 0:
-                try:
-                    dd = _d94.fromisoformat(dv) + _td94(days=o["pay_days"])
-                    due, dday = dd.isoformat(), (dd - today).days
-                except ValueError:
-                    pass
+            try:   # z1191z95: 결제 조건 규칙 한 곳(안 고르면 기본 발행 후 60일)
+                dd = _pay_due_z95(_d94.fromisoformat(dv), o["pay_term"], o["pay_days"])
+                due, dday = dd.isoformat(), (dd - today).days
+            except ValueError:
+                pass
             if not due:
                 bucket = "noterms"
             elif dday < 0:
@@ -49964,6 +50044,8 @@ def _rc_rows_z94(u):
                 age = None
             out.append({"oid": o["oid"], "order_no": o["order_no"], "pid": o["pid"], "mgmt": o["mgmt"], "sales": o["sales"], "age": age,
                         "cid": o["cid"], "cname": o["cname"], "pay_days": o["pay_days"], "ccy": ccy,
+                        "term_label": _pay_term_label_z95(o["pay_term"], o["pay_days"]),
+                        "term_default": not _pay_term_norm_z95(o["pay_term"], o["pay_days"])[0],
                         "issue": dv, "supply": rnd(sup), "incl": incl, "rem": rem, "due": due, "dday": dday,
                         "bucket": bucket, "vat": bool(vr), "mine": 1 if _is_mine_z92(u, o["sales"]) else 0})
     _border = {"overdue": 0, "week": 1, "noterms": 2, "later": 3}
@@ -49974,6 +50056,7 @@ def _rc_rows_z94(u):
         g = gi.get(k)
         if g is None:
             g = gi[k] = {"cid": x["cid"], "cname": x["cname"], "pay_days": x["pay_days"], "bucket": x["bucket"],
+                         "term_label": x["term_label"], "term_default": x["term_default"],
                          "rows": [], "sums": {}, "first_due": x["due"], "dday": x["dday"], "mine": 0, "max_age": x["age"]}
             groups.append(g)
         g["rows"].append(x)
@@ -49981,7 +50064,7 @@ def _rc_rows_z94(u):
         g["mine"] = g["mine"] or x["mine"]
         if x["age"] is not None and (g["max_age"] is None or x["age"] > g["max_age"]):
             g["max_age"] = x["age"]
-    kpi = {}
+    kpi = {"n_default_cust": len({g["cid"] for g in groups if g["term_default"]})}
     for b in ("overdue", "week", "later", "noterms"):
         gs = [g for g in groups if g["bucket"] == b]
         s = {}
@@ -50107,6 +50190,7 @@ async def sales_shipments_receipts_page(req: Request):
         oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
         _cur = "o.currency" if "currency" in ordc else "'KRW'"
         _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cusc else "0"
+        _pt = "COALESCE(cu.pay_term,'')" if "pay_term" in cusc else "''"   # z1191z95
         _isexp = "COALESCE(oi.is_export,0)" if "is_export" in oic else "0"   # z913 부가세율 판정(수출=영세율)
         rows = c.execute(
             f"""SELECT oi.id AS iid, oi.order_id AS oid,
@@ -50116,7 +50200,7 @@ async def sales_shipments_receipts_page(req: Request):
                        COALESCE({_cur},'KRW') AS currency,
                        COALESCE(NULLIF(TRIM(cu.alias),''), cu.name, '-') AS customer_name,
                        COALESCE(cu.name,'-') AS customer_legal,
-                       {_pd} AS pay_days,
+                       {_pd} AS pay_days, {_pt} AS pay_term,
                        {_isexp} AS is_export,
                        COALESCE(pj.mgmt_code,'') AS mgmt_code
                   FROM order_items oi
@@ -50155,7 +50239,7 @@ async def sales_shipments_receipts_page(req: Request):
                  "project_id": d.get("project_id"),   # z918 관리번호→프로젝트 상세 링크
                  "mgmt_code": d["mgmt_code"], "customer_name": d["customer_name"],
                  "customer_legal": d["customer_legal"],   # z1191z72
-                 "pay_days": int(d["pay_days"] or 0), "currency": d["currency"] or "KRW",
+                 "pay_days": int(d["pay_days"] or 0), "pay_term": d.get("pay_term") or "", "currency": d["currency"] or "KRW",
                  "total_amount": d["total_amount"] or 0, "order_date": d["order_date"] or "",
                  "n_total": 0, "n_ship": 0, "issue_date": "", "is_export": 0,
                  # v5H226z908 (대표 지시): 차수별(계약금1·중도금2·잔금3) 발행 집계 — 미발행 잔액 산출용
@@ -50207,16 +50291,17 @@ async def sales_shipments_receipts_page(req: Request):
         o["billed_incl"] = o["issued_amt"] + o["vat"]
         o["outstanding_incl"] = o["billed_incl"] - paid
         exp = ""
-        if o["issued"] and o["pay_days"] > 0:
+        if o["issued"]:   # z1191z95: 결제 조건 규칙 한 곳(안 고르면 기본 발행 후 60일)
             try:
                 idt = datetime.strptime(o["issue_date"][:10], "%Y-%m-%d").date()
-                exp = (idt + timedelta(days=o["pay_days"])).isoformat()
+                exp = _pay_due_z95(idt, o["pay_term"], o["pay_days"]).isoformat()
             except Exception:
                 exp = ""
         o["expected_date"] = exp
+        o["pay_label"] = _pay_term_label_z95(o["pay_term"], o["pay_days"])
         o["attn_msg"] = ""
         if o["issued"] and not exp:
-            o["attn_msg"] = "결제조건 미설정" if o["pay_days"] <= 0 else "발행일 확인"
+            o["attn_msg"] = "발행일 확인"
         if o["billing_due"] and o["nothing_issued"]:
             o["state"] = "마감이월"
         elif o["billing_due"]:
@@ -50907,6 +50992,7 @@ def _outstanding_receivables(c, only_overdue: bool = False):
     ordc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
     cusc = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
     _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cusc else "0"
+    _pt = "COALESCE(cu.pay_term,'')" if "pay_term" in cusc else "''"   # z1191z95
     # 발행일 per order: 호기 tax_invoice_date 우선 → orders 폴백, 가장 이른 날
     i_td = "oi.tax_invoice_date" if "tax_invoice_date" in oic else "NULL"
     o_td = "o.tax_invoice_date" if "tax_invoice_date" in ordc else "NULL"
@@ -50926,7 +51012,7 @@ def _outstanding_receivables(c, only_overdue: bool = False):
         f"""SELECT o.id AS order_id, o.order_no, o.order_date, o.due_date,
                   o.total_amount, o.status, o.customer_id,
                   COALESCE(cu.name,'-') AS customer_name,
-                  {_pd} AS pay_days,
+                  {_pd} AS pay_days, {_pt} AS pay_term,
                   COALESCE((SELECT SUM(amount) FROM receipts_payment rp
                             WHERE rp.order_id=o.id), 0) AS paid_total,
                   COALESCE((SELECT terms FROM payment_terms pt
@@ -50950,10 +51036,12 @@ def _outstanding_receivables(c, only_overdue: bool = False):
             base = datetime.strptime(base_iso[:10], "%Y-%m-%d").date()
         except Exception:
             base = today
-        # 결제조건 일수 = 고객사 pay_days(>0) → 없으면 레거시 payment_terms
-        _pdv = int(d.get("pay_days") or 0)
-        days_terms = _pdv if _pdv > 0 else _parse_terms_days(d["terms"])
-        due = base + timedelta(days=days_terms)
+        # z1191z95: 결제 조건 = 고객사 고른 것(규칙 한 곳) → 안 골랐는데 옛 결제조건 글자가 있으면 그것 → 둘 다 없으면 기본 60일
+        if _pay_term_norm_z95(d.get("pay_term"), d.get("pay_days"))[0] or not str(d.get("terms") or "").strip():
+            due = _pay_due_z95(base, d.get("pay_term"), d.get("pay_days"))
+        else:
+            due = base + timedelta(days=_parse_terms_days(d["terms"]))
+        days_terms = (due - base).days
         overdue_days = (today - due).days  # 음수 = 만기 이전
         if only_overdue and overdue_days <= 0:
             continue

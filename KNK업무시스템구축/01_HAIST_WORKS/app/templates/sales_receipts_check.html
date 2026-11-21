@@ -5,7 +5,8 @@
 /* z1191z94 (대표 11-21): 💰 입금 확인 — 세금계산서 기준 받을 돈 · 예정일 된 고객사 → 관리팀 확인 → [✅ 입금 확인됨] */
 .rc-wrap{padding:12px var(--content-pad,20px) 60px;}
 .rc-lead{font-size:13px;color:var(--knk-text-secondary,#46524B);line-height:1.7;margin:0 0 12px;}
-.rc-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.rc-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+.rc-default-note{font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:7px 12px;margin:0 0 10px;}
 .rc-kpi{border:1px solid var(--knk-border-subtle,#E2E6E1);border-radius:10px;padding:10px 12px;background:var(--knk-bg-surface,#FAFBF9);cursor:pointer;text-align:left;font:inherit;}
 .rc-kpi .l{font-size:12.5px;font-weight:700;color:var(--knk-text-secondary,#46524B);}
 .rc-kpi .v{font-size:18px;font-weight:800;margin-top:4px;color:var(--knk-text-primary,#27302B);}
@@ -61,14 +62,14 @@
   </header>
   <div class="rc-wrap">
     <p class="rc-lead">
-      <b>입금 예정일 = 세금계산서 발행일 + 고객사 결제 조건(일수)</b>입니다. 예정일이 된 고객사를 ☑ 고르고 <b>[📋 관리팀 확인 요청 글 복사]</b> → 이음에서 관리팀에 붙여 넣어 물어보세요.
+      <b>입금 예정일 = 세금계산서 발행일 + 고객사 결제 조건</b>입니다(현금 · 15일 · 당월 말 · 익월 말 · 익익월 말 · 직접입력 — 안 고른 고객사는 <b>기본 발행 후 {{ pay_default_days_z95 }}일</b>). 예정일이 된 고객사를 ☑ 고르고 <b>[📋 관리팀 확인 요청 글 복사]</b> → 이음에서 관리팀에 붙여 넣어 물어보세요.
       들어왔다는 답을 받으면 그 계산서 줄의 <b>[✅ 입금 확인됨]</b>을 눌러 입금일·금액을 적습니다 — 받을 돈이 다 차면 수주가 「입금 완료」가 됩니다.
-      결제 조건이 빈 고객사는 <b>⚙ 결제 조건 미설정</b>에 모입니다(고객사 이름 옆 [결제 조건 넣기]).
+      고객사 이름 옆에 그 고객사의 결제 조건이 보이고, 기본(60일)인 고객사는 [⚙ 결제 조건 정하기]로 바로 고칠 수 있습니다.
       금액은 부가세 포함(국내 원화 10% · 수출·외화 0%) · 08-23 이전 발행분은 11-21 일괄로 입금 완료 처리됨.
     </p>
     {% set _k = kpi or {} %}
     <div class="rc-kpis">
-      {% for b, lab in [('overdue','🔴 예정일 지남'),('week','🟠 7일 안'),('later','⚪ 그 뒤'),('noterms','⚙ 결제 조건 미설정')] %}
+      {% for b, lab in [('overdue','🔴 예정일 지남'),('week','🟠 7일 안'),('later','⚪ 그 뒤')] %}
       {% set kk = _k.get(b) or {} %}
       <button type="button" class="rc-kpi {{ b }}" data-b="{{ b }}" onclick="rcFilter('{{ b }}')">
         <div class="l">{{ lab }}</div>
@@ -77,6 +78,7 @@
       </button>
       {% endfor %}
     </div>
+    {% if (kpi or {}).get('n_default_cust') %}<div class="rc-default-note">⚙ 결제 조건을 아직 안 고른 고객사 <b>{{ kpi.n_default_cust }}곳</b>은 <b>기본(세금계산서 발행 후 {{ pay_default_days_z95 }}일)</b>으로 계산했습니다 — 고객사 이름 옆 [⚙ 결제 조건 정하기]</div>{% endif %}
     <div class="rc-bar">
       <a href="#" class="bm on" data-b="all" onclick="rcFilter('all');return false;">🗂 전체</a>
       {% if mine_count %}<a href="/sales/receipts-check?mine={{ 0 if mine_on else 1 }}" id="rcMineBtn" class="bm{% if mine_on %} on{% endif %}" title="영업담당자 칸에 내 이름이 적힌 건만 · 다시 누르면 전체">👤 내 건만 <b>{{ mine_count }}</b></a>{% endif %}
@@ -90,7 +92,7 @@
       <div class="rc-cust-h">
         <input type="checkbox" class="rc-sel" data-cname="{{ g.cname }}" onchange="rcSelChanged()" title="관리팀 확인 요청 글에 넣기">
         <span class="nm">{{ g.cname }}</span>
-        <span class="terms">{% if g.pay_days %}결제 조건 {{ g.pay_days }}일{% elif g.cid %}<a href="/customers/{{ g.cid }}/edit" target="_blank">⚙ 결제 조건 넣기</a>{% else %}고객사 연결 없음{% endif %}</span>
+        <span class="terms">{{ g.term_label }}{% if g.term_default and g.cid %} · <a href="/customers/{{ g.cid }}/edit" target="_blank">⚙ 결제 조건 정하기</a>{% elif not g.cid %} · 고객사 연결 없음{% endif %}</span>
         {% if g.bucket == 'noterms' %}<span class="rc-dd noterms">조건 미설정{% if g.max_age is not none %} · 가장 오래된 계산서 발행 후 {{ g.max_age }}일{% endif %}</span>
         {% elif g.dday is not none %}<span class="rc-dd {{ g.bucket }}">{% if g.dday < 0 %}{{ -g.dday }}일 지남{% elif g.dday == 0 %}오늘{% else %}D-{{ g.dday }}{% endif %} · {{ g.first_due }}</span>{% endif %}
         <span class="sum">{% if can_money %}{{ g.sum_fmt }}{% else %}🔒{% endif %}</span>
@@ -160,7 +162,7 @@
       if (!sec || sec.style.display === 'none') return;
       sec.querySelectorAll('tbody tr').forEach(function(tr){
         i += 1;
-        var due = tr.dataset.due ? (' · 입금 예정 ' + tr.dataset.due) : ' · 결제 조건 미설정';
+        var due = tr.dataset.due ? (' · 입금 예정 ' + tr.dataset.due) : '';
         lines.push(i + ') ' + tr.dataset.cname + ' — 세금계산서 ' + tr.dataset.issue + ' 발행 · ' + tr.dataset.remfmt + (tr.dataset.ccy==='KRW' ? '(부가세 포함)' : '') + due + (tr.dataset.mgmt ? ' · ' + tr.dataset.mgmt : ''));
       });
     });

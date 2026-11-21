@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """z1191z94 시험 — 💰 입금 확인(세금계산서 기준 받을 돈) (대표 11-21 「다음 입금 확인 화면 진행해」)
-  §1 나누기: 예정일 = 발행일 + 고객사 결제 조건 · 지남 / 7일 안 / 조건 미설정(결제 조건 넣기 링크)
+  §1 나누기: 예정일 = 발행일 + 고객사 결제 조건 · 지남 / 7일 안 / 그 뒤(z95: 안 고른 고객사 = 기본 60일 · 결제 조건 정하기 링크)
   §2 금액: 부가세 포함(국내 원화 10% · 수출 0%) · 마이너스(수정) 계산서는 받을 돈에서 뺌
   §3 [✅ 입금 확인됨]: 일부 입금 → 남은 금액 줄어듦 · 다 차면 수주 = 입금 완료(PAID) + 상태 이력 · 줄 사라짐
   §4 막기: 매출 등록 권한 없으면 화면·기록 다 막힘 · 금액 0·입금일 없음 = 거절
@@ -129,11 +129,12 @@ d = M._rc_rows_z94(SALES)
 by = {x["oid"]: x for x in d["rows"]}
 check("O1 = 예정일 지남 · 10일 지남 · 1,100,000(부가세 포함)", by.get(O1, {}).get("bucket") == "overdue" and by[O1]["dday"] == -10 and by[O1]["rem"] == 1100000, by.get(O1))
 check("O2 = 7일 안(D-5) · 마이너스 계산서 뺌 = 1,100,000 − 110,000 = 990,000", by.get(O2, {}).get("bucket") == "week" and by[O2]["dday"] == 5 and by[O2]["rem"] == 990000, by.get(O2))
-check("O3 = 결제 조건 미설정(예정일 없음) · 발행 후 5일", by.get(O3, {}).get("bucket") == "noterms" and by[O3]["due"] == "" and by[O3]["age"] == 5, by.get(O3))
+# z1191z95 (대표 11-21): 결제 조건 안 고른 고객사 = 기본 「세금계산서 발행 후 60일」 → 「미설정」 묶음 없음
+check("O3 = 결제 조건 안 고름 → 기본 60일(발행 5일 전 → D-55 · 그 뒤) · 발행 후 5일", by.get(O3, {}).get("bucket") == "later" and by[O3]["dday"] == 55 and by[O3]["term_default"] and by[O3]["age"] == 5, by.get(O3))
 check("O4 = 수출이라 부가세 0 → 1,000,000 · 20일 지남", by.get(O4, {}).get("rem") == 1000000 and by[O4]["bucket"] == "overdue", by.get(O4))
 h = q(cl.get, "/sales/receipts-check").text
-check("화면 200 · 고객사 묶음 · ⚙ 결제 조건 넣기 링크(/customers/<B>/edit)", "가상고객A" in h and ('href="/customers/%d/edit"' % CB) in h)
-check("조건 미설정 묶음 = 「가장 오래된 계산서 발행 후 5일」 · 줄 「조건 없음 · 발행 후 5일」", "가장 오래된 계산서 발행 후 5일" in h and "조건 없음 · 발행 후 5일" in h)
+check("화면 200 · 고객사 묶음 · 기본 고객사(B)에 ⚙ 결제 조건 정하기 링크", "가상고객A" in h and ('href="/customers/%d/edit"' % CB) in h and "⚙ 결제 조건 정하기" in h)
+check("고객사 줄 조건 글자: A = 옛 일수 30 → 「세금계산서 발행 후 30일」 · B = 「기본 · 세금계산서 발행 후 60일」", "세금계산서 발행 후 30일" in h and "기본 · 세금계산서 발행 후 60일" in h)
 check("KPI: 예정일 지남 1곳 · 2장", re.search(r'🔴 예정일 지남</div>\s*<div class="v">1곳 · 2장', h) is not None)
 check("관리팀 확인 요청 글 복사 단추", "📋 관리팀 확인 요청 글 복사" in h)
 
