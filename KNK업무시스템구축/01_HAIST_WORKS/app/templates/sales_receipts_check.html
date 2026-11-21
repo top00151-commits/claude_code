@@ -45,6 +45,13 @@
 .rc-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
 .rc-btns button{font:inherit;font-size:13.5px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--knk-border-subtle,#d6dbd5);background:#fff;}
 .rc-btns .go{background:#2f6f4f;color:#fff;border-color:#2f6f4f;}
+.rc-alert-z100{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;color:#1e3a8a;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:7px 12px;margin:0 0 10px;}
+.rc-alert-z100 b{color:#1e3a8a;}
+.rc-alert-z100 button{font:inherit;font-size:12px;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid #93c5fd;background:#fff;color:#1e40af;cursor:pointer;}
+.rc-alert-z100 .off{color:#b91c1c;font-weight:700;}
+.rc-ppl{max-height:46vh;overflow:auto;border:1px solid var(--knk-border-subtle,#E2E6E1);border-radius:8px;padding:4px 8px;margin-top:8px;}
+.rc-ppl label{display:flex;align-items:center;gap:8px;font-weight:400;margin:0;padding:5px 2px;border-bottom:1px solid #f0f2ef;cursor:pointer;}
+.rc-ppl input{width:auto;}
 .rc-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#27302B;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;display:none;z-index:9100;}
 @media (max-width:900px){ .rc-kpis{grid-template-columns:repeat(2,minmax(0,1fr));} .rc-t .hide-m{display:none;} }
 </style>
@@ -79,6 +86,15 @@
       </button>
       {% endfor %}
     </div>
+    {# z1191z100 (대표 11-22): 🔔 수금 알림 — 평일 오전 9시 · 받는 사람(기본 안지연 프로) · 바꾸기 = 대표·임원·관리자(매출 등록 체크) #}
+    {% if ar_alert %}
+    <div class="rc-alert-z100" id="rcAlertBar">
+      <span>🔔 <b>수금 알림</b> — 평일(공휴일 빼고) 오전 {{ ar_alert.hour }}시 · 받는 사람:
+        <b id="rcAlertNames">{% if ar_alert.names %}{{ ar_alert.names|join(', ') }}{% else %}<span class="off">없음(알림 안 감)</span>{% endif %}</b></span>
+      <span style="color:#64748b;">· 예정일 7일 전 · 1·30·60일 지난 계산서와 전체 지난 돈을 하루 한 번 묶어서{% if ar_alert.last %} · 마지막 {{ ar_alert.last }}{% endif %}</span>
+      {% if ar_alert.can_edit %}<button type="button" onclick="rcAlertOpen()">⚙ 받는 사람 바꾸기</button>{% endif %}
+    </div>
+    {% endif %}
     {% if (kpi or {}).get('n_default_cust') %}<div class="rc-default-note">⚙ 결제 조건을 아직 안 고른 고객사 <b>{{ kpi.n_default_cust }}곳</b>은 <b>기본(세금계산서 발행 후 {{ pay_default_days_z95 }}일)</b>으로 계산했습니다 — 고객사 이름 옆 [⚙ 결제 조건 정하기]</div>{% endif %}
     <div class="rc-bar">
       <a href="#" class="bm on" data-b="all" onclick="rcFilter('all');return false;">🗂 전체</a>
@@ -135,6 +151,35 @@
     <div class="rc-btns"><button type="button" onclick="rcClose()">닫기</button><button type="button" class="go" id="rcGo" onclick="rcSave()">입금 기록</button></div>
   </div>
 </div>
+{% if ar_alert and ar_alert.can_edit %}
+<div class="rc-modal" id="rcAlertModal" role="dialog" aria-modal="true" aria-labelledby="rcAlertT">
+  <div class="rc-box">
+    <h3 id="rcAlertT">🔔 수금 알림 받는 사람</h3>
+    <div class="who">평일 오전 {{ ar_alert.hour }}시에 웍스 🔔 알림함과 이음 「WORKS 알림」으로 갑니다.<br>
+      ⚠ 이음(휴대폰) 알림은 지금 <b>김정락 · 안지연 · 이새롬</b>만 받습니다(대표 결정 · 기술영업팀 전원 사용일에 풀림). 다른 분은 웍스 🔔 알림함에만 들어갑니다.</div>
+    <div class="rc-ppl">
+      {% for p in ar_alert.cand %}<label><input type="checkbox" class="rc-ppl-cb" value="{{ p.id }}" {% if p.on %}checked{% endif %}> {{ p.label }}</label>{% endfor %}
+    </div>
+    <div class="rc-btns"><button type="button" onclick="document.getElementById('rcAlertModal').classList.remove('show')">닫기</button><button type="button" class="go" onclick="rcAlertSave()">저장</button></div>
+  </div>
+</div>
+<script>
+(function(){
+  window.rcAlertOpen = function(){ document.getElementById('rcAlertModal').classList.add('show'); };
+  window.rcAlertSave = function(){
+    var ids = []; document.querySelectorAll('.rc-ppl-cb').forEach(function(c){ if (c.checked) ids.push(parseInt(c.value, 10)); });
+    if (!ids.length && !confirm('받는 사람이 없으면 수금 알림이 아무에게도 가지 않습니다. 이대로 저장할까요?')) return;
+    fetch('/sales/ar-alert/recipients', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user_ids: ids})}).then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { alert(d.error || '저장하지 못했습니다'); return; }
+      document.getElementById('rcAlertNames').textContent = (d.names && d.names.length) ? d.names.join(', ') : '없음(알림 안 감)';
+      document.getElementById('rcAlertModal').classList.remove('show');
+      var t = document.getElementById('rcToast'); t.textContent = '수금 알림 받는 사람을 저장했습니다'; t.style.display = 'block'; setTimeout(function(){ t.style.display = 'none'; }, 2600);
+    }).catch(function(){ alert('저장하지 못했습니다(연결)'); });
+  };
+})();
+</script>
+{% endif %}
 <div class="rc-toast" id="rcToast"></div>
 
 <script>

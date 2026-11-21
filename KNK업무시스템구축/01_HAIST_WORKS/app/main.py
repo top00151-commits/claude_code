@@ -1560,6 +1560,14 @@ def startup():
     _start_tier_refresh_scheduler()
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
+    # z1191z100 (대표 11-22 「수금 알림은 평일 9시, 안지연 프로만 받게 켜줘」) — 끄는 길: 환경변수 KNK_RUN_AR_ALERT=0
+    try:
+        if os.environ.get("KNK_RUN_AR_ALERT", "1").strip().lower() not in ("0", "false", "no", "off"):
+            _start_ar_alert_scheduler_z100()
+        else:
+            print("[AR-ALERT] KNK_RUN_AR_ALERT=0 — 수금 알림 시계 꺼짐")
+    except Exception as _e:
+        print(f"[AR-ALERT start ERR] {_e}")
     # v5H226z526 (대표 지시): 매일 새벽 자동 명부 동기화(메신저→WORKS). 공유키 없으면 자동 건너뜀.
     try:
         if os.environ.get("KNK_RUN_DIR_SYNC", "1").strip().lower() not in ("0", "false", "no", "off"):
@@ -50209,9 +50217,14 @@ def sales_receipts_check_z94(request: Request, mine: str = ""):
     mine_count = sum(1 for g in data["groups"] if g["mine"])
     if not mine_count:
         _mine_on = False
+    try:
+        _ara = _ar_alert_view_z100(u)   # z1191z100: 🔔 수금 알림 받는 사람
+    except Exception as _e100:
+        print("[z1191z100] 수금 알림 줄 읽기 실패:", repr(_e100))
+        _ara = None
     return ctx(request, "sales_receipts_check.html", user=u, active="sales_receipts_check",
                groups=data["groups"], kpi=data["kpi"], today=data["today"], n_rows=len(data["rows"]),
-               mine_on=_mine_on, mine_count=mine_count, can_money=bool(can_view_sales(u)))
+               mine_on=_mine_on, mine_count=mine_count, can_money=bool(can_view_sales(u)), ar_alert=_ara)
 
 
 @app.post("/sales/receipts-check/record")
@@ -51392,49 +51405,235 @@ async def bank_recon_upload(req: Request):
     return ctx(req, "bank_recon.html", user=u, active="sales", result=res)
 
 
-def check_receivable_alerts():
-    """수금 알림 트리거 — 만기 임박(D-7) + 연체(D+1, D+30, D+60).
-    notify_user(SALES, ...) 사용 (1시간 중복 방지 내장).
-    수신자: orders.created_by (수주 등록자) → can_use_sales 폴백.
-    Returns: {sent: int, skipped: int, items: int}.
-    """
-    sent = 0; skipped = 0; total_items = 0
-    # z1191z99 (대표 11-22): 💰 입금 확인과 같은 줄(계산서 한 장 · 부가세 포함 · 받은 돈 뺌 · 예정일 = 발행일 + 결제 조건)
+# =====================================================
+# z1191z100 (대표 11-22 「수금 알림은 평일 9시, 안지연 프로만 받게 켜줘 · 담당자 설정을 할 수 있게」)
+#   · 평일(주말·공휴일 HOLIDAYS_KR 빼고) 오전 9시(한국시간) 하루 한 번 — 받는 사람마다 묶음 알림 1건
+#   · 받는 사람 = app_settings 'ar_alert_recipients_z100'(users.id 목록) · 저장된 적 없으면 안지연 프로(사번 67)
+#   · 웍스 🔔 알림함 + 이음 「WORKS 알림」(휴대폰) — 이음 쪽은 웍스 알림 규칙(v968: 김정락·안지연·이새롬만)을 따른다
+#   · 계산 = 💰 입금 확인과 같은 줄(_rc_rows_z94) · 하루 한 번 = app_settings 'ar_alert_last_run_z100' 에 날짜를 먼저 잡은 쪽만
+# =====================================================
+_AR_ALERT_KEY_Z100 = "ar_alert_recipients_z100"
+_AR_ALERT_LAST_Z100 = "ar_alert_last_run_z100"
+_AR_ALERT_DEFAULT_EMP_Z100 = "67"     # 대표 11-22: 지금은 안지연 프로만
+_AR_ALERT_HOUR_Z100 = 9
+_AR_ALERT_TAGS_Z100 = ((-1, "🔴 예정일 1일 지남(새로 지남)"), (7, "🟠 예정일 7일 전"),
+                       (-30, "🔴 예정일 30일 지남"), (-60, "🔴 예정일 60일 지남"))
+
+
+def _ar_alert_span_z100(day):
+    """오늘 알림이 맡을 날 수 k — 지난 평일(공휴일 빼고) 다음 날부터 오늘까지. 평소 1 · 월요일 3 · 연휴 뒤 더 길게.
+    (알림은 평일에만 돌므로, 예정일이 주말·공휴일에 걸린 계산서가 「딱 그날」만 보면 빠진다)"""
+    k = 1
+    while k < 15 and not _ar_alert_workday_z100(day - timedelta(days=k)):
+        k += 1
+    return k
+
+
+def _ar_alert_recipient_ids_z100(c):
+    """받는 사람 users.id 목록(일하는 계정만 · 저장 순서). 저장된 적 없으면 안지연 프로(사번 67)."""
+    import json as _j100
+    row = c.execute("SELECT value FROM app_settings WHERE key=?", (_AR_ALERT_KEY_Z100,)).fetchone()
+    if row is not None:
+        try:
+            ids = [int(x) for x in _j100.loads(row[0] or "[]")]
+        except (ValueError, TypeError):
+            print("[z1191z100] 수금 알림 받는 사람 설정을 읽지 못함:", repr(row[0])[:80])
+            ids = []
+    else:
+        r = c.execute("SELECT id FROM users WHERE employee_no=? AND COALESCE(is_active,1)=1",
+                      (_AR_ALERT_DEFAULT_EMP_Z100,)).fetchone()
+        ids = [int(r[0])] if r else []
+    if not ids:
+        return []
+    ph = ",".join("?" * len(ids))
+    ok = {int(r[0]) for r in c.execute("SELECT id FROM users WHERE id IN (%s) AND COALESCE(is_active,1)=1" % ph, ids).fetchall()}
+    return [i for i in ids if i in ok]
+
+
+def _ar_alert_digest_z100(rows, span=1):
+    """하루 묶음 알림 글. 반환 (새로 챙길 장수, 제목, 본문, 보낼지). 지난 돈도 새 것도 없으면 보내지 않음.
+    span = 이번 알림이 맡을 날 수(월요일 3 = 금·토·일 몫) — 각 묶음은 기준일에서 span 일 사이(dd-span < 남은 날 ≤ dd)."""
+    from datetime import date as _d100
+    span = max(1, int(span or 1))
+    lines, n_new = [], 0
+    for dd, lab in _AR_ALERT_TAGS_Z100:
+        xs = [x for x in rows if x["dday"] is not None and dd - span < x["dday"] <= dd]
+        if not xs:
+            continue
+        n_new += len(xs)
+        if span > 1:
+            lab += "(주말·휴일 포함 %d일 치)" % span
+        lines.append("%s %d장" % (lab, len(xs)))
+        for x in xs[:8]:
+            lines.append("  · %s %s %s (예정일 %s)" % (x["cname"], x["order_no"], x["rem_fmt"], x["due"]))
+        if len(xs) > 8:
+            lines.append("  · …외 %d장" % (len(xs) - 8))
+    over = {}
+    for x in rows:
+        if x["dday"] is not None and x["dday"] < 0:
+            over[x["ccy"]] = over.get(x["ccy"], 0) + x["rem"]
+    n_over_cust = len({x["cid"] for x in rows if x["dday"] is not None and x["dday"] < 0})
+    over_txt = " · ".join(_fmt_money(v, k) for k, v in sorted(over.items(), key=lambda kv: (kv[0] != "KRW", kv[0])))
+    if over:
+        lines.append("전체 예정일 지난 돈: %s (%d곳)" % (over_txt, n_over_cust))
+    lines.append("→ 💰 입금 → 입금 확인에서 관리팀 확인 뒤 [✅ 입금 확인됨]")
+    md = _d100.today().strftime("%m-%d")
+    if n_new:
+        title = "💰 수금 확인 %s — 새로 챙길 계산서 %d장" % (md, n_new)
+    else:
+        title = "💰 수금 확인 %s — 예정일 지난 돈 %s" % (md, over_txt or "없음")
+    return n_new, title, "\n".join(lines), bool(n_new or over)
+
+
+def check_receivable_alerts(recipient_ids=None):
+    """수금 알림 — 받는 사람마다 묶음 1건(웍스 🔔 + 이음 WORKS 알림). recipient_ids 없으면 설정값(기본 안지연 프로).
+    z1191z99: 계산 = 💰 입금 확인과 같은 줄 · z1191z100: 계산서마다 따로 → 하루 묶음 1건(알림 수십 건 쏟아짐 방지).
+    Returns: {sent, skipped, items, new, recipients, messenger, messenger_error}."""
     rc_rows = _rc_rows_z94({})["rows"]
+    _today100 = _kst_wall_now().date()
+    _span100 = _ar_alert_span_z100(_today100) if _ar_alert_workday_z100(_today100) else 1
+    n_new, title, body, has = _ar_alert_digest_z100(rc_rows, _span100)
     with db_session() as c:
-        total_items = len(rc_rows)
-        # 영업 권한자 폴백 (주된 알림 대상 미상시)
-        sales_uids = [r[0] for r in c.execute(
-            "SELECT id FROM users WHERE can_use_sales=1 OR role='ceo'"   # z1191g: 관리자는 매출 등록 체크로(위 조건)
-        ).fetchall()]
-        for x in rc_rows:
-            dd = x["dday"]
-            if dd is None:
-                continue
-            # 보내는 날: 예정일 7일 전 · 1일 지남 · 30일 지남 · 60일 지남(계산서 한 장마다)
-            tag = {7: "입금 예정일 7일 전", -1: "입금 예정일 1일 지남", -30: "입금 예정일 30일 지남",
-                   -60: "입금 예정일 60일 지남"}.get(dd)
-            if not tag:
-                continue
-            title = f"💰 {tag} — {x['cname']} · {x['order_no']}"
-            body = (f"고객사: {x['cname']} / 세금계산서 발행일: {x['issue']} / 받을 돈(부가세 포함): {x['rem_fmt']} / "
-                    f"입금 예정일: {x['due']}({x['term_label']}) — 💰 입금 → 입금 확인에서 관리팀 확인 뒤 [✅ 입금 확인됨]")
-            link = "/sales/receipts-check"
-            # 우선 created_by, 폴백 영업권한자 전체
-            recipients = []
-            cb = c.execute(
-                "SELECT created_by FROM orders WHERE id=?", (x["oid"],)
-            ).fetchone()
-            if cb and cb[0]:
-                recipients.append(cb[0])
-            else:
-                recipients.extend(sales_uids)
-            for uid in recipients:
-                if notify_user(uid, "SALES", title, body=body, link=link):
-                    sent += 1
-                else:
-                    skipped += 1
-    return {"sent": sent, "skipped": skipped, "items": total_items}
+        ids = list(recipient_ids) if recipient_ids is not None else _ar_alert_recipient_ids_z100(c)
+        emps = []
+        if ids:
+            ph = ",".join("?" * len(ids))
+            emps = [str(r[0]) for r in c.execute(
+                "SELECT employee_no FROM users WHERE id IN (%s) AND COALESCE(employee_no,'')<>''" % ph, ids).fetchall()]
+    out = {"sent": 0, "skipped": 0, "items": len(rc_rows), "new": n_new, "recipients": len(ids),
+           "messenger": None, "messenger_error": ""}
+    if not has or not ids:
+        return out
+    link = "/sales/receipts-check"
+    for uid in ids:
+        if notify_user(uid, "SALES", title, body=body, link=link):
+            out["sent"] += 1
+        else:
+            out["skipped"] += 1
+    if out["sent"] and emps:   # 웍스 알림함에 새로 넣었을 때만 이음으로도(1시간 안 같은 알림 두 번 막기와 같게)
+        try:
+            from . import sso_client as _sso100
+            _pub = os.environ.get("KNK_WORKS_PUBLIC_BASE", "https://works.knknara.co.kr").rstrip("/")
+            _m = _sso100.notify_via_messenger(emps, title, body, _pub + link)
+            out["messenger"] = bool(_m.get("ok"))
+            out["messenger_error"] = _m.get("error") or ""
+        except Exception as _e100:
+            out["messenger"], out["messenger_error"] = False, repr(_e100)[:160]
+        if not out["messenger"]:
+            print("[z1191z100] 수금 알림 이음 전달 실패:", out["messenger_error"])
+    return out
+
+
+def _ar_alert_workday_z100(d):
+    return d.weekday() < 5 and d.isoformat() not in HOLIDAYS_KR
+
+
+def _ar_alert_seconds_until_next_z100(now_kst=None):
+    """다음 평일(공휴일 빼고) 09:00 한국시간까지 남은 초(최소 60초)."""
+    now = now_kst if now_kst is not None else _kst_wall_now()
+    for _add in range(0, 20):
+        slot = (now + timedelta(days=_add)).replace(hour=_AR_ALERT_HOUR_Z100, minute=0, second=0, microsecond=0)
+        if slot > now and _ar_alert_workday_z100(slot.date()):
+            return max(60.0, (slot - now).total_seconds())
+    return 86400.0
+
+
+def _ar_alert_claim_z100(day_iso):
+    """오늘 몫을 잡는다 — 이미 누가 잡았으면 False(일꾼·재기동이 겹쳐도 하루 한 번)."""
+    with db_session() as c:
+        c.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, '')", (_AR_ALERT_LAST_Z100,))
+        cur = c.execute("UPDATE app_settings SET value=? WHERE key=? AND COALESCE(value,'')<>?",
+                        (day_iso, _AR_ALERT_LAST_Z100, day_iso))
+        return cur.rowcount == 1
+
+
+def _ar_alert_due_now_z100(now_kst=None):
+    """지금 보낼 때인가 — 평일 09:00~17:59(재기동으로 9시를 놓쳐도 그날 안에는 한 번)."""
+    now = now_kst if now_kst is not None else _kst_wall_now()
+    return _ar_alert_workday_z100(now.date()) and _AR_ALERT_HOUR_Z100 <= now.hour < 18
+
+
+def _ar_alert_tick_z100():
+    import threading as _th
+    try:
+        now = _kst_wall_now()
+        if _nas_quiet_now(now):   # 이중 안전 — 09:00 은 월요일 NAS 백업 시간(02:00~07:30) 밖이지만 계산이 어긋나도 안 돈다
+            print("[AR-ALERT] 월요일 NAS 백업 시간 — 이번엔 건너뜀")
+        elif _ar_alert_due_now_z100(now) and _ar_alert_claim_z100(now.date().isoformat()):
+            r = check_receivable_alerts()
+            print("[AR-ALERT] 수금 알림 %s — 받는 사람 %d · 새로 챙길 %d장 · 웍스 %d건 · 이음 %s"
+                  % (now.strftime("%m-%d %H:%M"), r["recipients"], r["new"], r["sent"], r["messenger"]))
+    except Exception as e:
+        print(f"[AR-ALERT tick ERR] {e}")
+    delay = _ar_alert_seconds_until_next_z100()
+    t = _th.Timer(delay, _ar_alert_tick_z100)
+    t.daemon = True
+    t.start()
+
+
+def _start_ar_alert_scheduler_z100():
+    """startup 1회 — 다음 평일 09:00 예약. 지금이 평일 09~18시이고 오늘 아직 안 보냈으면 2분 뒤 한 번."""
+    import threading as _th
+    now = _kst_wall_now()
+    delay = _ar_alert_seconds_until_next_z100(now)
+    try:
+        with db_session() as c:
+            r = c.execute("SELECT value FROM app_settings WHERE key=?", (_AR_ALERT_LAST_Z100,)).fetchone()
+        if (not _nas_quiet_now(now)) and _ar_alert_due_now_z100(now) and (not r or (r[0] or "") != now.date().isoformat()):
+            delay = 120.0
+    except Exception as e:
+        print(f"[AR-ALERT start ERR] {e}")
+    _nxt = (now + timedelta(seconds=delay)).strftime("%m-%d %a %H:%M")
+    print(f"[AR-ALERT] 수금 알림 시계 시작 — 다음 {_nxt} (한국시간 · 평일 09:00)")
+    t = _th.Timer(delay, _ar_alert_tick_z100)
+    t.daemon = True
+    t.start()
+
+
+def _ar_alert_view_z100(u):
+    """💰 입금 확인 화면 위 「🔔 수금 알림」 줄 — 받는 사람 이름 · 마지막 보낸 날 · 바꿀 수 있는지 · 고를 사람 목록."""
+    with db_session() as c:
+        ids = _ar_alert_recipient_ids_z100(c)
+        r = c.execute("SELECT value FROM app_settings WHERE key=?", (_AR_ALERT_LAST_Z100,)).fetchone()
+        last = (r[0] if r else "") or ""
+        can_edit = bool(_can_bank_z98(u))
+        cand = []
+        if can_edit or ids:
+            rows = c.execute(
+                "SELECT u.id, u.name, u.rank, u.employee_no, u.team_id, COALESCE(t.name,'') AS team_name "
+                "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                "WHERE COALESCE(u.is_active,1)=1 AND (COALESCE(u.can_use_sales,0)=1 OR u.role IN ('ceo','executive') OR u.team_id=1 OR u.id IN (%s)) "
+                "ORDER BY (u.team_id<>1), u.name" % (",".join("?" * len(ids)) or "NULL"), ids).fetchall()
+            cand = [{"id": int(x["id"]), "label": vname_full(dict(x)), "on": int(x["id"]) in ids} for x in rows]
+    names = [c2["label"] for i in ids for c2 in cand if c2["id"] == i]
+    return {"ids": ids, "names": names, "last": last, "can_edit": can_edit, "cand": cand if can_edit else [],
+            "hour": _AR_ALERT_HOUR_Z100}
+
+
+@app.post("/sales/ar-alert/recipients")
+async def sales_ar_alert_recipients_z100(request: Request):
+    """🔔 수금 알림 받는 사람 저장 — 대표·임원·(매출 등록 체크가 있는) 관리자(🏦 입금 대사와 같은 규칙)."""
+    import json as _j100
+    u = get_user(request)
+    if not _can_bank_z98(u):
+        return JSONResponse({"ok": False, "error": "받는 사람은 대표·임원·관리자(매출 등록 체크)만 바꿀 수 있습니다"}, 403)
+    try:
+        j = await request.json()
+        ids = [int(x) for x in (j.get("user_ids") or [])]
+    except Exception:
+        return JSONResponse({"ok": False, "error": "받는 사람 목록을 읽지 못했습니다"}, 400)
+    ids = list(dict.fromkeys(ids))[:30]
+    with db_session() as c:
+        if ids:
+            ph = ",".join("?" * len(ids))
+            ok = {int(r[0]) for r in c.execute("SELECT id FROM users WHERE id IN (%s) AND COALESCE(is_active,1)=1" % ph, ids).fetchall()}
+            if set(ids) - ok:
+                return JSONResponse({"ok": False, "error": "일하지 않는 계정이 들어 있습니다 — 화면을 새로 고쳐 다시 골라 주세요"}, 400)
+        before = _ar_alert_recipient_ids_z100(c)
+        c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (_AR_ALERT_KEY_Z100, _j100.dumps(ids)))
+        _doc_audit_log(c, "ar_alert_recipients", 0, "SET", u.get("id"), "z1191z100 수금 알림 받는 사람 %s → %s" % (before, ids))
+    v = _ar_alert_view_z100(u)
+    return JSONResponse({"ok": True, "names": v["names"], "ids": v["ids"]})
 
 
 def _ar_totals_z99(u=None):

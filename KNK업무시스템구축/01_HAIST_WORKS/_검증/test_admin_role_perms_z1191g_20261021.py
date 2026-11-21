@@ -195,7 +195,9 @@ src = io.open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
 q_recv = re.search(r'"(SELECT id FROM users WHERE can_use_sales=1 OR role=\'ceo\')"', src)
 q_exp = re.search(r'"SELECT id FROM users WHERE is_active=1 AND "\s*"(\(team_id=12 OR role IN \(\'ceo\',\'executive\'\) OR '
                   r'\(role=\'admin\' AND COALESCE\(can_use_sales,0\)=1\)\))"', src)
-check("9 원문: 수금 알림·수출 알림 받는 사람 SQL 이 바뀜(관리자 = 매출 등록 체크로)", bool(q_recv) and bool(q_exp))
+# z1191z100 (대표 11-22): 수금 알림 받는 사람 = 화면에서 고른 사람(기본 안지연 프로) — 옛 「매출 등록 체크 전원」 SQL 은 없어짐(관리자 자동 포함 없음은 그대로)
+check("9 원문: 수금 알림 받는 사람 = 설정값(z100) · 수출 알림 받는 사람 SQL(관리자 = 매출 등록 체크로)",
+      (bool(q_recv) or "_ar_alert_recipient_ids_z100" in src) and bool(q_exp))
 if q_recv and q_exp:
     with D.db_session() as c:
         got_r = {r[0] for r in c.execute(q_recv.group(1)).fetchall()}

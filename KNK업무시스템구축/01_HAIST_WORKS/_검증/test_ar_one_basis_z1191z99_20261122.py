@@ -169,22 +169,19 @@ check("「미수금 잔액」 = 520만원(입금 확인과 같은 계산) · 설
 S["user"] = SALES
 
 print("§4 수금 알림")
+# z1191z100 (대표 11-22): 계산서마다 따로 → 받는 사람(기본 사번 67 · 이 시험엔 없음 → 설정으로 가상영업)에게 하루 묶음 1건 · 자세한 시험 = test_ar_alert_z1191z100
+import app.sso_client as SSO
+SSO.notify_via_messenger = lambda *a, **k: {"ok": True}
 with D.db_session() as c:
     c.execute("DELETE FROM notifications")
-r = M.check_receivable_alerts()
+r = M.check_receivable_alerts(recipient_ids=[SALES["id"]])
 with D.db_session() as c:
     ns = [dict(x) for x in c.execute("SELECT user_id, kind, title, body, link FROM notifications ORDER BY id")]
-titles = [n["title"] for n in ns]
-check("알림 대상 = 계산서 5장 중 2장(7일 전 · 1일 지남) · 다른 날은 안 보냄",
-      r["items"] == 5 and len({t for t in titles}) == 2 and all(("한기준5" not in t) for t in titles), (r, titles))
-check("7일 전 알림: 「💰 입금 예정일 7일 전 — 가상고객A · …」 · 1일 지남 알림", any(t.startswith("💰 입금 예정일 7일 전 — 가상고객A") for t in titles)
-      and any(t.startswith("💰 입금 예정일 1일 지남 — 가상고객A") for t in titles), titles)
-b7 = next((n for n in ns if "7일 전" in n["title"]), {})
-check("알림 글: 발행일 · 받을 돈 ₩1,100,000(부가세 포함) · 예정일 · 결제 조건 · 링크 = 💰 입금 확인",
-      "받을 돈(부가세 포함): ₩1,100,000" in (b7.get("body") or "") and (T + timedelta(days=7)).isoformat() in (b7.get("body") or "")
-      and "세금계산서 발행 후 30일" in (b7.get("body") or "") and b7.get("link") == "/sales/receipts-check", b7)
-check("받는 사람 = 수주 등록한 분(가상영업)", ns and all(n["user_id"] == SALES["id"] for n in ns), [n["user_id"] for n in ns])
-r2 = M.check_receivable_alerts()
+check("묶음 1건 · 새로 챙길 계산서 2장(7일 전 · 1일 지남) · 계산서 5장 중", r["items"] == 5 and r["new"] == 2 and len(ns) == 1, (r, [n["title"] for n in ns]))
+b = (ns[0]["body"] if ns else "")
+check("본문: 7일 전 · 1일 지남 줄 · 전체 지난 돈 ₩3,000,000 · 링크 = 💰 입금 확인",
+      "🟠 예정일 7일 전 1장" in b and "🔴 예정일 1일 지남(새로 지남) 1장" in b and "₩3,000,000" in b and ns and ns[0]["link"] == "/sales/receipts-check", b)
+r2 = M.check_receivable_alerts(recipient_ids=[SALES["id"]])
 check("한 시간 안에 다시 돌려도 같은 알림 안 겹침", r2["sent"] == 0, r2)
 
 print("\n결과: OK %d · FAIL %d" % (OK, FAIL))
