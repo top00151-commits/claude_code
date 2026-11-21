@@ -26544,9 +26544,32 @@ def _mail_follow_info(c, u, m) -> dict:
         today = _mail_local_today(off)
         due = (m.get("flag_due") or "")
         return {"today": today, "due": due, "late": bool(due and due < today),
-                "snz": _mail_local_label(m.get("snooze_until") or "", off)}
+                "snz": _mail_local_label(m.get("snooze_until") or "", off),
+                "dates": _mail_body_dates(m, off, today)}
     except Exception:
-        return {"today": "", "due": "", "late": False, "snz": ""}
+        return {"today": "", "due": "", "late": False, "snz": "", "dates": []}
+
+
+def _mail_body_dates(m, off: int, today: str) -> list:
+    """📅 본문 날짜(11-21 나 묶음 2-1) — 받은 메일의 새로 쓴 부분에서 날짜 말을 찾는다(규칙만 · 읽기만).
+    「내일」「다음 주 화요일」은 메일을 받은 날(보는 사람 소속) 기준. 실패해도 메일 보기는 그대로."""
+    try:
+        if (m.get("direction") or "in") != "in":
+            return []
+        from datetime import date as _date, timezone as _tz
+        from . import mail_dates as _mdates
+        srv = (m.get("received_at") or "")[:19]
+        try:
+            ts = datetime.strptime(srv, "%Y-%m-%d %H:%M:%S").timestamp()
+            base = (datetime.fromtimestamp(ts, _tz.utc).replace(tzinfo=None) + timedelta(hours=off)).date()
+        except Exception:
+            base = _date.fromisoformat(today)
+        own, _q = _mail_find.split_quote_text(m.get("body_text") or "")
+        own = _mdates.cut_quote(own or "")   # 인용 머리가 덜 갖춰진 옛 글(「-----Original Message-----」만 있는 것)도 자름
+        return _mdates.find(((m.get("subject") or "") + "\n" + (own or "")), base, _date.fromisoformat(today))
+    except Exception as _e:
+        print("[MAIL-DATES] 본문 날짜 찾기 실패(메일 보기는 그대로): %s" % str(_e)[:160], flush=True)
+        return []
 
 
 def _mail_ids_form(form) -> list:

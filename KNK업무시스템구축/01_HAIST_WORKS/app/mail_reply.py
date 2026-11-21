@@ -27,6 +27,26 @@ _RE_STRONG = re.compile(
     r"|could\s+you|can\s+you|would\s+you|let\s+(me|us)\s+know|look(ing)?\s+forward\s+to\s+(your|hearing)"
     r"|await(ing)?\s+your|at\s+your\s+earliest|your\s+(confirmation|reply|feedback|approval)\s+(is|would)"
     r"|vui\s+lòng|xin\s+vui\s+lòng|phản\s+hồi|xác\s+nhận\s+giúp|nhờ\s+(anh|chị)|giúp\s+em)", re.I)
+# 지시 말투 — 2026-11-21 대표 「신입사원 관점」 나 묶음 3-1 · **사내 메일에만**(광고의 「지금 신청하세요」 같은 것을 잘못 잡지 않게)
+#   「제출 바랍니다」「준비하세요」「진행 바랍니다」「보고할 것」「보고해 주세요」「처리해」「가져와요」
+_DIR_VERB = (r"(제출|준비|진행|보고|처리|정리|작성|검토|확인|송부|전달|공유|회신|조치|점검|파악|수정|보완|완료|마무리|"
+             r"등록|입력|발행|협의|조율|연락|문의|요청|챙겨|참석|출장|방문|업데이트|체크|정산|결재\s*올려|올려|보내|가져와|가져오|챙기)")
+_RE_DIRECTIVE = re.compile(
+    _DIR_VERB + r"\s*(을|를|도|좀)?\s*"
+    r"(하세요|하십시오|하시오|하시기\s*바랍|해\s*주세요|해\s*주십시오|해\s*주시기|해\s*주시길|해\s*주시고|해\s*줘|해\s*주라|해라|"
+    r"하도록\s*(하세요|해|합시다|바랍)|할\s*것|바랍니다|바람|바라며|요망|부탁\s*(합니다|드립니다|해요)?|"
+    r"세요|십시오|주세요|요(?=\s*[.!~\n]|\s*$)|해요(?=\s*[.!~\n]|\s*$)|해(?=\s*[.!~\n]|\s*$))", re.M)
+# 「보고 드립니다」「진행 중입니다」「처리했습니다」처럼 내가 한 일을 알리는 말은 지시가 아님 — 위 규칙이 말끝으로 가름
+# 인사말(「좋은 하루 보내세요」「건강 챙기세요」)은 지시가 아님 — 바로 앞 말로 뺀다
+_RE_GREET_BEFORE = re.compile(r"(하루|주말|휴일|연휴|휴가|명절|한\s*주|저녁|오후|시간|밤|연말|새해|추석|설|건강|감기|몸)\s*(잘|즐겁게|편히|편안히|행복하게|도)?\s*$")
+
+
+def _directive(own: str):
+    for md in _RE_DIRECTIVE.finditer(own):
+        if _RE_GREET_BEFORE.search(own[max(0, md.start() - 12):md.start()]):
+            continue
+        return md
+    return None
 # 질문: 묻는 말끝
 _RE_QUESTION = re.compile(
     r"(할까요|될까요|있을까요|좋을까요|어떨까요|가능할까요|가능한지|가능하신지|가능하실까요|되나요|되는지요|인가요|"
@@ -52,7 +72,7 @@ _RE_AUTO_SUBJ = re.compile(
 _RE_AD_SUBJ = re.compile(r"[\(\[（]\s*(광고|AD)\s*[\)\]）]", re.I)
 _RE_UNSUB = re.compile(r"(수신\s*거부|수신을\s*원(치|하지)|구독\s*취소|unsubscribe|opt[-\s]?out)", re.I)
 _RE_URGENT = re.compile(
-    r"(긴급|급히|급합니다|급한|시급|지급으로|오늘\s*(중|까지|안)|금일|내일\s*(오전|오후)?\s*까지|ASAP|urgent|"
+    r"(긴급|급히|급합니다|급한|시급|지급으로|오늘\s*(중|까지|안)|금일|내일\s*(오전|오후)?\s*(\d{1,2}\s*시\s*)?까지|ASAP|urgent|"
     r"as\s+soon\s+as\s+possible|마감|deadline|khẩn)", re.I)
 _RE_URL = re.compile(r"(https?://|www\.)\S+", re.I)
 _RE_SUBJ_PREFIX = re.compile(r"^\s*(re|회신|답장|답신|fwd?|fw|전달)\s*[:：]\s*", re.I)
@@ -80,6 +100,12 @@ def _is_robot(addr: str) -> bool:
         return bool(_mc._RE_ROBOT.match(local))
     except Exception:
         return False
+
+
+def _is_internal(addr: str) -> bool:
+    """우리 회사 주소(사내 직원)에서 온 메일 — 지시 말투 규칙은 여기에만."""
+    a = (addr or "").strip().lower()
+    return "@" in a and a.rsplit("@", 1)[-1] in OUR_DOMAINS
 
 
 def _own(text: str) -> str:
@@ -111,6 +137,10 @@ def assess(*, subject: str = "", body: str = "", from_email: str = "", category:
     m = _RE_STRONG.search(own)
     if m:
         reasons.append("「%s」" % _short(m))
+    if not reasons and _is_internal(addr):
+        md = _directive(own)
+        if md:
+            reasons.append("사내 지시 「%s」" % _short(md))
     # 제목만으로 보는 것은 처음 온 메일만 — RE:/FW: 메일의 제목은 앞사람(우리일 수도)의 요청이라 이번 글의 뜻이 아님
     ms = None if _RE_SUBJ_PREFIX.match(subj) else _RE_SUBJ_REQ.search(norm_subject(subj))
     if ms and not reasons:
