@@ -80,7 +80,7 @@
         items.forEach(function(x){
           var tag = (x.kind === 'consumable') ? '<span class="tag">소모품</span>' : '';
           var sub = (x.kind === 'consumable') ? (x.name || '소모품')
-                  : ((x.name || '') + (x.units > 1 ? ' · ' + x.units + '대' : ''));
+                  : ((x.name || '') + (x.units > 1 ? ' · ' + (x.units_text || (x.units + '줄')) : ''));   // z1191z89: 완제품만 N대
           h += '<a class="knk-tsd-row' + (x.is_self ? ' self' : '') + '" href="' + esc(x.url) + '"'
              + ' title="' + esc((x.mgmt_code || '') + ' ' + (x.order_no || '')) + (x.is_self ? ' — 지금 보는 건' : ' — 눌러서 이동') + '">'
              + '<span class="l"><span class="c">' + esc(x.mgmt_code || '—') + '</span>'

@@ -154,7 +154,8 @@ if p1:
           re.findall(r"수량 <b>[^<]*</b>", dh))
 if p4:
     dh4 = q(cl.get, "/project/%d" % p4["id"]).text
-    check("상세 제품 수주 = 「품목 1 · 수량 2대」(수주 단위) · ＋ 품목 추가 칸 「대 ×」", "품목 <b>1</b> · 수량 <b>2대</b>" in dh4 and ">대 ×</span>" in dh4,
+    check("상세 제품 수주 = 「품목 1 · 수량 10대」(등록 때 적은 작업일정표 수량 · 수주 단위 · z1191z89) + 「(품목 줄 합 2)」 · ＋ 품목 추가 칸 「대 ×」",
+          "품목 <b>1</b> · 수량 <b>10대</b>" in dh4 and "(품목 줄 합 2)" in dh4 and ">대 ×</span>" in dh4,
           (dh4.count("품목 <b>"), dh4.count("대 ×")))
 print("결과: 통과 %d / 실패 %d" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)

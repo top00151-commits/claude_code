@@ -836,7 +836,7 @@
                   <th class="px-x" style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
-                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">{% if _is_semi %}(1개){% else %}(1대){% endif %}</span>{% endif %}</th>{# z1191z4c: 제품 = 1개 단가 #}
+                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ qtyu(1, sounit(so)) }})</span>{% endif %}</th>{# z1191z4c: 제품 = 1개 단가 · z1191z89: 수주 단위(일정표와 같은 규칙) #}
                   {# v5H226z634 (대표 지시): 완제품 금액 칸(=호기 라인 금액) #}
                   {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:#fef9e6;">금액</th>{% endif %}
                   <th class="px-x" style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
@@ -1175,7 +1175,7 @@
                 <input type="text" name="label" placeholder="품명 (예: TOP PIN BLOCK)" style="flex:1;min-width:180px;" title="제품 품명">
                 <input type="text" name="spec" placeholder="규격 (선택)" style="width:150px;" title="규격" autocomplete="off">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:75px;text-align:center;" title="수량">
-                <span style="color:var(--mute);font-size:12px;">{{ so.board_unit or '개' }} ×</span>{# z1191z4d: 수주 단위 따라 #}
+                <span style="color:var(--mute);font-size:12px;">{{ sounit(so) }} ×</span>{# z1191z4d: 수주 단위 따라 · z1191z89: 비면 일정표와 같은 기본(제품 EA) #}
                 {% else %}
                 <input type="text" name="label" placeholder="시작 라벨 (비우면 자동: N호기)" style="width:200px;" title="예: '5호기' + 수량 10대 → 5호기~14호기 자동 생성">
                 <input type="number" name="qty" min="1" max="100" value="1" style="width:75px;text-align:center;" title="동일 단가로 N대 한 번에 추가">
@@ -1208,13 +1208,12 @@
                   {%- if so.items_n %} <span style="color:var(--mute);font-weight:500;">· 부품 {{ so.items_n }}종 {{ '{:,}'.format(_ppq974|int) }}개</span>{% endif %}</span>
                 {% elif _is_semi %}
                 {# z1191z4c: 제품 줄은 「대」로 세지 않는다 #}
-                {% set _su4d = so.board_unit or '개' %}{# z1191z4d: 수주 단위(없으면 개) #}
-                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ _qq }}{% if _su4d in ('개', '식', '대') %}{{ _su4d }}{% else %} {{ _su4d }}{% endif %}</b></span>
-                {% elif so.board_unit %}
-                {# z1191z4d: 수주에 단위가 적혀 있으면 그 단위(기타 등록·추가 발주 때 고른 값) — 배지는 제품/완제품으로 보일 수 있다 #}
-                <span>수량 <b>{{ _qq }}{% if so.board_unit in ('식', '대') %}{{ so.board_unit }}{% else %} {{ so.board_unit }}{% endif %}</b></span>
+                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ qtyu(soqty(so), sounit(so)) }}</b>{% if soqty_note(so) %} <span style="color:var(--mute);font-weight:500;" title="등록 때 적은 「작업일정표 수량」을 보입니다(일정표·수정 화면과 같은 수) — 품목 줄 수량을 더한 수는 괄호">{{ soqty_note(so) }}</span>{% endif %}</span>{# z1191z89: 단위 = 일정표와 같은 규칙(비면 제품 EA) #}
+                {% elif so.form_key == 'consumable' and not so.board_unit %}
+                <span>수량 <b>{{ qtyu((so.units|length) or 1, '건') }}</b></span>{# z1191z89: 소모품 = 건(일정표와 같게) #}
                 {% else %}
-                <span>수량 <b>{{ _qq }}대</b></span>
+                {# z1191z4d: 수주에 단위가 적혀 있으면 그 단위 · z1191z89: 비면 형태별 기본(완제품 대 · 기타 식) — 일정표와 같은 글자 #}
+                <span>수량 <b>{{ qtyu(soqty(so), sounit(so)) }}</b>{% if soqty_note(so) %} <span style="color:var(--mute);font-weight:500;">{{ soqty_note(so) }}</span>{% endif %}</span>
                 {% endif %}
                 <span style="margin-left:14px;">합계 <b>{% if can_sales_amt %}{{ money(so.total_amount or 0, _cur) }}{% else %}🔒{% endif %}</b></span>
                 {% if so.mismatch_qty or so.mismatch_sum %}
@@ -1320,7 +1319,7 @@
         </script>
         <div class="so-grand-total">
           <div>
-            <div class="label">총 수주번호 {{ project_orders|length }}건{% if _gtotal.q %} · 총 수량 {{ _gtotal.q }}대{% endif %}{% if _gtotal.sq %} · 제품 {{ _gtotal.sq }}개{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% endif %}{% if _gtotal.pm and _gtotal.pk %} · {% endif %}{% if _gtotal.pk %}{{ _gtotal.pk }}식{% endif %}{% if _gtotal.pmiss %} · <span style="color:#b91c1c;">⚠ 수량 미입력 {{ _gtotal.pmiss }}건</span>{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
+            <div class="label">총 수주번호 {{ project_orders|length }}건{% set _gq89 = soqty_join(project_orders, p.po_type, True) %}{% if _gq89 %} · 총 수량 {{ _gq89 }}{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% endif %}{% if _gtotal.pm and _gtotal.pk %} · {% endif %}{% if _gtotal.pk %}{{ _gtotal.pk }}식{% endif %}{% if _gtotal.pmiss %} · <span style="color:#b91c1c;">⚠ 수량 미입력 {{ _gtotal.pmiss }}건</span>{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
           </div>
           <div class="value">
             {% if can_sales_amt %}
@@ -2123,7 +2122,7 @@
           {% set _pds = project_display_status|default({'label': p.status|default('—'), 'tone':'muted', 'dist': {'진행중':0,'출하':0,'취소':0,'보류':0}, 'total': 0}) %}
           <dt>상태</dt><dd><span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}" style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>{% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}</dd>
           <dt>장비명{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{% if _hso %}{{ _hso.equip_name or p.equip_name or '—' }}{% else %}{{ p.equip_name|default('—') }}{% endif %}</dd>
-          {% if _hso %}<dt>수량 <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>{% if _hso.form_key == 'parts' %}{% set _hq16 = partsqty(_hso.unit_qty, _hso.po_type or p.po_type) %}<span{% if _hq16.missing %} style="color:#b91c1c;font-weight:700;"{% endif %}>{{ _hq16.label }}</span>{% elif _hso.form_key == 'assembly' %}{{ (_hso.units|length) if _hso.units else (_hso.unit_qty or 1) }}대{% else %}{{ ((_hso.units|map(attribute='qty')|select|map('int')|sum) if _hso.units else (_hso.unit_qty or 1)) }} {{ _hso.board_unit or '개' }}{% endif %}</dd>{% endif %}{# z1191z16 #}
+          {% if _hso %}<dt>수량 <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>{% if _hso.form_key == 'parts' %}{% set _hq16 = partsqty(_hso.unit_qty, _hso.po_type or p.po_type) %}<span{% if _hq16.missing %} style="color:#b91c1c;font-weight:700;"{% endif %}>{{ _hq16.label }}</span>{% elif _hso.form_key == 'assembly' %}{{ (_hso.units|length) if _hso.units else (_hso.unit_qty or 1) }}대{% elif _hso.form_key == 'consumable' and not _hso.board_unit %}{{ qtyu((_hso.units|length) or 1, '건') }}{% else %}{{ qtyu(soqty(_hso), sounit(_hso)) }}{% if soqty_note(_hso) %} <span style="color:var(--mute);font-size:11px;">{{ soqty_note(_hso) }}</span>{% endif %}{% endif %}</dd>{% endif %}{# z1191z16 · z1191z89: 단위 = 일정표와 같은 규칙 #}
           {# v5H201: 제안 단계 일정 #}
           <dt>제안서</dt><dd>{{ p.proposal_date or '—' }}</dd>
           <dt class="fullw">견적서</dt><dd class="fullw">{# z1191z61·z62·z63 (대표 11-18 「등록된 견적은 프로젝트 정보에서 볼수있게」 · 「견적빼기는 견적 등록하는 화면에는 무조건」): 견적일 · 견적서 줄(_v5_partials/quote_rows.html · 👁 보기 · 🗑 빼기) · ＋ 올리기 — 파일은 금액 볼 권한자만 #}
@@ -2201,19 +2200,23 @@
                  호기 단가가 서로 다르면 '(평균)'이라고 정직하게 밝힌다.
                  ⚠부품·소모품 패널은 '대' 단위가 아니므로 기존 폴백 유지. #}
             {% set _units_n = (all_units_sorted|length) if (all_units_sorted and not (_is_parts_panel0 or _is_co_panel0)) else 0 %}
+            {# z1191z89: 「× N대」 단위도 수주 단위로 — 수주 단위가 하나일 때만 곱셈 문장(섞였으면 숨김) · 대가 아니면 호기 줄 수가 아니라 수량 합 #}
+            {% set _u89 = sounit_one(project_orders) %}
+            {% set _qs89 = soqty_sum(project_orders) %}
+            {% if _units_n and _u89 and _u89 != '대' %}{% set _units_n = _qs89.n or _units_n %}{% endif %}
             {% set _pq = _units_n if _units_n else (p.unit_qty if p.unit_qty else 1) %}
             {% set _pp = (_displayed_amt / _pq) if (_units_n and _pq) else (p.unit_price if p.unit_price else (_displayed_amt / _pq if _pq else _displayed_amt)) %}
             {% set _amts = all_units_sorted|map(attribute='amount')|select|map('float')|list if _units_n else [] %}
-            {% set _uneven = _amts and (_amts|max) != (_amts|min) %}
+            {% set _uneven = (_qs89.uneven if (_u89 and _u89 != '대') else (_amts and (_amts|max) != (_amts|min))) if _units_n else False %}
             {# ⭐거짓 문장은 아예 쓰지 않는다 — 산수가 맞을 때만 이 줄을 보여준다.
                (부품·소모품처럼 '대' 단위가 아닌 프로젝트는 곱셈이 성립하지 않아 숨는다.
                 금액 자체는 바로 위 '수주액'에 이미 정확히 나와 있다.) #}
             {% set _sum_ok = _pq and _pp and (((_pp * _pq) - _displayed_amt)|abs) < 1 %}
             {# z1191z4c: 제품 줄이 섞이면 「× N대」가 거짓이 된다 → 숨김(금액 합계·수주별 목록은 위·아래 그대로) #}
             {% set _has_semi0 = ((p.shipment_form or '')|upper == 'SEMI') or ((all_units_sorted or [])|selectattr('form_key', 'equalto', 'semi')|list|length > 0) %}
-            {% if _displayed_amt and _sum_ok and not _has_semi0 %}
+            {% if _displayed_amt and _sum_ok and not _has_semi0 and _u89 %}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:4px;line-height:1.5;">
-              단가 <b style="color:var(--ink);">{{ money(_pp, p.currency or 'KRW') }}</b>{% if _uneven %}<span style="font-size:10px;" title="호기마다 단가가 달라 평균으로 보여줍니다 — 호기별 금액은 아래 목록 참조">(평균)</span>{% endif %} × <b style="color:var(--ink);" {% if _units_n %}title="실제 등록된 호기 수 (수주 {{ project_orders|length }}건 합계)"{% endif %}>{{ _pq }}대</b> = <b style="color:var(--knk-red);">{{ money(_displayed_amt, p.currency or 'KRW') }}</b>
+              단가 <b style="color:var(--ink);">{{ money(_pp, p.currency or 'KRW') }}</b>{% if _uneven %}<span style="font-size:10px;" title="호기마다 단가가 달라 평균으로 보여줍니다 — 호기별 금액은 아래 목록 참조">(평균)</span>{% endif %} × <b style="color:var(--ink);" {% if _units_n %}title="실제 등록된 호기 수 (수주 {{ project_orders|length }}건 합계)"{% endif %}>{{ qtyu(_pq, _u89) }}</b> = <b style="color:var(--knk-red);">{{ money(_displayed_amt, p.currency or 'KRW') }}</b>
             </div>
             {% endif %}
             {% endif %}{# /_is_mixed #}

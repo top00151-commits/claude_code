@@ -1103,8 +1103,10 @@ function toggleRefSos(tr, chip){
   var h='<div class="ref-wrap"><div class="ref-title">📎 같은 관리번호의 추가 수주 (참고용 — 일정 막대는 최초 수주 기준)</div>'
     +'<table class="ref-tab"><thead><tr><th>수주번호</th><th>종류</th><th class="num">금액</th></tr></thead><tbody>';
   refs.forEach(function(r){
-    h+='<tr><td>'+_uxEsc(r.so_no||'—')+'</td><td>'+_refTypeLabel(r.type)+'</td>'
-      +'<td class="num">'+(r.amount==null?'🔒':('₩'+Number(r.amount).toLocaleString()))+'</td></tr>';
+    // z1191z89: 금액 = 그 수주 통화 기호(전: ₩ 고정 → USD 수주도 ₩) · 종류 = 서버가 주는 so_type
+    var _rc=(r.currency||'KRW').toUpperCase(), _rs=({KRW:'₩',USD:'$',VND:'₫',JPY:'¥',CNY:'元',EUR:'€'})[_rc]||(_rc+' ');
+    h+='<tr><td>'+_uxEsc(r.so_no||'—')+'</td><td>'+_refTypeLabel(r.so_type||r.type)+'</td>'
+      +'<td class="num">'+(r.amount==null?'🔒':(_rs+Number(r.amount).toLocaleString(undefined,{maximumFractionDigits:(_rc==='KRW'||_rc==='VND'||_rc==='JPY')?0:2})))+'</td></tr>';
   });
   h+='</tbody></table></div>';
   td.innerHTML=h; sub.appendChild(td);

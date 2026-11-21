@@ -240,7 +240,7 @@ select.prq-in { appearance:auto; }
           <div class="prq-lbl">함께 묶을 관리번호 <span style="font-weight:400;color:var(--mute,#64748b);">— 같은 고객사 · 한 장으로 발행 · 통보 한 번 (안 묶어도 됩니다)</span></div>
           <div class="z49-box">
             {% if z48.bitems|length > 1 %}
-            <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip" data-mgmt="{{ it.mgmt }}" data-equip="{{ it.equip }}" data-qty="{{ it.qty }}" data-hogi="{{ it.hogi|join(', ') }}"{% if loop.first %} data-lead="1" title="대표 관리번호 — 뺄 수 없습니다(요청서 전체를 취소하려면 「🚫 취소 발행」)"{% endif %}>{{ it.mgmt }}{% if not loop.first %}<button type="button" class="z51-x" onclick="z51Remove(this)" title="이 관리번호를 묶음에서 뺍니다(수정발행할 때 적용)">×</button><input type="checkbox" name="remove_pids" value="{{ it.pid }}" hidden>{% endif %}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — × 로 뺄 수 있고(대표 관리번호는 못 뺌), 아래에서 더 붙일 수 있습니다.</span></div>
+            <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip" data-qtytxt="{{ it.qty_txt|default('') }}" data-mgmt="{{ it.mgmt }}" data-equip="{{ it.equip }}" data-qty="{{ it.qty }}" data-hogi="{{ it.hogi|join(', ') }}"{% if loop.first %} data-lead="1" title="대표 관리번호 — 뺄 수 없습니다(요청서 전체를 취소하려면 「🚫 취소 발행」)"{% endif %}>{{ it.mgmt }}{% if not loop.first %}<button type="button" class="z51-x" onclick="z51Remove(this)" title="이 관리번호를 묶음에서 뺍니다(수정발행할 때 적용)">×</button><input type="checkbox" name="remove_pids" value="{{ it.pid }}" hidden>{% endif %}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — × 로 뺄 수 있고(대표 관리번호는 못 뺌), 아래에서 더 붙일 수 있습니다.</span></div>
             {% endif %}
             {% if not create_mode and pr %}
             {# z1191z58 (대표 11-18): 이미 보낸 요청서에 관리번호를 더 붙이면 수정발행이 아니라 「묶어서 다시 발행」(새 요청서 · 앞 요청서는 묶음으로 바뀜) #}
@@ -255,7 +255,7 @@ select.prq-in { appearance:auto; }
             <input class="prq-in" type="text" placeholder="🔍 관리번호 · 모델 · 장비명으로 찾기" oninput="z49Filter(this)" autocomplete="off">
             <div class="z49-list">
               {% for d in z48.cands %}
-              <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-npr="{{ d.n_pr or 0 }}" data-pid="{{ d.id }}" data-mgmt="{{ d.mgmt_code }}" data-equip="{{ d.equip_name or d.name or '' }}" data-qty="{{ d.unit_qty or 1 }}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
+              <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-qtytxt="{{ d.qty_txt|default('') }}" data-npr="{{ d.n_pr or 0 }}" data-pid="{{ d.id }}" data-mgmt="{{ d.mgmt_code }}" data-equip="{{ d.equip_name or d.name or '' }}" data-qty="{{ d.unit_qty or 1 }}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
                 <input type="checkbox" name="bundle_pids" value="{{ d.id }}"> <b>{{ d.mgmt_code }}</b> <span>{{ d.equip_name or d.name or '' }}</span>{% if d.model_name %}<span class="z49-d">{{ d.model_name }}</span>{% endif %}<span class="z49-d">발주 {{ (d.order_date or '')[:10] or '—' }}{% if d.n_pr %} · 요청서 있음{% endif %}</span>{% if d.wait %}<span class="z49-d" style="color:#b45309;font-weight:700;">⏳ 묶어서 발행 기다림</span>{% endif %}
                 {% if d.orders|length > 1 %}
                 <select name="m_order_{{ d.id }}" title="이 관리번호의 어느 수주인지 고릅니다(기본 = 가장 최근)">{% for o in d.orders|reverse %}<option value="{{ o.id }}" data-hogi="{{ o.hogi }}">{{ o.order_no }}{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}</option>{% endfor %}</select>
@@ -374,7 +374,7 @@ select.prq-in { appearance:auto; }
           <script type="application/json" id="z58Pre">{{ (z48.pre58 or {})|tojson }}</script>
           <script type="application/json" id="z58LeadLive">{{ z48.lead_live or 0 }}</script>
           {% endif %}
-          <div class="prq-lbl">고객사 요청사항 <button type="button" class="z50-btn" onclick="z50Number(this)" title="품목(이 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄을 넣습니다">🔢 품목 번호 넣기</button></div>
+          <div class="prq-lbl">고객사 요청사항 <button type="button" class="z50-btn" onclick="z50Number(this)" data-qtytxt="{{ z48.lead_qtytxt|default('') }}" title="품목(이 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄을 넣습니다">🔢 품목 번호 넣기</button></div>
           <textarea class="prq-in" name="cust_req" rows="6" placeholder="예) 사양·수량·반출일·특이사항 등 — 「🔢 품목 번호 넣기」를 누르면 품목마다 머리줄이 들어갑니다"></textarea>
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="3"></textarea>
@@ -605,7 +605,7 @@ select.prq-in { appearance:auto; }
           </div>
           <div class="prq-lbl">자료 경로 (제품자료 서버 경로 — 통보에 포함)</div>
           <input class="prq-in" type="text" name="server_path" value="{{ p.server_path or '' }}">
-          <div class="prq-lbl">고객사 요청사항 <button type="button" class="z50-btn" onclick="z50Number(this)" title="품목(이 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄을 덧붙입니다">🔢 품목 번호 넣기</button></div>
+          <div class="prq-lbl">고객사 요청사항 <button type="button" class="z50-btn" onclick="z50Number(this)" data-qtytxt="{{ z48.lead_qtytxt|default('') }}" title="품목(이 관리번호 + 묶은 관리번호)마다 「1. 품명 : 호기」 머리줄을 덧붙입니다">🔢 품목 번호 넣기</button></div>
           <textarea class="prq-in" name="cust_req" rows="6">{{ pr.cust_req or '' }}</textarea>
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="3">{{ pr.note or '' }}</textarea>
@@ -821,17 +821,18 @@ select.prq-in { appearance:auto; }
       var f=btn.closest('form'); if(!f) return; var ta=f.querySelector('textarea[name=cust_req]'); if(!ta) return;
       function v(n){ var e=f.querySelector('[name='+n+']'); return e?String(e.value||'').trim():''; }
       var lh=[]; f.querySelectorAll('input[name=order_ids]').forEach(function(e){ if(e.type!=='checkbox'||e.checked){ var h=e.getAttribute('data-hogi')||''; if(h) lh.push(h); } });
-      var items=[{mgmt:'', equip:v('equip_name')||v('name'), qty:v('unit_qty'), hogi:lh.join(', ')}], rest=[];
+      var items=[{mgmt:'', equip:v('equip_name')||v('name'), qty:v('unit_qty'), qtytxt:(btn.getAttribute('data-qtytxt')||''), hogi:lh.join(', ')}], rest=[];
       f.querySelectorAll('.z49-chip[data-mgmt]:not([data-lead]):not(.z51-off)').forEach(function(c){
-        rest.push({mgmt:c.getAttribute('data-mgmt')||'', equip:c.getAttribute('data-equip')||'', qty:c.getAttribute('data-qty')||'', hogi:c.getAttribute('data-hogi')||''}); });
+        rest.push({mgmt:c.getAttribute('data-mgmt')||'', equip:c.getAttribute('data-equip')||'', qty:c.getAttribute('data-qty')||'', qtytxt:c.getAttribute('data-qtytxt')||'', hogi:c.getAttribute('data-hogi')||''}); });
       f.querySelectorAll('.z49-item input[name=bundle_pids]:checked').forEach(function(cb){
         var r=cb.closest('.z49-item'); if(!r) return; var h='';
         var s=r.querySelector('select[name^=m_order_]'); if(s && s.selectedIndex>=0){ h=s.options[s.selectedIndex].getAttribute('data-hogi')||''; }
         else { var hi=r.querySelector('input[type=hidden][name^=m_order_]'); if(hi) h=hi.getAttribute('data-hogi')||''; }
-        rest.push({mgmt:r.getAttribute('data-mgmt')||'', equip:r.getAttribute('data-equip')||'', qty:r.getAttribute('data-qty')||'', hogi:h}); });
+        rest.push({mgmt:r.getAttribute('data-mgmt')||'', equip:r.getAttribute('data-equip')||'', qty:r.getAttribute('data-qty')||'', qtytxt:r.getAttribute('data-qtytxt')||'', hogi:h}); });
       rest.sort(function(a,b){ return a.mgmt<b.mgmt?-1:(a.mgmt>b.mgmt?1:0); });   // 품목 표와 같은 순서(대표 먼저 · 그다음 관리번호 순)
       items=items.concat(rest);
-      var text=items.map(function(it,i){ return (i+1)+'. '+(it.equip||'품명')+' : '+(it.hogi||((it.qty||'1')+'대'))+'\n-. '; }).join('\n\n');
+      // z1191z89: 호기가 없으면 수주 수량·단위(기타 1식 · 제품 10 EA) — 전: 늘 「N대」
+      var text=items.map(function(it,i){ return (i+1)+'. '+(it.equip||'품명')+' : '+(it.hogi||it.qtytxt||((it.qty||'1')+'대'))+'\n-. '; }).join('\n\n');
       var base=String(ta.value||'').replace(/\s+$/,'');
       // 방금 넣은 번호 줄을 손대지 않았으면(묶음을 고친 뒤 다시 누름) 묻지 않고 새로 바꿔 넣음 — 같은 번호가 두 번 붙지 않게
       if(base && ta._z50 && base===ta._z50.replace(/\s+$/,'')) base='';

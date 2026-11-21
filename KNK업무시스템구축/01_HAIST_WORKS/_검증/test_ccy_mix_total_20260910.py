@@ -45,7 +45,10 @@ MAIN_PY = os.path.join(ROOT, "app", "main.py")
 WANT = ["_fmt_qty", "_fmt_price", "_CCY_SYMBOL", "_fmt_money", "_ccy_sym",
         "_fx_load_rates", "_fx_pick", "_fx_rate_for", "_fx_to_krw",
         "_ccy_get", "_ccy_breakdown",
-        "_recalc_project_amount", "_apply_project_amount"]
+        "_recalc_project_amount", "_apply_project_amount",
+        # z1191z89: 합계 블록의 「총 수량」 = 단위별 합(soqty_join) — 그 함수와 딸린 것
+        "_QTY_UNIT_BY_FORM_Z4E", "_parts_qty_unit_z15", "_parts_qty_z15", "_board_qty_unit", "_FORM_LABEL_BY_KEY_Z89",
+        "_so_qty_unit_z89", "_qty_with_unit_z89", "_so_qty_z89", "_so_qty_text_z89", "_so_qty_join_z89", "_so_qty_join_orders_z89"]
 _tree = ast.parse(io.open(MAIN_PY, encoding="utf-8").read())
 _picked, _found = [], set()
 for _node in _tree.body:
@@ -185,6 +188,7 @@ for _n in ("qtyfmt", "pricefmt", "money", "ccysym"):
     env.filters[_n] = getattr(M, {"qtyfmt": "_fmt_qty", "pricefmt": "_fmt_price",
                                   "money": "_fmt_money", "ccysym": "_ccy_sym"}[_n])
     env.globals[_n] = env.filters[_n]
+env.globals.update({"soqty_join": M._so_qty_join_orders_z89, "partsqty": M._parts_qty_z15})   # z1191z89
 env.globals.update({"url_for": lambda *a, **k: "#",
                     "vname": lambda *a, **k: "", "vname_full": lambda *a, **k: ""})
 CCY_NS = env.get_template("_v5_partials/knk_ccy_total.html").module

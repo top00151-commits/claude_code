@@ -473,6 +473,225 @@ def _board_qty_unit(r) -> str:
 
 
 tpl.env.filters["qtyunit"] = _board_qty_unit
+
+
+# z1191z89 (안지연 프로 요청 · 대표 11-20 「단위, 원화등 … 전체적으로 맞는지 다시 검증해」 → 11-21 「다음 진행할것 진행해」):
+#   수주 하나의 수량 단위 = 작업일정표 수량 칸과 **같은 규칙**(_board_qty_unit) — 적어 둔 단위(board_unit) → 없으면 형태별 기본 하나
+#   (완제품 대 · 제품 EA · 기타 식 · 소모품 건 · 상품 PO유형). 전: 프로젝트 상세(수주 카드·프로젝트 정보·오른쪽 「단가 × N대」)는
+#   빈 단위를 「개」·「대」로 따로 붙여 일정표(식·EA)와 글자가 달랐다(001E2611 E-260624-1: 일정표 1 식 · 정보 1 개 · 금액 × N대).
+_FORM_LABEL_BY_KEY_Z89 = {"assembly": "완제품", "semi": "제품", "etc": "기타", "consumable": "소모품", "parts": "상품"}
+
+
+def _so_qty_unit_z89(so) -> str:
+    so = so or {}
+    _g = so.get if hasattr(so, "get") else (lambda k, d=None: getattr(so, k, d))
+    _fk = str(_g("form_key") or "").strip()
+    # 추가 검토(11-21): 소모품 수주도 고른 단위(식·EA·SET)가 먼저 — 일정표 수주 줄과 같다(「건」은 비었을 때만)
+    return _board_qty_unit({"board_unit": _g("board_unit"),
+                            "qty_form": (_FORM_LABEL_BY_KEY_Z89.get(_fk) or str(_g("form_label") or "").strip()),
+                            "po_type": _g("po_type")})
+
+
+def _so_qty_z89(so) -> int:
+    """수주 하나의 수량 — 등록 때 적은 「작업일정표 수량」(board_qty)이 있으면 그것(일정표·수정 화면과 같은 수) ·
+    없으면 호기·품목 줄 수량 합(v5H226z627) · 그것도 없으면 unit_qty."""
+    so = so or {}
+    _g = so.get if hasattr(so, "get") else (lambda k, d=None: getattr(so, k, d))
+    try:
+        _b = int(float(_g("board_qty") or 0))
+    except (TypeError, ValueError):
+        _b = 0
+    if _b > 0:
+        return _b
+    _s = 0
+    for _u in (_g("units") or []):
+        try:
+            _s += int(float((_u.get("qty") if hasattr(_u, "get") else getattr(_u, "qty", 0)) or 0))
+        except (TypeError, ValueError):
+            pass
+    if _s:
+        return _s
+    try:
+        return int(float(_g("unit_qty") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _so_qty_lines_z89(so) -> int:
+    """호기·품목 줄 수량 합(취소 줄 포함 · 예전 카드 숫자 _qq 와 같은 셈)."""
+    so = so or {}
+    _g = so.get if hasattr(so, "get") else (lambda k, d=None: getattr(so, k, d))
+    _s = 0
+    for _u in (_g("units") or []):
+        try:
+            _s += int(float((_u.get("qty") if hasattr(_u, "get") else getattr(_u, "qty", 0)) or 0))
+        except (TypeError, ValueError):
+            pass
+    return _s
+
+
+def _so_qty_note_z89(so) -> str:
+    """등록 때 적은 수량(board_qty)과 줄 합이 다르면 「(품목 줄 합 N)」 — 숫자를 숨기지 않는다."""
+    so = so or {}
+    _g = so.get if hasattr(so, "get") else (lambda k, d=None: getattr(so, k, d))
+    try:
+        _b = int(float(_g("board_qty") or 0))
+    except (TypeError, ValueError):
+        _b = 0
+    _l = _so_qty_lines_z89(so)
+    return ("(품목 줄 합 {:,})".format(_l)) if (_b > 0 and _l and _l != _b) else ""
+
+
+def _so_qty_sum_z89(orders) -> dict:
+    """프로젝트 (취소 아닌) 수주 수량 합 + 수주별 단가(금액 ÷ 수량)가 서로 다른가 — 오른쪽 곱셈 줄용."""
+    _n, _ps = 0, set()
+    for _o in (orders or []):
+        _g = _o.get if hasattr(_o, "get") else (lambda k, d=None, _o=_o: getattr(_o, k, d))
+        if str(_g("status") or "").upper() == "CANCELLED":
+            continue
+        _q = _so_qty_z89(_o)
+        _n += _q
+        try:
+            _a = float(_g("total_amount") or 0)
+        except (TypeError, ValueError):
+            _a = 0.0
+        if _a and _q:
+            _ps.add(round(_a / _q, 2))
+    return {"n": _n, "uneven": len(_ps) > 1}
+
+
+def _qty_with_unit_z89(n, unit) -> str:
+    """숫자 + 단위 — 한글 단위(대·개·식·건·대분)는 붙이고 그 밖(EA·SET)은 띄운다(수주 카드 원래 모양)."""
+    _u = str(unit or "").strip()
+    try:
+        _n = "{:,}".format(int(float(n or 0)))
+    except (TypeError, ValueError):
+        _n = str(n or "")
+    return ("%s%s" % (_n, _u)) if _u in ("대", "개", "식", "건", "대분") else ("%s %s" % (_n, _u)).strip()
+
+
+def _so_unit_one_z89(orders) -> str:
+    """프로젝트의 (취소 아닌) 수주 단위가 하나면 그 단위 · 섞였으면 빈칸(= 곱셈 문장을 쓰지 않는다) · 수주가 없으면 대(예전 그대로)."""
+    _us = set()
+    for _o in (orders or []):
+        _st = (_o.get("status") if hasattr(_o, "get") else getattr(_o, "status", "")) or ""
+        if str(_st).upper() == "CANCELLED":
+            continue
+        _us.add(_so_qty_unit_z89(_o))
+    if not _us:
+        return "대"
+    return _us.pop() if len(_us) == 1 else ""
+
+
+def _unit_price_uneven_z89(rows) -> bool:
+    """줄마다 (금액 ÷ 수량) 이 다른가 — 오른쪽 「단가 (평균)」 표시용."""
+    _ps = set()
+    for _r in (rows or []):
+        _g = _r.get if hasattr(_r, "get") else (lambda k, d=None, _r=_r: getattr(_r, k, d))
+        try:
+            _q = max(1, int(float(_g("qty") or 1)))
+            _a = float(_g("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if _a:
+            _ps.add(round(_a / _q, 2))
+    return len(_ps) > 1
+
+
+tpl.env.globals["sounit"] = _so_qty_unit_z89
+tpl.env.globals["qtyu"] = _qty_with_unit_z89
+tpl.env.globals["sounit_one"] = _so_unit_one_z89
+tpl.env.globals["unitprice_uneven"] = _unit_price_uneven_z89
+tpl.env.globals["soqty"] = _so_qty_z89
+tpl.env.globals["soqty_sum"] = _so_qty_sum_z89
+tpl.env.globals["soqty_note"] = _so_qty_note_z89
+
+
+def _so_qty_text_z89(so, proj_po="") -> dict:
+    """수주 하나의 수량 글자 — 수주 카드와 같은 규칙. {"text","unit","qty","fk"}
+    상품 = 완제품 N대분 · N식(PO유형) · 단위 안 고른 소모품 = 줄 수 N건 · 그 밖 = 표시수량(없으면 줄 수량 합) + 수주 단위."""
+    so = so or {}
+    _g = so.get if hasattr(so, "get") else (lambda k, d=None: getattr(so, k, d))
+    _fk = str(_g("form_key") or "").strip()
+    if _fk == "parts":
+        _pq = _parts_qty_z15(_g("unit_qty"), (str(_g("po_type") or "").strip() or str(proj_po or "").strip()))
+        return {"text": _pq["label"], "unit": _pq["unit"], "qty": _pq["n"], "fk": _fk}
+    if _fk == "consumable" and not str(_g("board_unit") or "").strip():
+        _n = max(1, len(_g("units") or []))
+        return {"text": "%d건" % _n, "unit": "건", "qty": _n, "fk": _fk}
+    _u, _n = _so_qty_unit_z89(so), _so_qty_z89(so)
+    return {"text": _qty_with_unit_z89(_n, _u), "unit": _u, "qty": _n, "fk": _fk}
+
+
+def _so_qty_join_z89(entries, skip_parts=False) -> str:
+    """수량 글자 여러 개 → 단위별로 더해 「3대 · 10 SET」 (상품은 글자 그대로 뒤에)."""
+    _sum, _order, _parts = {}, [], []
+    for _e in (entries or []):
+        if not _e:
+            continue
+        if _e.get("fk") == "parts":
+            if not skip_parts:
+                _parts.append(_e.get("text") or "")
+            continue
+        _u = _e.get("unit") or ""
+        if _u not in _sum:
+            _sum[_u] = 0
+            _order.append(_u)
+        _sum[_u] += int(_e.get("qty") or 0)
+    return " · ".join([_qty_with_unit_z89(_sum[_u], _u) for _u in _order] + [x for x in _parts if x])
+
+
+def _so_qty_join_orders_z89(orders, proj_po="", skip_parts=False) -> str:
+    """프로젝트 수주 목록(취소 제외) → 단위별 합 글자 — 프로젝트 상세 「총 수량」."""
+    _es = []
+    for _o in (orders or []):
+        _st = (_o.get("status") if hasattr(_o, "get") else getattr(_o, "status", "")) or ""
+        if str(_st).upper() == "CANCELLED":
+            continue
+        _es.append(_so_qty_text_z89(_o, proj_po))
+    return _so_qty_join_z89(_es, skip_parts=skip_parts)
+
+
+def _so_qty_text_map_z89(c, oids) -> dict:
+    """수주 번호들 → {번호: 수량 글자 dict} — 수주 목록·세금계산서 같은 날 창·제작요청서처럼 수주 카드 자료가 없는 화면용.
+    형태 = 수주 카드와 같은 함수(project_workflow.so_form_label_key · 호기 = 줄 이름이 숫자로 시작)."""
+    import re as _re89
+    _ids = []
+    for _x in (oids or []):
+        try:
+            _ids.append(int(_x))
+        except (TypeError, ValueError):
+            pass
+    if not _ids:
+        return {}
+    _oc = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    _want = [x for x in ("so_form", "so_type", "shipment_form", "board_qty", "board_unit", "po_type", "unit_qty", "status") if x in _oc]
+    out = {}
+    for _i in range(0, len(_ids), 400):
+        _part = _ids[_i:_i + 400]
+        _q = ",".join("?" * len(_part))
+        _units = {}
+        for r in c.execute("SELECT order_id, COALESCE(unit_label,''), qty FROM order_items WHERE order_id IN (%s)" % _q, _part).fetchall():
+            _units.setdefault(r[0], []).append({"unit_label": r[1], "qty": r[2]})
+        _sel = ", ".join("o." + x for x in _want)
+        for r in c.execute("SELECT o.id%s, COALESCE(p.project_type,'NEW_EQUIP'), COALESCE(p.po_type,'') "
+                           "FROM orders o LEFT JOIN projects p ON p.id=o.project_id WHERE o.id IN (%s)" % ((", " + _sel) if _sel else "", _q), _part).fetchall():
+            _d = {"id": r[0]}
+            for _k, _v in zip(_want, list(r)[1:1 + len(_want)]):
+                _d[_k] = _v
+            _ppt, _ppo = r[1 + len(_want)], r[2 + len(_want)]
+            _us = _units.get(r[0], [])
+            _hn = sum(1 for u in _us if _re89.match(r"^\d+", str(u.get("unit_label") or "")))
+            _lb, _fk = _pwf.so_form_label_key(so_form=_d.get("so_form"), so_type=_d.get("so_type"),
+                                               shipment_form=_d.get("shipment_form"), hogi_n=_hn,
+                                               proj_ptype=str(_ppt or "NEW_EQUIP").upper())
+            _d.update(units=_us, form_key=_fk, form_label=_lb)
+            out[r[0]] = _so_qty_text_z89(_d, _ppo)
+    return out
+
+
+tpl.env.globals["soqty_text"] = _so_qty_text_z89
+tpl.env.globals["soqty_join"] = _so_qty_join_orders_z89
 tpl.env.globals["partsqty"] = _parts_qty_z15   # z1191z15: 상품 수량 표시(개조 N식 · 그 밖 N대분)
 tpl.env.filters["pricefmt"] = _fmt_price
 tpl.env.filters["money"] = _fmt_money
@@ -11796,7 +12015,12 @@ def _z49_item(c, proj, stored_csv="", issued_at=""):
     """품목 표 한 줄(관리번호 하나) — 가리키는 수주·호기·모델·품명·수량·일정·각인."""
     orders = _z48_project_orders(c, proj["id"])
     sel = _z48_pick_orders(orders, stored_csv, issued_at)
-    return {"pid": proj["id"], "mgmt": proj.get("mgmt_code") or "", "mg": _z48_mg(proj.get("mgmt_code")),
+    try:   # z1191z89: 호기가 없을 때 「1. 품명 : 수량」 글자 — 고른 수주의 수량·단위(전: 늘 N대)
+        _qt89 = _so_qty_join_z89(list(_so_qty_text_map_z89(c, [o["id"] for o in sel]).values()))
+    except Exception as _e89:
+        print(f"[z1191z89] 품목 수량 글자 실패: {_e89}")
+        _qt89 = ""
+    return {"pid": proj["id"], "mgmt": proj.get("mgmt_code") or "", "mg": _z48_mg(proj.get("mgmt_code")), "qty_txt": _qt89,
             "so_nos": [o["order_no"] for o in sel], "hogi": [o["hogi"] for o in sel if o.get("hogi")],   # z1191z50: 호기만(z48e 규칙)
             "model": proj.get("model_name") or "", "equip": proj.get("equip_name") or "", "qty": proj.get("unit_qty") or 1,
             "due": str(proj.get("due_date") or "")[:10], "dday": _z48_dday(proj.get("due_date")),
@@ -11833,6 +12057,10 @@ def _z49_candidates(c, p, exclude_pids, limit=60):
         if not orders:
             continue
         d["orders"] = orders
+        try:   # z1191z89: 「품목 번호 넣기」 수량 글자(살아 있는 수주 전부)
+            d["qty_txt"] = _so_qty_join_z89(list(_so_qty_text_map_z89(c, [o["id"] for o in orders]).values()))
+        except Exception:
+            d["qty_txt"] = ""
         d["same_day"] = bool(pod) and str(d.get("order_date") or "")[:10] == pod
         d["wait"] = d["id"] in _z58_waits   # z1191z58: 등록 때 「묶어서 발행(기다림)」 고른 관리번호
         d["suggest"] = bool((d["same_day"] or d["wait"]) and not d["n_pr"])
@@ -34516,6 +34744,11 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         # z1191z48 (대표 2026-11-17): 종이 양식 화면에 쓸 값 — 가리키는 수주(수주번호·호기) · 구분 · 남은 날 · 수정 내용
         _z48 = _z48_view_ctx(c, p, pr)
         _z48.update(_z49_view_ctx(c, p, pr, _z49_cur))
+        try:   # z1191z89: 이 관리번호(대표 줄)의 수량 글자 — 고른 수주(없으면 살아 있는 수주 전부)
+            _z48["lead_qtytxt"] = _so_qty_join_z89(list(_so_qty_text_map_z89(c, (_z48.get("sel_ids") or [o["id"] for o in (_z48.get("orders") or [])])).values()))
+        except Exception as _e89:
+            print(f"[z1191z89] 대표 줄 수량 글자 실패: {_e89}")
+            _z48["lead_qtytxt"] = ""
         try:   # z1191z51: 취소 띠 · 마지막 수정(사유·바뀐 것) · 바뀐 줄 · 수정 이력
             _z48["z51"] = _z51_view_ctx(c, pr)
         except Exception as _e51:
@@ -39417,8 +39650,17 @@ async def tax_invoice_same_day(request: Request, tier: int = 1, date: str = "",
         return JSONResponse({"ok": False, "error": res.get("error") or "fail"}, 400)
     from urllib.parse import quote as _q
     items = []
+    _fk89 = {}
+    try:   # z1191z89: 그 수주 형태 — 완제품만 줄 수를 「대」로(호기) · 상품 부품 50줄이 「50대」로 보이던 것
+        with db_session() as _c89:
+            _fk89 = {k: v.get("fk") for k, v in _so_qty_text_map_z89(_c89, [it.get("order_id") for it in res.get("items", []) if it.get("kind") != "consumable" and it.get("order_id")]).items()}
+    except Exception as _e89:
+        log.warning("z1191z89 같은 날 창 형태 읽기 실패: %s", _e89)
     for it in res.get("items", []):
         d = dict(it)
+        if it.get("kind") != "consumable":
+            _n89 = int(it.get("units") or 0)
+            d["units_text"] = ("%d대" % _n89) if _fk89.get(it.get("order_id")) == "assembly" else ("품목 %d줄" % _n89)
         d["amount_text"] = _fmt_money(it["amount"], it["currency"])   # 통화 표기는 한 곳(z751)
         if it["kind"] == "consumable":
             d["url"] = f"/consumables/{it['ref_id']}"
@@ -45236,15 +45478,10 @@ async def projects_edit_form(request: Request, pid: int):
                                                 proj_ptype=(p.get("project_type") or "NEW_EQUIP"))
             _keys7.add(_key7)
             _uq7 = int(_o.get("unit_qty") or 1)
-            if _key7 == "assembly":
-                _qd7 = "%d대" % (sum(int(x.get("qty") or 0) for x in _us) if _us else _uq7)
-            elif _key7 == "parts":
+            if _key7 == "parts":
                 _qd7 = _parts_qty_z15(_o.get("unit_qty"), (str(_o.get("po_type") or "").strip() or str(p.get("po_type") or "").strip()))["short"]   # z1191z15
-            elif _key7 == "consumable":
-                _qd7 = "%d건" % max(1, len(_us))
-            else:
-                _bq7 = int(_o.get("board_qty") or 0) if "board_qty" in _o else 0
-                _qd7 = "%d %s" % ((_bq7 or sum(int(x.get("qty") or 0) for x in _us) or _uq7), (_o.get("board_unit") or ("식" if _key7 == "etc" else "EA")))
+            else:   # z1191z89: 완제품·제품·기타·소모품 = 수주 카드와 같은 글자(표시수량 먼저 · 수주 단위)
+                _qd7 = _so_qty_text_z89(dict(_o, units=_us, form_key=_key7, form_label=_lbl7), p.get("po_type"))["text"]
             so_rows.append({
                 "id": _o.get("id"), "order_no": _o.get("order_no") or "", "form": _lbl7, "key": _key7,
                 "po_type": (str(_o.get("po_type") or "").strip() or ((str(p.get("po_type") or "").strip() or "신규") + " (기본값)")),
@@ -49019,6 +49256,17 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
                 params
             ).fetchall()
             items = [dict(r) for r in rows]
+    # z1191z89: 수량 칸 = 수주 카드와 같은 글자(전: 모든 줄 「N대」 · 기타 1식·제품 10 SET 도 대)
+    try:
+        _oids89 = [it.get("id") for it in items if it.get("id") and not it.get("is_co")]
+        if _oids89:
+            with db_session() as _c89:
+                _qm89 = _so_qty_text_map_z89(_c89, _oids89)
+            for it in items:
+                if not it.get("is_co"):
+                    it["qty_txt"] = (_qm89.get(it.get("id")) or {}).get("text") or ""
+    except Exception as _e89:
+        log.warning("z1191z89 수주 목록 수량 글자 실패: %s", _e89)
     # v5H161 Phase 2: KPI 산출 (선택 탭 한정)
     from datetime import date as _d, timedelta as _td
     _today = _d.today()

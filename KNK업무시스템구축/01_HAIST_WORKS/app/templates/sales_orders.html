@@ -352,7 +352,7 @@ body {
             {% else %}—{% endif %}
           </td>
           <td><b>{{ (cust_alias|default({},true)).get(o.customer_id) or o.customer_name|default('—') }}</b></td>
-          <td class="center"><b>{{ o.unit_qty|default(1) }}</b>대</td>
+          <td class="center">{% if o.is_co %}—{% elif o.qty_txt %}<b>{{ o.qty_txt }}</b>{% else %}<b>{{ o.unit_qty or 1 }}</b>대{% endif %}</td>{# z1191z89: 수주 카드와 같은 수량·단위 · 소모품 탭은 수량 칸 없음(전: None대) #}
           <td>{{ o.ship_to|default('—') }}</td>
           <td class="num"><b>{% if o.total_amount %}{{ money(o.total_amount, o.currency or 'KRW') }}{% else %}—{% endif %}</b></td>
           <td class="center">{% with status=o.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}</td>

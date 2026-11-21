@@ -93,11 +93,11 @@ def main():
     check("제품 수주가 편집 카드 · 완제품 수주는 참고 카드", 0 < i_b < i_a, (i_b, i_a))
     cb = h[i_b:i_a]
     check("제품 수주 카드 단추 = 「＋ 품목 추가」(「＋ 호기 추가」 없음)", ">＋ 품목 추가</button>" in cb and "＋ 호기 추가" not in cb)
-    check("추가 칸 = 품명 · 규격 · 수량(개) · 단가(1개당)", 'placeholder="품명 (예: TOP PIN BLOCK)"' in cb and 'name="spec"' in cb
-          and ">개 ×<" in cb and 'placeholder="단가 (1개당)"' in cb)
+    check("추가 칸 = 품명 · 규격 · 수량(EA) · 단가(1개당)", 'placeholder="품명 (예: TOP PIN BLOCK)"' in cb and 'name="spec"' in cb
+          and ">EA ×<" in cb and 'placeholder="단가 (1개당)"' in cb)   # z1191z89: 빈 단위 제품 = EA(일정표와 같은 규칙)
     check("제품 표 = 수량 칸 있음", '<th class="num" style="width:60px;">수량</th>' in cb)
-    check("카드 아래 = 「품목 2 · 수량 2개」(「2대」 아님)", "품목 <b>2</b> · 수량 <b>2개</b>" in cb and "수량 <b>2대</b>" not in cb)
-    check("총 수량 = 「1대 · 제품 2개」", "총 수량 1대" in h and "제품 2개" in h and "총 수량 3대" not in h)
+    check("카드 아래 = 「품목 2 · 수량 2 EA」(「2대」 아님 · z1191z89 일정표와 같은 단위)", "품목 <b>2</b> · 수량 <b>2 EA</b>" in cb and "수량 <b>2대</b>" not in cb)
+    check("총 수량 = 단위별 합 「2 EA · 1대」(z1191z89 · 수주 카드 순서 · 전: 1대 · 제품 2개)", ("총 수량 2 EA · 1대" in h or "총 수량 1대 · 2 EA" in h) and "총 수량 3대" not in h)
     check("수주액 상자 「단가 … × N대」 문장 숨김", '단가 <b style="color:var(--ink);">' not in h)
 
     print("§2 서버 — 품목 추가 · 삭제")
@@ -115,7 +115,7 @@ def main():
     check("수주 수량 = 품목 수량 합 5 · 합계 370,000", o["unit_qty"] == 5 and o["total_amount"] == 370000, o)
     h2 = cl.get("/project/%d?so=T-269997-2" % pid).text
     cb2 = h2[h2.find('<div class="so-card editable" data-soid="%d"' % ob):h2.find('<div class="so-card ref-so" data-soid="%d"' % oa)]
-    check("추가 뒤에도 배지 「제품」 · 「품목 3 · 수량 5개」", ">제품</span>" in cb2 and "품목 <b>3</b> · 수량 <b>5개</b>" in cb2)
+    check("추가 뒤에도 배지 「제품」 · 「품목 3 · 수량 5 EA」", ">제품</span>" in cb2 and "품목 <b>3</b> · 수량 <b>5 EA</b>" in cb2)
 
     r = cl.post("/sales/orders/%d/add-unit" % ob, data={"label": "", "amount": "5000", "qty": "1", "currency": "KRW"})
     with D.db_session() as c:
