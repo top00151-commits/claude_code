@@ -80,7 +80,7 @@ with _db.db_session() as c:
     put("oh@part-demo.example", "오래됐지만 읽음", days_ago=5, read=1)
     put("oh@part-demo.example", "아주 옛날 안 읽음", days_ago=60)
     put("han@dream-demo.example", "오늘 온 안 읽음", days_ago=0)
-    M_SPAM_T = put("x@spam-demo.example", "오늘 스팸", hours_ago=1, blocked=1)
+    M_SPAM_T = put("x@spam-demo.example", "오늘 스팸", hours_ago=0, blocked=1)   # 자정 바로 뒤에 돌려도 「오늘」이 되게(1시간 전 → 지금)
     put("x@spam-demo.example", "지난 스팸", days_ago=3, blocked=1)
 
 ME = {"id": 9890, "role": "member", "name": "시험신입", "rank": "사원", "team_id": 9891, "login_id": "t_me", "email": "me" + D, "lang": "ko"}
