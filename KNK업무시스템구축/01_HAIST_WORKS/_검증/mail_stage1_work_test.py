@@ -125,7 +125,8 @@ def last_out(uid=OWN):
 print("== ① 자주 쓰는 글(양식) ==")
 j = k.get("/api/mail/templates").json()
 langs = {t["lang"] for t in j["builtin"]}
-check("기본 양식 = 한국어·영어·베트남어 · 견적·발주·납기·세금계산서·자료 요청·재촉", {"ko", "en", "vi"} <= langs and len([t for t in j["builtin"] if t["lang"] == "ko"]) == 6, langs)
+# 11-21 라 묶음: 한국어 = 바깥 6(견적·발주·납기·세금계산서·자료 요청·재촉) + 사내 3(업무 보고·지시 확인·일정 지연) + 거래처 첫 인사 = 10
+check("기본 양식 = 한국어·영어·베트남어 · 견적·발주·납기·세금계산서·자료 요청·재촉 + 사내 양식", {"ko", "en", "vi"} <= langs and len([t for t in j["builtin"] if t["lang"] == "ko"]) == 10, langs)
 check("기본 양식에 [빈칸] · [내 이름]", all("[" in t["body"] for t in j["builtin"]) and any("[내 이름]" in t["body"] for t in j["builtin"]))
 r = k.post("/mail/templates/save", data={"title": "삼성 견적", "subject": "[KNK] [품명] 견적", "body": "안녕하세요 [담당자]님", "lang": "ko"}).json()
 check("내 양식 만들기", r["ok"] and r["id"], r)
