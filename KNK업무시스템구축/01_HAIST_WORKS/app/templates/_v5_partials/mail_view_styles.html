@@ -47,6 +47,7 @@
   .mv-more>summary{list-style:none;cursor:pointer}
   .mv-more>summary::-webkit-details-marker{display:none}
   .mv-more-box{position:absolute;right:0;top:calc(100% + 4px);z-index:30;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.14);padding:6px;min-width:230px;display:flex;flex-direction:column}
+  .mv-more-box.mv-pop{position:fixed;right:auto;z-index:9400;max-height:calc(100vh - 16px);overflow:auto}   /* 11-22 열 때 화면 기준 자리(mail_view_body.html) */
   .mv-more-box button,.mv-more-box a{display:block;text-align:left;border:0;background:none;padding:8px 11px;border-radius:7px;font-size:13.5px;color:var(--ink);text-decoration:none;cursor:pointer;font-family:inherit;white-space:nowrap}
   .mv-more-box button:hover,.mv-more-box a:hover{background:var(--mt-hover,#f3f4f6)}
   .mv-more-box .warn{color:#9a3412}
@@ -81,6 +82,9 @@
   .mv-quote[open]>summary{margin-bottom:8px}
   .mv-quote .mv-body{color:var(--mt-text2,#4b5563)}
   @media print{.mv-who-pop{display:none}.mv-quote{display:block}}
+  /* 11-22 대표 「글자 크기 −·＋ 3단계 더」 — 칸 크기는 그대로 · 안쪽(목록 줄·폴더 줄·읽기 칸)만 배율(80%~145% · mail_fs.html) */
+  html[data-mfz] .mbx-side > *, html[data-mfz] .mbx-list > *, html[data-mfz] #readPane > *, html[data-mfz] .mv-zoom > *{zoom:var(--mfz,1)}
+  html[data-mfz] .mbx-side{overflow-x:hidden}   /* 배율 반올림으로 생기는 2~3px 가로 넘침 막기 */
   html.mbx-big .mv-body,html.mbx-big .mv-meta{font-size:16px}
   /* 11-18 3단계 — 이 메일만 폴더 · 이전·다음 */
   .mv-fd-pin{font-size:11px;padding:1px 7px;border-radius:6px;background:#e0e7ff;color:#3730a3}

@@ -142,7 +142,7 @@
       <select id="mtView" onchange="mtViewSet(this.value)" title="받은편지함 「🗔 보기」와 같은 설정">
         <option value="auto">자동 — 화면 크기에 맞춤</option><option value="right">오른쪽(세 칸)</option><option value="bottom">아래(목록 위·내용 아래)</option><option value="list">끄기(목록만, 누르면 크게)</option>
       </select><span class="mt-msg" id="mtViewMsg"></span></div>
-    <div class="mt-row" id="mtBig"><span class="ic">🔠</span><span class="tx"><span class="t">글자 크게 보기</span><span class="d" style="display:block">메일 목록·읽기 글자를 한 단계 크게 · 이 컴퓨터·이 휴대폰에만</span></span>
+    <div class="mt-row" id="mtBig"><span class="ic">🔠</span><span class="tx"><span class="t">글자 크게 보기</span><span class="d" style="display:block">켜면 110% · 위쪽 도구 줄 「− 🔠 글자 ＋」로 80%~145%(8단계) · 이 컴퓨터·이 휴대폰에만</span></span>
       <span class="st" id="mtBigSw">끔</span><button type="button" class="mt-sw" id="mtBigBtn" onclick="mtBigToggle()" aria-label="글자 크게 보기 켜기·끄기"></button></div>
     {% if mail_app %}
     {# 11-19 2단계 — 새 메일 바탕화면 알림(이 컴퓨터에만 · 메일 창이 뒤에 있을 때만) #}
@@ -168,14 +168,15 @@
 </div>
 </main>
 </div>
+{% include "_v5_partials/mail_fs.html" %}
 <script>
 /* 글자 크게 보기(11-18) — 이 기기에만 기억(localStorage) · 메일 목록·읽기 화면이 읽음 */
-function mtBigShow(){ var on=false; try{ on=localStorage.getItem('knkmail.big')==='1'; }catch(e){}
+function mtBigShow(){ var L=window.mailFsLevel ? mailFsLevel() : 0, on=L>=1;   // 11-22 8단계 — 0 = 보통 · 1 이상 = 켬(몇 % 인지 함께)
   var sw=document.getElementById('mtBigSw'), b=document.getElementById('mtBigBtn');
-  if(sw){ sw.textContent=on?'켬':'끔'; sw.className='st'+(on?' ok':''); } if(b){ b.classList.toggle('on',on); b.setAttribute('aria-pressed', on?'true':'false'); } }
-function mtBigToggle(){ try{ var on=localStorage.getItem('knkmail.big')==='1';
-    if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){ alert('이 브라우저에서는 저장할 수 없습니다'); }
-  mtBigShow(); }
+  if(sw){ sw.textContent=(L===0 ? '끔' : (on ? '켬 · ' : '작게 · ')+(window.mailFsPct ? mailFsPct(L) : 100)+'%'); sw.className='st'+(on?' ok':''); }
+  if(b){ b.classList.toggle('on',on); b.setAttribute('aria-pressed', on?'true':'false'); } }
+function mtBigToggle(){ if(!window.mailFsSet){ alert('이 브라우저에서는 저장할 수 없습니다'); return; }
+  mailFsSet(mailFsLevel()>=1 ? 0 : 1); mtBigShow(); }
 mtBigShow();
 /* 11-19 2단계 — 🔔 새 메일 바탕화면 알림 */
 function mtNotiShow(){ var on=false; try{ on=localStorage.getItem('knkmail.notify')==='1'; }catch(e){}

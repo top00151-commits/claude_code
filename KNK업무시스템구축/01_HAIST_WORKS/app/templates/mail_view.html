@@ -6,13 +6,13 @@
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
-  <script>try{ if(localStorage.getItem('knkmail.big')==='1') document.documentElement.classList.add('mbx-big'); }catch(e){}</script>
+  {% include "_v5_partials/mail_fs.html" %}
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 보기</div>
   </div></div>
 
   {% set pane = false %}
-  <div style="padding:0 var(--content-pad,32px) 28px">{# 11-19 좌우 여백(모니터 꽉) #}
+  <div class="mv-zoom" style="padding:0 var(--content-pad,32px) 28px">{# 11-19 좌우 여백(모니터 꽉) #}
   {% include "_v5_partials/mail_view_body.html" %}
   </div>
 </main></div>

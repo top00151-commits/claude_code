@@ -37,6 +37,11 @@
   .mail-tools .sep { width:1px; height:20px; background:var(--mt-line,#e5e7eb); margin:0 4px; flex:none; }
   .mail-tools .sp { flex:1; min-width:8px; }
   .mail-tools .sw.on { background:#e8f6ec; color:#15803d; }
+  /* 11-22 글자 크기 − 🔠 글자 100% ＋ */
+  .mail-tools .mt-fs { display:inline-flex; align-items:center; gap:0; flex:none; }
+  .mail-tools .mt-fs .fs-b { min-width:26px; padding:0 6px; font-size:17px; font-weight:800; color:var(--mt-text2,#374151); justify-content:center; }
+  .mail-tools .mt-fs .fs-b:disabled { opacity:.3; cursor:default; background:none; }
+  .mail-tools .mt-fs .fs-pct { font-weight:700; font-size:12px; }   /* 몇 % 인지는 좁은 화면에서도 늘 보임 */
   .mail-tools a.drop-on, .mail-tools .drop-on { background:#dbeafe !important; box-shadow:inset 0 0 0 2px #2563eb; }
   .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:var(--mt-surface,#fff); border:1px solid var(--mt-line,#e5e7eb); border-radius:12px;
                 box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:var(--mt-text,#1f2937); }
@@ -96,6 +101,9 @@
     /* 11-21 마 묶음 6-3 — 휴대폰: 그림 아래 작은 글자(그림만으로는 뜻을 모름) · 숫자는 그림 오른쪽 위 */
     .mail-tools a, .mail-tools button{flex-direction:column;justify-content:center;height:46px;gap:1px;padding:0 7px;position:relative;flex:none}
     .mail-tools .t{display:inline !important;font-size:10px;line-height:1.1;font-weight:600}
+    .mail-tools #mtBigTop .t{display:none !important}   /* 휴대폰: 🔠 아래는 「110%」 숫자만 */
+    .mail-tools .mt-fs .fs-pct{font-size:10px;line-height:1.1}
+    .mail-tools .mt-fs .fs-b{padding:0 5px;min-width:24px}
     .mail-tools .new{padding:0 10px;margin-right:2px}
     .mail-tools .bd{position:absolute;top:1px;right:0;transform:scale(.85)}
   }
@@ -171,7 +179,7 @@
   <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
   <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
-  <button type="button" class="sw" id="mtBigTop" onclick="mailBigToggle()" title="글자 크게 보기 — 켜고 끄기(이 컴퓨터에만)"><span class="ic">🔠</span><span class="t">글자 크게</span></button>
+  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 한 단계(가장 작게 80%) · 이 컴퓨터에만" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsSet(0)" title="글자 크기 — 양옆 −·＋로 80%~145%(8단계) · 가운데를 누르면 보통(100%) · 이 컴퓨터에만"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 한 단계(가장 크게 145%) · 이 컴퓨터에만" aria-label="글자 크게">＋</button></span>
   <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
   <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
   <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
@@ -245,13 +253,13 @@ window.mailNotifyNew=function(j){
   if(!on || !('Notification' in window) || Notification.permission!=='granted' || document.visibilityState==='visible') return;
   try{ var n=new Notification('📥 새 메일 — '+(lt.from||''), {body: lt.subj||'', tag:'knkmail-new'}); n.onclick=function(){ try{ window.focus(); }catch(_){} location.href='/mail/inbox'; n.close(); }; }catch(_){}
 };
-window.mailBigShowTop=function(){ var on=false; try{ on=localStorage.getItem('knkmail.big')==='1'; }catch(e){} var b=document.getElementById('mtBigTop'); if(b) b.classList.toggle('on', on); };
-window.mailBigToggle=function(){
-  try{ var on=localStorage.getItem('knkmail.big')==='1'; if(on) localStorage.removeItem('knkmail.big'); else localStorage.setItem('knkmail.big','1'); }catch(e){}
-  var on2=false; try{ on2=localStorage.getItem('knkmail.big')==='1'; }catch(e){}
-  document.documentElement.classList.toggle('mbx-big', on2); mailBigShowTop();
-};
-mailBigShowTop();
+/* 11-22 글자 크기 8단계(80%~145%) — 계산·저장은 본문 안 mail_fs.html(화면 전환 때도 돎) · 여기는 단추 표시만 */
+window.mailFsShow=function(){ if(!window.mailFsLevel) return; var L=mailFsLevel(), p=document.getElementById('mtFsPct');
+  if(p) p.textContent=mailFsPct(L)+'%'; var b=document.getElementById('mtBigTop'); if(b) b.classList.toggle('on', L!==0);
+  var dn=document.getElementById('mtFsDn'), up=document.getElementById('mtFsUp'); if(dn) dn.disabled=(L<=-3); if(up) up.disabled=(L>=4); };
+window.mailBigShowTop=window.mailFsShow;
+window.mailBigToggle=function(){ if(window.mailFsSet) mailFsSet(mailFsLevel()>=1 ? 0 : 1); };   // 예전 이름(다른 곳에서 부를 수 있음)
+mailFsShow();
 window.mailHelpToggle=function(ev){ if(ev) ev.stopPropagation(); var h=document.getElementById('mailHelp'); if(h) h.hidden=!h.hidden; };
 document.addEventListener('click', function(e){ var h=document.getElementById('mailHelp'); if(h && !h.hidden && !e.target.closest('#mailHelp')) h.hidden=true; });
 // ← 이전 페이지로 (히스토리 없으면 받은편지함으로)
@@ -276,6 +284,8 @@ window.mailReload = async function(){
   location.reload();
 };
 </script>
+{# 11-22 글자 크기 — 도구 줄이 있는 모든 메일 화면에서 −·＋가 돌게(받은편지함·메일 보기는 본문 안에도 한 번 더) #}
+{% include "_v5_partials/mail_fs.html" %}
 {% if is_admin %}<script>
 // ⏱ 이 화면이 뜨는 데 걸린 시간 — 관리자에게만, 🔄 단추에 마우스를 올리면 보인다(대표 2026-11-16 「대기가 길어」 실측용).
 //   메일 앱을 막 연 경우: 「여는 중」 화면이 남긴 값(knkMailT0 = 「그때 시각,첫 화면이 뜨기까지 ms」)으로 네 토막을 낸다

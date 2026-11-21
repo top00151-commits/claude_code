@@ -455,6 +455,23 @@
       try{ var st=document.querySelector('.mbx-list [data-mail-id="'+MAIL_ID+'"] .mbx-star'); if(st) st.classList.toggle('on', !!j.starred); }catch(e){}
     }catch(e){ alert('네트워크 오류'); }
   };
+  // 11-22 대표 「메뉴가 가려져 나옴 · 다른 항목도 전체 확인」 — 읽기 칸의 펼침 상자(⋯ 더 보기 · 🚩 기한·알림 · ✅ 확인 답장)는
+  //   칸 가장자리에서 잘리거나 옆 목록 칸에 가려졌음 → 열 때 화면 기준 자리(아래 자리 없으면 위로 · 오른쪽 없으면 왼쪽으로) · 칸을 굴리면 닫음
+  (function(){
+    function place(d){ var b=d.querySelector(':scope > .mv-more-box'), s=d.querySelector(':scope > summary'); if(!b || !s) return;
+      if(!d.open){ b.classList.remove('mv-pop'); b.style.left=''; b.style.top=''; return; }
+      b.classList.add('mv-pop'); var r=s.getBoundingClientRect(), w=b.offsetWidth, h=b.offsetHeight;
+      var x=r.right-w; if(x<6) x=r.left; x=Math.max(6, Math.min(x, innerWidth-w-8));
+      var y=r.bottom+4; if(y+h > innerHeight-8){ var up=r.top-4-h; y=(up>=6) ? up : Math.max(6, innerHeight-h-8); }
+      b.style.left=x+'px'; b.style.top=y+'px'; }
+    document.querySelectorAll('details').forEach(function(d){
+      if(d._mvPop || !d.querySelector(':scope > .mv-more-box')) return; d._mvPop=true;
+      d.addEventListener('toggle', function(){ place(d); }); });
+    if(!window._mvPopScroll){ window._mvPopScroll=true;
+      var shut=function(ev){ document.querySelectorAll('.mv-more-box.mv-pop').forEach(function(b){
+        if(ev && ev.target && ev.target.nodeType===1 && b.contains(ev.target)) return; var d=b.parentElement; if(d && d.open) d.open=false; }); };
+      document.addEventListener('scroll', shut, true); window.addEventListener('resize', function(){ shut(null); }); }
+  })();
   // 「⋯ 더 보기」 — 항목을 누르거나 바깥을 누르면 닫힘
   (function(){
     var d=document.getElementById('mvMore'); if(!d) return;

@@ -144,7 +144,7 @@ try:
     check("빨간 줄에는 링크 없음(이름·이전·새로고침·사용자만) — 메일함 길은 도구 줄 한 곳", 'href="/mail/sent"' not in top and 'href="/mail/compose"' not in top, top[:300])
     check("도구 줄: 새 메일·받은편지함·중요·회신 필요·보낸편지함·임시보관함·보관함·휴지통·스팸함·글자 크게·설정·정리·도움말",
           all(x in tools for x in ('href="/mail/compose"', 'href="/mail/inbox"', 'href="/mail/inbox?star=1"', 'href="/mail/inbox?reply=1"', 'href="/mail/sent"',
-                                   'href="/mail/drafts"', 'href="/mail/inbox?arc=1"', 'href="/mail/trash"', 'href="/mail/blocked"', "mailBigToggle()", 'href="/mail/tools"', "mailHelpToggle")), tools[:300])
+                                   'href="/mail/drafts"', 'href="/mail/inbox?arc=1"', 'href="/mail/trash"', 'href="/mail/blocked"', "mailFsStep(1)", 'href="/mail/tools"', "mailHelpToggle")), tools[:300])
     check("빨간 줄 + 도구 줄은 한 상자로 고정(스크롤해도 위에) · body 가 스크롤 상자가 되지 않게", '<div class="mail-app-fixed">' in hk and ".mail-app-fixed { position:sticky; top:0" in hk and "body { height:auto !important; min-height:100dvh !important; overflow:visible !important; }" in hk)
     check("숫자는 바로바로(안 읽음·회신 필요·임시·스팸) · 「새 메일」은 도구 줄 한 곳만", "/api/mail/counts" in hk and "mtcUnread" in hk and ".mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }" in hk)
     j = km.get("/api/mail/counts").json()

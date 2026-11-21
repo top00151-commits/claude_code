@@ -261,7 +261,7 @@ try:
     vs = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_styles.html"), encoding="utf-8").read()
     hi = k.get("/mail/inbox").text
     check("「글자 크게」 스크립트는 본문 안(머리 조각엔 스크립트 없음 · 화면 전환 때도 돎)",
-          "<script" not in vs and hi.find("knkmail.big") > hi.find('<main class="main"') > 0)
+          "<script" not in vs and hi.rfind("knkmail.big") > hi.find('<main class="main"') > 0)   # 11-22 도구 줄에도 같은 조각이 있어 마지막 것이 본문 안인지 봄
 
     print("== 7. kmail · 로그인 ==")
     km = client(port=5053, host="kmail.knknara.co.kr")

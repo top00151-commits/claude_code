@@ -11,9 +11,10 @@
 </style>
 </head><body>
 <main class="main mw-wrap" data-dn="main">
-  <script>try{ if(localStorage.getItem('knkmail.big')==='1') document.documentElement.classList.add('mbx-big'); }catch(e){} window.KNK_MAIL_WIN=1;</script>
+  {% include "_v5_partials/mail_fs.html" %}
+  <script>window.KNK_MAIL_WIN=1;</script>
   {% set pane = false %}
   {% set win = true %}
-  {% include "_v5_partials/mail_view_body.html" %}
+  <div class="mv-zoom">{% include "_v5_partials/mail_view_body.html" %}</div>
 </main>
 </body></html>

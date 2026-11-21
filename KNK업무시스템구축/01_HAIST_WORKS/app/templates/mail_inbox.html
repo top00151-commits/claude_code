@@ -83,6 +83,11 @@
   .mbx-gutter:hover::after{background:rgba(255,255,255,.7)}
   .mbx-side{height:100%;overflow:auto;padding:8px;background:var(--mt-panel,#fafbfc)}
   .mbx-listcol{height:100%;overflow:auto;min-width:0;background:var(--mt-surface,#fff)}
+  /* 11-22 대표 「보기 메뉴가 즐겨찾기에 가려져 나와 · 다른 항목도 전체 확인」 — 목록 칸·명령 막대는 너비 규칙(container) 때문에
+     겹침 층이 칸 단위로 묶여, 안의 펼침 메뉴(🗔 보기·🏷 종류)가 아무리 위로 올려도 왼쪽 칸 머리(즐겨찾기 상자 · 5층) 아래로 그려졌음
+     → 메뉴가 열려 있는 동안만 그 칸을 왼쪽 칸보다 위로(닫으면 원래대로) */
+  .mbx-split>.mbx-listcol:has(details[open]),.mbx-split>.mbx-listcol:has(.mbx-kinddd.open),
+  .mbx-split>.mbx-lhead:has(details[open]),.mbx-split>.mbx-lhead:has(.mbx-kinddd.open){z-index:35}
   .mbx-readpane{height:100%;overflow:auto;padding:14px 16px;background:var(--mt-panel,#f7f8fa)}
   .mbx-readpane.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mute);text-align:center;font-size:13px;line-height:1.9;gap:8px;font-weight:500}
   .mbx-readpane.empty .mbx-rp-ico{font-size:34px;opacity:.6}
@@ -524,7 +529,7 @@
 <div class="app">{% set mail_has_side = true %}{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   {# 글자 크게(11-18 · ⚙ 설정·정리에서 켬 · 이 기기에만) — 본문 안에 두어야 다른 화면에서 들어와도 돈다(머리 스크립트는 화면 전환 때 안 돎) #}
-  <script>try{ if(localStorage.getItem('knkmail.big')==='1') document.documentElement.classList.add('mbx-big'); }catch(e){}</script>
+  {% include "_v5_partials/mail_fs.html" %}
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
