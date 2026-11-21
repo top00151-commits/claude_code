@@ -228,6 +228,8 @@
   .mbx-chips-n{margin-left:auto;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap}
   .mbx-day{position:sticky;top:44px;z-index:1;background:var(--mt-panel,#f8fafc);color:var(--mt-mute,#64748b);font-size:12px;font-weight:700;padding:5px 12px;border-bottom:1px solid var(--line)}
   .mbx-row.robot .mbx-main,.mbx-headlink.robot .mbx-main{opacity:.6}
+  .mbx-boss{flex:none;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;white-space:nowrap}
+  html[data-mt="dark"] .mbx-boss{background:#2a2516;border-color:#55491d;color:#f1d78a}
   .mbx-cc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#ede9fe;color:#5b21b6;white-space:nowrap}
   .mbx-ad{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:var(--mt-hover,#f3f4f6);color:var(--mt-mute,#6b7280);white-space:nowrap}
   .mbx-att{flex:none;margin-left:auto;font-size:12px;color:var(--mt-text2,#475569);white-space:nowrap}
@@ -450,6 +452,7 @@
   <nav class="mbx-day" id="mbxDay" aria-label="오늘 챙길 메일">
     <span class="mbx-day-h">오늘 챙길 메일</span>
     <a href="/mail/inbox?reply=1" class="mbx-day-i{{ ' zero' if not day.reply else '' }}" title="회신이 필요해 보이는 받은 메일(규칙으로 추정 · 최근 14일)">↩ 회신 필요 <b>{{ day.reply }}</b></a>
+    {% if day.boss %}<a href="/mail/inbox?reply=1&boss=1" class="mbx-day-i red{{ ' on' if cur_boss|default(false) else '' }}" title="회신 필요 메일 중 윗분(임원·우리 팀장·우리 팀 윗 직책)이 보낸 것 — 직원 명부 기준">👔 윗분 지시 <b>{{ day.boss }}</b></a>{% endif %}
     <a href="/mail/inbox?flag=1" class="mbx-day-i{{ ' zero' if not day.flag else ' red' }}" title="🚩 기한이 오늘까지인 메일(지난 것 포함)">🚩 오늘까지 기한 <b>{{ day.flag }}</b></a>
     <a href="/mail/waiting" class="mbx-day-i{{ ' zero' if not day.wait else (' warn' if day.wait_due else '') }}"{% if day.wait_due %} id="mbxWaitBar"{% endif %} title="바깥 거래처에 보내고 답을 기다리는 메일 — 답이 오면 저절로 빠짐">⏳ 답 기다림 <b>{{ day.wait }}</b>{% if day.wait_due %} <em>답 안 온 메일 {{ day.wait_due }}통</em>{% endif %}</a>
     <a href="/mail/sent" class="mbx-day-i{{ ' zero' if not (day.sched or day.sched_fail) else (' red' if day.sched_fail else '') }}" title="오늘 서버가 보낼 예약 메일 — 📤 보낸편지함 맨 위에서 바꾸거나 취소">⏱ 오늘 예약 <b>{{ day.sched }}</b>{% if day.sched_fail %} <em>⚠ 못 보냄 {{ day.sched_fail }}</em>{% endif %}</a>

@@ -22936,6 +22936,7 @@ from . import mail_store as _mailbox
 from . import mail_cleanup as _mail_cleanup   # 2026-11-16 보낸 곳별 정리 · 다시 안 받기(나에게만)
 from . import mail_reply as _mail_reply       # 2026-11-17 ④ 회신 필요(추정) — 규칙으로만(대표 「규칙으로 먼저 만들어」)
 from . import mail_folders as _mail_folders   # 2026-11-17 받은 메일 폴더(아웃룩식 · 대표 「아웃룩을 이런 식으로 구분해서」)
+from . import mail_people as _mpeople   # noqa: E402 · 2026-11-21 다 묶음 — 사내 보낸 사람 「이름 직책 부서」 · 👔 윗분 · 나=받는 사람/참조
 from . import mail_find as _mail_find   # 2026-11-18 쉽게 찾기·구분·보기(시간·날짜 묶음·회사 이름 찾기·광고·참조·인용 접기)
 from . import mail_signature as _mail_sig   # 2026-11-16 메일 서명 → 주소록 채우기
 
@@ -23069,7 +23070,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
                           reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
                           who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = "",
-                          arc: int = 0, flag: int = 0, snz: int = 0):
+                          arc: int = 0, flag: int = 0, snz: int = 0, boss: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -23103,6 +23104,14 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             reply_map = _mail_reply.scan(c, u["id"])
         except Exception:
             reply_map = {}
+        # 11-21 다 묶음 — 사내 보낸 사람 「이름 직책 부서」 · 👔 윗분(임원·우리 팀장·우리 팀 윗 직책) · 👔 윗분 지시 = 회신 필요 중 윗분 메일
+        _mpst, _mpme, _boss_ids = {}, {}, set()
+        try:
+            _mpst = _mpeople.staff(c)
+            _mpme = _mpeople.me_of(c, u["id"], _mpst)
+            _boss_ids = _mail_boss_ids(c, u["id"], reply_map, _mpst, _mpme)
+        except Exception as _e:
+            print("[MAIL-PEOPLE] 받은편지함 윗분 표시 실패(목록은 그대로): %s" % str(_e)[:160], flush=True)
         _bulk = _mail_find.bulk_senders(c, u["id"])
         _qs = _mail_find.q_senders(mf, _terms) if (_terms and mf and not fd) else None
         # 11-19 2단계 — 시간이 된 「⏰ 다시 알림」 메일은 안 읽음으로 돌아옴 · 🚩 기한 날짜 = 보는 사람 소속 날짜
@@ -23114,7 +23123,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
         _mtoday = _mail_local_today(_moff)
         _kw = dict(category=cat, q=q, starred=bool(star), unread=bool(unread),
                    date_from=df, date_to=dt, has_att=bool(att), cust=cust,
-                   only_ids=(list(reply_map.keys()) if reply else None),
+                   only_ids=((sorted(_boss_ids) if boss else list(reply_map.keys())) if reply else None),
                    senders=(_mail_folders.senders_in(mf, fd) if fd else None),
                    qf=qf, with_sent=bool((_terms or who or dom) and where != "in"), who=who, dom=dom,
                    q_senders=_qs, noad=(_bulk if noad else None),
@@ -23131,6 +23140,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _inb = (_m.get("direction") or "in") == "in"
             _m["ad"] = bool(_inb and (_m.get("from_email") or "").strip().lower() in _bulk)
             _m["ccme"] = _mail_find.is_cc(_m, _mine)
+            _sp = _mpeople.sender(_mpst, _mpme, _m.get("from_email")) if _inb else {}
+            _m["staff"], _m["boss"] = _sp.get("disp", ""), _sp.get("boss", "")
             _m["kind"] = _mailbox.mail_kind(_m)
             _m["flag_late"] = bool(_m.get("flag_due") and _m["flag_due"] < _mtoday)
             _m["flag_today"] = bool(_m.get("flag_due") and _m["flag_due"] == _mtoday)
@@ -23192,7 +23203,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _x = next((_i.get("dlg") for _i in (_t.get("items") or []) if _i.get("dlg")), None)
             if _x:
                 _L["dlg"] = dict(_x, thread=True)
-    _day = {"reply": len(reply_map), "flag": int(_flag_c.get("due") or 0), "wait": int((_wait_c or {}).get("all") or 0),
+    _day = {"reply": len(reply_map), "boss": len(_boss_ids), "flag": int(_flag_c.get("due") or 0), "wait": int((_wait_c or {}).get("all") or 0),
             "wait_due": int((_wait_c or {}).get("due") or 0), "sched": int(_sc_t.get("today") or 0), "sched_fail": int(_sc_t.get("fail") or 0)}
     _day["any"] = any(_day[k] for k in ("reply", "flag", "wait", "sched", "sched_fail"))
     _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n, wait_c=_wait_c, day=_day,
@@ -23214,7 +23225,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                ai_on=mail_ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
                drafts_n=drafts_n, thread_on=thread_on, threads=threads,
                folders=folders, cur_cust=(cust or "").strip(),
-               reply_n=len(reply_map), cur_reply=bool(reply),
+               reply_n=len(reply_map), cur_reply=bool(reply), cur_boss=bool(reply and boss),
                mf=mf, cur_fd=fd, cur_fd_name=((mf or {}).get("labels", {}).get(fd, "") if fd else ""),
                **_ctx_more)
 
@@ -23594,13 +23605,14 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
+        pp = _mail_view_people(c, u, m)   # 11-21 다 묶음 — 사내 보낸 사람 「이름 직책 부서」·👔 · 나=받는 사람/참조
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
         lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
     return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg)
+               nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg, pp=pp)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
@@ -23654,13 +23666,14 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
+        pp = _mail_view_people(c, u, m)   # 11-21 다 묶음 — 사내 보낸 사람 「이름 직책 부서」·👔 · 나=받는 사람/참조
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
         lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
-               nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg)
+               nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg, pp=pp)
 
 
 def _mail_who_info(m, folder_info):
@@ -24770,7 +24783,7 @@ def _mail_quote_html(m, kind: str) -> str:
 
 @app.get("/mail/compose", response_class=HTMLResponse)
 async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
-                            forward: int = 0, draft: int = 0, to: str = "", nudge: int = 0):
+                            forward: int = 0, draft: int = 0, to: str = "", nudge: int = 0, ack: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -24835,6 +24848,8 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                     prefill["cc"] = _mail.addr_list_text(cc_pairs)
                 prefill["body"] = sigblock + "\n\n\n──────── 원본 메일 ────────\n" + (m.get("body_text") or "")
                 prefill["body_html"] = _mail_quote_html(m, "reply")   # 11-19 2단계 — 원본 모양(표·서식) 그대로 인용
+                if reply and ack:     # 11-21 다 묶음 3-3 ✅ 확인 답장 — 고른 날짜로 「확인했습니다 — ○까지 하겠습니다」(고쳐 써도 됨)
+                    prefill["ack_text"] = _mail_ack_text(m, ack, _mail_local_today(_mail_off(c, u)))
         elif forward:
             m = _mailbox.get_mail(c, forward, u["id"])
             if m:
@@ -26570,6 +26585,54 @@ def _mail_body_dates(m, off: int, today: str) -> list:
     except Exception as _e:
         print("[MAIL-DATES] 본문 날짜 찾기 실패(메일 보기는 그대로): %s" % str(_e)[:160], flush=True)
         return []
+
+
+def _mail_boss_ids(c, uid, reply_map, st, me) -> set:
+    """👔 윗분 지시(11-21 다 묶음 3-2) — 「회신 필요」 메일 중 보낸 사람이 나보다 윗분인 것(내 메일만)."""
+    ids = [int(i) for i in (reply_map or {}).keys()]
+    out = set()
+    for i in range(0, len(ids), 400):
+        chunk = ids[i:i + 400]
+        for r in c.execute("SELECT id, from_email FROM mail_messages WHERE user_id=? AND id IN (" + ",".join("?" * len(chunk)) + ")",
+                           (uid, *chunk)).fetchall():
+            if _mpeople.sender(st, me, r["from_email"]).get("boss"):
+                out.add(r["id"])
+    return out
+
+
+def _mail_ack_text(m, ack: str, today: str) -> str:
+    """✅ 확인 답장 글(11-21 다 묶음 3-3). 사내 = 「확인했습니다」 · 바깥 = 정중하게 · 한국어가 아닌 메일 = 영어.
+    날짜가 틀린 꼴이면 빈 글(쓰기 화면은 그냥 답장)."""
+    import re as _re_ack
+    from datetime import date as _d
+    try:
+        t = _d.fromisoformat((ack or "").strip()[:10])
+    except Exception:
+        return ""
+    wd = "월화수목금토일"[t.weekday()]
+    when_ko = "오늘 중으로" if ack[:10] == today else "%d/%d(%s)까지" % (t.month, t.day, wd)
+    ko = bool(_re_ack.search(r"[가-힣]", (m.get("subject") or "") + (m.get("body_text") or "")[:400]))
+    if not ko:
+        when_en = "by the end of today" if ack[:10] == today else "by %s %d (%s)" % (
+            ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")[t.month - 1], t.day,
+            ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[t.weekday()])
+        return "Thank you for your email.\nI have checked it and will get back to you %s.\n\nBest regards," % when_en
+    if _mpeople.is_internal(m.get("from_email")):
+        return "확인했습니다.\n%s 처리하겠습니다.\n\n감사합니다." % when_ko
+    return "보내 주신 메일 잘 받았습니다.\n%s 확인 후 회신드리겠습니다.\n\n감사합니다." % when_ko
+
+
+def _mail_view_people(c, u, m) -> dict:
+    """메일 보기(11-21 다 묶음) — 사내 보낸 사람 「이름 직책 부서」·👔 까닭 · 이 메일에서 나 = 받는 사람/참조/숨은참조. 실패해도 메일 보기는 그대로."""
+    try:
+        st = _mpeople.staff(c)
+        me = _mpeople.me_of(c, u["id"], st)
+        s = _mpeople.sender(st, me, m.get("from_email")) if (m.get("direction") or "in") == "in" else {}
+        return {"disp": s.get("disp", ""), "boss": s.get("boss", ""),
+                "role": _mpeople.my_role(m, _mail_find.my_addresses(c, u["id"]))}
+    except Exception as _e:
+        print("[MAIL-PEOPLE] 메일 보기 사람 표시 실패: %s" % str(_e)[:160], flush=True)
+        return {}
 
 
 def _mail_ids_form(form) -> list:

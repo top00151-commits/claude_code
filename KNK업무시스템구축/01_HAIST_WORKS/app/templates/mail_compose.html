@@ -237,7 +237,7 @@
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
     <textarea id="cPrefillHtml" style="display:none">{{ prefill.body_html }}</textarea>
     <input type="hidden" id="cFwdSrc" value="{{ prefill.fwd_src }}">
-    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }}; window.CMP_ME = {{ (me_name|default(''))|tojson }}; window.CMP_NUDGE_TPL = {{ (prefill.nudge_tpl|default(''))|tojson }};</script>
+    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }}; window.CMP_ME = {{ (me_name|default(''))|tojson }}; window.CMP_NUDGE_TPL = {{ (prefill.nudge_tpl|default(''))|tojson }}; window.CMP_ACK = {{ (prefill.ack_text|default(''))|tojson }};</script>
     <script>window.CMP_FWD = {{ (prefill.fwd_atts or [])|tojson }};</script>
     <textarea id="cSigHtml" style="display:none">{{ sig_html|default('') }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
@@ -1179,6 +1179,7 @@ function abPut(target){
   // 다시 묻기로 열었으면 — 재촉 글을 맨 위에 넣고 3일 다시 기다림
   if(window.CMP_NUDGE_TPL){ tplLoad().then(function(T){ var t=(T.builtin||[]).find(function(x){ return x.key===window.CMP_NUDGE_TPL; }); if(t) insertTpl({body:t.body}, true);
     var w=document.getElementById('cWait'); if(w) w.value='3'; if(window.cmpWaitCheck) cmpWaitCheck(); }); }
+  if(window.CMP_ACK){ insertTpl({body:window.CMP_ACK}, true); }   // 11-21 다 묶음 3-3 ✅ 확인 답장 — 글 맨 위에(고쳐 써도 됨 · 보내기는 직접)
 
   // ② ⏳ 답 받기 — 바깥 거래처가 있을 때만
   window.cmpWaitCheck=function(){ var box=document.getElementById('cWaitBox'), w=document.getElementById('cWait'); if(!w) return;
