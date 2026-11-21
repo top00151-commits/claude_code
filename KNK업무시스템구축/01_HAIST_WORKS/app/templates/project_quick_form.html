@@ -183,7 +183,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             {% if ed %}<div class="qf-code" title="영구 잠금(감사 무결성)">{{ project.mgmt_code|default('—') }}</div>
             {% else %}
             <div class="qf-code" id="qMgmtAuto">{% if test_on %}🧪 A 자동 발급{% else %}자동 발급{% endif %}</div>
-            {# v5H226z885(대표 지시): 관리번호 수동발행 — 지정 3명만. 엑셀 병행기간 번호 맞춤용. 검증 통과 번호만 등록. #}
+            {# v5H226z885(대표 지시): 관리번호 수동발행 — 기술영업팀 전원 + 지정 3명(z1191z90). 엑셀 병행기간 번호 맞춤용. 검증 통과 번호만 등록. #}
             {% if can_manual_mgmt %}
             <label id="qManualLbl" style="display:flex;align-items:center;gap:5px;margin-top:5px;font-size:11px;color:var(--qv-ink-3);font-weight:700;cursor:pointer;user-select:none;">
               <input type="checkbox" id="qManualChk" name="manual_issue" value="1" onchange="qManualToggle()" style="margin:0;width:14px;height:14px;flex-shrink:0;"> 🔧 수동발행 <span style="font-weight:400;">(엑셀 번호 맞춤)</span>
@@ -940,7 +940,7 @@ function qSyncPoType(){
   try{ qNameMode(); }catch(_e){}   // v5H226z1087: PO유형(신규↔추가) 전환 시 프로젝트명 드롭다운 재평가
 }
 function qMgmtHide(){ var l=document.getElementById('qMgmtList'); if(l) l.style.display='none'; }
-// v5H226z885(대표 지시): 관리번호 수동발행(지정 3명) — 체크 토글·검증(사용가능 확인)·변경 시 재검증 요구.
+// v5H226z885(대표 지시): 관리번호 수동발행(기술영업팀 전원 + 지정 3명 · z1191z90) — 체크 토글·검증(사용가능 확인)·변경 시 재검증 요구.
 window._qManualOK = null;   // 마지막으로 '사용 가능' 검증 통과한 코드(현재 입력값과 같아야 제출 허용)
 function qManualToggle(){
   var c=document.getElementById('qManualChk'), w=document.getElementById('qManualWrap'), a=document.getElementById('qMgmtAuto');

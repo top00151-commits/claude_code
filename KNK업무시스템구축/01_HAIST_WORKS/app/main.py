@@ -40932,13 +40932,29 @@ async def projects_new_form(request: Request,
 _MANUAL_MGMT_PEOPLE = [(5, "김정락"), (67, "안지연"), (306, "이새롬")]
 
 
+_MANUAL_MGMT_TEAM_ID_Z90 = 1   # 기술영업팀 (teams.id=1 · code '01' · PUNIT_OWNER_TEAM_ID 와 같은 팀)
+
+
+def _can_manual_mgmt_team_z90(u):
+    """z1191z90: 기술영업팀 사람이면 True (팀 번호로만 판정 · 잠긴 계정은 get_user 가 이미 걸러 냄)."""
+    try:
+        return int((u or {}).get("team_id") or 0) == _MANUAL_MGMT_TEAM_ID_Z90
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
 def _can_manual_mgmt(u):
-    """관리번호 수동발행 권한(대표 지정 3명).
+    """관리번호 수동발행 권한 — 기술영업팀 전원(z1191z90) + 대표 지정 3명.
     ⚠대표가 준 '5 김정락' 등의 번호가 사번(=로그인ID)인지 users.id 인지 모호 → 둘 다 지원.
     ① 사번(employee_no)/로그인ID(username) 매칭 = 유일 식별자라 이름 확인 없이 허용(가장 유력·표기편차 안전).
     ② users.id 매칭 = 이 경우만 이름 일치까지 요구(동일 id 타인 오탐 차단)."""
     if not isinstance(u, dict):
         return False
+    # z1191z90 (대표 11-21 「실무자들이 모두 사용할 때는 기술영업팀 사용자 모두 동일하게」 · 오늘 배포):
+    #   기술영업팀(teams.id=1) 사람은 모두 수동발행 가능 — 각 영업 담당자가 엑셀에서 매긴 관리번호를 그대로 넣는 길.
+    #   (지정 3명 목록은 그대로 둠 — 대표(총괄)는 기술영업팀이 아니어도 계속 가능)
+    if _can_manual_mgmt_team_z90(u):
+        return True
     _nums = {n for n, _ in _MANUAL_MGMT_PEOPLE}
     # ① 사번 / 로그인ID — 유일 식별자
     for _k in ("employee_no", "username"):
@@ -41018,7 +41034,7 @@ def _validate_manual_mgmt_code(raw_code, expect_letter):
 
 @app.get("/api/mgmt-code/check")
 async def api_mgmt_code_check(request: Request, code: str = "", biz_div: str = "", ptype: str = ""):
-    """v5H226z885: 수동 관리번호 사용가능 검증(지정 3명 전용). 화면 [검증] 버튼이 호출."""
+    """v5H226z885: 수동 관리번호 사용가능 검증(기술영업팀 전원 + 지정 3명 · z1191z90). 화면 [검증] 버튼이 호출."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "error": "unauthorized"}, status_code=401)
