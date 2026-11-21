@@ -29,6 +29,10 @@
   .sc-item .ic{font-size:18px;flex:none;line-height:1.3}
   .sc-item b{display:block;font-size:14px}
   .sc-item .who{font-size:12.5px;word-break:break-all}
+  .sc-item .fix{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}
+  .sc-item .fix button{font:inherit;font-size:12.5px;font-weight:700;border:1px solid #b45309;background:#fff;color:#92400e;border-radius:7px;padding:4px 10px;cursor:pointer}
+  .sc-item.k-first{border-color:#fdba74;background:#fff7ed}
+  .sc-item.k-other_cust{border-color:#fca5a5;background:#fef2f2;color:#7f1d1d}
   .sc-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
   .sc-btns button{font:inherit;font-size:14px;font-weight:700;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
   .sc-btns button.go{background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c);color:#fff}
@@ -420,6 +424,7 @@ function abPut(target){
     rm.addEventListener('click',function(){ var k=NORMAL.indexOf(file); if(k>=0)NORMAL.splice(k,1); row.remove(); });
     row.appendChild(tag); row.appendChild(rm);
   }
+  var LARGE_NAMES={};   // 11-21 대용량 링크 파일 이름(보내기 전 「다른 거래처 이름」 확인용)
   var LARGE_BUSY=0, LARGE_FAIL=0;   // 11-19 올리는 중·실패 — 그 동안은 보내기를 막음(링크 빠진 채 나가는 것 방지)
   async function uploadLarge(file){
     LARGE_BUSY++;
@@ -429,7 +434,7 @@ function abPut(target){
     try{
       var fd=new FormData(); fd.append('file', file);
       var resp=await fetch('/mail/large/upload',{method:'POST',body:fd}); var j=await resp.json();
-      if(j.ok){ st.textContent='대용량 링크'; st.style.color='var(--success)'; LARGE.push(j.token);
+      if(j.ok){ st.textContent='대용량 링크'; st.style.color='var(--success)'; LARGE.push(j.token); LARGE_NAMES[j.token]=file.name;
         var rm=document.createElement('a'); rm.href='javascript:void(0)'; rm.textContent='✕'; rm.style.cssText='color:var(--knk-red);text-decoration:none;margin-left:4px';
         rm.addEventListener('click',function(){ var k=LARGE.indexOf(j.token); if(k>=0)LARGE.splice(k,1); row.remove(); });
         row.appendChild(rm);
@@ -865,16 +870,58 @@ function abPut(target){
   window.sendMail=function(){
     if(window._cmpCounting) return;
     if(SCHED) return cmpSchedSend();
-    var r=checks();
-    if(r.stop){ cmsg('⚠ '+r.stop,'red'); return; }
+    var r0=checks();
+    if(r0.stop){ cmsg('⚠ '+r0.stop,'red'); return; }
+    cmpPre(r0, function(r){
     if(!r.warns.length){ startUndo(r); return; }
     var hasWarn=r.warns.some(function(w){ return !w.info; });
     scOpen('<h3>'+(hasWarn?'⚠ 보내기 전에 확인해 주세요':'보내기 전에 한 번 더')+'</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+(r.P.cBcc.ok.length?' · 숨은참조 '+r.P.cBcc.ok.length+'명':'')+'</div>'+
-      r.warns.map(function(w){ return '<div class="sc-item'+(w.info?' info':'')+'"><span class="ic">'+w.ic+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
-        (w.who?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+'</div></div>'; }).join('')+
+      scItems(r.warns)+
       '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button><button type="button" class="'+(hasWarn?'warn':'go')+'" onclick="scClose();cmpStartUndo()">그래도 보내기</button></div>');
     window._scLast=r;
+    });
   };
+  /* 11-21 대표 「신입사원 관점」 가 묶음 — 서버 확인 두 가지를 같은 「보내기 전에 확인」 창에 더함
+     ① 첨부 이름·제목·본문의 다른 거래처 이름 ② 처음 보내는 회사 밖 주소(+ 「혹시 이 주소인가요?」 → 한 번 눌러 바꾸기)
+     서버가 늦거나 안 되면 4초 뒤 그냥 넘어감(보내기를 막지 않음) · 막지 않고 알림만 */
+  function attNames(){ var a=[]; NORMAL.forEach(function(f){ a.push(f.name); }); LARGE.forEach(function(t){ if(LARGE_NAMES[t]) a.push(LARGE_NAMES[t]); });
+    FWD.forEach(function(x){ a.push(x.filename||''); }); return a.filter(Boolean); }
+  var PRE_BUSY=false;
+  function cmpPre(r, done){
+    if(PRE_BUSY) return; PRE_BUSY=true; setSend(true); cmsg('🔎 받는 사람·거래처 확인 중...','');
+    var fin=false, ctl=(window.AbortController? new AbortController(): null);
+    function end(extra, note){ if(fin) return; fin=true; PRE_BUSY=false; setSend(false); cmsg('','');
+      if(extra && extra.length) r.warns=extra.concat(r.warns);
+      if(note) r.warns.push({ic:'ℹ', info:true, t:note});
+      done(r); }
+    var tm=setTimeout(function(){ try{ if(ctl) ctl.abort(); }catch(_){ } end(null, '받는 사람·거래처 확인이 늦어 건너뛰었습니다 — 주소를 한 번 더 봐 주세요.'); }, 4000);
+    fetch('/api/mail/precheck', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, signal:(ctl?ctl.signal:undefined),
+      body:JSON.stringify({to:document.getElementById('cTo').value, cc:document.getElementById('cCc').value, bcc:document.getElementById('cBcc').value,
+                           subject:document.getElementById('cSubj').value, own:ownText(), att:attNames()})})
+      .then(function(x){ return x.json(); })
+      .then(function(j){ clearTimeout(tm); end((j && j.ok && j.warns) ? j.warns : null, (j && j.ok) ? '' : '받는 사람·거래처 확인을 하지 못했습니다 — 주소를 한 번 더 봐 주세요.'); })
+      .catch(function(){ clearTimeout(tm); end(null, '받는 사람·거래처 확인을 하지 못했습니다 — 주소를 한 번 더 봐 주세요.'); });
+  }
+  window._scFix=[];
+  function scItems(ws){ window._scFix=[];
+    return ws.map(function(w){ var fx='';
+      if(w.fix && w.fix.length){ fx='<div class="fix">'+w.fix.map(function(f){ var i=window._scFix.push(f)-1;
+        return '<button type="button" onclick="cmpFixAddr('+i+')">→ '+esc(f.to)+' 로 바꾸기</button>'; }).join('')+'</div>'; }
+      return '<div class="sc-item'+(w.info?' info':'')+(w.kind?' k-'+esc(w.kind):'')+'"><span class="ic">'+esc(w.ic)+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
+        (w.who && w.who.length?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+fx+'</div></div>'; }).join(''); }
+  // 주소 통째로 같은 것만 바꿈(「han@」이 「khan@」 안에 있어도 안 건드림) · 크고 작은 글자 무시
+  function swapAddr(v, from, to){ var lv=v.toLowerCase(), lf=from.toLowerCase(), out='', i=0, k, c=0;
+    var W=/[A-Za-z0-9._%+\-]/;
+    while((k=lv.indexOf(lf, i))>=0){ var b=k>0?v.charAt(k-1):'', a=v.charAt(k+lf.length);
+      if((b && W.test(b)) || (a && /[A-Za-z0-9.\-]/.test(a))){ out+=v.slice(i, k+1); i=k+1; continue; }
+      out+=v.slice(i, k)+to; i=k+lf.length; c++; }
+    return {v:out+v.slice(i), n:c}; }
+  window.cmpFixAddr=function(i){ var f=window._scFix[i]; if(!f) return;
+    var n=0;
+    ['cTo','cCc','cBcc'].forEach(function(id){ var e=document.getElementById(id); if(!e) return; var sw=swapAddr(e.value, f.from, f.to), v=sw.v; n+=sw.n;
+      if(v!==e.value){ e.value=v; try{ e.dispatchEvent(new Event('input',{bubbles:true})); }catch(_){ } } });
+    scClose(); window._cDirty=true;
+    cmsg(n? '✓ '+f.from+' → '+f.to+' 로 바꿨습니다 — 다시 「보내기」를 눌러 주세요' : '바꿀 주소를 찾지 못했습니다', n?'green':'red'); };
   window.cmpStartUndo=function(){ startUndo(window._scLast||checks()); };
   /* 11-19 2단계-나 ⏱ 예약 → 11-19 대표 「달력은 웍스 기준 · 날짜·시간 고른 뒤 『확인』으로 닫기 · 그 자리에 예약 날짜(요일) 시간 표시 · 그걸 보고 『보내기』로 예약 완료」
      ① ⏱ 예약 → 「언제 보낼까요?」: 빠른 단추(고르기만) · 날짜 = 웍스 표준 달력(KnkCal · 일요일 시작 · 공휴일 K/V) · 시각 = 오전/오후 시 + 분(5분 단위)
@@ -929,13 +976,14 @@ function abPut(target){
     else { tag.hidden=true; b.textContent='📤 보내기'; b.title=''; } }
   function cmpSchedSend(){
     if(!scValid(SCHED.date,SCHED.h,SCHED.m)){ cmsg('⚠ 예약 시각('+scLabel(SCHED.date,SCHED.h,SCHED.m)+')이 너무 가깝거나 지났습니다 — 「바꾸기」로 다시 골라 주세요','red'); return; }
-    var r=checks();
-    if(r.stop){ cmsg('⚠ '+r.stop,'red'); return; }
+    var r0=checks();
+    if(r0.stop){ cmsg('⚠ '+r0.stop,'red'); return; }
+    cmpPre(r0, function(r){
     var lab=scLabel(SCHED.date,SCHED.h,SCHED.m), hasWarn=r.warns.some(function(w){ return !w.info; });
     scOpen('<h3>⏱ '+esc(lab)+' 에 보낼까요?</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+(r.P.cBcc.ok.length?' · 숨은참조 '+r.P.cBcc.ok.length+'명':'')+' · 창을 닫아도 그때 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 취소 가능</div>'+
-      r.warns.map(function(w){ return '<div class="sc-item'+(w.info?' info':'')+'"><span class="ic">'+w.ic+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
-        (w.who?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+'</div></div>'; }).join('')+
+      scItems(r.warns)+
       '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button><button type="button" class="'+(hasWarn?'warn':'go')+'" onclick="scClose();cmpSchedGo(\''+SCHED.at+'\')">'+(hasWarn?'그래도 예약':'⏱ 예약 보내기')+'</button></div>');
+    });
   }
   window.cmpSchedGo=async function(at){
     scClose(); var fd=gather(); fd.append('at', at); setSend(true); cmsg('⏱ 예약하는 중...','');

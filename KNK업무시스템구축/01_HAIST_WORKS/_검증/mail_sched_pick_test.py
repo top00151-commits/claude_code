@@ -70,7 +70,8 @@ print("== ③ 보내기 = 예약 보내기 ==")
 check("예약을 골라 두면 보내기 → 예약 길(cmpSchedSend)", "if(SCHED) return cmpSchedSend();" in cp)
 check("단추 글자 「⏱ 예약 보내기」 ↔ 빼면 「📤 보내기」", "b.textContent='⏱ 예약 보내기'" in cp and "b.textContent='📤 보내기'" in cp)
 check("최종 확인 창(같은 검사) → 서버 예약(at = YYYY-MM-DDTHH:MM)", "cmpSchedGo(\\''+SCHED.at+'\\')" in cp and "at:f.d.value+'T'+scP2(+f.h.value)+':'+scP2(+f.m.value)" in cp
-      and "var r=checks();" in cp[cp.index("function cmpSchedSend"):cp.index("window.cmpSchedGo")])
+      and "var r0=checks();" in cp[cp.index("function cmpSchedSend"):cp.index("window.cmpSchedGo")]
+      and "cmpPre(r0, function(r){" in cp[cp.index("function cmpSchedSend"):cp.index("window.cmpSchedGo")])   # 11-21 가 묶음: 같은 검사 + 서버 확인
 check("보낼 때 시각이 이미 가까워지면 다시 고르라고 알림", "이 너무 가깝거나 지났습니다" in cp)
 
 print("== ④ 시각 = 소속 기준 · 서버 ==")

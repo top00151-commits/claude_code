@@ -24880,6 +24880,41 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                sig_html=("" if draft else sig), sig_list=sig_list)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
+from starlette.concurrency import run_in_threadpool as _mpre_pool   # noqa: E402
+from . import mail_precheck as _mprecheck   # noqa: E402 · 2026-11-21 신입사원 관점 가 묶음 — 다른 거래처 이름 · 처음 보내는 주소
+
+
+@app.post("/api/mail/precheck")
+async def mail_precheck_api(req: Request):
+    """보내기 전 확인(서버 몫) — ① 첨부 이름·제목·본문의 다른 거래처 이름 ② 처음 보내는 회사 밖 주소(+비슷한 아는 주소).
+    읽기만 · 막지 않음(화면이 알림만) · 내 메일함·내가 볼 수 있는 주소록만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    try:
+        j = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "형식 오류"}, 400)
+    if not isinstance(j, dict):
+        return JSONResponse({"ok": False, "message": "형식 오류"}, 400)
+
+    def _s(k, n):
+        v = j.get(k)
+        return v[:n] if isinstance(v, str) else ""
+    att = [a[:300] for a in (j.get("att") or []) if isinstance(a, str)][:50] if isinstance(j.get("att"), list) else []
+
+    def _work():
+        with db_session() as c:
+            return _mprecheck.run(c, u, to=_s("to", 5000), cc=_s("cc", 5000), bcc=_s("bcc", 5000),
+                                  subject=_s("subject", 500), own=_s("own", 20000), att_names=att)
+    try:
+        warns = await _mpre_pool(_work)
+    except Exception as e:
+        print("[MAIL-PRECHECK] 실패: %s" % type(e).__name__, flush=True)
+        return JSONResponse({"ok": False, "message": "확인하지 못했습니다"}, 500)
+    return JSONResponse({"ok": True, "warns": warns})
+
+
 @app.post("/mail/send")
 async def mail_send_route(req: Request):
     u = get_user(req)
