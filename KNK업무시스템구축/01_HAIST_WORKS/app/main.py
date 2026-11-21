@@ -10907,6 +10907,12 @@ def dashboard_page(req: Request):
 
     # 2026-04-26 CEO 통합 대시보드 — 9 KPI + 알림 + 빠른 액션
     kpis_raw = ceo_dashboard_kpis(user_id=u["id"])
+    # z1191z99 (대표 11-22): 「미수금 잔액」 = 💰 입금 확인과 같은 계산(옛: 옛 invoices 표 발행 합 − 수금 · 기준 달라 0 으로 보였음)
+    try:
+        kpis_raw.setdefault("sales", {})["unpaid"] = (_ar_totals_z99(u).get("KRW") or {}).get("rem", 0)
+        kpis_raw["sales"]["unpaid_z99"] = True
+    except Exception as _e99:
+        print("[z1191z99] 대표 대시 받을 돈 계산 실패:", repr(_e99))
     with db_session() as c:
         unread_notifs = [dict(r) for r in c.execute(
             "SELECT id, kind, title, body, link, created_at "
@@ -11006,7 +11012,7 @@ def dashboard_page(req: Request):
          "note": f"전월비 {growth:+.1f}%" if s.get("prev_month") else "전월 데이터 없음"},
         {"label": "미수금 잔액", "value": f"{_won(s.get('unpaid',0))}원",
          "trend": "alert" if (s.get("unpaid") or 0) > 0 else "neutral",
-         "note": "발행 INVOICE − 수금"},
+         "note": ("세금계산서 기준 · 부가세 포함 · 💰 입금과 같은 계산" if s.get("unpaid_z99") else "발행 INVOICE − 수금")},
         {"label": "활성 재고 품목", "value": f"{int(st.get('on_hand_kinds',0)):,}",
          "trend": "alert" if (st.get("qc_open") or 0) > 0 else "neutral",
          "note": f"QC 부적합 {int(st.get('qc_open',0))}건"},
@@ -50923,6 +50929,18 @@ async def sales_dashboard_v3(req: Request):
         "kpi_ship_soon":    k.get("ship_soon", 0),
     }
     ctx_data.update(flat)
+    # z1191z99 (대표 11-22 「매출 분석도」): 미수금 = 💰 입금 확인과 같은 계산(옛: 출하·송장·입금 완료 수주 금액 − 수금 · 부가세 기준이 섞였음)
+    try:
+        _ar99 = _ar_totals_z99(u)
+        ctx_data["kpi_outstanding"] = (_ar99.get("KRW") or {}).get("rem", 0)
+        ctx_data["kpi_outstanding_over_z99"] = (_ar99.get("KRW") or {}).get("over", 0)
+        ctx_data["outstanding_by_currency"] = [{"currency": k, "n_inv": v["n"], "outstanding": v["rem"], "overdue": v["over"]}
+                                               for k, v in _ar99.items()]
+        ctx_data["ar_basis_z99"] = True
+    except Exception as _e99:   # 숫자 칸만 — 화면은 열리게(이유는 서버 기록에)
+        print("[z1191z99] 매출 분석 받을 돈 계산 실패:", repr(_e99))
+        ctx_data["outstanding_by_currency"] = []
+        ctx_data["ar_basis_z99"] = False
     # v5H51: pareto_top5 / pipeline 형식 정합 (템플릿 정합)
     tcs = ctx_data.get("top_customers", [])
     ctx_data["pareto_top5"] = [{
@@ -51009,7 +51027,8 @@ def _parse_terms_days(terms: str) -> int:
 
 
 def _outstanding_receivables(c, only_overdue: bool = False):
-    """미수금 건별 집계 — orders.total_amount - SUM(receipts_payment.amount).
+    """⚠ z1191z99 부터 화면·알림 어디서도 쓰지 않음 — 받을 돈은 _rc_rows_z94 한 곳(입금 확인·미수 현황·수금 알림·매출 분석·대표 대시).
+    미수금 건별 집계 — orders.total_amount - SUM(receipts_payment.amount).
     z745b(대표 지시): 만기 = **세금계산서 발행일 + 고객사 pay_days**(납품·수금 화면과 통일).
       발행일 = 그 수주 호기(order_items.tax_invoice_date) 중 가장 이른 날(없으면 orders 폴백).
       발행일 없으면(미발행) 발주일 기준으로 폴백(보수적). pay_days 미설정(0)이면 레거시 payment_terms 폴백.
@@ -51294,38 +51313,31 @@ def check_receivable_alerts():
     Returns: {sent: int, skipped: int, items: int}.
     """
     sent = 0; skipped = 0; total_items = 0
+    # z1191z99 (대표 11-22): 💰 입금 확인과 같은 줄(계산서 한 장 · 부가세 포함 · 받은 돈 뺌 · 예정일 = 발행일 + 결제 조건)
+    rc_rows = _rc_rows_z94({})["rows"]
     with db_session() as c:
-        items = _outstanding_receivables(c)
-        total_items = len(items)
+        total_items = len(rc_rows)
         # 영업 권한자 폴백 (주된 알림 대상 미상시)
         sales_uids = [r[0] for r in c.execute(
             "SELECT id FROM users WHERE can_use_sales=1 OR role='ceo'"   # z1191g: 관리자는 매출 등록 체크로(위 조건)
         ).fetchall()]
-        for it in items:
-            ov = it["overdue_days"]
-            order_no = it.get("order_no") or f"#{it['order_id']}"
-            cust = it.get("customer_name") or "-"
-            outstanding = it.get("outstanding") or 0
-            # 발송 조건: 만기 7일 임박 OR 연체 1/30/60일 도달
-            tag = None
-            if ov == -7:
-                tag = "만기 임박 (D-7)"
-            elif ov == 1:
-                tag = "연체 1일"
-            elif ov == 30:
-                tag = "연체 30일"
-            elif ov == 60:
-                tag = "연체 60일"
+        for x in rc_rows:
+            dd = x["dday"]
+            if dd is None:
+                continue
+            # 보내는 날: 예정일 7일 전 · 1일 지남 · 30일 지남 · 60일 지남(계산서 한 장마다)
+            tag = {7: "입금 예정일 7일 전", -1: "입금 예정일 1일 지남", -30: "입금 예정일 30일 지남",
+                   -60: "입금 예정일 60일 지남"}.get(dd)
             if not tag:
                 continue
-            title = f"💰 미수금 {tag} — {order_no}"
-            body = (f"거래처: {cust} / 미수금: {int(outstanding):,}원 / "
-                    f"등급: {it['grade']} / 만기: {it['due_date_calc']}")
-            link = f"/sales/orders/{it['order_id']}"
+            title = f"💰 {tag} — {x['cname']} · {x['order_no']}"
+            body = (f"고객사: {x['cname']} / 세금계산서 발행일: {x['issue']} / 받을 돈(부가세 포함): {x['rem_fmt']} / "
+                    f"입금 예정일: {x['due']}({x['term_label']}) — 💰 입금 → 입금 확인에서 관리팀 확인 뒤 [✅ 입금 확인됨]")
+            link = "/sales/receipts-check"
             # 우선 created_by, 폴백 영업권한자 전체
             recipients = []
             cb = c.execute(
-                "SELECT created_by FROM orders WHERE id=?", (it["order_id"],)
+                "SELECT created_by FROM orders WHERE id=?", (x["oid"],)
             ).fetchone()
             if cb and cb[0]:
                 recipients.append(cb[0])
@@ -51337,6 +51349,19 @@ def check_receivable_alerts():
                 else:
                     skipped += 1
     return {"sent": sent, "skipped": skipped, "items": total_items}
+
+
+def _ar_totals_z99(u=None):
+    """z1191z99: 통화별 받을 돈 합 — 💰 입금 확인 · 📊 미수 현황과 같은 줄(_rc_rows_z94).
+    반환 {통화: {"rem": 받을 돈, "over": 예정일 지난 돈, "n": 계산서 장수}} · 원화가 먼저."""
+    tot = {}
+    for x in _rc_rows_z94(u or {})["rows"]:
+        t = tot.setdefault(x["ccy"], {"rem": 0, "over": 0, "n": 0})
+        t["rem"] += x["rem"]
+        t["n"] += 1
+        if x["dday"] is not None and x["dday"] < 0:
+            t["over"] += x["rem"]
+    return dict(sorted(tot.items(), key=lambda kv: (kv[0] != "KRW", kv[0])))
 
 
 _AR_BUCKETS_Z98 = ("nd", "d30", "d60", "d90", "d90p")   # 예정일 전 · 1~30 · 31~60 · 61~90 · 90일 넘게 지남

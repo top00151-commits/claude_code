@@ -151,10 +151,10 @@ S["user"] = SALES
 
 print("§4 미수 화면 띠")
 # z1191z98: 미수 현황(입금 확인과 같은 계산) · 🧾 마감(입금 숫자 뺌) · 채권 노화(→ 미수 현황) · 수주 목록(받을 돈 = 입금 확인 계산)에는 띠·표시 없음
-#            옛 기준 숫자가 남은 매출 분석에만 띠
-for path in ("/sales/dashboard",):
+# z1191z99: 매출 분석도 같은 계산 → 띠를 쓰는 화면 없음(모든 미수 숫자 = 💰 입금 확인 계산)
+for path in ("/sales/dashboard", "/sales/outstanding", "/sales/shipments-receipts"):
     r = q(cl.get, path)
-    check("%s — 정리 전 띠" % path, r.status_code == 200 and "아래 미수 숫자는 아직 실제 미수가 아닙니다" in r.text, r.status_code)
+    check("%s — 「다른 기준」 띠 없음(같은 계산)" % path, r.status_code == 200 and "아래 미수 숫자는 아직 실제 미수가 아닙니다" not in r.text, r.status_code)
 with D.db_session() as c:
     c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('ar_baseline_done', '1')")
 check("정리 끝 표시(ar_baseline_done=1) → 띠 사라짐",
