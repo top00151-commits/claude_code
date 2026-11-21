@@ -222,7 +222,7 @@ body {
     <div class="c k5" data-dn="kpi-payment"><div class="top"><span class="lbl">🟣 수금대기</span><span class="val">{{ _k.get('wait_payment', 0) }}<span class="u">건</span></span></div>
       <div class="sub">INVOICED</div></div>
     <div class="c k6" data-dn="kpi-outstanding"><div class="top"><span class="lbl">💰 미수금</span><span class="val" style="font-size:13px;">{% if _k.get('outstanding') %}{{ money(_k.get('outstanding', 0), 'KRW') }}{% else %}—{% endif %}</span></div>
-      <div class="sub">확정+납품+송장 합</div></div>
+      <div class="sub">확정+납품+송장 합{% if ar_baseline_pending() %} · <b title="입금 기록을 아직 정리하지 않아 이미 받은 돈도 미수로 셉니다" style="color:#b45309;">입금 기록 정리 전</b>{% endif %}</div></div>
   </div>
 
   {# 좌우 2단 #}

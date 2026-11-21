@@ -90,6 +90,8 @@ body {
 
   {# v5H226z217 (대표 지시): 사업부별 책갈피 — 탭으로 사업부 선택 (이동 없이 즉시 필터) #}
   <div class="proj-bm proj-bm-div" data-dn="proj-bm-div" style="margin-bottom:8px;">
+    {# z1191z92 (대표 11-21 P0-6): 👤 내 건만 — 영업담당자 칸 = 내 이름 · 누르면 내 계정에 기억(작업 일정표와 같이) #}
+    {% if mine_count %}<a href="/projects?mine={{ 0 if mine_on else 1 }}" id="projMineBtn" class="bm{% if mine_on %} on{% endif %}" title="영업담당자 칸에 내 이름이 적힌 건만 보기 · 다시 누르면 전체">👤 내 건만 <b>{{ mine_count }}</b></a>{% endif %}
     <a href="#" data-div="all" onclick="projDivFilter('all');return false;" class="bm on">🗂 전체 <b>{{ div_counts.all }}</b></a>
     <a href="#" data-div="T"   onclick="projDivFilter('T');return false;"   class="bm">🔬 검사기 <b>{{ div_counts.T }}</b></a>
     <a href="#" data-div="M"   onclick="projDivFilter('M');return false;"   class="bm">🤖 자동화 <b>{{ div_counts.M }}</b></a>
@@ -161,7 +163,7 @@ body {
         {# v5H217: _kind 에 따라 라우팅 분기 — 소모품은 /consumables/{id}, 그 외는 /project/{id} #}
         {% set _is_co = (p._kind == 'consumable') %}
         {% set _link = '/consumables/' ~ p.id if _is_co else '/project/' ~ p.id %}
-        <tr data-grp="{{ p._grp|default('all') }}" data-div="{{ p._div|default('') }}">
+        <tr data-grp="{{ p._grp|default('all') }}" data-div="{{ p._div|default('') }}" data-mine="{{ p._mine|default(0) }}">
           {# v5H226z177: 프로젝트 삭제 기능(체크박스·🗑·일괄삭제) 목록에서 제거 (대표 지시) #}
           {# v5H226z52: 프로젝트 mgmt_code amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
           <td><a href="{{ _link }}" class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</a></td>
@@ -232,6 +234,7 @@ body {
   // v5H226z156/z217: 책갈피 이중 필터 — 상태 그룹(data-grp) + 사업부(data-div). 이동 없이 즉시 적용.
   window.__projGrp = 'all';
   window.__projDiv = 'all';
+  window.__projMine = {{ 'true' if mine_on else 'false' }};   // z1191z92 P0-6
   function applyProjFilter(){
     var grp = window.__projGrp || 'all', dv = window.__projDiv || 'all';
     var tb = document.getElementById('projTbody');
@@ -241,7 +244,8 @@ body {
         var d = (tr.getAttribute('data-div') || '');
         var okGrp = (grp === 'all' || g.indexOf(grp) >= 0);
         var okDiv = (dv === 'all' || d === dv);
-        tr.style.display = (okGrp && okDiv) ? '' : 'none';
+        var okMine = (!window.__projMine || tr.getAttribute('data-mine') === '1');
+        tr.style.display = (okGrp && okDiv && okMine) ? '' : 'none';
       });
     }
     updateExportLinks();

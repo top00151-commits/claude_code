@@ -138,8 +138,9 @@ chk("/workflow/team" in [h for h, _, _ in fll] and "/workflow" in [h for h, _, _
 
 print("§3 매출영업 · 자재구매 화면 — A/S 관리 · 출고 요청은 묶음으로, 나머지 순서 그대로")
 g, fl, _, _ = parse(render("/sales", active_tab="sales"))
-chk(hrefs(g, G_SALES) == ["/sales", "/sales/opportunities", "/projects", "/sales/schedule", "/customers", "/sales/quotations",
-                          "/sales/orders", "/sales/shipments-receipts", "/sales/outstanding", "/export"],
+# z1191z92 (대표 11-21 P0-2·P0-7): 맨 위 「🆕 등록」 · 맨 아래 「📖 처음이면 — 등록부터 입금까지」 두 줄이 더해짐
+chk(hrefs(g, G_SALES) == ["/projects/new", "/sales", "/sales/opportunities", "/projects", "/sales/schedule", "/customers", "/sales/quotations",
+                          "/sales/orders", "/sales/shipments-receipts", "/sales/outstanding", "/export", "/sales/flow-guide"],
     "매출·영업 묶음 = A/S 관리만 빠짐 · 실제 %s" % hrefs(g, G_SALES))
 chk("/as" in [h for h, _, _ in fl], "A/S 관리는 접은 묶음에")
 chk(hrefs(g, G_COMMON) == COMMON_NOW, "매출영업 화면에서도 공통 = 같은 5개")

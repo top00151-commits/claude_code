@@ -112,6 +112,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
     <div class="page-meta" style="margin-top:6px;font-size:12px;color:var(--mute);">작업일정표 다음 스텝 — 출하·세금계산서 완료 건의 입금예상일·미수·마감이월 정리</div></div>
   </div>
 
+  {% include "_v5_partials/ar_baseline_notice_z92.html" %}
   {# ── KPI ── #}
   <div class="sr-kpis">
     <div class="sr-kpi warn"><div class="lbl">🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>

@@ -607,6 +607,66 @@ tpl.env.globals["soqty_sum"] = _so_qty_sum_z89
 tpl.env.globals["soqty_note"] = _so_qty_note_z89
 
 
+# ── z1191z92 (대표 11-21 「P0 7가지 먼저 진행해」): 기술영업팀 전원 사용 전 ──
+# P0-1 입금 기록 「기초 정리」 전에는 미수 숫자가 실제와 다름(출하 수주 전부를 미수로 셈 · 입금 기록 0건)
+#   → 미수 화면마다 띠. 정리가 끝나면 app_settings 'ar_baseline_done'='1' 로 띠가 사라짐(대표 실행 .ps1).
+def _ar_baseline_pending_z92() -> bool:
+    try:
+        with db_session() as _c:
+            _r = _c.execute("SELECT value FROM app_settings WHERE key='ar_baseline_done'").fetchone()
+        return not (_r and str(_r[0] or "").strip() == "1")
+    except Exception as _e:
+        print(f"[z1191z92] 입금 기초 정리 표시 확인 실패 — 띠를 보임: {_e}")
+        return True
+
+
+tpl.env.globals["ar_baseline_pending"] = _ar_baseline_pending_z92
+
+# P0-6 「👤 내 건만」 — 영업담당 칸(이름 글자)과 로그인한 사람 이름을 맞춤(직책·띄어쓰기 무시 · 「이현/오경환」처럼 여럿이면 하나라도)
+_TITLE_SUFFIX_Z92 = ("팀장", "매니저", "프로", "이사", "상무", "전무", "부장", "차장", "과장", "대리",
+                     "주임", "사원", "책임", "선임", "수석", "대표", "님")
+
+
+def _person_key_z92(s) -> str:
+    import re as _re92
+    k = _re92.sub(r"\s+", "", str(s or ""))
+    changed = True
+    while changed and k:
+        changed = False
+        for _t in _TITLE_SUFFIX_Z92:
+            if k.endswith(_t) and len(k) > len(_t) + 1:
+                k = k[: -len(_t)]
+                changed = True
+    return k
+
+
+def _is_mine_z92(u, sales_name) -> bool:
+    import re as _re92
+    me = _person_key_z92((u or {}).get("name"))
+    if len(me) < 2:
+        return False
+    for _part in _re92.split(r"[,/·&+]", str(sales_name or "")):
+        if _person_key_z92(_part) == me:
+            return True
+    return False
+
+
+def _mine_pref_z92(u, mine) -> bool:
+    """mine=1/0 으로 누르면 내 계정에 기억 · 안 주면 기억한 값(프로젝트 목록·작업 일정표 같이 씀)."""
+    _m = str(mine or "").strip()
+    _uid = (u or {}).get("id")
+    if _m in ("0", "1"):
+        try:
+            _logi.view_prefs_set(_uid, "sales_mine_only_z92", _m)
+        except Exception as _e:
+            print(f"[z1191z92] 내 건만 기억 실패: {_e}")
+        return _m == "1"
+    try:
+        return (_logi.view_prefs_get(_uid, "sales_mine_only_z92") or "") == "1"
+    except Exception:
+        return False
+
+
 def _so_qty_text_z89(so, proj_po="") -> dict:
     """수주 하나의 수량 글자 — 수주 카드와 같은 규칙. {"text","unit","qty","fk"}
     상품 = 완제품 N대분 · N식(PO유형) · 단위 안 고른 소모품 = 줄 수 N건 · 그 밖 = 표시수량(없으면 줄 수량 합) + 수주 단위."""
@@ -35008,12 +35068,13 @@ async def prod_request_image_delete(request: Request, pid: int, prid: int, img_i
 # v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
 def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                              stage: str = "", status: str = "",
-                             project_type: str = "", view: str = "", archived: str = ""):
+                             project_type: str = "", view: str = "", archived: str = "", mine: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
         return RedirectResponse("/home", 303)
+    _mine_on = _mine_pref_z92(u, mine)   # z1191z92 P0-6
     # 2026-07-06 (대표 지시): archived=1 이면 폐기함(폐기된 프로젝트만 표시)
     _only_arch = (str(archived).strip() == "1")
     # v5H218: biz_div(T/M) = 진행 사업부, project_type 으로 유형(검사기/자동화/기타/소모품) 구분
@@ -35076,6 +35137,7 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                     "order_amount": cr.get("total_amount") or 0,
                     "order_date": cr.get("order_date") or "",
                     "_co_no": cr.get("co_no"),
+                    "sales_name": cr.get("sales_name") or "",   # z1191z92: 👤 내 건만
                 })
         except Exception as _e:
             print(f"[v5H218] 소모품 병합 실패: {_e}")
@@ -35126,8 +35188,13 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     for _k in ("T", "M", "L", "E", "C"):
         div_counts[_k] = sum(1 for r in rows if r["_div"] == _k)
 
+    # z1191z92 P0-6: 👤 내 건만 — 줄마다 표시(화면에서 바로 거름 · 다른 책갈피와 같이 씀)
+    for r in rows:
+        r["_mine"] = 1 if _is_mine_z92(u, r.get("sales_name")) else 0
+    _mine_count = sum(r["_mine"] for r in rows)
     return ctx(request, "projects.html",
                user=u, active="sales_projects",
+               mine_on=bool(_mine_on and _mine_count), mine_count=_mine_count,
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
                project_type=project_type, view=view, archived=_only_arch,
                view_counts=view_counts,
@@ -37968,7 +38035,8 @@ def _sched_cust_hit(row, q):
 @app.get("/sales/schedule", response_class=HTMLResponse)
 # v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
 def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = "",
-                         pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = "", cbiz: str = ""):
+                         pf: str = "", pt: str = "", focus_ref: str = "", focus_so: str = "", cbiz: str = "",
+                         mine: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
@@ -38401,6 +38469,13 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
     else:
         _biz = ""
     rows, _cbiz, _cbiz_counts = _board_cbiz_apply_z1191z8(rows, _biz, cbiz)   # z1191z8: 소모품 하위 책갈피
+    # z1191z92 P0-6: 👤 내 건만(영업담당자 칸 = 내 이름) — 누르면 내 계정에 기억(달 바꿔도 유지)
+    _mine_on = _mine_pref_z92(u, mine)
+    _mine_count = sum(1 for r in rows if _is_mine_z92(u, r.get("sales_owner")))
+    if _mine_on and _mine_count and not focus_ref and not focus_so:
+        rows = [r for r in rows if _is_mine_z92(u, r.get("sales_owner"))]
+    else:
+        _mine_on = False
     summary = {
         "deliver_today": sum(1 for r in rows if r["dday"] == today_day and today_day),
         "delay": sum(1 for r in rows if r["is_delay"]),
@@ -38440,9 +38515,22 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                day_memos=_day_memos,   # v5H226z712 (대표 지시): 날짜별 진행 메모 {(kind,ref_id,ymd):memo}
                col_prefs=_col_prefs, can_money=_can_money,
                biz=_biz, div_counts=div_counts,
+               mine_on=_mine_on, mine_count=_mine_count,   # z1191z92 P0-6
                range_mode=range_mode, pf=(pf[:10] if range_mode else ""), pt=(pt[:10] if range_mode else ""),
                focus_ref=((focus_ref or "")[:20]),  # v5H226z650c(대표 지시): 참고 수주(진행중) 클릭 시 해당 프로젝트 행으로 스크롤·강조(검색 필터 아님)
                focus_so=((focus_so or "")[:40]))  # v5H226z665(대표 지시): 특정 수주번호 행으로 정확히 이동(추가 수주가 별도 행이 됨)
+
+
+# z1191z92 (대표 11-21 P0-7): 「등록부터 입금까지」 — 메뉴만 보고 따라가는 한 장 안내(기술영업팀 전원 사용 전)
+@app.get("/sales/flow-guide", response_class=HTMLResponse)
+def sales_flow_guide_z92(request: Request):
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/home?no_perm=sales", 303)
+    return ctx(request, "sales_flow_guide.html", user=u, active="sales_flow_guide",
+               can_manual=_can_manual_mgmt(u), ar_pending=_ar_baseline_pending_z92())
 
 
 # v5H226z264 (대표 지시): 작업 일정표 보드 — 셀 편집/메모/칸설정 저장 라우트.

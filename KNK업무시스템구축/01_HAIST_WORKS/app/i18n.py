@@ -1675,6 +1675,10 @@ T = {
                   "vi": "💱 Tỷ giá"},
     "ch_m_rnd": {"ko": "🧪 연구개발 과제",   # z1191z38: 검사기 🔬 와 겹치지 않게
                 "vi": "🧪 Đề tài R&D"},
+    "ch_m_reg_z92": {"ko": "🆕 등록",
+                     "vi": "🆕 Đăng ký"},
+    "ch_m_guide_z92": {"ko": "📖 처음이면 — 등록부터 입금까지",
+                       "vi": "📖 Hướng dẫn — từ đăng ký đến thu tiền"},
     "ch_m_sales": {"ko": "🏢 매출 홈",
                   "vi": "🏢 Trang doanh thu"},
     "ch_m_sched": {"ko": "📅 작업 일정표",

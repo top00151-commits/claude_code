@@ -1,0 +1,12 @@
+{# z1191z92 (대표 11-21 P0-1): 입금 기록 「기초 정리」 전 — 미수 숫자가 실제와 다르다는 띠.
+   지금은 입금(수금) 기록이 0건이라 출하된 수주를 모두 미수로 셉니다(이미 받은 돈 포함).
+   정리가 끝나면 app_settings 'ar_baseline_done'='1' 로 이 띠가 사라집니다. #}
+{% if ar_baseline_pending() %}
+<div class="ar-baseline-z92" role="note" style="margin:10px var(--content-pad,20px) 12px;padding:12px 16px;border:1px solid #f59e0b;background:#fffbeb;border-radius:10px;color:#78350f;font-size:13px;line-height:1.6;">
+  <b>⚠ 아래 미수 숫자는 아직 실제 미수가 아닙니다.</b>
+  이음웍스에 입금 기록을 아직 정리하지 않아, <b>이미 받은 돈도 미수로</b> 셉니다.
+  입금 여부는 지금처럼 <b>관리 실무(안지연 프로) → 관리팀 확인</b>으로 봐 주세요.
+  입금 기록 정리와 「💰 입금 확인」 화면은 다음 단계로 준비 중입니다.
+  <a href="/sales/flow-guide" style="margin-left:6px;color:#92400e;font-weight:700;">ⓘ 등록부터 입금까지 안내</a>
+</div>
+{% endif %}

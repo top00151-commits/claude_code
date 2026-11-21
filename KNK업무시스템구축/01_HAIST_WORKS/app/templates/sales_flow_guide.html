@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>등록부터 입금까지 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* z1191z92 (대표 11-21 P0-7): 「등록부터 입금까지」 한 장 안내 — 메뉴만 보고 따라가기 */
+.fg-wrap{padding:16px var(--content-pad,20px) 40px;max-width:1100px;}
+.fg-lead{font-size:14px;color:var(--knk-text-secondary,#46524B);line-height:1.7;margin:0 0 14px;}
+.fg-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;}
+.fg-step{display:grid;grid-template-columns:56px 1fr auto;gap:14px;align-items:start;padding:14px 16px;border:1px solid var(--knk-border-subtle,#E2E6E1);border-radius:12px;background:var(--knk-bg-surface,#FAFBF9);}
+.fg-no{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;background:#e8f1ec;color:#2f6f4f;}
+.fg-step.wait .fg-no{background:#fef3c7;color:#92400e;}
+.fg-ttl{font-size:16px;font-weight:800;margin:2px 0 4px;color:var(--knk-text-primary,#27302B);}
+.fg-who{font-size:12px;color:var(--knk-text-muted,#657169);margin-bottom:6px;}
+.fg-how{margin:0;padding-left:18px;font-size:13.5px;line-height:1.75;color:var(--knk-text-secondary,#46524B);}
+.fg-how b{color:var(--knk-text-primary,#27302B);}
+.fg-path{display:inline-block;font-size:12.5px;background:var(--knk-bg-inset,#F6F7F4);border:1px solid var(--knk-border-subtle,#E2E6E1);border-radius:6px;padding:1px 7px;margin:0 2px;white-space:nowrap;}
+.fg-go{align-self:center;white-space:nowrap;text-decoration:none;font-weight:700;font-size:13px;padding:9px 14px;border-radius:8px;background:#2f6f4f;color:#fff;}
+.fg-go:hover{filter:brightness(1.08);}
+.fg-step.wait .fg-go{background:#9ca3af;}
+.fg-note{margin-top:16px;font-size:12.5px;color:var(--knk-text-muted,#657169);line-height:1.7;}
+@media (max-width:760px){ .fg-step{grid-template-columns:44px 1fr;} .fg-go{grid-column:1 / -1;text-align:center;} .fg-no{width:36px;height:36px;font-size:16px;} }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main">
+  <header class="knk-page-head" data-dn="page-head">
+    <div>
+      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <b>등록부터 입금까지</b></nav>
+      <h1 class="knk-page-title">ⓘ 등록부터 입금까지 — 이 순서로 누르세요</h1>
+      <p class="knk-page-meta">왼쪽 메뉴와 화면 단추 이름 그대로 적었습니다 · 각 단계의 [바로 가기]를 누르면 그 화면이 열립니다</p>
+    </div>
+  </header>
+  <div class="fg-wrap">
+    <p class="fg-lead">관리번호 부여 → 제작요청 발행 → 등록은 <b>건을 맡은 영업 담당자가 직접</b> 합니다. 발행하면 고른 부서에 바로 통보됩니다.
+      외근 중이면 다른 사람이 대신 발행해도 되고, 발행한 사람과 영업담당자는 따로 남습니다.</p>
+    <ol class="fg-steps">
+      <li class="fg-step">
+        <div class="fg-no">1</div>
+        <div>
+          <div class="fg-ttl">등록 — 관리번호 · 수주번호 · 제작요청</div>
+          <div class="fg-who">누가: 영업 담당자 · 언제: 고객 발주(PO)를 받으면</div>
+          <ul class="fg-how">
+            <li>왼쪽 메뉴 <span class="fg-path">🆕 등록</span> → 사업부 카드(🔬 검사기 · 🤖 자동화 · 💄 라이프밸류 · 🌐 기타 · 📦 소모품)를 고릅니다.</li>
+            <li>고객사1 · 프로젝트명 · 모델명 · 장비명 · 수량 · 단가 · 발주일 · <b>고객 PO 번호</b> · 납품일 · 영업담당자를 적습니다.</li>
+            <li>관리번호는 <b>자동 발급</b>됩니다.{% if can_manual %} 엑셀에서 이미 매긴 번호가 있으면 <span class="fg-path">🔧 수동발행</span>에 체크 → 번호 → <b>[검증]</b> 뒤 등록합니다.{% endif %}</li>
+            <li>아래 <span class="fg-path">📋 제작요청서</span>에서 <b>지금 발행</b>을 고르고, <b>통보할 부서·사람</b>을 고릅니다(한 번 고른 뒤 <span class="fg-path">지금 고른 것을 기본으로 저장</span>을 누르면 다음부터 자동으로 골라집니다).</li>
+            <li><span class="fg-path">＋ 등록</span>을 누르면 관리번호·수주번호가 나오고, 고른 부서에 제작요청이 통보되고, 작업 일정표에 「제작요청」이 적힙니다.</li>
+          </ul>
+        </div>
+        <a class="fg-go" href="/projects/new">바로 가기 ▶</a>
+      </li>
+      <li class="fg-step">
+        <div class="fg-no">2</div>
+        <div>
+          <div class="fg-ttl">고칠 때 — 제작요청 수정 · 취소</div>
+          <div class="fg-who">누가: 영업 담당자 · 언제: 수량·자료 경로·사양이 바뀌면(메일 RE 대신)</div>
+          <ul class="fg-how">
+            <li>왼쪽 메뉴 <span class="fg-path">📋 프로젝트</span> → 그 건을 눌러 엽니다(위쪽 <span class="fg-path">👤 내 건만</span>을 누르면 내 건만 보입니다).</li>
+            <li>제작요청서 화면에서 고친 뒤 <span class="fg-path">🔁 수정발행 · 부서 다시 통보</span> · 없던 일이 되면 <span class="fg-path">🚫 취소 발행</span>.</li>
+          </ul>
+        </div>
+        <a class="fg-go" href="/projects">바로 가기 ▶</a>
+      </li>
+      <li class="fg-step">
+        <div class="fg-no">3</div>
+        <div>
+          <div class="fg-ttl">제작 중 — 일정 · 납기 확인</div>
+          <div class="fg-who">누가: 영업 담당자 · 관리 실무 · 팀장</div>
+          <ul class="fg-how">
+            <li>왼쪽 메뉴 <span class="fg-path">📅 작업 일정표</span> → 위쪽 <span class="fg-path">👤 내 건만</span>(내 이름이 영업담당자인 건) → 납품일 · 단계 · 메모를 봅니다.</li>
+            <li>한 번 누른 <span class="fg-path">👤 내 건만</span>은 내 계정에 기억되어 달을 바꿔도 그대로입니다. 다시 누르면 전체가 보입니다.</li>
+          </ul>
+        </div>
+        <a class="fg-go" href="/sales/schedule">바로 가기 ▶</a>
+      </li>
+      <li class="fg-step">
+        <div class="fg-no">4</div>
+        <div>
+          <div class="fg-ttl">출하 · 납품</div>
+          <div class="fg-who">누가: 영업 담당자 · 관리 실무</div>
+          <ul class="fg-how">
+            <li><span class="fg-path">📅 작업 일정표</span>에서 그 줄의 달력 날짜를 눌러 「출하」로 바꿉니다.</li>
+            <li>여러 줄을 한 번에: 줄 앞 ☑ 를 고르고 <span class="fg-path">🚚 일괄출하</span>(오늘 날짜로 출하).</li>
+          </ul>
+        </div>
+        <a class="fg-go" href="/sales/schedule">바로 가기 ▶</a>
+      </li>
+      <li class="fg-step">
+        <div class="fg-no">5</div>
+        <div>
+          <div class="fg-ttl">마감 — 거래명세서 · 세금계산서</div>
+          <div class="fg-who">누가: 관리 실무(안지연 · 이새롬 프로) · 세금계산서 실제 발행은 지금처럼 회계 시스템에서</div>
+          <ul class="fg-how">
+            <li><span class="fg-path">📅 작업 일정표</span>의 <b>거래명세서</b> · <b>세금계산서</b> 칸에 발행일과 금액을 적습니다(나눠 발행하면 2차·3차… 추가).</li>
+            <li>같은 고객사 여러 건을 한 장으로: ☑ 고르고 <span class="fg-path">⚙ 도구 ▾</span> → <span class="fg-path">📄 묶어 발행</span>.</li>
+          </ul>
+        </div>
+        <a class="fg-go" href="/sales/schedule">바로 가기 ▶</a>
+      </li>
+      <li class="fg-step wait">
+        <div class="fg-no">6</div>
+        <div>
+          <div class="fg-ttl">입금 확인 — 준비 중</div>
+          <div class="fg-who">누가: 관리 실무(안지연 프로) → 관리팀</div>
+          <ul class="fg-how">
+            <li>지금은 <b>입금 예정일이 된 고객사를 관리 실무가 관리팀에 확인</b>하고 정리합니다(이음웍스 밖).</li>
+            <li>이음웍스 「💰 입금 확인」(입금일 된 고객사 목록 → 관리팀에 확인 요청 → 답이 오면 입금 기록)은 <b>다음 단계로 준비 중</b>입니다.</li>
+            {% if ar_pending %}<li><b style="color:#b45309;">💰 미수금 · 🚚 납품·수금 화면의 미수 숫자는 아직 실제와 다릅니다</b>(입금 기록 정리 전 — 이미 받은 돈도 미수로 셈).</li>{% endif %}
+          </ul>
+        </div>
+        <a class="fg-go" href="/sales/shipments-receipts">화면 보기</a>
+      </li>
+      <li class="fg-step">
+        <div class="fg-no">7</div>
+        <div>
+          <div class="fg-ttl">매출 보기 · 보고</div>
+          <div class="fg-who">누가: 팀장 · 대표</div>
+          <ul class="fg-how">
+            <li>왼쪽 메뉴 <span class="fg-path">🏢 매출 홈</span> → <span class="fg-path">📊 매출 보고서</span>(팀장 보고 양식 엑셀).</li>
+          </ul>
+        </div>
+        <a class="fg-go" href="/sales">바로 가기 ▶</a>
+      </li>
+    </ol>
+    <p class="fg-note">ⓘ 메뉴 「🎯 영업 기회」 · 「📋 견적서」 · 「📑 수주」(보기) · 「🌐 수출입」은 필요할 때 씁니다. 견적과 프로젝트 연결은 다음 단계에서 정합니다.<br>
+      이 안내는 왼쪽 매출·영업 메뉴 맨 아래 <b>📖 처음이면 — 등록부터 입금까지</b>를 누르면 언제든 다시 열립니다.</p>
+  </div>
+</main>
+</div>
+</body></html>
