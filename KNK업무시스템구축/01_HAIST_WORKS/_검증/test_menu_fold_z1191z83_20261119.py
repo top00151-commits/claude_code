@@ -151,6 +151,10 @@ chk(hrefs(g, G_LOGI) == ["/logistics", "/parts", "/bom/upload", "/po", "/po/new"
 chk("/stock/issues" in [h for h, _, _ in fl], "출고 요청(준비 중)은 접은 묶음에")
 g, fl, _, _ = parse(render("/sales", active_tab="sales", role="admin", can_use_sales=1))
 chk("/sales/bank-recon" in hrefs(g, G_SALES), "입금 대사(재무 권한) 자리 그대로")
+# z1191z94: 「💰 입금 확인」 = 매출 등록 권한(또는 대표)에게만 · 납품·수금 다음 · 미수금 앞 (위 일반 계정 목록에는 없음 = 맞음)
+_h94 = hrefs(g, G_SALES)
+chk("/sales/receipts-check" in _h94 and _h94.index("/sales/receipts-check") == _h94.index("/sales/shipments-receipts") + 1,
+    "매출 등록 권한 = 💰 입금 확인(납품·수금 다음) · 실제 %s" % _h94)
 
 print("§4 접은 메뉴 화면에 들어가면 — 그 메뉴가 켜지고 묶음이 저절로 펼쳐짐")
 for p, want in (("/tickets", "/tickets"), ("/daily", "/daily"), ("/board/company", "/board/company"), ("/calendar", "/calendar")):

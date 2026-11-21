@@ -168,7 +168,7 @@ r = q(cl.get, "/sales/flow-guide")
 g = r.text
 check("/sales/flow-guide 200 · 단계 7개", r.status_code == 200 and g.count('class="fg-no"') == 7, (r.status_code, g.count('class="fg-no"')))
 check("기술영업팀 직원에게 🔧 수동발행 안내가 보임", "🔧 수동발행" in g)
-check("입금 확인 단계 = 준비 중 + 정리 전 경고", "입금 확인 — 준비 중" in g and "아직 실제와 다릅니다" in g)
+check("입금 확인 단계 = 입금 확인 화면 안내(z94) + 정리 전 경고", "입금 확인 — 예정일 된 고객사" in g and "아직 실제와 다릅니다" in g)
 # 안내에 적은 단추 이름이 실제 화면 글자와 같은지(템플릿 원문으로 확인)
 T = os.path.join(ROOT, "app", "templates")
 src = ""

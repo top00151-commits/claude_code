@@ -98,18 +98,20 @@
         </div>
         <a class="fg-go" href="/sales/schedule">바로 가기 ▶</a>
       </li>
-      <li class="fg-step wait">
+      <li class="fg-step">
         <div class="fg-no">6</div>
         <div>
-          <div class="fg-ttl">입금 확인 — 준비 중</div>
-          <div class="fg-who">누가: 관리 실무(안지연 프로) → 관리팀</div>
+          <div class="fg-ttl">입금 확인 — 예정일 된 고객사 → 관리팀 확인 → 입금 기록</div>
+          <div class="fg-who">누가: 관리 실무(안지연 프로) → 관리팀 · 영업 담당자는 <span class="fg-path">👤 내 건만</span>으로 내 건 입금 상황 보기</div>
           <ul class="fg-how">
-            <li>지금은 <b>입금 예정일이 된 고객사를 관리 실무가 관리팀에 확인</b>하고 정리합니다(이음웍스 밖).</li>
-            <li>이음웍스 「💰 입금 확인」(입금일 된 고객사 목록 → 관리팀에 확인 요청 → 답이 오면 입금 기록)은 <b>다음 단계로 준비 중</b>입니다.</li>
+            <li>왼쪽 메뉴 <span class="fg-path">💰 입금 확인</span> → 위쪽 <b>🔴 예정일 지남</b> · <b>🟠 7일 안</b>을 누르면 그 고객사만 보입니다.</li>
+            <li>입금 예정일 = 세금계산서 발행일 + 고객사 결제 조건(일수). 조건이 빈 고객사는 <b>⚙ 결제 조건 미설정</b>에 모입니다 → 이름 옆 <span class="fg-path">⚙ 결제 조건 넣기</span>.</li>
+            <li>확인할 고객사를 ☑ 고르고 <span class="fg-path">📋 관리팀 확인 요청 글 복사</span> → 이음 관리팀 방에 붙여 넣어 물어봅니다.</li>
+            <li>들어왔다는 답을 받으면 그 줄의 <span class="fg-path">✅ 입금 확인됨</span> → 입금일·금액 → <b>[입금 기록]</b>. 받을 돈이 다 차면 수주가 「입금 완료」가 됩니다.</li>
             {% if ar_pending %}<li><b style="color:#b45309;">💰 미수금 · 🚚 납품·수금 화면의 미수 숫자는 아직 실제와 다릅니다</b>(입금 기록 정리 전 — 이미 받은 돈도 미수로 셈).</li>{% endif %}
           </ul>
         </div>
-        <a class="fg-go" href="/sales/shipments-receipts">화면 보기</a>
+        <a class="fg-go" href="/sales/receipts-check">바로 가기 ▶</a>
       </li>
       <li class="fg-step">
         <div class="fg-no">7</div>

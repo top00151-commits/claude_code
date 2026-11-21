@@ -49846,6 +49846,221 @@ def _sr_bill_state(total, issued_amt, eps):
             "nothing_issued": abs(issued_amt) <= eps}
 
 
+# ── z1191z94 (대표 11-21 「다음 입금 확인 화면 진행해」): 💰 입금 확인 — 세금계산서 기준 「받을 돈」 ──
+#   안지연 프로 실제 방식(대표 11-21): 입금 예정일이 된 고객사 확인 → 관리팀에 입금 여부 확인 → 정리.
+#   · 한 줄 = 세금계산서 한 장(수주 × 발행일) · 금액 = 공급가 + 부가세(원화 국내 10% · 수출·외화 0% = 납품·수금 화면과 같은 규칙)
+#   · 입금 예정일 = 발행일 + 고객사 결제 조건(일수) — 비면 「⚙ 결제 조건 미설정」(기본값 없음 · 대표 11-21 「고객사별로 따로 입력」)
+#   · 받은 돈(receipts_payment · 같은 통화)은 발행일이 이른 계산서부터 채움 · 마이너스(수정) 계산서는 받을 돈에서 뺌
+#   · 청구처 = 수주 고객사(orders.customer_id · z88 매출 기준과 같음) · 소모품 계산서는 이 화면 밖(입금 기록 표가 수주 전용)
+#   · 관리팀 확인 요청 = 1단계 「글 복사」(이음 요청 자동은 관리팀 담당자·이음 입구 정한 뒤)
+_RC_TI_MAX_Z94 = 10
+
+
+def _rc_rows_z94(u):
+    """받을 돈이 남은 세금계산서 줄 목록 + 고객사 묶음. 반환 dict(rows, groups, kpi, ccys)."""
+    from datetime import date as _d94, timedelta as _td94
+    today = _d94.today()
+    with db_session() as c:
+        oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+        cuc = {r[1] for r in c.execute("PRAGMA table_info(customers)").fetchall()}
+        tiers = []
+        for n in range(1, _RC_TI_MAX_Z94 + 1):
+            dcol = "tax_invoice_date" if n == 1 else "tax_invoice_date%d" % n
+            acol = "tax_invoice_amt%d" % n
+            if dcol in oic and acol in oic:
+                tiers.append((dcol, acol))
+        if not tiers:
+            return {"rows": [], "groups": [], "kpi": {}, "today": today.isoformat()}
+        _isexp = "COALESCE(oi.is_export,0)" if "is_export" in oic else "0"
+        _pd = "COALESCE(cu.pay_days,0)" if "pay_days" in cuc else "0"
+        sel = ", ".join("oi.%s AS d%d, oi.%s AS a%d" % (dc, i, ac, i) for i, (dc, ac) in enumerate(tiers, 1))
+        rows = c.execute(
+            "SELECT o.id AS oid, o.order_no, o.project_id, COALESCE(o.status,'') AS st, "
+            "COALESCE(o.currency,'KRW') AS ccy, COALESCE(o.total_amount,0) AS total, o.customer_id AS cid, "
+            "COALESCE(NULLIF(TRIM(cu.alias),''), cu.name, '-') AS cname, %s AS pay_days, "
+            "COALESCE(pj.mgmt_code,'') AS mgmt, COALESCE(pj.sales_name,'') AS sales, %s AS isexp, %s "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+            "LEFT JOIN customers cu ON cu.id=o.customer_id LEFT JOIN projects pj ON pj.id=o.project_id "
+            "WHERE COALESCE(o.status,'') NOT IN ('CANCELLED','PAID') ORDER BY o.id, oi.id" % (_pd, _isexp, sel)).fetchall()
+        paid = {}
+        for r in c.execute("SELECT order_id, COALESCE(currency,'KRW') AS ccy, COALESCE(SUM(amount),0) AS s "
+                           "FROM receipts_payment GROUP BY order_id, COALESCE(currency,'KRW')").fetchall():
+            paid[(r["order_id"], (r["ccy"] or "KRW").upper())] = float(r["s"] or 0)
+    od = {}
+    for r in rows:
+        o = od.get(r["oid"])
+        if o is None:
+            o = od[r["oid"]] = {"oid": r["oid"], "order_no": r["order_no"] or "#%d" % r["oid"], "pid": r["project_id"],
+                                "ccy": (r["ccy"] or "KRW").upper(), "cid": r["cid"], "cname": r["cname"] or "-",
+                                "pay_days": int(r["pay_days"] or 0), "mgmt": r["mgmt"] or "", "sales": r["sales"] or "",
+                                "exp": 0, "inv": {}}
+        if r["isexp"]:
+            o["exp"] = 1
+        for i in range(1, len(tiers) + 1):
+            dv, av = r["d%d" % i], float(r["a%d" % i] or 0)
+            if dv and av:
+                k = str(dv)[:10]
+                o["inv"][k] = o["inv"].get(k, 0.0) + av
+    out = []
+    for o in od.values():
+        if not o["inv"]:
+            continue
+        ccy = o["ccy"]
+        vr = 0.0 if (ccy != "KRW" or o["exp"]) else 0.10
+        rnd = (lambda v: round(v)) if ccy == "KRW" else (lambda v: round(v, 2))
+        eps = 1.0 if ccy == "KRW" else 0.01
+        pool = paid.get((o["oid"], ccy), 0.0)
+        invs = []
+        for dv in sorted(o["inv"]):
+            sup = o["inv"][dv]
+            incl = rnd(sup + rnd(sup * vr))
+            if incl < 0:
+                pool += -incl        # 마이너스(수정) 계산서 = 받을 돈에서 뺌
+                continue
+            invs.append((dv, sup, incl))
+        for dv, sup, incl in invs:
+            take = min(pool, incl)
+            pool -= take
+            rem = rnd(incl - take)
+            if rem <= eps:
+                continue
+            due, dday = "", None
+            if o["pay_days"] > 0:
+                try:
+                    dd = _d94.fromisoformat(dv) + _td94(days=o["pay_days"])
+                    due, dday = dd.isoformat(), (dd - today).days
+                except ValueError:
+                    pass
+            if not due:
+                bucket = "noterms"
+            elif dday < 0:
+                bucket = "overdue"
+            elif dday <= 7:
+                bucket = "week"
+            else:
+                bucket = "later"
+            try:
+                age = (today - _d94.fromisoformat(dv)).days   # 발행 후 며칠(결제 조건 없어도 오래된 것 보이게)
+            except ValueError:
+                age = None
+            out.append({"oid": o["oid"], "order_no": o["order_no"], "pid": o["pid"], "mgmt": o["mgmt"], "sales": o["sales"], "age": age,
+                        "cid": o["cid"], "cname": o["cname"], "pay_days": o["pay_days"], "ccy": ccy,
+                        "issue": dv, "supply": rnd(sup), "incl": incl, "rem": rem, "due": due, "dday": dday,
+                        "bucket": bucket, "vat": bool(vr), "mine": 1 if _is_mine_z92(u, o["sales"]) else 0})
+    _border = {"overdue": 0, "week": 1, "noterms": 2, "later": 3}
+    out.sort(key=lambda x: (_border[x["bucket"]], x["due"] or "9999", x["issue"], x["cname"]))   # 조건 미설정 = 오래된 발행일 먼저
+    groups, gi = [], {}
+    for x in out:
+        k = (x["cid"], x["bucket"])
+        g = gi.get(k)
+        if g is None:
+            g = gi[k] = {"cid": x["cid"], "cname": x["cname"], "pay_days": x["pay_days"], "bucket": x["bucket"],
+                         "rows": [], "sums": {}, "first_due": x["due"], "dday": x["dday"], "mine": 0, "max_age": x["age"]}
+            groups.append(g)
+        g["rows"].append(x)
+        g["sums"][x["ccy"]] = g["sums"].get(x["ccy"], 0) + x["rem"]
+        g["mine"] = g["mine"] or x["mine"]
+        if x["age"] is not None and (g["max_age"] is None or x["age"] > g["max_age"]):
+            g["max_age"] = x["age"]
+    kpi = {}
+    for b in ("overdue", "week", "later", "noterms"):
+        gs = [g for g in groups if g["bucket"] == b]
+        s = {}
+        for g in gs:
+            for k2, v in g["sums"].items():
+                s[k2] = s.get(k2, 0) + v
+        kpi[b] = {"n_cust": len({g["cid"] for g in gs}), "n_inv": sum(len(g["rows"]) for g in gs),
+                  "sums": [_fmt_money(v, k2) for k2, v in sorted(s.items())]}
+    for x in out:
+        x["incl_fmt"] = _fmt_money(x["incl"], x["ccy"])
+        x["rem_fmt"] = _fmt_money(x["rem"], x["ccy"])
+    for g in groups:
+        g["sum_fmt"] = " · ".join(_fmt_money(v, k2) for k2, v in sorted(g["sums"].items()))
+    return {"rows": out, "groups": groups, "kpi": kpi, "today": today.isoformat()}
+
+
+@app.get("/sales/receipts-check", response_class=HTMLResponse)
+def sales_receipts_check_z94(request: Request, mine: str = ""):
+    u = _s1_guard(request)
+    if not u:
+        return RedirectResponse("/home?no_perm=sales", 303)
+    data = _rc_rows_z94(u)
+    _mine_on = _mine_pref_z92(u, mine)
+    mine_count = sum(1 for g in data["groups"] if g["mine"])
+    if not mine_count:
+        _mine_on = False
+    return ctx(request, "sales_receipts_check.html", user=u, active="sales_receipts_check",
+               groups=data["groups"], kpi=data["kpi"], today=data["today"], n_rows=len(data["rows"]),
+               mine_on=_mine_on, mine_count=mine_count, can_money=bool(can_view_sales(u)))
+
+
+@app.post("/sales/receipts-check/record")
+async def sales_receipts_check_record_z94(request: Request):
+    """[✅ 입금 확인됨] — 입금 한 줄 기록(납품·수금 「수금 입력」과 같은 표) · 받을 돈이 다 차면 수주 = 입금 완료(PAID).
+    PAID 판정 = 이 화면 규칙(계산서 금액 부가세 포함 − 받은 돈 ≤ 오차 · 그리고 계산서 합이 수주 금액을 다 채움)."""
+    u = _s1_guard(request)
+    if not u:
+        return JSONResponse({"ok": False, "error": "입금 기록은 매출 등록 권한이 있는 분만 할 수 있습니다"}, 403)
+    try:
+        j = await request.json()
+    except Exception:
+        j = {}
+    try:
+        oid = int(j.get("order_id") or 0)
+        amount = float(str(j.get("amount") or "0").replace(",", ""))
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "수주·금액을 읽지 못했습니다"}, 400)
+    rat = str(j.get("received_at") or "").strip()[:10]
+    note = str(j.get("note") or "").strip()[:300]
+    from datetime import date as _d94
+    try:
+        _d94.fromisoformat(rat)
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "입금일을 골라 주세요"}, 400)
+    if oid <= 0 or amount <= 0:
+        return JSONResponse({"ok": False, "error": "입금 금액을 0보다 크게 적어 주세요"}, 400)
+    with db_session() as c:
+        o = c.execute("SELECT id, COALESCE(status,'') AS st, COALESCE(currency,'KRW') AS ccy, COALESCE(total_amount,0) AS total "
+                      "FROM orders WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return JSONResponse({"ok": False, "error": "수주를 찾지 못했습니다"}, 404)
+        if o["st"] == "CANCELLED":
+            return JSONResponse({"ok": False, "error": "취소된 수주입니다"}, 400)
+        ccy = (o["ccy"] or "KRW").upper()
+        amount = round(amount) if ccy == "KRW" else round(amount, 2)
+        nm = vname_full(u) or (u.get("name") or "")
+        _rpc = {r[1] for r in c.execute("PRAGMA table_info(receipts_payment)").fetchall()}
+        _note = ("[입금 확인 · %s] " % nm) + note
+        if "currency" in _rpc and "fx_rate" in _rpc:
+            cur = c.execute("INSERT INTO receipts_payment (order_id, received_at, amount, method, received_by, note, currency, fx_rate) "
+                            "VALUES (?,?,?,?,?,?,?,NULL)", (oid, rat, amount, "입금 확인", u.get("id"), _note, ccy))
+        else:
+            cur = c.execute("INSERT INTO receipts_payment (order_id, received_at, amount, method, received_by, note) "
+                            "VALUES (?,?,?,?,?,?)", (oid, rat, amount, "입금 확인", u.get("id"), _note))
+        try:
+            _doc_audit_log(c, "receipts_payment", cur.lastrowid, "RECEIVE", u.get("id"), "z94 입금 확인 %s %s" % (amount, ccy))
+        except Exception as _e:
+            print(f"[z1191z94] 감사 기록 실패(입금은 저장됨): {_e}")
+    # 남은 받을 돈 다시 계산 → 다 찼으면 입금 완료(PAID)
+    left = [x for x in _rc_rows_z94(u)["rows"] if x["oid"] == oid]
+    new_status = o["st"]
+    if not left and o["st"] in ("SHIPPED", "INVOICED"):
+        with db_session() as c:
+            oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            issued = 0.0
+            for n in range(1, _RC_TI_MAX_Z94 + 1):
+                ac = "tax_invoice_amt%d" % n
+                if ac in oic:
+                    issued += float(c.execute("SELECT COALESCE(SUM(%s),0) FROM order_items WHERE order_id=?" % ac, (oid,)).fetchone()[0] or 0)
+            eps = 1.0 if ccy == "KRW" else 0.01
+            if o["total"] > 0 and issued >= float(o["total"]) - eps:
+                if c.execute("UPDATE orders SET status='PAID' WHERE id=? AND status=?", (oid, o["st"])).rowcount == 1:
+                    c.execute("INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?,?,?,?,?)",
+                              (oid, o["st"], "PAID", u.get("id"), "입금 확인 — 받을 돈 다 참(z1191z94)"))
+                    new_status = "PAID"
+    return JSONResponse({"ok": True, "receipt_id": cur.lastrowid, "status": new_status, "left": len(left)})
+
+
 @app.get("/sales/shipments-receipts", response_class=HTMLResponse)
 async def sales_shipments_receipts_page(req: Request):
     """납품·수금 (수금 관리 2단계·z745) — 작업일정표의 '다음 스텝'.
