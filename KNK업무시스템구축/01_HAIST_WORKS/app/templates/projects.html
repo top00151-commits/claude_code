@@ -41,10 +41,11 @@ body {
   {# v5H226z151 (2026-06-02 대표 지시): 목록이 진입점 — [전체 목록] / [등록] 탭 #}
   <div style="display:flex;gap:4px;margin:0 var(--content-pad) var(--space-4);border-bottom:2px solid var(--qv-line);" data-dn="proj-tabs">
     <span style="padding:9px 20px;font-size:14px;font-weight:800;color:var(--knk-red);border-bottom:3px solid var(--knk-red);margin-bottom:-2px;">📋 전체 목록</span>
-    <a href="/projects/new" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">🆕 등록</a>
     {# v5H226z762 (대표 지시): 제작요청서 목록 진입 — 사이드바 재추가 대신 프로젝트 탭으로 #}
     <a href="/prod-requests" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📋 제작요청서목록</a>
     <a href="/projects/ledger" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📒 관리번호대장</a>{# z1191z42 #}
+    {# z1191z96 (대표 11-22): 「🆕 등록」 탭 뺌 — 등록은 왼쪽 메뉴 한 곳 #}
+    <span style="margin-left:auto;align-self:center;padding-right:4px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 맨 위 <b>🆕 등록</b>에서</span></span>
   </div>
 
   {# v5H226z155 (대표 지시): 책갈피(탭) + 전체화면 보기 #}
@@ -221,7 +222,7 @@ body {
     <div class="empty">
       <div class="ico">📊</div>
       <div class="ttl">{% if q or biz_div or stage or status %}검색 결과 없음{% else %}등록된 프로젝트가 없습니다{% endif %}</div>
-      <div style="margin-top:14px;"><a class="btn btn-primary" href="/projects/new">＋ 첫 프로젝트 등록</a></div>
+      <div style="margin-top:14px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 맨 위 <b>🆕 등록</b>에서</span></div>
     </div>
     {% endif %}
   </div>

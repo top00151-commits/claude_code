@@ -86,7 +86,7 @@ body { overflow: hidden !important; }
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head">
     <div>
-      <div class="crumbs"><a href="/customers">고객사</a> · <b>{% if customer %}수정{% else %}등록{% endif %}</b></div>
+      <div class="crumbs">{% if customer %}<a href="/customers">고객사</a> · <b>수정</b>{% else %}<a href="/projects/new">🆕 등록</a> · <b>고객사</b>{% endif %}</div>
       <div class="page-meta">CUSTOMER {{ '편집' if customer else '신규' }}</div>
       <h1 class="page-title">🏢 고객사 <em>{% if customer %}{{ customer.name }}{% else %}등록{% endif %}</em></h1>
     </div>

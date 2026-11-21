@@ -42,7 +42,7 @@
   {% endfor %}
 {% endif %}
 {# z1191z92: 등록 폼(검사기·자동화·라이프밸류·기타·소모품)에 있을 때는 메뉴 「🆕 등록」에 불 #}
-{% if _path.startswith('/projects/quick') or _path == '/consumables/new' %}{% set _ns.active = '/projects/new' %}{% endif %}
+{% if _path.startswith('/projects/quick') or _path == '/consumables/new' or _path == '/customers/new' %}{% set _ns.active = '/projects/new' %}{% endif %}
 
 {# 헬퍼: longest-prefix-match 결과(_ns.active)와 동일할 때만 active 부여 #}
 {% macro a(path, label, code='') -%}

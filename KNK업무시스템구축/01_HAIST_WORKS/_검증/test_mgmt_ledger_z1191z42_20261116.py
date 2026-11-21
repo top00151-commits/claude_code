@@ -162,7 +162,8 @@ for path in ("/projects", "/prod-requests"):
     t = q(cl.get, path).text
     check('href="/projects/ledger"' in t and "관리번호대장" in t, "%s 탭에 「📒 관리번호대장」" % path)
 src = open(os.path.join(ROOT, "app", "templates", "project_new_chooser.html"), encoding="utf-8").read()
-check('href="/projects/ledger"' in src, "등록 화면 탭에도")
+# z1191z96 (대표 11-22 「등록은 한 곳」): 🆕 등록 첫 화면은 프로젝트 탭 줄을 달지 않음 — 관리번호대장은 📋 프로젝트·제작요청서목록 탭에서
+check('href="/projects/ledger"' not in src, "등록 화면에는 프로젝트 탭 줄 없음(z1191z96)")
 
 print("\n결과: %d 통과 / %d 실패" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)

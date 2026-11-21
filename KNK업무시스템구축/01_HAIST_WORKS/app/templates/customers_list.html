@@ -59,7 +59,8 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
       <button type="button" class="btn btn-primary" id="cuSaveBtn" onclick="cuSaveAll()" style="display:none;">💾 시스템명 저장</button>
       <button type="button" class="btn btn-secondary" id="cuCancelBtn" onclick="cuCancelEdit()" style="display:none;">취소</button>
       {% endif %}
-      <a class="btn btn-primary" href="/customers/new">＋ 고객사 등록</a>
+      {# z1191z96 (대표 11-22): 새 고객사는 왼쪽 메뉴 「🆕 등록 → 🤝 고객사」 — 이 화면은 보기·고치기(결제 조건) #}
+      <span style="align-self:center;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 새 고객사는 왼쪽 맨 위 <b>🆕 등록 → 🤝 고객사</b></span></span>
     </div>
   </div>
 
@@ -193,7 +194,7 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
     })();
     </script>
     {% endif %}
-    {% else %}<div class="empty"><div class="ico">🏢</div><div class="ttl">등록된 고객사가 없습니다</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/customers/new">＋ 첫 고객사</a></div></div>{% endif %}
+    {% else %}<div class="empty"><div class="ico">🏢</div><div class="ttl">등록된 고객사가 없습니다</div><div style="margin-top:14px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 새 고객사는 왼쪽 맨 위 <b>🆕 등록 → 🤝 고객사</b></span></div></div>{% endif %}
   </div>
   {% if customers %}
   <script>

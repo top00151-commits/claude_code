@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>프로젝트 등록 · 유형 선택 · KNK</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>등록 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
 /* v5H148: 프로젝트 등록 진입 chooser — 4개 카드 */
@@ -62,27 +62,21 @@ html,body{background:#fff!important;overflow:auto!important;}
 <main class="main">
   <div class="page-head">
     <div>
-      <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/projects">프로젝트</a> · <b>등록</b></div>
-      <h1 class="page-title">프로젝트 <em>등록</em> — 유형 선택</h1>
+      <div class="crumbs"><a href="/sales">매출·영업</a> · <b>🆕 등록</b></div>
+      <h1 class="page-title">🆕 등록 — <em>무엇을 등록하나요?</em></h1>
     </div>
   </div>
 
-  {# v5H226z151: 목록과 동일한 [전체 목록] / [등록] 탭 (등록 활성) #}
-  <div style="display:flex;gap:4px;margin:0 var(--content-pad) var(--space-4);border-bottom:2px solid var(--qv-line);">
-    <a href="/projects" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📋 전체 목록</a>
-    <span style="padding:9px 20px;font-size:14px;font-weight:800;color:var(--knk-red);border-bottom:3px solid var(--knk-red);margin-bottom:-2px;">🆕 등록</span>
-    {# v5H226z762 (대표 지시): 제작요청서 목록 탭 — 프로젝트/목록과 동일 세트 유지 #}
-    <a href="/prod-requests" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📋 제작요청서목록</a>
-    <a href="/projects/ledger" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📒 관리번호대장</a>{# z1191z42 #}
-  </div>
+  {# z1191z96 (대표 11-22): 등록은 왼쪽 메뉴 「🆕 등록」 한 곳 — 프로젝트 탭 줄(전체 목록·제작요청서목록·관리번호대장)은 「📋 프로젝트」 화면에만 #}
 
   <div class="pc-wrap">
     <p class="pc-intro">
-      등록할 항목의 <b>유형</b>을 먼저 선택하세요. 5종 모두 <b>관리코드</b>(예:
+      <b>새로 만드는 일은 모두 여기서</b> 합니다(다른 화면에는 등록 단추가 없습니다). 프로젝트·소모품 <b>5종</b>은 <b>관리코드</b>(예:
       <span style="font-family:Consolas,monospace;">001T2605 / 001M2605 / 001L2605 / 001E2605 / 001C2605</span>)가
       자동 발급되며, <b>수주확정</b> 시점에 수주번호도 자동 발행됩니다.
       <span style="color:#8a7842;">· E 기타 / C 소모품은 진행 사업부(검사기/자동화)를 함께 선택하세요.</span>
       <span style="color:#8a7842;">· 다수 건 일괄 등록은 아래 [엑셀 일괄 등록]을 이용하세요(소모품 제외 — 관리번호로 사업부 자동 인식).</span>
+      <span style="color:#8a7842;">· 새 거래처는 맨 끝 <b>🤝 고객사</b> 카드.</span>
     </p>
 
     <div class="pc-grid">
@@ -132,6 +126,18 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="hint">고객사 소모품 파일 업로드 → 라인 일괄 등록 → 라인별 장비 매칭</div>
         <span class="go">소모품 수주 →</span>
       </a>
+
+      {# z1191z96 (대표 11-22 「고객사도 등록을 누르고 등록」): 새 고객사도 여기서 — 🤝 고객사 메뉴는 보기·고치기(결제 조건) #}
+      {% if not embed %}
+      <a class="pc-card" href="/customers/new">
+        <div class="ic">🤝</div>
+        <div class="code">CUSTOMER</div>
+        <h3>고객사</h3>
+        <div class="desc">새 거래처(청구처·납품처) 등록</div>
+        <div class="hint">사업자등록증으로 채우기 · 담당자 · 결제 조건(기본 발행 후 60일)</div>
+        <span class="go">고객사 등록 →</span>
+      </a>
+      {% endif %}
     </div>
 
     {# v5H226z152 (대표 지시): '등록된 항목 조회 / 프로젝트 목록' 블록 제거 — 상단 [전체 목록] 탭과 중복 #}
