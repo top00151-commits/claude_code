@@ -32,6 +32,9 @@
   .sc-item .fix{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}
   .sc-item .fix button{font:inherit;font-size:12.5px;font-weight:700;border:1px solid #b45309;background:#fff;color:#92400e;border-radius:7px;padding:4px 10px;cursor:pointer}
   .sc-item.k-first{border-color:#fdba74;background:#fff7ed}
+  .sc-item.k-manner{border-color:#c4b5fd;background:#f5f3ff;color:#4c1d95}
+  .sc-item.k-night{border-color:#93c5fd;background:#eff6ff;color:#1e3a8a}
+  .sc-item.k-night .fix button{border-color:#1d4ed8;color:#1d4ed8}
   .sc-item.k-other_cust{border-color:#fca5a5;background:#fef2f2;color:#7f1d1d}
   .sc-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
   .sc-btns button{font:inherit;font-size:14px;font-weight:700;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
@@ -859,8 +862,42 @@ function abPut(target){
       who:order.map(function(d){ return d+' : '+dom[d].join(', '); })});
     if(all.length>=10) W.push({ic:'👥', t:'받는 사람이 '+all.length+'명입니다', d:'맞는지 한 번 더 확인해 주세요.'});
     if(P.cBcc.ok.length) W.push({ic:'🙈', info:true, t:'숨은참조 '+P.cBcc.ok.length+'명 — 다른 받는 사람에게는 안 보입니다', who:[P.cBcc.ok.map(who).join(', ')]});
+    W=W.concat(cmpManners(all, own, isFwd));
     return {warns:W, n:all.length, P:P};
   }
+  /* 11-21 대표 「신입사원 관점」 라 묶음 — 바깥 거래처에 보내는 메일만(사내끼리는 안 봄) · 막지 않고 알림만
+     5-1 인사말·끝인사 없음 · 5-2 가벼운 말투(ㅋㅋ·^^·반말 끝) · 5-4 밤(21시~7시)·주말 → 「다음 근무일 아침 8:30 예약」 한 번 */
+  var RE_HELLO=/(안녕하|수고\s*(많으|하십)|좋은\s*(아침|오후)|반갑습니다|처음\s*인사|인사\s*드립|\bdear\b|\bhello\b|\bhi\b|good\s+(morning|afternoon|evening)|greetings|xin\s+chào|kính\s+gửi|chào)/i;
+  var RE_BYE=/(감사합니다|감사드립니다|감사드리며|고맙습니다|수고하세요|부탁드립니다|부탁드리겠습니다|잘\s*부탁|regards|thank|sincerely|best|cheers|cảm\s+ơn|trân\s+trọng)/i;
+  var RE_CASUAL=/(ㅋ{2,}|ㅎ{2,}|ㅠ{2,}|ㅜ{2,}|\^\^|\^\.\^|~{2,}|;{2,}|ㅇㅋ|ㄳ|ㄱㅅ|ㅇㅇ(?![가-힣])|ㄴㄴ)/g;
+  var RE_BANMAL=/(했어|했음|할게|할께|해줘|보내줘|알려줘|줄래|했지|됐어|맞아|그래|알았어|고마워|미안)(?=\s*([.!?~\nㅋㅎㅠㅜ^]|$))/gm;
+  function cmpNightInfo(){   // 보내는 사람 소속 시각 기준(본사 +9 · 베트남 +7)
+    var n=new Date(scNowLocal()), h=n.getUTCHours(), wd=n.getUTCDay();   // 0=일
+    var night=(h>=21 || h<7), wkend=(wd===0 || wd===6);
+    if(!night && !wkend) return null;
+    var t=scToday(), D=86400000, d=(h<7 && !wkend)? t : t+D;
+    while([0,6].indexOf(new Date(d).getUTCDay())>=0) d+=D;     // 주말 건너뛰고 다음 근무일
+    return {why:(wkend?'주말':'밤 '+scHM(h, n.getUTCMinutes())), date:scIso(d)};
+  }
+  function cmpManners(all, own, isFwd){
+    var out=[], ext=all.filter(function(p){ return !isOurs(p.addr); });
+    if(!ext.length) return out;
+    var txt=(own||'').trim();
+    if(txt && !isFwd){
+      var miss=[]; if(!RE_HELLO.test(txt.slice(0,300))) miss.push('첫인사(예: 「안녕하세요, KNK ○○팀 '+(window.CMP_ME||'○○○')+'입니다.」)');
+      if(!RE_BYE.test(txt.slice(-300))) miss.push('끝인사(예: 「감사합니다.」)');
+      if(miss.length) out.push({ic:'🙇', info:true, kind:'manner', t:'바깥 거래처 메일인데 '+(miss.length>1?'인사말이':(miss[0].indexOf('첫')===0?'첫인사가':'끝인사가'))+' 없습니다', d:'넣으면 더 정중해 보입니다: '+miss.join(' · ')});
+      var cas=(txt.match(RE_CASUAL)||[]).concat(txt.match(RE_BANMAL)||[]), seen={}, u=[];
+      cas.forEach(function(x){ if(!seen[x]){ seen[x]=1; u.push('「'+x+'」'); } });
+      if(u.length) out.push({ic:'💬', kind:'manner', t:'바깥 거래처 메일에 가벼운 말투가 있습니다: '+u.slice(0,5).join(' '), d:'거래처에는 「~습니다」·「~드립니다」로 바꾸면 좋습니다.'});
+    }
+    var nt=SCHED? null : cmpNightInfo();
+    if(nt){ var p=nt.date.split('-'); out.push({ic:'🌙', info:true, kind:'night', t:'지금은 '+nt.why+'입니다 — 거래처 담당자 휴대폰이 울릴 수 있습니다',
+      d:'바로 보내도 되고, 아침에 도착하게 예약할 수도 있습니다.', act:[{label:'⏱ '+scLabel(nt.date,8,30)+'에 보내기(예약)', fn:'cmpSchedMorning', arg:nt.date}]}); }
+    return out;
+  }
+  window.cmpSchedMorning=function(date){ SCHED={date:date, h:8, m:30, at:date+'T08:30'}; scClose(); scShow();
+    cmsg('⏱ '+scLabel(date,8,30)+' 예약으로 바꿨습니다 — 위 「⏱ 예약 보내기」를 누르면 예약됩니다(바로 보내려면 「✕ 예약 빼기」)','green'); };
   function scOpen(html){ var w=document.getElementById('scWrap'); document.getElementById('scBox').innerHTML=html; w.hidden=false;
     var b=w.querySelector('button.go, button.warn'); if(b) setTimeout(function(){ try{ w.querySelector('button.back').focus(); }catch(_){ } },30); }
   window.scClose=function(){ document.getElementById('scWrap').hidden=true; };
@@ -902,11 +939,14 @@ function abPut(target){
       .then(function(j){ clearTimeout(tm); end((j && j.ok && j.warns) ? j.warns : null, (j && j.ok) ? '' : '받는 사람·거래처 확인을 하지 못했습니다 — 주소를 한 번 더 봐 주세요.'); })
       .catch(function(){ clearTimeout(tm); end(null, '받는 사람·거래처 확인을 하지 못했습니다 — 주소를 한 번 더 봐 주세요.'); });
   }
-  window._scFix=[];
-  function scItems(ws){ window._scFix=[];
+  window._scFix=[]; window._scAct=[];
+  window.cmpScAct=function(i){ var a=window._scAct[i]; if(a && typeof window[a.fn]==='function') window[a.fn](a.arg); };
+  function scItems(ws){ window._scFix=[]; window._scAct=[];
     return ws.map(function(w){ var fx='';
       if(w.fix && w.fix.length){ fx='<div class="fix">'+w.fix.map(function(f){ var i=window._scFix.push(f)-1;
         return '<button type="button" onclick="cmpFixAddr('+i+')">→ '+esc(f.to)+' 로 바꾸기</button>'; }).join('')+'</div>'; }
+      if(w.act && w.act.length){ fx+='<div class="fix">'+w.act.map(function(a){ var i=window._scAct.push(a)-1;
+        return '<button type="button" onclick="cmpScAct('+i+')">'+esc(a.label)+'</button>'; }).join('')+'</div>'; }
       return '<div class="sc-item'+(w.info?' info':'')+(w.kind?' k-'+esc(w.kind):'')+'"><span class="ic">'+esc(w.ic)+'</span><div><b>'+esc(w.t)+'</b>'+(w.d?esc(w.d):'')+
         (w.who && w.who.length?'<div class="who">'+w.who.map(esc).join('<br>')+'</div>':'')+fx+'</div></div>'; }).join(''); }
   // 주소 통째로 같은 것만 바꿈(「han@」이 「khan@」 안에 있어도 안 건드림) · 크고 작은 글자 무시
@@ -1122,7 +1162,7 @@ function abPut(target){
      ④ 👥 받는 사람 칸의 회사 그룹 메일(knksales@ 등) → 누가 받는지 명단 · 명단 없는 사내 주소도 알려 줌 */
   var ED2=document.getElementById('cBody');
   var ME_KEYS=['[내 이름]','[my name]','[tên tôi]'];
-  var FIXED_TAG=/^\[(KNK|확인 요청|Follow-up|Nhắc lại|자동 회신)\]$/i;   // 제목 머리 표시 — 빈칸 아님
+  var FIXED_TAG=/^\[(KNK|확인 요청|Follow-up|Nhắc lại|자동 회신|보고|일정 변경)\]$/i;   // 제목 머리 표시 — 빈칸 아님
   function escH(t){ var d=document.createElement('div'); d.textContent=t==null?'':String(t); return d.innerHTML; }
   function fillMe(t){ var me=window.CMP_ME||''; if(!me) return t; ME_KEYS.forEach(function(k){ t=t.split(k).join(me); }); return t; }
   function tplHtml(body){ return escH(fillMe(body||'')).replace(/\[([^\]\n]{1,30})\]/g, function(all, x){ return FIXED_TAG.test(all) ? all : '<mark class="knk-ph">['+x+']</mark>'; }).replace(/\n/g,'<br>'); }
