@@ -1483,8 +1483,15 @@ def search_contacts(c, q: str, limit: int = 8, user=None, browse: bool = False):
         except Exception:
             vsql, vargs = "(sc.created_by=? OR sc.visibility='company')", [user.get("id")]
     try:
+        # 11-21 마 묶음 4-5 — 회사 이름이 비어 있으면 연결된 거래처 이름(같은 이름 두 사람 구분 · 한드림 → ㈜드림텍)
+        try:
+            _cc = {r[1] for r in c.execute("PRAGMA table_info(shared_contacts)").fetchall()}
+            _co = ("COALESCE(NULLIF(sc.company,''), (SELECT cu.name FROM customers cu WHERE cu.id=sc.customer_id), '') AS company"
+                   if "customer_id" in _cc else "sc.company")
+        except Exception:
+            _co = "sc.company"
         rows = c.execute(
-            "SELECT sc.name, sc.email, sc.company, sc.position FROM shared_contacts sc "
+            "SELECT sc.name, sc.email, " + _co + ", sc.position FROM shared_contacts sc "
             "WHERE sc.email IS NOT NULL AND sc.email<>'' "
             + ("AND (sc.name LIKE ? OR sc.email LIKE ? OR sc.company LIKE ?) " if q else "")
             + (("AND " + vsql + " ") if vsql else "")
@@ -1508,13 +1515,14 @@ def search_contacts(c, q: str, limit: int = 8, user=None, browse: bool = False):
     if q and not browse and len(out) < limit:
         try:
             for r in c.execute(
-                    "SELECT u.name, u.email, COALESCE(t.name,'') AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+                    "SELECT u.name, u.email, COALESCE(t.name,'') AS team_name, COALESCE(u.rank,'') AS rank FROM users u LEFT JOIN teams t ON t.id=u.team_id "
                     "WHERE u.is_active=1 AND u.email IS NOT NULL AND u.email<>'' "
                     "AND (u.name LIKE ? OR u.email LIKE ?) ORDER BY u.name LIMIT ?", (like, like, int(limit))).fetchall():
                 em = (r["email"] or "").strip()
                 if em and em.lower() not in seen and "@" in em:
                     seen.add(em.lower())
-                    out.append({"name": r["name"] or "", "email": em, "company": "KNK", "position": r["team_name"] or "", "src": "사내"})
+                    out.append({"name": r["name"] or "", "email": em, "company": "KNK",   # 11-21 4-5 직책 + 부서(이름 표시 규칙)
+                                "position": " ".join(x for x in ((r["rank"] or "").strip(), (r["team_name"] or "").strip()) if x), "src": "사내"})
                     if len(out) >= limit:
                         break
         except Exception:

@@ -51,6 +51,7 @@
   .mv-more-box button:hover,.mv-more-box a:hover{background:var(--mt-hover,#f3f4f6)}
   .mv-more-box .warn{color:#9a3412}
   .mv-more-box hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+  .mv-more-box .mv-mob{display:none}   /* 11-21 마 묶음 6-4 — 휴대폰에서만 「⋯ 더 보기」 안에 중요·보관·삭제 */
   @media print{.mv-more{display:none}}
   @media print{ .mv-actions, .mv-nav, .mv-fu, .mv-grp, .mv-reply, .mv-fd, .mv-warn-btn, .mbx-toast, .mail-app-fixed, .mw-close{display:none !important} body,html{background:#fff !important} }
   /* 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 · 📋 할 일·일정 상자 */
@@ -183,6 +184,15 @@
     .mv-body{padding:14px;font-size:14.5px;border-radius:10px}
     .mv-actions{gap:7px;margin:12px 0}
     .mv-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:10px 6px;font-size:13px}
+    /* 11-21 마 묶음 6-4 — 휴대폰: 단추를 한 줄 3개로 · 중요·보관·삭제는 「⋯ 더 보기」 안으로(본문이 먼저 보이게) */
+    .mv-hrow .mv-actions .btn, .mv-hrow .mv-actions>details{flex:1 1 30%;min-width:0}
+    .mv-hrow .mv-actions>details>summary.btn{display:block;width:100%;box-sizing:border-box}
+    .mv-hrow .mv-actions .btn{padding:8px 3px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .mv-actions .mv-desk{display:none !important}
+    .mv-more-box .mv-mob{display:block}
+    .mv-hrow .mv-actions{position:relative}
+    .mv-hrow .mv-actions .mv-more{position:static}          /* 펼친 상자 = 단추 줄 폭에 맞춤(화면 밖으로 안 나가게) */
+    .mv-hrow .mv-actions .mv-more-box{left:0;right:0;min-width:0;top:auto;margin-top:4px}
     .mv-actions>span[style*="flex:1"]{display:none}   /* 데스크톱용 가로 스페이서는 폰에서 숨김 */
     .mv-viewtabs{gap:6px}
     .mv-vtab{font-size:12.5px;padding:7px 12px}

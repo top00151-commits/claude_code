@@ -251,13 +251,102 @@ def similar_known(addr: str, known: set, limit: int = 3) -> list:
 
 
 # ── 한 번에 ───────────────────────────────────────────────────────────────────
+
+# ── 11-21 마 묶음 4-3 — 본문 첫 줄에 부른 이름 ↔ 받는 사람 ─────────────────────────────
+#   앞 메일을 베껴 쓰다 「박구매님」을 안 고치고 다른 사람에게 보내는 실수 · 이름을 아는 받는 사람이 있을 때만 봄
+_TITLES = {"고객", "담당자", "담당", "관계자", "팀장", "과장", "부장", "차장", "대리", "주임", "사원", "대표", "대표이사", "사장",
+           "회장", "이사", "상무", "전무", "실장", "소장", "본부장", "선생", "교수", "귀하", "프로", "매니저", "책임", "선임",
+           "수석", "연구원", "위원", "고문", "부사장", "원장", "법인장", "반장", "조장", "센터장", "공장장", "여러분", "회원",
+           "구매", "영업", "총무", "경리", "인사", "품질", "개발"}
+_RE_GREET_KO = re.compile(r"(?<![가-힣])([가-힣]{1,4})(?:\s+([가-힣]{2,4}))?\s*님(?![가-힣])")
+_RE_GREET_EN = re.compile(r"^\s*(?:dear|hi|hello)\s+(?:(?:mr|ms|mrs|miss|dr)\.?\s+)?([A-Za-z][A-Za-z\-]{1,20})\b", re.I)
+_RE_NAMED = re.compile(r"\"?([^\"<>,;]{1,60}?)\"?\s*<\s*([^<>\s]+@[^<>\s]+)\s*>")
+
+
+def greet_name(own: str) -> str:
+    """본문 첫 두 줄에서 부른 이름(「박구매님」→ 박구매 · 「김 과장님」→ 김 · 「Dear Mr. Kim」→ Kim). 직함뿐이면 ""."""
+    lines = [x.strip() for x in (own or "").replace("\r", "").split("\n") if x.strip()][:2]
+    for li, ln in enumerate(lines):
+        m = _RE_GREET_EN.match(ln)
+        if m:
+            return m.group(1)
+        for m in _RE_GREET_KO.finditer(ln):
+            if li > 0 and m.start() > 1:
+                continue           # 둘째 줄은 줄 맨 앞에서 부를 때만(「어제 말씀하신 박구매님 것」은 부르는 말이 아님)
+            t1, t2 = m.group(1), (m.group(2) or "")
+            if t2 and t2 not in _TITLES:
+                t1 = t2            # 「줄에 박구매님」 — 님 바로 앞 낱말이 직함이 아니면 그 낱말이 이름(「한드림 과장님」은 앞 낱말)
+            if t1 in _TITLES or (len(t1) >= 2 and t1[:2] in ("안녕", "감사", "수고")):
+                continue
+            return t1
+    return ""
+
+
+def rec_names(c, user, raw_fields, addrs) -> dict:
+    """받는 주소 → 아는 이름들(칸에 적힌 이름 · 내가 볼 수 있는 주소록 · 거래처 담당자 · 사내 직원)."""
+    out = {a: set() for a in addrs}
+    for f in raw_fields:
+        for nm, a in _RE_NAMED.findall(f or ""):
+            a = a.strip().lower()
+            if a in out and nm.strip():
+                out[a].add(nm.strip())
+    if not addrs:
+        return out
+    q = ",".join("?" * len(addrs))
+    try:
+        from .contacts import _vis_clause
+        vsql, vargs = _vis_clause(user)
+    except Exception:
+        vsql, vargs = "(sc.created_by=? OR sc.visibility='company')", [(user or {}).get("id")]
+    for sql, args in (("SELECT lower(sc.email), sc.name FROM shared_contacts sc WHERE lower(sc.email) IN (" + q + ")"
+                       + ((" AND " + vsql) if vsql else ""), list(addrs) + list(vargs)),
+                      ("SELECT lower(email), name FROM customer_contacts WHERE lower(email) IN (" + q + ")", list(addrs)),
+                      ("SELECT lower(email), name FROM users WHERE lower(email) IN (" + q + ")", list(addrs))):
+        try:
+            for r in c.execute(sql, args).fetchall():
+                if r[0] in out and (r[1] or "").strip():
+                    out[r[0]].add(r[1].strip())
+        except Exception as e:
+            print("[MAIL-PRECHECK] 받는 사람 이름 읽기 실패: %s" % str(e)[:120], flush=True)
+    return out
+
+
+def greet_warn(c, user, raw_fields, rec, own) -> list:
+    g = greet_name(own)
+    if not g or not rec:
+        return []
+    names = rec_names(c, user, raw_fields, rec)
+    known = [(a, n) for a in rec for n in names.get(a, ())]
+    if not known:
+        return []                      # 받는 사람 이름을 하나도 모름 — 판단하지 않음
+    gl = g.lower()
+    if re.match(r"^[a-z]", gl) and not any(re.search(r"[A-Za-z]", n) for _a, n in known):
+        return []                      # 영어로 불렀는데 아는 이름이 모두 한글 — 「Mr. Han」↔「한드림」 은 맞춰 볼 수 없음
+    for a, n in known:
+        nl = n.lower()
+        if (len(g) == 1 and nl.startswith(gl)) or (len(g) > 1 and (gl in nl or nl in gl)):
+            return []
+    for a in rec:                      # 영어 이름은 주소 앞부분(kim@…)도 봄
+        if len(g) > 1 and re.match(r"^[a-z]", gl) and gl in a.split("@")[0]:
+            return []
+    shown = ["받는 사람: " + ", ".join(sorted({n for _a, n in known})[:6])]
+    return [{"ic": "🙋", "kind": "greet",
+             "t": "본문 첫 줄에 「%s」 님을 불렀는데, 받는 사람에 그 이름이 없습니다" % g,
+             "d": "앞 메일을 고쳐 쓰다 이름을 그대로 두지 않았는지 봐 주세요. 맞으면 그대로 보내도 됩니다.",
+             "who": shown, "fix": []}]
+
 def run(c, user, to="", cc="", bcc="", subject="", own="", att_names=None) -> list:
     """보내기 전 알림 목록 [{ic, t, d, who:[…], fix:[{from,to}]}] — 비면 알림 없음."""
     rec = parse_addrs(to, cc, bcc)
     ext = [a for a in rec if not is_ours(a)]
     warns = []
+    try:   # 11-21 마 묶음 4-3 — 사내·바깥 모두
+        gw = greet_warn(c, user, (to, cc, bcc), rec, own)
+    except Exception as e:
+        print("[MAIL-PRECHECK] 부른 이름 확인 실패: %s" % str(e)[:120], flush=True)
+        gw = []
     if not ext:
-        return warns          # 사내끼리 — 거래처 이야기도 정상 · 처음 주소도 해당 없음
+        return gw             # 사내끼리 — 거래처 이야기도 정상 · 처음 주소도 해당 없음
     custs = customers(c)
     a2c = addr_customers(c, rec)
     rec_cids = {a2c[a] for a in rec if a in a2c}
@@ -304,4 +393,4 @@ def run(c, user, to="", cc="", bcc="", subject="", own="", att_names=None) -> li
                           "t": "「%s」 이야기가 있는데, 받는 사람 중 %s 사람이 없습니다" % (f["hit"], nm),
                           "d": "다른 회사에 갈 내용(견적·도면·가격)이 아닌지 확인해 주세요. 받는 사람이 %s 사람이 맞으면 그대로 보내도 됩니다." % nm,
                           "who": ["찾은 곳 — " + w for w in f["where"][:4]] + ([recv] if recv else []), "fix": []})
-    return warns
+    return warns + gw

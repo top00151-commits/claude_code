@@ -54,7 +54,7 @@ if node and a > 0:
     js = r"""
 var OUR_DOMAINS=['knknara.co.kr'];
 function isOurs(ad){ var d=(ad.split('@')[1]||'').toLowerCase(); return OUR_DOMAINS.some(function(o){ return d===o || d.slice(-(o.length+1))==='.'+o; }); }
-var SCHED=null, SCHED_OFF=9, NOW=0; window={CMP_ME:'시험 신입'};
+var SCHED=null, SCHED_OFF=9, NOW=0; window={CMP_ME:'시험 신입'}; var location={search:''};   // 11-21 마 묶음 4-6 전체 답장 확인이 주소를 봄
 """ + html[s1:s2] + "\n" + html[a:b] + r"""
 scNowLocal=function(){ return NOW; };
 scToday=function(){ var d=new Date(NOW); return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()); };

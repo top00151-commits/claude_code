@@ -23245,6 +23245,21 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _snz_n = _mailbox.count_snoozed(c, u["id"])
         except Exception:
             _flag_c, _snz_n = {"n": 0, "due": 0}, 0
+        # 11-21 마 묶음 — 오늘 챙길 메일 더: 📭 2일 넘게 안 읽음(최근 30일 · 광고·알림 빼고 · 누르면 같은 조건 목록) · 🚩 내일까지 · 🚫 스팸함 새(오늘)
+        _day_more = {"old": 0, "old_href": "", "tmr": 0, "spam_new": 0}
+        try:
+            _td = date.fromisoformat(_mtoday)
+            _o_from, _o_to = (_td - timedelta(days=30)).isoformat(), (_td - timedelta(days=2)).isoformat()
+            _day_more["old"] = int(_mailbox.list_inbox(c, u["id"], count_only=True, unread=True, date_from=_o_from,
+                                                       date_to=_o_to, noad=_bulk) or 0)
+            _day_more["old_href"] = "/mail/inbox?unread=1&noad=1&df=%s&dt=%s" % (_o_from, _o_to)
+            _day_more["tmr"] = int(c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0 AND flag_due=?",
+                                             (u["id"], (_td + timedelta(days=1)).isoformat())).fetchone()[0] or 0)
+            _mid0 = _mail_local_to_server(datetime.combine(_td, datetime.min.time()), _moff)
+            _day_more["spam_new"] = int(c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
+                                                  "AND COALESCE(is_blocked,0)=1 AND received_at>=?", (u["id"], _mid0)).fetchone()[0] or 0)
+        except Exception as _e:
+            print("[MAIL-DAY] 오늘 챙길 메일 더 세기 실패(목록은 그대로): %s" % str(_e)[:160], flush=True)
         _ar_info = _mail_autoreply_info(c, u)
         _wait_c = _mwork.count_waiting(c, u["id"], _mtoday, _mailbox._normalize_subject)   # 11-19 1단계 ②
         # 11-20 2단계 ⑥ 메일 하루 숫자 — 오늘(보는 사람 소속 날짜) 보낼 예약 · 못 보낸 예약
@@ -23265,7 +23280,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                 _L["dlg"] = dict(_x, thread=True)
     _day = {"reply": len(reply_map), "boss": len(_boss_ids), "flag": int(_flag_c.get("due") or 0), "wait": int((_wait_c or {}).get("all") or 0),
             "wait_due": int((_wait_c or {}).get("due") or 0), "sched": int(_sc_t.get("today") or 0), "sched_fail": int(_sc_t.get("fail") or 0)}
-    _day["any"] = any(_day[k] for k in ("reply", "flag", "wait", "sched", "sched_fail"))
+    _day.update(_day_more)
+    _day["any"] = any(_day[k] for k in ("reply", "flag", "wait", "sched", "sched_fail", "old", "tmr", "spam_new"))
     _ctx_more = dict(more_href=more_href, total_n=total_n, cur_arc=bool(arc), arc_n=_arc_n, spam_n=_spam_n, wait_c=_wait_c, day=_day,
                      flag_n=_flag_c["n"], flag_due_n=_flag_c["due"], snz_n=_snz_n, ar_info=_ar_info,
                      hides_arc=bool(not arc and not fd and not _terms and not who and not dom and not star and not reply and not cust),
@@ -24892,7 +24908,10 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             if m:
                 prefill["to"] = m.get("from_email") or ""
                 subj = (m.get("subject") or "").strip()
-                prefill["subject"] = subj if subj.lower().startswith("re:") else f"Re: {subj}"
+                # 11-21 마 묶음 5-3 — 바깥에서 온 「RE: RE:」·「회신: RE:」 겹침은 「Re: 」 하나로(전달 표시 FW 는 그대로)
+                import re as _re_rs
+                _core = _re_rs.sub(r"^\s*((re|회신|답장|답신)\s*(\[\d+\])?\s*[:：]\s*)+", "", subj, flags=_re_rs.I)
+                prefill["subject"] = "Re: " + _core
                 if replyall:
                     # 11-19 전체 답장 명단 — 원래 「받는 사람」 전원(to_all · 없으면 예전 칸) + 참조 · 나와 원래 보낸 사람은 뺌
                     #   「이름 <주소>」·이름 속 쉼표도 한 명씩 바르게 나눔(전에는 문자열 통째 비교라 이름 붙은 내 주소가 안 빠졌다)

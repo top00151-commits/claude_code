@@ -93,7 +93,17 @@
     .mail-app-top .me{flex:none}
     .mail-app-top .me .addr{display:none}
     .mail-app-top .navbtn,.mail-app-top .install,.mail-app-top .reload{flex:none}
+    /* 11-21 마 묶음 6-3 — 휴대폰: 그림 아래 작은 글자(그림만으로는 뜻을 모름) · 숫자는 그림 오른쪽 위 */
+    .mail-tools a, .mail-tools button{flex-direction:column;justify-content:center;height:46px;gap:1px;padding:0 7px;position:relative;flex:none}
+    .mail-tools .t{display:inline !important;font-size:10px;line-height:1.1;font-weight:600}
+    .mail-tools .new{padding:0 10px;margin-right:2px}
+    .mail-tools .bd{position:absolute;top:1px;right:0;transform:scale(.85)}
   }
+  /* 11-21 마 묶음 6-3 — 오른쪽에 메뉴가 더 있으면 「›」(누르면 옆으로 넘김 · 밀어도 됨) */
+  .mail-tools .mt-more{display:none;position:sticky;right:0;flex:none;height:34px;min-width:28px;padding:0 6px;margin-left:auto;border:0;border-radius:8px;
+    background:var(--mt-surface,#fff);box-shadow:-8px 0 10px var(--mt-surface,#fff);color:var(--knk-red,#b91c1c);font-size:20px;font-weight:800;cursor:pointer}
+  .mail-tools.more .mt-more{display:inline-flex;align-items:center;justify-content:center}
+  .mail-tools.more{-webkit-mask-image:none;mask-image:none}
 </style>
 <div class="mail-app-fixed">
 <div class="mail-app-top">
@@ -127,6 +137,7 @@
   <button type="button" class="sw" id="mtBigTop" onclick="mailBigToggle()" title="글자 크게 보기 — 켜고 끄기(이 컴퓨터에만)"><span class="ic">🔠</span><span class="t">글자 크게</span></button>
   <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
   <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
+  <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
 </nav>
 </div>
 <div class="mail-theme-pop" id="mailThemePop" hidden role="dialog" aria-label="화면 테마 고르기">

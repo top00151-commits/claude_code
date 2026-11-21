@@ -33,6 +33,10 @@
   @container (max-width:760px){.mbx-cmd .c .t{display:none}.mbx-cmd .c.new .t{display:inline}}
   @container (max-width:560px){.mbx-cmd .c{padding:0 6px;gap:2px}.mbx-cmd .sep{margin:0 1px}.mbx-lhead .mbx-viewdd>summary{padding:0 8px}.mbx-lhead .mbx-viewdd .t2{display:none}}
   @container (max-width:430px){.mbx-cmd .c.new .t{display:none}.mbx-cmd .sep{display:none}.mbx-cmd .c{padding:0 5px}}
+  /* 11-21 마 묶음 1-1 — 좁아도 답장·전체 답장·전달은 글자를 남김(↩ 과 ↩↩ 를 헷갈려 잘못 전체 답장하지 않게) · 아주 좁으면 짧은 글자 */
+  .mbx-cmd .c .ts{display:none}
+  @container (max-width:760px){.mbx-cmd .c.k .t{display:inline}}
+  @container (max-width:560px){.mbx-cmd .c.k .t{display:none}.mbx-cmd .c.k .ts{display:inline}}
   .mbx-split.np{grid-template-areas:"side g1 list";grid-template-columns:var(--mbx-c1e,var(--mbx-c1)) var(--mbx-gw,6px) minmax(0,1fr)}
   .mbx-split>.mbx-side{grid-area:side}
   .mbx-split>.mbx-gutter[data-g="1"]{grid-area:g1}
@@ -454,6 +458,10 @@
     <a href="/mail/inbox?reply=1" class="mbx-day-i{{ ' zero' if not day.reply else '' }}" title="회신이 필요해 보이는 받은 메일(규칙으로 추정 · 최근 14일)">↩ 회신 필요 <b>{{ day.reply }}</b></a>
     {% if day.boss %}<a href="/mail/inbox?reply=1&boss=1" class="mbx-day-i red{{ ' on' if cur_boss|default(false) else '' }}" title="회신 필요 메일 중 윗분(임원·우리 팀장·우리 팀 윗 직책)이 보낸 것 — 직원 명부 기준">👔 윗분 지시 <b>{{ day.boss }}</b></a>{% endif %}
     <a href="/mail/inbox?flag=1" class="mbx-day-i{{ ' zero' if not day.flag else ' red' }}" title="🚩 기한이 오늘까지인 메일(지난 것 포함)">🚩 오늘까지 기한 <b>{{ day.flag }}</b></a>
+    {# 11-21 마 묶음 — 있을 때만: 🚩 내일까지(하루 전에 미리) · 📭 2일 넘게 안 읽음(휴가·출장 뒤 놓침 막기) · 🚫 스팸함 새(거래처 메일이 섞였는지 한 번) #}
+    {% if day.tmr %}<a href="/mail/inbox?flag=1" class="mbx-day-i warn" title="🚩 기한이 내일인 메일 — 하루 전에 미리 챙기기">🚩 내일까지 <b>{{ day.tmr }}</b></a>{% endif %}
+    {% if day.old %}<a href="{{ day.old_href }}" class="mbx-day-i warn" title="이틀 넘게 안 읽은 받은 메일(최근 30일 · 광고·알림 빼고)">📭 2일 넘게 안 읽음 <b>{{ day.old }}</b></a>{% endif %}
+    {% if day.spam_new %}<a href="/mail/blocked?from=day" class="mbx-day-i" title="오늘 스팸·피싱으로 보여 스팸함으로 옮긴 메일 — 거래처 메일이 섞였는지 한 번 보기">🚫 스팸함 새 <b>{{ day.spam_new }}</b></a>{% endif %}
     <a href="/mail/waiting" class="mbx-day-i{{ ' zero' if not day.wait else (' warn' if day.wait_due else '') }}"{% if day.wait_due %} id="mbxWaitBar"{% endif %} title="바깥 거래처에 보내고 답을 기다리는 메일 — 답이 오면 저절로 빠짐">⏳ 답 기다림 <b>{{ day.wait }}</b>{% if day.wait_due %} <em>답 안 온 메일 {{ day.wait_due }}통</em>{% endif %}</a>
     <a href="/mail/sent" class="mbx-day-i{{ ' zero' if not (day.sched or day.sched_fail) else (' red' if day.sched_fail else '') }}" title="오늘 서버가 보낼 예약 메일 — 📤 보낸편지함 맨 위에서 바꾸거나 취소">⏱ 오늘 예약 <b>{{ day.sched }}</b>{% if day.sched_fail %} <em>⚠ 못 보냄 {{ day.sched_fail }}</em>{% endif %}</a>
   </nav>
@@ -591,9 +599,9 @@
         <button type="button" class="c" data-cmd="archive" title="보관 — 받은편지함에서만 빼기 (E)">📦 <span class="t">보관</span></button>
         <span class="mv"><button type="button" class="c" data-cmd="move" title="이 메일만 다른 폴더로">📁 <span class="t">이동</span> ▾</button></span>
         <span class="sep"></span>
-        <button type="button" class="c" data-cmd="reply" title="답장 (R)">↩ <span class="t">답장</span></button>
-        <button type="button" class="c" data-cmd="replyall" title="전체 답장 (Shift+R)">↩↩ <span class="t">전체 답장</span></button>
-        <button type="button" class="c" data-cmd="forward" title="전달 (Shift+F)">↪ <span class="t">전달</span></button>
+        <button type="button" class="c k" data-cmd="reply" title="답장 — 보낸 사람에게만 (R)">↩ <span class="t">답장</span><span class="ts">답장</span></button>
+        <button type="button" class="c k" data-cmd="replyall" title="전체 답장 — 받는 사람·참조 모두에게 (Shift+R)">↩↩ <span class="t">전체 답장</span><span class="ts">전체</span></button>
+        <button type="button" class="c k" data-cmd="forward" title="전달 — 다른 사람에게 (Shift+F)">↪ <span class="t">전달</span><span class="ts">전달</span></button>
         <span class="sep"></span>
         <button type="button" class="c" data-cmd="read" title="읽음 ↔ 안 읽음 (U)">◐ <span class="t">읽음·안 읽음</span></button>
         <button type="button" class="c" data-cmd="star" title="중요 표시 (S 또는 Insert)">⭐ <span class="t">중요</span></button>
