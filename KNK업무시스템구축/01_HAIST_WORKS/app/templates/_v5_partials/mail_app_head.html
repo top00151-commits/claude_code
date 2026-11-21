@@ -42,6 +42,10 @@
                 box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:var(--mt-text,#1f2937); }
   .mail-help[hidden] { display:none; }
   .mail-help h4 { margin:0 0 6px; font-size:14px; }
+  .mail-help-act { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
+  .mail-help-act button, .mail-help-act a { border:1px solid var(--mt-line,#e5e7eb); background:var(--mt-surface,#fff); color:inherit; border-radius:8px; padding:5px 11px;
+                cursor:pointer; font:inherit; font-size:12.5px; text-decoration:none; }
+  .mail-help-act button:hover, .mail-help-act a:hover { background:var(--mt-hover,#f1f3f5); }
   .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid var(--mt-line,#d1d5db); border-bottom-width:2px; border-radius:5px; padding:0 5px;
                 font-family:inherit; font-size:11.5px; background:var(--mt-panel,#f9fafb); }
   @media(max-width:1180px){ .mail-tools .t { display:none; } .mail-tools .new .t { display:inline; } }
@@ -139,8 +143,11 @@
   · 목록 위 「🗔 보기」 = 읽기 칸 오른쪽·아래·끄기<br>
   <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요 · <kbd>N</kbd> 새 메일
   <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb"><b>📱 휴대폰에서</b> 메일을 누르면 크게 열림 · 열린 메일 위 단추로 답장·전달·삭제·보관 · 「🚩 기한·알림」 · 도구 줄은 옆으로 밀면 더 있음(스팸함·설정·도움말)</div>
-  <div style="text-align:right;margin-top:6px"><button type="button" onclick="mailHelpToggle()" style="border:1px solid var(--mt-line,#e5e7eb);background:var(--mt-surface,#fff);border-radius:8px;padding:4px 12px;cursor:pointer;font:inherit">닫기</button></div>
+  {# 11-20 3단계 ⑨ — 처음 안내 다시 보기 · 인쇄용 설명서 #}
+  <div class="mail-help-act"><button type="button" onclick="mailTourOpen(event)">🎓 처음 안내 다시 보기</button><a href="/mail/help" target="_blank" rel="noopener">🖨 설명서(인쇄용)</a>
+    <span style="flex:1"></span><button type="button" onclick="mailHelpToggle()">닫기</button></div>
 </div>
+{% include "_v5_partials/mail_tour.html" %}
 <script>
 /* 11-19 늘 보이는 도구 줄 — 지금 화면 표시 · 숫자 · 글자 크게 · 도움말 */
 (function(){

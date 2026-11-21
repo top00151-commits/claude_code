@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/><title>회사 서명 틀 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 11-20 3단계 ⑧ 🏢 회사 서명 틀(관리자) — 틀(글자·자리표시)만 메일이 가짐 · 값은 웍스에서 읽음 */
+  .cs-wrap{padding:0 var(--content-pad,32px) 24px}
+  .cs-info{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#1e3a8a;line-height:1.75;margin-bottom:14px}
+  .cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
+  .cs-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:14px 16px;min-width:0}
+  .cs-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .cs-h b{font-size:15px}
+  .cs-st{font-size:11.5px;border-radius:999px;padding:2px 9px;background:#f1f5f9;color:#475569}
+  .cs-st.on{background:#e8f6ec;color:#15803d}
+  .cs-st.off{background:#fff7ed;color:#c2410c}
+  .cs-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+  .cs-chips button{border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:999px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
+  .cs-ta{width:100%;min-height:150px;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.7;resize:vertical}
+  .cs-pvh{font-size:12px;color:var(--mute);margin:10px 0 4px}
+  .cs-pv{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.65;min-height:40px;word-break:break-word;background:var(--mt-panel,#fafbfc)}
+  .cs-note{font-size:11.5px;color:#b45309;margin-top:4px;line-height:1.5}
+  .cs-act{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+  .cs-msg{font-size:12.5px}
+  @media(max-width:640px){.cs-wrap{padding:0 12px 20px}.cs-grid{grid-template-columns:1fr}}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/signature">메일 서명</a> · 회사 서명 틀</div>
+    <h1 class="page-title">🏢 회사 서명 <em>틀</em> <small style="font-size:13px;color:var(--mute);font-weight:600">관리자</small></h1>
+  </div></div>
+  <div class="cs-wrap">
+    <div class="cs-info">
+      · 여기서는 <b>모양(글자·자리)</b>만 정합니다. 직원이 「🏢 회사 서명 쓰기」를 누르거나 메일 쓰기 「✍」에서 고르면 <b>그 사람 정보</b>로 채워집니다.<br>
+      · <b>{이름} {직책} {부서} {휴대폰} {메일}</b> = 웍스 직원 명단 · <b>{회사} {주소} {전화} {팩스}</b> = 웍스 회사 정보{% if user.role in ('admin','ceo') %}(<a href="/admin/company-info" target="_blank" rel="noopener">웍스 「회사 정보」에서 고치기</a>){% endif %} — 메일에서는 고치지 않습니다.<br>
+      · 값이 비어 있는 자리는 그 줄(또는 「 · 」로 나뉜 그 토막)만 빠집니다. 베트남 법인 직원은 회사 이름이 「KNK VINA Co., Ltd.」로 들어가고, 주소·전화·팩스는 웍스 회사 정보에 법인 칸이 없어 빠집니다.<br>
+      · 미리 보기는 <b>내 정보</b>로 채운 모양입니다.
+    </div>
+    <div class="cs-grid">
+      {% for lg in langs %}{% set t = tpls[lg] %}
+      <div class="cs-card" data-lang="{{ lg }}">
+        <div class="cs-h"><b>{{ lang_name[lg] }}</b>
+          {% if not t.on %}<span class="cs-st off">쓰지 않음</span>{% elif t.custom %}<span class="cs-st on">회사가 정한 틀</span>{% else %}<span class="cs-st">기본 틀</span>{% endif %}
+          {% if t.custom and t.updated_at %}<span style="font-size:11.5px;color:var(--mute)">{{ t.updated_at[:16] }}{% if names[lg] %} · {{ names[lg] }}{% endif %}</span>{% endif %}
+        </div>
+        <div class="cs-chips">{% for k, _v, _w in fields %}<button type="button" onclick="csPut('{{ lg }}','{{ '{' ~ k ~ '}' }}')" title="누르면 글쓴 자리에 넣음">{{ '{' ~ k ~ '}' }}</button>{% endfor %}</div>
+        <textarea class="cs-ta" id="csTa_{{ lg }}" spellcheck="false">{{ t.body if t.on else defaults[lg] }}</textarea>
+        <div class="cs-pvh">미리 보기(내 정보)</div>
+        <div class="cs-pv" id="csPv_{{ lg }}">{{ prev[lg].html|safe }}</div>
+        <div class="cs-note" id="csNote_{{ lg }}">{% if prev[lg].note %}ⓘ {{ prev[lg].note }}{% endif %}</div>
+        <div class="cs-act">
+          <button type="button" class="btn btn-primary" onclick="csSave('{{ lg }}','save')">💾 저장</button>
+          {% if t.on %}<button type="button" class="btn btn-secondary" onclick="csSave('{{ lg }}','off')" title="이 말 회사 서명을 직원 화면에서 뺍니다">이 말은 쓰지 않기</button>{% endif %}
+          {% if t.custom %}<button type="button" class="btn btn-secondary" onclick="csSave('{{ lg }}','default')">기본 틀로 되돌리기</button>{% endif %}
+          <span class="cs-msg" id="csMsg_{{ lg }}"></span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top:14px"><a href="/mail/signature" class="btn btn-secondary">← 내 서명으로</a></div>
+  </div>
+</main></div>
+<script>
+(function(){
+  var tm={};
+  function msg(lg,t,c){ var m=document.getElementById('csMsg_'+lg); if(!m) return; m.textContent=t; m.style.color=c==='g'?'var(--success,#15803d)':(c==='r'?'var(--knk-red,#b91c1c)':'var(--mute)'); }
+  async function preview(lg){
+    var ta=document.getElementById('csTa_'+lg); if(!ta) return;
+    var fd=new FormData(); fd.append('lang',lg); fd.append('body',ta.value);
+    try{ var r=await fetch('/api/mail/company-sig/preview',{method:'POST',body:fd}); var j=await r.json(); if(!j.ok) return;
+      document.getElementById('csPv_'+lg).innerHTML=j.html||'';
+      document.getElementById('csNote_'+lg).textContent=j.note?('ⓘ '+j.note):''; }catch(e){}
+  }
+  document.querySelectorAll('.cs-ta').forEach(function(ta){ var lg=ta.id.replace('csTa_','');
+    ta.addEventListener('input',function(){ clearTimeout(tm[lg]); tm[lg]=setTimeout(function(){ preview(lg); },350); msg(lg,'저장 안 됨',''); }); });
+  window.csPut=function(lg,ph){ var ta=document.getElementById('csTa_'+lg); if(!ta) return;
+    var a=ta.selectionStart||0, b=ta.selectionEnd||0; ta.value=ta.value.slice(0,a)+ph+ta.value.slice(b);
+    ta.focus(); ta.selectionStart=ta.selectionEnd=a+ph.length; ta.dispatchEvent(new Event('input')); };
+  window.csSave=async function(lg,mode){
+    var ta=document.getElementById('csTa_'+lg); var fd=new FormData(); fd.append('lang',lg); fd.append('mode',mode); fd.append('body',ta?ta.value:'');
+    msg(lg,'저장 중…','');
+    try{ var r=await fetch('/mail/signature/company',{method:'POST',body:fd}); var j=await r.json();
+      if(j.ok){ msg(lg,'✅ '+(j.msg||'저장했습니다'),'g'); if(mode!=='save') setTimeout(function(){ location.reload(); },500); }
+      else msg(lg,'⚠ '+(j.msg||'저장하지 못했습니다'),'r');
+    }catch(e){ msg(lg,'⚠ 네트워크 오류','r'); }
+  };
+})();
+</script>
+</body></html>

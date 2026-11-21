@@ -121,7 +121,11 @@
     {% if is_admin %}{# 11-20 대표 「인원이 바뀔 때마다 이 파일을 올려서 업데이트」 #}
     <a class="mt-row" href="/mail/groups#import"><span class="ic">📥</span><span class="tx"><span class="t">그룹 메일 명단 올리기(하이웍스 파일) <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">하이웍스 관리자 화면에서 받은 「knknara.co.kr_그룹메일.xls」를 올리면 회사 그룹 메일 명단을 한꺼번에 맞춤 · 사람이 바뀔 때마다 다시 올리기 · 반영 전에 바뀌는 것을 먼저 보여 드림</span></span>
       <span class="st {{ 'ok' if grp_imp|default({}) and grp_imp.at else 'no' }}">{% if grp_imp|default({}) and grp_imp.at %}마지막 {{ grp_imp.at[5:16]|replace('-','/') }} · {{ grp_imp.groups }}개{% else %}아직 안 올림{% endif %}</span><span class="arr">›</span></a>
+    {# 11-20 3단계 ⑧ 🏢 회사 서명 틀 — 틀만 메일이 가짐(값은 웍스 직원 명단·회사 정보에서 읽음) #}
+    <a class="mt-row" href="/mail/signature/company"><span class="ic">🏢</span><span class="tx"><span class="t">회사 서명 틀 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">회사 공통 서명 모양(한국어·English) — 직원은 「🏢 회사 서명 쓰기」나 메일 쓰기 「✍」에서 자기 정보로 채워진 서명을 바로 씀</span></span><span class="arr">›</span></a>
     {% endif %}
+    {# 11-20 3단계 ⑨ 처음 안내 · 인쇄용 설명서 #}
+    <a class="mt-row" href="/mail/help" target="_blank" rel="noopener"><span class="ic">🖨</span><span class="tx"><span class="t">설명서(인쇄용)</span><span class="d" style="display:block">메일 쓰는 법을 A4 로 — 단추 이름은 화면 글자 그대로 · 처음 안내는 위 「❔ 도움말」 → 「🎓 처음 안내 다시 보기」</span></span><span class="arr">›</span></a>
     {# 11-19 2단계-나 🏖 부재중 자동 응답 #}
     <a class="mt-row" href="/mail/autoreply"><span class="ic">🏖</span><span class="tx"><span class="t">부재중 자동 응답</span><span class="d" style="display:block">출장·휴가 동안 메일을 보낸 사람에게 자동으로 회신 · 기간을 정하면 그때만 · 같은 사람에게 한 번만</span></span>
       <span class="st {{ 'ok' if ar_info|default({}) and ar_info.live else '' }}">{% if ar_info|default({}) and ar_info.on %}{{ '켜짐' if ar_info.live else ('기간 지남' if ar_info.over else '예약됨') }} {{ ar_info.start[5:]|replace('-','/') }}~{{ ar_info.end[5:]|replace('-','/') }}{% else %}꺼짐{% endif %}</span><span class="arr">›</span></a>

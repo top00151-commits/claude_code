@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/><title>{{ doc_title }} · KNK</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 11-20 3단계 ⑨ 인쇄용 설명서 — 화면에서는 풀폭(감싸개 폭 상한·가운데 정렬 없음) · 인쇄는 A4 한 단 */
+  .hp{padding:8px var(--content-pad,32px) 32px}
+  .hp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+  .hp-bar .sp{flex:1}
+  .hp-bar .hint{font-size:12.5px;color:var(--mute)}
+  .hp-doc{background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px;padding:22px 26px}
+  .hp-title{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:3px solid var(--knk-red,#b91c1c);padding-bottom:10px;margin-bottom:14px}
+  .hp-title h1{margin:0;font-size:22px}
+  .hp-title .meta{margin-left:auto;font-size:12px;color:var(--mute)}
+  .hp-lead{font-size:13.5px;line-height:1.75;margin:0 0 16px}
+  .hp-secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px 22px}
+  .hp-sec{break-inside:avoid;page-break-inside:avoid;border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+  .hp-sec h2{margin:0 0 8px;font-size:15.5px;display:flex;align-items:center;gap:8px}
+  .hp-sec h2 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--knk-red,#b91c1c);color:#fff;font-size:12px}
+  .hp-it{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:4px 12px;padding:6px 0;border-top:1px dashed #e5e7eb;font-size:13px;line-height:1.7}
+  .hp-it:first-of-type{border-top:0}
+  .hp-btn{display:inline-block;border:1px solid #cbd5e1;background:#f8fafc;border-radius:7px;padding:1px 8px;font-weight:700;font-size:12.5px;white-space:nowrap;align-self:start}
+  .hp-keys{border-collapse:collapse;font-size:13px;width:100%}
+  .hp-keys td{border-top:1px dashed #e5e7eb;padding:5px 6px}
+  .hp-keys kbd{display:inline-block;min-width:18px;text-align:center;border:1px solid #d1d5db;border-bottom-width:2px;border-radius:5px;padding:0 6px;font-family:inherit;font-size:12px;background:#f9fafb}
+  .hp-foot{margin-top:14px;font-size:12px;color:var(--mute);line-height:1.7}
+  @media(max-width:640px){
+    .hp{padding:8px 12px 24px}
+    .hp-doc{padding:14px 12px}
+    .hp-secs{grid-template-columns:1fr}
+    .hp-it{grid-template-columns:1fr}
+    .hp-btn{white-space:normal}
+  }
+  @page{size:A4;margin:14mm 13mm}
+  @media print{
+    .mail-app-fixed, .mail-help, .mail-theme-pop, .mtour, .hp-bar, nav, .sidebar, .topbar { display:none !important; }
+    html, body { background:#fff !important; height:auto !important; overflow:visible !important; }
+    .app, .main { display:block !important; padding:0 !important; margin:0 !important; overflow:visible !important; }
+    .hp { padding:0 !important; }
+    .hp-doc { border:0 !important; padding:0 !important; border-radius:0 !important; }
+    .hp-secs { display:block !important; }
+    .hp-sec { margin:0 0 4mm !important; border-color:#cbd5e1 !important; }
+    .hp-title h1 { font-size:18pt; }
+    .hp-it, .hp-lead, .hp-keys { font-size:10pt; }
+    .hp-btn { background:#fff !important; }
+    a { color:inherit !important; text-decoration:none !important; }
+    .hp-keys-sec { page-break-before:auto; }
+  }
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="hp">
+    <div class="hp-bar">
+      <button type="button" class="btn btn-primary" onclick="window.print()">🖨 인쇄하기</button>
+      <a href="/mail/inbox" class="btn btn-secondary">📥 받은편지함으로</a>
+      <span class="sp"></span>
+      <span class="hint">A4 용지에 맞춰 나옵니다 · 위 메뉴·단추는 인쇄되지 않습니다</span>
+    </div>
+    <article class="hp-doc">
+      <div class="hp-title"><h1>📧 {{ doc_title }}</h1><span class="meta">KNK · {{ today }} 기준 · 화면 글자 그대로</span></div>
+      <p class="hp-lead">메일함에서 자주 쓰는 것만 모았습니다. 「 」 안의 글자는 <b>화면의 단추 이름 그대로</b>입니다. 궁금한 점은 메일함 위 「❔ 도움말」에서도 볼 수 있습니다.</p>
+      <div class="hp-secs">
+        {% for s in secs %}
+        <section class="hp-sec" id="sec-{{ s.id }}">
+          <h2><span class="n">{{ loop.index }}</span>{{ s.ic }} {{ s.t.ko }}</h2>
+          {% for it in s['items'] %}
+          <div class="hp-it"><span class="hp-btn">{{ it.btn }}</span><span>{{ it.ko }}</span></div>
+          {% endfor %}
+        </section>
+        {% endfor %}
+        <section class="hp-sec hp-keys-sec" id="sec-keys">
+          <h2><span class="n">{{ secs|length + 1 }}</span>⌨ 단축키 <small style="font-weight:500;color:var(--mute);font-size:12px">받은편지함에서</small></h2>
+          <table class="hp-keys"><tbody>
+            {% for k, t in shortcuts %}<tr><td style="width:40%">{% for x in k.split('+') %}{% if not loop.first %} + {% endif %}<kbd>{{ x }}</kbd>{% endfor %}</td><td>{{ t }}</td></tr>{% endfor %}
+          </tbody></table>
+        </section>
+      </div>
+      <div class="hp-foot">※ 메일 안의 회사 서명·양식·그룹 메일 명단은 관리자가 정합니다. 화면이 바뀌면 이 설명서도 함께 바뀝니다(늘 지금 화면 기준).</div>
+    </article>
+  </div>
+</main></div>
+</body></html>

@@ -17,6 +17,20 @@
   .sig-ed img{max-width:100%}
   .sig-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
   .sig-tip{font-size:12px;color:var(--mute);line-height:1.7;margin-top:10px}
+  /* 11-20 3단계 ⑧ 🏢 회사 서명 — 회사가 정한 틀 + 내 정보(웍스 직원 명단·회사 정보 읽기만) */
+  .co-card{border:1px solid #c7d2fe;background:#f5f7ff;border-radius:12px;padding:14px 16px;margin:0 var(--content-pad,32px) 14px}
+  .co-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;font-size:14.5px;margin-bottom:4px}
+  .co-h a{font-size:12.5px;font-weight:600;margin-left:auto}
+  .co-d{font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:10px}
+  .co-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .co-one{border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .co-lg{font-size:12px;font-weight:700;color:#3730a3}
+  .co-pv{font-size:13px;line-height:1.65;word-break:break-word}
+  .co-note{font-size:11.5px;color:#b45309;line-height:1.5}
+  .co-one .btn{align-self:flex-start}
+  .co-ask{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;padding:8px 10px;font-size:12.5px}
+  .co-ask[hidden]{display:none}
+  @media(max-width:640px){.co-card{margin:0 12px 12px}.sig-card{margin:0 12px 20px;padding:14px}}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -25,6 +39,32 @@
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 서명</div>
     <h1 class="page-title">✍️ 메일 <em>서명</em></h1>
   </div></div>
+
+  {% if co_sigs|default([]) or can_company|default(false) %}
+  <div class="co-card" id="coCard">
+    <div class="co-h">🏢 회사 서명 <span style="font-size:12px;font-weight:600;color:var(--mute)">회사가 정한 모양 · 내 정보로 채움</span>
+      {% if can_company|default(false) %}<a href="/mail/signature/company">🔧 회사 서명 틀 고치기(관리자)</a>{% endif %}</div>
+    <div class="co-d">이름·직책·부서는 웍스 직원 명단, 회사 이름·주소·전화는 웍스 회사 정보에서 읽어 옵니다(메일에서는 고치지 않음).
+      「🏢 회사 서명 쓰기」를 누르면 아래 <b>{{ '기본 서명' if not sig_slot|default(0) else (sig_name or '이 서명') }}</b> 칸에 넣고 바로 저장합니다 — 고칠 곳이 있으면 고친 뒤 「💾 저장」.
+      메일 쓰기 화면 「✍」 고르기에서도 「🏢 회사 서명」을 바로 고를 수 있습니다.</div>
+    {% if co_sigs|default([]) %}
+    <div class="co-list">
+      {% for g in co_sigs %}
+      <div class="co-one" data-i="{{ loop.index0 }}">
+        <div class="co-lg">{{ g.name }}</div>
+        <div class="co-pv">{{ g.body|safe }}</div>
+        {% if g.note %}<div class="co-note">ⓘ {{ g.note }}</div>{% endif %}
+        <button type="button" class="btn btn-primary" onclick="coUse({{ loop.index0 }})">🏢 회사 서명 쓰기</button>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="co-ask" id="coAsk" hidden>지금 서명이 회사 서명으로 바뀝니다. <button type="button" class="btn btn-primary" onclick="coUseGo()">바꾸고 저장</button> <button type="button" class="btn btn-secondary" onclick="coAskClose()">그만두기</button></div>
+    {% else %}
+    <div class="co-d" style="margin:0">지금 쓰는 회사 서명 틀이 없습니다 — 「🔧 회사 서명 틀 고치기」에서 정해 주세요.</div>
+    {% endif %}
+  </div>
+  <script>window.CO_SIGS = {{ (co_sigs|default([]))|tojson }};</script>
+  {% endif %}
 
   <div class="sig-card">
     {# 11-19 2단계-나 — 서명 여러 개: 기본 + 2개(예: English · Tiếng Việt) · 메일 쓰기에서 골라 바꿈 #}
@@ -86,6 +126,13 @@
       if(j.ok){ smsg('✅ 저장했습니다','green'); } else { smsg('⚠ 저장 실패','red'); }
     }catch(e){ smsg('⚠ 네트워크 오류','red'); }
   };
+  // 11-20 3단계 ⑧ 🏢 회사 서명 쓰기 — 비어 있으면 바로 넣고 저장 · 이미 쓴 서명이 있으면 한 번 물음(창 대신 띠)
+  var coPick=-1;
+  function coEmpty(){ var t=(ED.innerText||'').replace(/\s+/g,''); return !t && !ED.querySelector('img'); }
+  window.coUse=function(i){ coPick=i; if(coEmpty()) return coUseGo(); var a=document.getElementById('coAsk'); if(a){ a.hidden=false; a.scrollIntoView({block:'nearest'}); } };
+  window.coAskClose=function(){ var a=document.getElementById('coAsk'); if(a) a.hidden=true; };
+  window.coUseGo=function(){ var g=(window.CO_SIGS||[])[coPick]; if(!g) return; coAskClose();
+    ED.innerHTML=g.body||''; saveSig().then(function(){ ED.scrollIntoView({block:'nearest'}); }); };
 })();
 </script>
 </body></html>

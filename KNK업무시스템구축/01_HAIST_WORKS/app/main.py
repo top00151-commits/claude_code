@@ -24237,10 +24237,13 @@ async def mail_signature_page(req: Request, slot: int = 0):
     if not u:
         return RedirectResponse("/login", 303)
     slot = slot if slot in (0, 1, 2) else 0
+    _co_info = _mguide_company()
     with db_session() as c:
         cur = _mailbox.get_signature_slot(c, u["id"], slot)
         alts = [_mailbox.get_signature_slot(c, u["id"], k) for k in (0, 1, 2)]
-    return ctx(req, "mail_signature.html", user=u, sig=cur["body"], sig_slot=slot, sig_name=cur["name"], sig_alts=alts)
+        co_sigs = _mguide_sigs(c, u, _co_info, _mail_from_address_for(c, u))   # 11-20 3단계 ⑧ 🏢 회사 서명(내 정보로 채운 것)
+    return ctx(req, "mail_signature.html", user=u, sig=cur["body"], sig_slot=slot, sig_name=cur["name"], sig_alts=alts,
+               co_sigs=co_sigs, can_company=_mw_admin(u))
 
 
 @app.post("/mail/signature")
@@ -24257,6 +24260,138 @@ async def mail_signature_save(req: Request):
     with db_session() as c:
         _mailbox.save_signature_slot(c, u["id"], slot if slot in (0, 1, 2) else 0, form.get("name") or "", body)
     return JSONResponse({"ok": True})
+
+
+# ─── 11-20 대표 「다음 진행해」 — 3단계 ⑧ 🏢 회사 공통 서명 틀 · ⑨ 처음 안내 · 인쇄용 설명서(app/mail_guide.py) ───
+#   틀(글자·자리표시)만 메일이 가진다 · 회사 이름·주소·전화 = 웍스 회사 정보(_company_info_dict) · 이름·직책·부서 = 웍스 직원 명단 — 읽기만
+#   ⛔ 메일에는 회사 정보·직원 정보를 고치는 화면이 없다(웍스 일) · 베트남어(설명서·틀)는 대표 지시 전 보류(11-20)
+from . import mail_guide as _mguide
+
+
+def _mguide_company() -> dict:
+    try:
+        return _company_info_dict()
+    except Exception:
+        return {}
+
+
+def _mguide_sigs(c, u, company, from_addr="") -> list:
+    """보는 사람 정보로 채운 회사 서명 — 실패해도 메일 쓰기는 그대로(빈 목록)."""
+    try:
+        return _mguide.company_sigs(c, u["id"], company or {}, rank_label, from_addr or "")
+    except Exception:
+        return []
+
+
+@app.get("/mail/signature/company", response_class=HTMLResponse)
+async def mail_company_sig_page(req: Request):
+    """🏢 회사 서명 틀 — 관리자(대표·관리자)만. 직원은 자기 서명 화면으로."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not _mw_admin(u):
+        return RedirectResponse("/mail/signature", 303)
+    co = _mguide_company()
+    with db_session() as c:
+        tpls = _mguide.get_templates(c)
+        names = {}
+        for lg, t in tpls.items():
+            if t.get("updated_by"):
+                try:
+                    names[lg] = user_disp_by_id(c, t["updated_by"])
+                except Exception:
+                    names[lg] = ""
+        prev = {}
+        my_from = _mail_from_address_for(c, u)
+        for lg in _mguide.LANGS:
+            v = _mguide.values_for(c, u["id"], lg, co, rank_label, my_from)
+            f = _mguide.fill(tpls[lg]["body"], v) if tpls[lg]["on"] else {"html": "", "missing": []}
+            prev[lg] = {"html": f["html"], "note": _mguide.missing_note(f["missing"], v["_corp"])}
+    return ctx(req, "mail_company_sig.html", user=u, tpls=tpls, names=names, prev=prev, langs=_mguide.LANGS,
+               lang_name=_mguide.LANG_NAME, defaults=_mguide.DEFAULT, fields=_mguide.FIELDS)
+
+
+@app.post("/mail/signature/company")
+async def mail_company_sig_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    if not _mw_admin(u):
+        return JSONResponse({"ok": False, "msg": "회사 서명 틀은 관리자만 고칠 수 있습니다"}, 403)
+    f = await req.form()
+    mode = (f.get("mode") or "save").strip()
+    if mode not in ("save", "off", "default"):
+        mode = "save"
+    with db_session() as c:
+        ok, msg = _mguide.save_template(c, (f.get("lang") or "").strip(), f.get("body") or "", u["id"], mode)
+    return JSONResponse({"ok": ok, "msg": msg}, 200 if ok else 400)
+
+
+@app.post("/api/mail/company-sig/preview")
+async def mail_company_sig_preview(req: Request):
+    """관리자가 고치는 중인 틀 → 관리자 본인 정보로 채운 미리 보기(저장 안 함)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    if not _mw_admin(u):
+        return JSONResponse({"ok": False}, 403)
+    f = await req.form()
+    lg = (f.get("lang") or "ko").strip()
+    if lg not in _mguide.LANGS:
+        lg = "ko"
+    co = _mguide_company()
+    with db_session() as c:
+        v = _mguide.values_for(c, u["id"], lg, co, rank_label, _mail_from_address_for(c, u))
+        res = _mguide.fill(_mguide._clean_tpl(f.get("body") or ""), v)
+    return JSONResponse({"ok": True, "html": res["html"], "note": _mguide.missing_note(res["missing"], v["_corp"])})
+
+
+@app.get("/api/mail/tour")
+async def mail_tour_get(req: Request):
+    """⑨ 처음 안내 — 이 사람이 「다시 보지 않기」를 눌렀나(서버 · 사용자별 → 다른 기기에서도 같음)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    with db_session() as c:
+        seen = _mguide.tour_seen(c, u["id"])
+    try:
+        dl = bool(_mdlg.allowed(u))
+    except Exception:
+        dl = False
+    return JSONResponse({"ok": True, "show": not seen, "dl": dl})
+
+
+@app.post("/api/mail/tour")
+async def mail_tour_set(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    f = await req.form()
+    seen = (f.get("seen") or "1").strip() not in ("0", "false")
+    with db_session() as c:
+        _mguide.set_tour_seen(c, u["id"], seen)
+    return JSONResponse({"ok": True, "seen": seen})
+
+
+@app.get("/mail/help", response_class=HTMLResponse)
+async def mail_help_page(req: Request):
+    """⑨ 인쇄용 설명서(A4) — 지금 있는 기능만 · 단추 이름은 화면 글자 그대로(mail_guide.MANUAL 한 곳).
+    한국어만(베트남어는 대표 지시 전 보류). 「👉 맡기기」는 시험 명단에게만 보이는 기능이라 그 사람에게만 싣는다."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    try:
+        dl = bool(_mdlg.allowed(u))
+    except Exception:
+        dl = False
+    secs = [s for s in _mguide.MANUAL if dl or not s.get("pilot")]
+    try:
+        with db_session() as c:
+            today = _mail_local_today(_mail_off(c, u))
+    except Exception:
+        today = ""
+    return ctx(req, "mail_help_print.html", user=u, secs=secs, shortcuts=_mguide.SHORTCUTS,
+               doc_title=_mguide.TITLE["ko"], today=today)
 
 
 # ─── 📮 내 메일 계정 연결 (보내기 전용) ─────────────────────────────────
@@ -24413,6 +24548,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         return RedirectResponse("/login", 303)
     prefill = {"to": "", "cc": "", "bcc": "", "subject": "", "body": "", "draft_id": "", "body_html": "",
                "fwd_src": "", "fwd_atts": []}
+    _co_info = _mguide_company()   # 11-20 3단계 ⑧ 🏢 회사 서명 — 웍스 회사 정보 읽기만(연결 밖에서 먼저)
     with db_session() as c:
         ready = _mail.system_send_ready(c, u["id"])
         sig = _mailbox.get_signature(c, u["id"])
@@ -24422,6 +24558,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             sig_list = []
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_from = _mail_from_address_for(c, u)
+        sig_list = list(sig_list or []) + _mguide_sigs(c, u, _co_info, my_from)   # 「✍」 고르기에 「🏢 회사 서명」 함께
         _sched_off = _mail_off(c, u)   # 11-19 예약 달력 — 보는 사람 소속(본사 +9 · 베트남 +7) 기준 날짜·시각
         my_addr = (my_from or "").lower()
         # 내 계정으로 보내도 되는 사람인가 / 이미 연결돼 있나 (안내문·진입경로용)
