@@ -988,6 +988,45 @@ def bulk_apply(c, user_id, ids, op) -> int:
     return c.execute("UPDATE mail_messages SET " + sets + " WHERE user_id=? AND id IN (" + q + ")", (user_id, *own)).rowcount
 
 
+def unread_ids(c, user_id, senders=None, fd_keys=None) -> list:
+    """11-22 대표 「✓ 모두 읽음」 — 안 읽은 받은 메일 번호.
+    senders=None → 받은편지함 전체(왼쪽 「받은편지함」 안 읽음 숫자와 같은 조건 · 누르면 그 숫자가 0) ·
+    senders(+fd_keys) → 그 폴더(왼쪽 폴더 숫자와 같은 조건: 스팸 빼고 · 보관·다시 알림 포함)."""
+    where = "user_id=? AND direction='in' AND is_deleted=0 AND is_read=0"
+    args = [user_id]
+    if senders is not None:
+        _ensure_security_cols(c)
+        where += " AND COALESCE(is_blocked,0)=0"
+        _ss = sorted({(x or "").strip().lower() for x in senders})
+        _fk = sorted({k for k in (fd_keys or []) if k and k.startswith("f")})
+        if not _ss and not _fk:
+            return []
+        c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_senders(e TEXT PRIMARY KEY)")
+        c.execute("DELETE FROM _mf_senders")
+        c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
+        _pin = (" OR COALESCE(fd_pin,'') IN (" + ",".join("?" * len(_fk)) + ")") if _fk else ""
+        where += " AND ((lower(from_email) IN (SELECT e FROM _mf_senders) AND COALESCE(fd_pin,'')='')" + _pin + ")"
+        args += _fk
+    return [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE " + where + " ORDER BY id", args).fetchall()]
+
+
+def set_read_many(c, user_id, ids, read: bool) -> int:
+    """여러 통 읽음/안 읽음(500통 넘어도) — 내 받은 메일만. ✓ 모두 읽음 · ↺ 되돌리기."""
+    nums = []
+    for x in list(ids or [])[:50000]:
+        try:
+            nums.append(int(x))
+        except Exception:
+            pass
+    n = 0
+    sets = "is_read=1, read_at=COALESCE(read_at, datetime('now','localtime'))" if read else "is_read=0"
+    for i in range(0, len(nums), 400):
+        chunk = nums[i:i + 400]
+        n += c.execute("UPDATE mail_messages SET " + sets + " WHERE user_id=? AND direction='in' AND is_read=? AND id IN ("
+                       + ",".join("?" * len(chunk)) + ")", (user_id, 0 if read else 1, *chunk)).rowcount
+    return n
+
+
 def set_pin(c, user_id, ids, key) -> int:
     """📁 이 메일만 폴더로(key='f<폴더id>') · key='' 면 자동 분류로 되돌림. 받은 메일만 · 폴더는 내 것만(부르는 쪽이 확인)."""
     _ensure_security_cols(c)

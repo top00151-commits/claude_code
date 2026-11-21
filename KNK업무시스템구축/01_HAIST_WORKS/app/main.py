@@ -23847,6 +23847,92 @@ async def mail_bulk(req: Request):
     return JSONResponse({"ok": True, "n": n})
 
 
+@app.post("/mail/read-all")
+async def mail_read_all(req: Request):
+    """11-22 대표 「읽지 않은 메일을 한 번에 읽음으로」 — fd 없음 = 받은편지함 전체 · fd=폴더 열쇠 = 그 폴더만.
+    dry=1 이면 셈만(확인 창) · 하면 바꾼 번호를 돌려줌(↺ 되돌리기). 이음웍스 메일 안 표시만 바뀜(하이웍스 원본은 그대로)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    fd = (form.get("fd") or "").strip()[:20]
+    dry = (form.get("dry") or "") == "1"
+    with db_session() as c:
+        name = "받은편지함"
+        if fd:
+            try:
+                mf = _mail_folders.classify(c, u["id"]) if _mail_folders.has_tree(c, u["id"]) else None
+            except Exception:
+                mf = None
+            if not mf or fd not in mf["keys_of"]:
+                return JSONResponse({"ok": False, "message": "없는 폴더입니다."}, 400)
+            name = mf["labels"].get(fd, "폴더")
+            ids = _mailbox.unread_ids(c, u["id"], senders=_mail_folders.senders_in(mf, fd),
+                                      fd_keys=sorted(mf["keys_of"].get(fd, set())))
+        else:
+            ids = _mailbox.unread_ids(c, u["id"])
+        if dry or not ids:
+            return JSONResponse({"ok": True, "n": len(ids), "name": name, "dry": True})
+        n = _mailbox.set_read_many(c, u["id"], ids, True)
+    return JSONResponse({"ok": True, "n": n, "name": name, "ids": ",".join(str(i) for i in ids)})
+
+
+@app.post("/mail/read-all/undo")
+async def mail_read_all_undo(req: Request):
+    """↺ 되돌리기 — 방금 「모두 읽음」으로 바꾼 메일만 다시 안 읽음으로."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    ids = [x for x in (form.get("ids") or "").replace(" ", "").split(",") if x]
+    with db_session() as c:
+        n = _mailbox.set_read_many(c, u["id"], ids, False)
+    return JSONResponse({"ok": True, "n": n})
+
+
+@app.post("/mail/reply/done-all")
+async def mail_reply_done_all(req: Request):
+    """11-22 대표 「회신 필요도 일괄 처리 — 보내지는 않지만 0이 되게」 — ids 없음 = 지금 「↩ 회신 필요」 전부 · ids = 고른 메일만.
+    「✓ 회신 안 해도 됨」(메일마다 누르던 것)과 같은 표시 · dry=1 이면 셈(👔 윗분 지시 몇 통 포함) · 메일은 보내지 않음."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    dry = (form.get("dry") or "") == "1"
+    pick = [x for x in (form.get("ids") or "").replace(" ", "").split(",") if x.isdigit()][:5000]
+    with db_session() as c:
+        reply_map = _mail_reply.scan(c, u["id"])
+        ids = [int(x) for x in pick if int(x) in reply_map] if pick else sorted(reply_map.keys())
+        boss = 0
+        try:
+            _st = _mpeople.staff(c)
+            _me = _mpeople.me_of(c, u["id"], _st)
+            boss = len(_mail_boss_ids(c, u["id"], {i: 1 for i in ids}, _st, _me))
+        except Exception:
+            pass
+        if dry or not ids:
+            return JSONResponse({"ok": True, "n": len(ids), "boss": boss, "dry": True})
+        done = _mail_reply.set_done_many(c, u["id"], ids)
+    return JSONResponse({"ok": True, "n": len(done), "boss": boss, "undo": ",".join("%d:%s" % (i, p) for i, p in done)})
+
+
+@app.post("/mail/reply/done-all/undo")
+async def mail_reply_done_all_undo(req: Request):
+    """↺ 되돌리기 — 방금 한꺼번에 「회신 안 해도 됨」으로 한 메일을 원래 표시로."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    items = []
+    for t in (form.get("undo") or "").split(","):
+        a, _, b = t.partition(":")
+        if a.strip().isdigit():
+            items.append((int(a), b.strip()))
+    with db_session() as c:
+        n = _mail_reply.restore_marks(c, u["id"], items)
+    return JSONResponse({"ok": True, "n": n})
+
+
 @app.post("/mail/{mail_id:int}/pin")
 async def mail_pin_one(req: Request, mail_id: int):
     """📁 이 메일만 그 폴더로(folder_id) · folder_id=0 → 자동 분류로 되돌림(11-18 3단계)."""

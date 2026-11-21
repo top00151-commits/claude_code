@@ -207,6 +207,56 @@ def set_mark(c, user_id, mail_id, state: str) -> bool:
     return True
 
 
+def set_done_many(c, user_id, ids) -> list:
+    """11-22 대표 「회신 필요 일괄 처리」 — 여러 통을 한 번에 「회신 안 해도 됨」. 본인 받은 메일만.
+    반환 [(mail_id, 바꾸기 전 표시('' = 규칙대로 · 'need'))] — ↺ 되돌리기가 그대로 쓴다. 이미 「안 해도 됨」인 것은 뺀다."""
+    nums = []
+    for x in list(ids or [])[:5000]:
+        try:
+            nums.append(int(x))
+        except Exception:
+            pass
+    if not nums:
+        return []
+    ensure(c)
+    marks = _marks(c, user_id)
+    own = []
+    for i in range(0, len(nums), 400):
+        chunk = nums[i:i + 400]
+        own += [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE user_id=? AND direction='in' AND id IN ("
+                                        + ",".join("?" * len(chunk)) + ")", (int(user_id), *chunk)).fetchall()]
+    out = []
+    for mid in own:
+        prev = marks.get(mid) or ""
+        if prev == "done":
+            continue
+        c.execute("INSERT INTO mail_reply_marks(user_id, mail_id, state) VALUES(?,?, 'done') "
+                  "ON CONFLICT(user_id, mail_id) DO UPDATE SET state='done', created_at=datetime('now','localtime')",
+                  (int(user_id), int(mid)))
+        out.append((mid, prev))
+    return out
+
+
+def restore_marks(c, user_id, items) -> int:
+    """↺ 되돌리기 — [(mail_id, 바꾸기 전 표시)] 를 그대로 돌려놓는다(지금 「안 해도 됨」인 것만 · 본인 것만)."""
+    ensure(c)
+    n = 0
+    for mid, prev in list(items or [])[:5000]:
+        try:
+            mid = int(mid)
+        except Exception:
+            continue
+        cur = c.execute("SELECT state FROM mail_reply_marks WHERE user_id=? AND mail_id=?", (int(user_id), mid)).fetchone()
+        if not cur or cur[0] != "done":
+            continue
+        if prev == "need":
+            c.execute("UPDATE mail_reply_marks SET state='need' WHERE user_id=? AND mail_id=?", (int(user_id), mid))
+        else:
+            c.execute("DELETE FROM mail_reply_marks WHERE user_id=? AND mail_id=?", (int(user_id), mid))
+        n += 1
+    return n
+
+
 # ── 거래처 판단 재료 ───────────────────────────────────────────────────────────
 def _partner_keys(c) -> tuple:
     """(거래처와 연결된 연락처 주소, 한 거래처만 가리키는 회사 주소)."""

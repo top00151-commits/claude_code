@@ -8,6 +8,7 @@
 사용: py -3.13 _검증/mail_reply_folder_test.py"""
 import io
 import os
+import re
 import sys
 import tempfile
 
@@ -178,7 +179,9 @@ try:
         n_now = len(mr.scan(c, OWN))
     h = k.get("/mail/inbox?thread=0").text
     check("목록에 「↩ 회신」 표시", 'class="mbx-reply lv1"' in h and 'class="mbx-reply lv2"' in h)
-    check("왼쪽 「↩ 회신 필요」 + 숫자", "/mail/inbox?reply=1" in h and (">%d</span></a>" % n_now) in h, n_now)
+    # 11-22 숫자 뒤에 「✓ 모두 처리」 단추가 붙어 숫자 바로 뒤가 </a> 가 아님 → 회신 필요 줄 안의 숫자 동그라미로 봄
+    _rrow = re.search(r'<span class="fname">↩ 회신 필요</span>(.*?)</a>', h, re.S)
+    check("왼쪽 「↩ 회신 필요」 + 숫자", "/mail/inbox?reply=1" in h and _rrow and ('<span class="fbadge">%d</span>' % n_now) in _rrow.group(1), n_now)
     hr = k.get("/mail/inbox?reply=1&thread=0").text
     check("모아 보기: 요청 메일은 있고 참고 메일은 없음", "도면 검토 요청" in hr and "회의록 공유" not in hr and "견적 문의" not in hr)
     with _db.db_session() as c:

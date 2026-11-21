@@ -39,6 +39,7 @@ GROUP_KINDS = ("customer", "other_customer", "vendor", "staff", "")
 
 _OK = {"v": False}
 _CACHE = {}        # (user_id) -> (stamp, result)
+_RS = {}           # (user_id) -> 읽음·지움·스팸 상태(바뀌면 숫자만 다시 셈 · 11-22)
 _SIG_CACHE = {}    # (sender, latest_mail_id) -> (company, department)
 
 
@@ -526,7 +527,14 @@ def classify(c, uid) -> dict:
     st = _stamp(c, uid)
     hit = _CACHE.get(uid)
     if hit and hit[0] == st:
-        return hit[1]
+        # 11-22 대표 「폴더마다 안 읽은 메일 수」 — 읽음·지움·스팸만 바뀌면 나누기는 그대로 두고 숫자만 다시 센다
+        #   (예전엔 새 메일이 와야 다시 세어, 읽어도 폴더 숫자가 줄지 않았음)
+        rs = _read_stamp(c, uid)
+        if rs == _RS.get(uid):
+            return hit[1]
+        if _recount(c, uid, hit[1]):
+            _RS[uid] = rs
+            return hit[1]
     fl = folders(c, uid)
     by_id = {f["id"]: f for f in fl}
     groups = [f for f in fl if not f["parent_id"]]
@@ -802,7 +810,71 @@ def classify(c, uid) -> dict:
            "gen": {"n": cnt.get("gen", [0, 0])[0], "u": cnt.get("gen", [0, 0])[1]},
            "_idx": idx, "_last": dict(_last_ids)}
     _CACHE[uid] = (st, res)
+    _RS[uid] = _read_stamp(c, uid)
     return res
+
+
+def _read_stamp(c, uid):
+    """읽음·지움·스팸 표시 상태(받은 메일) — 바뀌면 폴더 숫자만 다시 센다."""
+    try:
+        return tuple(c.execute(
+            "SELECT COUNT(*), SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END), SUM(CASE WHEN is_deleted=1 THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN COALESCE(is_blocked,0)=1 THEN 1 ELSE 0 END), "
+            "COALESCE(SUM(CASE WHEN is_read=0 THEN id ELSE 0 END),0) FROM mail_messages WHERE user_id=? AND direction='in'",
+            (uid,)).fetchone())
+    except Exception:
+        return None
+
+
+def _recount(c, uid, res) -> bool:
+    """폴더 나누기(보낸 사람 → 폴더)는 그대로 · 폴더마다 통수·안 읽음 수만 다시. 모르는 보낸 사람이 나오면 False(처음부터 다시)."""
+    try:
+        snd = res["senders"]
+        cnt, seen = {}, set()
+        for r in c.execute("SELECT lower(from_email) AS e, COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
+                           "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
+                           "GROUP BY lower(from_email)", (uid,)).fetchall():
+            e = (r["e"] or "").strip()
+            s = snd.get(e)
+            if s is None:
+                return False
+            seen.add(e)
+            s["n"], s["u"] = r["n"] or 0, r["u"] or 0
+            a = cnt.setdefault(s["key"], [0, 0])
+            a[0] += s["n"]
+            a[1] += s["u"]
+        for e, s in snd.items():
+            if e not in seen:
+                s["n"], s["u"] = 0, 0
+        labels = res.get("labels") or {}
+        for r in c.execute("SELECT lower(from_email) AS e, fd_pin, is_read FROM mail_messages WHERE user_id=? AND direction='in' "
+                           "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(fd_pin,'')<>''", (uid,)).fetchall():
+            pk = r["fd_pin"] or ""
+            if not pk.startswith("f") or pk not in labels:
+                continue
+            nat = (snd.get((r["e"] or "").strip()) or {}).get("key", "gen")
+            if nat == pk:
+                continue
+            a = cnt.setdefault(nat, [0, 0])
+            a[0] -= 1
+            a[1] -= 0 if r["is_read"] else 1
+            b = cnt.setdefault(pk, [0, 0])
+            b[0] += 1
+            b[1] += 0 if r["is_read"] else 1
+        ko = res.get("keys_of") or {}
+
+        def walk(nodes):
+            for x in nodes or []:
+                ks = ko.get(x["key"]) or {x["key"]}
+                x["n"] = sum(cnt.get(k, [0, 0])[0] for k in ks)
+                x["u"] = sum(cnt.get(k, [0, 0])[1] for k in ks)
+                walk(x.get("children"))
+        walk(res.get("nodes"))
+        res["gen"] = {"n": cnt.get("gen", [0, 0])[0], "u": cnt.get("gen", [0, 0])[1]}
+        return True
+    except Exception as e:
+        print("[MAIL-FOLDERS] 숫자 다시 세기 실패(처음부터 다시): %s" % str(e)[:160], flush=True)
+        return False
 
 
 _RE_TAG = re.compile(r"[\[(（【<〔]\s*([^\])）】>〕]{2,24}?)\s*[\])）】>〕]")
