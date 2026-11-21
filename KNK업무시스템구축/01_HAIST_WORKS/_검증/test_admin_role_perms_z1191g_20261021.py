@@ -160,7 +160,11 @@ s3 = get("Z923", "/sales")
 check("5 매출 보기만 켠 관리자: 매출 센터 200 · 은행 대사는 못 함(매출 등록 필요) · 메뉴에도 은행 대사 없음 · 재고 카드 없음",
       s5.status_code == 200 and loc(r5b) == (303, "/home") and "/sales/bank-recon" not in s5.text
       and "이번달 매출" in d5.text and "활성 재고 품목" not in d5.text, (s5.status_code, loc(r5b)))
-check("   매출 등록까지 켠 관리자는 메뉴에 은행 대사 있음", s3.status_code == 200 and "/sales/bank-recon" in s3.text, s3.status_code)
+# z1191z98: 은행 대사 = 💰 입금 메뉴 안의 탭(메뉴 줄 없음) → 매출 등록 켠 관리자는 💰 입금 메뉴 + 입금 확인 화면에 🏦 입금 대사 탭
+s3r = get("Z923", "/sales/receipts-check")
+check("   매출 등록까지 켠 관리자는 💰 입금 메뉴 · 그 안에 🏦 입금 대사 탭 있음",
+      s3.status_code == 200 and "/sales/receipts-check" in s3.text and s3r.status_code == 200 and 'href="/sales/bank-recon"' in s3r.text,
+      (s3.status_code, s3r.status_code))
 dc, de = get("Z900", "/dashboard"), get("Z910", "/dashboard")
 sc = [get("Z900", p).status_code for p in ("/sales", "/logistics", "/sales/bank-recon")]
 check("6 대표: 매출·자재·은행 대사 200 · 대시보드 카드 모두(그대로) · 임원 대시보드 카드 모두",

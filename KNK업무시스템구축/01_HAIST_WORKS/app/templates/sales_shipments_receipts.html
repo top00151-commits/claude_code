@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>납품·수금 · KNK</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>마감 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
 /* z924 (대표 지적): 조회·정렬 등 드롭다운 옵션 목록이 다크모드에서 '검정 박스'로 보이던 문제 —
@@ -107,18 +107,16 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head">
-    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>납품·수금</b></div>
-    <h1 class="page-title">🚚 납품 &amp; <em>수금</em></h1>
-    <div class="page-meta" style="margin-top:6px;font-size:12px;color:var(--mute);">작업일정표 다음 스텝 — 출하·세금계산서 완료 건의 입금예상일·미수·마감이월 정리</div></div>
+    <div><div class="crumbs"><a href="/sales">매출영업센터</a> · <b>🧾 마감</b></div>
+    <h1 class="page-title">🧾 마감 — <em>계산서 발행</em></h1>
+    <div class="page-meta" style="margin-top:6px;font-size:12px;color:var(--mute);">출하했는데 세금계산서를 아직 다 끊지 않은 건을 챙깁니다 · 계산서는 <a href="/sales/schedule">📅 작업 일정표</a>의 세금계산서 칸에서 끊습니다 · 받을 돈·입금은 <a href="/sales/receipts-check">💰 입금</a></div></div>
   </div>
-
-  {% include "_v5_partials/ar_baseline_notice_z92.html" %}
+  {# z1191z98 (대표 11-22 「5·6 합치기」): 이 화면 = 마감(계산서 발행 대기). 받을 돈·입금 기록은 💰 입금 한 곳 — 미수 띠·입금 숫자·수금 입력 칸은 뺌 #}
   {# ── KPI ── #}
   <div class="sr-kpis">
     <div class="sr-kpi warn"><div class="lbl">🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>
     <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(전부 미발행)</div><div class="val">{{ kpi.carryover_cnt }}건</div></div>
-    <div class="sr-kpi"><div class="lbl">📅 입금예정(발행완료·부가세 포함)</div><div class="val">{% if can_money %}{{ kpi.expect_sum }}{% else %}🔒{% endif %}</div></div>
-    <div class="sr-kpi"><div class="lbl">총 미수(부가세 포함·KRW)</div><div class="val">{% if can_money %}{{ kpi.outstanding_sum }}{% else %}🔒{% endif %}{% if kpi.fx_cnt %}<span style="font-size:11px;color:var(--mute);"> · 외화 {{ kpi.fx_cnt }}건</span>{% endif %}</div></div>
+    <a class="sr-kpi" href="/sales/receipts-check" style="text-decoration:none;" title="받을 돈·입금 예정일·입금 기록은 💰 입금 한 곳에서"><div class="lbl">받을 돈 · 입금 기록</div><div class="val" style="font-size:15px;color:#1e40af;">💰 입금에서 →</div></a>
   </div>
 
   {# ── 기준월 선택 ── #}
@@ -164,7 +162,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
 
   {# ── ① 챙길 것 (마감이월·연체·조건미설정) — 상단 고정 ── #}
   {% if action %}
-  <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서 미발행 잔액이 남은 건 · 연체 ({{ action|length }}건)</div>
+  <div class="sr-sec-h carry">🔴 발행 대기 — 출하됐는데 세금계산서를 아직 다 끊지 않은 건 ({{ action|length }}건)</div>
   <div class="tbl-wrap tbl-sticky sr-scrollbox">
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
@@ -183,7 +181,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
     <span class="sr-hchip" data-h="all">전체</span>
     <span style="font-size:11px;color:var(--mute);">· 발행대기·발행완료 두 표에 적용 · 상자 안에서 스크롤 · 선택 기억</span>
   </div>
-  <div class="sr-sec-h">📅 발행완료 · 수금 관리 ({{ inmonth|length }}건)</div>
+  <div class="sr-sec-h">✅ 발행 완료 ({{ inmonth|length }}건) <span style="font-weight:600;font-size:12px;color:var(--mute);">· 입금 기록은 <a href="/sales/receipts-check">💰 입금 → 입금 확인</a>에서</span></div>
   <div class="tbl-wrap tbl-sticky sr-scrollbox">
     {% if inmonth %}
     <table class="tbl" data-sr-table>

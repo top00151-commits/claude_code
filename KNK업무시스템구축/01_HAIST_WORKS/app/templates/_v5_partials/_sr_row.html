@@ -19,7 +19,8 @@
   <td class="num"><span class="sr-l">미수(부가세 포함)</span><span class="sr-v" style="font-weight:800;{% if o.outstanding_incl > 0 %}color:#b91c1c;{% endif %}">{% if can_money %}{{ o.out_incl_fmt }}{% else %}🔒{% endif %}</span></td>
   <td class="num"><span class="sr-l">수금</span><span class="sr-v">{% if can_money %}{{ o.paid_fmt }}{% if o.recv_cnt %} <button type="button" class="sr-hist-btn" data-hist="{{ o.order_id }}">📋{{ o.recv_cnt }}</button>{% endif %}{% else %}🔒{% endif %}</span></td>
 </tr>
-{% if can_money and o.state != '수금완료' and o.outstanding_incl > 0 %}
+{# z1191z98 (대표 11-22 「한 가지 일은 한 곳에서만」): 「＋ 수금 입력」 칸 뺌 — 입금 기록은 💰 입금 → 입금 확인 [✅ 입금 확인됨] 한 곳(같은 표에 적힘) #}
+{% if sr_recv_form_z98|default(false) and can_money and o.state != '수금완료' and o.outstanding_incl > 0 %}
 <tr class="sr-payrow sr-st-{{ _sk }} {{ _zc }}" data-rec="{{ o.order_id }}"><td colspan="7">
   <form class="sr-recv-form" method="post" action="/sales/receipts">
     <input type="hidden" name="order_id" value="{{ o.order_id }}">

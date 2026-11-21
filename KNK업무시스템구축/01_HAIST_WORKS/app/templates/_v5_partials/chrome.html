@@ -43,6 +43,13 @@
 {% endif %}
 {# z1191z92: 등록 폼(검사기·자동화·라이프밸류·기타·소모품)에 있을 때는 메뉴 「🆕 등록」에 불 #}
 {% if _path.startswith('/projects/quick') or _path == '/consumables/new' or _path == '/customers/new' %}{% set _ns.active = '/projects/new' %}{% endif %}
+{# z1191z98 (대표 11-22 「한 가지 일은 한 곳에서만」): 한 메뉴 안의 탭 화면들은 그 메뉴에 불
+   · 💰 입금 = 입금 확인 · 미수 현황(옛 미수금·채권 노화) · 입금 대사  · 🎯 수주 전 = 영업 기회 · 견적서  · 📋 프로젝트 = … · 수주 목록
+   · 영업 기회·견적서 새로 만들기 = 🆕 등록 #}
+{% if _path in ('/sales/outstanding', '/sales/aging', '/sales/bank-recon') %}{% set _ns.active = '/sales/receipts-check' %}{% endif %}
+{% if _path == '/sales/quotations' or _path.startswith('/sales/quotations/') or (_path.startswith('/sales/quotes/') and _path != '/sales/quotes/new') %}{% set _ns.active = '/sales/opportunities' %}{% endif %}
+{% if _path == '/sales/orders' or _path.startswith('/sales/orders/') %}{% set _ns.active = '/projects' %}{% endif %}
+{% if _path in ('/sales/opportunities/new', '/sales/quotes/new') %}{% set _ns.active = '/projects/new' %}{% endif %}
 
 {# 헬퍼: longest-prefix-match 결과(_ns.active)와 동일할 때만 active 부여 #}
 {% macro a(path, label, code='') -%}
@@ -581,24 +588,17 @@ var CH = {
     {# z1191z97 (대표 11-22 「매출 홈, 등록 순으로」): 맨 위 매출 홈 → 그다음 🆕 등록 #}
     {{ a('/sales',                 i.ch_m_sales,     'M-01-01') }}
     {{ a('/projects/new',          i.ch_m_reg_z92,   'M-01-12-N') }}
-    {# v5H226z416 (대표 지시): 영업 기회 — 수주 전(미팅·제안·견적) → 수주 확정 시 프로젝트 승격 #}
-    {{ a('/sales/opportunities',   i.ch_m_opp,   'M-01-16') }}
-    {{ a('/projects',              i.ch_m_proj,                     'M-01-11') }}
-    {# v5H226z761 (대표 지시): 사이드바 '📝 제작요청서' 항목 제거 — /projects/new는 프로젝트 신규 등록 폼과 동일했음.
-       등록은 '📋 프로젝트' → 상단 '🆕 등록' 탭으로 진입(라우트·폼·제작요청 발행 기능은 그대로 유지). #}
-    {# v5H226z256 (대표 지시): 작업 일정표(전사 일정 운영 보드) — 1단계 #}
-    {{ a('/sales/schedule',        i.ch_m_sched, 'M-01-14') }}
-    {{ a('/customers',             i.ch_m_cust,      'M-01-09') }}
-    {{ a('/sales/quotations',      i.ch_m_quot,      'M-01-02') }}
-    {{ a('/sales/orders',          i.ch_m_order,        'M-01-03') }}
-    {# v5H226z246 (대표 지시): 소모품 진입은 '프로젝트 등록 → C 소모품' 한 곳으로 통일 →
-       사이드바 '소모품 발주' 메뉴 항목 제거. 목록은 프로젝트 목록 🧴소모품 책갈피에서 조회. #}
-    {{ a('/sales/shipments-receipts',i.ch_m_ship, 'M-01-04') }}
-    {# z1191z94 (대표 11-21): 💰 입금 확인 — 세금계산서 기준 받을 돈 · 예정일 된 고객사 → 관리팀 확인 → 입금 기록 #}
-    {% if (user.role or '')|lower == 'ceo' or user.can_use_sales %}{{ a('/sales/receipts-check', i.ch_m_rcheck_z94, 'M-01-18') }}{% endif %}
-    {{ a('/sales/outstanding',     i.ch_m_out,      'M-01-05') }}
-    {# v5H226z929 (대표 지시): 은행 입금내역으로 수금 대조(1단계=파일 읽기·미리보기) — 재무 권한만 #}
-    {% if (user.role or '')|lower in ('ceo','executive') or ((user.role or '')|lower == 'admin' and user.can_use_sales) %}{{ a('/sales/bank-recon', i.ch_m_bank, 'M-01-17') }}{% endif %}{# z1191g: 관리자는 매출 등록 체크가 있어야(경로와 같게) #}
+    {# z1191z98 (대표 11-22 「5-6 합치는 작업 완료 후 1번도 바로 진행해」): 일하는 순서대로 10개 · 한 가지 일은 한 곳에서만.
+       🎯 수주 전 = 영업 기회 + 견적서(탭) · 📋 프로젝트 = 전체 목록·제작요청서목록·관리번호대장·수주 목록(탭)
+       🧾 마감 = 계산서 발행 대기(옛 납품·수금) · 💰 입금 = 입금 확인 + 미수 현황(옛 미수금·채권 노화) + 입금 대사(탭)
+       옛 주소는 모두 그대로 열린다(메뉴 자리만 합침). #}
+    {{ a('/sales/opportunities',   i.ch_m_presale_z98, 'M-01-16') }}
+    {{ a('/projects',              i.ch_m_proj,        'M-01-11') }}
+    {{ a('/sales/schedule',        i.ch_m_sched,       'M-01-14') }}
+    {{ a('/sales/shipments-receipts', i.ch_m_close_z98, 'M-01-04') }}
+    {# 보이기 = 경로 판정(_s1_guard)과 같은 규칙: 대표·임원 또는 매출 등록 체크 — 메뉴 틀만 따로 그리는 곳이 있어 전역 함수 없이 적음 #}
+    {% if (user.role or '')|lower in ('ceo','executive') or user.can_use_sales %}{{ a('/sales/receipts-check', i.ch_m_money_z98, 'M-01-18') }}{% endif %}
+    {{ a('/customers',             i.ch_m_cust,        'M-01-09') }}
     {{ a('/export',                i.ch_m_export,      'M-01-10') }}
     {# z1191z92 (대표 11-21 P0-7): 처음 쓰는 분 — 「등록부터 입금까지」 한 장 안내(메뉴·단추 이름 그대로) · 묶음 머리 글자는 건드리지 않음(메뉴 이름을 읽는 곳이 있음) #}
     {{ a('/sales/flow-guide',      i.ch_m_guide_z92,   '') }}

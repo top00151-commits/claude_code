@@ -18,14 +18,15 @@ body {
 <main class="main" data-dn="main" data-dn-tone="amber">
   <header class="knk-page-head" data-dn="page-head">
     <div>
-      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <b>견적</b></nav>
+      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · 🎯 수주 전 · <b>견적서</b></nav>
       <h1 class="knk-page-title">📋 견적 관리</h1>
     </div>
     <div class="knk-page-actions">
       <a class="knk-btn knk-btn--ghost" href="/sales/quotations/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
-      <a class="knk-btn knk-btn--primary" href="/sales/quotes/new">＋ 새 견적</a>
     </div>
   </header>
+  {# z1191z98: 「＋ 새 견적」 → 왼쪽 메뉴 🆕 등록 → 📋 견적서 카드(한 곳에서만) #}
+  {% set stz_group = 'presale' %}{% set stz_cur = '/sales/quotations' %}{% include "_v5_partials/sales_subtabs_z98.html" %}
   <div class="tbl-wrap tbl-sticky" data-dn="quotes-table" data-dn-tone="purple">
     {% if items %}
     <table class="tbl">
@@ -45,7 +46,7 @@ body {
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty"><div class="ico">📋</div><div class="ttl">견적이 없습니다</div><div style="margin-top:14px;"><a class="btn btn-primary" href="/sales/quotes/new">＋ 첫 견적</a></div></div>{% endif %}
+    {% else %}<div class="empty"><div class="ico">📋</div><div class="ttl">견적이 없습니다</div><div style="margin-top:14px;font-size:12px;color:var(--mute);">＋ 견적은 왼쪽 메뉴 <b>🆕 등록</b> → 📋 견적서</div></div>{% endif %}
   </div>
   <div style="height: var(--space-7);"></div>
 </main></div></body></html>

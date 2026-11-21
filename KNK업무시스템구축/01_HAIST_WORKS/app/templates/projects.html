@@ -44,6 +44,7 @@ body {
     {# v5H226z762 (대표 지시): 제작요청서 목록 진입 — 사이드바 재추가 대신 프로젝트 탭으로 #}
     <a href="/prod-requests" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📋 제작요청서목록</a>
     <a href="/projects/ledger" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📒 관리번호대장</a>{# z1191z42 #}
+    {% if can_s1_z98(user) %}<a href="/sales/orders" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📑 수주 목록</a>{% endif %}{# z1191z98: 수주 목록 = 프로젝트 탭(메뉴에서 뺌) #}
     {# z1191z96 (대표 11-22): 「🆕 등록」 탭 뺌 — 등록은 왼쪽 메뉴 한 곳 #}
     <span style="margin-left:auto;align-self:center;padding-right:4px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span></span>
   </div>

@@ -1677,6 +1677,12 @@ T = {
                 "vi": "🧪 Đề tài R&D"},
     "ch_m_rcheck_z94": {"ko": "💰 입금 확인",
                         "vi": "💰 Xác nhận thu tiền"},
+    "ch_m_presale_z98": {"ko": "🎯 수주 전 — 영업 기회·견적",   # z1191z98
+                         "vi": "🎯 Trước đơn hàng — cơ hội·báo giá"},
+    "ch_m_close_z98": {"ko": "🧾 마감 — 계산서 발행",   # z1191z98 (옛 🚚 납품·수금)
+                       "vi": "🧾 Chốt — xuất hóa đơn"},
+    "ch_m_money_z98": {"ko": "💰 입금 — 확인·미수",   # z1191z98 (입금 확인 · 미수 현황 · 입금 대사)
+                       "vi": "💰 Thu tiền — xác nhận·công nợ"},
     "ch_m_reg_z92": {"ko": "🆕 등록",
                      "vi": "🆕 Đăng ký"},
     "ch_m_guide_z92": {"ko": "📖 처음이면 — 등록부터 입금까지",

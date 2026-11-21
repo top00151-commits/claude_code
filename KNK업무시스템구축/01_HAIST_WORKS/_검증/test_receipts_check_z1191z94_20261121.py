@@ -175,14 +175,13 @@ S["user"] = SALES
 print("§5 메뉴 · 띠 · 내 건")
 hs = q(cl.get, "/sales").text
 sb = re.findall(r'<a class="sb-item[^"]*" href="([^"]+)"', hs)
-check("메뉴: 납품·수금 → 💰 입금 확인 → 미수금", "/sales/receipts-check" in sb and sb.index("/sales/receipts-check") == sb.index("/sales/outstanding") - 1
-      and "💰 입금 확인" in hs, sb)
-ho = q(cl.get, "/sales/outstanding").text
-check("정리 전: 미수금 화면 경고 띠", "아래 미수 숫자는 아직 실제 미수가 아닙니다" in ho and "ar-after-z94" not in ho)
+# z1191z98: 메뉴 = 🧾 마감 → 💰 입금(입금 확인 · 미수 현황 · 입금 대사 탭) · 미수 현황은 입금 확인과 같은 계산이라 「다른 기준」 띠 없음
+check("메뉴: 🧾 마감 → 💰 입금", "/sales/receipts-check" in sb and sb.index("/sales/receipts-check") == sb.index("/sales/shipments-receipts") + 1
+      and "💰 입금 — 확인·미수" in hs, sb)
 with D.db_session() as c:
     c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('ar_baseline_done', '1')")
 ho = q(cl.get, "/sales/outstanding").text
-check("정리 끝: 경고 대신 「💰 입금 확인」 안내", "ar-after-z94" in ho and 'href="/sales/receipts-check"' in ho and "아래 미수 숫자는" not in ho)
+check("미수 현황 = 💰 입금 탭(입금 확인 링크) · 옛 「다른 기준」 띠 없음", 'href="/sales/receipts-check"' in ho and "ar-after-z94" not in ho and "아래 미수 숫자는" not in ho)
 h = q(cl.get, "/sales/receipts-check").text
 check("👤 내 건만 단추(내 이름 건 있음)", 'id="rcMineBtn"' in h)
 h1 = q(cl.get, "/sales/receipts-check?mine=1").text

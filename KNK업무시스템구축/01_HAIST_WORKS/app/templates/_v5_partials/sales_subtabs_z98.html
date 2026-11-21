@@ -1,0 +1,25 @@
+{# z1191z98 (대표 11-22 「한 가지 일은 한 곳에서만」): 한 메뉴 안의 화면을 오가는 탭 줄.
+   부르는 쪽: {% set stz_group = 'money' | 'presale' %}{% set stz_cur = '/지금 주소' %}{% include ... %}
+   탭 보이기 = 그 경로의 권한 판정과 같다(can_s1_z98 · can_bank_z98). #}
+<style>
+.stz98{display:flex;gap:4px;flex-wrap:wrap;align-items:flex-end;margin:0 var(--content-pad,20px) var(--space-4,14px);border-bottom:2px solid var(--knk-border-subtle,#E2E6E1);}
+.stz98 a,.stz98 span.t{padding:9px 18px;font-size:14px;font-weight:700;text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--knk-text-muted,#657169);white-space:nowrap;}
+.stz98 .on{font-weight:800;color:var(--knk-red,#b91c1c);border-bottom-color:var(--knk-red,#b91c1c);}
+.stz98 .hint{margin-left:auto;align-self:center;font-size:12px;color:var(--knk-text-muted,#64748b);padding:0 4px 6px;}
+@media (max-width:760px){ .stz98 a,.stz98 span.t{padding:8px 11px;font-size:13px;} .stz98 .hint{display:none;} }
+</style>
+{% set _stz = [] %}
+{% if stz_group == 'money' %}
+  {% if can_s1_z98(user) %}{% set _ = _stz.append(('/sales/receipts-check', '💰 입금 확인')) %}{% endif %}
+  {% set _ = _stz.append(('/sales/outstanding', '📊 미수 현황')) %}
+  {% if can_bank_z98(user) %}{% set _ = _stz.append(('/sales/bank-recon', '🏦 입금 대사')) %}{% endif %}
+  {% set _hint = '계산서를 아직 안 끊은 건은 🧾 마감' %}
+{% elif stz_group == 'presale' %}
+  {% set _ = _stz.append(('/sales/opportunities', '🎯 영업 기회')) %}
+  {% if can_s1_z98(user) %}{% set _ = _stz.append(('/sales/quotations', '📋 견적서')) %}{% endif %}
+  {% set _hint = '＋ 새 영업 기회·견적은 왼쪽 메뉴 🆕 등록에서' %}
+{% endif %}
+<div class="stz98" data-dn="sub-tabs-z98" data-group="{{ stz_group }}">
+  {% for href, label in _stz %}{% if href == stz_cur %}<span class="t on">{{ label }}</span>{% else %}<a href="{{ href }}">{{ label }}</a>{% endif %}{% endfor %}
+  <span class="hint">{{ _hint }}</span>
+</div>

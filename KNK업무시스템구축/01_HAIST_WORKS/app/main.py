@@ -27073,6 +27073,23 @@ tpl.env.globals["pay_default_days_z95"] = PAY_DEFAULT_DAYS_Z95
 tpl.env.globals["pay_term_label"] = _pay_term_label_z95
 
 
+def _can_s1_z98(u):
+    """z1191z98: 메뉴·탭 보이기 = 경로 판정(_s1_guard)과 같은 규칙 — 대표 또는 매출 등록 권한(임원은 역할로 참)."""
+    return bool(u) and ((u.get("role") or "").lower() == "ceo" or bool(can_use_sales(u)))
+
+
+def _can_bank_z98(u):
+    """z1191z98: 🏦 입금 대사 탭 = 경로(bank_recon_page)와 같은 규칙 — 대표·임원 · 관리자는 매출 등록 체크가 있어야(z1191g)."""
+    if not u:
+        return False
+    r = (u.get("role") or "").lower()
+    return r in ("ceo", "executive") or (r == "admin" and bool(can_use_sales(u)))
+
+
+tpl.env.globals["can_s1_z98"] = _can_s1_z98
+tpl.env.globals["can_bank_z98"] = _can_bank_z98
+
+
 def _pay_days_from_form(form) -> int:
     """v5H226z744 (대표 지시): 결제조건 — 세금계산서 발행 후 N일. 폼 pay_days 에서 숫자만 추출.
     빈칸/비정상=0(미설정). 0~3650일로 제한(오입력 방지)."""
@@ -49637,6 +49654,15 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
         elif st == "INVOICED":
             kpi["wait_payment"] += 1
             kpi["outstanding"] += amt
+    # z1191z98 (대표 11-22 「5·6 합치기」 · 같은 돈은 같은 숫자): 위 「outstanding」은 확정+납품+송장 수주 금액 합이라 받을 돈이 아니다
+    #   → 화면 칸은 💰 입금 확인과 같은 계산(세금계산서 · 부가세 포함 · 받은 돈 뺌)의 원화 합으로 보인다.
+    try:
+        _rc98 = [x for x in _rc_rows_z94(u)["rows"] if x["ccy"] == "KRW"]
+        kpi["ar_rc_z98"] = sum(x["rem"] for x in _rc98)
+        kpi["ar_rc_n_z98"] = len(_rc98)
+    except Exception as _e98:   # 숫자 칸 하나 — 목록 화면은 그대로 열리게(이유는 서버 기록에)
+        print("[z1191z98] 수주 목록 받을 돈 계산 실패:", repr(_e98))
+        kpi["ar_rc_z98"] = None
 
     # v5H202: 공휴일 상수는 모듈 최상단에서 공유 (HOLIDAYS_KR / HOLIDAYS_VN)
 
@@ -50353,7 +50379,8 @@ async def sales_shipments_receipts_page(req: Request):
               and o["outstanding_incl"] > 0.0001 and o["order_id"] not in billing_ids]
     overdue_ids = {o["order_id"] for o in overdue}
     action, seen = [], set()
-    for o in billing + overdue + noterm:
+    # z1191z98 (대표 11-22 「5·6 합치기」): 이 화면 = 🧾 마감(계산서 발행 대기)만 위에 — 예정일 지남·조건 미설정은 💰 입금 → 입금 확인에서
+    for o in billing:
         if o["order_id"] in seen:
             continue
         seen.add(o["order_id"])
@@ -51312,22 +51339,71 @@ def check_receivable_alerts():
     return {"sent": sent, "skipped": skipped, "items": total_items}
 
 
+_AR_BUCKETS_Z98 = ("nd", "d30", "d60", "d90", "d90p")   # 예정일 전 · 1~30 · 31~60 · 61~90 · 90일 넘게 지남
+
+
+def _ar_by_cust_z98(rows):
+    """z1191z98 (대표 11-22 「5·6 합치기」): 📊 미수 현황 = 💰 입금 확인과 **같은 줄**(_rc_rows_z94 · 계산서 한 장 = 한 줄 ·
+    부가세 포함 · 예정일 = 발행일 + 결제 조건)을 고객사·통화별로 묶고, 예정일에서 며칠 지났는지 구간(옛 채권 노화)으로 나눈다.
+    → 같은 돈이 화면마다 다르게 보이지 않는다(옛 미수금 = 「출하」 수주·부가세 뺀 금액 기준이었다)."""
+    out, idx = [], {}
+    for x in rows:
+        k = (x["cid"], x["ccy"])
+        g = idx.get(k)
+        if g is None:
+            g = idx[k] = {"cid": x["cid"], "cname": x["cname"], "ccy": x["ccy"], "term_label": x["term_label"],
+                          "term_default": x["term_default"], "total": 0, "n_inv": 0, "max_over": 0, "mine": 0}
+            for b in _AR_BUCKETS_Z98:
+                g[b] = 0
+            out.append(g)
+        over = -x["dday"] if (x["dday"] is not None and x["dday"] < 0) else 0
+        b = "nd" if over <= 0 else ("d30" if over <= 30 else ("d60" if over <= 60 else ("d90" if over <= 90 else "d90p")))
+        g[b] += x["rem"]
+        g["total"] += x["rem"]
+        g["n_inv"] += 1
+        g["mine"] = g["mine"] or x["mine"]
+        if over > g["max_over"]:
+            g["max_over"] = over
+    out.sort(key=lambda g: (-g["max_over"], g["ccy"] != "KRW", -g["total"], g["cname"]))
+    tot, ovd = {}, {}
+    for g in out:
+        g["over_amt"] = g["total"] - g["nd"]
+        tot[g["ccy"]] = tot.get(g["ccy"], 0) + g["total"]
+        if g["over_amt"]:
+            ovd[g["ccy"]] = ovd.get(g["ccy"], 0) + g["over_amt"]
+        for b in _AR_BUCKETS_Z98 + ("total",):
+            g[b + "_fmt"] = _fmt_money(g[b], g["ccy"]) if g[b] else ""
+    kpi = {"total": [_fmt_money(v, k) for k, v in sorted(tot.items(), key=lambda kv: (kv[0] != "KRW", kv[0]))],
+           "over": [_fmt_money(v, k) for k, v in sorted(ovd.items(), key=lambda kv: (kv[0] != "KRW", kv[0]))],
+           "n_cust": len({g["cid"] for g in out}),
+           "n_over_cust": len({g["cid"] for g in out if g["max_over"] > 0}),
+           "max_over": max([g["max_over"] for g in out] or [0]),
+           "n_inv": sum(g["n_inv"] for g in out)}
+    return out, kpi
+
+
 @app.get("/sales/outstanding", response_class=HTMLResponse)
 async def sales_outstanding_page(req: Request):
-    """Top3-S1-4차 미수금 대시 — 등급별 집계 + 상세 (D-30/D-60/D-90+/CURRENT)."""
+    """z1191z98: 📊 미수 현황(💰 입금 메뉴의 탭) — 고객사별 받을 돈 + 지난 날수 구간. 계산 = 입금 확인과 같은 함수."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
-    with db_session() as c:
-        items = _outstanding_receivables(c)
-    summary = _outstanding_summary(items)
+    data = _rc_rows_z94(u)
+    custs, kpi = _ar_by_cust_z98(data["rows"])
     return ctx(req, "sales_outstanding.html", user=u, active="sales_outstanding",
-               tab="outstanding", items=items, summary=summary)
+               tab="outstanding", custs=custs, kpi=kpi, today=data["today"], can_money=bool(can_view_sales(u)))
 
 
 @app.get("/sales/aging", response_class=HTMLResponse)
 async def sales_aging_page(req: Request):
-    """Top3-S1-4차 연체 분석 — 거래처별 연체 매트릭스 (히트맵 테이블)."""
+    """z1191z98 (대표 11-22 「5·6 합치기」): 채권 노화는 📊 미수 현황 표(지난 날수 구간 칸)로 합쳤다 — 옛 주소로 오면 그리로."""
+    if not _s1_guard(req):
+        return RedirectResponse("/home", 303)
+    return RedirectResponse("/sales/outstanding", 303)
+
+
+def _sales_aging_page_old_z98(req: Request):
+    """옛 채권 노화(출하 수주·부가세 뺀 기준) — z1191z98 부터 쓰지 않음(되돌림 참고용으로만 남김)."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)

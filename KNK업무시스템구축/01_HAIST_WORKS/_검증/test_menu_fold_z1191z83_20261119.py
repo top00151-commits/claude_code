@@ -139,8 +139,9 @@ chk("/workflow/team" in [h for h, _, _ in fll] and "/workflow" in [h for h, _, _
 print("§3 매출영업 · 자재구매 화면 — A/S 관리 · 출고 요청은 묶음으로, 나머지 순서 그대로")
 g, fl, _, _ = parse(render("/sales", active_tab="sales"))
 # z1191z92 (대표 11-21 P0-2·P0-7): 「🆕 등록」(z1191z97 대표 11-22: 매출 홈 다음) · 맨 아래 「📖 처음이면 — 등록부터 입금까지」 두 줄이 더해짐
-chk(hrefs(g, G_SALES) == ["/sales", "/projects/new", "/sales/opportunities", "/projects", "/sales/schedule", "/customers", "/sales/quotations",
-                          "/sales/orders", "/sales/shipments-receipts", "/sales/outstanding", "/export", "/sales/flow-guide"],
+# z1191z98 (대표 11-22 「5·6 합치기 · 1번 진행」): 10줄 — 견적서·수주 목록·미수금·입금 대사는 탭으로 · 💰 입금은 매출 등록 권한만
+chk(hrefs(g, G_SALES) == ["/sales", "/projects/new", "/sales/opportunities", "/projects", "/sales/schedule",
+                          "/sales/shipments-receipts", "/customers", "/export", "/sales/flow-guide"],
     "매출·영업 묶음 = A/S 관리만 빠짐 · 실제 %s" % hrefs(g, G_SALES))
 chk("/as" in [h for h, _, _ in fl], "A/S 관리는 접은 묶음에")
 chk(hrefs(g, G_COMMON) == COMMON_NOW, "매출영업 화면에서도 공통 = 같은 5개")
@@ -150,11 +151,11 @@ chk(hrefs(g, G_LOGI) == ["/logistics", "/parts", "/bom/upload", "/po", "/po/new"
     "자재·구매 묶음 = 출고 요청만 빠짐 · 실제 %s" % hrefs(g, G_LOGI))
 chk("/stock/issues" in [h for h, _, _ in fl], "출고 요청(준비 중)은 접은 묶음에")
 g, fl, _, _ = parse(render("/sales", active_tab="sales", role="admin", can_use_sales=1))
-chk("/sales/bank-recon" in hrefs(g, G_SALES), "입금 대사(재무 권한) 자리 그대로")
-# z1191z94: 「💰 입금 확인」 = 매출 등록 권한(또는 대표)에게만 · 납품·수금 다음 · 미수금 앞 (위 일반 계정 목록에는 없음 = 맞음)
+# z1191z98: 입금 대사는 💰 입금 메뉴의 탭(메뉴 줄 없음) · 💰 입금 = 매출 등록 권한(또는 대표·임원) · 🧾 마감 다음
 _h94 = hrefs(g, G_SALES)
+chk("/sales/bank-recon" not in _h94, "입금 대사 = 💰 입금 탭으로(메뉴 줄 없음)")
 chk("/sales/receipts-check" in _h94 and _h94.index("/sales/receipts-check") == _h94.index("/sales/shipments-receipts") + 1,
-    "매출 등록 권한 = 💰 입금 확인(납품·수금 다음) · 실제 %s" % _h94)
+    "매출 등록 권한 = 💰 입금(🧾 마감 다음) · 실제 %s" % _h94)
 
 print("§4 접은 메뉴 화면에 들어가면 — 그 메뉴가 켜지고 묶음이 저절로 펼쳐짐")
 for p, want in (("/tickets", "/tickets"), ("/daily", "/daily"), ("/board/company", "/board/company"), ("/calendar", "/calendar")):

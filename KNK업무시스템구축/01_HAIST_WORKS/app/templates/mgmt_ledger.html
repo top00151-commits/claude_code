@@ -78,6 +78,7 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
     <a href="/projects">📋 전체 목록</a>
     <a href="/prod-requests">📋 제작요청서목록</a>
     <span class="on">📒 관리번호대장</span>
+    {% if can_s1_z98(user) %}<a href="/sales/orders">📑 수주 목록</a>{% endif %}{# z1191z98: 수주 목록 = 프로젝트 탭(메뉴에서 뺌) #}
   </div>
 
   {%- macro lgurl(b, y) -%}/projects/ledger?biz={{ b }}&amp;year={{ y }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}{%- endmacro -%}

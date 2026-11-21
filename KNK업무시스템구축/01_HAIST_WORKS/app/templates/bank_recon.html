@@ -18,9 +18,11 @@
 <div class="app">{% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main" data-dn-tone="amber">
+  <div style="height:14px;"></div>
+  {% set stz_group = 'money' %}{% set stz_cur = '/sales/bank-recon' %}{% include "_v5_partials/sales_subtabs_z98.html" %}
   <div class="br-wrap">
     <div style="padding:16px 0 4px;">
-      <div class="crumbs" style="font-size:12px;color:var(--mute);"><a href="/sales">매출영업센터</a> · <b>입금 대사</b></div>
+      <div class="crumbs" style="font-size:12px;color:var(--mute);"><a href="/sales">매출영업센터</a> · 💰 입금 · <b>입금 대사</b></div>
       <h1 style="font-size:24px;margin:4px 0;">🏦 입금 대사 <span style="font-size:13px;color:var(--mute);font-weight:600;">— 계좌 입금내역으로 수금 확인 (1단계: 파일 읽기)</span></h1>
     </div>
 

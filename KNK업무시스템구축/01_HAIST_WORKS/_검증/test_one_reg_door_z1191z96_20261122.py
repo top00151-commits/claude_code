@@ -85,8 +85,10 @@ print("§1 🆕 등록 첫 화면")
 h = q(cl.get, "/projects/new").text
 check("제목 「🆕 등록 — 무엇을 등록하나요?」", "무엇을 등록하나요?" in h)
 cards = re.findall(r'<a class="pc-card[^"]*" href="([^"]+)"', h)
-check("카드 6개 = 검사기·자동화·라이프밸류·기타·소모품·고객사",
-      [c.split("?")[0] for c in cards] == ["/projects/quick", "/projects/quick", "/projects/quick", "/projects/new", "/consumables/new", "/customers/new"], cards)
+# z1191z98: 🎯 영업 기회 · 📋 견적서 카드가 뒤에 더해짐(새로 만들기는 모두 🆕 등록)
+check("카드 = 검사기·자동화·라이프밸류·기타·소모품·고객사 (+ z98 영업 기회·견적서)",
+      [c.split("?")[0] for c in cards] == ["/projects/quick", "/projects/quick", "/projects/quick", "/projects/new", "/consumables/new", "/customers/new",
+                                           "/sales/opportunities/new", "/sales/quotes/new"], cards)
 check("프로젝트 탭 줄(전체 목록·제작요청서목록·관리번호대장) 없음", 'href="/prod-requests"' not in main_part(h) and 'href="/projects/ledger"' not in main_part(h))
 
 print("§2 다른 화면에 등록 입구 없음")
