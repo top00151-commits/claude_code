@@ -2,7 +2,7 @@
 """z1191z96 시험 — 등록 입구 하나로 (대표 11-22 「먼저 등록 중복만 정리」 · 작업 일정표 「＋ 신규 등록」 없애기)
   §1 🆕 등록 첫 화면: 「무엇을 등록하나요?」 · 카드 6개(검사기·자동화·라이프밸류·기타·소모품·🤝 고객사) · 프로젝트 탭 줄 없음
   §2 다른 화면에 등록 입구 없음: 📋 프로젝트 · 📒 관리번호대장 · 📋 제작요청서목록 탭 · 📅 작업 일정표 단추 · 🤝 고객사 목록 단추
-     — 그 자리에는 「＋ 등록은 왼쪽 맨 위 🆕 등록에서」 안내 글(누르는 단추 아님)
+     — 그 자리에는 「＋ 등록은 왼쪽 메뉴 🆕 등록에서」 안내 글(누르는 단추 아님)
   §3 메뉴 불: 등록 화면들(프로젝트 등록 폼 · 소모품 · 고객사 새 등록)에서 「🆕 등록」 · 고객사 새 등록 길 표시 「🆕 등록 · 고객사」
   §4 고객사 새 등록은 그대로 됨(주소 /customers/new)
 """
@@ -57,7 +57,7 @@ from fastapi.testclient import TestClient                  # noqa: E402
 M.get_user = lambda request: SALES
 cl = TestClient(M.app)
 OK = FAIL = 0
-HINT = "＋ 등록은 왼쪽 맨 위 <b>🆕 등록</b>에서"
+HINT = "＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서"
 
 
 def check(label, cond, got=None):
@@ -101,7 +101,7 @@ check("📅 작업 일정표: 「＋ 신규 등록」 단추 없음 · 안내 �
 hc = q(cl.get, "/customers").text
 mc = main_part(hc)
 check("🤝 고객사 목록: 「＋ 고객사 등록」 단추 없음 · 「새 고객사는 🆕 등록 → 🤝 고객사」",
-      'href="/customers/new"' not in mc and "＋ 새 고객사는 왼쪽 맨 위 <b>🆕 등록 → 🤝 고객사</b>" in mc, mc.count('href="/customers/new"'))
+      'href="/customers/new"' not in mc and "＋ 새 고객사는 왼쪽 메뉴 <b>🆕 등록 → 🤝 고객사</b>" in mc, mc.count('href="/customers/new"'))
 
 print("§3 메뉴 불 · 길 표시")
 for path in ("/projects/new", "/projects/quick?biz_div=T", "/consumables/new", "/customers/new"):

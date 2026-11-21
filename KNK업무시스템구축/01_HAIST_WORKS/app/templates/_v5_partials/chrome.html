@@ -578,8 +578,9 @@ var CH = {
   {% if _at == 'sales' %}
     <div class="sb-group">{{ i.ch_g_sales }}</div>
     {# z1191z92 (대표 11-21 P0-2): 실제 일의 첫 단계 = 등록(관리번호·수주번호·제작요청) → 메뉴 첫 줄. 숨은 탭(📋 프로젝트 → 🆕 등록)과 같은 곳 #}
-    {{ a('/projects/new',          i.ch_m_reg_z92,   'M-01-12-N') }}
+    {# z1191z97 (대표 11-22 「매출 홈, 등록 순으로」): 맨 위 매출 홈 → 그다음 🆕 등록 #}
     {{ a('/sales',                 i.ch_m_sales,     'M-01-01') }}
+    {{ a('/projects/new',          i.ch_m_reg_z92,   'M-01-12-N') }}
     {# v5H226z416 (대표 지시): 영업 기회 — 수주 전(미팅·제안·견적) → 수주 확정 시 프로젝트 승격 #}
     {{ a('/sales/opportunities',   i.ch_m_opp,   'M-01-16') }}
     {{ a('/projects',              i.ch_m_proj,                     'M-01-11') }}

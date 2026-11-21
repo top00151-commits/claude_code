@@ -100,7 +100,7 @@ def post(**kw):
 print("§1 메뉴")
 h = q(cl.get, "/sales").text
 sb = re.findall(r'<a class="sb-item[^"]*" href="([^"]+)"', h)
-check("매출·영업 첫 줄 「🆕 등록」(/projects/new) — 그다음 매출 홈", sb[:2] == ["/projects/new", "/sales"], sb[:3])
+check("매출·영업 첫 줄 매출 홈 — 그다음 「🆕 등록」(z1191z97 대표 11-22 순서)", sb[:2] == ["/sales", "/projects/new"], sb[:3])
 check("매출·영업 맨 아래 「📖 처음이면 — 등록부터 입금까지」(/sales/flow-guide) · 묶음 머리 글자는 그대로",
       bool(sb) and sb[sb.index("/export") + 1 if "/export" in sb else 0] == "/sales/flow-guide" and "📖 처음이면 — 등록부터 입금까지" in h
       and '<div class="sb-group">매출·영업</div>' in h, sb)
