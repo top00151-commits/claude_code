@@ -1,5 +1,6 @@
 {# 받은편지함 목록 줄 — 첫 화면과 「▼ 더 보기」(이어서 200통) 공용 (11-18 대표 「쉽게 찾기·구분·보기」 2단계)
    11-18 메일 2단계(아웃룩식): 한 줄 = ① 보낸 사람 · 시각 ② 제목 · 📎 ③ 꼬리표 · 본문 첫 줄 — 아웃룩·하이웍스와 같은 순서
+   11-21 꼬리표는 <span class="mbx-tags"> 한 묶음(보통 = 묶음 없이 그대로 · 「촘촘하게」 = 보낸 사람 옆 한 칸에 작게)
    기대 컨텍스트: mails, threads, thread_on, more_href, remain_n, prev_day #}
 {% macro rowdata(m) %} data-mail-id="{{ m.id }}" data-arc="{{ m.is_archived|default(0) }}" data-pin="{{ m.fd_pin|default('') or '' }}" data-fd="{{ m.fdkey|default('') }}" data-from="{{ m.from_email|default('') or '' }}" data-dir="{{ m.direction|default('in') }}" onclick="return rowClick(event,{{ m.id }})"{% endmacro %}
 {% macro tags(m) %}{% if m.dlg %}<span class="mbx-dlg st-{{ m.dlg.state }}" data-dlg="{{ m.dlg.mid }}" title="👉 이음 요청으로 맡긴 메일{{ ' (이 대화 안 다른 메일)' if m.dlg.thread else '' }} — 메일을 열면 상태·「요청 열기」">👉 {{ m.dlg.who }}{% if m.dlg.mark %} · {{ m.dlg.mark }}{% endif %}{% if m.dlg.n > 1 %} ({{ m.dlg.n }}건){% endif %}</span>{% endif %}{% if m.flag_due %}<span class="mbx-flag{{ ' late' if m.flag_late else '' }}{{ ' today' if m.flag_today else '' }}" title="🚩 기한{{ ' — 지났습니다' if m.flag_late else (' — 오늘' if m.flag_today else '') }}">🚩 {{ m.flag_due[5:]|replace('-','/') }}</span>{% endif %}{% if m.snooze_until %}<span class="mbx-snz" title="⏰ 이때 받은편지함에 다시 나타납니다">⏰ {{ m.snz_label }}</span>{% elif m.snzb_label %}<span class="mbx-snz back" title="⏰ 다시 알림으로 돌아온 메일">⏰ 돌아옴 {{ m.snzb_label }}</span>{% endif %}{% if m.kind %}<span class="mbx-kind k-{{ m.kind }}" title="메일 종류 — 위 「{{ m.kind }}」 단추로 모아 보기">{{ m.kind }}</span>{% endif %}{% if m.fdname %}<span class="mbx-fdtag fk-{{ m.fdkind or 'x' }}" title="폴더">{{ m.fdname }}</span>{% endif %}{% if m.boss %}<span class="mbx-boss" title="윗분 메일 — {{ m.boss }}(직원 명부 직책·부서 기준)">👔 {{ m.boss }}</span>{% endif %}{% if m.ccme %}<span class="mbx-cc" title="나는 참조로 받은 메일">참조</span>{% endif %}{% if m.ad %}<span class="mbx-ad" title="광고·알림으로 보이는 곳(⚙ 설정·정리 → 보낸 곳별 정리와 같은 기준)">광고·알림</span>{% endif %}{% if m.is_archived %}<span class="mbx-arc" title="보관한 메일(받은편지함에서 빠짐 · 지우지 않음)">📦 보관</span>{% endif %}{% endmacro %}
@@ -18,7 +19,7 @@
       <span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{% if _out %}<span class="mbx-sent" title="내가 보낸 메일">📤 보냄</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span>
       {% if m.att_n %}<span class="mbx-att" title="첨부파일 {{ m.att_n }}개">📎 {{ m.att_n }}</span>{% endif %}
     </div>
-    <div class="mbx-r2">{{ tags(m) }}{{ pv(m) }}</div>
+    <div class="mbx-r2"><span class="mbx-tags">{{ tags(m) }}</span>{{ pv(m) }}</div>
   </div>
 </a>
 {% endmacro %}
@@ -45,7 +46,7 @@
               <span class="mbx-subj">{% if _lout %}<span class="mbx-sent">📤 보냄</span> {% endif %}{{ L.subject or '(제목 없음)' }}</span>
               {% if L.att_n %}<span class="mbx-att" title="첨부파일 {{ L.att_n }}개">📎 {{ L.att_n }}</span>{% endif %}
             </div>
-            <div class="mbx-r2">{{ tags(L) }}{{ pv(L) }}</div>
+            <div class="mbx-r2"><span class="mbx-tags">{{ tags(L) }}</span>{{ pv(L) }}</div>
           </div>
         </a>
       </div>

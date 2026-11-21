@@ -312,4 +312,57 @@
   html[data-mt="dark"] .mv-lgf-row .got{color:#6ee7b7}
   @media(max-width:640px){ .mv-cust-row .nm{min-width:0;flex-basis:100%} .mv-lgf{padding:10px 12px} }
   @media print{ .mv-cust, .mv-lgf{display:none !important} }
+  /* ══ 11-21 대표 「메일 내용과 받은 항목 정보를 더 많이」 — 읽기 머리 세 줄(넓은 화면 641px~ · 휴대폰 그대로) ══
+     1줄 = 제목 + 종류 / 2줄 = 보낸 사람(이름 직책 부서)·👔·📇 · 「📌/👀/🙈 나 = …」 · 받는 사람 요약(말줄임) · 시각 · 👥 그룹 칩
+     3줄 = 단추 한 줄(답장·전체답장·확인 답장·전달·맡기기 = 글자 / 중요·보관·삭제·기한·더 보기 = 그림) + 오른쪽 끝 폴더 칩 · 「회신 필요로 표시」 작은 단추
+     (머리는 줄바꿈 flex — 단추 줄이 먼저 한 줄을 차지하고, 폴더 칩이 같이 못 들어가면 그 아래 줄로 내려감) */
+  .mv-hsub .mv-rcpt,.mv-hsub .mv-when{overflow-wrap:anywhere}
+  .mv-grp-c{display:none}
+  .mv-grp-b{font:inherit;font-size:12px;font-weight:700;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer}
+  /* AI 요약 — 휴대폰은 예전처럼 늘 펼침 */
+  .mv-ai.mv-ai-f .mv-ai-h{display:block;border:0;background:none;padding:0;margin:0 0 2px;font:inherit;color:inherit;text-align:left;cursor:default;white-space:normal}
+  .mv-ai.mv-ai-f .mv-ai-tg,.mv-ai.mv-ai-f .mv-ai-pv{display:none}
+  @media(min-width:641px){
+    .mv-head{display:flex;flex-wrap:wrap;column-gap:10px;row-gap:6px;align-items:center;padding:10px 14px 9px;margin-bottom:10px}
+    .mv-head .mv-subj{flex:0 0 100%;font-size:17px;line-height:1.35;margin:0}
+    html.mbx-big .mv-head .mv-subj{font-size:20px}
+    .mv-hrow{display:contents}
+    .mv-av{flex:none;width:30px;height:30px;font-size:13px}
+    .mv-hwho{flex:0 0 calc(100% - 40px);display:flex;flex-wrap:wrap;align-items:center;column-gap:10px;row-gap:3px;min-width:0;font-size:13px;line-height:1.5}
+    .mv-hname{padding-top:0;flex:0 1 auto;min-width:0}
+    .mv-hsub{order:2;flex:1 1 280px;min-width:0;margin:0;display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12.5px}
+    .mv-hsub .mv-me{flex:none;margin-right:0}
+    .mv-hsub .mv-rcpt{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+    .mv-hsub .mv-when{flex:none;overflow-wrap:normal}
+    .mv-hrow > .mv-hwho > .mv-grp{order:3;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px;margin:0}
+    .mv-grp-i{position:relative;padding:0;border:0;background:none}
+    .mv-grp-t,.mv-grp-m{display:none}
+    .mv-grp-c{display:inline}
+    .mv-grp-b{text-decoration:none;font-size:12px;padding:1px 9px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;white-space:nowrap}
+    .mv-grp-b:hover{filter:brightness(.97)}
+    .mv-grp-i:not(.open) .mv-grp-p{display:none}
+    .mv-grp-i.open .mv-grp-p{display:flex;position:absolute;left:0;top:calc(100% + 4px);z-index:35;width:max-content;max-width:min(520px,70vw);background:var(--mt-surface,#fff);border:1px solid #bfdbfe;border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.14);padding:8px;margin:0}
+    html[data-mt="dark"] .mv-grp-b{background:#1e293b;border-color:#334155;color:#bfdbfe}
+    .mv-hrow .mv-actions{flex:0 1 auto;min-width:0;justify-content:flex-start;gap:4px}
+    .mv-hrow .mv-actions .btn{padding:4px 9px}
+    .mv-hrow .mv-actions .mv-ico{min-width:32px;padding:4px 7px;font-size:14px;justify-content:center}
+    .mv-bt{display:none}
+    .mv-chips{flex:0 1 auto;min-width:0;margin:0 0 0 auto;justify-content:flex-end;gap:5px}
+    .mv-chips .mv-reply{margin:0;display:inline-flex}
+    .mv-chips .mv-reply-btn{font-weight:600;padding:2px 9px}
+    .mv-ai{margin-bottom:8px}
+    .mv-ai.mv-ai-f{padding:0;white-space:normal}
+    .mv-ai.mv-ai-f .mv-ai-h{display:flex;align-items:center;gap:8px;width:100%;margin:0;padding:5px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+    .mv-ai.mv-ai-f .mv-ai-tg{display:inline-block;transition:transform .12s;color:#3b82f6}
+    .mv-ai.mv-ai-f .mv-ai-pv{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+    .mv-ai.mv-ai-f .mv-ai-b{display:none;white-space:pre-wrap;padding:0 14px 10px}
+    .mv-ai.mv-ai-f.open .mv-ai-b{display:block}
+    .mv-ai.mv-ai-f.open .mv-ai-pv{visibility:hidden}
+    .mv-ai.mv-ai-f.open .mv-ai-tg{transform:rotate(90deg)}
+    .mv-dlg{margin:-2px 0 8px}
+    .mv-reply.on{margin-bottom:8px;padding:5px 12px}
+    .mv-dates{margin-bottom:8px;padding:4px 12px}
+    .mv-date button{padding:1px 9px}
+  }
+  @media print{ .mv-ai.mv-ai-f .mv-ai-b{display:block !important} .mv-ai.mv-ai-f .mv-ai-pv,.mv-ai.mv-ai-f .mv-ai-tg{display:none !important} }
 </style>

@@ -189,17 +189,18 @@ try:
     p = k.get("/mail/%d/pane" % M_CUST).text
     act = p[p.find('class="mv-actions"'):p.find('id="mvMore"')]
     more = p[p.find('id="mvMore"'):p.find("</details>", p.find('id="mvMore"'))]
-    check("밖: 답장 · 전체답장 · 전달 · 중요 · 삭제", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "↪ 전달", 'id="mvStarBtn"', "🗑 삭제")), act[:500])
+    # 11-21 대표 「메뉴 중복 · 메일 내용을 더 많이」 — 중요·보관·삭제 단추는 그림만(뜻은 title·aria-label) → 「🗑 삭제」 글자 대신 그림 단추+뜻으로 확인
+    check("밖: 답장 · 전체답장 · 전달 · 중요 · 삭제", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "↪ 전달", 'id="mvStarBtn"', 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>')), act[:500])
     check("밖에서 빠진 것: 안읽음·할 일·번역·인쇄·다시 안 받기", not any(x in act for x in ("markUnread()", "mailToTask()", "translateMail(", "mvPrint()", "muteSender()")))
     check("⋯ 더 보기 안: 안 읽음 · 할 일·일정(→ 🚩 상자) · 주소록 · 번역 3 · 인쇄 · 다시 안 받기",
           all(x in more for x in ("markUnread()", "📋 할 일·일정으로", 'id="mvContactBtn"', "translateMail('ko')", "translateMail('vi')", "translateMail('en')", "mvPrint()", "muteSender()")), more[:600])
     check("「↩ 답장 쓰기」(회신 띠) 중복 없음", "↩ 답장 쓰기" not in p)
     check("제목 옆 「일반」 꼬리표 없음", 'class="mv-badge"' not in p)
-    check("「☆ 중요 표시」 처음 상태", "☆ 중요 표시" in act)
+    check("「☆ 중요 표시」 처음 상태(11-21 그림 단추 ☆ + 뜻)", 'aria-label="중요 표시">☆</button>' in act and "☆ 중요 표시" in act)
     j = k.post("/mail/%d/star" % M_CUST).json()
     p2 = k.get("/mail/%d/pane" % M_CUST).text
     check("중요 표시 → 읽기 화면 「⭐ 중요」 · 왼쪽 ⭐ 중요 목록에 나옴",
-          j.get("ok") and j.get("starred") and "⭐ 중요</button>" in p2 and 'data-mail-id="%d"' % M_CUST in k.get("/mail/inbox?star=1").text, j)
+          j.get("ok") and j.get("starred") and 'aria-label="중요">⭐</button>' in p2 and 'data-mail-id="%d"' % M_CUST in k.get("/mail/inbox?star=1").text, j)
     pf = k.get("/mail/%d" % M_CUST).text
     check("풀페이지 읽기도 200 · ← 목록 단추", "← 목록" in pf and 'id="mvMore"' in pf)
     check("남의 메일 중요 표시 못 함", k.post("/mail/%d/star" % M_OTHER).status_code in (403, 404) or not k.post("/mail/%d/star" % M_OTHER).json().get("ok"))

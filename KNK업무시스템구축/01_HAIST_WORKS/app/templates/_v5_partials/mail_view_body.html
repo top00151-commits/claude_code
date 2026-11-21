@@ -22,7 +22,7 @@
       <a href="{{ who_info.compose_href }}">✏️ 이 사람에게 메일 쓰기</a>
     </span></span>{% else %}{{ pp.disp if (pp is defined and pp and pp.disp) else m.from_name }} &lt;{{ m.from_email }}&gt;{% endif %}{% if pp is defined and pp and pp.boss %} <span class="mv-boss" title="윗분 메일 — {{ pp.boss }}(직원 명부 직책·부서 기준)">👔 {{ pp.boss }}</span>{% endif %}{% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}{% if sender_contact %} <span class="mv-ct-inline on" title="주소록에 이미 있는 사람">📇 주소록에 있음</span>{% else %} <a href="#" id="mvContactInline" class="mv-ct-inline" onclick="mailToContact();return false" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</a>{% endif %}{% endif %}</div>
       <div class="mv-grp" id="mvGrp" hidden></div>
-      <div class="mv-hsub" id="mvHsub" data-addrs="{{ (m.to_email or '') ~ ',' ~ (m.cc or '') ~ ',' ~ (m.to_all or '') }}">{% if pp is defined and pp and pp.role == 'to' %}<b class="mv-me to" title="이 메일의 「받는 사람」에 내 주소가 있습니다 — 내가 할 일일 수 있습니다">📌 나 = 받는 사람</b> {% elif pp is defined and pp and pp.role == 'cc' %}<b class="mv-me cc" title="나는 「참조」로 받았습니다 — 알아 두면 되는 메일인 경우가 많습니다">👀 나 = 참조(알아 두기)</b> {% elif pp is defined and pp and pp.role == 'bcc' %}<b class="mv-me bcc" title="받는 사람·참조에 내 주소가 없습니다 — 숨은참조이거나 그룹 주소로 받은 메일">🙈 숨은참조·그룹 주소로 받음</b> {% endif %}받는 사람 {{ m.to_email }}{% if m.cc %} · 참조 {{ m.cc }}{% endif %} · {{ (m.received_at or '')[:16] }}{% if m.lang and m.lang != 'ko' %} · {{ {'en':'영어','vi':'베트남어','zh':'중국어','ja':'일본어'}.get(m.lang, m.lang) }}{% endif %}</div>
+      <div class="mv-hsub" id="mvHsub" data-addrs="{{ (m.to_email or '') ~ ',' ~ (m.cc or '') ~ ',' ~ (m.to_all or '') }}">{% if pp is defined and pp and pp.role == 'to' %}<b class="mv-me to" title="이 메일의 「받는 사람」에 내 주소가 있습니다 — 내가 할 일일 수 있습니다">📌 나 = 받는 사람</b> {% elif pp is defined and pp and pp.role == 'cc' %}<b class="mv-me cc" title="나는 「참조」로 받았습니다 — 알아 두면 되는 메일인 경우가 많습니다">👀 나 = 참조(알아 두기)</b> {% elif pp is defined and pp and pp.role == 'bcc' %}<b class="mv-me bcc" title="받는 사람·참조에 내 주소가 없습니다 — 숨은참조이거나 그룹 주소로 받은 메일">🙈 숨은참조·그룹 주소로 받음</b> {% endif %}<span class="mv-rcpt" title="받는 사람 {{ m.to_email }}{% if m.cc %} · 참조 {{ m.cc }}{% endif %}">받는 사람 {{ m.to_email }}{% if m.cc %} · 참조 {{ m.cc }}{% endif %}</span><span class="mv-when"> · {{ (m.received_at or '')[:16] }}{% if m.lang and m.lang != 'ko' %} · {{ {'en':'영어','vi':'베트남어','zh':'중국어','ja':'일본어'}.get(m.lang, m.lang) }}{% endif %}</span></div>
     </div>
     <div class="mv-actions">
       {% if m.direction != 'out' %}<a href="/mail/compose?reply={{ m.id }}" class="btn btn-primary">↩ 답장</a>
@@ -44,12 +44,12 @@
         {% elif m.wait_state == 'replied' %}{% if m.wait_reply_id %}<a href="/mail/{{ m.wait_reply_id }}" class="btn btn-secondary" style="color:#166534">✅ 답 옴 — 보기</a>{% endif %}
         {% else %}<button type="button" class="btn btn-secondary" onclick="mvWait(3)" title="3일 안에 답이 없으면 받은편지함 위에 알려 드림(바깥 거래처에 보낸 메일만)">⏳ 답 기다리기</button>{% endif %}
       {% endif %}
-      {% if m.direction != 'out' %}<button type="button" id="mvStarBtn" class="btn btn-secondary mv-desk mv-star{{ ' on' if m.is_starred else '' }}" onclick="mvStar()" title="중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 · 다시 누르면 풀림">{{ '⭐ 중요' if m.is_starred else '☆ 중요 표시' }}</button>{% endif %}
-      {% if m.direction != 'out' %}<button type="button" id="mvArcBtn" class="btn btn-secondary mv-desk" onclick="mvArchive()" data-on="{{ 1 if m.is_archived else 0 }}" title="{{ '받은편지함으로 되돌리기' if m.is_archived else '받은편지함에서 빼기 — 지우지 않음 · 📦 보관함·찾기·폴더에는 그대로' }}">{{ '📥 받은편지함으로' if m.is_archived else '📦 보관' }}</button>{% endif %}
-      <button type="button" class="btn btn-secondary mv-desk" style="color:var(--knk-red)" onclick="delMail({{ m.id }})">🗑 삭제</button>
+      {% if m.direction != 'out' %}<button type="button" id="mvStarBtn" class="btn btn-secondary mv-desk mv-ico mv-star{{ ' on' if m.is_starred else '' }}" onclick="mvStar()" title="{{ '⭐ 중요 — 눌러서 풀기' if m.is_starred else '☆ 중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 · 다시 누르면 풀림' }} (S)" aria-label="{{ '중요' if m.is_starred else '중요 표시' }}">{{ '⭐' if m.is_starred else '☆' }}</button>{% endif %}
+      {% if m.direction != 'out' %}<button type="button" id="mvArcBtn" class="btn btn-secondary mv-desk mv-ico" onclick="mvArchive()" data-on="{{ 1 if m.is_archived else 0 }}" title="{{ '📥 받은편지함으로 되돌리기' if m.is_archived else '📦 보관 — 받은편지함에서 빼기 · 지우지 않음 · 📦 보관함·찾기·폴더에는 그대로 (E)' }}" aria-label="{{ '받은편지함으로' if m.is_archived else '보관' }}">{{ '📥' if m.is_archived else '📦' }}</button>{% endif %}
+      <button type="button" class="btn btn-secondary mv-desk mv-ico" style="color:var(--knk-red)" onclick="delMail({{ m.id }})" title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>
       {# 11-19 2단계 — 후속 조치: 🚩 기한 · ⏰ 다시 알림 · 📋 할 일·일정(날짜) — 날짜·시각은 서버가 보는 사람 소속으로 계산 #}
       <details class="mv-more mv-fu" id="mvFu">
-        <summary class="btn btn-secondary{{ ' on' if (fu is defined and (fu.due or fu.snz)) else '' }}" title="🚩 기한 · ⏰ 다시 알림 · 📋 할 일·일정으로">🚩 기한·알림 ▾</summary>
+        <summary class="btn btn-secondary{{ ' on' if (fu is defined and (fu.due or fu.snz)) else '' }}" title="🚩 기한 · ⏰ 다시 알림 · 📋 할 일·일정으로">🚩<span class="mv-bt"> 기한·알림</span> ▾</summary>
         <div class="mv-more-box mv-fu-box">
           <div class="mv-fu-h">🚩 기한{% if fu is defined and fu.due %} <span class="mv-fu-now{{ ' late' if fu.late else '' }}">지금 {{ fu.due[5:]|replace('-','/') }}{{ ' (지남)' if fu.late else '' }}</span>{% endif %}</div>
           <div class="mv-fu-row"><button type="button" onclick="mvFollow('flag','today')">오늘</button><button type="button" onclick="mvFollow('flag','tomorrow')">내일</button><button type="button" onclick="mvFollow('flag','fri')">이번 주 금</button><button type="button" onclick="mvFollow('flag','nextmon')">다음 주 월</button>
@@ -65,7 +65,7 @@
       </details>
       {# 가끔 쓰는 것 — 11-18 대표 「쉽게 보이고 쉽게 사용」: 매일 쓰는 단추만 밖에 #}
       <details class="mv-more" id="mvMore">
-        <summary class="btn btn-secondary" title="안 읽음 · 할 일 · 주소록 · 번역 · 인쇄 · 다시 안 받기">⋯ 더 보기</summary>
+        <summary class="btn btn-secondary" title="⋯ 더 보기 — 안 읽음 · 할 일 · 주소록 · 번역 · 인쇄 · 다시 안 받기">⋯<span class="mv-bt"> 더 보기</span></summary>
         <div class="mv-more-box">
           {# 11-21 마 묶음 6-4 — 휴대폰에서만 보임(위 단추 줄에서 뺀 것) #}
           {% if m.direction != 'out' %}<button type="button" class="mv-mob" onclick="document.getElementById('mvMore').open=false;mvStar()">⭐ 중요 표시·풀기</button>
@@ -112,6 +112,14 @@
     {% endif %}
     {% endif %}
     {% if m.direction != 'out' and m.risk_level and m.risk_level == 1 %}<span class="mv-chip ext" title="회사 밖에서 온 메일 — 모르는 발신이면 링크·첨부에 주의">ℹ️ 회사 밖에서 온 메일</span>{% endif %}
+    {# 11-21 대표 「메일 내용을 더 많이」 — 회신 판정이 없는 메일의 「↩ 회신 필요로 표시」·「회신 안 해도 됨」 표시는 이 줄 끝 작은 단추로(띠 한 줄을 아낌) #}
+    {% if m.direction != 'out' and reply_info is defined and reply_info and not reply_info.lv %}
+    <div id="mvReply" class="mv-reply">
+      {% if reply_info.state == 'done' %}<span class="mv-reply-why">✓ 「회신 안 해도 됨」으로 표시한 메일</span> <button type="button" class="mv-reply-btn" onclick="replyMark('clear')">되돌리기</button>
+      {% else %}<button type="button" class="mv-reply-btn" onclick="replyMark('need')" title="규칙이 놓친 메일을 직접 「회신 필요」로 표시 — 답장하면 저절로 빠집니다">↩ 회신 필요로 표시</button>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </div>
 {% include "_v5_partials/mail_delegate.html" %}
@@ -129,13 +137,11 @@
 </details>
 {% endif %}
 
-{% if m.direction != 'out' and reply_info is defined and reply_info %}
-<div id="mvReply" class="mv-reply{{ ' on lv%d' % reply_info.lv if reply_info.lv else '' }}">
-  {% if reply_info.lv %}<b>↩ 회신 필요(추정){{ ' · 중요' if reply_info.lv >= 2 else '' }}</b> <span class="mv-reply-why">— {{ reply_info.why }}</span>
+{% if m.direction != 'out' and reply_info is defined and reply_info and reply_info.lv %}
+{# 회신 필요(추정) 판정이 있으면 띠 그대로(접지 않음) · 판정이 없으면 위 머리 끝 작은 단추 #}
+<div id="mvReply" class="mv-reply on lv{{ reply_info.lv }}">
+  <b>↩ 회신 필요(추정){{ ' · 중요' if reply_info.lv >= 2 else '' }}</b> <span class="mv-reply-why">— {{ reply_info.why }}</span>
   <button type="button" class="mv-reply-btn" onclick="replyMark('done')" title="이 메일은 회신하지 않아도 됨 — 표시를 끕니다(나에게만)">✓ 회신 안 해도 됨</button>
-  {% elif reply_info.state == 'done' %}<span class="mv-reply-why">✓ 「회신 안 해도 됨」으로 표시한 메일</span> <button type="button" class="mv-reply-btn" onclick="replyMark('clear')">되돌리기</button>
-  {% else %}<button type="button" class="mv-reply-btn" onclick="replyMark('need')" title="규칙이 놓친 메일을 직접 「회신 필요」로 표시 — 답장하면 저절로 빠집니다">↩ 회신 필요로 표시</button>
-  {% endif %}
 </div>
 {% endif %}
 
@@ -150,7 +156,7 @@
 {% endif %}
 
 {% if m.summary %}
-<div class="mv-ai"><b>📝 AI 요약</b><br>{{ m.summary }}</div>
+<div class="mv-ai mv-ai-f" id="mvAi"><button type="button" class="mv-ai-h" onclick="this.parentNode.classList.toggle('open')" title="눌러서 AI 요약 펼치기·접기"><b>📝 요약</b><span class="mv-ai-tg">▸</span><span class="mv-ai-pv">{{ m.summary|replace('\n', ' ') }}</span></button><div class="mv-ai-b">{{ m.summary }}</div></div>
 {% endif %}
 
 
@@ -337,6 +343,9 @@
           if(!fb && n>0){ fb=document.createElement('span'); fb.className='fbadge'; lk.appendChild(fb); }
           if(fb){ if(n>0){ fb.textContent=n; } else { fb.remove(); } } } }catch(e){} }
       var esc=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
+      try{ var root=box.closest('#readPane') || document;   // 11-21 판정 있음 = 머리 아래 띠 · 없음 = 머리 끝 작은 단추
+        if(j.lv && box.closest('.mv-chips')){ var h0=box.closest('.mv-head'); h0.parentNode.insertBefore(box, h0.nextSibling); }
+        else if(!j.lv && !box.closest('.mv-chips')){ var ch=root.querySelector('.mv-chips'); if(ch) ch.appendChild(box); } }catch(e){}
       if(j.lv){ box.className='mv-reply on lv'+j.lv;
         box.innerHTML='<b>↩ 회신 필요(추정)'+(j.lv>=2?' · 중요':'')+'</b> <span class="mv-reply-why">— '+esc(j.why)+'</span> '+
           '<button type="button" class="mv-reply-btn" onclick="replyMark(&quot;done&quot;)">✓ 회신 안 해도 됨</button>';
@@ -415,7 +424,8 @@
     try{ var fd=new FormData(); fd.append('on', on?'1':'0');
       var r=await fetch('/mail/'+MAIL_ID+'/archive',{method:'POST',body:fd}); var j=await r.json();
       if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return; }
-      b.setAttribute('data-on', on?'1':'0'); b.textContent = on ? '📥 받은편지함으로' : '📦 보관';
+      b.setAttribute('data-on', on?'1':'0'); b.textContent = on ? '📥' : '📦';   // 11-21 그림만 · 뜻은 title
+      b.title = on ? '📥 받은편지함으로 되돌리기' : '📦 보관 — 받은편지함에서 빼기 · 지우지 않음 (E)'; b.setAttribute('aria-label', on ? '받은편지함으로' : '보관');
       if(IN_PANE && window.mailPaneAfterArchive){ window.mailPaneAfterArchive(MAIL_ID, on); }
       else if(on){ mvGoInbox('arc', MAIL_ID, on); }
     }catch(e){ alert('네트워크 오류'); }
@@ -440,7 +450,8 @@
     var b=document.getElementById('mvStarBtn'); if(!b) return;
     try{ var r=await fetch('/mail/'+MAIL_ID+'/star',{method:'POST'}); var j=await r.json();
       if(!j.ok){ alert('⚠ 바꾸지 못했습니다'); return; }
-      b.classList.toggle('on', !!j.starred); b.textContent = j.starred ? '⭐ 중요' : '☆ 중요 표시';
+      b.classList.toggle('on', !!j.starred); b.textContent = j.starred ? '⭐' : '☆';   // 11-21 그림만 · 뜻은 title
+      b.title = j.starred ? '⭐ 중요 — 눌러서 풀기 (S)' : '☆ 중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 (S)'; b.setAttribute('aria-label', j.starred ? '중요' : '중요 표시');
       try{ var st=document.querySelector('.mbx-list [data-mail-id="'+MAIL_ID+'"] .mbx-star'); if(st) st.classList.toggle('on', !!j.starred); }catch(e){}
     }catch(e){ alert('네트워크 오류'); }
   };
@@ -569,7 +580,13 @@ window.mvWait=async function(days){ var id={{ m.id }}, inPane={{ 'true' if pane 
   fetch('/api/mail/addrinfo?a='+encodeURIComponent(a.join(','))).then(function(r){ return r.json(); }).then(function(j){
     var html=''; Object.keys(j.info||{}).forEach(function(ad){ var g=j.info[ad]; if(g.kind!=='group') return;
       var esc=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
-      html+='<div class="mv-grp-i">👥 <b>'+esc(ad)+'</b> = '+esc(g.name)+' 그룹 메일 · <b>'+g.n+'명</b> <button type="button" onclick="var p=this.nextElementSibling; p.hidden=!p.hidden">명단 ▾</button><span class="mv-grp-p"'+(g.n>12?' hidden':'')+'>'+
+      // 11-21 대표 「메일 내용을 더 많이」 — 넓은 화면: 칩 하나 「👥 이름(N명 ▾)」(주소는 받는 사람 줄에 한 번만 · 칩에는 마우스를 올리면) · 휴대폰: 예전 상자 그대로
+      html+='<div class="mv-grp-i"><span class="mv-grp-t">👥 <b>'+esc(ad)+'</b> = '+esc(g.name)+' 그룹 메일 · <b>'+g.n+'명</b> </span><button type="button" class="mv-grp-b" title="'+esc(ad)+' = '+esc(g.name)+' 그룹 메일 · '+g.n+'명 — 눌러서 명단" onclick="mvGrpToggle(this)"><span class="mv-grp-c">👥 '+esc(g.name)+'('+g.n+'명 ▾)</span><span class="mv-grp-m">명단 ▾</span></button><span class="mv-grp-p"'+(g.n>12?' hidden':'')+'>'+
         g.members.map(function(m){ return '<span title="'+esc(m.email)+'">'+esc(m.disp||m.email)+'</span>'; }).join('')+'</span></div>'; });
     if(html){ box.innerHTML=html; box.hidden=false; } }).catch(function(){}); })();
+window.mvGrpToggle=function(b){ var i=b.closest('.mv-grp-i'); if(!i) return;
+  if(window.matchMedia('(min-width:641px)').matches){ var on=!i.classList.contains('open'); document.querySelectorAll('.mv-grp-i.open').forEach(function(x){ x.classList.remove('open'); }); i.classList.toggle('open', on);
+    var pp=i.querySelector('.mv-grp-p'); if(on && pp){ pp.style.left='0px'; var r=pp.getBoundingClientRect(), over=r.right-(window.innerWidth-8); if(over>0) pp.style.left=(-Math.min(over, r.left-8))+'px'; } }
+  else { var p=i.querySelector('.mv-grp-p'); if(p) p.hidden=!p.hidden; } };
+if(!window._mvGrpBound){ window._mvGrpBound=true; document.addEventListener('click', function(e){ if(!e.target.closest || !e.target.closest('.mv-grp-i')) document.querySelectorAll('.mv-grp-i.open').forEach(function(x){ x.classList.remove('open'); }); }); }
 </script>

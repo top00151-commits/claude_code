@@ -104,6 +104,40 @@
     background:var(--mt-surface,#fff);box-shadow:-8px 0 10px var(--mt-surface,#fff);color:var(--knk-red,#b91c1c);font-size:20px;font-weight:800;cursor:pointer}
   .mail-tools.more .mt-more{display:inline-flex;align-items:center;justify-content:center}
   .mail-tools.more{-webkit-mask-image:none;mask-image:none}
+  /* 11-21 대표 「메뉴가 중복되는 게 많아 공간만 차지 · 받은 메일을 한 번에 더 많이」 — 넓은 화면(901px~)
+     ① 빨간 머리줄 높이만 조금 줄임(기능 그대로)
+     ② 받은편지함: 이 도구 줄 한 줄에 「✏ 새 메일 · 찾기 칸 · 오늘 챙길 숫자 · 테마·글자·설정·도움말」
+        왼쪽 메뉴와 겹치는 이동 길(받은편지함·중요·회신 필요·기한·보낸·임시·보관·휴지통·스팸)은 숨김 — 숫자는 왼쪽 메뉴에 그대로
+        단, 폴더 칸을 접어 두면(왼쪽 메뉴가 안 보이면) 이동 길을 다시 보임. 쓰기·메일 보기 화면은 왼쪽 메뉴가 없어 그대로 둠 */
+  .mail-tools .mt-in{display:none}
+  @media(min-width:901px){
+    .mail-app-top{padding:3px 16px}
+    .mail-app-top .reload{width:26px;height:26px}
+    .mail-app-top .navbtn{padding:4px 10px}
+    .mail-app-top .me{padding:3px 11px}
+    #mailTools.mt-inbox{overflow:visible;gap:4px;padding:2px 12px}
+    #mailTools.mt-inbox>a,#mailTools.mt-inbox>button{height:32px}
+    body:not(:has(.mbx-split.fold-off)) #mailTools.mt-inbox .mt-nav{display:none}
+    #mailTools.mt-inbox .mt-in{display:flex;align-items:center;gap:6px;min-width:0}
+    #mailTools.mt-inbox .mt-in-l{flex:1 1 420px}
+    #mailTools.mt-inbox .mt-in-l .mbx-search{flex:1;flex-wrap:nowrap;min-width:0;max-width:760px}
+    #mailTools.mt-inbox .mt-in-l .mbx-search input[type=text]{min-width:120px;height:32px;box-sizing:border-box;padding:5px 12px}
+    #mailTools.mt-inbox .mt-in-l .btn{height:32px;padding:0 12px;display:inline-flex;align-items:center;white-space:nowrap}
+    #mailTools.mt-inbox .mt-in-l .mbx-more>summary{height:32px;box-sizing:border-box;display:inline-flex;align-items:center}
+    #mailTools.mt-inbox .mt-in-day{flex:0 1 auto;gap:4px;overflow:hidden}
+    #mailTools.mt-inbox a.mt-day-i{height:28px;padding:0 9px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;font-size:12.5px;font-weight:600;gap:3px}
+    #mailTools.mt-inbox a.mt-day-i b{font-size:13.5px}
+    #mailTools.mt-inbox a.mt-day-i em{font-style:normal;font-size:11.5px;font-weight:700}
+    #mailTools.mt-inbox a.mt-day-i.red{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+    #mailTools.mt-inbox a.mt-day-i.warn{border-color:#fdba74;background:#fff7ed;color:#9a3412}
+    #mailTools.mt-inbox a.mt-day-i:hover{filter:brightness(.97)}
+    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i{background:#1e293b;border-color:#334155;color:#bfdbfe}
+    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i.red{background:#3f1d1d;border-color:#7f1d1d;color:#fecaca}
+    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i.warn{background:#3b2410;border-color:#9a3412;color:#fed7aa}
+    #mailTools.mt-inbox .mt-in .mbx-foldbtn{height:32px}
+  }
+  /* 좁은 노트북(1500px 아래)은 오늘 챙길 칩을 그림+숫자만(뜻은 마우스를 올리면) */
+  @media(min-width:901px) and (max-width:1500px){ #mailTools.mt-inbox a.mt-day-i .tx{display:none} }
 </style>
 <div class="mail-app-fixed">
 <div class="mail-app-top">
@@ -120,18 +154,21 @@
   {# 「WORKS 전체화면」(?app=0) 버튼 제거 — 메일은 KNK Eum 전용 독립 창, WORKS는 KNK Eum 🌟 아이콘으로 별도 실행(역할 분리). (대표 지시 2026-06-14) #}
 </div>
 {# 11-19 대표 「메일함 줄과 검색 줄 사이에 기본으로 쓰는 도구·메뉴 아이콘 — 고정」: 매일 가는 곳 + 자주 쓰는 도구 · 지금 화면은 빨갛게 · 숫자는 바로바로 #}
-<nav class="mail-tools" id="mailTools" aria-label="메일 도구">
+{% set _mt_in = (mail_tools_inbox is defined and mail_tools_inbox) %}
+<nav class="mail-tools{{ ' mt-inbox' if _mt_in else '' }}" id="mailTools" aria-label="메일 도구">
   <a class="new" href="/mail/compose" title="새 메일 쓰기 (N)"><span class="ic">✏️</span><span class="t">새 메일</span></a>
-  <a href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
-  <a href="/mail/inbox?star=1" data-k="star" data-drop="star" data-dname="중요" title="⭐ 중요 표시한 메일 — 메일을 끌어 여기에 놓으면 중요 표시"><span class="ic">⭐</span><span class="t">중요</span></a>
-  <a href="/mail/inbox?reply=1" data-k="reply" title="회신이 필요해 보이는 메일(추정)"><span class="ic">↩</span><span class="t">회신 필요</span><span class="bd r" id="mtcReply" hidden></span></a>
-  <a href="/mail/inbox?flag=1" data-k="flag" title="🚩 기한을 정한 메일 — 빨간 숫자 = 오늘까지(지난 것 포함)"><span class="ic">🚩</span><span class="t">기한</span><span class="bd r" id="mtcFlag" hidden></span></a>
-  <span class="sep"></span>
-  <a href="/mail/sent" data-k="sent" title="보낸편지함"><span class="ic">📤</span><span class="t">보낸편지함</span></a>
-  <a href="/mail/drafts" data-k="draft" title="쓰다가 저장한 메일"><span class="ic">📝</span><span class="t">임시보관함</span><span class="bd g" id="mtcDrafts" hidden></span></a>
-  <a href="/mail/inbox?arc=1" data-k="arc" data-drop="archive" data-dname="보관함" title="📦 보관함 — 메일을 끌어 여기에 놓으면 보관"><span class="ic">📦</span><span class="t">보관함</span></a>
-  <a href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">🗑</span><span class="t">휴지통</span></a>
-  <a href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
+  {# 11-21 대표 「메뉴가 중복 · 공간만 차지」 — 받은편지함(넓은 화면)은 찾기 칸·오늘 챙길 숫자를 이 줄에(받은편지함이 넘겨 줌 · mail_inbox.html) #}
+  {% if _mt_in %}{{ mail_tools_inbox }}{% endif %}
+  <a class="mt-nav" href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
+  <a class="mt-nav" href="/mail/inbox?star=1" data-k="star" data-drop="star" data-dname="중요" title="⭐ 중요 표시한 메일 — 메일을 끌어 여기에 놓으면 중요 표시"><span class="ic">⭐</span><span class="t">중요</span></a>
+  <a class="mt-nav" href="/mail/inbox?reply=1" data-k="reply" title="회신이 필요해 보이는 메일(추정)"><span class="ic">↩</span><span class="t">회신 필요</span><span class="bd r" id="mtcReply" hidden></span></a>
+  <a class="mt-nav" href="/mail/inbox?flag=1" data-k="flag" title="🚩 기한을 정한 메일 — 빨간 숫자 = 오늘까지(지난 것 포함)"><span class="ic">🚩</span><span class="t">기한</span><span class="bd r" id="mtcFlag" hidden></span></a>
+  <span class="sep mt-nav"></span>
+  <a class="mt-nav" href="/mail/sent" data-k="sent" title="보낸편지함"><span class="ic">📤</span><span class="t">보낸편지함</span></a>
+  <a class="mt-nav" href="/mail/drafts" data-k="draft" title="쓰다가 저장한 메일"><span class="ic">📝</span><span class="t">임시보관함</span><span class="bd g" id="mtcDrafts" hidden></span></a>
+  <a class="mt-nav" href="/mail/inbox?arc=1" data-k="arc" data-drop="archive" data-dname="보관함" title="📦 보관함 — 메일을 끌어 여기에 놓으면 보관"><span class="ic">📦</span><span class="t">보관함</span></a>
+  <a class="mt-nav" href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">🗑</span><span class="t">휴지통</span></a>
+  <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
   <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
   <button type="button" class="sw" id="mtBigTop" onclick="mailBigToggle()" title="글자 크게 보기 — 켜고 끄기(이 컴퓨터에만)"><span class="ic">🔠</span><span class="t">글자 크게</span></button>
