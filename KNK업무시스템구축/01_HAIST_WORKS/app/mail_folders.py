@@ -1662,6 +1662,45 @@ def move_undo(c, uid) -> int:
     return n
 
 
+def set_subject_tags(c, uid, fid, text) -> dict:
+    """11-22 대표 「폴더에 항목 구분 — 구분되는 항목(제목 꼬리표)을 작성해서 그 규칙을 적용」 — 폴더 관리 화면의 「🏷 제목 꼬리표」 칸.
+    적은 꼬리표(쉼표로 · [ ] 는 있어도 없어도)마다 「제목 [꼬리표…] 메일 → 이 폴더」 규칙(보낸 사람 상관없이 · 지난 메일도 모두).
+    칸에서 지운 꼬리표의 규칙은 지움 · 다른 폴더에 같은 꼬리표가 있었으면 이 폴더로 옮김 · ↺ 되돌리기(move_undo)."""
+    ensure(c)
+    if not c.execute("SELECT 1 FROM mail_folders WHERE id=? AND user_id=?", (fid, uid)).fetchone():
+        return {"ok": False, "message": "내 폴더가 아닙니다."}
+    tgt = "f%d" % fid
+    toks, seen = [], set()
+    for x in re.split(r"[,;\n]+", text or ""):
+        x = x.strip().strip("[]【】〔〕 ").strip()
+        if x and len(norm_name(x)) >= 2 and norm_name(x) not in seen:
+            toks.append(x[:30])
+            seen.add(norm_name(x))
+    toks = toks[:20]
+    want = {norm_name(t): t for t in toks}
+    undo = {"add": [], "del": [], "pins": []}
+    for r in c.execute("SELECT * FROM mail_move_rules WHERE user_id=? AND kind='subject' AND target=? AND COALESCE(since,'')=''",
+                       (uid, tgt)).fetchall():
+        nn = norm_name(r["pattern"])
+        if nn in want and r["pattern"] == want[nn]:
+            want.pop(nn)          # 그대로 둠
+            continue
+        undo["del"].append({k: r[k] for k in r.keys()})
+        c.execute("DELETE FROM mail_move_rules WHERE id=?", (r["id"],))
+    for nn, t in want.items():
+        for r in c.execute("SELECT * FROM mail_move_rules WHERE user_id=? AND kind='subject'", (uid,)).fetchall():
+            if norm_name(r["pattern"]) == nn:   # 다른 폴더의 같은 꼬리표 → 이 폴더로
+                undo["del"].append({k: r[k] for k in r.keys()})
+                c.execute("DELETE FROM mail_move_rules WHERE id=?", (r["id"],))
+        _put_rule(c, uid, "subject", t, tgt, "", undo)
+    import json as _json
+    _set_flag(c, uid, "move_undo", _json.dumps(undo, ensure_ascii=False))
+    _CACHE.pop(uid, None)
+    classify(c, uid)
+    n = _match_count(c, uid, [("subject", t) for t in toks], tgt) if toks else 0
+    return {"ok": True, "tags": toks, "n": n}
+
+
 def delete_rule(c, uid, rule_id) -> bool:
     ensure(c)
     n = c.execute("DELETE FROM mail_move_rules WHERE id=? AND user_id=?", (rule_id, uid)).rowcount

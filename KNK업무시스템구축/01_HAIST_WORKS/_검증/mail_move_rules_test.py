@@ -418,6 +418,35 @@ try:
     check("꼬리표가 다르면 제목 범위 없음(MaPS·G-DIX 섞어 고름)", "subject" not in k.post("/mail/move", data={"ids": "%d,%d" % (t2, t3), "dry": "1"}).json())
     check("제목 범위인데 꼬리표가 없으면 400", k.post("/mail/move", data={"ids": str(t4), "key": "f%d" % mp, "when": "all", "scope": "subject"}).status_code == 400)
     check("꼬리표 뽑기 · 첫 낱말", mf.subj_tags("[MaPS - Equip] x [G-DIX] y") == ["MaPS - Equip", "G-DIX"] and mf.tag_token("MaPS - Equip") == "MaPS" and mf.tag_token("G-DIX") == "G-DIX")
+
+    print("== 16. 폴더 관리 「🏷 제목 꼬리표」 칸(11-22 대표 「폴더에 항목 구분 · 구분되는 항목을 작성해서 그 규칙을 적용」) ==")
+    pl = q(op="add", parent_id=cx, name="PLM").json()["id"]
+    p1 = put("plm@other-sys.example", "[PLM GPLM] 결재 요청", "가짜", name="PLM 시스템")
+    p2 = put("noti@third-sys.example", "[PLM] 알림", "가짜", name="다른 시스템")
+    r = k.post("/mail/folders/op", data={"op": "subjtags", "id": pl, "tags": "[PLM], PLM GPLM, plm"})
+    with _db.db_session() as c:
+        sr = [dict(x) for x in c.execute("SELECT pattern, since FROM mail_move_rules WHERE user_id=? AND kind='subject' AND target=?", (OWN, "f%d" % pl)).fetchall()]
+    check("칸에 적고 Enter = 꼬리표마다 제목 규칙(대괄호 빼고 · 같은 말 겹치면 하나) · 지난 메일도 모두",
+          r.status_code == 303 and sorted(x["pattern"] for x in sr) == ["PLM", "PLM GPLM"] and all(x["since"] == "" for x in sr), sr)
+    check("보낸 사람 상관없이 그 꼬리표 메일 → 이 폴더(지난 메일)", key_of(p1) == "f%d" % pl and key_of(p2) == "f%d" % pl, (row(p1), row(p2)))
+    p3 = put("new@fourth-sys.example", "[PLM] 새 알림", "가짜", name="새 시스템")
+    check("새로 받는 메일도", key_of(p3) == "f%d" % pl, row(p3))
+    fh = k.get("/mail/folders").text
+    check("폴더 줄에 칸 + 적은 꼬리표 그대로 · 다른 규칙은 작은 표시(✕로 지우기)",
+          'name="tags" value="PLM, PLM GPLM"' in fh and 'value="subjtags"' in fh and "mf-chip" in fh and "👤 mailer@semx.example" in fh)
+    r = k.post("/mail/folders/op", data={"op": "subjtags", "id": gd, "tags": "PLM, G-DIX"})
+    with _db.db_session() as c:
+        sp = {x["pattern"]: x["target"] for x in c.execute("SELECT pattern, target FROM mail_move_rules WHERE user_id=? AND kind='subject' AND COALESCE(since,'')=''", (OWN,)).fetchall()}
+    check("같은 꼬리표를 다른 폴더에 적으면 그 폴더로 옮겨 감(한 꼬리표 = 한 폴더)", sp.get("PLM") == "f%d" % gd and sp.get("G-DIX") == "f%d" % gd and key_of(p2) == "f%d" % gd, sp)
+    k.post("/mail/folders/op", data={"op": "subjtags", "id": gd, "tags": ""})
+    with _db.db_session() as c:
+        left = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND kind='subject' AND target=?", (OWN, "f%d" % gd)).fetchone()[0]
+    check("칸을 비우고 Enter = 그 폴더 제목 규칙 지움 · 메일은 자동 분류로", left == 0 and key_of(p2) != "f%d" % gd, row(p2))
+    check("남의 폴더 칸은 못 고침", (lambda: (_UID.__setitem__("v", OTHER), mf_ok := k.post("/mail/folders/op", data={"op": "subjtags", "id": pl, "tags": "x"}).status_code)[1])() == 303)
+    _UID["v"] = OWN
+    with _db.db_session() as c:
+        bad = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND pattern='x'", (OTHER,)).fetchone()[0]
+    check("(남의 폴더 번호로 보내도 규칙 안 생김)", bad == 0)
 finally:
     pass
 

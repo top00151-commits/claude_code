@@ -15,6 +15,16 @@
   .mf-row.g{background:var(--mt-panel,#f8fafc)}
   .mf-row.k{padding-left:34px}
   .mf-row.k2{padding-left:58px;background:#fcfdff}
+  /* 11-22 대표 「폴더에 항목 구분 — 구분되는 항목을 작성해서 그 규칙을 적용」 — 🏷 제목 꼬리표 칸 + 이 폴더 규칙 */
+  .mf-rl{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+  .mf-rl form{flex:1 1 220px;min-width:0}
+  .mf-rl .tg{width:100%;box-sizing:border-box;border:1px dashed #c7d2fe;border-radius:6px;padding:3px 7px;font-size:12px;font-family:inherit;background:#f8faff;color:#3730a3}
+  .mf-rl .tg:focus{border-style:solid;background:#fff;outline:none;border-color:#6366f1}
+  .mf-rl .tg.on{border-style:solid;background:#eef2ff;font-weight:700}
+  .mf-chip{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;border-radius:999px;padding:1px 4px 1px 8px;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  .mf-chip button{border:0;background:none;color:#15803d;cursor:pointer;font-size:12px;padding:0 3px;line-height:1}
+  .mf-chip.nw{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  @media(max-width:900px){.mf-rl{flex-basis:100%;order:9;padding-left:8px}}
   .mf-pl select{border:1px solid transparent;border-radius:6px;padding:3px 4px;font-size:12px;font-family:inherit;color:var(--mute);background:transparent;max-width:170px}
   .mf-pl select:hover,.mf-pl select:focus{border-color:var(--mt-line,#cbd5e1);background:var(--mt-surface,#fff);color:var(--ink)}
   @media(max-width:720px){.mf-pl{display:none}}
@@ -87,6 +97,19 @@
         <input class="mf-name" name="name" value="{{ k.name }}" maxlength="60" title="이름을 고치고 Enter — 서명의 회사 이름과 맞출 때도 이 이름을 씁니다"></form>
       <form method="post" action="/mail/folders/op" class="mf-al"><input type="hidden" name="op" value="aliases"><input type="hidden" name="id" value="{{ k.id }}">
         <input name="aliases" value="{{ k.aliases }}" maxlength="300" placeholder="다른 이름(영문·회사 주소) — 쉼표로" title="서명·보낸 사람 이름·회사 주소(@ 뒤)와 맞출 때 같이 봅니다. 예: Dreamtech, dreamtech.co.kr — 고치고 Enter"></form>
+      {% set myr = (rules|default([]))|selectattr('target', 'equalto', kk)|list %}
+      {% set mytags = myr|selectattr('kind', 'equalto', 'subject')|selectattr('since', 'equalto', '')|map(attribute='pattern')|sort|list %}
+      <div class="mf-rl">
+        <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="subjtags"><input type="hidden" name="id" value="{{ k.id }}">
+          <input class="tg{{ ' on' if mytags else '' }}" name="tags" value="{{ mytags|join(', ') }}" maxlength="300" placeholder="🏷 제목 꼬리표 — 예: MaPS, G-DIX (쉼표로 · Enter)"
+                 title="제목에 [이 꼬리표]가 붙은 메일은 보낸 사람 상관없이 이 폴더로 — 지난 메일·앞으로 올 메일 모두 · [MaPS] 를 적으면 [MaPS - Equip] 같이 MaPS 로 시작하는 꼬리표도 · 비우고 Enter = 규칙 지움"></form>
+        {% for r in myr if r.kind != 'subject' or r.since %}
+        <span class="mf-chip{{ ' nw' if r.since else '' }}" title="{% if r.since %}{{ r.since[:16] }}부터 받은 메일{% else %}지난 메일도 모두{% endif %} — 내가 옮긴 규칙">
+          {% if r.kind == 'domain' %}🏢 @{{ r.pattern }}{% elif r.kind == 'subject' %}🏷 [{{ r.pattern }}…]{% else %}👤 {{ r.pattern }}{% endif %}{% if r.since %} ⏩{% endif %}
+          <form method="post" action="/mail/folders/op" style="display:inline;margin:0" onsubmit="return confirm('이 규칙을 지울까요? 메일은 자동 분류로 돌아갑니다.')"><input type="hidden" name="op" value="delrule"><input type="hidden" name="id" value="{{ r.id }}"><button type="submit" title="규칙 지우기">✕</button></form>
+        </span>
+        {% endfor %}
+      </div>
       <span class="mf-n">{{ cnt.get(kk, (0,0))[0] }}통{% if cnt.get(kk, (0,0))[1] %} · <b>{{ cnt.get(kk)[1] }}</b>{% endif %}</span>
       <form method="post" action="/mail/folders/op" class="mf-pl"><input type="hidden" name="op" value="parent"><input type="hidden" name="id" value="{{ k.id }}">
         <select name="parent_id" onchange="this.form.submit()" title="위치 — 묶음 바로 아래 또는 다른 폴더 아래(3단계까지)">
