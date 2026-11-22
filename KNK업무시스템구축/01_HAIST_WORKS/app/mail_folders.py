@@ -1410,6 +1410,65 @@ def mail_where(res, m) -> dict:
     return {"key": k, "name": labels.get(k, "일반"), "how": how, "pinned": False}
 
 
+_RE_HOW_DOM = re.compile(r"@([A-Za-z0-9.\-]+)")
+
+
+def how_short(how: str) -> str:
+    """자동 분류 까닭 글 → 짧은 이름(폴더 관리 「📥 들어온 까닭」 묶음용)."""
+    h = (how or "").strip()
+    if not h:
+        return "자동"
+    if "(으)로 아래 폴더" in h:                       # 회사 폴더 → 아래 폴더로 좁힘
+        h = h.split(" → ")[-1].replace("(으)로 아래 폴더", "").strip()
+    elif " → " in h and not h.startswith("제목 꼬리표"):
+        h = h.split(" → ")[0].strip()
+    d = _RE_HOW_DOM.search(h)
+    if h.startswith("이 메일만"):
+        return "📌 이 메일만"
+    if h.startswith("내 규칙"):
+        return "내 규칙 " + ("@" + d.group(1) if d else "(사람)")
+    if h.startswith("제목 꼬리표"):
+        return "제목 [꼬리표]"
+    if h.startswith("직원"):
+        return "직원 — 받은 때 부서"
+    if "주소록" in h or "담당자" in h:
+        return "주소록·거래처 담당자"
+    if h.startswith("같은 회사 주소") or "(같은 회사 주소)" in h:
+        return "같은 회사 주소" + (" @" + d.group(1) if d else "")
+    if h.startswith("회사 주소"):
+        return "회사 주소" + (" @" + d.group(1) if d else "")
+    if "서명의 회사" in h:
+        return "서명의 회사 이름"
+    if "서명의 부서" in h:
+        return "서명의 부서"
+    if "보낸 사람 이름" in h:
+        return "보낸 사람 이름"
+    if h.startswith("직원 명부"):
+        return "직원 명부"
+    return h[:24]
+
+
+def folder_reasons(c, uid, res, top=3) -> dict:
+    """11-22 밤 대표 「메일 규칙을 쉽게」 2 — 폴더마다 지금 메일이 **어떤 까닭으로 몇 통** 들어왔는지.
+    반환 {폴더 열쇠: [(짧은 까닭, 통수), …](많은 순 top개) + ('…', 나머지)}. 메일 한 통씩 mail_where 와 같은 판단."""
+    acc = {}
+    for r in c.execute("SELECT lower(COALESCE(from_email,'')) AS from_email, COALESCE(fd_key,'') AS fd_key, COALESCE(fd_pin,'') AS fd_pin, "
+                       "substr(COALESCE(subject,''),1,200) AS subject, COALESCE(received_at,'') AS received_at FROM mail_messages "
+                       "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0", (uid,)).fetchall():
+        try:
+            w = mail_where(res, dict(r))
+        except Exception:
+            continue
+        b = acc.setdefault(w["key"], {})
+        hs = how_short(w.get("how"))
+        b[hs] = b.get(hs, 0) + 1
+    out = {}
+    for k, b in acc.items():
+        items = sorted(b.items(), key=lambda x: -x[1])
+        out[k] = items[:top] + ([("그 밖", sum(n for _h, n in items[top:]))] if len(items) > top else [])
+    return out
+
+
 def assignable_list(res) -> list:
     """옮길 곳 고르기(여러 통 「📁」·이동 메뉴·끌어 놓기) — classify 결과에서(DB 다시 안 읽음).
     11-22: 열쇠로(폴더 f… · 부서 t… · 일반) · 머리 줄(head) = 고를 수 없는 이름(6.케이엔케이 · 본사 · 베트남법인)."""
@@ -1526,6 +1585,36 @@ def _match_count(c, uid, pats, key=None) -> int:
     return c.execute(sql, args).fetchone()[0] or 0
 
 
+PV_ROWS = 5
+
+
+def _match_preview(c, uid, pats, res, key=None) -> dict:
+    """11-22 밤 대표 「메일 규칙을 쉽게 — 1. 옮기기 전에 같이 옮겨질 메일 미리 보기」
+    그 범위(사람·회사 주소)의 받은 메일이 **지금 어느 폴더에 몇 통** 있는지 + 최근 몇 통(날짜·보낸 사람·제목·지금 폴더)
+    · 「이 메일만」으로 따로 정해 둔 메일 수(옮겨도 그대로). 내 메일만 · 화면에만 보임."""
+    out = {"by": [], "rows": [], "more": 0, "pinned": 0}
+    if not pats:
+        return out
+    labels = (res or {}).get("labels") or {}
+    w = _pat_tables(c, pats, uid)
+    base = ("FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND " + w)
+    total = 0
+    for r in c.execute("SELECT COALESCE(fd_key,'') AS k, COUNT(*) AS n " + base + " GROUP BY COALESCE(fd_key,'') ORDER BY n DESC", (uid,)).fetchall():
+        k = r["k"] or "gen"
+        total += r["n"] or 0
+        out["by"].append([labels.get(k, "일반" if k == "gen" else "(정리 중)"), r["n"] or 0, 1 if (key and k == key) else 0])
+    out["pinned"] = c.execute("SELECT COUNT(*) " + base + " AND COALESCE(fd_pin,'')<>''" + (" AND fd_pin<>?" if key else ""),
+                              (uid, key) if key else (uid,)).fetchone()[0] or 0
+    for r in c.execute("SELECT COALESCE(received_at,'') AS at, COALESCE(from_name,'') AS nm, lower(COALESCE(from_email,'')) AS e, "
+                       "COALESCE(subject,'') AS sj, COALESCE(fd_key,'') AS k " + base + " ORDER BY received_at DESC, id DESC LIMIT ?",
+                       (uid, PV_ROWS)).fetchall():
+        k = r["k"] or "gen"
+        out["rows"].append([r["at"][5:16], (r["nm"] or r["e"])[:40], (r["sj"] or "(제목 없음)")[:90],
+                            labels.get(k, "일반" if k == "gen" else ""), 1 if (key and k == key) else 0])
+    out["more"] = max(0, total - len(out["rows"]))
+    return out
+
+
 def _own_rows(c, uid, ids):
     nums = []
     for x in list(ids or [])[:500]:
@@ -1552,8 +1641,9 @@ def _pat_label(pats) -> str:
     return "보낸 곳 %d곳" % len(pats) + (" (회사 %d · 사람 %d)" % (nd, ne) if nd and ne else "")
 
 
-def move_scopes(c, uid, res, ids) -> dict:
-    """옮기기 묻는 창 — 고른 메일의 보낸 곳 · 「회사 모두」/「이 사람만」 범위와 그 범위의 받은 메일 수."""
+def move_scopes(c, uid, res, ids, key=None) -> dict:
+    """옮기기 묻는 창 — 고른 메일의 보낸 곳 · 「회사 모두」/「이 사람만」 범위와 그 범위의 받은 메일 수
+    · (11-22 밤) 범위마다 같이 옮겨질 메일 미리 보기(pv · key = 옮길 곳이면 「이미 여기」 표시)."""
     rows = _own_rows(c, uid, ids)
     rows = [r for r in rows if "@" in (r["e"] or "")]
     if not rows:
@@ -1562,8 +1652,9 @@ def move_scopes(c, uid, res, ids) -> dict:
     comp = sorted({rule_target(e, res) for e in es if rule_target(e, res)})
     pers = sorted({("email", e) for e in es})
     out = {"ok": True, "n": len(rows), "same": comp == pers,
-           "company": {"label": _pat_label(comp), "n": _match_count(c, uid, comp)},
+           "company": {"label": _pat_label(comp), "n": _match_count(c, uid, comp), "pv": _match_preview(c, uid, comp, res, key)},
            "person": {"label": _pat_label(pers), "n": _match_count(c, uid, pers)}}
+    out["person"]["pv"] = out["company"]["pv"] if comp == pers else _match_preview(c, uid, pers, res, key)
     fk = {r["fk"] for r in rows if r["fk"]}
     out["from"] = (res.get("labels") or {}).get(next(iter(fk)), "") if len(fk) == 1 else ""
     tok = _common_tag(rows) if SUBJECT_RULES_ON else ""

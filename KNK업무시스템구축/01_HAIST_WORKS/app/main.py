@@ -24041,6 +24041,7 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         except Exception:
             reply_info = {}
         folder_info = _mail_folder_info(c, u["id"], m)
+        m = dict(m, thread=_mail_thread_info(c, u["id"], m))   # 11-22 밤 「💬 같은 대화」(옮기지 않고 한눈에)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
@@ -24102,6 +24103,7 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         except Exception:
             reply_info = {}
         folder_info = _mail_folder_info(c, u["id"], m)
+        m = dict(m, thread=_mail_thread_info(c, u["id"], m))   # 11-22 밤 「💬 같은 대화」(옮기지 않고 한눈에)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
@@ -24135,6 +24137,18 @@ def _mail_who_info(m, folder_info):
             out["co_href"], out["co_name"] = "/mail/inbox?dom=" + _qq(d), "@" + d
         return out
     except Exception:
+        return None
+
+
+def _mail_thread_info(c, uid, m):
+    """11-22 밤 대표 「메일 규칙을 쉽게 — 너가 사용자라면」 3 — 같은 대화(제목 같은 메일 · RE·FW 뺌)를 폴더가 달라도 한눈에.
+    실패하면 줄을 안 보인다."""
+    try:
+        from . import mail_thread as _mth
+        res = _mail_folders.classify(c, uid) if _mail_folders.has_tree(c, uid) else None
+        return _mth.thread_of(c, uid, m, res)
+    except Exception as _e:
+        print(f"[MAIL-THREAD view ERR] {type(_e).__name__}: {_e}")
         return None
 
 
@@ -24460,7 +24474,7 @@ async def mail_move(req: Request):
             return JSONResponse({"ok": False, "message": "폴더가 없습니다."}, 400)
         res = _mail_folders.classify(c, u["id"])
         if (form.get("dry") or "") == "1":
-            r = _mail_folders.move_scopes(c, u["id"], res, ids)
+            r = _mail_folders.move_scopes(c, u["id"], res, ids, (form.get("key") or "").strip()[:20] or None)
         else:
             r = _mail_folders.move(c, u["id"], res, ids, (form.get("key") or "").strip()[:20],
                                    (form.get("when") or "").strip(), (form.get("scope") or "company").strip())
@@ -24535,7 +24549,13 @@ async def mail_folders_page(req: Request, msg: str = ""):
                                    "into": "", "group": True})
     except Exception:
         pass
-    return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt,
+    try:   # 11-22 밤 대표 「메일 규칙을 쉽게」 2 — 폴더마다 「📥 들어온 까닭 · 통수」
+        with db_session() as c:
+            _why = _mail_folders.folder_reasons(c, u["id"], res) if res else {}
+    except Exception as _e:
+        print("[MAIL-FOLDERS] 들어온 까닭 셈 실패(화면은 그대로): %s" % str(_e)[:160], flush=True)
+        _why = {}
+    return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt, why=_why,
                gen=((res or {}).get("gen") or {"n": 0, "u": 0}),
                team_labels=[_mail_folders.team_label(t) for t in tl],
                staff_tree=staff_tree, staff_gone=staff_gone, staff_parents=staff_parents, staff_into=staff_into)

@@ -25,7 +25,18 @@
   .mmv .one{margin-top:10px;font-size:12.5px;color:var(--mute,#64748b)}
   .mmv .one a{color:#1d4ed8;cursor:pointer}
   .mmv .msg{margin-top:8px;font-size:12.5px;color:#b91c1c;min-height:1em}
-  @media(max-width:520px){.mmv .go{grid-template-columns:1fr}}
+  .mmv .mmv-pv:empty{display:none}
+  .mmv .mmv-pv{margin:-4px 0 12px;padding:8px 10px;border:1px dashed var(--line,#cbd5e1);border-radius:10px;font-size:12.5px}
+  .mmv .pv-h{font-weight:700;margin-bottom:3px}
+  .mmv .pv-h small,.mmv .pv-more{color:var(--mute,#64748b);font-weight:500}
+  .mmv .pv-by{color:var(--ink-soft,#334155);overflow-wrap:anywhere}
+  .mmv .pv-by .here,.mmv .pv-rows .f.here{color:#15803d;font-weight:700}
+  .mmv .pv-rows{list-style:none;margin:6px 0 2px;padding:0;display:flex;flex-direction:column;gap:2px}
+  .mmv .pv-rows li{display:grid;grid-template-columns:76px minmax(0,90px) minmax(0,1fr) auto;gap:6px;align-items:baseline;min-width:0}
+  .mmv .pv-rows span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mmv .pv-rows .d{color:var(--mute,#64748b);font-variant-numeric:tabular-nums}
+  .mmv .pv-rows .f{color:var(--mute,#64748b);font-size:11.5px;max-width:110px}
+  @media(max-width:520px){.mmv .go{grid-template-columns:1fr} .mmv .pv-rows li{grid-template-columns:64px minmax(0,1fr) auto} .mmv .pv-rows .w{display:none}}
 </style>
 <script>
 (function(){
@@ -41,7 +52,7 @@
       var ids=(o.ids||[]).filter(Boolean), key=o.key||'', name=o.name||'';
       if(!ids.length || !key){ resolve(null); return; }
       var info;
-      try{ info=await post({ids:ids.join(','), dry:'1'}); }catch(e){ alert('네트워크 오류'); resolve(null); return; }
+      try{ info=await post({ids:ids.join(','), dry:'1', key:key}); }catch(e){ alert('네트워크 오류'); resolve(null); return; }
       if(!info || !info.ok){ alert('⚠ '+((info&&info.message)||'옮길 수 없습니다')); resolve(null); return; }
       var bg=document.createElement('div'); bg.className='mmv-bg';
       var many=info.n>1;
@@ -63,6 +74,7 @@
           (info.subject?'<label><input type="radio" name="mmvScope" value="subject"><span>🏷 <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>':'')+
           '</div>';
       }
+      html+='<div class="mmv-pv" aria-live="polite"></div>';
       html+='<div class="q">언제 받은 메일부터 옮길까요?</div>'+
         '<div class="go">'+
           '<button type="button" data-when="new"><b>⏩ 지금부터 오는 메일만</b><span>고른 메일과 앞으로 받는 메일이 이리로 · 지난 메일은 지금 자리 그대로<br>(예: 부서를 옮긴 날부터)</span></button>'+
@@ -77,9 +89,23 @@
       document.addEventListener('keydown', onKey, true);
       bg.addEventListener('mousedown', function(e){ if(e.target===bg) close(null); });
       box.querySelector('.x').onclick=function(){ close(null); };
+      // 11-22 밤 대표 「메일 규칙을 쉽게」 1 — 고른 범위로 같이 옮겨질 메일 미리 보기(지금 어느 폴더에 몇 통 · 최근 몇 통)
+      function renderPv(){
+        var sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||(info.same?'person':'company');
+        var pv=(sc==='person'?info.person.pv:info.company.pv)||{}, el=bg.querySelector('.mmv-pv'); if(!el) return;
+        var by=(pv.by||[]), rows=(pv.rows||[]);
+        if(!by.length){ el.innerHTML=''; return; }
+        var h='<div class="pv-h">👀 같이 옮겨질 메일 <small>(⏪ 지난 메일도 모두 고를 때)</small></div><div class="pv-by">지금 자리: '+
+          by.map(function(b){ return '<span class="'+(b[2]?'here':'')+'">'+esc(b[0])+' '+n(b[1])+(b[2]?' ✓ 이미 여기':'')+'</span>'; }).join(' · ')+'</div>';
+        if(rows.length){ h+='<ul class="pv-rows">'+rows.map(function(r){ return '<li><span class="d">'+esc(r[0])+'</span><span class="w">'+esc(r[1])+'</span><span class="s">'+esc(r[2])+'</span><span class="f'+(r[4]?' here':'')+'">'+esc(r[3]||'')+'</span></li>'; }).join('')+'</ul>'; }
+        if(pv.more) h+='<div class="pv-more">외 '+n(pv.more)+'통</div>';
+        if(pv.pinned) h+='<div class="pv-more">📌 「이 메일만」으로 따로 정해 둔 '+n(pv.pinned)+'통은 그대로 둡니다</div>';
+        el.innerHTML=h;
+      }
+      renderPv();
       bg.querySelectorAll('input[name="mmvScope"]').forEach(function(r){ r.addEventListener('change', function(){
         var sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||'company';
-        bg.querySelector('.mmv-n').textContent=n(sc==='person'?info.person.n:(sc==='subject'?info.subject.n:info.company.n)); }); });
+        bg.querySelector('.mmv-n').textContent=n(sc==='person'?info.person.n:(sc==='subject'?info.subject.n:info.company.n)); renderPv(); }); });
       bg.querySelectorAll('[data-when]').forEach(function(b){ b.addEventListener('click', async function(){
         var when=b.getAttribute('data-when'), sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||(info.same?'person':'company');
         bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,#64748b)'; msg.textContent='옮기는 중…';

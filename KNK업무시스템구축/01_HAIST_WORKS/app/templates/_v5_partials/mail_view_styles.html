@@ -53,7 +53,26 @@
   .mv-fd-cur{display:inline-block;padding:0 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;line-height:1.8}
   .mv-fd-sel{margin-left:6px;font-size:12px;padding:2px 6px;border:1px solid var(--mt-line,#cbd5e1);border-radius:6px;background:var(--mt-surface,#fff);max-width:200px}
   .mv-fd-msg{margin-left:6px;font-size:11.5px;color:#047857;font-weight:600}
-  @media print{.mv-fd-sel,.mv-fd-msg{display:none}}
+  @media print{.mv-fd-sel,.mv-fd-msg,.mv-thr{display:none}}
+  /* 11-22 밤 「💬 같은 대화」 — 접힌 한 줄 · 펼치면 시간 순서 목록(폴더가 달라도) */
+  .mv-thr{display:inline-block;vertical-align:middle;max-width:100%}
+  .mv-thr>summary{list-style:none;cursor:pointer;display:inline-block;padding:0 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:700;line-height:1.8;color:var(--ink-soft,#334155);background:var(--mt-panel,#fafafa)}
+  .mv-thr>summary::-webkit-details-marker{display:none}
+  .mv-thr>summary small{font-weight:500;color:var(--mute)}
+  .mv-thr[open]{display:block;margin-top:4px}
+  .mv-thr-list{margin:6px 0 2px;padding:6px 8px;list-style:none;border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);max-height:260px;overflow:auto}
+  .mv-thr-list li a{display:grid;grid-template-columns:82px minmax(0,150px) minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:3px 4px;border-radius:6px;color:inherit;text-decoration:none;font-size:12.5px}
+  .mv-thr-list li a:hover{background:var(--mt-hover,#f1f5f9)}
+  .mv-thr-list li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mv-thr-list .d{color:var(--mute);font-variant-numeric:tabular-nums}
+  .mv-thr-list .f{color:var(--mute);font-size:11.5px;max-width:150px}
+  .mv-thr-list li.cur a{background:#eff6ff;font-weight:700}
+  .mv-thr-list li.cur .f{color:#1d4ed8}
+  .mv-thr-list li.out .w{color:#047857}
+  html[data-mt="dark"] .mv-thr-list li.cur a{background:#1a2840}
+  html[data-mt="dark"] .mv-thr-list li.cur .f{color:#8ab4f8}
+  html[data-mt="dark"] .mv-thr-list li.out .w{color:#9be3b0}
+  @media(max-width:640px){.mv-thr-list li a{grid-template-columns:62px minmax(0,1fr) auto}.mv-thr-list .w{display:none}}
   @media print{.mv-ct-inline{display:none}}
   .mv-badge{font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}
   .mv-ai{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#1e3a8a;white-space:pre-wrap;line-height:1.75}

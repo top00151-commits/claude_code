@@ -106,6 +106,18 @@
     <span id="mvFolderMsg" class="mv-fd-msg"></span>
     {% endif %}
     {% endif %}
+    {# 11-22 밤 대표 「메일 규칙을 쉽게 — 너가 사용자라면」 3 — 같은 대화(제목 같은 메일 · RE·FW 뺌)를 폴더가 달라도 한눈에(옮기지 않음) #}
+    {% if m.thread %}
+    <details class="mv-thr">
+      <summary title="제목이 같은 메일(앞의 RE:·FW: 등은 뺌)을 시간 순서로 — 회신은 보낸 사람 자리(직원 = 부서 폴더)에 그대로 두고 여기서 한눈에">💬 같은 대화 {{ m.thread.n }}통 <small>· {% for l, n in m.thread.by %}{{ l }} {{ n }}{{ ' · ' if not loop.last else '' }}{% endfor %}</small> ▾</summary>
+      <ol class="mv-thr-list">
+        {% for x in m.thread.rows %}
+        <li class="{{ 'cur' if x.cur else '' }}{{ ' out' if x.out else '' }}"><a href="/mail/{{ x.id }}" onclick="if(!{{ 'true' if x.cur else 'false' }} && typeof loadPane==='function' && document.getElementById('readPane')){ loadPane({{ x.id }}); return false; }{% if x.cur %} return false;{% endif %}">
+          <span class="d">{{ x.at }}</span><span class="w">{{ x.who }}</span><span class="s">{{ x.sj }}</span><span class="f">{{ '📍 지금 보는 메일' if x.cur else x.folder }}</span></a></li>
+        {% endfor %}
+      </ol>
+    </details>
+    {% endif %}
     {% if m.direction != 'out' and m.risk_level and m.risk_level == 1 %}<span class="mv-chip ext" title="회사 밖에서 온 메일 — 모르는 발신이면 링크·첨부에 주의">ℹ️ 회사 밖에서 온 메일</span>{% endif %}
     {# 11-21 대표 「메일 내용을 더 많이」 — 회신 판정이 없는 메일의 「↩ 회신 필요로 표시」·「회신 안 해도 됨」 표시는 이 줄 끝 작은 단추로(띠 한 줄을 아낌) #}
     {% if m.direction != 'out' and reply_info is defined and reply_info and not reply_info.lv %}

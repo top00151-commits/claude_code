@@ -35,6 +35,9 @@
   .mf-chip{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;border-radius:999px;padding:1px 4px 1px 8px;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
   .mf-chip button{border:0;background:none;color:#15803d;cursor:pointer;font-size:12px;padding:0 3px;line-height:1}
   .mf-chip.nw{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  .mf-why{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .mf-why b{color:var(--ink-soft,#334155);font-weight:700}
+  .mf-hint{font-size:11.5px;color:#4338ca;border:1px dashed #c7d2fe;border-radius:999px;padding:0 8px;white-space:nowrap}
   @media(max-width:900px){.mf-rl{flex-basis:100%;order:9;padding-left:8px}}
   .mf-pl select{border:1px solid transparent;border-radius:6px;padding:3px 4px;font-size:12px;font-family:inherit;color:var(--mute);background:transparent;max-width:170px}
   .mf-pl select:hover,.mf-pl select:focus{border-color:var(--mt-line,#cbd5e1);background:var(--mt-surface,#fff);color:var(--ink)}
@@ -117,6 +120,10 @@
           <form method="post" action="/mail/folders/op" style="display:inline;margin:0" onsubmit="return confirm('이 규칙을 지울까요? 메일은 자동 분류로 돌아갑니다.')"><input type="hidden" name="op" value="delrule"><input type="hidden" name="id" value="{{ r.id }}"><button type="submit" title="규칙 지우기">✕</button></form>
         </span>
         {% endfor %}
+        {# 11-22 밤 대표 「메일 규칙을 쉽게 — 너가 사용자라면」 2 — 이 폴더에 지금 메일이 들어온 까닭(자동 분류가 판단한 것) · 통수 #}
+        {% set wy = (why|default({})).get(kk) or [] %}
+        {% if wy %}<span class="mf-why" title="지금 이 폴더 메일이 들어온 까닭 — 자동 분류가 판단한 것(규칙을 따로 만들지 않아도 이렇게 들어옵니다)">📥 {% for h, n in wy %}{{ h }} <b>{{ n }}</b>{{ ' · ' if not loop.last else '' }}{% endfor %}</span>{% endif %}
+        {% if 'k2' in cls %}<span class="mf-hint" title="이 폴더는 회사 폴더 아래에 있어서, 그 회사 사람이 보낸 메일 중 제목에 [{{ k.name }}…] 꼬리표가 붙은 메일은 따로 규칙 없이 자동으로 이리로 옵니다(우리 직원의 회신은 부서 폴더 그대로)">🏷 그 회사 메일 중 제목 [{{ k.name }}…]도 자동</span>{% endif %}
       </div>
       <span class="mf-n">{{ cnt.get(kk, (0,0))[0] }}통{% if cnt.get(kk, (0,0))[1] %} · <b>{{ cnt.get(kk)[1] }}</b>{% endif %}</span>
       <form method="post" action="/mail/folders/op" class="mf-pl"><input type="hidden" name="op" value="parent"><input type="hidden" name="id" value="{{ k.id }}">
