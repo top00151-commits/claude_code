@@ -132,3 +132,4 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
   .mt-pv .paper{ background:#fff; height:30px !important; border-radius:4px; border:1px solid rgba(0,0,0,.1); }
   @media(max-width:640px){ .mt-cards{ grid-template-columns:1fr; } .mt-pv{ height:60px; } }
 </style>
+{% if mail_design_preview|default(false) %}{% include "_v5_partials/mail_design_v2.html" %}{% endif %}
