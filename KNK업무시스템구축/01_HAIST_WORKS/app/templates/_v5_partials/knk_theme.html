@@ -11,6 +11,8 @@
   · filter 는 <html>(문서 맨 위)에만 건다 — 그래야 화면에 붙어 있는(position:fixed) 창·풍선 위치가 그대로다.
   · 인쇄할 때는 테마를 끈다(종이는 원래 색).
   · 고르는 곳 = 상단바 🎨 단추 → 카드 3장.
+  ★ z1191z113 (대표 11-22 「배색 괴리감 · 제목과 내용 폭 단차 · 전문 디자이너가 한 것처럼」): 아래 색 부분을 다시 잡음 —
+    중립 회색 한 벌(밝게)을 기준으로 부드럽게·어둡게가 같은 배색 관계를 갖고, 제목 띠는 바탕과 같은 색 + 가는 선.
 ═══════════════════════════════════════════════════════════════════════════#}
 <script>
 (function(){ var t = 'soft'; try { t = localStorage.getItem('knk.theme') || 'soft'; } catch (e) {}
@@ -18,21 +20,32 @@
   document.documentElement.setAttribute('data-kt', t); })();
 </script>
 <style>
-html[data-kt="clear"], html[data-kt="dark"] {
-  --paper:#eceff3; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f6f7f9; --warm-tan:#e5e7eb;
-  --ink:#111827; --ink-soft:#374151; --mute:#56606e; --mute-2:#9aa3af; --line:#cfd6de; --line-strong:#a9b3bf; --line-soft:#eef0f3;
-  --knk-bg-surface:#ffffff; --knk-bg-subtle:#eceff3; --knk-border-subtle:#cfd6de; --knk-text-primary:#111827; --knk-text-secondary:#374151; --knk-text-muted:#56606e; }
-html[data-kt="soft"] {
-  --paper:#c6d0da; --paper-2:#d2dae3; --paper-3:#dfe5eb; --paper-warm:#d2dae3; --warm-tan:#bcc7d3;
-  --ink:#1c2633; --ink-soft:#313d4c; --mute:#465365; --mute-2:#77869a; --line:#a5b3c2; --line-strong:#8494a7; --line-soft:#ced6df;
-  --knk-bg-surface:#dfe5eb; --knk-bg-subtle:#d2dae3; --knk-border-subtle:#a5b3c2; --knk-text-primary:#1c2633; --knk-text-secondary:#313d4c; --knk-text-muted:#465365; }
-html[data-kt="clear"] body, html[data-kt="clear"] .main, html[data-kt="dark"] body, html[data-kt="dark"] .main { background:#eceff3; }
-html[data-kt="soft"] body, html[data-kt="soft"] .main { background:#c6d0da; }
-html[data-kt="soft"] { filter:brightness(.94); }
-html[data-kt="dark"] { filter:invert(.92) hue-rotate(180deg); background:#eceff3; }
+/* ── z1191z113 (대표 11-22 「바탕색하고 메뉴 그 위쪽 색들이 배색의 괴리감이 커 … 전문 디자이너가 한 것처럼」) ──
+   한 벌의 중립 회색 배색(밝게)을 기준으로:
+   · 면(surface) = 상단바 · 탭 줄 · 왼쪽 메뉴 · 카드 = 흰색 / 바탕(page) = 한 단계 낮은 회색 — 위아래가 같은 계열
+   · 디자인 체계 색 이름(--knk-* · 카드 --qv-* · 옛 --paper/--ink/--line) 을 테마마다 한 벌로 — 일부만 바뀌어 따로 노는 일 없게
+   · 부드럽게 = 밝게 배색 + 화면 밝기 낮춤(바탕도 한 단계 짙게) / 어둡게 = 밝게 배색을 뒤집음 → 배색 관계가 세 테마 모두 같음
+     (중립 회색이라 뒤집어도 초록·베이지 기운이 생기지 않음)
+   · 제목 띠 = 바탕과 같은 색 + 아래 가는 선 → 폭이 달라도 상자 가장자리가 안 보임(계단 없음) */
+html[data-kt] {
+  --knk-bg-page:#f3f4f6; --knk-bg-surface:#ffffff; --knk-bg-subtle:#eef0f3; --knk-bg-inset:#f9fafb; --knk-bg-hover:#f1f3f6; --knk-bg-selected:#e7eefb;
+  --knk-text-primary:#111827; --knk-text-secondary:#374151; --knk-text-muted:#5f6876; --knk-text-disabled:#9ca3af;
+  --knk-border-subtle:#e5e7eb; --knk-border-default:#d5d9df; --knk-border-strong:#a8b0bb;
+  --knk-brand-subtle:#fbeeee; --knk-focus-subtle:#eef4fb;
+  --knk-success-subtle:#edf7f1; --knk-info-subtle:#eef4fb; --knk-warning-subtle:#fcf5e8; --knk-danger-subtle:#fcefef;
+  --qv-surface:#ffffff; --qv-surface-2:#f9fafb; --qv-surface-3:#f1f3f6; --qv-surface-inset:#f9fafb;
+  --qv-line:#eef0f3; --qv-line-2:#e5e7eb; --qv-line-3:#d5d9df; --qv-ink:#111827; --qv-ink-2:#374151; --qv-ink-3:#5f6876; --qv-ink-4:#9ca3af;
+  --paper:#f3f4f6; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f9fafb; --warm-tan:#e5e7eb;
+  --ink:#111827; --ink-soft:#374151; --mute:#5f6876; --mute-2:#9ca3af; --line:#e5e7eb; --line-strong:#d5d9df; --line-soft:#f1f3f6; }
+/* 부드럽게: 바탕을 한 단계 더 짙게(카드와 대비는 유지) + 화면 전체 밝기를 낮춰 흰 칸 눈부심을 줄임 */
+html[data-kt="soft"] { --knk-bg-page:#e8ebef; --paper:#e8ebef; --paper-2:#e8ebef; --knk-bg-subtle:#e6e9ed; filter:brightness(.93); }
+/* 어둡게: 밝게 배색을 화면 전체에서 뒤집음(직접 적힌 색도 따라옴) · 사진·그림·로고·KNK 빨강 바탕은 다시 뒤집어 원래 색 */
+html[data-kt="dark"] { filter:invert(.9) hue-rotate(180deg); background:#f3f4f6; }
 html[data-kt="dark"] img, html[data-kt="dark"] video, html[data-kt="dark"] canvas, html[data-kt="dark"] picture,
 html[data-kt="dark"] iframe, html[data-kt="dark"] [style*="background-image"], html[data-kt="dark"] .knk-kt-keep { filter:invert(1) hue-rotate(180deg); }
 html[data-kt="dark"] .knk-kt-keep img, html[data-kt="dark"] .knk-kt-keep video, html[data-kt="dark"] .knk-kt-keep canvas { filter:none; }
+/* 제목 띠 = 바탕과 같은 색 · 아래 가는 선(모든 화면 같게) */
+html[data-kt] .main .knk-page-head, html[data-kt] .main .page-head { background:var(--knk-bg-page); border-bottom:1px solid var(--knk-border-subtle); box-shadow:none; }
 @media print { html[data-kt] { filter:none !important; } }
 /* 고르기 상자 */
 #knkThemePop { position:fixed; z-index:2147482000; top:64px; right:16px; width:min(360px, calc(100vw - 24px)); background:#fff; color:#1f2937;

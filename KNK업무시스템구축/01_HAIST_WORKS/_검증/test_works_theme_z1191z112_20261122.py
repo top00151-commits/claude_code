@@ -62,10 +62,9 @@ src = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "knk_theme.
 check("저장 열쇠 = knk.theme (메일 knkmail.theme 과 따로)", "localStorage.getItem('knk.theme')" in src and "knkmail.theme')" not in src.replace("`knkmail.theme`", ""))
 check("안 고른 사람 = 부드럽게(soft)", "var t = 'soft'; try { t = localStorage.getItem('knk.theme') || 'soft'; }" in src)
 mail = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_theme.html"), encoding="utf-8").read()
-for k, keys in (("clear", ("--paper:#eceff3", "--ink:#111827", "--line:#cfd6de")),
-                ("soft", ("--paper:#c6d0da", "--paper-3:#dfe5eb", "--ink:#1c2633", "--line:#a5b3c2"))):
-    check("색 값 = 메일 테마 「%s」와 같음" % k, all(x in src for x in keys) and all(x in mail for x in keys))
-check("filter 는 <html> 에만(붙어 있는 창 위치 그대로)", 'html[data-kt="soft"] { filter:brightness(.94); }' in src and 'html[data-kt="dark"] { filter:invert(.92) hue-rotate(180deg);' in src
+# z1191z113: 웍스 배색은 대표 지적(배색 괴리감)으로 중립 회색 한 벌을 기준으로 다시 잡음 — 메일과 같은 값 검사는 뺌
+check("배색 한 벌(z113): 면 = 흰색 · 바탕 = 한 단계 낮은 회색 · 글자 짙은 남색", "--knk-bg-surface:#ffffff" in src and "--knk-bg-page:#f3f4f6" in src and "--knk-text-primary:#111827" in src)
+check("filter 는 <html> 에만(붙어 있는 창 위치 그대로)", 'filter:brightness(.93); }' in src and 'html[data-kt="dark"] { filter:invert(.9) hue-rotate(180deg);' in src
       and not re.search(r"\.main[^{]*\{[^}]*filter", src))
 check("어둡게: 사진·그림·로고 원래 색 · KNK 빨강 바탕 지키기", 'html[data-kt="dark"] img' in src and "knk-kt-keep" in src and "Math.abs(+m[1] - 165) < 30" in src)
 check("인쇄 때 테마 끔", "@media print { html[data-kt] { filter:none !important; } }" in src)
