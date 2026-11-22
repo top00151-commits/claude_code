@@ -239,12 +239,12 @@ a.z45-all:hover { text-decoration:underline; }
         <li>날짜: 작업일정표에서 출하로 바꾼 날 → (없으면) 호기 납기 → 수주 납기 → 프로젝트 납기</li>
         <li>소모품: 상태가 출하·입금완료인 발주(출하한 날 → 납기 → 발주일)</li>
         <li>제외: 취소된 수주 · 폐기된 프로젝트</li>
-        <li>금액: 공급가(부가세 제외) · 외화는 <b>출하한 달</b>의 월 기준환율로 원화 환산</li>
+        <li>금액: 공급가(부가세 제외) · 외화는 <b>발주한 달</b>의 월 기준환율로 원화 환산(출하한 달에 넣지만 환율은 발주 달 · 대표 11-23)</li>
         <li>건수: 이 기간에 출하한 품목이 있는 수주번호 수 + 소모품 발주 수</li></ul></div>
       <div id="z40t-final"><b>🧡 최종매출</b> — {{ s3.period_range }} 사이에 <b>세금계산서를 발행한 금액</b>입니다.
         <ul><li>작업일정표 세금계산서 칸(1~10차 · 소모품 1~3차)에 적힌 금액만, 발행일 기준으로 더합니다.</li>
         <li>출하했어도 발행 칸이 비어 있으면 빠집니다(나눠 발행하는 경우가 있어 전액으로 보지 않음).</li>
-        <li>금액: 공급가(부가세 제외) · 외화는 <b>발행한 달</b>의 월 기준환율로 원화 환산</li>
+        <li>금액: 공급가(부가세 제외) · 외화는 <b>발주한 달</b>의 월 기준환율로 원화 환산(발행한 달에 넣지만 환율은 발주 달 · 대표 11-23)</li>
         <li>건수: 이 기간에 세금계산서를 발행한 수주번호 수 + 소모품 발주 수</li></ul></div>
       <div id="z40t-open"><b>진행 프로젝트</b> — 작업일정표에 <b>아직 출하 안 된 품목</b>이 하나라도 남은 프로젝트 수입니다.
         <ul><li>지금 시점의 숫자입니다(위 기간 선택과 상관없음).</li>
@@ -298,9 +298,9 @@ a.z45-all:hover { text-decoration:underline; }
       </div>
     </div>
 
-    {# v5H226z900/z927 (대표 지시): 외화 매출을 각 지표 기준월(수주=발주월·진행=출하월·최종=발행월) 환율로 원화 환산 — 안내 + 미입력 경고 #}
+    {# v5H226z900/z927 → z1191z115 (대표 11-23 「발주달로 통일」): 외화 매출 = 발주 달 환율(수주·진행·최종 모두) — 안내 + 미입력 경고 #}
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:8px var(--content-pad) 0;padding:9px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:12.5px;color:#92400e;min-height:40px;box-sizing:border-box;">
-      <span>💱 외화(USD·EUR·JPY·CNY·VND)는 <b>각 지표 기준월 환율</b>로 원화 환산 — 수주=발주월 · 진행=출하월 · 최종=세금계산서 발행월.</span>
+      <span>💱 외화(USD·EUR·JPY·CNY·VND)는 <b>발주한 달의 월 기준환율</b>로 원화 환산 — 수주·진행·최종 모두 같은 원화 · 입금만 입금 받은 달 환율(차이 = <a href="/sales/fx-gain" style="color:inherit;font-weight:700;">💱 환차익·환차손</a>).</span>
       {% if s3.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ s3.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
       {# z1164 (대표 결정 2026-10-11): 그 달 기준환율이 없으면 다른 달 환율로 계산 중임을 알린다(9·10월 미입력이 6주 동안 표시 없이 지나감) #}
       {% if s3.fx_fallback %}<span style="color:#b91c1c;font-weight:700;">⚠ 기준환율 미입력 달: {% for f in s3.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산 중){% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}

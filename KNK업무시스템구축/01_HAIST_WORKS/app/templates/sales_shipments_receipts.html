@@ -70,6 +70,10 @@ a.sr-link:hover{text-decoration:underline;color:#0369a1;}
 .sr-dday{font-size:11px;font-weight:700;margin-top:2px;color:var(--mute,#64748b);}
 .sr-dday.over{color:#dc2626;}
 .sr-dday.soon{color:#b45309;}
+/* z1191z114 (대표 11-23): 칸 폭이 고정이라 「날짜 D+149」·「₩60,500,000 📋1」이 한 줄에 붙으면 금액·날짜가 「…」로 잘렸다
+   → D+일수·📋 단추는 아랫줄로(금액·날짜는 한 줄 그대로 · 그래도 길면 공용 knk_fit_num 이 글자를 줄임) */
+.sr-v .sr-dday{display:block;}
+.sr-v .sr-hist-btn{display:block;margin-left:auto;}
 .sr-noterm{color:#dc2626;font-size:11px;font-weight:600;}
 /* z937/z938 (대표 지시): 수금입력 폼 = 콤팩트 반투명 입력바 + 무조건 1줄(nowrap · 2줄로 안 넘침) */
 .sr-recv-form{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap;background:rgba(255,255,255,.5);border:1px solid rgba(148,163,184,.35);border-radius:10px;padding:6px 9px;}

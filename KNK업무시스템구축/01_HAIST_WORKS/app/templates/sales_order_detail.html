@@ -43,14 +43,16 @@ body {
   </header>
 
   <!-- KPI -->
-  <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:110px;">
+  <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(110px,auto);">{# z1191z114: 발행 칸에 「부가세 포함」 줄이 붙어 110px 고정이면 숫자 아래가 잘림 → 내용만큼 #}
     {# v5H226z823: 매출금액 KPI — 열람 권한자(can_sales_amt: 임원·매출금액 허용팀)만. 그 외 🔒. #}
     {# z103: 금액 앞 통화 기호 — KPI 넷 모두 수주 통화(서버: 수금은 수주 통화 일치분만 합산 · 송장은 수주 금액 기준) #}
     {% set _kcur = order.currency or 'KRW' %}
     <div class="kpi-card"><div class="kpi-label">수주 금액</div><div class="kpi-num">{% if can_sales_amt %}{{ money(order.total_amount or 0, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
-    <div class="kpi-card"><div class="kpi-label">발행 INV</div><div class="kpi-num">{% if can_sales_amt %}{{ money(total_invoiced, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
+    {# z1191z114: 발행 = 호기 세금계산서 차수 발행액(공급가) · 아래 작은 글 = 부가세 포함 #}
+    <div class="kpi-card"><div class="kpi-label">세금계산서 발행 <span style="font-weight:500;">(공급가)</span></div><div class="kpi-num">{% if can_sales_amt %}{{ money(total_invoiced, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div>{% if can_sales_amt and total_invoiced %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">부가세 포함 {{ money(invoiced_incl, _kcur) }}{% if not vat_rate_z114 %} · 부가세 0%(수출·외화){% endif %}</div>{% endif %}</div>
     <div class="kpi-card"><div class="kpi-label">수금 누계</div><div class="kpi-num" style="color:var(--success);">{% if can_sales_amt %}{{ money(total_received, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
-    <div class="kpi-card"><div class="kpi-label">미수금</div><div class="kpi-num" {% if outstanding > 0 %}style="color:var(--knk-red);"{% endif %}>{% if can_sales_amt %}{{ money(outstanding, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
+    {# z1191z114: 미수금 = 💰 입금 확인과 같은 계산(부가세 포함 · 계산서 기준 − 받은 돈 · 입금 완료/취소 = 0) #}
+    <div class="kpi-card"><div class="kpi-label" tabindex="0" data-fx-tip="세금계산서(부가세 포함)에서 받은 돈을 뺀 금액 · 💰 입금 확인 화면과 같은 계산 · 입금 완료·취소 수주는 0">미수금 <span style="font-weight:500;">(부가세 포함)</span> ⓘ</div><div class="kpi-num" {% if outstanding and outstanding > 0 %}style="color:var(--knk-red);"{% endif %}>{% if can_sales_amt %}{% if outstanding is none %}—{% else %}{{ money(outstanding, _kcur) }}{% endif %}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
   </div>
 
   {# v5H128: 납품 OVER 자가치유 경고 — shipments 누계 > 수주 수량 #}
@@ -105,8 +107,22 @@ body {
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin: 0 var(--content-pad);">
       <!-- 송장 -->
       <div>
-        <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">📄 발행 송장 ({{ invoices|length }})</h3>
+        {# z1191z114: 세금계산서 = 호기 차수 발행(작업일정표 · 마감 화면에서 적은 것) — 옛 송장 표는 있을 때만 아래에 #}
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">🧾 세금계산서 ({{ ti_groups|length }}장)</h3>
+        {% if ti_groups %}
+        <div class="tbl-wrap tbl-sticky">
+          <table class="tbl">
+            <thead><tr><th>발행일</th><th class="center">차수</th><th>호기·품목</th><th class="num">공급가</th></tr></thead>
+            <tbody>
+            {% for g in ti_groups %}
+            <tr><td>{{ g.date }}</td><td class="center">{{ g.tier }}차</td><td>{% if g.n == 1 %}{{ g.units[0] if g.units else '' }}{% elif g.units|length <= 3 %}{{ g.units|join(' · ') }}{% else %}{{ g.units[:2]|join(' · ') }} 외 {{ g.n - 2 }}개{% endif %}{% if g.memos %} <span style="font-size:11px;color:var(--qv-ink-3);">· {{ g.memos|join(' · ') }}</span>{% endif %}</td><td class="num">{% if can_sales_amt %}{{ money(g.amt, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<div class="empty" style="padding:30px;">아직 세금계산서를 발행하지 않았습니다.<br><span style="font-size:12px;">발행은 🧾 마감 — 계산서 발행(작업 일정표)에서 적습니다.</span></div>{% endif %}
         {% if invoices %}
+        <h3 style="font-size:13px;font-weight:700;margin:14px 0 8px;color:var(--qv-ink-3);">📄 예전 송장 ({{ invoices|length }})</h3>
         <div class="tbl-wrap tbl-sticky">
           <table class="tbl">
             <thead><tr><th>송장번호</th><th>발행일</th><th class="num">금액(VAT포함)</th><th>상태</th></tr></thead>
@@ -117,7 +133,7 @@ body {
             </tbody>
           </table>
         </div>
-        {% else %}<div class="empty" style="padding:30px;">발행된 송장이 없습니다.</div>{% endif %}
+        {% endif %}
       </div>
       <!-- 수금 -->
       <div>
@@ -128,7 +144,7 @@ body {
             <thead><tr><th>수금일</th><th class="num">금액</th><th>방법</th><th>비고</th></tr></thead>
             <tbody>
             {% for rp in receipts %}
-            <tr><td>{{ rp.received_at|default('-')|truncate(10, end='') }}</td><td class="num">{% if can_sales_amt %}<b style="color:var(--success);">{{ money(rp.amount or 0, rp.currency or 'KRW') }}</b>{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</td><td>{{ rp.method|default('-') }}</td><td style="font-size:12px;color:var(--mute);">{{ rp.note|default('') }}</td></tr>
+            <tr><td>{{ rp.received_at|default('-')|truncate(10, end='') }}</td><td class="num">{% if can_sales_amt %}<b style="color:var(--success);">{{ money(rp.amount or 0, rp.currency or 'KRW') }}</b>{% if rp.fxg %}<div tabindex="0" data-fx-tip="{{ rp.fxg.txt }}" style="font-size:11px;font-weight:600;color:{% if rp.fxg.diff and rp.fxg.diff > 0 %}#15803d{% elif rp.fxg.diff and rp.fxg.diff < 0 %}#b91c1c{% else %}var(--mute){% endif %};">💱 {{ rp.fxg.short }}</div>{% endif %}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</td><td>{{ rp.method|default('-') }}</td><td style="font-size:12px;color:var(--mute);">{{ rp.note|default('') }}</td></tr>
             {% endfor %}
             </tbody>
           </table>

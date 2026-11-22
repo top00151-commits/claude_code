@@ -154,7 +154,7 @@ n0 = ns[0] if ns else {}
 check("제목 「💰 수금 확인 MM-DD — 새로 챙길 계산서 2장」", n0.get("title") == "💰 수금 확인 %s — 새로 챙길 계산서 2장" % T.strftime("%m-%d"), n0.get("title"))
 b = n0.get("body") or ""
 check("본문: 1일 지남 1장 · 7일 전 1장 · 전체 지난 돈 ₩3,000,000(2곳) · 입금 확인 안내 · 링크",
-      "🔴 예정일 1일 지남(새로 지남) 1장" in b and "🟠 예정일 7일 전 1장" in b and "전체 예정일 지난 돈: ₩3,000,000 (2곳)" in b
+      re.search(r"🔴 예정일 1일 지남\(새로 지남\)(\(주말·휴일 포함 \d+일 치\))? 1장", b) and re.search(r"🟠 예정일 7일 전(\(주말·휴일 포함 \d+일 치\))? 1장", b) and "전체 예정일 지난 돈: ₩3,000,000 (2곳)" in b
       and "입금 확인됨" in b and n0.get("link") == "/sales/receipts-check", b)
 check("이음 「WORKS 알림」으로도 = 사번 67 · 링크 전체 주소", SENT and SENT[0][0] == ["67"] and SENT[0][2].endswith("/sales/receipts-check"), SENT)
 r2 = M.check_receivable_alerts()

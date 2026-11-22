@@ -12,6 +12,7 @@
 {% if stz_group == 'money' %}
   {% if can_s1_z98(user) %}{% set _ = _stz.append(('/sales/receipts-check', '💰 입금 확인')) %}{% endif %}
   {% set _ = _stz.append(('/sales/outstanding', '📊 미수 현황')) %}
+  {% if can_s1_z98(user) %}{% set _ = _stz.append(('/sales/fx-gain', '💱 환차익·환차손')) %}{% endif %}{# z1191z115 #}
   {% if can_bank_z98(user) %}{% set _ = _stz.append(('/sales/bank-recon', '🏦 입금 대사')) %}{% endif %}
   {% set _hint = '계산서를 아직 안 끊은 건은 🧾 마감' %}
 {% elif stz_group == 'presale' %}

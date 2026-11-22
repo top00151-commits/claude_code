@@ -153,13 +153,9 @@ check("받을 돈 = 입금 확인 줄 합 = 800,000 + 1,100,000×4 = 5,200,000 �
       tot.get("KRW") == {"rem": 5200000, "over": 3000000, "n": 5} and sum(x["rem"] for x in rows) == 5200000, tot)
 
 print("§2 매출 분석")
-h = q(cl.get, "/sales/dashboard").text
-m = main_part(h)
-check("「받을 돈(미수)」 칸 ₩5,200,000 · 예정일 지남 ₩3,000,000 · 누르면 📊 미수 현황(z103: 금액 앞 ₩)",
-      "받을 돈(미수)" in m and "₩5,200,000" in m and "예정일 지남 ₩3,000,000" in m and 'href="/sales/outstanding"' in m)
-check("통화별 받을 돈 표: KRW · 5장 · ₩5,200,000 · ₩3,000,000 · 옛 「INVOICED+SHIPPED+PAID 수주 − 수금」 없음",
-      "통화별 받을 돈" in m and "5장" in m and "₩5,200,000" in m and "₩3,000,000" in m and "INVOICED+SHIPPED+PAID" not in m)
-check("옛 「다른 기준」 띠 없음", "ar-after-z94" not in m and "ar-baseline-z92" not in m)
+# z1191z115 (대표 11-23): 옛 매출 강화 대시(/sales/dashboard) → 📈 한눈에 보기로 보냄(숫자 기준이 매출 홈과 달랐음)
+_r2 = q(lambda p: cl.get(p, follow_redirects=False), "/sales/dashboard")
+check("옛 매출 분석 주소 → 📈 한눈에 보기(/sales/glance)로 보냄", _r2.status_code == 303 and _r2.headers.get("location") == "/sales/glance", (_r2.status_code, _r2.headers.get("location")))
 
 print("§3 대표 대시")
 S["user"] = CEO
@@ -180,7 +176,7 @@ with D.db_session() as c:
 check("묶음 1건 · 새로 챙길 계산서 2장(7일 전 · 1일 지남) · 계산서 5장 중", r["items"] == 5 and r["new"] == 2 and len(ns) == 1, (r, [n["title"] for n in ns]))
 b = (ns[0]["body"] if ns else "")
 check("본문: 7일 전 · 1일 지남 줄 · 전체 지난 돈 ₩3,000,000 · 링크 = 💰 입금 확인",
-      "🟠 예정일 7일 전 1장" in b and "🔴 예정일 1일 지남(새로 지남) 1장" in b and "₩3,000,000" in b and ns and ns[0]["link"] == "/sales/receipts-check", b)
+      re.search(r"🟠 예정일 7일 전(\(주말·휴일 포함 \d+일 치\))? 1장", b) and re.search(r"🔴 예정일 1일 지남\(새로 지남\)(\(주말·휴일 포함 \d+일 치\))? 1장", b) and "₩3,000,000" in b and ns and ns[0]["link"] == "/sales/receipts-check", b)
 r2 = M.check_receivable_alerts(recipient_ids=[SALES["id"]])
 check("한 시간 안에 다시 돌려도 같은 알림 안 겹침", r2["sent"] == 0, r2)
 

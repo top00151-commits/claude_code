@@ -131,7 +131,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
       <select id="gM" aria-label="월"{% if s3.mode!='month' %} style="display:none;"{% endif %}>
         {% for mm in range(1,13) %}<option value="{{ mm }}"{% if (mm|string)==s3.sel_m %} selected{% endif %}>{{ mm }}월</option>{% endfor %}
       </select>
-      <span>· 금액은 <b>억·만 원</b>으로 줄여 보입니다(마우스를 올리면 정확한 원 단위) · 공급가(부가세 제외) · 외화는 그달 기준환율로 원화</span>
+      <span>· 금액은 <b>억·만 원</b>으로 줄여 보입니다(마우스를 올리면 정확한 원 단위) · 공급가(부가세 제외) · 외화는 발주한 달 기준환율로 원화</span>
     </div>
     {% if s3.missing_fx or s3.fx_fallback %}
     <div class="z75-warn">⚠ {% if s3.missing_fx %}환율 미입력: {{ s3.missing_fx|join(', ') }}(원화 0으로 계산) {% endif %}{% if s3.fx_fallback %}기준환율 미입력 달: {% for f in s3.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산 중){% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</div>

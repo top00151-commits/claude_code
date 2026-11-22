@@ -136,12 +136,13 @@ check("화면 열림 200", r.status_code == 200, r.status_code)
 m = re.search(r'data-dn="recent-projects".*?</div>\s*</div>\s*</div>', h, re.S)
 rp = m.group(0) if m else ""
 check("달러 프로젝트: 원래 통화 「$30,053.68」 크게", '<span class="knk-fx-orig">$30,053.68</span>' in rp, rp[:600])
-check("달러 프로젝트: 작게 「≈ ₩4,470만」", "≈ ₩4,470만" in rp, rp[:600])
+# z1191z115 (대표 11-23 「발주달로 통일」): 환율 = 발주 달(4월 1,486.64) — 예전 납기 달(5월 1,487.39 → ≈ ₩4,470만)
+check("달러 프로젝트: 작게 「≈ ₩4,468만」(발주 달 4월 환율)", "≈ ₩4,468만" in rp, rp[:600])
 check("「₩… (USD)」 꼬리 없음", "(USD)" not in rp, rp[:600])
 tt = tips(rp)
-check("풍선: 2026년 5월 기준환율 · 1 USD = ₩1,487.39 · 계산식",
-      any("2026년 5월 기준환율 적용" in x and "1 USD = ₩1,487.39" in x and "= ₩44,701,543" in x for x in tt), tt)
-check("풍선: 납기 달 기준이라고 밝힘", any("납기 달 기준" in x for x in tt), tt)
+check("풍선: 2026년 4월(발주 달) 기준환율 · 1 USD = ₩1,486.64 · 계산식",
+      any("2026년 4월 기준환율 적용" in x and "1 USD = ₩1,486.64" in x and "= ₩44,679,003" in x for x in tt), tt)
+check("풍선: 발주 달 기준이라고 밝힘(z1191z115)", any("발주 달 기준" in x for x in tt), tt)
 check("원화 프로젝트: ₩13,500,000 한 줄(≈ 없음)", "₩13,500,000" in rp and rp.count(">≈ ") == 2, rp.count(">≈ "))
 check("유로(환율 없음): 「€500.00」 + 「⚠ 기준환율 없음」", "€500.00" in rp and "⚠ 기준환율 없음" in rp, rp[:900])
 check("통화 섞인 프로젝트: ₩1,000,000 · $1,000.00 둘 다 + ≈ ₩2,486,640",
@@ -149,10 +150,10 @@ check("통화 섞인 프로젝트: ₩1,000,000 · $1,000.00 둘 다 + ≈ ₩2,
 
 print("§3 프로젝트 상세")
 h = cl.get("/project/%d" % P_USD).text
-check("「≈ ₩44,701,543」(월 기준환율 · 매출 홈과 같은 숫자)", "≈ ₩44,701,543" in h, re.findall(r"≈[^<]{0,30}", h)[:5])
+check("「≈ ₩44,679,003」(발주 달 월 기준환율 · 매출 홈과 같은 숫자 · z1191z115)", "≈ ₩44,679,003" in h, re.findall(r"≈[^<]{0,30}", h)[:5])
 check("프로젝트에 적은 환율 글 「(환율 1 USD =」 없음", "(환율 1 USD =" not in h)
-check("풍선 붙음(2026년 5월 · 1 USD = ₩1,487.39)",
-      any("2026년 5월" in x and "1 USD = ₩1,487.39" in x for x in tips(h)), tips(h)[:3])
+check("풍선 붙음(2026년 4월 · 1 USD = ₩1,486.64 · 발주 달)",
+      any("2026년 4월" in x and "1 USD = ₩1,486.64" in x for x in tips(h)), tips(h)[:3])
 h = cl.get("/project/%d" % P_MIX).text
 check("통화 섞인 수주: 수주액 칸에도 ≈ ₩2,486,640 + 풍선(건마다 그 달)",
       h.count("≈ ₩2,486,640") >= 2 and any("건마다 그 달 기준환율로 바꾼 합계" in x and "원화 1건 ₩1,000,000 — 그대로 더함" in x

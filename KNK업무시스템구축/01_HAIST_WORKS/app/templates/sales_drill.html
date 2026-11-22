@@ -111,7 +111,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
   </div>
   <div class="dr-note">
     고객사 <b>{{ dr.rows|length }}</b>곳 · 진행매출 순 · 고객사를 누르면 그 매출이 어떤 수주(소모품 발주)로 이루어졌는지 나옵니다 · 머리글을 누르면 정렬
-    · 금액 = 공급가(부가세 제외) · 외화는 각 기준월 환율로 원화 환산 · 합계 = 매출 홈 「사업부별 매출」{% if biz %}의 {{ biz_label }} 줄{% else %} 합계{% endif %}와 같음
+    · 금액 = 공급가(부가세 제외) · 외화는 발주한 달 기준환율로 원화 환산 · 합계 = 매출 홈 「사업부별 매출」{% if biz %}의 {{ biz_label }} 줄{% else %} 합계{% endif %}와 같음
   </div>
   {% if dr.rows %}
   <div class="dr-wrap" data-knk-fill>

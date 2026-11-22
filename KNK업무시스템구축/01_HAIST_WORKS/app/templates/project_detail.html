@@ -1343,7 +1343,7 @@
                통화가 하나면 예전 그대로(프로젝트 환율 병기)를 유지한다. #}
             {{ _ccy.ccy_total(so_total_bd) }}
             <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
-            {# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(각 수주 납기 달) · 마우스 → 몇 월 기준환율·얼마.
+            {# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(각 수주 발주 달 · z1191z115 대표 11-23 「발주달로 통일」) · 마우스 → 몇 월 기준환율·얼마.
                예전엔 프로젝트에 적은 환율(fx_rate)로 계산해 매출 홈 숫자와 달랐다. #}
             {% if so_total_bd and so_total_bd.by_ccy and not so_total_bd.mixed and so_total_bd.by_ccy[0].currency != 'KRW' %}
             <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">{{ _fx.krw_line(so_total_bd) }}</div>

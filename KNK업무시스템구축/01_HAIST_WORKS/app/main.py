@@ -245,6 +245,17 @@ def _t_helper(key: str, default: str = "", lang: str = "ko"):
         pass
     return default or key
 tpl.env.globals["t"] = _t_helper
+
+# z1191z114 (대표 11-23 「전체 점검 — 데이터가 제대로 표현되는지」): 빈 값(None)이 화면에 「None」 글자로 나오지 않게.
+#   Jinja 기본 default 는 「정의 안 됨」만 바꾸고 None 은 그대로 「None」으로 찍는다 → 수주 목록 납품처·팀장 등 여러 화면에 「None」.
+#   default(값, 대신할 글) 이 None 도 빈 값으로 본다(0·빈 글자는 그대로 · boolean=True 는 원래대로 거짓 값 전부).
+def _z114_default(value, default_value="", boolean=False):
+    from jinja2 import Undefined as _JU
+    if isinstance(value, _JU) or value is None or (boolean and not value):
+        return default_value
+    return value
+tpl.env.filters["default"] = _z114_default
+tpl.env.filters["d"] = _z114_default
 from . import voice_note_vi as _vnv   # z1200: 음성 메모 베트남어(정리·화면 글자)
 tpl.env.globals["vnt"] = _vnv.vnt
 tpl.env.globals["vn_js_dict"] = _vnv.js_dict
@@ -10932,6 +10943,22 @@ def dashboard_page(req: Request):
         kpis_raw["sales"]["unpaid_z99"] = True
     except Exception as _e99:
         print("[z1191z99] 대표 대시 받을 돈 계산 실패:", repr(_e99))
+    # z1191z114 (대표 11-23 「매출 금액에 오류는 절대 있으면 안돼」): 「이번달 매출」 = 매출 홈 수주매출(월간)과 같은 계산.
+    #   옛 계산(ceo_dashboard_kpis)은 수주 금액을 통화 구분 없이 그냥 더해($69,480 → ₩69,480) 소모품도 빠졌다
+    #   (11월: 옛 8.3억 · 매출 홈 9.7억). 전월비도 같은 계산의 지난달과 비교.
+    try:
+        _t114 = date.today()
+        _py114, _pm114 = (_t114.year, _t114.month - 1) if _t114.month > 1 else (_t114.year - 1, 12)
+        with db_session() as _c114:
+            _r114 = _fx_load_rates(_c114)
+            _m114 = _sales_3way(_c114, _r114, {}, "month", str(_t114.year), "1", str(_t114.month))["kpi"]["order"]
+            _p114 = _sales_3way(_c114, _r114, {}, "month", str(_py114), "1", str(_pm114))["kpi"]["order"]
+        kpis_raw.setdefault("sales", {})["month"] = _m114
+        kpis_raw["sales"]["prev_month"] = _p114
+        kpis_raw["sales"]["growth"] = round((_m114 - _p114) * 100 / _p114, 1) if _p114 > 0 else 0
+        kpis_raw["sales"]["month_z114"] = True
+    except Exception as _e114:
+        print("[z1191z114] 대표 대시 이번달 수주매출 계산 실패:", repr(_e114))
     with db_session() as c:
         unread_notifs = [dict(r) for r in c.execute(
             "SELECT id, kind, title, body, link, created_at "
@@ -11026,9 +11053,11 @@ def dashboard_page(req: Request):
     growth = s.get("growth", 0) or 0
     rate = wk.get("rate", 0) or 0
     ceo_kpis_view = [
+        # z1191z114: 이름 「이번달 매출」은 그대로 — 아래 _need1191g 가 이 이름으로 매출 권한 없는 직원에게서 카드를 숨긴다(이름 바꾸면 새어 나감)
         {"label": "이번달 매출", "value": f"{_won(s.get('month',0))}원",
          "trend": "up" if growth > 0 else ("alert" if growth < 0 else "neutral"),
-         "note": f"전월비 {growth:+.1f}%" if s.get("prev_month") else "전월 데이터 없음"},
+         "note": (f"전월비 {growth:+.1f}%" if s.get("prev_month") else "전월 데이터 없음")
+                 + (" · 수주매출 = 매출 홈과 같은 계산(발주일 · 외화는 그 달 환율)" if s.get("month_z114") else "")},
         {"label": "미수금 잔액", "value": f"{_won(s.get('unpaid',0))}원",
          "trend": "alert" if (s.get("unpaid") or 0) > 0 else "neutral",
          "note": ("세금계산서 기준 · 부가세 포함 · 💰 입금과 같은 계산" if s.get("unpaid_z99") else "발행 INVOICE − 수금")},
@@ -11849,14 +11878,14 @@ async def project_detail(req: Request, pid: int):
     #   ⭐ 위쪽 '확정 매출' KPI 는 currency_mix 로 이미 통화별로 나눠 그리는데
     #      아래쪽 합계만 환산 없이 더해 원화+달러가 한 숫자로 붙었다(대표 신고).
     #      공용 _ccy_breakdown 한 벌로 두 곳이 같은 규칙을 쓰게 한다.
-    #   환산 기준월 = 납품월(due_date) → 없으면 수주일(order_date). 대표규정 §4 규칙48.
+    #   환산 기준월 = 발주 달(order_date) → 없으면 납기 달. 대표규정 §4 규칙48(z1191z115 대표 11-23 「발주달로 통일」 — 예전 납품월).
     so_total_bd = _ccy_breakdown(
         project_orders, "total_amount", "currency",
-        date_keys=("due_date", "order_date"), rates=_fx_rates_now())
+        date_keys=("order_date", "due_date"), rates=_fx_rates_now())
     # z1191z104 (대표 11-22): 「수주액」 옆 「≈ ₩」 — 매출 홈 「최근 프로젝트」와 같은 숫자(월 기준환율).
-    #   수주가 있으면 수주 합계, 없으면 프로젝트 금액(납기 달 → 없으면 발주 달).
+    #   수주가 있으면 수주 합계, 없으면 프로젝트 금액(발주 달 → 없으면 납기 달 · z1191z115).
     proj_fx_bd_z104 = so_total_bd if project_orders else (
-        _ccy_breakdown([p], "order_amount", "currency", date_keys=("due_date", "order_date"),
+        _ccy_breakdown([p], "order_amount", "currency", date_keys=("order_date", "due_date"),
                        rates=_fx_rates_now()) if p else None)
     # v5H136 (2026-05-05): 이 프로젝트(장비)에 연결된 PO 라인 = 소모품·부품 사용 이력
     consumables = {"rows": [], "total_amount": 0, "total_qty": 0, "count": 0}
@@ -28869,6 +28898,13 @@ async def sales_order_detail(req: Request, oid: int):
         receipts_p = [dict(r) for r in c.execute(
             "SELECT * FROM receipts_payment WHERE order_id=? ORDER BY id DESC", (oid,)
         ).fetchall()]
+        try:   # z1191z115 (대표 11-23): 외화 입금 = 입금 달 환율 · 발주 달과의 차이(환차익·환차손)
+            _r115, _od115 = _fx_load_rates(c), _order_fx_date_z115(c, oid)
+            for _rp115 in receipts_p:
+                _rp115["fxg"] = _fx_gain_calc_z115(_r115, _rp115.get("currency") or order.get("currency"),
+                                                   _rp115.get("amount"), _od115, _rp115.get("received_at"))
+        except Exception as _e115:
+            print("[z1191z115] 수주 상세 환차 계산 실패:", repr(_e115))
         history = [dict(r) for r in c.execute(
             """SELECT h.*, u.name AS changed_by_name
                FROM order_status_history h
@@ -28919,11 +28955,51 @@ async def sales_order_detail(req: Request, oid: int):
                 order["project_id"], limit=30, mask_money=not _hist_can_money)
     except Exception:
         pass
+    # z1191z114 (대표 11-23 「매출 금액에 오류는 절대 있으면 안돼」): 발행·미수금 = 호기 세금계산서(작업일정표 1~10차) 기준.
+    #   전엔 옛 송장 표(invoices · 운영 0줄)만 봐서 모든 수주가 「발행 ₩0 · 미수금 ₩0 · 발행된 송장이 없습니다」였다.
+    #   발행 = 호기 차수 발행액(공급가) 합 · 미수금 = 💰 입금 확인(_rc_rows_z94)의 그 수주 몫(같은 함수 → 두 화면 숫자가 늘 같다 ·
+    #   부가세 포함 · 입금 완료(PAID)·취소 수주 = 0).
+    ti_lines = []
+    for _it in items:
+        for _n in range(1, _RC_TI_MAX_Z94 + 1):
+            _dv = str(_it.get("tax_invoice_date" if _n == 1 else "tax_invoice_date%d" % _n) or "").strip()[:10]
+            try:
+                _av = float(_it.get("tax_invoice_amt%d" % _n) or 0)
+            except (TypeError, ValueError):
+                _av = 0.0
+            if _dv and _av:
+                ti_lines.append({"date": _dv, "tier": _n, "amt": _av,
+                                 "unit": _it.get("unit_label") or _it.get("part_name") or "",
+                                 "memo": str(_it.get("tax_invoice_memo%d" % _n) or "").strip()})
+    ti_lines.sort(key=lambda x: (x["date"], x["tier"], x["unit"]))
+    invoiced = sum(x["amt"] for x in ti_lines)
+    # 화면 목록 = 발행일·차수마다 한 줄(계산서 한 장) — 부품 수주는 품목이 수백 개라 품목마다 적으면 1,000줄이 넘는다
+    _grp114 = {}
+    for x in ti_lines:
+        g = _grp114.setdefault((x["date"], x["tier"]), {"date": x["date"], "tier": x["tier"], "amt": 0.0, "units": [], "memos": []})
+        g["amt"] += x["amt"]
+        if x["unit"] and x["unit"] not in g["units"]:
+            g["units"].append(x["unit"])
+        if x["memo"] and x["memo"] not in g["memos"]:
+            g["memos"].append(x["memo"])
+    ti_groups = [dict(g, n=sum(1 for x in ti_lines if (x["date"], x["tier"]) == k)) for k, g in sorted(_grp114.items())]
+    _vr114 = 0.0 if (_order_ccy != "KRW" or any(_it.get("is_export") for _it in items)) else 0.10
+    _rd114 = (lambda v: round(v)) if _order_ccy == "KRW" else (lambda v: round(v, 2))
+    _byd114 = {}
+    for x in ti_lines:
+        _byd114[x["date"]] = _byd114.get(x["date"], 0.0) + x["amt"]
+    invoiced_incl = sum(_rd114(v + _rd114(v * _vr114)) for v in _byd114.values())
+    try:
+        outstanding = sum(float(x["rem"]) for x in _rc_rows_z94(u)["rows"] if x["oid"] == oid)
+    except Exception as _e114:   # 숫자 칸만 「—」 — 화면은 열리게(이유는 서버 기록에)
+        print("[z1191z114] 수주 상세 미수금 계산 실패:", repr(_e114))
+        outstanding = None
     return ctx(req, "sales_order_detail.html", user=u, active="sales",
                order=order, items=items, invoices=invoices_,
                receipts=receipts_p, history=history,
                total_invoiced=invoiced, total_received=received,
-               outstanding=max(0, invoiced - received),
+               outstanding=outstanding, invoiced_incl=invoiced_incl, ti_lines=ti_lines, ti_groups=ti_groups,
+               vat_rate_z114=_vr114,
                received_other_ccy=received_other_ccy,
                ship_over_warn=ship_over_warn,
                project_history=project_history_logs)
@@ -30325,8 +30401,8 @@ def _recalc_project_amount(c, pid, rates=None, exclude_cancelled=False):
 
     규칙
       · 수주 통화가 **하나면 예전과 똑같은 값**을 돌려준다(회귀 0 — 전체 351건 중 326건).
-      · 섞이면 각 수주를 **납품월 기준환율**로 원화 환산한 뒤(대표규정 §4 규칙48)
-        프로젝트 통화로 되돌려 담는다. 기준월은 그 프로젝트의 **가장 늦은 납품월**.
+      · 섞이면 각 수주를 **발주월 기준환율**로 원화 환산한 뒤(대표규정 §4 규칙48 · z1191z115 대표 11-23 「발주달로 통일」)
+        프로젝트 통화로 되돌려 담는다. 기준월은 그 프로젝트의 **가장 늦은 발주월**.
       · 환율이 없어 환산할 수 없으면 **None** 을 돌려준다 → 부르는 쪽은 **아무것도 쓰지 않는다.**
         반쪽 숫자로 덮어쓰지 않는다.
 
@@ -30353,7 +30429,7 @@ def _recalc_project_amount(c, pid, rates=None, exclude_cancelled=False):
     if rates is None:
         rates = _fx_load_rates(c)
     bd = _ccy_breakdown(_rows, "total_amount", "currency",
-                        date_keys=("due_date", "order_date"), rates=rates)
+                        date_keys=("order_date", "due_date"), rates=rates)   # z1191z115: 발주 달
     if not bd["by_ccy"]:
         return 0.0
     if not bd["mixed"]:
@@ -30364,7 +30440,7 @@ def _recalc_project_amount(c, pid, rates=None, exclude_cancelled=False):
         return round(float(bd["krw"]), 2)
     _ym = ""
     for r in _rows:
-        _d = str(r.get("due_date") or r.get("order_date") or "")[:7]
+        _d = str(r.get("order_date") or r.get("due_date") or "")[:7]   # z1191z115: 발주 달
         if _d > _ym:
             _ym = _d
     _rate = _fx_rate_for(rates, pccy, _ym or None)
@@ -30416,7 +30492,7 @@ def _ccy_breakdown(rows, amount_key, ccy_key="currency", date_keys=(), rates=Non
     amount_key : 금액 칸 이름
     ccy_key    : 통화 칸 이름(없거나 비면 KRW 로 본다)
     date_keys  : 환산 기준월을 뽑을 날짜 칸 후보(앞에서부터 값 있는 것 사용).
-                 대표규정 §4 규칙48 — 환산 기준은 **납품월**.
+                 대표규정 §4 규칙48 — 환산 기준은 **발주월**(z1191z115 대표 11-23 · 예전 납품월).
     rates      : _fx_load_rates() 결과. None 이면 원화 환산 없이 통화별 합계만 돌려준다.
 
     돌려주는 것:
@@ -30809,9 +30885,9 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
        ② 진행매출 = 출하일 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
        ③ 최종매출 = 세금계산서 발행일 기준, 호기 차수 발행액(_board_tax_oi_map 단일소스)
           + 소모품 차수 발행액(v5H226z1086 · 대표 "진행해" 08-19 — 그동안 ①②엔 소모품이 있는데 ③만 빠져
-          2026년 5.3억이 최종매출에서 누락. 규칙 동일: 발행칸에 적힌 1~3차 금액만·각 차수 발행월 환율.
+          2026년 5.3억이 최종매출에서 누락. 규칙 동일: 발행칸에 적힌 1~3차 금액만·환율은 발주월(z1191z115 · 예전 발행월).
           ⛔출하됐어도 발행칸이 비면 합산 안 함 — 1·2·3차 분할 발행이 있어 전액 간주 금지(대표 확정)).
-       공급가(부가세 제외)·외화는 각 기준월 환율로 원화 환산·취소(CANCELLED)/폐기(is_archived) 제외.
+       공급가(부가세 제외)·외화는 발주월 환율로 원화 환산(z1191z115 대표 11-23 「발주달로 통일」 · 넣는 달은 지표별 그대로)·취소(CANCELLED)/폐기(is_archived) 제외.
        사업부 = 관리번호 4번째 글자(정식). 기간 세분(연간/분기/월간)은 _sales_period_ok 로 필터.
        반환: kpi/biz_rows/years/top_customers/period_label/missing_fx 등.
        z1164 (대표 결정 2026-10-11): 호기의 날짜·통화 = SALES_DD_ORDER · SALES_DD_SHIP · SALES_CCY_ITEM
@@ -30863,8 +30939,11 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
                "cust_end": {}, "cust_end_ch": {}, "via": {}, "via_end": {}}   # z1191z88: 최종 고객 · 청구처↔최종 고객이 다른 몫
            for k in ("order", "prog", "final")}
 
-    def add(metric, dd, biz, cust, amount, currency, sok=None, endc=None):
+    def add(metric, dd, biz, cust, amount, currency, sok=None, endc=None, fxdd=None):
         dd = dd or ""
+        # z1191z115 (대표 11-23 「발주달로 통일」): 외화 환율의 달 = 발주 달(fxdd) — 매출을 넣는 달(dd)은 그대로.
+        #   발주일이 비면 예전처럼 그 줄 날짜의 달.
+        _rm = ((fxdd or "").strip() or dd)[:7]
         yr, mm7 = dd[:4], dd[5:7]
         if not yr or not mm7:
             return
@@ -30877,13 +30956,13 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
         b = (biz or "").strip().upper()
         if b not in SALES3_BIZ:   # z1191z22: 소모품은 CT/CM/CE
             b = "E"      # 관리번호 없음/미지정 → 기타
-        krw = _fx_to_krw(rates, amount, currency, dd[:7], missing)
+        krw = _fx_to_krw(rates, amount, currency, _rm, missing)
         # z1164: 그 달 기준환율이 없어 다른 달 환율로 계산했으면 적어 둔다 → 매출 홈에 「미입력」 표시
         _fc = (currency or "KRW").strip().upper() or "KRW"
         if _fc != "KRW" and krw:
-            _fr, _fym = _fx_pick(rates, _fc, dd[:7])
-            if _fym and _fym != dd[:7]:
-                fx_fb.setdefault((_fc, _fym), set()).add(dd[:7])
+            _fr, _fym = _fx_pick(rates, _fc, _rm)
+            if _fym and _fym != _rm:
+                fx_fb.setdefault((_fc, _fym), set()).add(_rm)
         if ym is not None:   # z1191z75: 한눈에 보기 — 달별 합계(모든 연도 · 연간으로 부를 때 쓴다)
             _ymd = ym.setdefault(metric, {})
             _ymd[dd[:7]] = _ymd.get(dd[:7], 0.0) + krw
@@ -30942,39 +31021,42 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             "COALESCE(o.customer_id, p.customer_id) AS z73cid, COALESCE(p.customer_name,'') AS cust, "   # z1191z88: 청구처
             "p.customer_id AS z88eid, oi.amount AS amount, "                                              # z1191z88: 최종 고객
             + SALES_CCY_ITEM + " AS currency, "       # z1164: 호기 → 수주 → 프로젝트(일정표와 같게)
-            + SALES_DD_SHIP + " AS dd"                 # z1164: 호기 납기 → 수주 → 프로젝트 · 빈 글자 = 빈칸
+            + SALES_DD_SHIP + " AS dd, "               # z1164: 호기 납기 → 수주 → 프로젝트 · 빈 글자 = 빈칸
+            + SALES_DD_ORDER + " AS fxdd"              # z1191z115: 환율 달 = 발주 달
             ", 'S' AS z40k, COALESCE(p.mgmt_code,'') AS z40c, COALESCE(o.order_no,'') AS z40s "   # z1191z40
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
             "WHERE oi.unit_status='출하' AND COALESCE(o.status,'')<>'CANCELLED' "
             "AND COALESCE(p.is_archived,0)=0").fetchall():
         d = dict(r)
-        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d))   # z1191z40 · z1191z88
+        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d), d["fxdd"])   # z1191z40 · z1191z88 · z1191z115
     for r in c.execute(
             "SELECT " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22
             "currency, 'C' AS z40k, COALESCE(mgmt_code,'') AS z40c, COALESCE(co_no,'') AS z40s, "   # z1191z40
+            "NULLIF(TRIM(order_date),'') AS fxdd, "   # z1191z115: 환율 달 = 발주 달
             "COALESCE(NULLIF(TRIM(status_date),''),NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd FROM consumable_orders "   # z1164: 빈 글자 = 빈칸 · z1191z17: 상태 발생일(출하한 날) 먼저
             "WHERE status IN ('SHIPPED','PAID')").fetchall():
         d = dict(r)
-        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]))   # z1191z40
+        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), None, d["fxdd"])   # z1191z40 · z1191z115
 
     # ③ 최종매출 — 세금계산서 발행일 기준, 호기 차수 발행액(단일소스)
     meta = {}
     for r in c.execute(
             "SELECT oi.id AS iid, UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
             "COALESCE(o.customer_id, p.customer_id) AS z73cid, COALESCE(p.customer_name,'') AS cust, "   # z1191z88: 청구처
-            "p.customer_id AS z88eid, " + SALES_CCY_ITEM + " AS currency"   # z1164: 호기 → 수주 → 프로젝트 · z1191z88: 최종 고객
+            "p.customer_id AS z88eid, " + SALES_CCY_ITEM + " AS currency, "   # z1164: 호기 → 수주 → 프로젝트 · z1191z88: 최종 고객
+            + SALES_DD_ORDER + " AS fxdd"              # z1191z115: 환율 달 = 발주 달
             ", 'S' AS z40k, COALESCE(p.mgmt_code,'') AS z40c, COALESCE(o.order_no,'') AS z40s "   # z1191z40
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
             "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
         d = dict(r)
-        meta[d["iid"]] = (d["biz"], _z73(d), d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d))
+        meta[d["iid"]] = (d["biz"], _z73(d), d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d), d["fxdd"])
     for iid, tx in (oi_map or {}).items():
         mm = meta.get(iid)
         if not mm:
             continue
-        biz, cust, currency, _sok, _endc = mm
+        biz, cust, currency, _sok, _endc, _fxdd = mm
         for dk, ak in [("t%dd" % _n, "t%da" % _n) for _n in range(1, _TI_MAX + 1)]:   # z1191z24: 1~10차
             dd = tx.get(dk) or ""
             av = tx.get(ak)
@@ -30986,7 +31068,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
                 continue
             if amt == 0:
                 continue
-            add("final", dd, biz, cust, amt, currency, _sok, _endc)
+            add("final", dd, biz, cust, amt, currency, _sok, _endc, _fxdd)   # z1191z115: 환율 달 = 발주 달
     # v5H226z1086 (대표 "진행해" 08-19): 소모품 세금계산서 발행분도 최종매출에 — 호기와 같은 규칙
     #   (발행칸에 적힌 1~3차 금액만 · 각 차수 발행일의 달 환율 · 출하만 되고 발행칸 비면 미포함).
     for r in c.execute(
@@ -30994,7 +31076,8 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             "'C' AS z40k, COALESCE(mgmt_code,'') AS z40c, COALESCE(co_no,'') AS z40s, "   # z1191z40
             "tax_invoice_date AS d1, COALESCE(tax_invoice_amt1,0) AS a1, "
             "tax_invoice_date2 AS d2, COALESCE(tax_invoice_amt2,0) AS a2, "
-            "tax_invoice_date3 AS d3, COALESCE(tax_invoice_amt3,0) AS a3 "
+            "tax_invoice_date3 AS d3, COALESCE(tax_invoice_amt3,0) AS a3, "
+            "NULLIF(TRIM(order_date),'') AS fxdd "   # z1191z115: 환율 달 = 발주 달
             "FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
         d = dict(r)
         for dk, ak in (("d1", "a1"), ("d2", "a2"), ("d3", "a3")):
@@ -31005,7 +31088,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
                 continue
             if not dd or amt == 0:
                 continue
-            add("final", dd, d["biz"], _z73(d), amt, d["currency"], (d["z40k"], d["z40c"], d["z40s"]))   # z1191z40   # z1191z22: 소모품(검사기/자동화)
+            add("final", dd, d["biz"], _z73(d), amt, d["currency"], (d["z40k"], d["z40c"], d["z40s"]), None, d["fxdd"])   # z1191z40   # z1191z22: 소모품(검사기/자동화) · z1191z115
 
     all_years = sorted(set(agg["order"]["years"]) | set(agg["prog"]["years"])
                        | set(agg["final"]["years"]), reverse=True)
@@ -31125,11 +31208,11 @@ async def sales_dashboard(request: Request):
                  AND COALESCE(is_archived,0)=0
                ORDER BY id DESC LIMIT 10""").fetchall()]
         for d in recent:
-            _ref = ((d.get("due_date") or d.get("order_date") or "") or "")[:7]
+            _ref = ((d.get("order_date") or d.get("due_date") or "") or "")[:7]   # z1191z115: 발주 달 먼저
             d["amount_krw_disp"] = _fx_to_krw(rates, d.get("order_amount"),
                                               d.get("currency"), _ref, _miss)
         # z1191z104 (대표 11-22): 원래 통화로 크게 + 「≈ ₩」 작게(마우스 → 몇 월 기준환율·얼마).
-        #   숫자 = 프로젝트 상세 「수주액」과 같게: 수주가 있으면 수주 합계(각 수주 납기 달 기준환율), 없으면 프로젝트 금액.
+        #   숫자 = 프로젝트 상세 「수주액」과 같게: 수주가 있으면 수주 합계(각 수주 발주 달 기준환율 · z1191z115), 없으면 프로젝트 금액.
         _ids104 = [d["id"] for d in recent]
         _so104 = {}
         if _ids104:
@@ -31141,10 +31224,10 @@ async def sales_dashboard(request: Request):
         for d in recent:
             if _so104.get(d["id"]):
                 _bd104 = _ccy_breakdown(_so104[d["id"]], "total_amount", "currency",
-                                        date_keys=("due_date", "order_date"), rates=rates)
+                                        date_keys=("order_date", "due_date"), rates=rates)   # z1191z115: 발주 달
             else:
                 _bd104 = _ccy_breakdown([d], "order_amount", "currency",
-                                        date_keys=("due_date", "order_date"), rates=rates)
+                                        date_keys=("order_date", "due_date"), rates=rates)   # z1191z115: 발주 달
             d["fx_bd_z104"] = _bd104
             d["fx_show_z104"] = any(abs(float(x["total"] or 0)) >= 0.005 for x in _bd104["by_ccy"])
     sales_kpi = {
@@ -31699,7 +31782,8 @@ def _z17_lines(c, rates, oi_map, basis):
                     continue
                 if amt == 0:
                     continue
-                out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth="%d차" % n_))
+                _fd = d["dd_o"] or dd   # z1191z115: 환율 달 = 발주 달(호기 → 수주 → 프로젝트 · 없으면 그 줄 날짜)
+                out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], _fd), nth="%d차" % n_, fxd=_fd[:10]))
         else:
             if basis == "ship" and d["us"] != "출하":
                 continue
@@ -31707,7 +31791,8 @@ def _z17_lines(c, rates, oi_map, basis):
             if not dd:
                 continue
             amt = float(d["amount"] or 0)
-            out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""))
+            _fd = d["dd_o"] or dd   # z1191z115: 환율 달 = 발주 달
+            out.append(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], _fd), nth="", fxd=_fd[:10]))
     # 소모품(소모품 화면) — 사업부 = 소모품마다 적힌 사업부(검사기·자동화)
     cocols = {r[1] for r in c.execute("PRAGMA table_info(consumable_orders)").fetchall()}
     _cst = "status_date" if "status_date" in cocols else "NULL"
@@ -31746,7 +31831,8 @@ def _z17_lines(c, rates, oi_map, basis):
                     continue
                 if not dd or amt == 0:
                     continue
-                out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth="%d차" % n_), _parts))
+                _fd = str(d["order_date"] or "").strip() or dd   # z1191z115: 환율 달 = 발주 달
+                out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], _fd), nth="%d차" % n_, fxd=_fd[:10]), _parts))
         else:
             if basis == "ship" and d["status"] not in ("SHIPPED", "PAID"):
                 continue
@@ -31754,7 +31840,8 @@ def _z17_lines(c, rates, oi_map, basis):
             if not dd:
                 continue
             amt = float(d["total_amount"] or 0)
-            out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], dd), nth=""), _parts))
+            _fd = str(d["order_date"] or "").strip() or dd   # z1191z115: 환율 달 = 발주 달
+            out.extend(_z20_split(dict(base, date=dd[:10], amt=amt, krw=_krw(amt, base["ccy"], _fd), nth="", fxd=_fd[:10]), _parts))
     out = [y for x in out for y in _z21_split(x)]   # z1191z21: 2차 「SEV 8대, SEVT 3대」 → 대수 비율로 나눔
     return out, missing, fx_fb
 
@@ -31923,10 +32010,11 @@ def sales_report_z17(request: Request):
         rates = _fx_load_rates(c)
         rep = _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m)
         # z1191z104 (대표 11-22): 상세 줄의 외화 → 원화 칸에 마우스 → 몇 월 기준환율·얼마(화면에 보이는 3,000줄만)
-        _b104 = {"tax": "세금계산서 발행 달 기준", "ship": "출하 달 기준", "order": "발주 달 기준"}.get(basis, "")
+        # z1191z115 (대표 11-23 「발주달로 통일」): 외화 환율 = 어느 기준(계산서·출하·발주)으로 보든 발주 달
+        _b104 = "발주 달 기준(외화는 모두 발주 달 환율 · 대표 11-23)"
         for _x in (rep.get("lines") or [])[:3000]:
             if (_x.get("ccy") or "KRW") != "KRW" and _x.get("amt"):
-                _x["fxtip"] = _ccy_breakdown([_x], "amt", "ccy", date_keys=("date",), rates=rates, basis=_b104)["tip"]
+                _x["fxtip"] = _ccy_breakdown([_x], "amt", "ccy", date_keys=("fxd", "date"), rates=rates, basis=_b104)["tip"]
     from datetime import date as _d
     yr = _d.today().year
     year_span = [str(y) for y in range(yr, yr - 4, -1)]
@@ -32114,7 +32202,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
             ws.print_title_rows = title_rows
 
     now = _kst_wall_now()
-    sub = "%s 기준 · 공급가(부가세 제외) · 외화는 그 달 기준환율로 원화" % rep["basis_label"]
+    sub = "%s 기준 · 공급가(부가세 제외) · 외화는 발주한 달 기준환율로 원화" % rep["basis_label"]   # z1191z115
 
     # ════ 1장 「보고」 ════
     ws = wb.active
@@ -51613,7 +51701,15 @@ async def sales_receipts_check_record_z94(request: Request):
                     c.execute("INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?,?,?,?,?)",
                               (oid, o["st"], "PAID", u.get("id"), "입금 확인 — 받을 돈 다 참(z1191z94)"))
                     new_status = "PAID"
-    return JSONResponse({"ok": True, "receipt_id": cur.lastrowid, "status": new_status, "left": len(left)})
+    _fx115 = None   # z1191z115: 외화 입금 → 입금 달 환율 · 환차(알림 글)
+    if ccy != "KRW":
+        try:
+            with db_session() as c:
+                _fx115 = _fx_gain_calc_z115(_fx_load_rates(c), ccy, amount, _order_fx_date_z115(c, oid), rat)
+        except Exception as _e115:
+            print("[z1191z115] 환차 계산 실패(입금은 저장됨):", repr(_e115))
+    return JSONResponse({"ok": True, "receipt_id": cur.lastrowid, "status": new_status, "left": len(left),
+                         "fx_txt": (_fx115 or {}).get("txt", "")})
 
 
 @app.get("/sales/shipments-receipts", response_class=HTMLResponse)
@@ -52332,6 +52428,10 @@ async def sales_dashboard_v3(req: Request):
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    # z1191z115 (대표 11-23 「그렇게해」): 옛 「매출 강화 대시」는 숫자 기준이 매출 홈과 달랐다(원화만 더함 · 건수 다름 · 파이프라인 ₩0)
+    #   → 매출 홈과 같은 숫자인 📈 한눈에 보기로 보낸다. 권한 거르기(위)는 그대로. 아래 옛 화면 코드는 되돌리기용으로 남김(안 탐).
+    if True:
+        return RedirectResponse("/sales/glance", 303)
     with db_session() as c:
         ctx_data = _sales_dashboard_ctx(c)
     # v5H49: 템플릿이 평면 키(kpi_month_total 등) 기대 → 평면화
@@ -53042,6 +53142,155 @@ def _ar_by_cust_z98(rows):
            "max_over": max([g["max_over"] for g in out] or [0]),
            "n_inv": sum(g["n_inv"] for g in out)}
     return out, kpi
+
+
+# ── z1191z115 (대표 11-23 「발주달로 통일, 입금확인시에만 입금받은 달 환율로 계산필요, 환차익,환차손 확인 필요」) ──
+#   외화 매출의 원화 = 발주 달 기준환율(모든 화면 · 규칙48). 입금만 입금 받은 달 기준환율.
+#   환차 = 입금 외화 금액 × (입금 달 기준환율 − 발주 달 기준환율) — +면 환차익, −면 환차손.
+#   ⭐ 환율은 월 기준환율 한 벌(_fx_pick 대체 규칙 그대로) · 계산은 이 함수 한 곳(입금 확인 창·환차 화면·수주 상세가 같이 씀).
+#   발주일 = 수주 발주일 → 없으면 프로젝트 발주일(수주에 날짜가 없을 때만). 저장하지 않고 볼 때마다 계산(환율을 고치면 바로 따라감).
+_FX_BASE_METHOD_Z115 = "기초정리(일괄)"   # z1191z93 과거 미수 일괄 정리 — 실제 입금일이 아니라 「발행 후 90일」로 적은 줄
+
+
+def _fx_gain_calc_z115(rates, ccy, amount, ord_date, rcv_date):
+    """외화 입금 1건의 환차. 원화·0원·날짜 없음이면 None/부분값. 돌려주는 것:
+    {ccy, amount, oym, rym, o_rate, r_rate, o_used, r_used, o_krw, r_krw, diff, ok, txt, short}"""
+    c = str(ccy or "KRW").strip().upper() or "KRW"
+    try:
+        a = float(amount or 0)
+    except (TypeError, ValueError):
+        a = 0.0
+    if c == "KRW" or not a:
+        return None
+    oym = str(ord_date or "").strip()[:7]
+    rym = str(rcv_date or "").strip()[:7]
+    o_rate, o_used = _fx_pick(rates, c, oym) if len(oym) == 7 else (None, None)
+    r_rate, r_used = _fx_pick(rates, c, rym) if len(rym) == 7 else (None, None)
+    o_krw = round(a * o_rate) if o_rate else None
+    r_krw = round(a * r_rate) if r_rate else None
+    ok = o_krw is not None and r_krw is not None
+    diff = (r_krw - o_krw) if ok else None
+    amt_s = _fmt_money(a, c)
+
+    def _m(ym, used):   # 「2026년 6월」 · 그 달 환율이 없어 다른 달로 대신했으면 그렇게 적는다
+        s = _fx_ym_txt_z104(ym)
+        if used and used != ym:
+            s += "(기준환율 없음 → %s 환율로)" % _fx_ym_txt_z104(used)
+        return s
+    if not ok:
+        why = "발주일이 없어" if len(oym) != 7 else ("입금일이 없어" if len(rym) != 7 else "기준환율이 없어")
+        txt = "%s — %s 환차를 계산하지 못했습니다" % (amt_s, why)
+        short = "환차 계산 못 함(%s)" % why.replace("이 없어", " 없음")
+    else:
+        lab = "환차익" if diff > 0 else ("환차손" if diff < 0 else "환차 없음")
+        sign = "+" if diff > 0 else ("−" if diff < 0 else "")
+        txt = ("%s · 발주 달 %s %s → ₩%s · 입금 달 %s %s → ₩%s · %s %s₩%s"
+               % (amt_s, _m(oym, o_used), _fx_unit_txt_z104(c, o_rate), "{:,}".format(o_krw),
+                  _m(rym, r_used), _fx_unit_txt_z104(c, r_rate), "{:,}".format(r_krw), lab, sign, "{:,}".format(abs(diff))))
+        short = "%s %s₩%s" % (lab, sign, "{:,}".format(abs(diff))) if diff else "환차 없음"
+    return {"ccy": c, "amount": a, "oym": oym, "rym": rym, "o_rate": o_rate, "r_rate": r_rate,
+            "o_used": o_used, "r_used": r_used, "o_krw": o_krw, "r_krw": r_krw, "diff": diff, "ok": ok,
+            "txt": txt, "short": short}
+
+
+def _order_fx_date_z115(c, oid):
+    """수주의 발주일 = 수주 발주일 → 없으면 프로젝트 발주일."""
+    r = c.execute("SELECT COALESCE(NULLIF(TRIM(o.order_date),''), NULLIF(TRIM(p.order_date),'')) "
+                  "FROM orders o LEFT JOIN projects p ON p.id=o.project_id WHERE o.id=?", (oid,)).fetchone()
+    return (r[0] if r else None) or ""
+
+
+def _fx_gain_rows_z115(c, rates, year="", month=""):
+    """외화 입금 줄(입금일 최근 순) + 환차. year/month = 입금일로 거름(빈 값 = 전체)."""
+    rpc = {r[1] for r in c.execute("PRAGMA table_info(receipts_payment)").fetchall()}
+    ccy_x = ("COALESCE(NULLIF(TRIM(rp.currency),''), NULLIF(TRIM(o.currency),''), 'KRW')" if "currency" in rpc
+             else "COALESCE(NULLIF(TRIM(o.currency),''), 'KRW')")
+    sql = ("SELECT rp.id AS rid, rp.order_id AS oid, COALESCE(rp.received_at,'') AS rat, rp.amount AS amt, "
+           + ccy_x + " AS ccy, COALESCE(rp.method,'') AS method, COALESCE(rp.note,'') AS note, "
+           "COALESCE(o.order_no,'') AS so, COALESCE(o.status,'') AS ost, "
+           "COALESCE(NULLIF(TRIM(o.order_date),''), NULLIF(TRIM(p.order_date),''), '') AS odd, "
+           "COALESCE(p.mgmt_code,'') AS mc, p.id AS pid, "
+           "COALESCE(NULLIF(TRIM(cu.name),''), NULLIF(TRIM(p.customer_name),''), '—') AS cname "
+           "FROM receipts_payment rp JOIN orders o ON o.id=rp.order_id "
+           "LEFT JOIN projects p ON p.id=o.project_id "
+           "LEFT JOIN customers cu ON cu.id=COALESCE(o.customer_id, p.customer_id) "
+           "WHERE UPPER(" + ccy_x + ")<>'KRW' ORDER BY rp.received_at DESC, rp.id DESC")
+    out = []
+    for r in c.execute(sql).fetchall():
+        d = dict(r)
+        rat = str(d["rat"] or "")[:10]
+        if year and rat[:4] != str(year):
+            continue
+        if month and rat[5:7] != "%02d" % int(month):
+            continue
+        d["rat"] = rat
+        d["base"] = (d["method"] == _FX_BASE_METHOD_Z115)
+        d["fx"] = _fx_gain_calc_z115(rates, d["ccy"], d["amt"], d["odd"], rat)
+        if d["fx"]:
+            out.append(d)
+    return out
+
+
+def _fx_gain_sum_z115(rows):
+    s = {"n": 0, "gain": 0, "loss": 0, "net": 0, "n_bad": 0, "by_ccy": {}}
+    for d in rows:
+        f = d["fx"]
+        s["n"] += 1
+        bc = s["by_ccy"].setdefault(f["ccy"], 0.0)
+        s["by_ccy"][f["ccy"]] = bc + f["amount"]
+        if not f["ok"]:
+            s["n_bad"] += 1
+            continue
+        if f["diff"] > 0:
+            s["gain"] += f["diff"]
+        elif f["diff"] < 0:
+            s["loss"] += f["diff"]
+        s["net"] += f["diff"]
+    s["ccy_txt"] = " · ".join(_fmt_money(v, k) for k, v in sorted(s["by_ccy"].items()))
+    return s
+
+
+@app.get("/sales/fx-gain", response_class=HTMLResponse)
+def sales_fx_gain_z115(request: Request, year: str = "", month: str = "", base: str = ""):
+    """💰 입금 → 💱 환차익·환차손 — 외화 입금마다 발주 달 원화 vs 입금 달 원화."""
+    u = _s1_guard(request)
+    if not u:
+        return RedirectResponse("/home?no_perm=sales", 303)
+    if not can_view_sales(u):
+        return RedirectResponse("/sales/receipts-check", 303)
+    from datetime import date as _d115
+    yr = year if (year.isdigit() and len(year) == 4) else ("" if year == "all" else str(_d115.today().year))
+    mo = month if (month.isdigit() and 1 <= int(month) <= 12) else ""
+    with db_session() as c:
+        rates = _fx_load_rates(c)
+        allr = _fx_gain_rows_z115(c, rates, yr, mo)
+        years = sorted({str(r[0])[:4] for r in c.execute(
+            "SELECT received_at FROM receipts_payment WHERE COALESCE(received_at,'')<>''").fetchall()
+            if str(r[0])[:4].isdigit()}, reverse=True)
+    real = [d for d in allr if not d["base"]]
+    based = [d for d in allr if d["base"]]
+    show_base = base == "1"
+    return ctx(request, "sales_fx_gain.html", user=u, active="sales_fx_gain",
+               rows=(real + based if show_base else real), s_real=_fx_gain_sum_z115(real), s_base=_fx_gain_sum_z115(based),
+               n_base=len(based), show_base=show_base, year=yr, month=mo, years=years or [str(_d115.today().year)])
+
+
+@app.get("/sales/fx-gain/preview")
+def sales_fx_gain_preview_z115(request: Request, oid: int = 0, date: str = "", amount: str = ""):
+    """입금 기록 창 — 외화면 「입금 달 환율 · 환차」를 미리 보여 줌(저장 안 함)."""
+    u = _s1_guard(request)
+    if not u or not can_view_sales(u):
+        return JSONResponse({"ok": False}, 403)
+    try:
+        a = float(str(amount or "0").replace(",", ""))
+    except ValueError:
+        a = 0.0
+    with db_session() as c:
+        o = c.execute("SELECT COALESCE(currency,'KRW') FROM orders WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return JSONResponse({"ok": False}, 404)
+        f = _fx_gain_calc_z115(_fx_load_rates(c), o[0], a, _order_fx_date_z115(c, oid), date)
+    return JSONResponse({"ok": True, "fx": bool(f), "txt": (f or {}).get("txt", ""), "diff": (f or {}).get("diff")})
 
 
 @app.get("/sales/outstanding", response_class=HTMLResponse)

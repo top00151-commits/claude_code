@@ -1,0 +1,57 @@
+{# z1191z114 (대표 11-23 「숫자가 칸에 잘려서 나와 … 전체 점검」): 화면에서 글자가 잘리지 않게 — 모든 화면 공용(chrome).
+   ① 큰 숫자(금액 카드 등)·고정 폭 표의 금액 칸이 칸보다 길면 글자를 줄여 다 보이게(「…」로 자르지 않음).
+      · 원인: z103 에서 금액 앞에 「₩」가 붙어 길어졌고, 글꼴(대표님 PC)이 넓으면 카드 안에서 잘렸다.
+      · 대상: .kpi-num(매출 홈 등) · .knk-fit · [data-knk-fit] · 출하·입금 표 칸(.tbl[data-sr-table] .sr-v)
+        — 한 줄로 두고, 넘치면 글자 크기를 원래의 55% 까지 단계로 줄인다. 숫자 자체는 바꾸지 않는다(크기만).
+      · 창 크기·글꼴 로딩·화면 다시 그림에도 다시 맞춘다. 칸이 많아도 느리지 않게: 되돌리기(쓰기) → 한 번에 재기(읽기) → 넘친 것만 줄이기.
+   ② 머리 고정 표 틀(.tbl-wrap.tbl-sticky)은 세로만 넘김이라, 표가 넓으면 오른쪽 칸(계산서 장수·입금 확인 등)이 잘려 안 보였다
+      → 가로도 넘겨 볼 수 있게(좁은 창 1023px↓ 에만 있던 규칙을 모든 폭으로).
+   ③ 위쪽 띠가 본문 높이에 눌려 잘리지 않게(아래 CSS 설명). #}
+<style>
+.kpi-num, .knk-fit, [data-knk-fit] { white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.tbl[data-sr-table] .sr-v:not(.wrap) { text-overflow: clip; }
+.tbl-wrap.tbl-sticky { overflow-x: auto; }
+/* ③ 본문(.main)은 세로 flex 라, 넘침을 숨기는(overflow:hidden) 위쪽 띠가 화면 높이에 눌려(145px → 48px) 제목·숫자가 안 보였다
+      (대표 대시·콕핏·부서 활동·내 정보·주간 보고) → 줄어들지 않게. 안에서 스크롤하는 표 상자(작업 일정표 등)는 그대로 둔다. */
+.main > .dash-hero, .main > .profile-hero, .main > .victor-insight { flex-shrink: 0; }
+</style>
+<script>
+(function () {
+  if (window.__knkFitNum) return; window.__knkFitNum = 1;
+  var SEL = '.kpi-num, .knk-fit, [data-knk-fit], .tbl[data-sr-table] .sr-v:not(.wrap)';
+  function shrink(el) {
+    if (el.dataset.knkFitBase === undefined) el.dataset.knkFitBase = el.style.fontSize || '';
+    var base = parseFloat(getComputedStyle(el).fontSize) || 16, min = Math.max(9, base * 0.55), fs = base;
+    while (fs > min && el.scrollWidth > el.clientWidth + 1) { fs = Math.max(min, fs - 1); el.style.fontSize = fs + 'px'; }
+  }
+  function all() {
+    var a = document.querySelectorAll(SEL), i, el, over = [];
+    for (i = 0; i < a.length; i++) {                       // 1) 전에 줄인 것은 원래 크기로(쓰기만)
+      el = a[i];
+      if (el.dataset.knkFitBase !== undefined && el.style.fontSize !== el.dataset.knkFitBase) el.style.fontSize = el.dataset.knkFitBase;
+    }
+    for (i = 0; i < a.length; i++) {                       // 2) 한 번에 재기(읽기만)
+      el = a[i];
+      if (el.clientWidth && el.scrollWidth > el.clientWidth + 1) over.push(el);
+    }
+    for (i = 0; i < over.length; i++) shrink(over[i]);     // 3) 넘친 것만 줄이기
+  }
+  var t = 0; function later() { clearTimeout(t); t = setTimeout(all, 150); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', all); else all();
+  window.addEventListener('load', all);
+  window.addEventListener('resize', later);
+  try { document.fonts && document.fonts.ready && document.fonts.ready.then(all); } catch (e) {}
+  try {
+    new MutationObserver(function (ms) {   // 가볍게: 바뀐 곳이 숫자 칸 안이거나, 새로 붙은 덩어리에 숫자 칸이 있을 때만
+      for (var i = 0; i < ms.length; i++) {
+        var n = ms[i].target; if (n && n.nodeType !== 1) n = n.parentElement;
+        if (n && n.closest && n.closest(SEL)) { later(); return; }
+        var ad = ms[i].addedNodes || [];
+        for (var j = 0; j < ad.length; j++) { var x = ad[j]; if (x.nodeType === 1 && (x.matches(SEL) || x.querySelector(SEL))) { later(); return; } }
+        if (ms[i].type === 'attributes') { later(); return; }   // 숨긴 줄 펼치기(hidden) 등
+      }
+    }).observe(document.body || document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+  } catch (e) {}
+  window.knkFitNum = all;
+})();
+</script>
