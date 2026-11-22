@@ -162,9 +162,101 @@ def pop3_uidls(host, port, use_ssl, username, password):
         return {"ok": False, "message": "%s: %s" % (type(e).__name__, e)}
 
 
-def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT):
-    """seen(이미 본 uidl 집합)에 없는 새 메일만 수집(원본 삭제 안 함). 반환 messages:[(uidl, raw_bytes)]."""
-    out = {"ok": False, "messages": [], "error": ""}
+# ── 옛 메일 다시 받기 막기 (11-22 대표 「보낸 사람 주소 모르는 254통 — 둘 다 진행해」) ─────────────────
+#   하이웍스 POP3 「수신 대상」을 「전체 메일」로 잠시 바꾸면(옛 원본을 다시 읽으려고) 그동안 안 보이던 옛 메일이
+#   「아직 안 받은 새 메일」로 보인다 → 그대로 두면 옛 메일이 한꺼번에 들어오고 지운 메일도 다시 나타남.
+#   ① 준비(hold)를 켠 동안 · ② 한 번에 FLOOD 통 넘게 새로 보일 때(자동으로 준비도 켬)
+#   → 머리(TOP)만 읽어 날짜가 기준보다 옛 메일이면 받지 않고 「받아 본 것」으로만 적는다. 새 메일은 그대로 받음.
+FLOOD = 300
+HOLD_DAYS = 8          # 하이웍스 「전체 메일」은 일주일 뒤 저절로 「최근 6개월」 — 하루 더
+
+
+def _ensure_hold(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_fetch_hold (
+        owner_user_id INTEGER PRIMARY KEY,
+        before_at TEXT,                 -- 이 시각보다 옛 날짜 메일은 받지 않음(UTC · ISO)
+        until_at TEXT,                  -- 준비가 끝나는 때(서버 시각)
+        reason TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime')))""")
+
+
+def set_hold(c, owner_id, reason="", days=HOLD_DAYS):
+    from datetime import datetime, timedelta, timezone
+    _ensure_hold(c)
+    before = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    until = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    old = c.execute("SELECT before_at FROM mail_fetch_hold WHERE owner_user_id=?", (int(owner_id),)).fetchone()
+    if old and old[0] and old[0] < before:
+        before = old[0]                 # 이미 켜져 있으면 기준은 더 이른 쪽 그대로
+    c.execute("INSERT OR REPLACE INTO mail_fetch_hold(owner_user_id, before_at, until_at, reason) VALUES(?,?,?,?)",
+              (int(owner_id), before, until, (reason or "")[:200]))
+    return {"before": before, "until": until}
+
+
+def clear_hold(c, owner_id):
+    _ensure_hold(c)
+    c.execute("DELETE FROM mail_fetch_hold WHERE owner_user_id=?", (int(owner_id),))
+
+
+def get_hold(c, owner_id):
+    """켜져 있으면 기준 시각(datetime · UTC) · 아니면 None."""
+    from datetime import datetime
+    _ensure_hold(c)
+    r = c.execute("SELECT before_at, until_at FROM mail_fetch_hold WHERE owner_user_id=?", (int(owner_id),)).fetchone()
+    if not r or not r[0]:
+        return None
+    if (r[1] or "") and r[1] < datetime.now().strftime("%Y-%m-%d %H:%M:%S"):
+        return None
+    try:
+        return datetime.fromisoformat(r[0])
+    except Exception:
+        return None
+
+
+def hold_info(c, owner_id) -> dict:
+    _ensure_hold(c)
+    r = c.execute("SELECT before_at, until_at, reason FROM mail_fetch_hold WHERE owner_user_id=?", (int(owner_id),)).fetchone()
+    on = get_hold(c, owner_id) is not None
+    return {"on": on, "until": (r[1] if r else ""), "reason": (r[2] if r else "")}
+
+
+def after_collect(db_session, acct, owner_id, res):
+    """막은 옛 메일 = 받아 본 것으로 적기 · 한꺼번에 많이 보였으면 준비를 켬."""
+    sk = res.get("skipped") or []
+    if not sk and not res.get("flood"):
+        return
+    with db_session() as c:
+        if sk:
+            add_seen(c, acct["id"], sk)
+        if res.get("flood"):
+            set_hold(c, owner_id, "한꺼번에 %d통이 새로 보임(하이웍스 「전체 메일」로 보임) — 자동" % res["flood"])
+    print("[MAIL-FETCH] 옛 메일 막음 %d통%s" % (len(sk), (" · 한꺼번에 %d통 보여 준비 켬" % res["flood"]) if res.get("flood") else ""),
+          flush=True)
+
+
+def _msg_date(hl):
+    from email.utils import parsedate_to_datetime
+    from datetime import timezone
+    for ln in hl or []:
+        try:
+            s = ln.decode("ascii", "replace") if isinstance(ln, (bytes, bytearray)) else str(ln)
+        except Exception:
+            continue
+        if s[:5].lower() == "date:":
+            try:
+                d = parsedate_to_datetime(s[5:].strip())
+                if d.tzinfo is None:
+                    d = d.replace(tzinfo=timezone.utc)
+                return d
+            except Exception:
+                return None
+    return None
+
+
+def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT, hold_before=None):
+    """seen(이미 본 uidl 집합)에 없는 새 메일만 수집(원본 삭제 안 함). 반환 messages:[(uidl, raw_bytes)].
+    hold_before(UTC datetime) 또는 한꺼번에 FLOOD 통 넘게 보이면 → 그보다 옛 날짜 메일은 받지 않고 skipped 로 돌려줌."""
+    out = {"ok": False, "messages": [], "error": "", "skipped": [], "flood": 0}
     seen = seen or set()
     try:
         M = _pop3_connect(host, port, use_ssl, username, password, timeout=40)
@@ -177,6 +269,25 @@ def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT)
                     pairs.append((int(s[0]), s[1]))
             new = [(num, uidl) for (num, uidl) in pairs if uidl not in seen]
             new.sort(key=lambda x: x[0])
+            guard = hold_before
+            if len(new) > FLOOD:
+                from datetime import datetime, timedelta, timezone
+                out["flood"] = len(new)
+                g2 = datetime.now(timezone.utc) - timedelta(days=1)
+                guard = min(guard, g2) if guard else g2
+            if guard is not None:
+                keep = []
+                for num, uidl in new:
+                    try:
+                        _r, hl, _o = M.top(num, 0)
+                        d = _msg_date(hl)
+                    except Exception:
+                        d = None
+                    if d is not None and d < guard:
+                        out["skipped"].append(uidl)       # 옛 메일 = 받지 않음(받아 본 것으로만)
+                    else:
+                        keep.append((num, uidl))          # 날짜를 모르면 놓치지 않게 받음
+                new = keep
             if limit and len(new) > limit:
                 new = new[-limit:]   # 가장 최근(높은 msgnum) 위주
             for num, uidl in new:

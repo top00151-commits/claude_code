@@ -15,6 +15,7 @@
 ⚠ 지금은 **숫자만** 센다(자료 안 바꿈 · 주소·이름을 돌려주지 않음). 채우기는 대표 확인 뒤 따로.
 """
 import re
+import time
 from datetime import datetime, timedelta
 
 _RE_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
@@ -197,6 +198,80 @@ def verdict(src: dict) -> tuple:
     if single or any(len(v) > 1 for v in src.values()):
         return "many", ""
     return "none", ""
+
+
+LABEL = {"원문": "원문 머리글", "이름": "같은 이름의 다른 메일", "직원": "직원 명단", "주소록": "주소록",
+         "답장": "내가 보낸 답장", "서명": "본문 서명"}
+
+
+def _ensure_mark(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_from_guessed (
+        mail_id INTEGER PRIMARY KEY,
+        addr TEXT, src TEXT, batch TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime')))""")
+
+
+def apply(c, uid, user=None, min_agree=1) -> dict:
+    """11-22 대표 「둘 다 진행해」 — 「하나로 모임」 메일만 채움(여러 후보·못 찾음은 그대로).
+    바꾸기 전 값 = 되돌림 표(mail_from_refill_bak · 묶음 이름 guess-…) · 「추정」 표시 = mail_from_guessed(근거 글)
+    · fd_key 비움 = 폴더 다시 나눔. 반환 = 통수만."""
+    from .mail_from_refill import ensure as _ensure_bak
+    _ensure_bak(c)
+    _ensure_mark(c)
+    batch = "guess-" + time.strftime("%Y%m%d-%H%M%S")
+    ix = build_index(c, uid, user)
+    n = 0
+    for m in targets(c, uid):
+        src = guess_one(c, m, ix)
+        v, addr = verdict(src)
+        if v != "one" or not addr:
+            continue
+        agree = [s for s in SRC if src.get(s) == {addr}]
+        if len(agree) < min_agree:
+            continue
+        fe = (m.get("from_email") or "").strip()
+        nm = (m.get("from_name") or "").strip() or (re.sub(r"[<>\"']", " ", fe).strip() if fe and "@" not in fe else "")
+        nm = re.sub(r"\s+", " ", nm).strip()
+        cur = c.execute("UPDATE mail_messages SET from_email=?, from_name=?, fd_key='' WHERE id=? AND user_id=? "
+                        "AND (COALESCE(from_email,'')='' OR instr(from_email,'@')=0)", (addr, nm, int(m["id"]), int(uid)))
+        if not cur.rowcount:
+            continue
+        c.execute("INSERT INTO mail_from_refill_bak(batch, user_id, mail_id, old_from_email, old_from_name, new_from_email, new_from_name) "
+                  "VALUES(?,?,?,?,?,?,?)", (batch, int(uid), int(m["id"]), m.get("from_email") or "", m.get("from_name") or "", addr, nm))
+        c.execute("INSERT OR REPLACE INTO mail_from_guessed(mail_id, addr, src, batch) VALUES(?,?,?,?)",
+                  (int(m["id"]), addr, " · ".join(LABEL[s] for s in agree), batch))
+        n += 1
+    return {"updated": n, "batch": batch if n else ""}
+
+
+def undo(c, uid) -> int:
+    """마지막 「우리 자료로 채우기」 묶음 되돌림(그 뒤 다시 바뀐 메일은 그대로)."""
+    from .mail_from_refill import ensure as _ensure_bak
+    _ensure_bak(c)
+    _ensure_mark(c)
+    r = c.execute("SELECT batch FROM mail_from_refill_bak WHERE user_id=? AND batch LIKE 'guess-%' ORDER BY id DESC LIMIT 1",
+                  (int(uid),)).fetchone()
+    if not r:
+        return 0
+    n = 0
+    for b in c.execute("SELECT * FROM mail_from_refill_bak WHERE user_id=? AND batch=?", (int(uid), r["batch"])).fetchall():
+        n += c.execute("UPDATE mail_messages SET from_email=?, from_name=?, fd_key='' WHERE id=? AND user_id=? AND from_email=?",
+                       (b["old_from_email"] or "", b["old_from_name"] or "", b["mail_id"], int(uid), b["new_from_email"])).rowcount
+    c.execute("DELETE FROM mail_from_guessed WHERE batch=?", (r["batch"],))
+    c.execute("DELETE FROM mail_from_refill_bak WHERE user_id=? AND batch=?", (int(uid), r["batch"]))
+    return n
+
+
+def guess_label(c, mail_id, addr) -> str:
+    """이 메일 주소가 「우리 자료로 찾은 추정 주소」면 근거 글 · 아니면 ''."""
+    try:
+        _ensure_mark(c)
+        r = c.execute("SELECT addr, src FROM mail_from_guessed WHERE mail_id=?", (int(mail_id),)).fetchone()
+        if r and (r["addr"] or "").lower() == (addr or "").strip().lower():
+            return r["src"] or "우리 자료"
+    except Exception:
+        pass
+    return ""
 
 
 def targets(c, uid) -> list:

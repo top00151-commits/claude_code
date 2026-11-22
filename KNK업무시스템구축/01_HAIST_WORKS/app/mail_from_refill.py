@@ -18,7 +18,7 @@ import time
 
 _JOBS = {}            # user_id -> 상태
 _LOCK = threading.Lock()
-SCAN_LIMIT = 4000     # 최근 원본 몇 통까지 머리를 볼지
+SCAN_LIMIT = 40000    # 원본 몇 통까지 머리를 볼지(11-22 하이웍스 「전체 메일」로 옛 원본까지 — 머리만이라 가벼움)
 
 
 def ensure(c):
@@ -134,7 +134,8 @@ def apply(c, user_id, found: dict, batch: str) -> int:
             continue
         c.execute("INSERT INTO mail_from_refill_bak(batch, user_id, mail_id, old_from_email, old_from_name, new_from_email, new_from_name) "
                   "VALUES(?,?,?,?,?,?,?)", (batch, int(user_id), int(mid), r["from_email"], r["from_name"], ad, nm))
-        c.execute("UPDATE mail_messages SET from_email=?, from_name=? WHERE id=? AND user_id=?", (ad, nm, int(mid), int(user_id)))
+        # fd_key 비움 = 보낸 사람이 바뀌었으니 폴더를 다시 나눔(11-22)
+        c.execute("UPDATE mail_messages SET from_email=?, from_name=?, fd_key='' WHERE id=? AND user_id=?", (ad, nm, int(mid), int(user_id)))
         n += 1
     return n
 
@@ -147,7 +148,7 @@ def undo(c, user_id) -> int:
         return 0
     n = 0
     for b in c.execute("SELECT * FROM mail_from_refill_bak WHERE user_id=? AND batch=?", (int(user_id), r["batch"])).fetchall():
-        n += c.execute("UPDATE mail_messages SET from_email=?, from_name=? WHERE id=? AND user_id=? AND from_email=?",
+        n += c.execute("UPDATE mail_messages SET from_email=?, from_name=?, fd_key='' WHERE id=? AND user_id=? AND from_email=?",
                        (b["old_from_email"] or "", b["old_from_name"] or "", b["mail_id"], int(user_id), b["new_from_email"])).rowcount
     c.execute("DELETE FROM mail_from_refill_bak WHERE user_id=? AND batch=?", (int(user_id), r["batch"]))
     return n

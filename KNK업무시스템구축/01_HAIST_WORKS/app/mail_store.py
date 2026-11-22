@@ -1696,6 +1696,12 @@ def get_mail(c, mail_id: int, user_id: int):
         d["from_name"] = (d.get("from_name") or "").strip() or fe
         d["from_email"] = ""
         d["from_bad"] = fe
+    elif fe:
+        try:   # 11-22 우리 자료로 찾아 채운 주소 = 「추정」 표시(근거)
+            from .mail_from_guess import guess_label
+            d["from_guess"] = guess_label(c, d["id"], fe)
+        except Exception:
+            d["from_guess"] = ""
     return d
 
 

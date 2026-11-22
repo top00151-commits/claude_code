@@ -2049,7 +2049,10 @@ def _mailfetch_run_owner(owner_id):
     else:
         with db_session() as c:
             seen = _mailfetch.get_seen(c, acct["id"])
-        res = _mailfetch.pop3_collect(host, port, ssl, user, pw, seen)
+            _hold = _mailfetch.get_hold(c, owner_id)   # 11-22 옛 메일 다시 받기 막기
+        res = _mailfetch.pop3_collect(host, port, ssl, user, pw, seen, hold_before=_hold)
+        if res.get("ok"):
+            _mailfetch.after_collect(db_session, acct, owner_id, res)
     if not res.get("ok"):
         with db_session() as c:
             _mailfetch.set_status(c, owner_id, status="자동 실패: " + (res.get("error", "") or "")[:200])
@@ -24227,6 +24230,16 @@ async def mail_from_refill_start(req: Request):
             n = _mfr.undo(c, u["id"])
         _mail_folders._CACHE.pop(u["id"], None)
         return JSONResponse({"ok": True, "undone": n})
+    if (form.get("hold") or "") in ("1", "0"):
+        # 11-22 옛 원본 다시 읽기 준비 — 하이웍스 「전체 메일」로 바꾸기 **전에** 켬(옛 메일이 새 메일로 다시 들어오지 않게) · 0 = 끔
+        from . import mail_fetch as _mfx
+        with db_session() as c:
+            if form.get("hold") == "1":
+                _mfx.set_hold(c, u["id"], "원본 다시 읽기 준비(대표)")
+            else:
+                _mfx.clear_hold(c, u["id"])
+            info = _mfx.hold_info(c, u["id"])
+        return JSONResponse(dict(info, ok=True))
     with db_session() as c:
         protocol, host, port, ssl, user, pw, acct = _mailfetch_creds(c, u, None)
     if not (host and user and pw):
@@ -24242,7 +24255,10 @@ async def mail_from_refill_status(req: Request):
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     from . import mail_from_refill as _mfr
-    return JSONResponse(dict(_mfr.status(u["id"]), ok=True))
+    from . import mail_fetch as _mfx
+    with db_session() as c:
+        _h = _mfx.hold_info(c, u["id"])
+    return JSONResponse(dict(_mfr.status(u["id"]), ok=True, hold=_h))
 
 
 @app.get("/mail/from-guess")
@@ -24255,6 +24271,28 @@ async def mail_from_guess_count(req: Request):
     from . import mail_from_guess as _mfg
     with db_session() as c:
         out = _mfg.count(c, u["id"], u)
+    return JSONResponse(dict(out, ok=True))
+
+
+@app.post("/mail/from-guess")
+async def mail_from_guess_apply(req: Request):
+    """11-22 대표 「둘 다 진행해」 — 「하나로 모임」 메일만 그 주소로 채움(되돌림 표 · 🔎 추정 표시) · undo=1 = 마지막 묶음 되돌림.
+    min=2 = 근거 둘 이상 같은 주소만. 돌려주는 값 = 통수만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_from_guess as _mfg
+    form = await req.form()
+    with db_session() as c:
+        if (form.get("undo") or "") == "1":
+            out = {"undone": _mfg.undo(c, u["id"])}
+        else:
+            try:
+                mn = max(1, min(6, int(form.get("min") or 1)))
+            except Exception:
+                mn = 1
+            out = _mfg.apply(c, u["id"], u, min_agree=mn)
+    _mail_folders._CACHE.pop(u["id"], None)
     return JSONResponse(dict(out, ok=True))
 
 
@@ -27058,7 +27096,10 @@ async def admin_mail_fetch_run(req: Request):
     else:
         with db_session() as c:
             seen = _mailfetch.get_seen(c, acct["id"])
-        res = await run_in_threadpool(_mailfetch.pop3_collect, host, port, ssl, user, pw, seen)
+            _hold = _mailfetch.get_hold(c, acct["owner_user_id"])   # 11-22 옛 메일 다시 받기 막기
+        res = await run_in_threadpool(_mailfetch.pop3_collect, host, port, ssl, user, pw, seen, hold_before=_hold)
+        if res.get("ok"):
+            _mailfetch.after_collect(db_session, acct, acct["owner_user_id"], res)
     if not res.get("ok"):
         with db_session() as c:
             _mailfetch.set_status(c, u["id"], status="실패: " + res.get("error", ""))

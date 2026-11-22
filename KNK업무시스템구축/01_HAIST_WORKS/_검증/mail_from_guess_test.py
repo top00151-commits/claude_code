@@ -162,5 +162,121 @@ ME2 = None
 m.get_user = lambda req: ME2
 check("로그인 없으면 401", k.get("/mail/from-guess").status_code == 401)
 
+
+print("== ③ 채우기 · 🔎 추정 표시 · ↺ 되돌리기 ==")
+m.get_user = lambda req: ME
+with _db.db_session() as c:
+    snap = {r["id"]: (r["from_email"], r["from_name"]) for r in c.execute("SELECT id, from_email, from_name FROM mail_messages").fetchall()}
+    c.execute("UPDATE mail_messages SET fd_key='keep' WHERE id IN (82001, 82002, 81001)")
+r = k.post("/mail/from-guess", data={"min": "2"})
+check("근거 둘 이상만(min=2) = 1통(82010)", r.status_code == 200 and r.json().get("updated") == 1, r.text[:200])
+r = k.post("/mail/from-guess", data={"undo": "1"})
+check("↺ 되돌림 1통", r.json().get("undone") == 1, r.text[:200])
+r = k.post("/mail/from-guess", data={})
+j = r.json()
+with _db.db_session() as c:
+    R = {x["id"]: dict(x) for x in c.execute("SELECT id, from_email, from_name, fd_key FROM mail_messages").fetchall()}
+    g1 = ms.get_mail(c, 82001, UID)
+    g3 = ms.get_mail(c, 82003, UID)
+    g81 = ms.get_mail(c, 81001, UID)
+    bak = c.execute("SELECT COUNT(*) FROM mail_from_refill_bak WHERE batch LIKE 'guess-%'").fetchone()[0]
+check("채우기 = 하나로 모임 7통만", j.get("updated") == 7 and bak == 7, (j, bak))
+check("주소 채움 · 폴더 다시 나누게 fd_key 비움", R[82001]["from_email"] == "lim@demo-b.example" and R[82001]["fd_key"] == "", R[82001])
+check("여러 후보·못 찾음은 그대로", R[82002]["from_email"] == "" and R[82002]["fd_key"] == "keep" and R[82006]["from_email"] == "", (R[82002], R[82006]))
+check("주소 칸에 이름(「<박영희>」) → 이름 칸으로 옮기고 주소 채움", R[82003]["from_email"] == "t_park" + D and R[82003]["from_name"] == "박영희", R[82003])
+check("메일 보기 = 🔎 추정 표시(근거 글)", g1.get("from_guess") == "같은 이름의 다른 메일" and "직원 명단" in (g3.get("from_guess") or ""), (g1.get("from_guess"), g3.get("from_guess")))
+check("원래 주소가 있던 메일엔 추정 표시 없음", not g81.get("from_guess"), g81.get("from_guess"))
+check("응답은 숫자만", not re.search(r"@|임태훈", r.text), r.text[:200])
+tpl = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_body.html"), encoding="utf-8").read()
+check("메일 보기 화면에 「🔎 추정 주소」 글", "🔎 추정 주소 · {{ m.from_guess }}" in tpl)
+r = k.post("/mail/from-guess", data={"undo": "1"})
+with _db.db_session() as c:
+    back = {x["id"]: (x["from_email"], x["from_name"]) for x in c.execute("SELECT id, from_email, from_name FROM mail_messages").fetchall()}
+    mk = c.execute("SELECT COUNT(*) FROM mail_from_guessed").fetchone()[0]
+check("↺ 되돌리기 = 7통 · 예전 값 그대로 · 추정 표시 지움", r.json().get("undone") == 7 and back == snap and mk == 0,
+      [i for i in snap if snap[i] != back.get(i)])
+
+print("== ① 옛 메일 다시 받기 막기(가짜 POP3) ==")
+from app import mail_fetch as MF  # noqa: E402
+from email.utils import format_datetime  # noqa: E402
+from datetime import datetime as _dtm, timedelta as _td, timezone as _tz  # noqa: E402
+NOW = _dtm.now(_tz.utc)
+
+
+def mk_box(n_old, n_new, no_date=0):
+    box = []
+    for i in range(n_old):
+        box.append(("old%d" % i, NOW - _td(days=200 + i)))
+    for i in range(no_date):
+        box.append(("nod%d" % i, None))
+    for i in range(n_new):
+        box.append(("new%d" % i, NOW - _td(minutes=5 + i)))
+    return box
+
+
+class FakePOP:
+    def __init__(self, box):
+        self.box = box
+        self.retr_n = 0
+
+    def uidl(self):
+        return b"+OK", [("%d %s" % (i + 1, u)).encode() for i, (u, _d) in enumerate(self.box)], 0
+
+    def _hdr(self, n):
+        u, d = self.box[n - 1]
+        h = ["From: a <a@demo-x.example>", "Message-ID: <%s@demo>" % u, "Subject: s"]
+        if d is not None:
+            h.append("Date: " + format_datetime(d))
+        return [x.encode() for x in h]
+
+    def top(self, n, k):
+        return b"+OK", self._hdr(n), 0
+
+    def retr(self, n):
+        self.retr_n += 1
+        return b"+OK", self._hdr(n) + [b"", b"body"], 0
+
+    def quit(self):
+        pass
+
+
+FP = FakePOP(mk_box(400, 3, no_date=1))
+MF._pop3_connect = lambda *a, **k: FP
+res = MF.pop3_collect("h", 995, True, "u", "p", set())
+got = sorted(u for u, _r in res["messages"])
+check("한꺼번에 300통 넘게 보이면 옛 메일(200일 전)은 안 받음 · 새 메일 3통 + 날짜 모르는 1통만 받음",
+      res["ok"] and res["flood"] == 404 and len(res["skipped"]) == 400 and got == ["new0", "new1", "new2", "nod0"] and FP.retr_n == 4,
+      (res.get("flood"), len(res["skipped"]), got, FP.retr_n))
+FP2 = FakePOP(mk_box(20, 2))
+MF._pop3_connect = lambda *a, **k: FP2
+res2 = MF.pop3_collect("h", 995, True, "u", "p", set())
+check("준비가 꺼져 있고 조금만 보이면 = 예전 그대로 다 받음", len(res2["messages"]) == 22 and not res2["skipped"], len(res2["messages"]))
+res3 = MF.pop3_collect("h", 995, True, "u", "p", set(), hold_before=NOW - _td(days=1))
+check("준비(hold)가 켜져 있으면 조금만 보여도 옛 메일 안 받음", sorted(u for u, _r in res3["messages"]) == ["new0", "new1"] and len(res3["skipped"]) == 20,
+      (len(res3["messages"]), len(res3["skipped"])))
+with _db.db_session() as c:
+    MF._ensure_table(c)
+    MF.save_account(c, UID, protocol="pop3", host="pop.fake-demo", port=995, use_ssl=True, username="me",
+                    password_enc=m._mail.encrypt("fake-pw"), label="시험")
+    acct = MF.get_account(c, UID)
+MF.after_collect(_db.db_session, acct, UID, res)
+with _db.db_session() as c:
+    seen = MF.get_seen(c, acct["id"])
+    hold = MF.get_hold(c, UID)
+    hi = MF.hold_info(c, UID)
+check("막은 옛 메일 = 받아 본 것으로 적음(다음엔 머리도 안 읽음) · 한꺼번에 보였으니 준비 자동 켬",
+      len(seen) == 400 and hold is not None and hi["on"] and "자동" in hi["reason"], (len(seen), hi))
+with _db.db_session() as c:
+    MF.clear_hold(c, UID)
+r = k.post("/mail/from-refill", data={"hold": "1"})
+check("「원본 다시 읽기 준비」 켜기(8일)", r.json().get("on") is True, r.text[:200])
+check("진행 상황에 준비 상태", k.get("/mail/from-refill").json().get("hold", {}).get("on") is True)
+r = k.post("/mail/from-refill", data={"hold": "0"})
+check("준비 끄기", r.json().get("on") is False, r.text[:200])
+src = io.open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
+check("자동 가져오기·지금 가져오기 둘 다 막기 장치를 거침", src.count("hold_before=_hold") == 2 and src.count("_mailfetch.after_collect(") == 2)
+from app import mail_from_refill as MFR  # noqa: E402
+check("원본 다시 읽기가 옛 원본까지 훑음(40,000통)", MFR.SCAN_LIMIT >= 40000)
+
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 sys.exit(1 if F else 0)
