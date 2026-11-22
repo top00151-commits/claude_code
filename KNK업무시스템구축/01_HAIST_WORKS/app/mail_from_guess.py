@@ -22,8 +22,122 @@ _RE_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 # 본문에서 인용(앞 메일)이 시작되는 표시 — 그 앞까지만 「이 사람의 서명」으로 본다
 _RE_QUOTE = re.compile(r"(?im)^\s*(?:-{2,}\s*(?:original message|원본 메시지|원본 메일|forwarded message)[^\n]*"
                        r"|>|from\s*:|보낸\s*사람\s*:|보낸사람\s*:|sent\s*:|on .{4,80} wrote:|.{0,60}님이 작성:)")
-SRC = ("원문", "이름", "직원", "주소록", "답장", "서명")
+SRC = ("원문", "이름", "직원", "주소록", "답장", "서명", "인용")
 REPLY_DAYS = 60
+
+# ── 인용 머리(11-22 2차 · 하이웍스 「전체 메일함」이 348통뿐 = 옛 원본은 하이웍스에도 없음) ──────────────
+#   같은 제목의 뒤 메일(내 답장 · 다른 사람 회신 · 전달)에는 앞 메일이 인용되고, 인용 머리에
+#   「From: 이름 <주소>」 + 「Sent/보낸 날짜」(또는 「…님이 작성:」·「On … wrote:」 한 줄)가 남는다.
+#   → **제목이 같고 인용 날짜가 그 메일 받은 날(±1일)과 맞는 인용 머리**의 주소 = 근거 「인용」.
+_RE_QFROM = re.compile(r"(?im)^[ \t>]*(?:from|보낸\s*사람|보낸이|발신자?)\s*[:：]\s*(.+)$")
+_RE_QWROTE = re.compile(r"(?im)^[ \t>]*(.{6,200}?)\s*(?:wrote|님이\s*작성|작성)\s*:?\s*$")
+_RE_QDATE = re.compile(r"(?im)^[ \t>]*(?:sent|date|보낸\s*날짜|날짜|발송일|보낸\s*시간|받은\s*날짜)\s*[:：]\s*(.+)$")
+_RE_QSUBJ = re.compile(r"(?im)^[ \t>]*(?:subject|제목)\s*[:：]\s*(.+)$")
+_RE_D_NUM = re.compile(r"(20\d{2})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})")
+_MON = {m: i + 1 for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))}
+_RE_D_EN1 = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(20\d{2})", re.I)
+_RE_D_EN2 = re.compile(r"\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?\s+(20\d{2})", re.I)
+_RE_ANGLE = re.compile(r"[<\[(]\s*(?:mailto:)?\s*([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})\s*[>\])]", re.I)
+QUOTE_DAYS = 120
+
+
+def _any_date(s: str):
+    """글 속 날짜 하나 → date(못 읽으면 None)."""
+    from datetime import date
+    s = s or ""
+    for rx, order in ((_RE_D_NUM, "ymd"), (_RE_D_EN1, "mdy"), (_RE_D_EN2, "dmy")):
+        m = rx.search(s)
+        if not m:
+            continue
+        try:
+            g = m.groups()
+            if order == "ymd":
+                return date(int(g[0]), int(g[1]), int(g[2]))
+            if order == "mdy":
+                return date(int(g[2]), _MON[g[0][:3].lower()], int(g[1]))
+            return date(int(g[2]), _MON[g[1][:3].lower()], int(g[0]))
+        except Exception:
+            return None
+    return None
+
+
+def _addr_in(s: str) -> str:
+    m = _RE_ANGLE.search(s or "")
+    if m:
+        return m.group(1).lower().strip(".")
+    m = _RE_EMAIL.search(s or "")
+    return m.group(0).lower().strip(".") if m else ""
+
+
+def quote_heads(body: str) -> list:
+    """본문의 인용 머리 → [(주소, 날짜 또는 None, 제목 또는 '')]."""
+    out = []
+    b = body or ""
+    for m in _RE_QFROM.finditer(b):
+        a = _addr_in(m.group(1))
+        if not a:
+            continue
+        seg = b[m.end():m.end() + 700]
+        dm = _RE_QDATE.search(seg)
+        sm = _RE_QSUBJ.search(seg)
+        out.append((a, _any_date(dm.group(1)) if dm else None, (sm.group(1).strip() if sm else "")))
+    for m in _RE_QWROTE.finditer(b):
+        line = m.group(1)
+        a = _addr_in(line)
+        if a:
+            out.append((a, _any_date(line), ""))
+    return out
+
+
+def quote_index(c, uid, rows) -> dict:
+    """대상 메일 제목들과 같은 제목인 내 메일(받은·보낸)의 본문 → {제목 열쇠: [(번호, 받은 때, 본문)]}."""
+    from .mail_store import _normalize_subject
+    want = {_normalize_subject(r.get("subject") or "") for r in rows}
+    want.discard("(제목 없음)")
+    if not want:
+        return {}
+    ids = {}
+    for r in c.execute("SELECT id, subject, COALESCE(received_at, created_at) AS at FROM mail_messages "
+                       "WHERE user_id=? AND is_deleted=0 AND direction IN ('in','out')", (int(uid),)).fetchall():
+        k = _normalize_subject(r["subject"] or "")
+        if k in want:
+            ids[r["id"]] = (k, r["at"] or "")
+    out = {}
+    idl = list(ids)
+    for i in range(0, len(idl), 400):
+        part = idl[i:i + 400]
+        for r in c.execute("SELECT id, COALESCE(body_text,'') AS b FROM mail_messages WHERE id IN (%s)" % ",".join("?" * len(part)),
+                           part).fetchall():
+            k, at = ids[r["id"]]
+            if r["b"]:
+                out.setdefault(k, []).append((r["id"], at, r["b"]))
+    return out
+
+
+def _quote_addrs(m: dict, ix: dict) -> set:
+    from .mail_store import _normalize_subject
+    q = ix.get("quote") or {}
+    k = _normalize_subject(m.get("subject") or "")
+    rcv = _dt(m.get("received_at"))
+    if not rcv or k not in q:
+        return set()
+    rd = rcv.date()
+    found = set()
+    for mid, at, body in q[k]:
+        if mid == m.get("id"):
+            continue
+        sd = _dt(at)
+        if sd and not (rcv - timedelta(days=1) <= sd <= rcv + timedelta(days=QUOTE_DAYS)):
+            continue
+        for a, d, sj in quote_heads(body):
+            if d is None or abs((d - rd).days) > 1:
+                continue
+            if sj and _normalize_subject(sj) != k:
+                continue
+            if a in ix["mine"]:
+                continue
+            found.add(a)
+    return found
 
 
 def _nk(name: str) -> str:
@@ -185,6 +299,9 @@ def guess_one(c, m: dict, ix: dict) -> dict:
     sg = _sig_addrs(m.get("body_text") or "", excl, ix["ours"])
     if sg:
         src["서명"] = sg
+    qa = _quote_addrs(m, ix)
+    if qa:
+        src["인용"] = qa
     return src
 
 
@@ -201,7 +318,7 @@ def verdict(src: dict) -> tuple:
 
 
 LABEL = {"원문": "원문 머리글", "이름": "같은 이름의 다른 메일", "직원": "직원 명단", "주소록": "주소록",
-         "답장": "내가 보낸 답장", "서명": "본문 서명"}
+         "답장": "내가 보낸 답장", "서명": "본문 서명", "인용": "뒤 메일의 인용 머리"}
 
 
 def _ensure_mark(c):
@@ -219,9 +336,11 @@ def apply(c, uid, user=None, min_agree=1) -> dict:
     _ensure_bak(c)
     _ensure_mark(c)
     batch = "guess-" + time.strftime("%Y%m%d-%H%M%S")
+    rows = targets(c, uid)
     ix = build_index(c, uid, user)
+    ix["quote"] = quote_index(c, uid, rows)
     n = 0
-    for m in targets(c, uid):
+    for m in rows:
         src = guess_one(c, m, ix)
         v, addr = verdict(src)
         if v != "one" or not addr:
@@ -286,6 +405,7 @@ def count(c, uid, user=None) -> dict:
     """숫자만 — 주소·이름은 돌려주지 않는다."""
     rows = targets(c, uid)
     ix = build_index(c, uid, user)
+    ix["quote"] = quote_index(c, uid, rows)
     out = {"total": len(rows), "empty": 0, "name_only": 0, "no_name": 0,
            "one": 0, "one_2plus": 0, "many": 0, "none": 0,
            "by_src": {s: 0 for s in SRC}, "one_by_src": {s: 0 for s in SRC},

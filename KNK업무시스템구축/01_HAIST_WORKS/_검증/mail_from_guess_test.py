@@ -278,5 +278,37 @@ check("자동 가져오기·지금 가져오기 둘 다 막기 장치를 거침"
 from app import mail_from_refill as MFR  # noqa: E402
 check("원본 다시 읽기가 옛 원본까지 훑음(40,000통)", MFR.SCAN_LIMIT >= 40000)
 
+
+print("== 인용 머리(뒤 메일의 「From: 이름 <주소>」 + 날짜) ==")
+QB1 = ("확인했습니다.\n\n-----Original Message-----\nFrom: \"홍길순, KNK VINA\" <vina-hong@demo-v.example>\nTo: boss" + D + "\n"
+       "Sent: Sunday, May 3, 2026 9:58 AM\nSubject: 주간보고 A\n\n본문\n\n-----Original Message-----\n"
+       "From: 옛사람 <old-person@demo-o.example>\nSent: 2026-04-20 10:00\nSubject: 주간보고 A\n")
+QB2 = "네 알겠습니다.\n\n2026년 6월 10일 (수) 오전 9:00, 김철수 <kim-cs@demo-k.example>님이 작성:\n> 발주 확인 부탁드립니다."
+QB3 = "참고\n\nFrom: 다른날 <other-day@demo-x.example>\nSent: 2026-07-25 10:00\nSubject: 날짜 다른 건\n"
+ins(83001, "", "", subj="주간보고 A", at="2026-05-03 10:00:00")
+ins(83002, "x2@demo-e.example", "회신자", subj="RE: 주간보고 A", body=QB1, at="2026-05-04 09:00:00")
+ins(83003, "", "", subj="발주 확인", at="2026-06-10 09:05:00")
+ins(83004, "boss" + D, "시험대표", subj="RE: 발주 확인", body=QB2, at="2026-06-10 11:00:00", direction="out", to="kim-cs@demo-k.example, park2@demo-k.example")
+ins(83005, "", "", subj="날짜 다른 건", at="2026-07-01 09:00:00")
+ins(83006, "x3@demo-e.example", "누구", subj="RE: 날짜 다른 건", body=QB3, at="2026-07-26 09:00:00")
+qh = mfg.quote_heads(QB1)
+check("인용 머리 읽기: 주소·날짜·제목 (영어 Sent 꼴 · 이름에 쉼표)", ("vina-hong@demo-v.example", __import__("datetime").date(2026, 5, 3), "주간보고 A") in qh, qh)
+check("「…님이 작성:」 한 줄 꼴", mfg.quote_heads(QB2) and mfg.quote_heads(QB2)[0][:2] == ("kim-cs@demo-k.example", __import__("datetime").date(2026, 6, 10)), mfg.quote_heads(QB2))
+with _db.db_session() as c:
+    rows = mfg.targets(c, UID)
+    ix = mfg.build_index(c, UID, {"id": UID, "team_id": None, "role": "member"})
+    ix["quote"] = mfg.quote_index(c, UID, rows)
+    QS = {r["id"]: mfg.guess_one(c, r, ix) for r in rows if r["id"] in (83001, 83003, 83005)}
+check("받은 날과 같은 날 인용 = 근거 「인용」(4월 옛 인용은 뺌)", QS[83001].get("인용") == {"vina-hong@demo-v.example"} and mfg.verdict(QS[83001]) == ("one", "vina-hong@demo-v.example"), QS[83001])
+check("내 답장 속 「님이 작성」 인용 = 받는 사람이 둘이어도 찾음", QS[83003].get("인용") == {"kim-cs@demo-k.example"} and mfg.verdict(QS[83003])[0] == "one", QS[83003])
+check("인용 날짜가 받은 날과 다르면 안 씀", "인용" not in QS[83005] and mfg.verdict(QS[83005])[0] == "none", QS[83005])
+r = k.get("/mail/from-guess")
+check("숫자 세기에 「인용」 근거 셈", r.json()["by_src"].get("인용") == 2 and "@" not in r.text, r.json().get("by_src"))
+r = k.post("/mail/from-guess", data={})
+with _db.db_session() as c:
+    g = ms.get_mail(c, 83001, UID)
+check("채우기 = 인용으로 찾은 것도 · 🔎 근거 「뒤 메일의 인용 머리」", g["from_email"] == "vina-hong@demo-v.example" and g.get("from_guess") == "뒤 메일의 인용 머리", (g["from_email"], g.get("from_guess")))
+k.post("/mail/from-guess", data={"undo": "1"})
+
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 sys.exit(1 if F else 0)
