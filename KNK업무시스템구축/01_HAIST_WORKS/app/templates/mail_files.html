@@ -60,7 +60,7 @@
         <td><span class="fl-dir {{ r.direction }}">{{ '받음' if r.direction=='in' else '보냄' }}</span></td>
         <td class="fl-sub"><div style="font-weight:600">{{ r.who }}</div><a href="/mail/{{ r.mail_id }}">{{ (r.subject or '(제목 없음)')[:70] }}</a></td>
         <td class="hm" style="white-space:nowrap;color:var(--mute)">{{ (r.received_at or '')[:10] }}</td>
-        <td class="fl-act"><a href="/mail/{{ r.mail_id }}/att/{{ r.att_id }}" title="내려받기">⬇ 받기</a><a href="/mail/{{ r.mail_id }}" title="이 첨부가 있는 메일 열기">메일</a><a href="/mail/compose?forward={{ r.mail_id }}" title="이 메일을 첨부와 함께 전달">↪ 전달</a></td>
+        <td class="fl-act"><a href="/mail/{{ r.mail_id }}/att/{{ r.att_id }}" title="내려받기">⬇ 받기</a><a href="/mail/{{ r.mail_id }}" title="이 첨부가 있는 메일 열기">메일</a><a href="/mail/compose?forward={{ r.mail_id }}" onclick="return window.mailNewWin ? mailNewWin(event,'forward={{ r.mail_id }}') : true" title="이 메일을 첨부와 함께 전달 — 새 창으로">↪ 전달</a></td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="fl-empty">찾는 첨부가 없습니다.</td></tr>

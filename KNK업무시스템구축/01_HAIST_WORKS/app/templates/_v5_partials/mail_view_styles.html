@@ -105,6 +105,8 @@
   .mv-more-box .mv-fu-row button.x{color:#9a3412}
   .mv-fu-row input{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:3px 6px;background:var(--mt-surface,#fff);color:var(--ink)}
   @media(max-width:640px){ .mv-fu-box{position:fixed;left:8px;right:8px;top:auto;bottom:8px;min-width:0;max-width:none} }
+  /* 11-23 「✅ 확인 답장」은 단추 줄 왼쪽(답장 옆) → 상자를 왼쪽 끝에 맞춰 오른쪽으로 펼침(오른쪽 맞춤이면 좁은 창에서 왼쪽이 잘림) */
+  @media(min-width:641px){ #mvAck > .mv-more-box{left:0;right:auto} }
   /* 11-18 보낸 사람 눌러 모아 보기 · 이전 대화 접기 */
   .mv-who-wrap{position:relative}
   .mv-who{color:#1d4ed8;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer}

@@ -1497,7 +1497,7 @@ async function mbxDropDo(tg, ids){
     mbxToast(op==='read' ? ('✓ '+j.n+'통 읽음으로') : ('● '+j.n+'통 안 읽음으로'));
     mbxSideRefresh();
   }
-  function go(kind, id){ location.href='/mail/compose?'+kind+'='+id; }
+  function go(kind, id){ if(window.mailNewWin) mailNewWin(null, kind+'='+id); else location.href='/mail/compose?'+kind+'='+id; }   // 11-23 답장·전달도 새 창으로
   window.mbxCmd=function(cmd, ids, anchorEl){
     ids = ids || mbxTargets();
     if(cmd==='reply'||cmd==='replyall'||cmd==='forward'){

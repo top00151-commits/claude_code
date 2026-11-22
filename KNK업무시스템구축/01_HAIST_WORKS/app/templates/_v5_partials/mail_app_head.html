@@ -204,25 +204,8 @@
     <span style="flex:1"></span><button type="button" onclick="mailHelpToggle()">닫기</button></div>
 </div>
 {% include "_v5_partials/mail_tour.html" %}
+{% include "_v5_partials/mail_new_win.html" %}
 <script>
-/* 11-23 대표 「새 메일 클릭하면 새 창으로 열리게」 — 메일 쓰기를 따로 창으로(보던 목록·메일은 그대로)
-   · 휴대폰 폭(≤640px)은 예전처럼 같은 화면 · 창이 막히면(팝업 차단) 같은 화면으로
-   · Ctrl·Shift·가운데 단추 누르기는 브라우저 기본(새 탭 등) 그대로
-   · 쓰기 창은 주소에 win=1 → 위 머리·도구 줄 숨김 · 보내기·예약·취소 뒤 창이 저절로 닫힘(mail_compose.html cmpGo) */
-window.mailNewWin=function(ev, q){
-  if(ev && (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button===1)) return true;
-  var plain='/mail/compose'+(q ? '?'+q : '');
-  var narrow=false; try{ narrow=window.matchMedia('(max-width:640px)').matches; }catch(e){}
-  if(narrow){ location.href=plain; return false; }
-  var sw=screen.availWidth||1280, sh=screen.availHeight||900;
-  var w=Math.min(1100, sw-40), h=Math.min(960, sh-40);
-  var l=Math.max(0, Math.round((sw-w)/2)), t=Math.max(0, Math.round((sh-h)/2));
-  var win=null;
-  try{ win=window.open(plain+(q ? '&' : '?')+'win=1', 'knkmail_new_'+Date.now(), 'popup=yes,width='+w+',height='+h+',left='+l+',top='+t); }catch(e){ win=null; }
-  if(!win){ location.href=plain; return false; }
-  try{ win.focus(); }catch(e){}
-  return false;
-};
 /* 11-19 늘 보이는 도구 줄 — 지금 화면 표시 · 숫자 · 글자 크게 · 도움말 */
 (function(){
   try{

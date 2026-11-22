@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>메일 쓰기 · KNK</title>
+<html lang="ko"{% if request and request.query_params.get('win') == '1' %} class="cmp-win"{% endif %}><head><meta charset="UTF-8"/><title>메일 쓰기 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
@@ -180,11 +180,11 @@
   }
 </style>
 {# 11-23 대표 「새 메일 클릭하면 새 창으로」 — 새 창(주소 win=1)이면 위 머리·도구 줄·경로 숨김 · 끝나면 창 닫기(cmpGo) #}
-<script>window.CMP_WIN=/[?&]win=1(&|$)/.test(location.search); if(window.CMP_WIN) document.documentElement.classList.add("cmp-win");</script>
 <style>html.cmp-win .mail-app-fixed, html.cmp-win .mail-app-top, html.cmp-win .mail-tools, html.cmp-win .page-head .crumbs{display:none !important} html.cmp-win{--mail-fixed-h:0px}</style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
+<script>window.CMP_WIN=/[?&]win=1(&|$)/.test(location.search); if(window.CMP_WIN) document.documentElement.classList.add("cmp-win");</script>{# 11-23 새 창 표시(html class 는 서버가 먼저 그림 · 여기는 화면 스크립트용 CMP_WIN) — 표준 검사 ② 때문에 본문 안 #}
 {% include "_v5_partials/mail_popx.html" %}
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 쓰기</div>
