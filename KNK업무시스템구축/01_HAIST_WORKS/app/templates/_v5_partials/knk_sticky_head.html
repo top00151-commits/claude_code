@@ -1,0 +1,88 @@
+{#═══════════════════════════════════════════════════════════════════════════
+  페이지 제목 띠 고정   ·   z1191z106 (대표 2026-11-22)
+
+  대표 말씀: 「타이틀 제목 부분은 스크롤 동작에서 제외 … 스크롤 내리면 다 같이 움직여서 어떤 페이지를 보고 있는지
+            알 수가 없어 … 다른 곳들도 확인하고 모두 동일하게」
+  → 모든 화면 공통 틀(chrome.html)에 한 번: 본문(.main) 맨 위 제목 띠(.knk-page-head · 예전 .page-head)를
+    본문 스크롤 영역 맨 위에 붙여 고정한다.
+
+  ⭐ 왜 top:0 이 맞나: 스크롤되는 곳은 본문(.main) 한 곳이고(107개 화면 실측 · 몸통 스크롤 0), 상단바·책갈피 줄은
+     .main 바깥(위)에 있다. 그래서 .main 안에서 top:0 = 책갈피 줄 바로 아래. (v5H226z1023 때 틈이 생긴 것은
+     「몸통 기준 top:0」으로 상단바 밑에 파고든 것 — 지금 방식과 다름.)
+  · 배경·줄은 :where() 로 우선순위 0 — 화면이 따로 정한 배경이 있으면 그것을 그대로 쓴다.
+  · 제목이 화면 자체의 고정 틀 안에 있으면(권한 일괄 화면 z1191i 「윗부분 + 표 머리 두 줄」) 그 화면이 스스로 관리 — 아무것도 바꾸지 않음.
+  · 한 화면에 제목 띠가 둘 이상이면(디자인 견본 등) 첫 번째만 고정 — 나머지는 스크립트가 knk-head-free 를 붙임.
+  · 폰 폭(767px 이하)은 화면이 좁아 고정하지 않는다(제목 띠가 화면을 너무 차지).
+  · 본문(.main)에 위 여백(padding-top)이 있는 화면은 고정 위치가 그만큼 내려오므로 스크립트가 제목 띠를 여백만큼 위로 붙인다.
+  · 화면 안에서 따로 고정한 것(표 머리줄 · 옆 칸 등 sticky · 본문 .main 이 스크롤하는 것)은 제목 띠 밑에 가려지므로
+    아래 스크립트가 제목 띠 높이만큼 내린다(원래 top + 제목 높이 · 화면마다 손대지 않음 · 새 화면도 자동).
+    표 안 스크롤 칸처럼 본문 말고 다른 칸이 스크롤하는 고정은 그대로 둔다.
+═══════════════════════════════════════════════════════════════════════════#}
+<style>
+@media (min-width: 768px) {
+  .main .knk-page-head:not(.knk-head-free), .main .page-head:not(.knk-head-free) {
+    position: sticky; top: 0; z-index: 40;
+  }
+  :where(.main) :where(.knk-page-head, .page-head) {
+    background: var(--knk-bg-surface, var(--paper, #FAFBF9));
+    box-shadow: 0 1px 0 var(--knk-border-subtle, #E2E6E1);
+  }
+}
+</style>
+<script>
+(function(){
+  if (window.__knkStickyHeadZ106) return; window.__knkStickyHeadZ106 = 1;
+  var mq = window.matchMedia ? window.matchMedia('(min-width: 768px)') : null;
+  function ownFrame(h, m){   /* 제목이 화면 자체의 고정 틀(sticky·fixed) 안에 있으면 그 화면이 스스로 고정을 관리(권한 일괄 z1191i 등) */
+    for (var p = h.parentElement; p && p !== m; p = p.parentElement) {
+      var ps = getComputedStyle(p).position; if (ps === 'sticky' || ps === 'fixed') return true;
+    }
+    return false;
+  }
+  function headOf(m){
+    var h = m.querySelector('.knk-page-head:not(.knk-head-free), .page-head:not(.knk-head-free)');
+    if (h && ownFrame(h, m)) { h.classList.add('knk-head-free'); return null; }
+    return (h && getComputedStyle(h).position === 'sticky') ? h : null;
+  }
+  function scrollsInside(el, m){   /* 본문 말고 중간 칸이 스크롤하면(표 안 스크롤 등) 그 고정은 건드리지 않음 */
+    for (var p = el.parentElement; p && p !== m; p = p.parentElement) {
+      var o = getComputedStyle(p); if (/(auto|scroll|hidden|clip)/.test(o.overflowY + ' ' + o.overflow)) return true;
+    }
+    return false;
+  }
+  var seen = (typeof WeakSet === 'function') ? new WeakSet() : null, stuck = [];   /* 한 번 본 칸은 다시 재지 않음(큰 표에서도 가볍게) */
+  function fix(){
+    var m = document.querySelector('main.main, .main'); if (!m) return;
+    var hs = m.querySelectorAll('.knk-page-head, .page-head');   /* 한 화면에 제목 띠가 둘 이상이면 첫 번째만 고정 */
+    for (var k = 1; k < hs.length; k++) hs[k].classList.add('knk-head-free');
+    var h = (mq && !mq.matches) ? null : headOf(m), hh = h ? Math.round(h.getBoundingClientRect().height) : 0;
+    if (!h) { for (var q = 0; q < stuck.length; q++) { stuck[q].style.top = (parseFloat(stuck[q].getAttribute('data-knk-top0')) || 0) + 'px'; } stuck = []; return; }   /* 고정할 제목이 없으면 아무것도 바꾸지 않음 */
+    /* 본문 위 여백(padding-top)이 있으면 고정 위치가 그만큼 내려와 틈으로 내용이 비침 → 그만큼 위로 붙임 */
+    var pt = h ? (parseFloat(getComputedStyle(m).paddingTop) || 0) : 0;
+    if (h) h.style.top = (-pt) + 'px';
+    m.style.setProperty('--knk-head-h', hh + 'px');
+    var all = m.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var e = all[i];
+      if (seen) { if (seen.has(e)) continue; seen.add(e); }
+      else if (e.__knkSeen) continue; else e.__knkSeen = 1;
+      if (h && (e === h || h.contains(e))) continue;
+      var cs = getComputedStyle(e);
+      if (cs.position !== 'sticky' || cs.top === 'auto') continue;
+      if (scrollsInside(e, m)) continue;
+      e.setAttribute('data-knk-top0', parseFloat(cs.top) || 0);
+      stuck.push(e);
+    }
+    stuck = stuck.filter(function(e){ return e.isConnected; });
+    for (var j = 0; j < stuck.length; j++) {
+      var t0 = parseFloat(stuck[j].getAttribute('data-knk-top0')) || 0;
+      stuck[j].style.top = (t0 + Math.max(0, hh - pt)) + 'px';
+    }
+  }
+  var tm = null; function later(){ clearTimeout(tm); tm = setTimeout(fix, 150); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fix); else fix();
+  window.addEventListener('load', later); window.addEventListener('resize', later);
+  try { new MutationObserver(function(ms){ for (var i = 0; i < ms.length; i++) if (ms[i].addedNodes.length) { later(); return; } })
+          .observe(document.body, {childList: true, subtree: true}); } catch (e) {}   /* 화면 전환(본문만 바꿈)에도 */
+})();
+</script>
