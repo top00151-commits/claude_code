@@ -36,7 +36,7 @@ def targets(c, user_id) -> dict:
     """{dedup_hash: mail_id} — 내 받은 메일 중 보낸 사람 주소가 빈 것(지운 것 빼고). 판정값 없는 메일은 따로 셈."""
     out, nohash = {}, 0
     for r in c.execute("SELECT id, COALESCE(dedup_hash,'') AS h FROM mail_messages WHERE user_id=? AND direction='in' "
-                       "AND is_deleted=0 AND COALESCE(from_email,'')=''", (int(user_id),)).fetchall():
+                       "AND is_deleted=0 AND (COALESCE(from_email,'')='' OR instr(from_email,'@')=0)", (int(user_id),)).fetchall():
         if r["h"]:
             out[r["h"]] = r["id"]
         else:
@@ -76,7 +76,7 @@ def scan(protocol, host, port, ssl, user, pw, want: dict, state: dict) -> dict:
                 if not left:
                     break
                 chunk = ",".join(str(u) for u in uids[i:i + 100])
-                typ, md = M.uid("fetch", chunk, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM REPLY-TO)])")
+                typ, md = M.uid("fetch", chunk, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM REPLY-TO SENDER RETURN-PATH X-ORIGINAL-FROM X-SENDER)])")
                 for part in md or []:
                     if isinstance(part, tuple) and len(part) > 1 and isinstance(part[1], (bytes, bytearray)):
                         h = _hash_of_header(bytes(part[1]))
@@ -128,7 +128,7 @@ def apply(c, user_id, found: dict, batch: str) -> int:
     for mid, (nm, ad) in found.items():
         if not ad:
             continue
-        r = c.execute("SELECT from_email, from_name FROM mail_messages WHERE id=? AND user_id=? AND COALESCE(from_email,'')=''",
+        r = c.execute("SELECT from_email, from_name FROM mail_messages WHERE id=? AND user_id=? AND (COALESCE(from_email,'')='' OR instr(from_email,'@')=0)",
                       (int(mid), int(user_id))).fetchone()
         if not r:
             continue

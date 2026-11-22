@@ -49,6 +49,9 @@ def split_from(raw: str, decoded: str = "") -> tuple:
         name_raw, addr = parseaddr(raw)
     except Exception:
         name_raw, addr = "", ""
+    # 11-22 (2차) 「=?euc-kr?b?…?= hong@x.com」(꺾쇠 없이 이름 뒤 주소) 같은 머리는 덩어리 전체가 주소로 돌아옴 → 올바른 주소 꼴만 받음
+    if addr and not _RE_BARE_ADDR.fullmatch(addr.strip()):
+        addr = ""
     if not addr or "@" not in addr:
         m = _RE_ANGLE_ADDR.search(raw) or _RE_ANGLE_ADDR.search(decoded)
         if not m:
@@ -63,11 +66,36 @@ def split_from(raw: str, decoded: str = "") -> tuple:
             name = str(make_header(decode_header(name_raw)))
         except Exception:
             name = name_raw
-    if not name and addr:
-        name = decoded.replace("<" + addr + ">", " ").replace(addr, " ")
+    if not name:
+        # 11-22 (2차) 머리에 주소가 아예 없는 메일(「From: 임태훈」·「From: <임태훈>」) — 예전엔 이름이 **주소 칸**에 들어갔고
+        #   1차 고침 뒤엔 이름까지 버렸음 → 이름은 살리고 주소는 비움(주소는 다른 머리에서 — parse_from_headers)
+        name = decoded.replace("<" + addr + ">", " ").replace(addr, " ") if addr else decoded
         name = re.sub(r"[<>]", " ", name)
+    if addr and addr in name:
+        name = name.replace(addr, " ")
     name = re.sub(r"\s+", " ", (name or "")).strip().strip('"').strip("'").strip()
     return name, (addr or "").strip()
+
+
+# 11-22 대표 「보낸 사람 메일 주소가 확인 안 되는 게 있어 — 근본적인 원인을 찾아 해결」
+#   보낸 사람 머리(From)에 주소가 없는 메일(상대 메일 시스템이 이름만 넣어 보냄)이 있음 → 같은 메일의 다른 머리에서 주소를 찾는다.
+#   순서 = 보낸 이(Sender) → 답장 주소(Reply-To) → 반송 주소(Return-Path) → X-Original-From · X-Sender
+FROM_FALLBACK_HEADERS = ("Sender", "Reply-To", "Return-Path", "X-Original-From", "X-Sender")
+
+
+def parse_from_headers(get_raw, get_dec) -> tuple:
+    """(이름, 주소, 주소를 찾은 머리) — get_raw(머리 이름)=원문 · get_dec(머리 이름)=풀어 쓴 글."""
+    name, addr = split_from(get_raw("From"), get_dec("From"))
+    if addr and "@" in addr:
+        return name, addr, "From"
+    for hd in FROM_FALLBACK_HEADERS:
+        try:
+            a = split_from(get_raw(hd), get_dec(hd))[1]
+        except Exception:
+            a = ""
+        if a and "@" in a and not a.lower().startswith(("mailer-daemon@", "postmaster@")):
+            return name, a, hd
+    return name, "", ""
 
 
 def default_owner(c):
@@ -1652,7 +1680,16 @@ def get_mail(c, mail_id: int, user_id: int):
         "SELECT * FROM mail_messages WHERE id=? AND user_id=? AND is_deleted=0",
         (mail_id, user_id),
     ).fetchone()
-    return dict(r) if r else None
+    if not r:
+        return None
+    d = dict(r)
+    # 11-22 예전 방식이 주소 없는 보낸 사람 머리에서 **이름을 주소 칸에** 넣은 메일(예: 「<임태훈>」) — 화면·답장에서는 이름으로 · 주소는 빈칸
+    fe = (d.get("from_email") or "").strip()
+    if fe and "@" not in fe:
+        d["from_name"] = (d.get("from_name") or "").strip() or fe
+        d["from_email"] = ""
+        d["from_bad"] = fe
+    return d
 
 
 def mark_read(c, mail_id: int, user_id: int) -> None:
@@ -1898,7 +1935,8 @@ def parse_raw_email(raw) -> dict:
             return v
 
     subject = _h("Subject")
-    from_name, from_addr = split_from(_recover8(msg.get("From", "") or ""), _h("From"))   # 11-22 원문에서 주소 먼저
+    # 11-22 원문에서 주소 먼저 · (2차) From 에 주소가 없으면 Sender·Reply-To·Return-Path 에서
+    from_name, from_addr, _from_hd = parse_from_headers(lambda n: _recover8(msg.get(n, "") or ""), _h)
     to_addr = parseaddr(_h("To"))[1] or _h("To")
     cc = _h("Cc")
     message_id = str(msg.get("Message-ID") or msg.get("Message-Id") or "").strip().strip("<>").strip()
