@@ -256,6 +256,12 @@ a.z45-all:hover { text-decoration:underline; }
     <div id="z40Pop" class="z40-pop" role="dialog" aria-live="polite" hidden></div>
 
     {# z1191z40: 진행 프로젝트 목록 창 #}
+    {# z1191z108: 「출하 전 / 전체」 머리글 풍선 글(마우스를 올리면 보이고 치우면 사라짐) #}
+    {% set z108_tip_head = "출하 전 / 전체 — 프로젝트의 수주 호기·품목 개수입니다(작업일정표 기준).
+· 출하 전 = 아직 출하하지 않은 호기·품목 수
+· 전체 = 그 프로젝트에 수주된 호기·품목 전체(이미 출하한 것 포함 · 취소된 수주는 뺌)
+· 예) 15 / 15 = 15개 모두 아직 출하 전 · 3 / 10 = 10개 중 7개는 출하 끝
+· (보류 N) = 보류로 둔 호기·품목 — 출하 전 숫자에서 뺍니다" %}
     <div id="z40Modal" class="z40-modal" hidden>
       <div class="z40-panel" role="dialog" aria-modal="true" aria-labelledby="z40MTitle">
         <div class="z40-mhead">
@@ -265,7 +271,7 @@ a.z45-all:hover { text-decoration:underline; }
         </div>
         <div class="z40-mbody">
           <table class="z40-tbl">
-            <thead><tr><th>#</th><th>사업부</th><th>관리번호</th><th>프로젝트</th><th>고객사</th><th class="n">출하 전 / 전체</th><th>가까운 납기</th><th>수주번호</th></tr></thead>
+            <thead><tr><th>#</th><th>사업부</th><th>관리번호</th><th>프로젝트</th><th>고객사</th><th class="n"><span tabindex="0" data-fx-tip="{{ z108_tip_head }}">출하 전 / 전체</span></th><th>가까운 납기</th><th>수주번호</th></tr></thead>
             <tbody>
             {% for p in open_proj.projects|default([]) %}
               <tr>
@@ -274,7 +280,12 @@ a.z45-all:hover { text-decoration:underline; }
                 <td class="nw"><a href="/project/{{ p.pid }}">{{ p.code or '—' }}</a></td>
                 <td>{{ p.pname }}{% if p.model %} <span class="z40-dim">· {{ p.model }}</span>{% endif %}</td>
                 <td>{{ p.cust or '—' }}</td>
-                <td class="n nw"><b>{{ p.n_open }}</b> / {{ p.n_all }}{% if p.n_hold %} <span class="z40-dim">(보류 {{ p.n_hold }})</span>{% endif %}</td>
+                {# z1191z108 (대표 11-22 「출하 전/전체 이게 무슨 뜻이지? 마우스 포인트 올리면 설명 보이게」) — 공용 풍선(data-fx-tip) #}
+                {% set _shipped = (p.n_all or 0) - (p.n_open or 0) - (p.n_hold or 0) %}
+                <td class="n nw"><span tabindex="0" data-fx-tip="{{ p.code or '이 프로젝트' }} — 수주 호기·품목 전체 {{ p.n_all }}개
+· 아직 출하 전 {{ p.n_open }}개
+· 출하 끝 {{ _shipped }}개{% if p.n_hold %}
+· 보류 {{ p.n_hold }}개(출하 전 숫자에서 뺌){% endif %}"><b>{{ p.n_open }}</b> / {{ p.n_all }}</span>{% if p.n_hold %} <span class="z40-dim">(보류 {{ p.n_hold }})</span>{% endif %}</td>
                 <td class="nw{% if p.due and p.due < today_iso %} z40-late{% endif %}">{{ p.due or '—' }}{% if p.due and p.due < today_iso %} ⚠{% endif %}</td>
                 <td class="z40-dim">{% for so in p.so_list[:3] %}{{ so }}{% if not loop.last %}, {% endif %}{% endfor %}{% if p.so_list|length > 3 %} 외 {{ p.so_list|length - 3 }}{% endif %}</td>
               </tr>
