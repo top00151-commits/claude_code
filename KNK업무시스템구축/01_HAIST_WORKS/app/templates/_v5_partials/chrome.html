@@ -128,6 +128,8 @@ var CH = {
   <div id="knkTopRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
     {# v5H226z422 (대표 지시): KNK Eum WORKS 앱 설치 — 설치 가능할 때만 노출(beforeinstallprompt). 핸들러는 works_pwa_head.html #}
     <a class="top-icon" id="worksInstallBtn" href="javascript:void(0)" onclick="worksInstallApp()" title="{{ i.ch_install_t }}" style="display:none;background:var(--knk-red);color:#fff;">📲</a>
+    {# z1191z112 (대표 11-22 「웍스 화면에도 같은 테마 3가지」): 🎨 화면 테마 고르기(밝게·부드럽게·어둡게 · 이 컴퓨터에만 기억) #}
+    <a class="top-icon" id="knkThemeBtn" href="javascript:void(0)" onclick="knkThemeToggle(event)" title="{{ i.ch_theme_t }}" aria-haspopup="dialog" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);">🎨</a>
     {# v5H226z123: 새로고침 — 배포 후 최신 화면 반영. 새 버전 감지 시 빨강 점 강조 #}
     <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="{{ i.ch_refresh_t }}" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);position:relative;">↻</a>
     {% if _role in ('ceo','admin','leader','executive') %}
@@ -983,7 +985,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 {% include "_v5_partials/knk_amt.html" %}
 {% include "_v5_partials/knk_tax_sameday.html" %}
 {% include "_v5_partials/knk_tax_multi.html" %}
-{% include "_v5_partials/knk_fx_tip.html" %}{% include "_v5_partials/knk_sticky_head.html" %}{# z1191z106: 페이지 제목 띠 고정(대표 11-22) #}{# z1191z104: 「≈ ₩」에 마우스 → 몇 월 기준환율·얼마(모든 화면 공용 · 중복 가드) #}
+{% include "_v5_partials/knk_fx_tip.html" %}{% include "_v5_partials/knk_sticky_head.html" %}
+{% include "_v5_partials/knk_theme.html" %}{# z1191z106: 페이지 제목 띠 고정(대표 11-22) #}{# z1191z104: 「≈ ₩」에 마우스 → 몇 월 기준환율·얼마(모든 화면 공용 · 중복 가드) #}
 
 {# v5H226z28 (2026-05-08): 디버그 오버레이 - URL ?debug=1 시 영역명·크기 표시 (전 페이지 공통) #}
 {% include "_v5_partials/debug_overlay.html" ignore missing %}

@@ -1,0 +1,104 @@
+{#═══════════════════════════════════════════════════════════════════════════
+  웍스 화면 테마 3가지   ·   z1191z112 (대표 2026-11-22)
+
+  대표 말씀: 「웍스 화면에도 같은 테마 3가지 넣어줘」 → 결정: 메일과 따로 고르기 · 기본 = 부드럽게 · 어둡게에서도 KNK 빨강은 그대로
+  · 색 값 = 메일 테마(세션 15 · _v5_partials/mail_theme.html)와 같은 값. 메일 파일은 건드리지 않고 웍스 쪽에 따로 둔다.
+  · <html data-kt="clear|soft|dark"> 하나로 바뀜 · 저장 = 이 컴퓨터 브라우저 localStorage `knk.theme`(메일 `knkmail.theme` 과 따로)
+    · 안 고른 사람 = soft(부드럽게) · 다른 창도 storage 이벤트로 같이 바뀜.
+  · 웍스 화면 257개는 화면마다 색을 직접 적은 곳이 많아(약 6,900곳) 공용 색 이름(--paper·--ink·--line·--knk-*)을 덮고,
+    「부드럽게」는 화면 전체 밝기를 살짝 낮추고(직접 적힌 흰 칸도 눈부심 덜함), 「어둡게」는 화면 전체 색을 뒤집는다
+    (사진·로고·그림은 다시 뒤집어 원래 색 · KNK 빨강 바탕은 아래 스크립트가 찾아 원래 색 그대로).
+  · filter 는 <html>(문서 맨 위)에만 건다 — 그래야 화면에 붙어 있는(position:fixed) 창·풍선 위치가 그대로다.
+  · 인쇄할 때는 테마를 끈다(종이는 원래 색).
+  · 고르는 곳 = 상단바 🎨 단추 → 카드 3장.
+═══════════════════════════════════════════════════════════════════════════#}
+<script>
+(function(){ var t = 'soft'; try { t = localStorage.getItem('knk.theme') || 'soft'; } catch (e) {}
+  if (['clear', 'soft', 'dark'].indexOf(t) < 0) t = 'soft';
+  document.documentElement.setAttribute('data-kt', t); })();
+</script>
+<style>
+html[data-kt="clear"], html[data-kt="dark"] {
+  --paper:#eceff3; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f6f7f9; --warm-tan:#e5e7eb;
+  --ink:#111827; --ink-soft:#374151; --mute:#56606e; --mute-2:#9aa3af; --line:#cfd6de; --line-strong:#a9b3bf; --line-soft:#eef0f3;
+  --knk-bg-surface:#ffffff; --knk-bg-subtle:#eceff3; --knk-border-subtle:#cfd6de; --knk-text-primary:#111827; --knk-text-secondary:#374151; --knk-text-muted:#56606e; }
+html[data-kt="soft"] {
+  --paper:#c6d0da; --paper-2:#d2dae3; --paper-3:#dfe5eb; --paper-warm:#d2dae3; --warm-tan:#bcc7d3;
+  --ink:#1c2633; --ink-soft:#313d4c; --mute:#465365; --mute-2:#77869a; --line:#a5b3c2; --line-strong:#8494a7; --line-soft:#ced6df;
+  --knk-bg-surface:#dfe5eb; --knk-bg-subtle:#d2dae3; --knk-border-subtle:#a5b3c2; --knk-text-primary:#1c2633; --knk-text-secondary:#313d4c; --knk-text-muted:#465365; }
+html[data-kt="clear"] body, html[data-kt="clear"] .main, html[data-kt="dark"] body, html[data-kt="dark"] .main { background:#eceff3; }
+html[data-kt="soft"] body, html[data-kt="soft"] .main { background:#c6d0da; }
+html[data-kt="soft"] { filter:brightness(.94); }
+html[data-kt="dark"] { filter:invert(.92) hue-rotate(180deg); background:#eceff3; }
+html[data-kt="dark"] img, html[data-kt="dark"] video, html[data-kt="dark"] canvas, html[data-kt="dark"] picture,
+html[data-kt="dark"] iframe, html[data-kt="dark"] [style*="background-image"], html[data-kt="dark"] .knk-kt-keep { filter:invert(1) hue-rotate(180deg); }
+html[data-kt="dark"] .knk-kt-keep img, html[data-kt="dark"] .knk-kt-keep video, html[data-kt="dark"] .knk-kt-keep canvas { filter:none; }
+@media print { html[data-kt] { filter:none !important; } }
+/* 고르기 상자 */
+#knkThemePop { position:fixed; z-index:2147482000; top:64px; right:16px; width:min(360px, calc(100vw - 24px)); background:#fff; color:#1f2937;
+  border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,.22); padding:12px; font-size:13px; }
+#knkThemePop[hidden] { display:none; }
+#knkThemePop .kt-h { font-weight:800; margin:0 0 8px; }
+#knkThemePop .kt-cards { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+#knkThemePop .kt-card { border:2px solid #e2e8f0; border-radius:10px; padding:6px; background:#fff; cursor:pointer; text-align:center; font:inherit; color:inherit; }
+#knkThemePop .kt-card.on { border-color:#a5282c; box-shadow:0 0 0 2px #fde2e2; }
+#knkThemePop .kt-sw { display:block; height:46px; border-radius:6px; margin-bottom:5px; border:1px solid rgba(0,0,0,.12); }
+#knkThemePop .kt-n { display:block; font-weight:800; font-size:12.5px; }
+#knkThemePop .kt-d { display:block; font-size:11px; color:#64748b; margin-top:2px; line-height:1.35; }
+#knkThemePop .kt-note { margin-top:8px; font-size:11.5px; color:#64748b; }
+</style>
+<div id="knkThemePop" hidden role="dialog" aria-label="{{ i.ch_theme_t }}">
+  <div class="kt-h">🎨 {{ i.ch_theme_t }}</div>
+  <div class="kt-cards" role="radiogroup">
+    <button type="button" class="kt-card" data-kt-k="clear" role="radio" onclick="knkThemeSet('clear')"><span class="kt-sw" style="background:linear-gradient(180deg,#ffffff 0 55%,#eceff3 55%);"></span><span class="kt-n">☀️ {{ i.ch_theme_clear }}</span><span class="kt-d">{{ i.ch_theme_clear_d }}</span></button>
+    <button type="button" class="kt-card" data-kt-k="soft" role="radio" onclick="knkThemeSet('soft')"><span class="kt-sw" style="background:linear-gradient(180deg,#dfe5eb 0 55%,#c6d0da 55%);"></span><span class="kt-n">🌤 {{ i.ch_theme_soft }}</span><span class="kt-d">{{ i.ch_theme_soft_d }}</span></button>
+    <button type="button" class="kt-card" data-kt-k="dark" role="radio" onclick="knkThemeSet('dark')"><span class="kt-sw" style="background:linear-gradient(180deg,#1c1f24 0 55%,#111317 55%);"></span><span class="kt-n">🌙 {{ i.ch_theme_dark }}</span><span class="kt-d">{{ i.ch_theme_dark_d }}</span></button>
+  </div>
+  <div class="kt-note">{{ i.ch_theme_note }}</div>
+</div>
+<script>
+(function(){
+  if (window.__knkThemeZ112) return; window.__knkThemeZ112 = 1;
+  var OK = ['clear', 'soft', 'dark'];
+  function cur(){ return document.documentElement.getAttribute('data-kt') || 'soft'; }
+  function mark(){
+    var t = cur();
+    document.querySelectorAll('#knkThemePop .kt-card').forEach(function(b){ var on = b.getAttribute('data-kt-k') === t; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+  }
+  /* 어둡게: 화면 전체를 뒤집으므로 KNK 빨강 바탕(#A5282C 근처)은 찾아서 다시 뒤집어 원래 색으로 */
+  var seen = (typeof WeakSet === 'function') ? new WeakSet() : null;
+  function near(c){
+    var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(c || ''); if (!m) return false;
+    if (m[4] !== undefined && +m[4] < 0.5) return false;
+    return Math.abs(+m[1] - 165) < 30 && Math.abs(+m[2] - 40) < 30 && Math.abs(+m[3] - 44) < 30;
+  }
+  function keepRed(){
+    if (cur() !== 'dark') return;
+    var all = document.body ? document.body.querySelectorAll('*') : [];
+    for (var i = 0; i < all.length; i++) {
+      var e = all[i];
+      if (seen) { if (seen.has(e)) continue; seen.add(e); }
+      if (e.closest('.knk-kt-keep')) continue;
+      if (near(getComputedStyle(e).backgroundColor)) e.classList.add('knk-kt-keep');
+    }
+  }
+  var tm = null; function later(){ clearTimeout(tm); tm = setTimeout(keepRed, 300); }
+  window.knkThemeSet = function(k){
+    if (OK.indexOf(k) < 0) k = 'soft';
+    try { localStorage.setItem('knk.theme', k); } catch (e) {}
+    document.documentElement.setAttribute('data-kt', k); mark(); keepRed();
+  };
+  window.knkThemeToggle = function(ev){
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    var p = document.getElementById('knkThemePop'); if (!p) return;
+    p.hidden = !p.hidden; if (!p.hidden) mark();
+  };
+  document.addEventListener('click', function(e){ var p = document.getElementById('knkThemePop'); if (p && !p.hidden && !e.target.closest('#knkThemePop') && !e.target.closest('#knkThemeBtn')) p.hidden = true; });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { var p = document.getElementById('knkThemePop'); if (p && !p.hidden) p.hidden = true; } });
+  window.addEventListener('storage', function(e){ if (e.key === 'knk.theme') { var k = e.newValue || 'soft'; if (OK.indexOf(k) < 0) k = 'soft'; document.documentElement.setAttribute('data-kt', k); mark(); keepRed(); } });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', keepRed); else keepRed();
+  window.addEventListener('load', later);
+  try { new MutationObserver(function(ms){ if (cur() !== 'dark') return; for (var i = 0; i < ms.length; i++) if (ms[i].addedNodes.length) { later(); return; } })
+          .observe(document.documentElement, {childList: true, subtree: true}); } catch (e) {}   /* 화면 전환(본문만 바꿈)에도 */
+})();
+</script>
