@@ -125,11 +125,21 @@ v, f = sigs("jo")
 lines = f["text"].split("\n")
 # 11-22 대표 「디자이너라면」 새 기본 틀: 「이름 직책 · 부서」 / 영문 / M·T·F / E·W / 회사 · 주소
 check("첫 줄 = 「이름 직책 · 부서」(웍스 직원 명단)", lines[0] == "조민혁 과장 · 시험품질팀", lines)
-check("본사 = 웍스 회사 정보(회사 이름·주소·전화)", "주식회사 시험회사 · 경기도 시험시 시험로 1" in lines and "M. 010-3333-4444 · T. 031-000-0000" in lines, lines)
-check("팩스가 비면 그 토막만 뺌(전화는 남음)", "F." not in f["text"] and "T. 031-000-0000" in f["text"], f["text"])
+check("본사 = 웍스 회사 정보(회사 이름·주소·전화) 먼저", "주식회사 시험회사 · 경기도 시험시 시험로 1" in lines and "M. 010-3333-4444 · T. 031-000-0000 · F. 031-267-0407" in lines, lines)
+check("웍스 회사 정보 팩스가 비면 대표 팩스(031-267-0407 · 대표 11-22)", "F. 031-267-0407" in f["text"], f["text"])
+check("토막 빼기 규칙: 값이 빈 토막만 뺌(전화는 남음)", mg.fill("T. {전화} · F. {팩스}", {"tel": "02-1", "fax": ""})["text"] == "T. 02-1")
 check("휴대폰·메일 = 직원 명단 · 홈페이지", "M. 010-3333-4444" in f["text"] and "E. t1102@knknara.co.kr · W. www.knknara.com" in lines, lines)
 check("영문 이름을 알 수 없으면(명단 칸 없음 · 메일 주소가 이름 꼴 아님) 영문 줄 통째로 빠짐", len(lines) == 4, lines)
-check("빈 칸 안내 = 팩스 · 웍스 회사 정보", ("팩스", "웍스 회사 정보") in f["missing"] and "팩스" in mg.missing_note(f["missing"], "kr"), f["missing"])
+check("빈 칸 안내 = 영문 이름(직원 명단) · 회사 정보 칸은 대표번호·팩스·주소로 채워져 안내 없음",
+      any(k == "영문이름" for k, _ in f["missing"]) and not any(w == "웍스 회사 정보" for _, w in f["missing"]), f["missing"])
+with _db.db_session() as c:
+    _vh = mg.values_for(c, U["jo"]["id"], "ko", {}, m.rank_label, "")
+    _vv = mg.values_for(c, U["vn"]["id"], "ko", {}, m.rank_label, "")
+    _ven = mg.values_for(c, U["jo"]["id"], "en", {}, m.rank_label, "")
+check("웍스 회사 정보가 모두 비어도 본사 = 대표 전화 031-8009-0407 · 대표 팩스 031-267-0407 · 본사 주소(대표 11-22)",
+      _vh["tel"] == "031-8009-0407" and _vh["fax"] == "031-267-0407" and _vh["address"] == "경기도 화성시 병점구 기산로 87번길 2(기산동)", _vh)
+check("베트남 법인 서명엔 본사 대표번호·팩스 안 들어감", _vv["tel"] == "" and _vv["fax"] == "" and _vv["address"] == mg.VN_ADDRESS, _vv)
+check("영어 서명: 전화·팩스 = 대표번호 · 영문 주소는 짐작하지 않음(회사 정보 값만)", _ven["tel"] == "031-8009-0407" and _ven["address"] == "", _ven)
 check("첫 줄 굵게 · 줄바꿈 <br>", f["html"].startswith("<b>조민혁 과장 · 시험품질팀</b><br>"), f["html"][:80])
 
 v, f = sigs("vn")
@@ -263,7 +273,7 @@ cs = json.loads(mm.group(1)) if mm else []
 check("쓰기 화면 회사 서명 = 새 모양(로고·보안 문구)", any(x.get("slot") == "co-ko" and 'class="knk-co-sig"' in x.get("body", "") and "이 메일(첨부 파일 포함)은" in x.get("body", "") for x in cs), "")
 check("고르면 넣을 회사 서명 = 내 정보로 채운 것", any(x.get("slot") == "co-ko" and "조민혁 과장 · 시험품질팀" in x.get("body", "") for x in cs), cs[:1])
 sp = k.get("/mail/signature").text
-check("서명 화면: 「🏢 회사 서명 쓰기」 + 미리 보기 + 빈 칸 안내", "🏢 회사 서명 쓰기" in sp and "조민혁 과장 · 시험품질팀" in sp and "팩스 — 웍스 회사 정보에 비어 있어 뺐습니다" in sp, "")
+check("서명 화면: 「🏢 회사 서명 쓰기」 + 미리 보기 + 빈 칸 안내", "🏢 회사 서명 쓰기" in sp and "조민혁 과장 · 시험품질팀" in sp and "에 비어 있어 뺐습니다" in sp and "팩스 —" not in sp, "")
 check("직원에겐 「🔧 회사 서명 틀 고치기」 없음", "/mail/signature/company" not in sp)
 as_("ceo")
 check("대표에겐 「🔧 회사 서명 틀 고치기(관리자)」", "🔧 회사 서명 틀 고치기(관리자)" in k.get("/mail/signature").text)

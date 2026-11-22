@@ -51,6 +51,11 @@ DEFAULT = {
 VN_COMPANY = "KNK VINA Co., Ltd."   # 웍스 수출 화면(export_ship)이 쓰는 법인 이름 그대로 — 웍스 회사 정보엔 법인 칸이 없음
 # 11-22 베트남 법인 주소·베트남어 회사 표기·베트남어 보안 문구 = app/mail_sig_vi.py 한 곳(베트남어 글자는 거기만)
 from .mail_sig_vi import VN_ADDRESS, VN_COMPANY_VI, NOTICE_VI
+# 11-22 대표 「Tel. 031-8009-0407 | Fax. 031-267-0407 = 회사 대표번호·대표 팩스 · 본사 인원 전체 동일」 + 본사 서명 사진의 주소
+#   웍스 「회사 정보」(관리자)에 값이 있으면 그 값이 먼저 · 비어 있으면 이 값(그 화면은 11-22 지금 저장이 안 되는 고장 — 세션 01 구역)
+HQ_TEL = "031-8009-0407"
+HQ_FAX = "031-267-0407"
+HQ_ADDRESS = "경기도 화성시 병점구 기산로 87번길 2(기산동)"
 WEB = "www.knknara.com"
 WEB_URL = "https://www.knknara.com"   # 11-22 대표 「QR 도 만들어 배치 · www.knknara.com 이 연결되도록」 — 로고·QR 을 누르면 이 주소
 MAX_TPL = 1200
@@ -254,11 +259,11 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
     if corp == "vn":
         comp, addr, tel, fax = (VN_COMPANY_VI if lang == "vi" else VN_COMPANY), VN_ADDRESS, "", ""
     elif lang == "ko":
-        comp, addr = co.get("company_name_ko", ""), co.get("company_address", "")
-        tel, fax = co.get("company_tel", ""), co.get("company_fax", "")
+        comp, addr = co.get("company_name_ko", ""), (co.get("company_address", "") or "").strip() or HQ_ADDRESS
+        tel, fax = (co.get("company_tel", "") or "").strip() or HQ_TEL, (co.get("company_fax", "") or "").strip() or HQ_FAX
     else:
-        comp, addr = co.get("company_name_en", ""), co.get("company_address_en", "")
-        tel, fax = co.get("company_tel", ""), co.get("company_fax", "")
+        comp, addr = co.get("company_name_en", ""), co.get("company_address_en", "")   # 영문 주소는 짐작하지 않음(웍스 회사 정보 값만)
+        tel, fax = (co.get("company_tel", "") or "").strip() or HQ_TEL, (co.get("company_fax", "") or "").strip() or HQ_FAX
     email = (from_addr or "").strip() or (p.get("email") or "").strip()
     return {"name": nm, "rank": rank, "dept": (p.get("team_name") or "").strip(), "company": (comp or "").strip(),
             "address": (addr or "").strip(), "tel": (tel or "").strip(), "fax": (fax or "").strip(),
