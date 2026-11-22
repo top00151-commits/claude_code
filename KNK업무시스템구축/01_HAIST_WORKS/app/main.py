@@ -24247,7 +24247,13 @@ async def mail_folders_general_page(req: Request):
         res = _mail_folders.classify(c, u["id"])
         groups = _mail_folders.general_groups(c, u["id"], res)
         choices = _mail_folders.assignable(c, u["id"])
-    return ctx(req, "mail_folders_general.html", user=u, groups=groups, choices=choices,
+        robots = _mail_folders.robot_senders(c, u["id"], res)
+        _oth = next((g for g in _mail_folders.folders(c, u["id"]) if not g["parent_id"] and g["kind"] == "other_customer"), None)
+    # 11-22 「＋ 새 폴더로」 넣을 곳 = 묶음·폴더(3단계까지) · 기본 = 기타 고객사
+    parents = [f for f in choices if f["depth"] in (0, 1)]
+    return ctx(req, "mail_folders_general.html", user=u, groups=groups, choices=choices, parents=parents,
+               parent_default=(_oth["id"] if _oth else (parents[0]["id"] if parents else 0)),
+               robot_n=len(robots), robot_m=sum(robots.values()), robot_name=_mail_folders.ROBOT_FOLDER,
                gen=res.get("gen") or {"n": 0, "u": 0})
 
 
@@ -24268,6 +24274,91 @@ async def mail_folders_rule(req: Request):
                          (u["id"], sender)).fetchone():
             return JSONResponse({"ok": False, "message": "내 받은 메일의 보낸 주소가 아닙니다."}, 404)
         r = _mail_folders.set_rule(c, u["id"], fid, sender, _mail_folders.classify(c, u["id"]))
+    return JSONResponse(r, 200 if r.get("ok") else 400)
+
+
+@app.post("/mail/folders/general/new")
+async def mail_folders_general_new(req: Request):
+    """11-22 일반 정리 「＋ 새 폴더로」 — 폴더를 만들고 그 보낸 곳의 지난·앞으로 메일을 모두 그리로(나에게만)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    sender = (form.get("sender") or "").strip().lower()
+    try:
+        pid = int(form.get("parent_id") or 0)
+    except Exception:
+        pid = 0
+    with db_session() as c:
+        if not c.execute("SELECT 1 FROM mail_messages WHERE user_id=? AND direction='in' AND lower(from_email)=? LIMIT 1",
+                         (u["id"], sender)).fetchone():
+            return JSONResponse({"ok": False, "message": "내 받은 메일의 보낸 주소가 아닙니다."}, 404)
+        r = _mail_folders.new_folder_move(c, u["id"], _mail_folders.classify(c, u["id"]), sender, form.get("name") or "", pid)
+    return JSONResponse(r, 200 if r.get("ok") else 400)
+
+
+@app.post("/mail/folders/quick")
+async def mail_folders_quick(req: Request):
+    """11-22 대표 「항목에서 마우스 오른쪽 클릭하면 수정·삭제·하위 항목 추가 등 여기서 바로」 — 왼쪽 폴더 오른쪽 클릭 메뉴(JSON · 나에게만).
+    op = rename(id,name) · add(parent_id,name) · aliases(id,aliases) · up/down(id) · delete(id) · teamname(key,name) · suggest(id) · makesubs(id,names)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    op = (form.get("op") or "").strip()
+
+    def _i(k):
+        try:
+            return int(form.get(k) or 0)
+        except Exception:
+            return 0
+    uid = u["id"]
+    with db_session() as c:
+        _mail_folders.ensure(c)
+        fid = _i("id")
+        if op in ("rename", "aliases", "up", "down", "delete", "suggest", "makesubs") and not c.execute(
+                "SELECT 1 FROM mail_folders WHERE id=? AND user_id=?", (fid, uid)).fetchone():
+            return JSONResponse({"ok": False, "message": "내 폴더가 아닙니다."}, 404)
+        if op == "rename":
+            ok = _mail_folders.rename_folder(c, uid, fid, form.get("name"))
+            return JSONResponse({"ok": ok, "message": "" if ok else "이름을 적어 주세요."}, 200 if ok else 400)
+        if op == "add":
+            nid = _mail_folders.add_folder(c, uid, form.get("name"), _i("parent_id") or None)
+            return JSONResponse({"ok": bool(nid), "id": nid, "message": "" if nid else "만들 수 없습니다(이름 · 3단계까지)."}, 200 if nid else 400)
+        if op == "aliases":
+            return JSONResponse({"ok": _mail_folders.set_aliases(c, uid, fid, form.get("aliases"))})
+        if op in ("up", "down"):
+            return JSONResponse({"ok": _mail_folders.move_folder(c, uid, fid, -1 if op == "up" else 1)})
+        if op == "delete":
+            n = _mail_folders.delete_folder(c, uid, fid)
+            return JSONResponse({"ok": bool(n), "n": n})
+        if op == "teamname":
+            key = (form.get("key") or "").strip()
+            try:
+                if (form.get("name") or "").strip():
+                    _mail_folders.set_team_pref(c, uid, key, name=form.get("name"))
+                else:
+                    _mail_folders.set_team_pref(c, uid, key, name="")
+            except ValueError as e:
+                return JSONResponse({"ok": False, "message": str(e)}, 400)
+            return JSONResponse({"ok": True})
+        if op == "suggest":
+            r = _mail_folders.sub_suggest(c, uid, _mail_folders.classify(c, uid), fid)
+            return JSONResponse(r, 200 if r.get("ok") else 400)
+        if op == "makesubs":
+            r = _mail_folders.make_subs(c, uid, fid, form.getlist("names"))
+            return JSONResponse(r, 200 if r.get("ok") else 400)
+    return JSONResponse({"ok": False, "message": "모르는 일입니다."}, 400)
+
+
+@app.post("/mail/folders/general/robots")
+async def mail_folders_general_robots(req: Request):
+    """11-22 일반 정리 — 알림·광고 주소를 한 번에 「알림·광고」 묶음으로(주소 하나씩 · 지난·앞으로 메일 · ↺ 되돌리기)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        r = _mail_folders.move_robots(c, u["id"], _mail_folders.classify(c, u["id"]))
     return JSONResponse(r, 200 if r.get("ok") else 400)
 
 

@@ -765,10 +765,10 @@ def classify(c, uid) -> dict:
         si = sub_idx.get(int(key[1:]))
         if not si:
             return key, ""
-        comp = ""
+        comp = dept = ""
         if not _RE_ROBOT.match(e.split("@")[0] or ""):
-            comp = _sig_of(c, e, last_id, nm)[0]
-        for txt, how in ((comp, "서명의 회사 이름"), (nm or "", "보낸 사람 이름")):
+            comp, dept = _sig_of(c, e, last_id, nm)
+        for txt, how in ((comp, "서명의 회사 이름"), (dept, "서명의 부서"), (nm or "", "보낸 사람 이름")):
             if txt:
                 k = _one(si.find(txt))
                 if k:
@@ -868,7 +868,7 @@ def classify(c, uid) -> dict:
                     key, how = k2, how + h2
         if key is None:
             key, how = "gen", "일반"
-        senders[e] = {"key": key, "how": how, "n": r["n"] or 0, "u": r["u"] or 0}
+        senders[e] = {"key": key, "how": how, "n": r["n"] or 0, "u": r["u"] or 0, "nm": r["nm"] or ""}
         _last_ids[e] = r["last_id"]
 
     # ⑧ 같은 회사 주소의 다른 사람이 폴더 **한 곳**으로만 갔으면 나머지도 그리로(개인 메일·우리 회사 주소 · 여러 폴더가 나눠 쓰는 주소 제외)
@@ -909,6 +909,7 @@ def classify(c, uid) -> dict:
     # ── 메일 한 통마다 ──
     cnt, gcnt = {}, {}
     upd_key, upd_team = [], []
+    _ref_cache = {}
     for r in c.execute("SELECT id, lower(from_email) AS e, COALESCE(received_at,'') AS ts, COALESCE(fd_pin,'') AS pin, "
                        "fd_team, COALESCE(fd_key,'') AS fk, is_read FROM mail_messages "
                        "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0", (uid,)).fetchall():
@@ -921,6 +922,11 @@ def classify(c, uid) -> dict:
             rr = _rule_for(ri, e, r["ts"])             # ② 내가 옮긴 규칙(그 메일 받은 때 기준)
             if rr:
                 k = rr[0]
+                if k in split_keys and s is not None:   # 옮긴 폴더에 아래 폴더가 있으면(삼성그룹 등) 그 안에서 한 번 더
+                    ck = (e, k)
+                    if ck not in _ref_cache:
+                        _ref_cache[ck] = refine(k, e, s.get("nm", ""), _last_ids.get(e))[0]
+                    k = _ref_cache[ck]
             elif staff_g and _dom(e) in OUR_DOMAINS:   # ③ 직원 = 받은 때 부서
                 tid = r["fd_team"]
                 cur = staff_tid.get(e)
@@ -973,9 +979,9 @@ def classify(c, uid) -> dict:
                 keys_of[f2k] = {f2k}
                 targets.append({"key": f2k, "name": f2["name"], "depth": 2, "up": f["name"]})
                 sub.append({"key": f2k, "name": f2["name"], "n": cnt.get(f2k, [0, 0])[0], "u": cnt.get(f2k, [0, 0])[1],
-                            "assignable": True})
+                            "assignable": True, "al": f2.get("aliases") or ""})
             keys_of[fk] = {fk} | {x["key"] for x in sub}
-            node = {"key": fk, "name": f["name"], "assignable": True,
+            node = {"key": fk, "name": f["name"], "assignable": True, "al": f.get("aliases") or "",
                     "n": sum(cnt.get(k, [0, 0])[0] for k in keys_of[fk]), "u": sum(cnt.get(k, [0, 0])[1] for k in keys_of[fk])}
             if sub:
                 node["children"] = sub
@@ -1049,7 +1055,7 @@ def classify(c, uid) -> dict:
                 targets.append({"key": x["key"], "name": x["name"], "depth": 1, "up": g["name"], "team": True})
         ks = {gk} | {x["key"] for x in ch} | {y["key"] for x in ch for y in (x.get("children") or [])}
         keys_of[gk] = ks
-        nodes.append({"key": gk, "name": g["name"], "kind": g["kind"], "children": ch,
+        nodes.append({"key": gk, "name": g["name"], "kind": g["kind"], "children": ch, "al": g.get("aliases") or "",
                       "n": sum(cnt.get(k, [0, 0])[0] for k in ks), "u": sum(cnt.get(k, [0, 0])[1] for k in ks),
                       "assignable": g["kind"] != "staff"})
     labels["gen"] = "일반"
@@ -1135,6 +1141,11 @@ def general_groups(c, uid, res, limit=300) -> list:
     out = sorted(groups.values(), key=lambda g: (-g["n"], g["key"]))[:limit]
     if not out:
         return []
+    try:
+        from .mail_find import bulk_senders
+        bulk = set(bulk_senders(c, uid))
+    except Exception:
+        bulk = set()
     allsend = [e for g in out for e in g["senders"]]
     c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_gs(e TEXT PRIMARY KEY)")
     c.execute("DELETE FROM _mf_gs")
@@ -1184,7 +1195,93 @@ def general_groups(c, uid, res, limit=300) -> list:
         fid = _one(sug)
         g["suggest"] = fid
         g["suggest_name"] = labels.get("f%d" % fid, "") if fid else ""
+        # 11-22 대표 「일반에 많이 남은 곳 보강」 — 「＋ 새 폴더로」 이름 미리 채우기(서명의 회사 이름 → 회사 주소 맨 앞) · 알림·광고 표시
+        g["new_name"] = _clean_comp(comps[0]) if comps else (_dom_label(g["key"]) if g["is_domain"] else "")
+        g["robot"] = all(_is_robot(e, bulk) for e in g["senders"])
     return out
+
+
+def _clean_comp(s) -> str:
+    """서명의 회사 이름 → 폴더 이름(㈜·주식회사·Co., Ltd. 뺌)."""
+    t = _RE_CORP.sub(" ", s or "")
+    return re.sub(r"\s+", " ", t).strip(" ,.-·")[:40]
+
+
+def _dom_label(d) -> str:
+    """회사 주소 → 폴더 이름 후보(@ 뒤 맨 앞 · mail./co. 같은 앞 글자 빼고)."""
+    parts = [x for x in (d or "").lower().split(".") if x and x not in ("mail", "email", "m", "www", "co", "com", "net", "kr", "or", "ac")]
+    return parts[0] if parts else (d or "")
+
+
+def _is_robot(e, bulk=()) -> bool:
+    from .mail_cleanup import _RE_ROBOT
+    return bool(_RE_ROBOT.match((e or "").split("@")[0] or "")) or e in (bulk or ())
+
+
+ROBOT_FOLDER = "알림·광고"
+
+
+def robot_senders(c, uid, res) -> dict:
+    """「일반」에 남은 알림·광고 주소(noreply·newsletter… · 「📮 보낸 곳별 정리」가 광고·알림으로 본 곳) → {주소: 통수}."""
+    try:
+        from .mail_find import bulk_senders
+        bulk = set(bulk_senders(c, uid))
+    except Exception:
+        bulk = set()
+    return {e: nu[0] for e, nu in (res.get("gen_senders") or {}).items() if nu and nu[0] and _is_robot(e, bulk)}
+
+
+def move_robots(c, uid, res) -> dict:
+    """알림·광고 주소를 한 번에 「알림·광고」 묶음으로 — **주소 하나씩**(회사 주소 전체가 아님: noreply@거래처 때문에 거래처 메일이 따라가지 않게).
+    지난 메일·앞으로 올 메일 모두 · ↺ 되돌리기(move_undo)."""
+    ensure(c)
+    rs = robot_senders(c, uid, res)
+    if not rs:
+        return {"ok": False, "message": "「일반」에 알림·광고 주소가 없습니다."}
+    r = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND parent_id IS NULL AND name=?", (uid, ROBOT_FOLDER)).fetchone()
+    fid = r["id"] if r else add_folder(c, uid, ROBOT_FOLDER)
+    undo = {"add": [], "del": [], "pins": []}
+    for e in sorted(rs):
+        _put_rule(c, uid, "email", e, "f%d" % fid, "", undo)
+    import json as _json
+    _set_flag(c, uid, "move_undo", _json.dumps(undo, ensure_ascii=False))
+    _CACHE.pop(uid, None)
+    classify(c, uid)
+    return {"ok": True, "name": ROBOT_FOLDER, "senders": len(rs), "moved": sum(rs.values())}
+
+
+def new_folder_move(c, uid, res, sender, name, parent_id) -> dict:
+    """「＋ 새 폴더로」 — 폴더를 만들고(같은 이름이 그 자리에 있으면 그것) 그 보낸 곳의 지난·앞으로 메일을 모두 그리로."""
+    ensure(c)
+    nm = re.sub(r"\s+", " ", (name or "")).strip()[:60]
+    if not nm:
+        return {"ok": False, "message": "폴더 이름을 적어 주세요."}
+    dp = _depth(c, uid, parent_id)
+    g = c.execute("SELECT kind FROM mail_folders WHERE id=? AND user_id=?", (parent_id, uid)).fetchone()
+    if dp not in (0, 1) or not g or (dp == 0 and g["kind"] == "staff"):
+        return {"ok": False, "message": "넣을 곳을 골라 주세요."}
+    tgt = rule_target(sender, res)
+    if not tgt:
+        return {"ok": False, "message": "보낸 사람 주소가 없습니다."}
+    fid = None
+    for r in c.execute("SELECT id, name FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, parent_id)).fetchall():
+        if norm_name(r["name"]) == norm_name(nm):
+            fid = r["id"]
+            break
+    made = False
+    if not fid:
+        fid = add_folder(c, uid, nm, parent_id)
+        made = True
+    if not fid:
+        return {"ok": False, "message": "폴더를 만들지 못했습니다."}
+    undo = {"add": [], "del": [], "pins": []}
+    _put_rule(c, uid, tgt[0], tgt[1], "f%d" % fid, "", undo)
+    import json as _json
+    _set_flag(c, uid, "move_undo", _json.dumps(undo, ensure_ascii=False))
+    _CACHE.pop(uid, None)
+    classify(c, uid)
+    return {"ok": True, "folder_id": fid, "name": nm, "made": made, "kind": tgt[0], "pattern": tgt[1],
+            "moved": _match_count(c, uid, [tgt], "f%d" % fid)}
 
 
 def senders_in(res, key) -> list:
@@ -1460,6 +1557,64 @@ def delete_rule(c, uid, rule_id) -> bool:
     n = c.execute("DELETE FROM mail_move_rules WHERE id=? AND user_id=?", (rule_id, uid)).rowcount
     _CACHE.pop(uid, None)
     return bool(n)
+
+
+def sub_suggest(c, uid, res, fid, limit=30) -> dict:
+    """11-22 대표 「삼성그룹 하단에 더 구분 · 다른 회사도 구분」 — 그 폴더(아래 폴더 포함)에 든 메일의 서명 회사 이름·부서를 모아
+    아래 폴더 후보와 통수를 돌려준다(화면에만 보임 · 사람이 골라 만듦). 이미 있는 아래 폴더·그 폴더 이름과 같은 것은 뺌."""
+    ensure(c)
+    f = c.execute("SELECT id, name, parent_id FROM mail_folders WHERE id=? AND user_id=?", (fid, uid)).fetchone()
+    dp = _depth(c, uid, fid)
+    if not f or dp not in (0, 1):
+        return {"ok": False, "message": "이 폴더 아래로는 더 나눌 수 없습니다(3단계까지)."}
+    key = "f%d" % fid
+    ks = sorted((res.get("keys_of") or {}).get(key) or {key})
+    have = {norm_name(f["name"])}
+    for r in c.execute("SELECT name, COALESCE(aliases,'') AS al FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, fid)).fetchall():
+        have.add(norm_name(r["name"]))
+        for a in re.split(r"[,\n]+", r["al"]):
+            if a.strip():
+                have.add(norm_name(a))
+    q = ",".join("?" * len(ks))
+    comps, depts = {}, {}
+    for r in c.execute("SELECT lower(from_email) AS e, MAX(from_name) AS nm, MAX(id) AS lid, COUNT(*) AS n FROM mail_messages "
+                       "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(fd_key,'') IN (" + q + ") "
+                       "GROUP BY lower(from_email)", (uid, *ks)).fetchall():
+        e = (r["e"] or "").strip()
+        if not e or _is_robot(e):
+            continue
+        comp, dept = _sig_of(c, e, r["lid"], r["nm"])
+        cn = _clean_comp(comp)
+        nn = norm_name(cn)
+        if cn and len(nn) >= 2 and nn not in have:
+            a = comps.setdefault(nn, {"name": cn, "by": "회사", "senders": 0, "n": 0})
+        elif dp == 0 or not (dept or "").strip() or norm_name(dept) in have:
+            continue
+        else:   # 회사 이름이 이 폴더와 같으면 부서로(예: 드림텍 → 사업부)
+            dn = re.sub(r"\s+", " ", dept).strip()[:40]
+            a = depts.setdefault(norm_name(dn), {"name": dn, "by": "부서", "senders": 0, "n": 0})
+        a["senders"] += 1
+        a["n"] += r["n"] or 0
+    out = sorted(list(comps.values()) + list(depts.values()), key=lambda x: (-x["n"], x["name"]))[:limit]
+    return {"ok": True, "folder": f["name"], "depth": dp, "items": out}
+
+
+def make_subs(c, uid, fid, names) -> dict:
+    """「💡 아래 폴더 추천」에서 고른 이름으로 아래 폴더를 만든다(같은 이름이 있으면 건너뜀) — 메일은 서명·이름으로 저절로 그 안으로."""
+    ensure(c)
+    if _depth(c, uid, fid) not in (0, 1):
+        return {"ok": False, "message": "이 폴더 아래로는 더 나눌 수 없습니다(3단계까지)."}
+    have = {norm_name(r["name"]) for r in c.execute("SELECT name FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, fid)).fetchall()}
+    made = []
+    for nm in list(names or [])[:40]:
+        nm = re.sub(r"\s+", " ", (nm or "")).strip()[:60]
+        if not nm or norm_name(nm) in have:
+            continue
+        if add_folder(c, uid, nm, fid):
+            made.append(nm)
+            have.add(norm_name(nm))
+    _CACHE.pop(uid, None)
+    return {"ok": True, "made": made}
 
 
 def stamp_arrival(c, mail_id, from_email) -> None:

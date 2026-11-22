@@ -641,7 +641,7 @@
       {% for g in mf.nodes %}
       <div class="mf-g" data-g="{{ g.key }}">
         {% set _gid = (g.key[1:]|int) if (g.key[:1] == 'f' and g.key[1:].isdigit()) else 0 %}
-        <a href="/mail/inbox?fd={{ g.key }}" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == g.key else '' }}" {% if g.key in _fdok %}data-drop="pin" data-fkey="{{ g.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ g.name }}"{% else %}data-drop="no" data-why="「{{ g.name }}」 묶음에는 바로 넣을 수 없어요 — 그 안의 부서 폴더에 놓으세요"{% endif %} title="{{ g.name }} — 받은 메일 {{ g.n }}통{% if g.u %} · 안 읽음 {{ g.u }}통{% endif %}">
+        <a href="/mail/inbox?fd={{ g.key }}" data-fk="{{ g.key }}" data-dep="0" data-al="{{ g.al|default('') }}" data-u="{{ g.u }}" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == g.key else '' }}" {% if g.key in _fdok %}data-drop="pin" data-fkey="{{ g.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ g.name }}"{% else %}data-drop="no" data-why="「{{ g.name }}」 묶음에는 바로 넣을 수 없어요 — 그 안의 부서 폴더에 놓으세요"{% endif %} title="{{ g.name }} — 받은 메일 {{ g.n }}통{% if g.u %} · 안 읽음 {{ g.u }}통{% endif %}">
           {% if g.children %}<span class="mf-tg" onclick="return mfToggle(event,'{{ g.key }}')" title="펼치기·접기">▾</span>{% else %}<span class="mf-tg mf-tg-x"></span>{% endif %}
           <span class="mf-dot fk-{{ g.kind or 'x' }}"></span><span class="fname">{{ g.name }}</span>{% if g.n %}<span class="mf-n">{{ '{:,}'.format(g.n) }}</span>{% endif %}{% if g.u %}<span class="mf-u">{{ '{:,}'.format(g.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'{{ g.key }}')" title="「{{ g.name }}」 안 읽은 메일 {{ g.u }}통 모두 읽음으로">✓</span>{% endif %}
         </a>
@@ -649,7 +649,7 @@
         {% set _zero = g.children|selectattr('n', 'equalto', 0)|list %}
         {% for k in g.children %}
           {% set _kid = (k.key[1:]|int) if (k.key[:1] == 'f' and k.key[1:].isdigit()) else 0 %}
-          <a href="/mail/inbox?fd={{ k.key }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" {% if k.key in _fdok %}data-drop="pin" data-fkey="{{ k.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k.name }}"{% else %}data-drop="no" data-why="「{{ k.name }}」에는 바로 넣을 수 없어요 — 그 안의 폴더에 놓으세요"{% endif %} title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
+          <a href="/mail/inbox?fd={{ k.key }}" data-fk="{{ k.key }}" data-dep="1" data-al="{{ k.al|default('') }}" data-u="{{ k.u }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" {% if k.key in _fdok %}data-drop="pin" data-fkey="{{ k.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k.name }}"{% else %}data-drop="no" data-why="「{{ k.name }}」에는 바로 넣을 수 없어요 — 그 안의 폴더에 놓으세요"{% endif %} title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
             {% if k.children %}<span class="mf-tg mf-stg" onclick="return mfSubToggle(event,'{{ k.key }}')" title="펼치기·접기">▾</span>{% endif %}<span class="fname">{{ k.name }}</span>{% if k.n %}<span class="mf-n">{{ '{:,}'.format(k.n) }}</span>{% endif %}{% if k.u %}<span class="mf-u">{{ '{:,}'.format(k.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'{{ k.key }}')" title="「{{ k.name }}」 안 읽은 메일 {{ k.u }}통 모두 읽음으로">✓</span>{% endif %}
           </a>
           {% if k.children %}
@@ -659,7 +659,7 @@
           {% endif %}
           {% for k2 in (k.children or []) %}
           {# 11-18 대표: 「20_베트남법인」 안 부서(번호 없는 부서 = 베트남 법인) — 한 칸 더 들여 씀 #}
-          <a href="/mail/inbox?fd={{ k2.key }}" class="mbx-fold mf-k mf-k2 {{ 'on' if cur_fd|default('') == k2.key else '' }}" {% if k2.key in _fdok %}data-drop="pin" data-fkey="{{ k2.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k2.name }}"{% else %}data-drop="no" data-why="「{{ k2.name }}」에는 넣을 수 없어요"{% endif %} title="{{ k2.name }} — 받은 메일 {{ k2.n }}통{% if k2.u %} · 안 읽음 {{ k2.u }}통{% endif %}">
+          <a href="/mail/inbox?fd={{ k2.key }}" data-fk="{{ k2.key }}" data-dep="2" data-al="{{ k2.al|default('') }}" data-u="{{ k2.u }}" class="mbx-fold mf-k mf-k2 {{ 'on' if cur_fd|default('') == k2.key else '' }}" {% if k2.key in _fdok %}data-drop="pin" data-fkey="{{ k2.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k2.name }}"{% else %}data-drop="no" data-why="「{{ k2.name }}」에는 넣을 수 없어요"{% endif %} title="{{ k2.name }} — 받은 메일 {{ k2.n }}통{% if k2.u %} · 안 읽음 {{ k2.u }}통{% endif %}">
             <span class="fname">{{ k2.name }}</span>{% if k2.n %}<span class="mf-n">{{ '{:,}'.format(k2.n) }}</span>{% endif %}{% if k2.u %}<span class="mf-u">{{ '{:,}'.format(k2.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'{{ k2.key }}')" title="「{{ k2.name }}」 안 읽은 메일 {{ k2.u }}통 모두 읽음으로">✓</span>{% endif %}
           </a>
           {% endfor %}
@@ -669,7 +669,7 @@
         </div>
       </div>
       {% endfor %}
-      <a href="/mail/inbox?fd=gen" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" data-drop="pin" data-fkey="gen" data-gkey="gen" data-kind="gen" data-dname="일반" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
+      <a href="/mail/inbox?fd=gen" data-fk="gen" data-dep="0" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" data-drop="pin" data-fkey="gen" data-gkey="gen" data-kind="gen" data-dname="일반" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
         <span class="mf-tg mf-tg-x"></span><span class="mf-dot fk-gen"></span><span class="fname">일반</span>{% if mf.gen.n %}<span class="mf-n">{{ '{:,}'.format(mf.gen.n) }}</span>{% endif %}{% if mf.gen.u %}<span class="mf-u">{{ '{:,}'.format(mf.gen.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'gen')" title="「일반」 안 읽은 메일 {{ mf.gen.u }}통 모두 읽음으로">✓</span>{% endif %}
       </a>
       {% if mf.gen.n %}<a href="/mail/folders/general" class="mbx-fold mf-k" style="color:#1d4ed8;font-size:12px" title="일반에 남은 메일 {{ mf.gen.n }}통을 보낸 곳별로 묶어 한 번에 폴더로"><span class="fname">🧹 일반 정리하기</span></a>{% endif %}
@@ -1596,6 +1596,37 @@ async function mbxDropDo(tg, ids){
   document.getElementById('mbxCmd') && document.getElementById('mbxCmd').addEventListener('click', function(e){
     var b=e.target.closest('[data-cmd]'); if(!b) return; e.stopPropagation(); mbxCmd(b.dataset.cmd, null, b);
   });
+  // 11-22 대표 「항목에서 마우스 오른쪽 클릭하면 수정·삭제·하단 항목 추가 등 여기서 바로」 — 왼쪽 폴더 오른쪽 클릭 메뉴
+  document.addEventListener('contextmenu', function(e){
+    var a=e.target.closest && e.target.closest('.mbx-side a.mbx-fold[data-fk]'); if(!a) return;
+    e.preventDefault(); e.stopPropagation();
+    var fk=a.dataset.fk, dep=parseInt(a.dataset.dep||'0',10), nm=((a.querySelector('.fname')||{}).textContent||'').trim();
+    var isF=/^f\d+$/.test(fk), isT=/^t\d+$/.test(fk), fid=isF?fk.slice(1):'';
+    async function done(j){ if(j && j.ok){ location.reload(); } else { alert('⚠ '+((j&&j.message)||'하지 못했습니다')); } }
+    menu.innerHTML=''; head('📁 '+nm);
+    item('📂 열기', function(){ location.href=a.getAttribute('href'); });
+    if(isF){
+      item('✏️ 이름 바꾸기', async function(){ var v=await mailAskText({title:'✏️ 폴더 이름 바꾸기', sub:'서명의 회사 이름과 맞출 때도 이 이름을 씁니다', value:nm}); if(v && v!==nm) done(await mailFolderQuick({op:'rename', id:fid, name:v})); });
+      if(dep<=1){
+        item('＋ 아래 폴더 만들기', async function(){ var v=await mailAskText({title:'＋ 「'+nm+'」 아래 폴더 만들기', sub:'예: 회사 이름 · 사업부 — 서명·보낸 사람 이름으로 저절로 나뉩니다', ph:'새 폴더 이름', ok:'만들기'}); if(v) done(await mailFolderQuick({op:'add', parent_id:fid, name:v})); });
+        item('💡 아래 폴더 추천(서명의 회사·부서)', async function(){ if(await mailSubSuggest(fid, nm)) location.reload(); });
+      }
+      item('🏷 다른 이름(영문·회사 주소)', async function(){ var v=await mailAskText({title:'🏷 「'+nm+'」 다른 이름', sub:'쉼표로 — 영문 이름·회사 주소(@ 뒤). 서명·보낸 사람 이름·회사 주소와 맞출 때 같이 봅니다', value:a.dataset.al||'', max:300, ph:'예: Dreamtech, dreamtech.co.kr'}); if(v!==null && v!==(a.dataset.al||'')) done(await mailFolderQuick({op:'aliases', id:fid, aliases:v})); });
+      hr();
+      item('↑ 위로', async function(){ done(await mailFolderQuick({op:'up', id:fid})); });
+      item('↓ 아래로', async function(){ done(await mailFolderQuick({op:'down', id:fid})); });
+    } else if(isT){
+      item('✏️ 이름 바꾸기(메일에서만)', async function(){ var v=await mailAskText({title:'✏️ 부서 폴더 이름(메일에서만)', sub:'회사 부서표는 그대로 · 비우면 원래 이름', value:nm}); if(v!==null && v!==nm) done(await mailFolderQuick({op:'teamname', key:fk, name:v})); });
+    }
+    if(parseInt(a.dataset.u||'0',10)>0) item('✓ 모두 읽음으로', function(){ mbxReadAll(null, fk); });
+    if(fk==='gen') item('🧹 일반 정리하기', function(){ location.href='/mail/folders/general'; });
+    hr();
+    item('⚙ 폴더 관리(위치·규칙)', function(){ location.href='/mail/folders'+(isT||/^(th|tv|g\d+)$/.test(fk)?'#staff':''); });
+    if(isF){
+      item('🗑 폴더 지우기', async function(){ if(!confirm('「'+nm+'」 폴더를 지울까요?'+(dep<=1?'\n아래 폴더도 함께 지웁니다.':'')+'\n메일은 지워지지 않습니다(자동 분류나 일반으로 돌아갑니다).')) return; done(await mailFolderQuick({op:'delete', id:fid})); }, {cls:'del'});
+    }
+    place(e.clientX, e.clientY);
+  }, true);
   // 오른쪽 클릭 — 그 줄이 고른 것이면 고른 것 모두, 아니면 그 줄만
   document.addEventListener('contextmenu', function(e){
     var r=e.target.closest && e.target.closest('.mbx-list .mbx-row, .mbx-list .mbx-headlink'); if(!r) return;
@@ -1616,7 +1647,7 @@ async function mbxDropDo(tg, ids){
     if(!out) item('⏰ 다시 알림 ▸', function(){ setTimeout(function(){ mbxFollowMenu('snz', r, ids); }, 0); });
     hr();
     item(window._mbxCurArc ? '📥 받은편지함으로' : '📦 보관', function(){ mbxCmd('archive', ids); }, {k:'E'});
-    item('📁 이 메일만 다른 폴더로 ▸', function(){ setTimeout(function(){ mbxMoveMenu(r, ids); }, 0); });
+    item('📁 다른 폴더로 ▸', function(){ setTimeout(function(){ mbxMoveMenu(r, ids); }, 0); });
     if(from && !out){
       item('🔍 이 사람 메일 모두 보기', function(){ location.href='/mail/inbox?who='+encodeURIComponent(from); });
       if(!/@knknara\.co\.kr$/i.test(from)) item('🔕 다시 안 받기(나만 · 스팸함으로)', async function(){

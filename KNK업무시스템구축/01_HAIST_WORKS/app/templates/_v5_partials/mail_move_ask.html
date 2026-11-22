@@ -91,6 +91,60 @@
     if(j.when==='new') return '📁 '+(j.label||'')+' — 고른 메일과 앞으로 받는 메일이 '+nm+'(으)로 · 지난 메일 '+n(j.kept)+'통은 그대로';
     return '📁 '+(j.label||'')+' 메일 '+n(j.in_target)+'통을 '+nm+'(으)로 · 앞으로 받는 메일도'+(j.kept?(' · '+n(j.kept)+'통은 따로 정한 곳 그대로'):'');
   };
+  // 11-22 대표 「항목에서 오른쪽 클릭 → 수정·삭제·하위 항목 추가를 바로」 — 이름 적는 작은 창 · 💡 아래 폴더 추천 창
+  function modal(html){ var bg=document.createElement('div'); bg.className='mmv-bg'; bg.innerHTML='<div class="mmv" role="dialog" aria-modal="true"><button type="button" class="x" title="닫기" aria-label="닫기">✕</button>'+html+'</div>'; document.body.appendChild(bg); return bg; }
+  window.mailAskText=function(o){
+    return new Promise(function(resolve){
+      var bg=modal('<h3>'+esc(o.title||'')+'</h3>'+(o.sub?'<div class="sub">'+esc(o.sub)+'</div>':'')+
+        '<input type="text" class="mmv-in" maxlength="'+(o.max||60)+'" style="width:100%;box-sizing:border-box;font:inherit;font-size:14px;border:1px solid var(--line,#cbd5e1);border-radius:8px;padding:8px 10px" placeholder="'+esc(o.ph||'')+'">'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="gn-c" style="font:inherit;border:1px solid var(--line,#cbd5e1);background:#fff;border-radius:8px;padding:6px 14px;cursor:pointer">취소</button>'+
+        '<button type="button" class="gn-o" style="font:inherit;border:0;background:#1d4ed8;color:#fff;border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700">'+esc(o.ok||'확인')+'</button></div>');
+      var inp=bg.querySelector('.mmv-in'); inp.value=o.value||'';
+      function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
+      function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(null); } else if(e.key==='Enter' && document.activeElement===inp){ e.preventDefault(); close(inp.value.trim()); } }
+      document.addEventListener('keydown', onKey, true);
+      bg.addEventListener('mousedown', function(e){ if(e.target===bg) close(null); });
+      bg.querySelector('.x').onclick=function(){ close(null); }; bg.querySelector('.gn-c').onclick=function(){ close(null); };
+      bg.querySelector('.gn-o').onclick=function(){ close(inp.value.trim()); };
+      inp.focus(); inp.select();
+    });
+  };
+  async function quick(obj){
+    var fd=new FormData(); Object.keys(obj).forEach(function(k){ var v=obj[k]; if(Array.isArray(v)) v.forEach(function(x){ fd.append(k, x); }); else fd.append(k, v); });
+    try{ var r=await fetch('/mail/folders/quick',{method:'POST',body:fd,credentials:'same-origin'}); return await r.json(); }catch(e){ return {ok:false, message:'네트워크 오류'}; }
+  }
+  window.mailFolderQuick=quick;
+  window.mailSubSuggest=async function(fid, name){
+    var j=await quick({op:'suggest', id:fid});
+    if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return false; }
+    return await new Promise(function(resolve){
+      var its=j.items||[];
+      var html='<h3>💡 「'+esc(name)+'」 아래 폴더 추천</h3>'+
+        '<div class="sub">이 폴더에 든 메일의 <b>서명 회사 이름·부서</b>로 모았습니다. 고른 이름으로 아래 폴더를 만들면, 그 회사·부서 메일이 저절로 그 안으로 갑니다(모르는 메일은 「'+esc(name)+'」에 남음 · 이름은 고쳐도 됩니다).</div>';
+      if(!its.length){ html+='<div class="sub" style="color:#92400e">나눌 후보가 없습니다 — 서명에 회사·부서 이름이 없거나 이미 아래 폴더가 있습니다. 오른쪽 클릭 「＋ 아래 폴더 만들기」로 직접 만들 수 있습니다.</div>'; }
+      else {
+        html+='<div style="max-height:46vh;overflow:auto;border:1px solid var(--line,#e5e7eb);border-radius:10px">';
+        its.forEach(function(x,i){ html+='<label style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line,#f1f5f9)">'+
+          '<input type="checkbox" class="ss-ck" data-i="'+i+'"><input type="text" class="ss-nm" data-i="'+i+'" value="'+esc(x.name)+'" maxlength="60" style="flex:1;min-width:0;font:inherit;font-size:13px;border:1px solid transparent;border-radius:6px;padding:3px 6px">'+
+          '<small style="color:#64748b;white-space:nowrap">'+(x.by==='부서'?'부서':'회사')+' · '+x.senders+'명 · '+n(x.n)+'통</small></label>'; });
+        html+='</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;align-items:center"><span class="ss-msg" style="margin-right:auto;font-size:12.5px;color:#64748b"></span>'+
+          '<button type="button" class="ss-go" style="font:inherit;border:0;background:#1d4ed8;color:#fff;border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700">고른 것 아래 폴더로 만들기</button></div>';
+      }
+      var bg=modal(html);
+      function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
+      function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(false); } }
+      document.addEventListener('keydown', onKey, true);
+      bg.addEventListener('mousedown', function(e){ if(e.target===bg) close(false); });
+      bg.querySelector('.x').onclick=function(){ close(false); };
+      var go=bg.querySelector('.ss-go'); if(go) go.onclick=async function(){
+        var names=[]; bg.querySelectorAll('.ss-ck').forEach(function(c){ if(c.checked){ var v=bg.querySelector('.ss-nm[data-i="'+c.dataset.i+'"]').value.trim(); if(v) names.push(v); } });
+        if(!names.length){ bg.querySelector('.ss-msg').textContent='만들 이름을 골라 주세요(왼쪽 네모)'; return; }
+        go.disabled=true; var r=await quick({op:'makesubs', id:fid, names:names});
+        if(!r.ok){ alert('⚠ '+(r.message||'만들지 못했습니다')); go.disabled=false; return; }
+        close(true);
+      };
+    });
+  };
   window.mailMoveUndo=async function(){
     try{ var r=await fetch('/mail/move/undo',{method:'POST',credentials:'same-origin'}); return await r.json(); }catch(e){ return null; }
   };

@@ -17,6 +17,14 @@
   .gn-row.done{background:#f0fdf4}
   .gn-row.sug{background:#fffbeb}
   .gn-row input[type=checkbox]{width:17px;height:17px;cursor:pointer}
+  /* 11-22 「＋ 새 폴더로」 · 알림·광고 */
+  .gn-new{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+  .gn-new[hidden]{display:none}
+  .gn-new input{border:1px solid var(--mt-line,#cbd5e1);border-radius:7px;padding:4px 8px;font-size:12.5px;font-family:inherit;width:150px;min-width:0}
+  .gn-new select{font-size:12.5px;padding:4px 6px;border:1px solid var(--mt-line,#cbd5e1);border-radius:7px;max-width:170px}
+  .gn-newbtn{background:none;border:0;color:#1d4ed8;font-size:12.5px;cursor:pointer;padding:2px 0;font-family:inherit}
+  .gn-robot{display:inline-block;font-size:11px;font-weight:700;color:#7c2d12;background:#ffedd5;border-radius:6px;padding:0 5px;margin-left:4px}
+  .gn-rb{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
   .gn-who{min-width:0}
   .gn-key{font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gn-names{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -54,7 +62,16 @@
     「일반」에 남은 메일 <b>{{ gen.n }}통</b>을 <b>보낸 곳별로 묶었습니다</b>(회사 주소 @ 뒤 · 지메일 같은 개인 메일은 그 주소 하나).
     <br>· 줄마다 폴더를 고르고 <b>옮기기</b> — 그 곳에서 온 메일이 <b>지난 것·앞으로 올 것 모두</b> 그 폴더로 갑니다(나에게만 · <a href="/mail/folders">폴더 관리</a>에서 언제든 지울 수 있음).
     <br>· <span style="background:#fffbeb;padding:0 4px;border-radius:4px">노란 줄</span>은 서명의 회사 이름이나 제목의 [회사]로 <b>추천 폴더를 미리 골라 둔 줄</b>입니다 — 맞으면 아래 <b>「추천대로 모두 옮기기」</b> 한 번이면 됩니다.
+    <br>· 맞는 폴더가 없으면 <b>「＋ 새 폴더로」</b> — 이름(서명의 회사 이름·회사 주소로 미리 채움)을 확인하고 넣을 곳만 고르면 폴더를 만들고 그 회사 메일이 모두 그리로 갑니다. <b>위에서부터</b> 하면 적은 손으로 많이 줄어듭니다.
   </div>
+  {% if robot_n|default(0) %}
+  <div class="gn-rb" id="gnRobot">
+    <span>📢 <b>알림·광고</b>로 보이는 주소 <b>{{ robot_n }}곳 · {{ '{:,}'.format(robot_m) }}통</b>(noreply·newsletter 등)</span>
+    <button type="button" class="gn-btn go" onclick="gnRobots()">「{{ robot_name }}」 폴더로 한 번에</button>
+    <span style="color:var(--mute);font-size:12px">주소 하나씩 옮깁니다(같은 회사의 사람 메일은 그대로) · 지난·앞으로 메일 · ↺ 되돌리기</span>
+    <span id="gnRobotMsg"></span>
+  </div>
+  {% endif %}
 
   {% if groups %}
   <div class="gn-bar">
@@ -67,7 +84,7 @@
     <div class="gn-row{{ ' sug' if g.suggest else '' }}" data-sender="{{ g.sample }}" data-q="{{ (g.key ~ ' ' ~ g.names|join(' ') ~ ' ' ~ (g.subject or '') ~ ' ' ~ g.hints|join(' '))|lower }}">
       <span><input type="checkbox" class="gn-ck"></span>
       <div class="gn-who">
-        <div class="gn-key" title="{{ g.senders|join(', ') }}">{% if g.is_domain %}@{{ g.key }}{% else %}{{ g.key }}{% endif %}</div>
+        <div class="gn-key" title="{{ g.senders|join(', ') }}">{% if g.is_domain %}@{{ g.key }}{% else %}{{ g.key }}{% endif %}{% if g.robot %}<span class="gn-robot" title="알림·광고로 보이는 주소">📢 알림·광고</span>{% endif %}</div>
         <div class="gn-names">{{ g.names|join(' · ') }}{% if g.senders|length > 1 %} <span title="{{ g.senders|join(', ') }}">· {{ g.senders|length }}명</span>{% endif %}</div>
       </div>
       <div class="gn-n">{{ g.n }}통{% if g.u %}<small>안읽음 {{ g.u }}</small>{% endif %}</div>
@@ -82,6 +99,12 @@
           {% for f in choices %}<option value="{{ f.id }}"{% if g.suggest == f.id %} selected{% endif %}>{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
         </select>
         <button type="button" class="gn-btn go" onclick="gnOne(this)">옮기기</button>
+        {% if not g.robot %}<br><button type="button" class="gn-newbtn" onclick="gnNewTog(this)">＋ 새 폴더로</button>
+        <div class="gn-new" hidden>
+          <input class="gn-nm" maxlength="60" value="{{ g.new_name }}" placeholder="새 폴더 이름" title="폴더 이름 — 서명의 회사 이름·회사 주소로 미리 채움 · 고쳐도 됩니다">
+          <select class="gn-par" title="넣을 곳">{% for f in parents %}<option value="{{ f.id }}"{% if f.id == parent_default %} selected{% endif %}>{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}</select>
+          <button type="button" class="gn-btn go" onclick="gnNew(this)">만들고 옮기기</button>
+        </div>{% endif %}
       </div>
     </div>
     {% endfor %}
@@ -121,6 +144,35 @@
       return true;
     }catch(e){ alert('네트워크 오류'); return false; }
   }
+  // 11-22 대표 「일반에 많이 남은 곳 보강」 — 「＋ 새 폴더로」 · 알림·광고 한 번에
+  window.gnNewTog=function(b){ var box=b.parentNode.querySelector('.gn-new'); if(box){ box.hidden=!box.hidden; if(!box.hidden){ var i=box.querySelector('.gn-nm'); if(i){ i.focus(); i.select(); } } } };
+  window.gnNew=async function(btn){
+    var r=btn.closest('.gn-row'), box=btn.closest('.gn-new'), nm=(box.querySelector('.gn-nm').value||'').trim(), par=box.querySelector('.gn-par');
+    if(!nm){ alert('폴더 이름을 적어 주세요.'); return; }
+    var fd=new FormData(); fd.append('sender', r.getAttribute('data-sender')); fd.append('name', nm); fd.append('parent_id', par.value);
+    btn.disabled=true;
+    try{ var res=await fetch('/mail/folders/general/new',{method:'POST',body:fd}); var j=await res.json();
+      if(!j.ok){ alert('⚠ '+(j.message||'만들지 못했습니다')); btn.disabled=false; return; }
+      r.classList.remove('sug'); r.classList.add('done');
+      var act=r.querySelector('.gn-act'); if(act){ act.innerHTML='<span class="gn-ok">✓ '+(j.made?'새 폴더 ':'')+'「'+j.name+'」 · '+(j.moved||0)+'통</span>'; }
+      var ck=r.querySelector('.gn-ck'); if(ck){ ck.checked=false; ck.disabled=true; }
+      // 새로 만든 폴더를 다른 줄 고르기에도 더함
+      if(j.made){ document.querySelectorAll('.gn-fsel, #gnBulk').forEach(function(s){ var o=document.createElement('option'); o.value=j.folder_id; o.textContent='　└ '+j.name; s.appendChild(o); }); }
+    }catch(e){ alert('네트워크 오류'); btn.disabled=false; }
+  };
+  window.gnRobots=async function(){
+    var b=document.querySelector('#gnRobot .gn-btn'), m=document.getElementById('gnRobotMsg');
+    if(!confirm('알림·광고로 보이는 주소를 모두 「{{ robot_name|default('알림·광고') }}」 폴더로 옮길까요?\n\n· 주소 하나씩 옮깁니다(같은 회사의 사람 메일은 그대로)\n· 지난 메일·앞으로 올 메일 모두 · 바로 뒤 ↺ 되돌리기 가능')) return;
+    b.disabled=true;
+    try{ var j=await (await fetch('/mail/folders/general/robots',{method:'POST'})).json();
+      if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); b.disabled=false; return; }
+      m.innerHTML='✓ '+j.senders+'곳 · '+(j.moved||0).toLocaleString()+'통을 「'+j.name+'」로 · <a href="#" onclick="gnUndo();return false">↺ 되돌리기</a> · <a href="/mail/folders/general">새로 보기</a>';
+      document.querySelectorAll('.gn-row .gn-robot').forEach(function(x){ var r=x.closest('.gn-row'); if(r){ r.classList.add('done'); var a=r.querySelector('.gn-act'); if(a) a.innerHTML='<span class="gn-ok">✓ 「'+j.name+'」</span>'; } });
+    }catch(e){ alert('네트워크 오류'); b.disabled=false; }
+  };
+  window.gnUndo=async function(){
+    try{ var j=await (await fetch('/mail/move/undo',{method:'POST'})).json(); if(j.ok){ location.reload(); } else { alert('⚠ '+(j.message||'되돌리지 못했습니다')); } }catch(e){ alert('네트워크 오류'); }
+  };
   window.gnOne=function(btn){ var r=btn.closest('.gn-row'); var fid=r.querySelector('.gn-fsel').value; if(!fid){ alert('먼저 폴더를 골라 주세요.'); return; } move(r, fid); };
   window.gnSuggested=async function(){
     var list=rows().filter(function(r){ return r.classList.contains('sug') && !r.classList.contains('done'); });

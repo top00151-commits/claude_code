@@ -296,6 +296,98 @@ try:
     _UID["v"] = OWN
     km = client(port=5052, host="mail.knknara.co.kr")
     check("kmail 화면도 같은 묻는 창", "mailMoveAsk" in km.get("/mail/inbox").text)
+
+    print("== 13. 일반 정리 — 「＋ 새 폴더로」 · 알림·광고 한 번에(11-22 대표 「일반에 많이 남은 곳 보강」) ==")
+    n1 = put("kim@newcomp-x.example", "첫 연락", "자료입니다.\n\n감사합니다.\n\n김뉴컴 과장\n㈜뉴컴프테크\nTel 02-000-0000", name="김뉴컴", ago="-9 days")
+    n2 = put("park@newcomp-x.example", "둘째 연락", "자료입니다.", name="박뉴컴", ago="-8 days")
+    r1 = put("noreply@newcomp-x.example", "[알림] 주문 접수", "자동 발송", name="뉴컴프 알림", ago="-7 days")
+    r2 = put("newsletter@shop-x.example", "이번 주 소식", "광고", name="쇼핑", ago="-6 days")
+    gp = k.get("/mail/folders/general").text
+    check("일반 정리: 「＋ 새 폴더로」 · 이름 = 서명의 회사 이름(㈜ 뺌) · 넣을 곳 기본 = 기타 고객사",
+          "＋ 새 폴더로" in gp and 'value="뉴컴프테크"' in gp and ('value="%d" selected' % by["2.기타 고객사"]["id"]) in gp)
+    check("일반 정리: 알림·광고 줄 표시 + 위에 「한 번에」 단추(곳·통수)", "📢 알림·광고" in gp and "gnRobots()" in gp and "2곳" in gp)
+    j = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"]}).json()
+    with _db.db_session() as c:
+        nf = c.execute("SELECT id, parent_id FROM mail_folders WHERE user_id=? AND name='뉴컴프테크'", (OWN,)).fetchone()
+    check("「만들고 옮기기」 = 기타 고객사 아래 새 폴더 · 그 회사 메일 모두(사람 2통 + 알림 1통 = 회사 주소)",
+          j.get("ok") and j.get("made") and nf and nf["parent_id"] == by["2.기타 고객사"]["id"] and key_of(n1) == "f%d" % nf["id"] and key_of(n2) == "f%d" % nf["id"], j)
+    n3 = put("lee@newcomp-x.example", "새 사람", "안녕하세요", name="이뉴컴")
+    check("그 회사 새 메일도 새 폴더로", key_of(n3) == "f%d" % nf["id"], row(n3))
+    j2 = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"]}).json()
+    check("같은 자리 같은 이름이면 새로 안 만들고 그 폴더", j2.get("ok") and not j2.get("made") and j2.get("folder_id") == nf["id"], j2)
+    check("넣을 곳이 6.케이엔케이 묶음이면 400 · 이름 없으면 400",
+          k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "x", "parent_id": by["6.케이엔케이"]["id"]}).status_code == 400
+          and k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": " ", "parent_id": by["2.기타 고객사"]["id"]}).status_code == 400)
+    check("내 메일에 없는 주소는 404", k.post("/mail/folders/general/new", data={"sender": "nobody@x.example", "name": "x", "parent_id": by["2.기타 고객사"]["id"]}).status_code == 404)
+    jr = k.post("/mail/folders/general/robots").json()
+    with _db.db_session() as c:
+        rf = c.execute("SELECT id, parent_id FROM mail_folders WHERE user_id=? AND name=?", (OWN, mf.ROBOT_FOLDER)).fetchone()
+        rk = [r_["kind"] for r_ in c.execute("SELECT kind FROM mail_move_rules WHERE user_id=? AND target=?", (OWN, "f%d" % rf["id"])).fetchall()] if rf else []
+    check("알림·광고 한 번에 = 「알림·광고」 묶음(맨 위) · 일반에 남은 알림 주소만 · 규칙은 주소 하나씩",
+          jr.get("ok") and rf and rf["parent_id"] is None and key_of(r2) == "f%d" % rf["id"] and rk and set(rk) == {"email"}, (jr, rk))
+    check("회사 폴더로 이미 간 알림(noreply@newcomp-x)은 그대로 · 같은 회사 사람 메일도 그대로", key_of(r1) == "f%d" % nf["id"] and key_of(n2) == "f%d" % nf["id"], (row(r1), row(n2)))
+    ju = k.post("/mail/move/undo").json()
+    check("알림·광고 ↺ 되돌리기 → 일반으로", ju.get("ok") and key_of(r2) == "gen", row(r2))
+    check("알림이 없으면 400(할 것 없음)", k.post("/mail/folders/general/robots").status_code == 200 and k.post("/mail/move/undo").json().get("ok"))
+
+    print("== 14. 왼쪽 폴더 오른쪽 클릭 메뉴 · 💡 아래 폴더 추천(11-22 대표 「삼성그룹 하단에 더 구분 · 다른 회사도 구분」) ==")
+    sg = by["삼성그룹"]["id"]
+    d1 = put("d1.s@samsung.com", "디스플레이 자료", "자료입니다.\n\n감사합니다.\n\n정디스 책임\n삼성디스플레이㈜\nTel 031-000-0002", name="정디스")
+    d2 = put("d2.s@samsung.com", "디스플레이 자료2", "자료입니다.\n\n감사합니다.\n\n한디스 프로\n삼성디스플레이㈜\nTel 031-000-0003", name="한디스")
+    s1 = put("s1.s@samsung.com", "SDI 자료", "자료입니다.\n\n감사합니다.\n\n오에스 책임\n삼성SDI㈜\nTel 031-000-0004", name="오에스")
+    check("서명이 다른 삼성 계열사 메일 → 아직은 삼성그룹", key_of(d1) == "f%d" % sg and key_of(s1) == "f%d" % sg, (row(d1), row(s1)))
+    sj = k.post("/mail/folders/quick", data={"op": "suggest", "id": sg}).json()
+    nm_ = {x["name"]: x for x in sj.get("items", [])}
+    check("💡 추천 = 서명의 회사 이름(삼성디스플레이 2명 · 삼성SDI 1명) · 이미 있는 삼성전자·삼성전기는 안 나옴",
+          sj.get("ok") and nm_.get("삼성디스플레이", {}).get("senders") == 2 and "삼성SDI" in nm_ and "삼성전자" not in nm_ and "삼성전기" not in nm_, sj)
+    mj = k.post("/mail/folders/quick", data={"op": "makesubs", "id": sg, "names": ["삼성디스플레이", "삼성SDI", "삼성전자"]}).json()
+    with _db.db_session() as c:
+        kid = {r_["name"]: r_["id"] for r_ in c.execute("SELECT id, name FROM mail_folders WHERE user_id=? AND parent_id=?", (OWN, sg)).fetchall()}
+    check("고른 것 만들기 = 삼성그룹 아래 2곳(이미 있는 삼성전자는 건너뜀)", mj.get("ok") and sorted(mj["made"]) == ["삼성SDI", "삼성디스플레이"] and "삼성디스플레이" in kid, mj)
+    check("만든 뒤 그 회사 메일이 저절로 아래 폴더로(서명) · 모르는 메일은 삼성그룹",
+          key_of(d1) == "f%d" % kid["삼성디스플레이"] and key_of(d2) == "f%d" % kid["삼성디스플레이"] and key_of(s1) == "f%d" % kid["삼성SDI"] and key_of(s_unk) == "f%d" % sg,
+          (row(d1), row(s1), row(s_unk)))
+    # 내 규칙으로 옮긴 폴더에 아래 폴더가 있으면 그 안에서도 나눔
+    with _db.db_session() as c:
+        c.execute("UPDATE mail_folders SET aliases='' WHERE id=?", (sg,))   # 회사 주소 자동 매칭을 끄고 규칙만으로
+    mf._CACHE.pop(OWN, None)
+    k.post("/mail/move", data={"ids": str(d1), "key": "f%d" % sg, "when": "all", "scope": "person"})
+    check("규칙으로 삼성그룹에 넣어도 서명으로 아래 폴더(삼성디스플레이)", key_of(d1) == "f%d" % kid["삼성디스플레이"], row(d1))
+    with _db.db_session() as c:
+        c.execute("UPDATE mail_folders SET aliases='samsung.com, Samsung, 삼성' WHERE id=?", (sg,))
+    mf._CACHE.pop(OWN, None)
+    # 부서로 나누기(다른 회사 — 폴더 이름 = 서명 회사 이름이면 부서)
+    dr = by["드림텍"]["id"]
+    e1 = put("a1@dt-x.example", "검사 1", "자료\n\n감사합니다.\n\n가드림 책임\n드림텍㈜\n품질보증팀\nTel 031-1", name="가드림")
+    e2 = put("a2@dt-x.example", "검사 2", "자료\n\n감사합니다.\n\n나드림 책임\n드림텍㈜\n구매팀\nTel 031-2", name="나드림")
+    k.post("/mail/move", data={"ids": str(e1), "key": "f%d" % dr, "when": "all", "scope": "company"})
+    dj = k.post("/mail/folders/quick", data={"op": "suggest", "id": dr}).json()
+    check("💡 추천(회사 폴더) = 서명의 부서(품질보증팀·구매팀)", dj.get("ok") and any(x["by"] == "부서" for x in dj.get("items", [])), dj)
+    print("    (부서 후보 %d곳)" % len([x for x in dj.get("items", []) if x["by"] == "부서"]))
+    # 빠른 고치기
+    q = lambda **kw: k.post("/mail/folders/quick", data=kw)
+    check("이름 바꾸기", q(op="rename", id=dr, name="드림텍(DT)").json().get("ok") and fid("드림텍(DT)") == dr)
+    check("아래 폴더 만들기(2단계 아래) · 3단계 아래는 막음",
+          q(op="add", parent_id=dr, name="드림텍 베트남").json().get("ok") and q(op="add", parent_id=fid("드림텍 베트남"), name="4단계").status_code == 400)
+    check("다른 이름 저장", q(op="aliases", id=dr, aliases="Dreamtech, dt-x.example").json().get("ok"))
+    with _db.db_session() as c:
+        al = c.execute("SELECT aliases FROM mail_folders WHERE id=?", (dr,)).fetchone()[0]
+    check("다른 이름 = 쉼표로 저장", al == "Dreamtech, dt-x.example", al)
+    check("위로·아래로", q(op="up", id=dr).json().get("ok") and q(op="down", id=dr).json().get("ok"))
+    check("부서 이름(메일에서만) 바꾸기 · 비우면 원래", q(op="teamname", key="t%d" % T_QA, name="품질(시험)").json().get("ok")
+          and cls()["labels"].get("t%d" % T_QA) == "품질(시험)" and q(op="teamname", key="t%d" % T_QA, name="").json().get("ok"))
+    _UID["v"] = OTHER
+    check("남의 폴더는 못 고침(404)", q(op="rename", id=dr, name="x").status_code == 404 and q(op="delete", id=dr).status_code == 404)
+    _UID["v"] = OWN
+    dv = fid("드림텍 베트남")
+    check("지우기(아래 폴더) · 메일은 그대로", q(op="delete", id=dv).json().get("ok"))
+    check("모르는 일 400 · 로그인 안 하면 401", q(op="zzz").status_code == 400
+          and (lambda: (_UID.__setitem__("v", None), q(op="rename", id=dr, name="y").status_code)[1])() == 401)
+    _UID["v"] = OWN
+    hi = k.get("/mail/inbox").text
+    check("왼쪽 폴더 = 오른쪽 클릭 표시(data-fk·깊이·다른 이름) + 메뉴(이름 바꾸기·아래 폴더·추천·다른 이름·지우기)",
+          ('data-fk="f%d" data-dep="1"' % dr) in hi and 'data-al="Dreamtech, dt-x.example"' in hi
+          and all(x in hi for x in ("✏️ 이름 바꾸기", "＋ 아래 폴더 만들기", "💡 아래 폴더 추천", "🏷 다른 이름", "🗑 폴더 지우기", "/mail/folders/quick")))
 finally:
     pass
 
