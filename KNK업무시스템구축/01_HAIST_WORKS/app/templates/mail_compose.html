@@ -579,7 +579,7 @@ function abPut(target){
     mask.addEventListener('click',function(e){ if(e.target===mask) close(); });
     var W=0,H=0, mode=null, ox=0, oy=0, st=null, inited=false;
     function onUp(){ mode=null; }
-    function onMove(ev){ if(!mode)return; var dx=ev.clientX-ox, dy=ev.clientY-oy;
+    function onMove(ev){ if(!mode)return; if(typeof ev.buttons==='number' && !(ev.buttons & 1)){ mode=null; return; } var dx=ev.clientX-ox, dy=ev.clientY-oy;
       if(mode==='move'){ sel.style.left=Math.min(Math.max(0,st.l+dx),W-st.w)+'px'; sel.style.top=Math.min(Math.max(0,st.t+dy),H-st.h)+'px'; }
       else { sel.style.width=Math.min(Math.max(24,st.w+dx),W-sel.offsetLeft)+'px'; sel.style.height=Math.min(Math.max(24,st.h+dy),H-sel.offsetTop)+'px'; } }
     function initCrop(){

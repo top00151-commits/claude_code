@@ -1035,6 +1035,24 @@ function toggleThread(ev, btn){
     if(over>0 && over<200){ split.style.height=Math.max(360,(window.innerHeight-top-12-over))+'px'; }
   }
   fillH(); window.addEventListener('resize', fillH);
+  // 11-22 대표 「분리줄을 놓았는데도 계속 잡혀 막 움직여요」: 읽기 칸 메일 본문(iframe) 위나 창 밖에서 손을 떼면
+  //   「뗐다」(mouseup)가 이 화면에 오지 않아 끌기가 끝나지 않았음 → 끄는 동안 iframe 이 마우스를 못 가져가게 막고,
+  //   움직일 때 단추가 안 눌려 있으면 · 창이 포커스를 잃으면 · 마우스가 창 밖으로 나가 떼면 바로 끝냄(공용 한 곳)
+  window.mbxDragGuard=function(cursor, onMove, onEnd){
+    var fr=[].slice.call(document.querySelectorAll('iframe')), done=false;
+    fr.forEach(function(f){ f.setAttribute('data-mbx-pe', f.style.pointerEvents||''); f.style.pointerEvents='none'; });
+    document.body.style.cursor=cursor; document.body.style.userSelect='none';
+    function mv(ev){ if(typeof ev.buttons==='number' && !(ev.buttons & 1)){ fin(); return; } onMove(ev); }
+    function fin(){ if(done) return; done=true;
+      document.removeEventListener('mousemove',mv,true); document.removeEventListener('mouseup',fin,true);
+      window.removeEventListener('blur',fin); document.removeEventListener('visibilitychange',fin);
+      fr.forEach(function(f){ f.style.pointerEvents=f.getAttribute('data-mbx-pe')||''; f.removeAttribute('data-mbx-pe'); });
+      document.body.style.cursor=''; document.body.style.userSelect='';
+      try{ onEnd(); }catch(e){} }
+    document.addEventListener('mousemove',mv,true); document.addEventListener('mouseup',fin,true);
+    window.addEventListener('blur',fin); document.addEventListener('visibilitychange',fin);
+    return fin;
+  };
   // 거터 드래그
   function attachDrag(sel, varName, key, min, max){
     var g=split.querySelector(sel); if(!g) return;
@@ -1045,17 +1063,13 @@ function toggleThread(ev, btn){
       var startX=e.clientX;
       var cur=parseInt(getComputedStyle(split).getPropertyValue(varName),10)||0;
       g.classList.add('dragging');
-      document.body.style.cursor='col-resize'; document.body.style.userSelect='none';
-      function move(ev){
+      mbxDragGuard('col-resize', function(ev){
         var w=Math.min(max, Math.max(min, cur + (ev.clientX-startX)));
         split.style.setProperty(varName, w+'px');
-      }
-      function up(){
-        document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
-        g.classList.remove('dragging'); document.body.style.cursor=''; document.body.style.userSelect='';
+      }, function(){
+        g.classList.remove('dragging');
         try{ localStorage.setItem(key, parseInt(getComputedStyle(split).getPropertyValue(varName),10)||0); }catch(e){}
-      }
-      document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+      });
     });
   }
   // 아래 모드: 목록 높이(--mbx-r1) 끌어 바꾸기
@@ -1063,12 +1077,10 @@ function toggleThread(ev, btn){
     e.preventDefault();
     var startY=e.clientY, lc=split.querySelector('.mbx-listcol'), cur=lc?lc.getBoundingClientRect().height:300;
     var H=split.getBoundingClientRect().height;
-    g.classList.add('dragging'); document.body.style.cursor='row-resize'; document.body.style.userSelect='none';
-    function move(ev){ var h=Math.min(H-140, Math.max(140, cur+(ev.clientY-startY))); split.style.setProperty('--mbx-r1', h+'px'); }
-    function up(){ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
-      g.classList.remove('dragging'); document.body.style.cursor=''; document.body.style.userSelect='';
-      try{ localStorage.setItem('knkmail.r1', parseInt(split.style.getPropertyValue('--mbx-r1'),10)||0); }catch(e){} }
-    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+    g.classList.add('dragging');
+    mbxDragGuard('row-resize', function(ev){ var h=Math.min(H-140, Math.max(140, cur+(ev.clientY-startY))); split.style.setProperty('--mbx-r1', h+'px'); },
+      function(){ g.classList.remove('dragging');
+        try{ localStorage.setItem('knkmail.r1', parseInt(split.style.getPropertyValue('--mbx-r1'),10)||0); }catch(e){} });
   };
   try{ var r1=localStorage.getItem('knkmail.r1'); if(r1 && parseInt(r1,10)>0) split.style.setProperty('--mbx-r1', parseInt(r1,10)+'px'); }catch(e){}
   attachDrag('[data-g="1"]','--mbx-c1','knkmail.c1',150,520);
