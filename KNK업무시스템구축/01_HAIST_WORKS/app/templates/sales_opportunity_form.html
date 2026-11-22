@@ -93,6 +93,7 @@
   <div class="op-wrap">
     {% if request.query_params.get('saved') %}<div class="op-saved">✅ 저장됐습니다.</div>{% endif %}
     {% if request.query_params.get('error') == 'title' %}<div class="op-err">건명을 입력해 주세요.</div>{% endif %}
+    {% if request.query_params.get('del_err') == 'perm' %}<div class="op-err">영업 기회 삭제는 <b>기술영업팀장 · 대표</b>만 할 수 있습니다.</div>{% endif %}
     {% if request.query_params.get('promote_err') %}<div class="op-err">승격 실패: {{ request.query_params.get('promote_err') }}</div>{% endif %}
     {% if request.query_params.get('req_ok') %}<div class="op-saved">✅ 부서 요청 처리됐습니다{% if request.query_params.get('req_ok')=='1' %} — 해당 부서 팀장에게 메신저 알림을 보냈습니다{% endif %}.</div>{% endif %}
     {% if request.query_params.get('req_warn')=='noleader' %}<div class="op-promoted">⚠ 요청은 등록됐지만 해당 부서에 <b>팀장이 지정돼 있지 않아</b> 메신저 알림은 보내지 못했습니다. (관리자에서 부서 팀장 지정 필요)</div>{% endif %}
@@ -289,9 +290,14 @@
         <button type="submit" class="op-btn promote">✅ 수주 확정 → 제작요청(프로젝트) 승격</button>
       </form>
       {% endif %}
+      {# z1191z110 (대표 11-22): 삭제 = 기술영업팀장 · 대표만 #}
+      {% if can_delete %}
       <form method="post" action="/sales/opportunities/{{ opp.id }}/delete" onsubmit="return confirm('{% if opp.promoted_project_id %}승격됐던 프로젝트가 이미 삭제된 고아 영업 기회입니다.\n{% endif %}이 영업 기회를 삭제할까요? (되돌릴 수 없음)');">
         <button type="submit" class="op-btn danger">삭제</button>
       </form>
+      {% else %}
+      <span style="align-self:center;font-size:12px;color:#94a3b8;">삭제는 기술영업팀장 · 대표만 할 수 있습니다</span>
+      {% endif %}
     </div>
     {% endif %}
   </div>

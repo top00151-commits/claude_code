@@ -17733,6 +17733,17 @@ def _z109_close_fields(form):
             "close_memo": ((form.get("close_memo") or "").strip()[:200] or None)}
 
 
+def _z110_can_del_opp(c, u):
+    """영업 기회 삭제 = 대표(role ceo) · 기술영업팀장만 (z1191z110 · 대표 11-22 「기술영업팀장 · 대표만 삭제할수있게」).
+       팀장 = 공용 _team_leader_id(부서 정보의 팀장 지정 → 없으면 그 팀 role leader) — 화면·서버 같은 판정."""
+    if not u:
+        return False
+    if (u.get("role") or "") == "ceo":
+        return True
+    lid = _team_leader_id(c, _Z109_SALES_TEAM)
+    return bool(lid) and lid == u.get("id")
+
+
 def _z109_ucols(c):
     return {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
 
@@ -17956,8 +17967,13 @@ def _gen_opp_no(c) -> str:
     """OPP-YYMM-### (입력 시점 한국시간 기준)."""
     ym = datetime.now().strftime("%y%m")
     pref = f"OPP-{ym}-"
-    n = c.execute("SELECT COUNT(*) FROM sales_opportunities WHERE opp_no LIKE ?", (pref + "%",)).fetchone()[0]
-    return f"{pref}{int(n) + 1:03d}"
+    # z1191z110 (대표 11-22 「번호도 가장 큰 번호 + 1로」): 예전엔 그 달 건수 + 1 → 중간 번호를 지우면 다음 등록이 남은 번호와 겹쳤음
+    mx = 0
+    for (no,) in c.execute("SELECT opp_no FROM sales_opportunities WHERE opp_no LIKE ?", (pref + "%",)).fetchall():
+        tail = (no or "")[len(pref):]
+        if tail.isdigit():
+            mx = max(mx, int(tail))
+    return f"{pref}{mx + 1:03d}"
 
 
 def _opp_form_fields(form) -> dict:
@@ -18115,6 +18131,7 @@ async def sales_opportunity_detail(request: Request, oid: int):
         owners = _z109_owners(c, o.get("owner_user_id"))   # z1191z109: 기술영업팀만 · 지금 담당은 그대로 보이게
         people = _z109_people_of(c, oid)
         people_pick = _z109_people_pick(c)
+        can_delete = _z110_can_del_opp(c, u)   # z1191z110
         promoted = None
         if o.get("promoted_project_id"):
             pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?",
@@ -18130,7 +18147,7 @@ async def sales_opportunity_detail(request: Request, oid: int):
                quotations=quotations, files=files,
                teams=teams, dept_requests=dept_requests,
                people=people, people_pick=people_pick, req_people=_z109_req_people(dept_requests),
-               close_reasons=OPP_CLOSE_REASONS,
+               close_reasons=OPP_CLOSE_REASONS, can_delete=can_delete,
                promoted=promoted, can_money=bool(can_view_sales(u)), can_edit=bool(can_use_sales(u)))
 
 
@@ -18246,6 +18263,8 @@ async def sales_opportunity_delete(request: Request, oid: int):
     if not can_use_sales(u):
         return RedirectResponse(role_home(u), 303)
     with db_session() as c:
+        if not _z110_can_del_opp(c, u):   # z1191z110: 삭제 = 대표 · 기술영업팀장만
+            return RedirectResponse(f"/sales/opportunities/{oid}?del_err=perm", 303)
         # v5H226z899 (대표 지시): 삭제 보호는 '살아있는 프로젝트에 연결된 승격건'에만 적용.
         #   승격 후 그 프로젝트가 이미 삭제된 '고아' 영업기회(검증데이터 잔재)는 삭제 허용.
         row = c.execute("SELECT promoted_project_id FROM sales_opportunities WHERE id=?", (oid,)).fetchone()
@@ -18258,6 +18277,8 @@ async def sales_opportunity_delete(request: Request, oid: int):
                     c.execute("DELETE FROM sales_opportunity_files WHERE opp_id=?", (oid,))
                 except Exception:
                     pass
+                _z109_table(c)   # z1191z110: 미팅·제안서 참여자 기록도 같이 지움(남으면 참여 부서 비율에 섞임)
+                c.execute("DELETE FROM sales_opp_people WHERE opp_id=?", (oid,))
                 c.execute("DELETE FROM sales_opportunities WHERE id=?", (oid,))
     return RedirectResponse("/sales/opportunities", 303)
 

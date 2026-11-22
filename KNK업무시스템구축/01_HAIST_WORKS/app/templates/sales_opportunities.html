@@ -150,7 +150,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
         <td class="op-next">{% if o.promoted_pid %}<a href="/project/{{ o.promoted_pid }}" onclick="event.stopPropagation();" style="color:#15a34a;font-weight:700;text-decoration:none;" title="이 영업 기회가 승격된 프로젝트로 이동">✅ {{ o.promoted_code or '관리코드' }} 프로젝트 →</a>{% else %}{{ o.next_action }}{% endif %}</td>
       </tr>
       {% endfor %}
-      {% if not rows %}<tr><td colspan="10" class="op-muted" style="text-align:center;padding:30px 0;">{{ '해당 조건의 영업 기회가 없습니다.' if stage_f else '아직 등록된 영업 기회가 없습니다. [+ 새 영업 기회]로 시작하세요.' }}</td></tr>{% endif %}
+      {% if not rows %}<tr><td colspan="10" class="op-muted" style="text-align:center;padding:30px 0;">{{ '해당 조건의 영업 기회가 없습니다.' if stage_f else '아직 등록된 영업 기회가 없습니다. 왼쪽 메뉴 🆕 등록 → 🎯 영업 기회에서 시작하세요.' }}</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
