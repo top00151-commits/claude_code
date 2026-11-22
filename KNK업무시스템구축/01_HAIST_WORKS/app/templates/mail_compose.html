@@ -1068,6 +1068,8 @@ function abPut(target){
   window.cmpGo=function(url){
     window._cmpLeaving=true;
     if(window.CMP_WIN){ try{ if(window.opener && !window.opener.closed && window.opener.mailCountsRefresh) window.opener.mailCountsRefresh(); }catch(e){}
+      /* 11-23 「다시 묻기」를 ⏳ 답 기다림 목록에서 열었으면 보낸 뒤 그 목록을 새로(다시 물은 표시) · 취소면 그대로 */
+      try{ if(url==='/mail/sent' && window.opener && !window.opener.closed && window.opener.location.pathname.indexOf('/mail/waiting')===0) window.opener.location.reload(); }catch(e){}
       try{ window.close(); }catch(e){} setTimeout(function(){ location.href=url; }, 400); return; }
     location.href=url; };
   async function doSend(fd){

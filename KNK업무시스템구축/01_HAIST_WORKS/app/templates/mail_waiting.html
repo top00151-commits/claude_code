@@ -44,7 +44,7 @@
         <div class="wt-act">
           {% if w.wait_state == 'replied' and w.wait_reply_id %}<a href="/mail/{{ w.wait_reply_id }}">온 답 보기</a>{% endif %}
           {% if w.wait_state == 'wait' %}
-          <a class="go" href="/mail/compose?nudge={{ w.id }}" title="원래 받는 사람에게 「[확인 요청] 원래 제목」 — 정중한 글 + 원래 메일 인용">✉ 다시 묻기</a>
+          <a class="go" href="/mail/compose?nudge={{ w.id }}" onclick="return window.mailNewWin ? mailNewWin(event,'nudge={{ w.id }}') : true" title="원래 받는 사람에게 「[확인 요청] 원래 제목」 — 정중한 글 + 원래 메일 인용 · 새 창으로">✉ 다시 묻기</a>
           <button type="button" onclick="wtDo({{ w.id }}, 'done')" title="전화 등으로 답을 받았으면">✓ 답 받음</button>
           <button type="button" onclick="wtDo({{ w.id }}, 'more')" title="3일 더 기다리기">＋3일</button>
           <button type="button" onclick="wtDo({{ w.id }}, 'off')">그만</button>
