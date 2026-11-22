@@ -139,7 +139,8 @@ with _db.db_session() as c:
 check("웍스 회사 정보가 모두 비어도 본사 = 대표 전화 031-8009-0407 · 대표 팩스 031-267-0407 · 본사 주소(대표 11-22)",
       _vh["tel"] == "031-8009-0407" and _vh["fax"] == "031-267-0407" and _vh["address"] == "경기도 화성시 병점구 기산로 87번길 2(기산동)", _vh)
 check("베트남 법인 서명엔 본사 대표번호·팩스 안 들어감", _vv["tel"] == "" and _vv["fax"] == "" and _vv["address"] == mg.VN_ADDRESS, _vv)
-check("영어 서명: 전화·팩스 = 대표번호 · 영문 주소는 짐작하지 않음(회사 정보 값만)", _ven["tel"] == "031-8009-0407" and _ven["address"] == "", _ven)
+check("영어 서명: 전화·팩스 = 대표번호 · 영문 주소 = 대표가 준 본사 영문 주소(우편번호 18387)", _ven["tel"] == "031-8009-0407"
+      and _ven["address"] == "2, Gisan-ro 87beon-gil, Byeongjeom-gu, Hwaseong-si, Gyeonggi-do 18387, Republic of Korea", _ven)
 check("첫 줄 굵게 · 줄바꿈 <br>", f["html"].startswith("<b>조민혁 과장 · 시험품질팀</b><br>"), f["html"][:80])
 
 v, f = sigs("vn")
@@ -161,7 +162,7 @@ with _db.db_session() as c:
     _ve = mg.values_for(c, U["jo"]["id"], "en", CO, m.rank_label, "minhyuk.jo@knknara.co.kr")
 _fe = mg.fill(mg.DEFAULT["en"], _ve)["text"].split("\n")
 check("영어 틀: 첫 줄 영문(Minhyuk Jo · Manager) · 둘째 줄 한국 이름 그대로(영문 되풀이 아님)", _fe[0] == "Minhyuk Jo · Manager" and _fe[1] == "조민혁 과장 · 시험품질팀", _fe)
-check("영문 주소 비면 그 줄 빼고 안내(한국어 주소 섞지 않음)", "경기도" not in f["text"] and ("주소", "웍스 회사 정보") in f["missing"], f["text"])
+check("웍스 회사 정보 영문 주소 비면 본사 영문 주소(대표 11-22) · 한국어 주소 섞지 않음", "경기도" not in f["text"] and mg.HQ_ADDRESS_EN in f["text"] and ("주소", "웍스 회사 정보") not in f["missing"], f["text"])
 v, f = sigs("ceo", "en")
 check("영문 이름이 있으면 영어 틀에 영문 이름", f["text"].startswith("Test Ceo"), f["text"][:40])
 check("자리 값이 모두 빈 줄은 통째로 빠짐", mg.fill("A\n{팩스}\nB", {"fax": ""})["text"] == "A\nB")
