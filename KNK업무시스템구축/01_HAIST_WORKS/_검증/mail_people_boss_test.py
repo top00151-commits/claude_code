@@ -158,10 +158,12 @@ print("\n③ 메일 보기")
 r = k.get("/mail/%d/pane" % M_LEAD)
 t = r.text
 check("보기: 「이름 직책 부서」 · 👔 우리 팀장 · 📌 나 = 받는 사람", r.status_code == 200 and "시험팀장 과장 시험영업팀" in t and "👔 우리 팀장" in t
-      and "📌 나 = 받는 사람" in t, r.status_code)
+      and 'class="mv-rc-p me"' in t and ">나</span>" in t, r.status_code)   # 11-22 「📌 나 = 받는 사람」 띠 → 받는 사람 줄의 초록 「나」 칩
 check("보기: ✅ 확인 답장 상자 · 본문 기한 단추", 'id="mvAck"' in t and "mvAck('" in t and "본문 기한" in t, "")
 r = k.get("/mail/%d" % M_SUN)
-check("전체 보기: 👀 나 = 참조 · 👔 우리 팀 윗 직책", "👀 나 = 참조" in r.text and "👔 우리 팀 윗 직책" in r.text, r.status_code)
+_cc = r.text[r.text.find('class="mv-rc mv-rc-cc"'):]
+_cc = _cc[:_cc.find('</span><span class="mv-when">') if '</span><span class="mv-when">' in _cc else 600]
+check("전체 보기: 나 = 참조 줄의 초록 「나」 칩(11-22 「👀 나 = 참조」 띠 대신) · 👔 우리 팀 윗 직책", 'class="mv-rc-p me"' in _cc and "👔 우리 팀 윗 직책" in r.text, _cc[:300])
 r = k.get("/mail/%d/pane" % M_EXT)
 check("바깥 메일: 👔 없음 · 이름 그대로", "👔" not in r.text.split('class="mv-actions"')[0] and "메일프로그램이름" in r.text, "")
 check("읽기만 — 직원 명부·메일 표 그대로", snap() == S0)

@@ -33,6 +33,43 @@ def _norm_addr(addr: str) -> str:
     return (mail or "").strip().lower()
 
 
+_RE_ANGLE_ADDR = re.compile(r"<\s*([^<>\s]+@[^<>\s]+?)\s*>")
+_RE_BARE_ADDR = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+
+def split_from(raw: str, decoded: str = "") -> tuple:
+    """보낸 사람(From)·답장 주소(Reply-To) 머리 → (이름, 주소).
+    11-22 대표 「보낸 사람 메일 주소가 없어?」 — 예전엔 머리를 먼저 글자로 푼 뒤 주소를 읽어, 이름에 쉼표·@ 가 있으면
+    (예: 「홍길동, KNK VINA」) 파이썬이 이름·주소를 둘 다 빈 값으로 돌려줌 → 보낸 사람 「? <>」.
+    → 주소는 **풀기 전 원문**에서 먼저 읽고, 이름만 따로 푼다. 그래도 없으면 <…> 안·맨 주소 꼴을 찾는다."""
+    from email.header import decode_header, make_header
+    raw = raw or ""
+    decoded = decoded or raw
+    try:
+        name_raw, addr = parseaddr(raw)
+    except Exception:
+        name_raw, addr = "", ""
+    if not addr or "@" not in addr:
+        m = _RE_ANGLE_ADDR.search(raw) or _RE_ANGLE_ADDR.search(decoded)
+        if not m:
+            m = _RE_BARE_ADDR.search(decoded) or _RE_BARE_ADDR.search(raw)
+            addr = m.group(0) if m else ""
+        else:
+            addr = m.group(1)
+        name_raw = ""
+    name = ""
+    if name_raw:
+        try:
+            name = str(make_header(decode_header(name_raw)))
+        except Exception:
+            name = name_raw
+    if not name and addr:
+        name = decoded.replace("<" + addr + ">", " ").replace(addr, " ")
+        name = re.sub(r"[<>]", " ", name)
+    name = re.sub(r"\s+", " ", (name or "")).strip().strip('"').strip("'").strip()
+    return name, (addr or "").strip()
+
+
 def default_owner(c):
     """수신자 미지정 시 기본 소유자 — 대표 김정락(login_id=kjr) → 이름 → role=ceo 순.
     ★ 2026-06-13 수정: 'username' 컬럼은 없음(실제 컬럼 login_id) — 과거 1순위 쿼리가
@@ -1844,7 +1881,7 @@ def parse_raw_email(raw) -> dict:
             return v
 
     subject = _h("Subject")
-    from_name, from_addr = parseaddr(_h("From"))
+    from_name, from_addr = split_from(_recover8(msg.get("From", "") or ""), _h("From"))   # 11-22 원문에서 주소 먼저
     to_addr = parseaddr(_h("To"))[1] or _h("To")
     cc = _h("Cc")
     message_id = str(msg.get("Message-ID") or msg.get("Message-Id") or "").strip().strip("<>").strip()
@@ -1854,7 +1891,7 @@ def parse_raw_email(raw) -> dict:
         _auth = _mg.parse_auth_results([_recover8(str(v)) for v in (msg.get_all("Authentication-Results") or [])])
     except Exception:
         _auth = {}
-    reply_to = parseaddr(_h("Reply-To"))[1]
+    reply_to = split_from(_recover8(msg.get("Reply-To", "") or ""), _h("Reply-To"))[1]
     # 11-19 2단계-나 — 자동으로 보낸 메일인가(부재중 자동 응답이 답하지 않게: 뉴스레터·알림·다른 자동 응답·반송)
     try:
         _as = (msg.get("Auto-Submitted") or "").strip().lower()

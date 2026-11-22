@@ -18,6 +18,21 @@
   .mv-me.to{background:#dcfce7;color:#166534;border:1px solid #86efac}
   .mv-me.cc{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
   .mv-me.bcc{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+  /* 11-22 대표 「받는 사람이 도대체 누구인지 — 배치가 너무 정신없어」 — 받는 사람·참조 = 사람마다 칩(넷 넘으면 「외 N명 ▾」) */
+  .mv-rc{display:inline-flex;flex-wrap:wrap;align-items:center;gap:3px;margin-right:8px;vertical-align:middle}
+  .mv-rc-l{font-size:11.5px;font-weight:700;color:var(--mute);margin-right:2px;white-space:nowrap}
+  .mv-rc-p{display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;border-radius:999px;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--ink);font-size:12px;line-height:1.75}
+  .mv-rc-p.me{background:#dcfce7;border-color:#86efac;color:#166534;font-weight:700}
+  .mv-rc-p.x{display:none}
+  .mv-rc.all .mv-rc-p.x{display:inline-block}
+  .mv-rc-p.grp{padding:0;border:0;background:none;overflow:visible;max-width:none}
+  .mv-rc-p.grp .mv-grp-i{position:relative;display:inline-block;padding:0;border:0;background:none}
+  .mv-rc-more{border:0;background:none;color:#1d4ed8;font-size:12px;font-weight:600;cursor:pointer;padding:0 4px;white-space:nowrap}
+  .mv-hsub .mv-rc-to:has(~ .mv-rc-cc){flex-basis:100%}   /* 참조가 있으면 받는 사람 = 한 줄 · 참조(+시각) = 다음 줄 */
+  .mv-hsub .mv-rc{min-width:0}
+  .mv-nofrom{font-size:12px;color:#9a3412;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:0 6px}
+  html[data-mt="dark"] .mv-rc-p{background:#0f172a;border-color:#334155}
+  html[data-mt="dark"] .mv-rc-p.me{background:#14532d;border-color:#166534;color:#bbf7d0}
   /* 11-21 나 묶음 — 📅 본문 날짜 */
   .mv-dates{margin:0 0 10px;padding:8px 12px;border-radius:10px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;font-size:12.5px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
   .mv-dates-h{font-weight:800}
@@ -334,7 +349,7 @@
     .mv-av{flex:none;width:30px;height:30px;font-size:13px}
     .mv-hwho{flex:0 0 calc(100% - 40px);display:flex;flex-wrap:wrap;align-items:center;column-gap:10px;row-gap:3px;min-width:0;font-size:13px;line-height:1.5}
     .mv-hname{padding-top:0;flex:0 1 auto;min-width:0}
-    .mv-hsub{order:2;flex:1 1 280px;min-width:0;margin:0;display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12.5px}
+    .mv-hsub{order:2;flex:1 1 100%;min-width:0;margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;row-gap:3px;font-size:12.5px}   /* 11-22 받는 사람 칩이 길면 다음 줄로(예전엔 한 줄에서 잘림) */
     .mv-hsub .mv-me{flex:none;margin-right:0}
     .mv-hsub .mv-rcpt{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
     .mv-hsub .mv-when{flex:none;overflow-wrap:normal}

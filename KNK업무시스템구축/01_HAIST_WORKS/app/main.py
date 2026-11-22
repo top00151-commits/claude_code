@@ -26815,8 +26815,12 @@ def _mail_view_people(c, u, m) -> dict:
         st = _mpeople.staff(c)
         me = _mpeople.me_of(c, u["id"], st)
         s = _mpeople.sender(st, me, m.get("from_email")) if (m.get("direction") or "in") == "in" else {}
+        _mine = _mail_find.my_addresses(c, u["id"])
+        # 11-22 대표 「받는 사람이 도대체 누구인지」 — 받는 사람·참조를 사람마다 칩으로(직원 = 이름 직책 · 나 = 「나」)
+        _to = _mpeople.rcpt_list(st, (m.get("to_all") or m.get("to_email") or ""), _mine)
+        _cc = _mpeople.rcpt_list(st, (m.get("cc") or ""), _mine)
         return {"disp": s.get("disp", ""), "boss": s.get("boss", ""),
-                "role": _mpeople.my_role(m, _mail_find.my_addresses(c, u["id"]))}
+                "role": _mpeople.my_role(m, _mine), "rcpt_to": _to, "rcpt_cc": _cc}
     except Exception as _e:
         print("[MAIL-PEOPLE] 메일 보기 사람 표시 실패: %s" % str(_e)[:160], flush=True)
         return {}

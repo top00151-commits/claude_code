@@ -114,6 +114,47 @@ def sender(st: dict, me: dict, from_email: str) -> dict:
     return {"disp": disp(p), "boss": boss_why(me, p), "uid": p.get("id")}
 
 
+_RE_RC_ITEM = re.compile(r'(?:"([^"]*)"|([^,;<>"]*?))\s*<\s*([^<>\s,;]+@[^<>\s,;]+)\s*>'
+                         r'|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})')
+
+
+def split_addrs(s: str) -> list:
+    """「받는 사람」·「참조」 머리 글 → [(이름, 주소)] — 같은 주소는 한 번만.
+    이름에 쉼표가 있어도(「"Kim, Jane" <a@b>」) 주소는 맞게 · 이름 없는 맨 주소도."""
+    out, seen = [], set()
+    for m in _RE_RC_ITEM.finditer(s or ""):
+        nm = (m.group(1) if m.group(1) is not None else (m.group(2) or "")).strip().strip("'").strip()
+        ad = (m.group(3) or m.group(4) or "").strip().strip(".").lower()
+        if not ad or ad in seen:
+            continue
+        seen.add(ad)
+        out.append((nm, ad))
+    return out
+
+
+def rcpt_list(st: dict, header: str, mine: set) -> list:
+    """메일 보기 「받는 사람」·「참조」 칩 — [{email, short, title, me, staff}].
+    11-22 대표 「받는 사람 주소 부분이 너무 정신없어 — 누가 받는지」: 사람마다 짧은 이름 하나(직원 = 이름 직책 · 바깥 = 머리 이름 또는 주소)
+    · 마우스를 올리면 전체(이름 직책 부서 + 주소) · 나 = 「나」."""
+    out = []
+    for nm, ad in split_addrs(header):
+        p = (st or {}).get(ad)
+        me = ad in (mine or set())
+        if p:
+            full = disp(p)
+            n0 = (p.get("name") or "").strip()
+            nv = (p.get("name_vi") or "").strip()
+            short = " ".join(x for x in ((nv or n0), (p.get("rank") or "").strip()) if x) or full or ad
+            title = "%s <%s>" % (full, ad)
+        else:
+            short = nm or ad
+            title = ("%s <%s>" % (nm, ad)) if nm else ad
+        if me:
+            title = "나 — " + title
+        out.append({"email": ad, "short": ("나" if me else short)[:40], "title": title, "me": me, "staff": bool(p)})
+    return out
+
+
 def my_role(m: dict, mine: set) -> str:
     """이 메일에서 나는 — "to"(받는 사람) · "cc"(참조) · "bcc"(받는 사람·참조에 내 주소가 없음 = 숨은참조·그룹 주소 등) · ""(보낸 메일·모름)."""
     if not mine or (m.get("direction") or "in") != "in":

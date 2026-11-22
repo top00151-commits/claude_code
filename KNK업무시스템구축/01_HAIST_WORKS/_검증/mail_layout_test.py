@@ -187,7 +187,8 @@ print("== ⑥ 읽기 칸 머리 ==")
 p = T(km.get("/mail/%d/pane" % M_GRP))
 check("읽기 칸 200 · 순서 그대로(제목 → 첫 글자 → 보낸 사람 → 단추 → 폴더 칩)",
       0 < p.find('class="mv-subj"') < p.find('class="mv-av"') < p.find('class="mv-hwho"') < p.find('class="mv-actions"') < p.find('class="mv-chips"'))
-check("받는 사람 줄 = 나 = … · 받는 사람 요약(말줄임 · 전부는 마우스) · 시각", 'class="mv-rcpt" title="받는 사람' in p and 'class="mv-when"> · ' in p)
+# 11-22 대표 「받는 사람이 도대체 누구인지」 — 원문 한 줄(말줄임) 대신 받는 사람·참조 칩(mail_rcpt_from_test 가 자세히)
+check("받는 사람 줄 = 받는 사람·참조 칩 · 시각", 'class="mv-rc mv-rc-to"><b class="mv-rc-l">받는 사람</b>' in p and 'class="mv-when"> · ' in p)
 check("그룹 메일 = 칩 하나 「👥 이름(N명 ▾)」 · 넓은 화면 누르면 명단 · 휴대폰은 예전 상자", 'id="mvGrp"' in p and "/api/mail/addrinfo?a=" in p
       and "mv-grp-c" in p and "명 ▾)</span>" in p and "mvGrpToggle(this)" in p and ".mv-grp-t,.mv-grp-m{display:none}" in T(km.get("/mail/%d" % M_GRP)))
 j = km.get("/api/mail/addrinfo?a=grp-lay" + D).json()
