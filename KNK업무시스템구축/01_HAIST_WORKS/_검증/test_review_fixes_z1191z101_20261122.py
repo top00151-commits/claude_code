@@ -227,14 +227,13 @@ print("§6 🆕 등록 첫 화면 · 엑셀 일괄 등록")
 def cards_of(h): return [c.split("?")[0] for c in re.findall(r'<a class="pc-card[^"]*" href="([^"]+)"', h)]
 S["user"] = OUT
 r = q(cl.get, "/projects/new", follow_redirects=False)
-check("매출 등록 권한 없는 분: 🆕 등록 열림(200) · 🤝 고객사 카드만 · 안내 · 엑셀 일괄 등록 안 보임",
-      r.status_code == 200 and cards_of(r.text) == ["/customers/new"] and "매출 등록 권한</b>이 있어야" in r.text and "📥 엑셀 일괄 등록" not in r.text,
-      (r.status_code, cards_of(r.text)))
+# z1191z102 (대표 11-22 「고객사 등록도 기술영업팀만」): 권한 없는 분께 「고객사 카드만」 열던 것 되돌림 → 홈으로
+check("매출 등록 권한 없는 분: 🆕 등록 → 홈으로(z102)", r.status_code == 303 and r.headers.get("location", "").startswith("/home"), (r.status_code, r.headers.get("location")))
 r = q(cl.get, "/projects/new?type=OTHER", follow_redirects=False)
 check("그분이 프로젝트 등록 폼으로 바로 가면 여전히 막힘", r.status_code == 303, r.status_code)
 S["user"] = VIEWER   # 매출 보기만(등록 권한 없음)
 hm = q(cl.get, "/sales").text
-check("메뉴(매출 보기만 · 등록 권한 없음): 🧾 마감 안 보임(경로와 같게) · 🆕 등록은 보임", "/sales/shipments-receipts" not in menu(hm) and "/projects/new" in menu(hm), menu(hm))
+check("메뉴(매출 보기만 · 등록 권한 없음): 🧾 마감 · 🆕 등록 안 보임(경로와 같게 · z102)", "/sales/shipments-receipts" not in menu(hm) and "/projects/new" not in menu(hm), menu(hm))
 S["user"] = SALES
 h = q(cl.get, "/projects/new").text
 check("기술영업 담당: 카드 8개 · 엑셀 일괄 등록 보임", len(cards_of(h)) == 8 and "📥 엑셀 일괄 등록" in h, cards_of(h))

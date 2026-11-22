@@ -415,7 +415,8 @@ tbody tr:hover td { background: var(--amber-glow); }
       <div class="table-wrap">
         <div class="table-head">
           <h3>고객사 ({{ customers|length }})</h3>
-          <div class="actions"><a class="btn btn-primary" href="/customers/new">＋ 고객사 추가</a></div>
+          {# z1191z102: 등록은 「🆕 등록」 한 곳 · 고객사 = 기술영업팀 + 대표만 #}
+          <div class="actions"><span style="font-size:12px;color:var(--mute,#64748b);">새 고객사 등록은 기술영업팀 — 왼쪽 메뉴 🆕 등록 → 🤝 고객사</span></div>
         </div>
         <table>
           <thead>

@@ -13662,6 +13662,8 @@ async def api_admin_customer(req: Request):
                 (d["name"], d.get("tier", "일반"), d.get("note", ""), d["id"]),
             )
         else:
+            if not _can_reg_customer_z102(u):   # z1191z102: 새 고객사 = 기술영업팀 + 대표만(고치기는 그대로)
+                return JSONResponse({"error": "새 고객사 등록은 기술영업팀(또는 대표)만 할 수 있습니다"}, 403)
             c.execute(
                 "INSERT INTO customers(name, tier, note) VALUES(?,?,?)",
                 (d["name"], d.get("tier", "일반"), d.get("note", "")),
@@ -13677,6 +13679,8 @@ async def api_admin_import_mgmt(req: Request, file: UploadFile = File(...)):
     u = require(req, ["admin", "ceo"])
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
+    if not _can_reg_customer_z102(u):   # z1191z102: 없는 고객사를 자동으로 만들므로 = 기술영업팀 + 대표만
+        return JSONResponse({"error": "관리번호 대장 가져오기(고객사 자동 생성)는 기술영업팀(또는 대표)만 할 수 있습니다"}, 403)
     fn = (file.filename or "").lower()
     # 사이클 71: pandas 제거(대표 결정 2026-04-27) → .csv 만 허용. .xls/.xlsx는 안내 메시지.
     if fn.endswith(".xls") or fn.endswith(".xlsx"):
@@ -27191,6 +27195,22 @@ def _can_bank_z98(u):
 
 
 tpl.env.globals["can_s1_z98"] = _can_s1_z98
+
+
+def _can_reg_customer_z102(u):
+    """z1191z102 (대표 11-22 「고객사 등록도 기술영업팀만」 → 「기술영업팀 + 대표만」): 새 고객사 만들기 =
+    기술영업팀(teams.id=1) 또는 대표(role ceo). 보기·고치기(결제 조건 등)는 예전 그대로."""
+    if not u:
+        return False
+    try:
+        if int(u.get("team_id") or 0) == 1:
+            return True
+    except (TypeError, ValueError):
+        pass
+    return (u.get("role") or "").lower() == "ceo"
+
+
+tpl.env.globals["can_reg_customer_z102"] = _can_reg_customer_z102
 tpl.env.globals["can_bank_z98"] = _can_bank_z98
 
 
@@ -27255,6 +27275,8 @@ async def customers_new_form(req: Request):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    if not _can_reg_customer_z102(u):   # z1191z102: 새 고객사 = 기술영업팀 + 대표만
+        return RedirectResponse("/customers?err=reg_customer_denied", 303)
     return ctx(req, "customer_form.html", user=u, active="sales",
                customer=None, contacts=[])
 
@@ -27264,6 +27286,8 @@ async def customers_new_submit(req: Request):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    if not _can_reg_customer_z102(u):   # z1191z102: 새 고객사 = 기술영업팀 + 대표만
+        return RedirectResponse("/customers?err=reg_customer_denied", 303)
     form = await req.form()
     name = (form.get("name") or "").strip()
     biz_no = (form.get("biz_no") or "").strip()
@@ -41278,12 +41302,8 @@ async def projects_new_form(request: Request,
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     _t = (type or "").strip().upper()
     if not can_use_sales(u):
-        # z1191z101 (다시 보기): 「🆕 등록」 은 등록 입구 한 곳 — 매출 등록 권한이 없는 분도 🤝 고객사는 등록할 수 있어야 한다
-        #   (고객사 등록 경로는 원래 로그인만 보면 열림 · z96 에서 고객사 목록 단추를 빼며 길이 끊겼었다)
-        if _t or _embed:
-            return RedirectResponse("/home", 303)
-        return ctx(request, "project_new_chooser.html", user=u, active="sales_projects", embed=False,
-                   can_reg_proj=False, can_manual=False)
+        # z1191z102 (대표 11-22 「고객사 등록도 기술영업팀만」): z101 의 「권한 없어도 🤝 고객사 카드만」 되돌림 — 예전처럼 홈으로
+        return RedirectResponse("/home", 303)
     # type 없으면 chooser 페이지
     if not _t:
         return ctx(request, "project_new_chooser.html",
@@ -45604,6 +45624,8 @@ async def customers_import_xlsx(request: Request, xlsx: UploadFile = File(...)):
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    if not _can_reg_customer_z102(u):   # z1191z102: 새 고객사 = 기술영업팀 + 대표만
+        return JSONResponse({"ok": False, "error": "고객사 일괄 등록은 기술영업팀(또는 대표)만 할 수 있습니다"}, 403)
     try:
         body = await xlsx.read()
         rows = _cust_import_parse_xlsx(body)
@@ -45679,6 +45701,8 @@ async def customers_import_verify(request: Request, xlsx: UploadFile = File(...)
         return JSONResponse({"ok": False, "error": "로그인 필요"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "권한 없음"}, 403)
+    if not _can_reg_customer_z102(u):   # z1191z102: 새 고객사 = 기술영업팀 + 대표만
+        return JSONResponse({"ok": False, "error": "고객사 일괄 등록은 기술영업팀(또는 대표)만 할 수 있습니다"}, 403)
     _raw = await xlsx.read()
     if not _raw:
         return JSONResponse({"ok": False, "error": "빈 파일입니다"}, 200)
@@ -45701,6 +45725,8 @@ async def customers_import_confirm(request: Request):
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    if not _can_reg_customer_z102(u):   # z1191z102: 새 고객사 = 기술영업팀 + 대표만
+        return JSONResponse({"ok": False, "error": "고객사 일괄 등록은 기술영업팀(또는 대표)만 할 수 있습니다"}, 403)
     try:
         body = await request.json()
     except Exception:

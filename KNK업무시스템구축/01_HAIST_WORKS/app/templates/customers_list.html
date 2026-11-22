@@ -45,11 +45,11 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
 {% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
-    <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>고객사</b></div><h1 class="page-title" data-dn="title">🏢 <em>고객사</em></h1></div>
+    <div><div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>고객사</b></div><h1 class="page-title" data-dn="title">🏢 <em>고객사</em></h1>{% if request.query_params.get('err') == 'reg_customer_denied' %}<div style="margin-top:6px;font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:6px 10px;">새 고객사 등록은 <b>기술영업팀(또는 대표)</b>만 할 수 있습니다 — 필요하면 기술영업팀에 요청해 주세요.</div>{% endif %}</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       {# v5H226z122 (2026-05-19): 양식 다운로드·양식 안내 UI 삭제 — 대표 지시. 엑셀 내보내기/일괄 업로드는 유지 #}
       <a class="btn btn-secondary" href="/customers/export.xlsx" title="전체 고객사 + 담당자 엑셀 다운로드">📊 엑셀 내보내기</a>
-      <button type="button" class="btn btn-secondary" onclick="document.getElementById('cuImportXlsx').click()" title="엑셀 업로드 → 미리보기 → 일괄 등록">📤 엑셀 일괄 업로드</button>
+      {% if can_reg_customer_z102(user) %}<button type="button" class="btn btn-secondary" onclick="document.getElementById('cuImportXlsx').click()" title="엑셀 업로드 → 미리보기 → 일괄 등록">📤 엑셀 일괄 업로드</button>{% endif %}{# z1191z102: 기술영업팀 + 대표만 #}
       {# v5H226z75: data-knk-no-dropzone — 자동 dropzone 영역 생성 차단 (버튼 클릭으로만 동작) #}
       <input type="file" id="cuImportXlsx" accept=".xlsx" style="display:none;" data-knk-no-dropzone onchange="uploadCustomersXlsx(this.files[0])">
       {% include '_v5_partials/knk_verify_msg.html' %}{# 대표규정 §4 규칙47: 원본↔저장 대조 메시지 포매터 #}
@@ -60,7 +60,7 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
       <button type="button" class="btn btn-secondary" id="cuCancelBtn" onclick="cuCancelEdit()" style="display:none;">취소</button>
       {% endif %}
       {# z1191z96 (대표 11-22): 새 고객사는 왼쪽 메뉴 「🆕 등록 → 🤝 고객사」 — 이 화면은 보기·고치기(결제 조건) #}
-      <span style="align-self:center;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 새 고객사는 왼쪽 메뉴 <b>🆕 등록 → 🤝 고객사</b></span></span>
+      {% if can_reg_customer_z102(user) %}<span style="align-self:center;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 새 고객사는 왼쪽 메뉴 <b>🆕 등록 → 🤝 고객사</b></span></span>{% else %}<span style="align-self:center;font-size:12px;color:var(--qv-ink-3,#64748b);">새 고객사 등록은 기술영업팀에서 합니다</span>{% endif %}
     </div>
   </div>
 
