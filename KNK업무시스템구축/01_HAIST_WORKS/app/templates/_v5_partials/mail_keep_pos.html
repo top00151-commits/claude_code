@@ -1,0 +1,57 @@
+{# 11-22 대표 「메일 내용을 수정하거나 메일을 옮기면 메일 화면 위치가 자꾸 처음으로 올라가 — 보고 있던 화면을 또 찾아야 하는 번거로움」
+   화면을 새로 그릴 때(옮기기·여러 통 처리·되돌리기·폴더 고치기·새 창에서 고침 등 — 어디서 새로 고치든) 보던 자리 그대로:
+   목록 스크롤 · 「더 보기」로 불러온 통수 · 왼쪽 폴더 칸 스크롤 · 열어 둔 메일(읽기 칸)과 그 스크롤 · 창 스크롤.
+   - 같은 주소를 「새로 고침」(또는 뒤로 가기)으로 다시 열 때만 되살림 — 다른 폴더·다른 메일함으로 가면 처음부터
+   - 「📥 새 메일 보기」처럼 맨 위를 보려는 새로 고침은 window.mbxNoKeep() 뒤에 새로 고침
+   - 열어 둔 메일이 그새 「안 읽음」이 되었으면 다시 열지 않음(열면 읽음이 되므로) · 그 메일이 목록에서 빠졌으면 자리만 #}
+<script>
+(function(){
+  if(window._mbxKeepPos) return; window._mbxKeepPos=1;
+  var K='mbxKeep:'+location.pathname+location.search;
+  function listEl(){ var lc=document.querySelector('.mbx-listcol'); return (lc && lc.scrollHeight>lc.clientHeight+10) ? lc : null; }
+  function rows(){ return document.querySelectorAll('.mbx-list .mbx-row, .mbx-list .mbx-headlink').length; }
+  function save(){
+    try{
+      if(sessionStorage.getItem('mbxNoKeep')){ sessionStorage.removeItem('mbxNoKeep'); sessionStorage.removeItem(K); return; }
+      var lc=listEl(), side=document.querySelector('.mbx-side'), pane=document.getElementById('readPane'),
+          act=document.querySelector('.mbx-list .mbx-row.active, .mbx-list .mbx-headlink.active');
+      sessionStorage.setItem(K, JSON.stringify({t:Date.now(), ls:lc?lc.scrollTop:0, win:window.scrollY||0, ss:side?side.scrollTop:0,
+        rows:rows(), open:(act&&pane&&!pane.classList.contains('empty'))?(act.dataset.mailId||''):'', ps:pane?pane.scrollTop:0}));
+    }catch(e){}
+  }
+  window.addEventListener('pagehide', save);
+  window.mbxNoKeep=function(){ try{ sessionStorage.setItem('mbxNoKeep','1'); }catch(e){} };
+  async function restore(){
+    var o=null;
+    try{
+      var nav=(performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+      if(nav.type!=='reload' && nav.type!=='back_forward') return;
+      o=JSON.parse(sessionStorage.getItem(K)||'null');
+    }catch(e){ return; }
+    if(!o || Date.now()-(o.t||0) > 60*60*1000) return;
+    // 「더 보기」로 이어 붙였던 만큼 다시(200통씩 · 너무 많으면 10번까지)
+    for(var i=0;i<10;i++){
+      var box=document.querySelector('.mbx-morerows');
+      if(rows()>=o.rows || !box || typeof window.mbxMore!=='function') break;
+      try{ await window.mbxMore(box); }catch(e){ break; }
+    }
+    function put(){
+      var lc=listEl(); if(lc) lc.scrollTop=o.ls;
+      if(o.win) window.scrollTo(0, o.win);
+      var side=document.querySelector('.mbx-side'); if(side && o.ss) side.scrollTop=o.ss;
+    }
+    put();
+    var pane=document.getElementById('readPane');
+    if(o.open && pane && typeof window.loadPane==='function' && (typeof window.paneWide!=='function' || window.paneWide())){
+      var sp=document.querySelector('.mbx-split');
+      var r=document.querySelector('.mbx-list [data-mail-id="'+String(o.open).replace(/[^0-9]/g,'')+'"]');
+      if(r && !r.classList.contains('unread') && !(sp && sp.classList.contains('v-list'))){
+        try{ await window.loadPane(o.open, r); }catch(e){}
+        if(o.ps) pane.scrollTop=o.ps;
+      }
+    }
+    setTimeout(put, 60);   // 다른 스크립트가 처음에 칸을 움직여도 마지막에 제자리
+  }
+  if(document.readyState==='complete') setTimeout(restore, 0); else window.addEventListener('load', function(){ setTimeout(restore, 0); });
+})();
+</script>

@@ -457,6 +457,13 @@ try:
     check("저장 뒤 그 줄로 돌아가 「✓ 저장됨」(hl)", r.status_code == 303 and ("hl=f%d" % dr) in r.headers.get("location", ""), r.headers.get("location"))
     r = k.post("/mail/folders/team", data={"op": "rename", "key": "t%d" % T_QA, "name": ""})
     check("부서 이름 저장 뒤에도 그 줄(hl=t…)", r.status_code == 303 and ("hl=t%d" % T_QA) in r.headers.get("location", ""), r.headers.get("location"))
+
+    print("== 18. 새로 그려도 보던 자리(11-22 대표 「메일을 옮기면 화면 위치가 자꾸 처음으로 올라가」) ==")
+    hi = k.get("/mail/inbox").text
+    check("받은편지함: 떠나기 직전 자리 기억(목록·폴더 칸·더 보기 통수·열어 둔 메일·읽기 칸) → 같은 주소 새로 고침이면 되살림",
+          "_mbxKeepPos" in hi and "addEventListener('pagehide', save)" in hi and "nav.type!=='reload'" in hi and "window.mbxMore(box)" in hi and "window.loadPane(o.open, r)" in hi)
+    check("안 읽음이 된 메일은 다시 안 엶 · 「📥 새 메일 보기」는 맨 위(mbxNoKeep)", "!r.classList.contains('unread')" in hi and "if(window.mbxNoKeep) mbxNoKeep(); location.reload()" in hi)
+    check("메일 보기 화면도 같은 조각", "_mbxKeepPos" in k.get("/mail/%d" % t1).text)
 finally:
     pass
 

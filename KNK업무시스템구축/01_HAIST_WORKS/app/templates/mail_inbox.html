@@ -816,7 +816,7 @@
       {% endfor %}
     </div>
     {% endif %}
-    {% if box=='in' %}<div class="mbx-newbar" id="mbxNew" hidden onclick="location.reload()" title="눌러서 새 메일 보기">📥 새 메일이 왔습니다 <span id="mbxNewN"></span> — 눌러서 보기</div>{% endif %}
+    {% if box=='in' %}<div class="mbx-newbar" id="mbxNew" hidden onclick="if(window.mbxNoKeep) mbxNoKeep(); location.reload()" title="눌러서 새 메일 보기">📥 새 메일이 왔습니다 <span id="mbxNewN"></span> — 눌러서 보기</div>{% endif %}
     {% if mails %}
     <div class="mbx-list">
       {% if box=='in' %}
@@ -1791,4 +1791,5 @@ function mbxVacHide(){
   }, 400);
 })();
 </script>
+{% include "_v5_partials/mail_keep_pos.html" %}
 </body></html>
