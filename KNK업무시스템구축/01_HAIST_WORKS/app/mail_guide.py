@@ -251,20 +251,27 @@ _RE_BAD_ME = re.compile(r"[<>\r\n\t]")
 
 
 def get_overrides(c, uid) -> dict:
-    """사람이 고친 서명 칸 — {열쇠: 값}(빈 값은 빼고)."""
+    """사람이 고친 서명 칸 — {열쇠: 값}. 11-22 대표 「칸에 내용을 비우면 없는 걸로」 — 빈 값('')도 고친 값(= 서명에서 뺌)."""
     ensure(c)
     out = {}
     for r in c.execute("SELECT key, value FROM mail_user_prefs WHERE user_id=? AND key LIKE 'sig_f_%'", (uid,)).fetchall():
         k = (r["key"] or "")[6:]
-        v = (r["value"] or "").strip()
-        if k in _ME_KEYS and v:
-            out[k] = v
+        if k in _ME_KEYS:
+            out[k] = (r["value"] or "").strip()
     return out
 
 
-def set_overrides(c, uid, vals: dict):
-    """서명 칸 고치기 — 반환 (ok, 메시지). 빈 값 = 자동으로 되돌림. 한 줄 글자만(꺾쇠·줄바꿈 안 됨) · 80자까지."""
+def set_overrides(c, uid, vals: dict, auto: dict = None, reset: bool = False):
+    """서명 칸 고치기 — 반환 (ok, 메시지). 한 줄 글자만(꺾쇠·줄바꿈 안 됨) · 80자까지.
+    11-22 대표 「자동으로 확인 가능한 건 입력칸에 채워 · 사용자가 삭제 또는 수정하면 그걸 반영 · 칸을 비우면 없는 걸로」
+    · 자동 값(auto)과 같으면 = 자동을 따름(고친 값 지움 → 이음 정보가 바뀌면 같이 바뀜)
+    · 다르면 그 값 · **빈 값 = 없음**(서명에서 그 칸을 뺌 — 예: 대표이사 부서 「총괄」을 비우면 「김정락 대표이사」)
+    · reset = 모두 자동 값으로(고친 값 모두 지움)."""
     ensure(c)
+    if reset:
+        c.execute("DELETE FROM mail_user_prefs WHERE user_id=? AND key LIKE 'sig_f_%'", (uid,))
+        return True, "모두 자동 값으로 되돌렸습니다"
+    auto = auto or {}
     clean = {}
     for k in _ME_KEYS:
         if k not in vals:
@@ -280,10 +287,10 @@ def set_overrides(c, uid, vals: dict):
             return False, "휴대폰 번호는 숫자·+·-·( )만 넣어 주세요"
         clean[k] = v
     for k, v in clean.items():
-        if v:
-            set_pref(c, uid, "sig_f_" + k, v)
-        else:
+        if k in auto and v == (auto.get(k) or "").strip():
             c.execute("DELETE FROM mail_user_prefs WHERE user_id=? AND key=?", (uid, "sig_f_" + k))
+        else:
+            set_pref(c, uid, "sig_f_" + k, v)      # 빈 값도 저장(= 없음)
     return True, "저장했습니다 — 서명에 바로 들어갑니다"
 
 
@@ -311,7 +318,7 @@ def person_values(c, uid, rank_fn=None, from_addr: str = "") -> dict:
         ov = get_overrides(c, uid)
     except Exception:
         ov = {}
-    val = {k: (ov.get(k) or auto[k]) for k in auto}
+    val = {k: (ov[k] if k in ov else auto[k]) for k in auto}   # 고친 값(빈 값 = 없음) 먼저
     if "rank" in ov and "rank_en" not in ov:
         val["rank_en"] = en_rank(val["rank"])      # 직책을 고치면 영문 직책도 따라 바뀜(영문 직책을 따로 고치지 않았을 때)
     return {"auto": auto, "value": val, "ov": ov, "corp": corp, "lang": (p.get("lang") or "").strip().lower(), "p": p}
@@ -449,6 +456,11 @@ def company_sigs(c, uid, company: dict, rank_fn=None, from_addr: str = "", user_
     order = sig_langs(c, uid)          # 11-22 대표: 사람마다 말·기본(맨 앞)이 정해짐 — 보는 화면 말과 상관없이
     on = [lg for lg in order if tpls[lg]["on"]]
     out = []
+    try:   # 11-22 사람이 일부러 비운 칸(예: 대표이사 부서)은 「…에 비어 있어 뺐습니다」 안내에서 뺌
+        _cleared = {k for k, v in get_overrides(c, uid).items() if not v}
+    except Exception:
+        _cleared = set()
+    _base = {"name_ko": "name", "rank_ko": "rank"}
     for lg in on:
         v = values_for(c, uid, lg, company, rank_fn, from_addr)
         f = fill(tpls[lg]["body"], v)
@@ -457,7 +469,8 @@ def company_sigs(c, uid, company: dict, rank_fn=None, from_addr: str = "", user_
         nm = "🏢 회사 서명" + ("" if len(on) == 1 else " (%s)" % LANG_NAME[lg])
         out.append({"slot": "co-" + lg, "lang": lg, "name": nm, "body": design_html(f["text"], v["_corp"], lg), "text": f["text"],
                     "first": not out,
-                    "note": missing_note(f["missing"], v["_corp"]), "corp": v["_corp"]})
+                    "note": missing_note([x for x in f["missing"] if _base.get(_FKEY[x[0]], _FKEY[x[0]]) not in _cleared], v["_corp"]),
+                    "corp": v["_corp"]})
     return out
 
 

@@ -20,6 +20,8 @@
   .me-f label{font-size:12.5px;font-weight:700;color:var(--ink)}
   .me-f input{font:inherit;font-size:13.5px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
   .me-f input.ov{border-color:#f59e0b;background:#fffbeb}
+  .me-f input.chg{border-color:#2563eb;background:#eff6ff}
+  .me-f small a{color:#1d4ed8;cursor:pointer;margin-left:4px}
   .me-f small{font-size:11.5px;color:var(--mute);line-height:1.45;overflow-wrap:anywhere}
   .me-act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
   @media(max-width:640px){.co-card{margin:0 12px 12px}.me-card{margin:0 12px 20px;padding:14px}}
@@ -71,13 +73,14 @@
 
   {% if me_fields is defined and me_fields %}
   <div class="me-card" id="meCard">
-    <div class="co-h">✏️ 내 서명 정보 <span style="font-size:12px;font-weight:600;color:var(--mute)">자동으로 채운 값 · 틀린 칸만 고치세요 · 비우면 다시 자동</span></div>
+    <div class="co-h">✏️ 내 서명 정보 <span style="font-size:12px;font-weight:600;color:var(--mute)">이음에 등록한 정보로 채워 두었습니다 · 틀린 칸은 고치고, 넣고 싶지 않은 칸은 비운 뒤 💾 저장</span></div>
     <div class="me-grid">
       {% for f in me_fields %}
       <div class="me-f">
         <label for="me_{{ f.key }}">{{ f.label }}</label>
-        <input id="me_{{ f.key }}" name="f_{{ f.key }}" type="{{ 'email' if f.key == 'email' else 'text' }}" maxlength="80" value="{{ f.ov }}" placeholder="{{ f.auto or '(자동 값 없음)' }}"{% if f.ov %} class="ov"{% endif %}>
-        <small>{% if f.ov %}✏️ 고친 값을 씁니다 · 자동 값: {{ f.auto or '없음' }}{% else %}자동: {{ f.auto or '없음(비어 있으면 서명에서 빠짐)' }}{% endif %}</small>
+        {# 11-22 대표 「자동으로 확인 가능한 건 칸 아래 「자동: …」 말고 입력칸에 채워 · 지우거나 고치면 반영 · 비우면 없는 걸로」 #}
+        <input id="me_{{ f.key }}" name="f_{{ f.key }}" type="{{ 'email' if f.key == 'email' else 'text' }}" maxlength="80" value="{{ f.val }}" placeholder="(비움 — 서명에 넣지 않음)" data-auto="{{ f.auto }}" data-orig="{{ f.val }}"{% if f.has_ov %} class="ov"{% endif %}>
+        <small>{% if f.has_ov %}{% if f.val %}✏️ 직접 고친 값{% else %}비움 — 서명에 넣지 않음{% endif %}{% if f.auto %} <a onclick="meAuto('{{ f.key }}')" title="이음에 등록한 값으로">↺ 자동 값으로</a>{% endif %}{% endif %}</small>
       </div>
       {% endfor %}
     </div>
@@ -88,8 +91,13 @@
     </div>
   </div>
   <script>(function(){
+    window.meAuto=function(k){ var i=document.getElementById('me_'+k); if(!i) return; i.value=i.getAttribute('data-auto')||''; i.dispatchEvent(new Event('input')); i.focus(); };
+    document.querySelectorAll('#meCard input[name^="f_"]').forEach(function(i){ i.addEventListener('input', function(){
+      i.classList.toggle('chg', i.value!==i.getAttribute('data-orig'));
+      var m=document.getElementById('meMsg'); if(m && document.querySelector('#meCard input.chg')){ m.textContent='⚠ 고친 칸이 있습니다 — 💾 저장을 눌러야 서명에 들어갑니다'; m.style.color='#b45309'; } }); });
     window.meSave=async function(reset){
-      var fd=new FormData(); document.querySelectorAll('#meCard input[name^="f_"]').forEach(function(i){ fd.append(i.name, reset?'':i.value.trim()); });
+      if(reset && !confirm('고친 칸을 모두 지우고 이음에 등록한 값으로 되돌릴까요?')) return;
+      var fd=new FormData(); if(reset) fd.append('reset','1'); document.querySelectorAll('#meCard input[name^="f_"]').forEach(function(i){ fd.append(i.name, i.value.trim()); });
       var m=document.getElementById('meMsg'); m.textContent='저장 중…'; m.style.color='var(--mute)';
       try{ var r=await fetch('/mail/signature/me',{method:'POST',body:fd}); var j=await r.json();
         if(j.ok){ m.textContent='✅ '+(j.msg||'저장했습니다'); m.style.color='var(--success,#15803d)'; setTimeout(function(){ location.reload(); },500); }

@@ -24887,7 +24887,8 @@ async def mail_signature_page(req: Request, slot: int = 0):
             sig_default, sig_pref = "", ""
         try:   # 11-22 대표 「개인적인 부분만 고칠 수 있게」 — 칸마다 자동 값 · 고친 값
             _pv = _mguide.person_values(c, u["id"], rank_label, _mail_from_address_for(c, u))
-            me_fields = [{"key": k, "label": lb, "auto": _pv["auto"].get(k, ""), "ov": _pv["ov"].get(k, "")}
+            me_fields = [{"key": k, "label": lb, "auto": _pv["auto"].get(k, ""), "ov": _pv["ov"].get(k, ""),
+                          "has_ov": k in _pv["ov"], "val": _pv["value"].get(k, "")}
                          for k, lb, vn_only in _mguide.ME_FIELDS if (not vn_only) or _pv["corp"] == "vn"]
         except Exception:
             me_fields = []
@@ -24905,7 +24906,12 @@ async def mail_signature_me(req: Request):
     f = await req.form()
     vals = {k: (f.get("f_" + k) or "") for k, _l, _v in _mguide.ME_FIELDS if ("f_" + k) in f}
     with db_session() as c:
-        ok, msg = _mguide.set_overrides(c, u["id"], vals)
+        # 11-22 칸 = 자동 값으로 채워 보임 · 같으면 자동을 따름 · 비우면 없음 · reset=1 = 모두 자동 값으로
+        try:
+            _auto = _mguide.person_values(c, u["id"], rank_label, _mail_from_address_for(c, u))["auto"]
+        except Exception:
+            _auto = {}
+        ok, msg = _mguide.set_overrides(c, u["id"], vals, _auto, reset=(f.get("reset") or "") == "1")
     return JSONResponse({"ok": ok, "msg": msg}, 200 if ok else 400)
 
 

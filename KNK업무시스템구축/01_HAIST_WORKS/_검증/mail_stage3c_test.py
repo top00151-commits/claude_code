@@ -271,7 +271,9 @@ as_("jo")
 sp4 = k.get("/mail/signature").text
 check("내 서명 정보 칸 = 이름·직책·부서·영문 이름·영문 직책·휴대폰·메일(본사 = 베트남 이름 칸 없음)",
       all(('name="f_%s"' % x) in sp4 for x in ("name", "rank", "dept", "name_en", "rank_en", "mobile", "email")) and 'name="f_name_vi"' not in sp4)
-check("자동 값 = 흐린 글씨(이음 → 웍스 명단 · 휴대폰 010-3333-4444)", 'placeholder="010-3333-4444"' in sp4 and 'placeholder="조민혁"' in sp4)
+# 11-22 대표 「자동으로 확인 가능한 건 칸 아래 「자동: …」 말고 입력칸에 채워」
+check("자동 값 = 입력칸에 채워 보임(이음 → 웍스 명단 · 휴대폰 010-3333-4444) · 칸 아래 「자동: …」 없음",
+      'value="010-3333-4444"' in sp4 and 'value="조민혁"' in sp4 and "자동: 010-3333-4444" not in sp4)
 r = k.post("/mail/signature/me", data={"f_mobile": "010-9999-8888", "f_name_en": "Minhyuk Jo", "f_rank": "차장"})
 with _db.db_session() as c:
     _v8 = mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, "")
@@ -284,13 +286,32 @@ with _db.db_session() as c:
     _snapj = c.execute("SELECT phone, rank FROM users WHERE id=?", (U["jo"]["id"],)).fetchone()
 check("웍스 직원 명단은 안 바뀜(서명용 값만 따로)", _snapj["phone"] == "010-3333-4444" and _snapj["rank"] == "과장", dict(_snapj))
 sp5 = k.get("/mail/signature").text
-check("서명 화면: 고친 칸은 노란 칸 · 「자동 값: …」 안내", 'value="010-9999-8888"' in sp5 and "✏️ 고친 값을 씁니다 · 자동 값: 010-3333-4444" in sp5)
+check("서명 화면: 고친 칸은 노란 칸 · 「✏️ 직접 고친 값 · ↺ 자동 값으로」", 'value="010-9999-8888"' in sp5 and "✏️ 직접 고친 값" in sp5 and "↺ 자동 값으로" in sp5 and 'data-auto="010-3333-4444"' in sp5)
 for bad, why in (({"f_email": "abc"}, "메일 꼴"), ({"f_mobile": "공일공"}, "휴대폰 꼴"), ({"f_name": "<b>x</b>"}, "꺾쇠"), ({"f_dept": "가" * 81}, "80자")):
     check("잘못된 값은 저장 안 함(400) — " + why, k.post("/mail/signature/me", data=bad).status_code == 400)
 r = k.post("/mail/signature/me", data={"f_mobile": "", "f_name_en": "", "f_rank": ""})
 with _db.db_session() as c:
     _v9 = mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, "")
-check("비우면 다시 자동 값(휴대폰·직책)", r.json().get("ok") and _v9["mobile"] == "010-3333-4444" and _v9["rank_ko"] == "과장", _v9)
+# 11-22 대표 「칸에 내용을 비우면 없는 걸로 · 부서가 없으면 「김정락 대표이사」」
+check("비우면 없음(휴대폰·직책 = 서명에서 뺌)", r.json().get("ok") and _v9["mobile"] == "" and _v9["rank_ko"] == "", _v9)
+r = k.post("/mail/signature/me", data={"f_dept": ""})
+with _db.db_session() as c:
+    _f9 = mg.fill("{이름} {직책} · {부서}", mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, ""))["text"]
+check("부서를 비우면 「이름 직책 · 부서」 줄에서 「 · 부서」가 빠짐(예: 김정락 대표이사)", _f9 == "조민혁", _f9)
+check("비운 칸은 화면에 「비움 — 서명에 넣지 않음」 · ↺ 자동 값으로", "비움 — 서명에 넣지 않음" in k.get("/mail/signature").text)
+with _db.db_session() as c:
+    _nt = " ".join(x.get("note", "") for x in mg.company_sigs(c, U["jo"]["id"], CO, m.rank_label, ""))
+check("일부러 비운 칸은 「…에 비어 있어 뺐습니다」 안내에 안 나옴(부서)", "부서" not in _nt, _nt)
+r = k.post("/mail/signature/me", data={"f_dept": "시험품질팀", "f_mobile": "010-3333-4444", "f_rank": "과장"})
+with _db.db_session() as c:
+    _ovx = mg.get_overrides(c, U["jo"]["id"])
+check("자동 값과 같은 값으로 저장 = 자동을 따름(고친 값 지움 · 이음이 바뀌면 같이 바뀜)", r.json().get("ok") and not any(x in _ovx for x in ("dept", "mobile", "rank")), _ovx)
+k.post("/mail/signature/me", data={"f_name_en": ""})
+r = k.post("/mail/signature/me", data={"reset": "1", "f_name_en": ""})
+with _db.db_session() as c:
+    _v9 = mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, "")
+    _ovx = mg.get_overrides(c, U["jo"]["id"])
+check("「↺ 모두 자동 값으로」 = 고친 값 모두 지움(휴대폰·직책 자동)", r.json().get("ok") and not _ovx and _v9["mobile"] == "010-3333-4444" and _v9["rank_ko"] == "과장", (_ovx, _v9))
 as_("vn")
 check("베트남 법인 = 「베트남 이름」 칸도 있음", 'name="f_name_vi"' in k.get("/mail/signature").text)
 as_("jo")
