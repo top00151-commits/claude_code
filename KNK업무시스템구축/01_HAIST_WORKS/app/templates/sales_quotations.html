@@ -41,6 +41,15 @@ body {
 .qm-cand { display:flex; gap:8px; align-items:flex-start; padding:5px 8px; border-radius:8px; cursor:pointer; }
 .qm-cand:hover { background:#f1f5f9; }
 .qm-x { float:right; border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:2px 9px; cursor:pointer; font-size:12px; }
+/* z1191z107 (대표 11-22): 사업부 책갈피 — 전체 · 검사기 · 자동화 · 라이프밸류 · 소모품 · 기타 */
+.qm-biz { display:flex; gap:2px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid #2563eb; margin:2px 0 12px; }
+.qm-bt { display:inline-flex; align-items:center; gap:6px; padding:8px 16px 7px; border:1px solid var(--qv-line); border-bottom:none; border-radius:10px 10px 0 0; background:#f1f5f9; color:var(--qv-ink-2); font-size:13.5px; font-weight:700; text-decoration:none; white-space:nowrap; }
+.qm-bt:hover { background:#e2e8f0; }
+.qm-bt .n { font-size:11.5px; font-weight:800; color:var(--qv-ink-3); background:#fff; border-radius:999px; padding:0 7px; }
+.qm-bt.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+.qm-bt.on .n { color:#1d4ed8; }
+.qm-bt.zero { opacity:.55; }
+.qm-note { margin:0 0 10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; font-size:12.5px; color:var(--qv-ink-2); }
 @media (max-width:900px){ .qm-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } .qm-drop { margin-left:0; width:100%; } }
 </style>
 </head><body>
@@ -59,25 +68,36 @@ body {
   </header>
   {% set stz_group = 'presale' %}{% set stz_cur = '/sales/quotations' %}{% include "_v5_partials/sales_subtabs_z98.html" %}
   {% set c = qb.cnt %}{% set cm = qb.can_money %}{% set can_up = z62_can_upload(user) %}
-  {% macro qs(only=None, mine=None, period=None, done=None) -%}
-  ?period={{ period if period is not none else qb.period }}{% set _dn = done if done is not none else qb.done %}{% if _dn %}&done=1{% endif %}&mine={{ ('1' if mine else '0') if mine is not none else ('1' if qb.mine else '0') }}{% set _o = only if only is not none else qb.only %}{% if _o %}&only={{ _o }}{% endif %}{% if qb.q %}&q={{ qb.q|urlencode }}{% endif %}
+  {% macro qs(only=None, mine=None, period=None, done=None, biz=None) -%}
+  ?{% set _bz = biz if biz is not none else qb.biz %}{% if _bz %}biz={{ _bz }}&{% endif %}period={{ period if period is not none else qb.period }}{% set _dn = done if done is not none else qb.done %}{% if _dn %}&done=1{% endif %}&mine={{ ('1' if mine else '0') if mine is not none else ('1' if qb.mine else '0') }}{% set _o = only if only is not none else qb.only %}{% if _o %}&only={{ _o }}{% endif %}{% if qb.q %}&q={{ qb.q|urlencode }}{% endif %}
   {%- endmacro %}
   <div class="qm-wrap" data-knk-no-dropzone>
+    {# z1191z107 (대표 11-22 「관리번호를 형태별로 … 책갈피 형태로」) — 숫자 = 아래 거르기(기간·내 건만·검색 등)를 적용한 관리번호 수 #}
+    <nav class="qm-biz" aria-label="사업부">
+      {% for code, label in qb.tabs %}{% set _n = qb.bcnt[code or 'all'] %}
+      <a class="qm-bt{% if qb.biz == code %} on{% endif %}{% if not _n %} zero{% endif %}" href="{{ qs(biz=code) }}"{% if not code %} title="프로젝트 관리번호 전체 — 소모품 주문은 「소모품」 책갈피에서 봅니다"{% elif code == 'C' %} title="소모품 주문은 보기만 합니다(견적서 올리기 없음)"{% endif %}>{{ label }} <span class="n">{{ _n }}</span></a>
+      {% endfor %}
+    </nav>
+    {% if qb.biz == 'C' %}
+    <div class="qm-note">📦 <b>소모품 주문은 보기만</b> 합니다 — 견적서 올리기는 하지 않습니다. 주문을 누르면 소모품 상세로 갑니다.</div>
+    {% endif %}
+    {% if qb.biz != 'C' or qb.rows %}
     <div class="qm-kpis">
       <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l">수주번호 견적서 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div></a>
       <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l">견적서 없음</div><div class="n">{{ c.so_none }}건</div></a>
       <a class="qm-k warn{% if qb.only == 'diff' %} on{% endif %}" href="{{ qs(only='diff') }}" title="엑셀에서 읽은 금액이 수주 금액과 다른 곳(「확인했음」 누르면 빠짐)"><div class="l">견적 금액 ≠ 수주 금액</div><div class="n">{{ c.diff }}건</div></a>
       <div class="qm-k"><div class="l">수주 전(관리번호만)</div><div class="n">{{ c.pre }}건 <span style="font-size:12px;color:var(--qv-ink-3);font-weight:600;">· 대표 견적 {{ c.pre_with }}</span></div></div>
     </div>
+    {% endif %}
     <form class="qm-bar" method="get" action="/sales/quotations">
       <a class="chip{% if qb.mine %} on{% endif %}" href="{{ qs(mine=(not qb.mine)) }}" title="영업담당이 나인 관리번호만 (내 계정에 기억)">👤 내 건만{% if qb.mine %} · 남의 건 숨김{% endif %}</a>
       <a class="chip{% if qb.period == '1y' %} on{% endif %}" href="{{ qs(period='1y') }}">최근 1년</a>
       <a class="chip{% if qb.period == '2y' %} on{% endif %}" href="{{ qs(period='2y') }}">최근 2년</a>
       <a class="chip{% if qb.period == 'all' %} on{% endif %}" href="{{ qs(period='all') }}">전체</a>
       <a class="chip{% if qb.done %} on{% endif %}" href="{{ qs(done=(not qb.done)) }}" title="입금까지 끝난 수주는 기본으로 숨깁니다">{% if qb.done %}입금 끝난 수주도 보는 중{% else %}입금 끝난 수주도 보기{% if c.done_hidden %} ({{ c.done_hidden }}개 관리번호 숨김){% endif %}{% endif %}</a>
-      <input type="hidden" name="period" value="{{ qb.period }}"><input type="hidden" name="mine" value="{{ '1' if qb.mine else '0' }}">{% if qb.done %}<input type="hidden" name="done" value="1">{% endif %}{% if qb.only %}<input type="hidden" name="only" value="{{ qb.only }}">{% endif %}
+      {% if qb.biz %}<input type="hidden" name="biz" value="{{ qb.biz }}">{% endif %}<input type="hidden" name="period" value="{{ qb.period }}"><input type="hidden" name="mine" value="{{ '1' if qb.mine else '0' }}">{% if qb.done %}<input type="hidden" name="done" value="1">{% endif %}{% if qb.only %}<input type="hidden" name="only" value="{{ qb.only }}">{% endif %}
       <input type="search" name="q" value="{{ qb.q }}" placeholder="관리번호·수주번호·프로젝트·고객사·담당">
-      {% if can_up %}
+      {% if can_up and qb.biz != 'C' %}
       <label class="qm-drop" id="qmTopDrop" title="엑셀을 여기에 끌어다 놓거나 눌러서 고르세요 — 읽어서 관리번호·수주번호를 찾아 드립니다">
         📎 <span><b>최종 견적서 엑셀 올리기</b><br><span style="font-size:11.5px;color:#334155;">끌어다 놓기 · 어디에 붙일지 찾아 드립니다</span></span>
         <input type="file" id="qmTopFile" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
@@ -85,6 +105,23 @@ body {
       {% endif %}
     </form>
     <div id="qmPanel" class="qm-panel" hidden></div>
+    {% if qb.cons %}
+    <table class="qm-t qm-cons">
+      <colgroup><col style="width:20%"><col style="width:22%"><col style="width:12%"><col style="width:28%"><col style="width:18%"></colgroup>
+      <thead><tr><th>관리번호 · 주문번호</th><th>고객사 · 품목</th><th class="num">주문 금액</th><th>상태 · 날짜</th><th>영업담당</th></tr></thead>
+      <tbody>
+      {% for co in qb.cons %}
+        <tr class="pj">
+          <td><a href="/consumables/{{ co.id }}" style="font-weight:800;color:var(--qv-ink);text-decoration:none;"><span class="mgmt-pill sm">{{ co.mgmt_code or '—' }}</span> {{ co.co_no or '' }}</a>{% if co.mine %} <span class="qm-meta">👤</span>{% endif %}</td>
+          <td>{{ co.customer_name or '—' }}<div class="qm-meta">{{ co.project_name or co.equip_name or '' }}</div></td>
+          <td class="num">{% if cm %}{{ money(co.total_amount or 0, co.currency or 'KRW') }}{% else %}🔒{% endif %}</td>
+          <td><span class="qm-pill mute">{{ co.st_txt or '—' }}</span> <span class="qm-meta">{% if co.order_date %}주문 {{ co.order_date }}{% endif %}{% if co.due_date %} · 납기 {{ co.due_date }}{% endif %}</span></td>
+          <td class="qm-meta">{{ co.sales_name or '' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
     {% if qb.rows %}
     <table class="qm-t">
       <colgroup><col style="width:20%"><col style="width:17%"><col style="width:12%"><col style="width:33%"><col style="width:18%"></colgroup>
@@ -116,8 +153,8 @@ body {
       {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <div class="empty"><div class="ico">📋</div><div class="ttl">{% if qb.q or qb.only or qb.mine %}조건에 맞는 관리번호가 없습니다{% else %}이 기간에 관리번호가 없습니다{% endif %}</div><div style="margin-top:10px;font-size:12px;color:var(--mute);">기간을 「전체」로 바꾸거나 거르기를 풀어 보세요.</div></div>
+    {% elif not qb.cons %}
+    <div class="empty"><div class="ico">📋</div><div class="ttl">{% if qb.q or qb.only or qb.mine or qb.biz %}조건에 맞는 관리번호가 없습니다{% else %}이 기간에 관리번호가 없습니다{% endif %}</div><div style="margin-top:10px;font-size:12px;color:var(--mute);">기간을 「전체」로 바꾸거나 거르기를 풀어 보세요.</div></div>
     {% endif %}
   </div>
   <div style="height: var(--space-7);"></div>

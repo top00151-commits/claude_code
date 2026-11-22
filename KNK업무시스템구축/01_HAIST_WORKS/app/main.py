@@ -21939,6 +21939,10 @@ async def sales_quotations_export_xlsx(req: Request):
                         (f["orig_name"] if f else ""), ((f["created_at"] or "")[:10] if f else ""), (f["by_name"] if f else ""),
                         ((f["amt"] if f["amt"] is not None else "") if (f and cm) else ("🔒" if (f and not cm) else "")),
                         st_txt.get(s["st"], "")])
+    for co in b.get("cons") or []:   # z1191z107: 소모품 책갈피 = 소모품 주문(보기만 · 견적서 자리 없음)
+        out.append([co["mgmt_code"], co["co_no"], "소모품", (co["project_name"] or co["equip_name"] or ""), co["customer_name"],
+                    co["sales_name"], (co["total_amount"] if cm else "🔒"), (co["currency"] or "KRW"), "", "", "", "",
+                    "소모품(보기만) · " + (co.get("st_txt") or "")])
     return _make_xlsx_response([{"name": "견적 관리", "headers": [
         "관리번호", "수주번호", "호기·구분", "프로젝트", "고객사", "영업담당", "수주 금액", "통화",
         "최종 견적서(엑셀)", "올린 날", "올린 사람", "견적서 금액(읽은 값)", "상태"], "rows": out}], "견적관리")
@@ -42607,7 +42611,44 @@ def _z105_slot_label(code, order_no, units, amt, ccy, can_money):
     return s
 
 
-def _z105_board(u, q="", mine=False, period="1y", only="", done=False):
+# z1191z107 (대표 11-22 「관리번호를 형태별로 … 책갈피 형태로 전체, 검사기, 자동화, 라이프밸류, 소모품, 기타」):
+#   사업부 = 프로젝트 사업부 칸(biz_div) · 비었으면 관리번호 4번째 글자(T 검사기 · M 자동화 · L 라이프밸류 · C 소모품)
+#   · 그 밖(E·연구 R·형식 다름) = 기타. 소모품 주문(consumable_orders)은 대표 「소모품은 보기만」 — 목록만 · 견적서 올리기 없음.
+_Z107_BIZ_TABS = [("", "전체"), ("T", "🔬 검사기"), ("M", "🤖 자동화"), ("L", "💄 라이프밸류"), ("C", "📦 소모품"), ("E", "🌐 기타")]
+
+
+def _z107_biz(biz_div, mgmt_code):
+    b = (biz_div or "").strip().upper()[:1] or (mgmt_code or "").strip().upper()[3:4]
+    return b if b in ("T", "M", "L", "C") else "E"
+
+
+def _z107_cons(u, ql, mine, since, done):
+    """소모품 주문(보기만) — 기간·👤 내 건만·검색·입금 끝난 것 숨김은 프로젝트와 같은 기준."""
+    out, hidden = [], 0
+    with db_session() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT id, co_no, mgmt_code, customer_name, project_name, equip_name, sales_name, currency, total_amount, "
+            "order_date, due_date, status, COALESCE(NULLIF(TRIM(order_date),''), substr(COALESCE(created_at,''),1,10)) AS d0 "
+            "FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED' "
+            "ORDER BY COALESCE(NULLIF(TRIM(order_date),''), created_at) DESC, id DESC").fetchall()]
+    for r in rows:
+        if since and (r["d0"] or "") < since:
+            continue
+        if not done and (r.get("status") or "").upper() == "PAID":
+            hidden += 1
+            continue
+        r["mine"] = _is_mine_z92(u, r.get("sales_name"))
+        if mine and not r["mine"]:
+            continue
+        if ql and ql not in " ".join([r["mgmt_code"] or "", r["co_no"] or "", r["customer_name"] or "", r["project_name"] or "",
+                                      r["equip_name"] or "", r["sales_name"] or ""]).lower():
+            continue
+        r["st_txt"] = _co.CO_STATUS_LABELS.get((r.get("status") or "").upper(), r.get("status") or "")
+        out.append(r)
+    return out, hidden
+
+
+def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
     """견적 관리 화면 자료 — 관리번호 줄 + 그 아래 수주번호 줄 · 줄마다 최종 견적서(엑셀) 상태."""
     from datetime import date as _d105, timedelta as _td105
     can_money = bool(can_view_sales(u))
@@ -42617,7 +42658,7 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False):
     with db_session() as c:
         _z61_table(c)
         projs = [dict(r) for r in c.execute(
-            "SELECT id, mgmt_code, name, customer_name, sales_name, currency, order_amount, order_date, stage, "
+            "SELECT id, mgmt_code, name, customer_name, sales_name, currency, order_amount, order_date, stage, biz_div, "
             "COALESCE(NULLIF(TRIM(order_date),''), substr(COALESCE(created_at,''),1,10)) AS d0 "
             "FROM projects WHERE COALESCE(mgmt_code,'')<>'' AND COALESCE(is_archived,0)=0 ORDER BY id DESC").fetchall()]
         orders = {}
@@ -42639,17 +42680,22 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False):
             x["cur"] = (fd.get("currency") or "").upper()
             files[(x["project_id"], x["order_id"])] = x   # 자리마다 1장(혹시 둘이면 나중 것)
     rows, cnt = [], {"so": 0, "so_with": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "mine": 0, "done_hidden": 0}
+    bcnt = {k or "all": 0 for k, _l in _Z107_BIZ_TABS}   # z1191z107: 책갈피마다 관리번호 수(다른 거르기는 그대로 적용한 뒤)
     for p in projs:
         if since and (p["d0"] or "") < since:
             continue
+        pbiz = _z107_biz(p.get("biz_div"), p.get("mgmt_code"))
+        p["biz"] = pbiz
+        on_tab = (not biz) or pbiz == biz
         sos_all = orders.get(p["id"], [])
         # 기본 = 입금 전 수주만(입금까지 끝난 수주는 「입금 끝난 수주도 보기」) — 처음부터 1,000건 넘게 「없음」으로 뜨지 않게
         sos = sos_all if done else [o for o in sos_all if (o.get("status") or "").upper() != "PAID"]
         if sos_all and not sos:
-            cnt["done_hidden"] += 1
+            if on_tab:
+                cnt["done_hidden"] += 1
             continue
         is_mine = _is_mine_z92(u, p.get("sales_name"))
-        if is_mine:
+        if is_mine and on_tab:
             cnt["mine"] += 1
         if mine and not is_mine:
             continue
@@ -42667,20 +42713,33 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False):
                 same = _z105_amt_same(f["amt"], f["cur"], o["total_amount"], o["currency"])
                 st = "diff" if (same is False and not f.get("amt_ack_at")) else "ok"
             so_rows.append({"o": o, "f": f, "st": st, "units": _z105_units_txt(labels.get(o["id"], []))})
-            cnt["so"] += 1
-            cnt["so_with" if f else "so_none"] += 1
-            if st == "diff":
-                cnt["diff"] += 1
-        if not sos:
-            cnt["pre"] += 1
-            if pf:
-                cnt["pre_with"] += 1
+        if on_tab:   # 요약 칸 = 지금 고른 책갈피 안에서만
+            for s in so_rows:
+                cnt["so"] += 1
+                cnt["so_with" if s["f"] else "so_none"] += 1
+                if s["st"] == "diff":
+                    cnt["diff"] += 1
+            if not sos:
+                cnt["pre"] += 1
+                if pf:
+                    cnt["pre_with"] += 1
         if only == "none" and not (any(s["st"] == "none" for s in so_rows) or (not sos and not pf)):
             continue
         if only == "diff" and not any(s["st"] == "diff" for s in so_rows):
             continue
-        rows.append({"p": p, "pf": pf, "sos": so_rows, "mine": is_mine})
-    return {"rows": rows, "cnt": cnt, "can_money": can_money, "q": q, "mine": mine, "period": period, "only": only, "done": done}
+        bcnt["all"] += 1
+        bcnt[pbiz] += 1
+        if on_tab:
+            rows.append({"p": p, "pf": pf, "sos": so_rows, "mine": is_mine})
+    # 소모품 주문 = 보기만(대표 「소모품은 보기만」) — 「견적서 없음·금액 다름」 거르기는 견적서 자리가 없으므로 적용 안 함
+    cons, cons_hidden = _z107_cons(u, ql, mine, since, done)
+    bcnt["C"] += len(cons)
+    if biz != "C":
+        cons = []
+    elif not done:
+        cnt["done_hidden"] += cons_hidden
+    return {"rows": rows, "cnt": cnt, "can_money": can_money, "q": q, "mine": mine, "period": period, "only": only, "done": done,
+            "biz": biz, "bcnt": bcnt, "tabs": _Z107_BIZ_TABS, "cons": cons}
 
 
 def _z105_args(req, u):
@@ -42691,8 +42750,11 @@ def _z105_args(req, u):
     only = (qp.get("only") or "").strip()
     if only not in ("", "none", "diff"):
         only = ""
+    biz = (qp.get("biz") or "").strip().upper()   # z1191z107 사업부 책갈피
+    if biz not in ("T", "M", "L", "C", "E"):
+        biz = ""
     return dict(q=(qp.get("q") or "").strip()[:80], mine=_mine_pref_z92(u, qp.get("mine")), period=period, only=only,
-                done=(qp.get("done") or "") == "1")
+                done=(qp.get("done") or "") == "1", biz=biz)
 
 
 @app.get("/api/quotes-z105/cands")
