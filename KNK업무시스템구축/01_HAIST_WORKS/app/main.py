@@ -23893,6 +23893,38 @@ async def mail_read_all(req: Request):
     return JSONResponse({"ok": True, "n": n, "name": name, "ids": ",".join(str(i) for i in ids)})
 
 
+@app.post("/mail/from-refill")
+async def mail_from_refill_start(req: Request):
+    """11-22 대표 「보낸 사람 없는 메일 다시 읽어서 채워 줘」 — 내 받은 메일 중 보낸 사람 주소가 빈 메일을 하이웍스 원본 머리에서 다시 읽어 채움.
+    dry=1 = 셈만(찾은 통수만 · 주소는 안 돌려줌) · undo=1 = 마지막으로 채운 묶음 되돌림 · 뒤에서 돌고 GET 으로 진행 상황."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_from_refill as _mfr
+    form = await req.form()
+    if (form.get("undo") or "") == "1":
+        with db_session() as c:
+            n = _mfr.undo(c, u["id"])
+        _mail_folders._CACHE.pop(u["id"], None)
+        return JSONResponse({"ok": True, "undone": n})
+    with db_session() as c:
+        protocol, host, port, ssl, user, pw, acct = _mailfetch_creds(c, u, None)
+    if not (host and user and pw):
+        return JSONResponse({"ok": False, "message": "메일함 계정 정보가 없습니다."}, 400)
+    st = _mfr.start(u["id"], (protocol, host, port, ssl, user, pw), (form.get("dry") or "") == "1", db_session,
+                    on_done=lambda uid: _mail_folders._CACHE.pop(uid, None))
+    return JSONResponse(dict(st, ok=True))
+
+
+@app.get("/mail/from-refill")
+async def mail_from_refill_status(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_from_refill as _mfr
+    return JSONResponse(dict(_mfr.status(u["id"]), ok=True))
+
+
 @app.post("/mail/read-all/undo")
 async def mail_read_all_undo(req: Request):
     """↺ 되돌리기 — 방금 「모두 읽음」으로 바꾼 메일만 다시 안 읽음으로."""
