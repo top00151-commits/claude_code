@@ -7,10 +7,13 @@
    메일 본문·쓰는 칸 글자는 그대로(받는 사람이 보는 모양). #}
 {% include "_v5_partials/mail_design_icons.html" %}
 <script>
-(function(){ var d='v1';
+/* 11-22 밤 대표 「1로 바로 올려」 = 모두에게 새 디자인이 기본. 고르기 단추는 시연 서버(mail_design_switch)에서만 보임.
+   비교용으로 이 컴퓨터만 예전 모양을 보려면 주소 끝에 ?design=v1 (다시 새 모양 = ?design=v2) */
+window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
+(function(){ var d='v2';
   try{ var q=new URLSearchParams(location.search).get('design'); if(q==='v1'||q==='v2') localStorage.setItem('knkmail.design', q);
-       d=localStorage.getItem('knkmail.design')||'v1'; }catch(e){}
-  if(d!=='v2') d='v1'; document.documentElement.setAttribute('data-md', d); })();
+       d=localStorage.getItem('knkmail.design')||'v2'; }catch(e){}
+  if(d!=='v1') d='v2'; document.documentElement.setAttribute('data-md', d); })();
 </script>
 <style>
   @font-face{ font-family:'PretendardMail'; font-weight:45 920; font-style:normal; font-display:swap;
@@ -160,7 +163,7 @@
     if(root.nodeType===3){ fixText(root); return; } if(root.nodeType!==1) return;
     var w=document.createTreeWalker(root, NodeFilter.SHOW_TEXT), list=[], n; while((n=w.nextNode())) list.push(n); list.forEach(fixText);
     (root.querySelectorAll?root.querySelectorAll('input[placeholder]'):[]).forEach(function(i){ var ph=i.getAttribute('placeholder')||''; var m=RE.exec(ph); if(m) i.setAttribute('placeholder', ph.slice(m[0].length)); }); }
-  function sw(){ if(document.querySelector('.md-switch')) return; var cur=document.documentElement.getAttribute('data-md');
+  function sw(){ if(!window.MD_SWITCH || document.querySelector('.md-switch')) return; var cur=document.documentElement.getAttribute('data-md');
     var d=document.createElement('div'); d.className='md-switch'; d.setAttribute('role','group'); d.setAttribute('aria-label','디자인 고르기');
     d.innerHTML='<span class="h">디자인</span><button type="button" data-d="v1">지금</button><button type="button" data-d="v2">새 시안</button>';
     d.querySelectorAll('button').forEach(function(b){ if(b.getAttribute('data-d')===cur) b.classList.add('on');

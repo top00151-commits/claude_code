@@ -255,6 +255,9 @@ tpl.env.globals["tier_pill"] = _tier_pill_class
 from .customer_tier import (customer_pick_label as _cust_pick_label,   # noqa: E402
                             CUSTOMER_PICK_COLS as _CUST_PICK_COLS, CUSTOMER_PICK_ORDER_SQL as _CUST_PICK_ORDER_SQL)
 tpl.env.globals["cust_label"] = _cust_pick_label
+# 11-22 밤 대표 「1로 바로 올려」: 메일 화면 새 디자인(v2 · _v5_partials/mail_design_v2.html)을 모두에게 기본으로.
+#   False 로 바꾸면 메일 화면이 예전 모양 그대로(조각이 아예 안 들어감). 고르기 단추(지금/새 시안)는 mail_design_switch 일 때만(시연 서버).
+tpl.env.globals["mail_design_preview"] = True
 
 
 # =====================================================
