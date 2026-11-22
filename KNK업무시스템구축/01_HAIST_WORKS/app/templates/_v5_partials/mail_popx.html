@@ -1,0 +1,56 @@
+{# 11-22 대표 「팝업창에는 따로 종료할 수 있게 우측 상단에 X · 다른 팝업들도 다 확인해서 조치」
+   메일 화면의 펼침 상자·메뉴·작은 창 모두 오른쪽 위에 「✕」 — 한 곳에서 붙인다(스크립트로 새로 만드는 상자도 열릴 때 저절로)
+   목록: 🗔 보기 · 🏷 종류 · ▾ 자세히 · 오른쪽 클릭/📁 이동 메뉴 · 🎨 테마 · ❔ 도움말 · 읽기 칸 ✅ 확인 답장·🚩 기한·알림·⋯ 더 보기·보낸 사람 ·
+         쓰기 📎 첨부·📝 양식·보내기 전 확인·그림 자르기·붙여넣기 고르기 · 좁은 화면 ☰ 폴더 칸
+   (이미 ✕ 가 있는 👉 맡기기 창·🎓 처음 안내 · 오른쪽 위 「닫기」가 있는 📇 주소록·그룹 메일 파일 올리기는 그대로) #}
+<style>
+  .mpx{position:absolute;top:4px;right:6px;z-index:3;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+       border:0;border-radius:6px;background:transparent;color:var(--mt-mute,#64748b);font-size:15px;font-weight:700;line-height:1;cursor:pointer;padding:0;font-family:inherit}
+  .mpx:hover{background:var(--mt-hover,#f1f3f5);color:var(--ink,#111827)}
+  /* ✕ 자리(위 띠)를 미리 비워 둠 — 글자와 겹치지 않게 · 크기를 재서 자리 잡는 메뉴도 처음부터 맞게 */
+  .mbx-viewmenu,.mbx-kindmenu.pop,.mbx-adv,.mbx-ctx,#mailThemePop,#mailHelp,.mv-more-box,#mvWhoPop,#cAttachMenu,#cTplPop,#scBox,.crop-box{padding-top:30px !important}
+  #scBox,.crop-box{position:relative}
+  /* 안에서 굴러가는 상자(양식·보내기 전 확인·오른쪽 클릭·읽기 칸 메뉴) = ✕ 를 위에 붙여 둠(굴려도 안 사라짐) */
+  .mpx.stk{position:sticky;top:-26px;float:right;margin:-26px -2px 0 0}
+  .mbx-kindmenu:not(.pop)>.mpx{display:none}
+  /* 붙여넣기 고르기(한 줄짜리 작은 상자) = 끝에 ✕ */
+  .paste-pop>.mpx{position:static;width:22px;height:22px;margin-left:2px}
+  /* 좁은 화면 「☰ 폴더」 칸 — 펼쳤을 때만 칸 머리 오른쪽 위에 */
+  .mbx-side-top>.mpx{top:2px;right:2px}
+  .mbx-split:not(.fold-pop) .mbx-side-top>.mpx{display:none}
+</style>
+<script>
+(function(){
+  if(window._mailPopX) return; window._mailPopX=true;
+  function closeDetails(el){ var d=el.closest('details'); if(d) d.open=false; }
+  function hide(el){ el.hidden=true; }
+  var T=[
+    ['.mbx-viewmenu', closeDetails],
+    ['.mbx-kindmenu', function(){ var k=document.getElementById('mbxKindDd'); if(k && k.classList.contains('open') && window.mbxKindToggle) mbxKindToggle(); }],
+    ['.mbx-adv', closeDetails],
+    ['.mbx-ctx', function(el){ el.hidden=true; el.innerHTML=''; }],
+    ['#mailThemePop', hide], ['#mailHelp', hide],
+    ['.mv-more-box', closeDetails], ['#mvWhoPop', hide],
+    ['#cAttachMenu', function(el){ el.style.display='none'; }], ['#cTplPop', hide],
+    ['#scBox', function(){ if(window.scClose) scClose(); }],
+    ['.crop-box', function(el){ var c=[].slice.call(el.querySelectorAll('button')).find(function(b){ return b.textContent.trim()==='취소'; }); if(c) c.click(); else { var m=el.closest('.crop-mask'); if(m) m.remove(); } }],
+    ['.paste-pop', function(el){ el.remove(); }],
+    ['.mbx-side-top', function(){ var s=document.querySelector('.mbx-split'); if(s && s.classList.contains('fold-pop') && window.mbxFoldPop) mbxFoldPop(); }]
+  ];
+  function add(el, fn){
+    if(el.querySelector(':scope > .mpx')) return;
+    if(el.classList.contains('mbx-ctx') && !el.children.length) return;      // 빈 메뉴(닫힌 상태)엔 안 붙임
+    var b=document.createElement('button'); b.type='button'; b.className='mpx'; b.textContent='✕'; b.title='닫기'; b.setAttribute('aria-label','닫기');
+    b.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); fn(el); });
+    var oy=''; try{ oy=getComputedStyle(el).overflowY; }catch(e){}
+    if(el.matches('#cTplPop,#scBox,.mbx-ctx,.mv-more-box') || oy==='auto' || oy==='scroll') b.classList.add('stk');
+    if(el.classList.contains('paste-pop')) el.appendChild(b); else el.insertBefore(b, el.firstChild);
+  }
+  function scan(){ T.forEach(function(t){ document.querySelectorAll(t[0]).forEach(function(el){ add(el, t[1]); }); }); }
+  window.mailPopXScan=scan;
+  // 바뀐 바로 뒤(그리기 전)에 한 번 — 화면 그림 시계(requestAnimationFrame)는 숨은 창에서 멈추므로 쓰지 않음
+  var q=false; function later(){ if(q) return; q=true; Promise.resolve().then(function(){ q=false; scan(); }); }
+  function start(){ scan(); try{ new MutationObserver(later).observe(document.body, {childList:true, subtree:true}); }catch(e){} }
+  if(document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
+</script>

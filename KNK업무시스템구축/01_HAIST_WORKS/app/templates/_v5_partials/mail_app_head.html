@@ -123,11 +123,11 @@
     .mail-app-top .reload{width:26px;height:26px}
     .mail-app-top .navbtn{padding:4px 10px}
     .mail-app-top .me{padding:3px 11px}
-    #mailTools.mt-inbox{overflow:visible;gap:4px;padding:2px 12px}
+    #mailTools.mt-inbox{overflow:visible;gap:4px;padding:2px 12px;flex-wrap:wrap;row-gap:2px}   /* 11-22 좁은 창(폴더 칸 접힘)에서 찾기 칸이 찌그러져 글자가 겹쳤음 → 모자라면 둘째 줄로 */
     #mailTools.mt-inbox>a,#mailTools.mt-inbox>button{height:32px}
     body:not(:has(.mbx-split.fold-off)) #mailTools.mt-inbox .mt-nav{display:none}
     #mailTools.mt-inbox .mt-in{display:flex;align-items:center;gap:6px;min-width:0}
-    #mailTools.mt-inbox .mt-in-l{flex:1 1 420px}
+    #mailTools.mt-inbox .mt-in-l{flex:1 1 420px;min-width:300px}
     #mailTools.mt-inbox .mt-in-l .mbx-search{flex:1;flex-wrap:nowrap;min-width:0;max-width:760px}
     #mailTools.mt-inbox .mt-in-l .mbx-search input[type=text]{min-width:120px;height:32px;box-sizing:border-box;padding:5px 12px}
     #mailTools.mt-inbox .mt-in-l .btn{height:32px;padding:0 12px;display:inline-flex;align-items:center;white-space:nowrap}
@@ -286,6 +286,8 @@ window.mailReload = async function(){
 </script>
 {# 11-22 글자 크기 — 도구 줄이 있는 모든 메일 화면에서 −·＋가 돌게(받은편지함·메일 보기는 본문 안에도 한 번 더) #}
 {% include "_v5_partials/mail_fs.html" %}
+{# 11-22 팝업마다 오른쪽 위 ✕ — 도구 줄이 있는 모든 메일 화면 #}
+{% include "_v5_partials/mail_popx.html" %}
 {% if is_admin %}<script>
 // ⏱ 이 화면이 뜨는 데 걸린 시간 — 관리자에게만, 🔄 단추에 마우스를 올리면 보인다(대표 2026-11-16 「대기가 길어」 실측용).
 //   메일 앱을 막 연 경우: 「여는 중」 화면이 남긴 값(knkMailT0 = 「그때 시각,첫 화면이 뜨기까지 ms」)으로 네 토막을 낸다

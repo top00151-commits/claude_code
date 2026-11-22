@@ -530,6 +530,7 @@
 <main class="main" data-dn="main">
   {# 글자 크게(11-18 · ⚙ 설정·정리에서 켬 · 이 기기에만) — 본문 안에 두어야 다른 화면에서 들어와도 돈다(머리 스크립트는 화면 전환 때 안 돎) #}
   {% include "_v5_partials/mail_fs.html" %}
+  {% include "_v5_partials/mail_popx.html" %}
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
