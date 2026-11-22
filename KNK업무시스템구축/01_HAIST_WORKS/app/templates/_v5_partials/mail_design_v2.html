@@ -120,6 +120,48 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
   html[data-md="v2"] .btn-secondary:hover, html[data-md="v2"] .btn:not(.btn-primary):hover{ background:var(--mt-hover); }
   html[data-md="v2"] .mv-av{ background:var(--md-chip) !important; color:var(--md-chip-t) !important; }
 
+  /* ── ⑦ 읽기 칸 단추 정리(11-22 밤 대표 「읽기 칸 단추 정리도 진행해」) — 넓은 화면만 · 단추를 숨기지 않고 자리·모양만
+     왼쪽 = 답하기 묶음(답장 · 전체답장 · 전달 · 확인 답장 · 맡기기) / 오른쪽 끝 = 정리 묶음(☆ · 보관 · 기한·알림 · 삭제 · ⋯) 테두리 없는 아이콘
+     그 아래 = 정보 줄(지금 폴더 · 다른 폴더로 · 같은 대화 · 회사 밖 · 회신 필요 표시) 왼쪽부터 조용히 ── */
+  @media(min-width:641px){
+    html[data-md="v2"] .mv-head{ container:mvhead / inline-size; }
+    html[data-md="v2"] .mv-head .mv-actions{ flex:1 1 100%; justify-content:flex-start; gap:5px; }
+    /* 읽기 칸이 좁으면 정리 묶음을 통째로 다음 줄 오른쪽으로(「⋯」만 혼자 떨어지지 않게) */
+    @container mvhead (max-width:540px){ html[data-md="v2"] .mv-actions::before{ content:''; order:9; flex:0 0 100%; height:0; } }
+    html[data-md="v2"] .mv-actions > *{ order:20; }
+    html[data-md="v2"] .mv-actions > .btn-primary{ order:1; }
+    html[data-md="v2"] .mv-actions > a[href*="replyall="]{ order:2; }
+    html[data-md="v2"] .mv-actions > a[href*="forward="]{ order:3; }
+    html[data-md="v2"] .mv-actions > #mvAck{ order:4; }
+    html[data-md="v2"] .mv-actions > .mv-dlg-btn{ order:5; }
+    html[data-md="v2"] .mv-actions > #mvStarBtn{ order:10; margin-left:auto; }
+    html[data-md="v2"] .mv-actions > #mvArcBtn{ order:11; }
+    html[data-md="v2"] .mv-actions > #mvFu{ order:12; }
+    html[data-md="v2"] .mv-actions > .mv-ico[onclick^="delMail"]{ order:13; }
+    html[data-md="v2"] .mv-actions:not(:has(#mvStarBtn)) > #mvFu{ margin-left:auto; }
+    html[data-md="v2"] .mv-actions > #mvMore{ order:14; }
+    /* 정리 묶음 = 테두리 없는 같은 크기 아이콘(마우스를 올리면 바탕) */
+    html[data-md="v2"] .mv-actions > .mv-ico, html[data-md="v2"] .mv-actions > #mvFu > summary, html[data-md="v2"] .mv-actions > #mvMore > summary{
+      background:transparent !important; border-color:transparent !important; color:var(--mt-mute) !important; min-width:32px; height:32px; padding:0 6px !important;
+      display:inline-flex; align-items:center; justify-content:center; gap:3px; box-shadow:none !important; }
+    html[data-md="v2"] .mv-actions > .mv-ico:hover, html[data-md="v2"] .mv-actions > #mvFu > summary:hover, html[data-md="v2"] .mv-actions > #mvMore > summary:hover,
+    html[data-md="v2"] .mv-actions > #mvFu[open] > summary, html[data-md="v2"] .mv-actions > #mvMore[open] > summary{ background:var(--mt-hover) !important; color:var(--mt-text) !important; }
+    html[data-md="v2"] .mv-actions > .mv-ico[onclick^="delMail"]:hover{ color:var(--md-mark) !important; }
+    html[data-md="v2"] .mv-actions > .mv-star.on{ color:#d97706 !important; }
+    html[data-md="v2"] .mv-actions > #mvFu > summary.on{ color:var(--md-warn) !important; }
+    html[data-md="v2"] .mv-actions > .mv-ico .md-i, html[data-md="v2"] .mv-actions > details > summary .md-i{ width:18px; height:18px; }
+    /* 답하기 묶음 = 같은 높이 */
+    html[data-md="v2"] .mv-actions > .btn:not(.mv-ico), html[data-md="v2"] .mv-actions > #mvAck > summary{ height:32px; display:inline-flex; align-items:center; gap:4px; padding:0 10px !important; }
+    /* 정보 줄 */
+    html[data-md="v2"] .mv-head .mv-chips{ flex:1 1 100%; justify-content:flex-start; margin:0; gap:8px; font-size:12.5px; color:var(--mt-mute); }
+    html[data-md="v2"] .mv-chips .mv-fd-cur{ background:var(--md-chip); border-color:transparent; color:var(--md-chip-t); }
+    html[data-md="v2"] .mv-chips .mv-fd-sel{ border-color:var(--mt-line); color:var(--mt-text2); height:26px; }
+    html[data-md="v2"] .mv-chips .mv-chip.ext{ background:transparent; border-color:transparent; padding-left:0; padding-right:0; }
+    html[data-md="v2"] .mv-chips .mv-reply{ margin-left:auto !important; }
+    html[data-md="v2"] .mv-chips .mv-reply-btn{ background:transparent; border-color:var(--mt-line); color:var(--mt-text2); font-weight:500 !important; border-radius:999px; }
+    html[data-md="v2"] .mv-chips .mv-reply-btn:hover{ background:var(--mt-hover); }
+  }
+
   /* ── ④ 선 아이콘 ── */
   html[data-md="v2"] .md-i{ width:1.15em; height:1.15em; flex:none; vertical-align:-.2em; display:inline-block; }
   html[data-md="v2"] .mail-tools .ic .md-i{ width:17px; height:17px; }
