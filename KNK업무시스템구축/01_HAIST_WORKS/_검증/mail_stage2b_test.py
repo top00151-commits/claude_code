@@ -118,7 +118,8 @@ with _db.db_session() as c:
     sl = ms.get_signatures(c, OWN)
 check("기본 + 내용 있는 서명만(2번은 비어 있어 안 나옴) · 이름", [x["name"] for x in sl] == ["기본 서명", "English"], sl)
 hs = k.get("/mail/signature?slot=1").text
-check("서명 화면 탭 셋 · 이름 칸", len(re.findall(r'class="sig-tab(?: on)?"', hs)) == 3 and 'id="sigName"' in hs and 'value="English"' in hs, len(re.findall(r'class="sig-tab(?: on)?"', hs)))
+# 11-22 대표 「서명은 회사 공통 하나 · 개인 칸만 고침」 → 서명 화면에 자유 서명 편집 탭 없음 · 「✏️ 내 서명 정보」
+check("서명 화면 = 자유 서명 편집 탭 없음 · 「✏️ 내 서명 정보」", not re.findall(r'class="sig-tab(?: on)?"', hs) and 'id="sigName"' not in hs and "✏️ 내 서명 정보" in hs)
 hc = km.get("/mail/compose").text
 check("쓰기 화면 「✍ 서명」 고르기(기본·English·서명 없음)", 'id="cSigSel"' in hc and "English" in hc and "서명 없음" in hc and "window.cmpSigSwap" in hc)
 
