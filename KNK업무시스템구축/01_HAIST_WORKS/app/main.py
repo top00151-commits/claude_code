@@ -17683,11 +17683,262 @@ async def projects_presales_edit(req: Request, pid: int):
 OPP_STAGES = ["미팅", "제안", "견적", "수주예정", "수주확정", "보류", "실주"]
 
 
+# ═══ z1191z109 (대표 11-22) 영업 기회 — 결과 비율 · 취소 상태 · 실주·취소 이유 · 미팅·제안서 참여자 · 담당 = 기술영업팀 ═══
+#   대표 말씀: 「영업담당은 본사는 기술영업팀 인원만」 · 「영업기회를 얻어서 제안서 제출하고 진행하다가 수주 성공한거
+#   수주 성공못한거 취소된거 이런거에 대한 비율을 알고 싶어」 · 「초기 미팅 및 제안서 작성에 참여한 부서 및 담당자 기록」
+#   대표 결정: 취소 새로 둠 · 이유 고르기 넣음 · 베트남 칸 빼기 · 참여자 = 전 직원(베트남 포함)에서 사람 고르기(부서 자동)
+#   · 결과 = 수주(won 또는 프로젝트 승격) · 실주(lost 또는 단계 실주) · 취소(cancel) · 보류 · 진행중
+#   · 수주율 = 수주 ÷ (수주 + 실주 + 취소) — 아직 진행·보류는 셈에서 뺌
+#   · 사람은 번호(users.id)로 저장 · 부서는 그 사람의 지금 부서로 보여 줌 · 부서 요청(PM·구성원)으로 들어온 사람은 자동으로 같이 셈
+OPP_CLOSE_REASONS = ["가격", "납기", "경쟁사", "고객 사정", "기타"]
+OPP_OUTCOME_LABEL = {"won": "수주", "lost": "실주", "cancel": "취소", "hold": "보류", "active": "진행중"}
+_Z109_SALES_TEAM = 1   # 기술영업팀(teams.id=1 · z102 와 같은 기준)
+
+
+def _z109_table(c):
+    cols = {r[1] for r in c.execute("PRAGMA table_info(sales_opportunities)").fetchall()}
+    if cols:
+        for cn in ("close_reason", "close_memo"):
+            if cn not in cols:
+                c.execute(f"ALTER TABLE sales_opportunities ADD COLUMN {cn} TEXT")
+    c.execute("""CREATE TABLE IF NOT EXISTS sales_opp_people (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, opp_id INTEGER NOT NULL, step TEXT NOT NULL, user_id INTEGER NOT NULL,
+        created_by INTEGER, created_at TEXT DEFAULT (datetime('now','localtime')), UNIQUE(opp_id, step, user_id))""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_sop_opp ON sales_opp_people(opp_id)")
+
+
+def _z109_outcome(o):
+    st = (o.get("status") or "").strip().lower()
+    sg = (o.get("stage") or "").strip()
+    if st == "won" or o.get("promoted_project_id"):
+        return "won"
+    if st == "cancel":
+        return "cancel"
+    if st == "lost" or sg == "실주":
+        return "lost"
+    if st == "hold" or sg == "보류":
+        return "hold"
+    return "active"
+
+
+def _z109_close_fields(form):
+    st = (form.get("status") or "").strip()
+    if st not in ("lost", "cancel"):
+        return {"close_reason": None, "close_memo": None}
+    r = (form.get("close_reason") or "").strip()
+    return {"close_reason": r if r in OPP_CLOSE_REASONS else None,
+            "close_memo": ((form.get("close_memo") or "").strip()[:200] or None)}
+
+
+def _z109_ucols(c):
+    return {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+
+
+def _z109_owners(c, cur_owner_id=None):
+    """영업 담당 고르기 = 기술영업팀 재직자만(대표 11-22) · 지금 담당이 그 밖이면 그 사람 한 줄만 덧붙임(저장 때 지워지지 않게)."""
+    rank = "u.rank" if "rank" in _z109_ucols(c) else "''"
+    rows = [dict(r) for r in c.execute(
+        f"SELECT u.id, u.name, {rank} AS rank, 0 AS extra FROM users u "
+        "WHERE COALESCE(u.is_active,1)=1 AND u.team_id=? ORDER BY u.name", (_Z109_SALES_TEAM,)).fetchall()]
+    if cur_owner_id and not any(r["id"] == cur_owner_id for r in rows):
+        r = c.execute(f"SELECT u.id, u.name, {rank} AS rank, 1 AS extra FROM users u WHERE u.id=?", (cur_owner_id,)).fetchone()
+        if r:
+            rows.append(dict(r))
+    return rows
+
+
+def _z109_people_pick(c):
+    """참여자 고르기 = 재직 전 직원(베트남 포함 · 대표 결정) · 법인·부서별 묶음 · 이름은 「이름 직책 부서」."""
+    uc = _z109_ucols(c)
+    ent = "COALESCE(u.entity,'')" if "entity" in uc else "''"
+    rank = "u.rank" if "rank" in uc else "''"
+    groups, idx = [], {}
+    for r in c.execute(
+            f"SELECT u.id, u.name, {rank} AS rank, COALESCE(t.name,'') AS team_name, {ent} AS ent FROM users u "
+            "LEFT JOIN teams t ON t.id=u.team_id WHERE COALESCE(u.is_active,1)=1 "
+            f"ORDER BY ({ent}='VN'), CASE WHEN u.team_id=? THEN 0 ELSE 1 END, COALESCE(t.name,'~'), u.name",
+            (_Z109_SALES_TEAM,)).fetchall():
+        d = dict(r)
+        g = ("베트남 · " if d["ent"] == "VN" else "본사 · ") + (d["team_name"] or "부서 없음")
+        if g not in idx:
+            idx[g] = len(groups)
+            groups.append({"label": g, "people": []})
+        groups[idx[g]]["people"].append({"id": d["id"], "label": vname_full(d)})
+    return groups
+
+
+def _z109_people_of(c, oid):
+    uc = _z109_ucols(c)
+    rank = "u.rank" if "rank" in uc else "''"
+    out = {"meeting": [], "proposal": []}
+    for r in c.execute(
+            f"SELECT p.step, p.user_id, u.name, {rank} AS rank, COALESCE(t.name,'') AS team_name FROM sales_opp_people p "
+            "LEFT JOIN users u ON u.id=p.user_id LEFT JOIN teams t ON t.id=u.team_id WHERE p.opp_id=? ORDER BY p.id", (oid,)).fetchall():
+        d = dict(r)
+        d["label"] = vname_full(d) if d.get("name") else "(지워진 직원 %s)" % d["user_id"]
+        out.setdefault(d["step"], []).append(d)
+    return out
+
+
+def _z109_req_people(dept_requests):
+    seen, out = set(), []
+    for rq in dept_requests or []:
+        if (rq.get("status") or "") == "canceled":
+            continue
+        for m in rq.get("members") or []:
+            if m.get("user_id") in seen:
+                continue
+            seen.add(m.get("user_id"))
+            out.append({"label": " ".join(x for x in [m.get("user_name") or "", m.get("team_name") or ""] if x)})
+    return out
+
+
+def _z109_save_people(c, oid, form, by):
+    """미팅·제안서 참여자 저장 — 화면에 참여 칸이 있을 때만(people_form=1). 없는 사람 번호는 버림."""
+    if (form.get("people_form") or "") != "1":
+        return
+    valid = {r[0] for r in c.execute("SELECT id FROM users").fetchall()}
+    for step in ("meeting", "proposal"):
+        want = []
+        for v in form.getlist(step + "_people"):
+            try:
+                i = int(v)
+            except (TypeError, ValueError):
+                continue
+            if i in valid and i not in want:
+                want.append(i)
+        have = {r[0] for r in c.execute("SELECT user_id FROM sales_opp_people WHERE opp_id=? AND step=?", (oid, step)).fetchall()}
+        for i in have - set(want):
+            c.execute("DELETE FROM sales_opp_people WHERE opp_id=? AND step=? AND user_id=?", (oid, step, i))
+        for i in want:
+            if i not in have:
+                c.execute("INSERT INTO sales_opp_people (opp_id, step, user_id, created_by) VALUES (?,?,?,?)", (oid, step, i, by))
+
+
+def _z109_people_map(c):
+    """기회마다 참여 부서(팀 번호→이름)·사람 수 — 미팅·제안서 참여자 + 부서 요청(취소 아님)의 부서·PM·구성원."""
+    out = {}
+
+    def put(oid, tid, tname, uid):
+        d = out.setdefault(oid, {"teams": {}, "uids": set()})
+        if tid:
+            d["teams"][tid] = tname or ""
+        if uid:
+            d["uids"].add(uid)
+    for r in c.execute("SELECT p.opp_id, p.user_id, u.team_id, t.name FROM sales_opp_people p "
+                       "LEFT JOIN users u ON u.id=p.user_id LEFT JOIN teams t ON t.id=u.team_id").fetchall():
+        put(r[0], r[2], r[3], r[1])
+    have = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "opp_dept_requests" in have:
+        for r in c.execute("SELECT r.opp_id, r.team_id, t.name FROM opp_dept_requests r LEFT JOIN teams t ON t.id=r.team_id "
+                           "WHERE COALESCE(r.status,'')<>'canceled'").fetchall():
+            put(r[0], r[1], r[2], None)
+        if "opp_request_members" in have:
+            for r in c.execute("SELECT r.opp_id, m.user_id, u.team_id, t.name FROM opp_request_members m "
+                               "JOIN opp_dept_requests r ON r.id=m.request_id LEFT JOIN users u ON u.id=m.user_id "
+                               "LEFT JOIN teams t ON t.id=u.team_id WHERE COALESCE(r.status,'')<>'canceled'").fetchall():
+                put(r[0], r[2], r[3], r[1])
+    for d in out.values():
+        d["names"] = sorted({nm for nm in d["teams"].values() if nm})
+        d["n"] = len(d["uids"])
+    return out
+
+
+def _z109_in_period(o, rp):
+    if rp == "all":
+        return True
+    from datetime import date as _d109
+    y = _d109.today().year - (1 if rp == "py" else 0)
+    return (o.get("created_at") or "")[:4] == str(y)
+
+
+def _z109_biz(o):
+    b = (o.get("biz_div") or "").strip().upper()[:1]
+    return b if b in ("T", "M", "L") else "E"
+
+
+def _z109_other_teams(o, ppl):
+    return {nm for tid, nm in ((ppl.get(o["id"]) or {}).get("teams") or {}).items() if tid != _Z109_SALES_TEAM and nm}
+
+
+def _z109_match(o, zf, ppl):
+    oc = _z109_outcome(o)
+    if zf.get("res") and oc != zf["res"]:
+        return False
+    if zf.get("owner") and str(o.get("owner_user_id") or "none") != zf["owner"]:
+        return False
+    if zf.get("biz") and _z109_biz(o) != zf["biz"]:
+        return False
+    if zf.get("team"):
+        tm = _z109_other_teams(o, ppl)
+        if (zf["team"] == "none" and tm) or (zf["team"] != "none" and zf["team"] not in tm):
+            return False
+    if zf.get("reason") and (oc not in ("lost", "cancel") or (o.get("close_reason") or "none") != zf["reason"]):
+        return False
+    return True
+
+
+def _z109_stats(allrows, ppl, rp):
+    """영업 기회 결과 비율 — 기간(등록일 기준 올해·작년·전체) 안의 기회."""
+    rs = [o for o in allrows if _z109_in_period(o, rp)]
+
+    def blank(**kw):
+        d = {"n": 0, "won": 0, "lost": 0, "cancel": 0, "hold": 0, "active": 0}
+        d.update(kw)
+        return d
+    k, prop = blank(), blank()
+    fun = {"n": 0, "meet": 0, "prop": 0, "quote": 0, "won": 0}
+    by_owner, by_biz, by_team, by_reason = {}, {}, {}, {}
+    _bl = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}
+    for o in rs:
+        oc = _z109_outcome(o)
+
+        def add(d):
+            d["n"] += 1
+            d[oc] += 1
+        add(k)
+        fun["n"] += 1
+        fun["meet"] += 1 if o.get("meeting_done") else 0
+        fun["prop"] += 1 if o.get("proposal_done") else 0
+        fun["quote"] += 1 if o.get("quotation_done") else 0
+        fun["won"] += 1 if oc == "won" else 0
+        if o.get("proposal_done"):
+            add(prop)
+        ok = str(o.get("owner_user_id") or "none")
+        add(by_owner.setdefault(ok, blank(key=ok, label=(o.get("owner_name") or "담당 없음"))))
+        bz = _z109_biz(o)
+        add(by_biz.setdefault(bz, blank(key=bz, label=_bl[bz])))
+        tm = _z109_other_teams(o, ppl)
+        if not tm:
+            add(by_team.setdefault("none", blank(key="none", label="다른 부서 참여 없음")))
+        for nm in tm:
+            add(by_team.setdefault(nm, blank(key=nm, label=nm)))
+        if oc in ("lost", "cancel"):
+            rk = o.get("close_reason") or "none"
+            add(by_reason.setdefault(rk, blank(key=rk, label=(o.get("close_reason") or "이유 안 적음"))))
+
+    def fin(d):
+        d["fin"] = d["won"] + d["lost"] + d["cancel"]
+        d["rate"] = round(d["won"] * 100 / d["fin"]) if d["fin"] else None
+        for x in ("won", "lost", "cancel"):
+            d[x + "_p"] = round(d[x] * 100 / d["fin"]) if d["fin"] else 0
+        return d
+    fin(k)
+    fin(prop)
+    for x in ("meet", "prop", "quote", "won"):
+        fun[x + "_p"] = round(fun[x] * 100 / fun["n"]) if fun["n"] else 0
+    owners = sorted((fin(d) for d in by_owner.values()), key=lambda d: (-d["n"], d["label"]))
+    bizs = [fin(by_biz[b]) for b in ("T", "M", "L", "E") if b in by_biz]
+    teams = sorted((fin(d) for d in by_team.values()), key=lambda d: (d["key"] == "none", -d["n"], d["label"]))
+    reasons = sorted((fin(d) for d in by_reason.values()), key=lambda d: (d["key"] == "none", -d["n"]))
+    return {"k": k, "prop": prop, "fun": fun, "owners": owners, "bizs": bizs, "teams": teams, "reasons": reasons, "rp": rp}
+
+
 def _opp_next_action(o: dict) -> str:
     """단계·완료 플래그로 '다음 할 일' 한 줄."""
     if o.get("promoted_project_id"):
         return "제작요청(프로젝트)로 승격됨"
-    if (o.get("stage") or "") in ("보류", "실주"):
+    if (o.get("stage") or "") in ("보류", "실주") or (o.get("status") or "") in ("lost", "cancel"):   # z1191z109 취소
         return "—"
     if not o.get("meeting_done"):
         return "미팅 진행"
@@ -17741,6 +17992,7 @@ def _opp_form_fields(form) -> dict:
         "quotation_done": chk("quotation_done"), "quotation_date": s("quotation_date"), "quotation_memo": s("quotation_memo"),
         "quotation_id": cid("quotation_id"),
         "note": s("note"),
+        **_z109_close_fields(form),   # z1191z109: 실주·취소 이유(그 두 상태일 때만 남김)
     }
 
 
@@ -17777,8 +18029,17 @@ async def sales_opportunities(request: Request):
         return RedirectResponse(role_home(u), 303)
     stage_f = (request.query_params.get("stage") or "").strip()
     show_closed = (request.query_params.get("closed") or "") in ("1", "on", "true")
+    # z1191z109: 결과 비율 기간(rp = 올해 y · 작년 py · 전체 all) · 비율 칸 숫자를 누르면 그 건들만(res·owner·biz·team·reason)
+    _qp109 = request.query_params
+    rp = (_qp109.get("rp") or "y").strip()
+    if rp not in ("y", "py", "all"):
+        rp = "y"
+    zf = {k: (_qp109.get(k) or "").strip()[:60] for k in ("res", "owner", "biz", "team", "reason")}
+    zf = {k: v for k, v in zf.items() if v}
     rows, counts = [], {s: 0 for s in OPP_STAGES}
     with db_session() as c:
+        _z109_table(c)
+        ppl = _z109_people_map(c)
         try:
             allrows = [dict(r) for r in c.execute(
                 "SELECT o.*, u.name AS owner_name, p.mgmt_code AS promoted_code, p.id AS promoted_pid "
@@ -17788,18 +18049,26 @@ async def sales_opportunities(request: Request):
                 "ORDER BY (o.status IN ('won','lost')) ASC, o.updated_at DESC, o.id DESC").fetchall()]
         except Exception:
             allrows = []
+    zs = _z109_stats(allrows, ppl, rp)
     for o in allrows:
         counts[o.get("stage")] = counts.get(o.get("stage"), 0) + 1
-        is_closed = (o.get("status") in ("won", "lost")) or o.get("promoted_project_id")
-        # 특정 단계로 필터 중이면 완료건도 보이게 — '수주확정' 칩 눌렀는데 숫자만 있고 빈 화면 나오던 혼란 방지.
-        # (전체 보기에서만 완료/실주를 숨겨 깔끔하게 유지.)
-        if not show_closed and not stage_f and is_closed:
-            continue
-        if stage_f and o.get("stage") != stage_f:
-            continue
+        o["outcome"] = _z109_outcome(o)
+        o["ppl"] = ppl.get(o["id"]) or {}
+        if zf:   # z1191z109: 비율 칸에서 누른 거르기 = 그 기간의 해당 건(끝난 것 포함)
+            if not (_z109_in_period(o, rp) and _z109_match(o, zf, ppl)):
+                continue
+        else:
+            is_closed = o["outcome"] in ("won", "lost", "cancel")   # z1191z109: 취소 · 단계 실주도 끝난 것
+            # 특정 단계로 필터 중이면 완료건도 보이게 — '수주확정' 칩 눌렀는데 숫자만 있고 빈 화면 나오던 혼란 방지.
+            # (전체 보기에서만 완료/실주를 숨겨 깔끔하게 유지.)
+            if not show_closed and not stage_f and is_closed:
+                continue
+            if stage_f and o.get("stage") != stage_f:
+                continue
         o["next_action"] = _opp_next_action(o)
         rows.append(o)
-    return ctx(request, "sales_opportunities.html", user=u, rows=rows, counts=counts,
+    return ctx(request, "sales_opportunities.html", user=u, rows=rows, counts=counts, zs=zs, zf=zf, rp=rp,
+               outcome_label=OPP_OUTCOME_LABEL,
                stages=OPP_STAGES, stage_f=stage_f, show_closed=show_closed,
                can_money=bool(can_view_sales(u)), can_edit=bool(can_use_sales(u)))
 
@@ -17812,12 +18081,13 @@ async def sales_opportunity_new(request: Request):
     if not can_use_sales(u):
         return RedirectResponse(role_home(u), 303)
     with db_session() as c:
-        owners = [dict(r) for r in c.execute(
-            "SELECT u.id, u.name, COALESCE(u.team_id,0) AS team_id FROM users u "
-            "WHERE COALESCE(u.is_active,1)=1 ORDER BY (u.team_id=12), u.name").fetchall()]   # v5H226z525: 본사 먼저·베트남법인(12) 뒤
+        _z109_table(c)
+        owners = _z109_owners(c)   # z1191z109: 기술영업팀만(옛 v5H226z525 본사·베트남법인(12) 나눔은 베트남 직원이 12가 아니라 본사 칸에 섞였음)
+        people_pick = _z109_people_pick(c)
         quotations = _opp_quotations(c)
         teams = _teams_for_request(c)
     return ctx(request, "sales_opportunity_form.html", user=u, opp=None, owners=owners,
+               people={}, people_pick=people_pick, req_people=[], close_reasons=OPP_CLOSE_REASONS,
                stages=OPP_STAGES, customers=_logi.customers_for_picker(),
                quotations=quotations, files={}, promoted=None,
                teams=teams, dept_requests=[],
@@ -17838,9 +18108,10 @@ async def sales_opportunity_detail(request: Request, oid: int):
         if not o:
             return RedirectResponse("/sales/opportunities", 303)
         o = dict(o)
-        owners = [dict(r) for r in c.execute(
-            "SELECT u.id, u.name, COALESCE(u.team_id,0) AS team_id FROM users u "
-            "WHERE COALESCE(u.is_active,1)=1 ORDER BY (u.team_id=12), u.name").fetchall()]   # v5H226z525: 본사 먼저·베트남법인(12) 뒤
+        _z109_table(c)
+        owners = _z109_owners(c, o.get("owner_user_id"))   # z1191z109: 기술영업팀만 · 지금 담당은 그대로 보이게
+        people = _z109_people_of(c, oid)
+        people_pick = _z109_people_pick(c)
         promoted = None
         if o.get("promoted_project_id"):
             pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?",
@@ -17855,6 +18126,8 @@ async def sales_opportunity_detail(request: Request, oid: int):
                stages=OPP_STAGES, customers=_logi.customers_for_picker(),
                quotations=quotations, files=files,
                teams=teams, dept_requests=dept_requests,
+               people=people, people_pick=people_pick, req_people=_z109_req_people(dept_requests),
+               close_reasons=OPP_CLOSE_REASONS,
                promoted=promoted, can_money=bool(can_view_sales(u)), can_edit=bool(can_use_sales(u)))
 
 
@@ -17870,12 +18143,14 @@ async def sales_opportunity_create(request: Request):
         return RedirectResponse("/sales/opportunities/new?error=title", 303)
     f = _opp_form_fields(form)
     with db_session() as c:
+        _z109_table(c)
         f2 = {"opp_no": _gen_opp_no(c), "created_by": u.get("id"), **f}
         cols = list(f2.keys())
         ph = ",".join("?" * len(cols))
         cur = c.execute(f"INSERT INTO sales_opportunities({','.join(cols)}) VALUES({ph})",
                         [f2[k] for k in cols])
         oid = cur.lastrowid
+        _z109_save_people(c, oid, form, u.get("id"))   # z1191z109 미팅·제안서 참여자
     return RedirectResponse(f"/sales/opportunities/{oid}?saved=1", 303)
 
 
@@ -17891,11 +18166,13 @@ async def sales_opportunity_edit(request: Request, oid: int):
         return RedirectResponse(f"/sales/opportunities/{oid}?error=title", 303)
     f = _opp_form_fields(form)
     with db_session() as c:
+        _z109_table(c)
         ex = c.execute("SELECT id FROM sales_opportunities WHERE id=?", (oid,)).fetchone()
         if not ex:
             return RedirectResponse("/sales/opportunities", 303)
         sets = ", ".join(f"{k}=?" for k in f.keys()) + ", updated_at=datetime('now','localtime')"
         c.execute(f"UPDATE sales_opportunities SET {sets} WHERE id=?", list(f.values()) + [oid])
+        _z109_save_people(c, oid, form, u.get("id"))   # z1191z109 미팅·제안서 참여자
     return RedirectResponse(f"/sales/opportunities/{oid}?saved=1", 303)
 
 

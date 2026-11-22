@@ -27,6 +27,17 @@
 .op-step .lbl{width:90px;font-weight:700;font-size:13px;color:#334155;flex-shrink:0;}
 .op-step .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;}
 .op-step input[type=date]{padding:6px 9px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;}
+.op-ppl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px 102px;border-bottom:1px dashed #f1e8d4;}
+.op-ppl .lbl2{font-size:11.5px;color:#64748b;font-weight:700;min-width:56px;}
+.op-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.op-pchip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:#eef6ff;color:#1e3a8a;font-size:12px;border:1px solid #bfdbfe;}
+.op-pchip.req{background:#f1f5f9;color:#475569;border-color:#e2e8f0;}
+.op-px{border:none;background:none;color:#64748b;cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 2px;}
+.op-px:hover{color:#b91c1c;}
+.op-padd{padding:4px 8px;border:1px dashed #94a3b8;border-radius:999px;font-size:12px;color:#334155;background:#fff;max-width:240px;}
+.op-pnone{color:#94a3b8;font-size:12px;}
+.op-hint{font-size:11.5px;color:#92400e;}
+@media (max-width:768px){ .op-ppl{padding-left:0;} }
 .op-step .memo{flex:1;min-width:160px;padding:6px 10px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;font-family:inherit;}
 .op-actions{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
 .op-btn{padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:none;border:1px solid #d6cdb6;background:#fff;color:#334155;display:inline-block;}
@@ -95,10 +106,10 @@
         <h3>기본</h3>
         <div class="op-grid">
           <div class="op-f full"><label>건명 <span class="req">*</span></label>
-            <input type="text" name="title" required value="{{ opp.title|default('') }}" placeholder="예: 삼성 PBA 검사기 신규 문의" {% if not can_edit %}disabled{% endif %}></div>
+            <input type="text" name="title" required value="{{ opp.title|default('', true) }}" placeholder="예: 삼성 PBA 검사기 신규 문의" {% if not can_edit %}disabled{% endif %}></div>
           {# v5H226z622/z623 (대표 지시): 고객사 = 등록 고객사(시스템명) 자동완성 콤보. 신규고객 체크 시 임시 텍스트 허용 #}
           <div class="op-f"><label>고객사 <span style="font-weight:400;color:#94a3b8;font-size:11px;">(등록 목록에서 선택)</span></label>
-            <input id="oppCustPicker" type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="0" data-cust-initial="{{ opp.customer_name|default('') }}" placeholder="고객사명·시스템명 → 목록 선택" autocomplete="off" {% if not can_edit %}disabled{% endif %}>
+            <input id="oppCustPicker" type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="0" data-cust-initial="{{ opp.customer_name|default('', true) }}" placeholder="고객사명·시스템명 → 목록 선택" autocomplete="off" {% if not can_edit %}disabled{% endif %}>
             <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#64748b;margin-top:5px;cursor:pointer;">
               <input type="checkbox" id="oppNewCust" {% if not can_edit %}disabled{% endif %} onchange="if(window.KNKCust)KNKCust.setFree(document.getElementById('oppCustPicker'), this.checked)"> 🆕 신규고객(미등록) — 임시 텍스트로 입력(제작요청 승격 시 등록 알람)
             </label>
@@ -112,23 +123,18 @@
               <option value="E" {{ 'selected' if bd=='E' }}>E 기타</option>
             </select></div>
           <div class="op-f"><label>모델명 / 장비명</label>
-            <input type="text" name="model_name" value="{{ opp.model_name|default('') }}" {% if not can_edit %}disabled{% endif %}></div>
+            <input type="text" name="model_name" value="{{ opp.model_name|default('', true) }}" {% if not can_edit %}disabled{% endif %}></div>
           <div class="op-f"><label>영업 담당</label>
             <select name="owner_user_id" {% if not can_edit %}disabled{% endif %}>
               <option value="">— 선택 —</option>
-              {# v5H226z525 (대표 지시): 본사 / 베트남법인(team 12) 구분 — 이름은 등록된 그대로 #}
-              <optgroup label="본사">
-                {% for ow in owners if ow.team_id != 12 %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
+              {# z1191z109 (대표 11-22 「영업담당은 본사는 기술영업팀 인원만」 · 베트남 칸 빼기) — 지금 담당이 기술영업팀 밖이면 그 이름만 덧붙여 저장 때 지워지지 않게 #}
+              <optgroup label="기술영업팀">
+                {% for ow in owners if not ow.extra %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
               </optgroup>
-              {% set _vn = owners|selectattr('team_id','equalto',12)|list %}
-              {% if _vn %}
-              <optgroup label="베트남법인">
-                {% for ow in _vn %}<option value="{{ ow.id }}" {{ 'selected' if opp and opp.owner_user_id==ow.id }}>{{ ow.name }}</option>{% endfor %}
-              </optgroup>
-              {% endif %}
+              {% for ow in owners if ow.extra %}<option value="{{ ow.id }}" selected>{{ ow.name }} (지금 담당 · 기술영업팀 아님)</option>{% endfor %}
             </select></div>
           <div class="op-f"><label>예상 수주월</label>
-            <input type="month" name="expected_order_ym" value="{{ opp.expected_order_ym|default('') }}" {% if not can_edit %}disabled{% endif %}></div>
+            <input type="month" name="expected_order_ym" value="{{ opp.expected_order_ym|default('', true) }}" {% if not can_edit %}disabled{% endif %}></div>
           {% if can_money %}
           <div class="op-f"><label>예상 금액</label>
             <input type="text" name="expected_amount" inputmode="numeric" value="{{ (opp.expected_amount|int) if opp and opp.expected_amount else '' }}" {% if not can_edit %}disabled{% endif %}></div>
@@ -152,7 +158,18 @@
               <option value="hold" {{ 'selected' if stv=='hold' }}>보류</option>
               <option value="won" {{ 'selected' if stv=='won' }}>수주(완료)</option>
               <option value="lost" {{ 'selected' if stv=='lost' }}>실주</option>
+              <option value="cancel" {{ 'selected' if stv=='cancel' }}>취소</option>
             </select></div>
+          {# z1191z109 (대표 11-22): 실주·취소 이유 — 고르면 「왜 못 땄는지」 비율에 들어감(안 골라도 저장은 됨) #}
+          <div class="op-f" id="oppCloseBox"{% if stv not in ('lost','cancel') %} hidden{% endif %}><label>실주·취소 이유</label>
+            {% set crv = opp.close_reason if opp and opp.close_reason else '' %}
+            <select name="close_reason" id="oppCloseReason" {% if not can_edit %}disabled{% endif %}>
+              <option value="">— 이유 고르기 —</option>
+              {% for r in close_reasons %}<option value="{{ r }}" {{ 'selected' if crv==r }}>{{ r }}</option>{% endfor %}
+            </select>
+            <input type="text" name="close_memo" maxlength="200" placeholder="자세히(선택) — 예: 경쟁사 A 가 단가 15% 낮게 제시" value="{{ opp.close_memo|default('', true) if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
+            <div class="op-hint" id="oppCloseWarn"{% if crv %} hidden{% endif %}>⚠ 이유를 고르면 영업 기회 목록의 「실주·취소 이유」 비율에 들어갑니다.</div>
+          </div>
         </div>
       </div>
 
@@ -163,10 +180,20 @@
         <div class="op-step">
           <span class="lbl">{{ lbl }}</span>
           <label class="chk"><input type="checkbox" name="{{ key }}_done" value="1" {{ 'checked' if opp and opp[key ~ '_done'] }} {% if not can_edit %}disabled{% endif %}> 완료</label>
-          <input type="date" class="knk-cal" name="{{ key }}_date" value="{{ opp[key ~ '_date']|default('') if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
-          <input type="text" class="memo" name="{{ key }}_memo" placeholder="{{ ph }}" value="{{ opp[key ~ '_memo']|default('') if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
+          <input type="date" class="knk-cal" name="{{ key }}_date" value="{{ opp[key ~ '_date']|default('', true) if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
+          <input type="text" class="memo" name="{{ key }}_memo" placeholder="{{ ph }}" value="{{ opp[key ~ '_memo']|default('', true) if opp else '' }}" {% if not can_edit %}disabled{% endif %}>
         </div>
+        {# z1191z109 (대표 11-22 「초기 미팅 및 제안서 작성에 참여한 부서 및 담당자 기록」): 사람을 고르면 부서는 자동(이름 직책 부서) #}
+        {% if key in ('meeting', 'proposal') %}{% set _pp = (people.get(key) if people else []) or [] %}
+        <div class="op-ppl" data-step="{{ key }}">
+          <span class="lbl2">{{ '참여' if key == 'meeting' else '작성 참여' }}</span>
+          <span class="op-chips">{% for p in _pp %}<span class="op-pchip">{{ p.label }}<input type="hidden" name="{{ key }}_people" value="{{ p.user_id }}">{% if can_edit %}<button type="button" class="op-px" aria-label="빼기" title="빼기">×</button>{% endif %}</span>{% endfor %}{% if not _pp and not can_edit %}<span class="op-pnone">—</span>{% endif %}</span>
+          {% if can_edit %}<select class="op-padd" aria-label="참여한 사람 추가"><option value="">＋ 사람 추가</option>{% for g in people_pick %}<optgroup label="{{ g.label }}">{% for p in g.people %}<option value="{{ p.id }}">{{ p.label }}</option>{% endfor %}</optgroup>{% endfor %}</select>{% endif %}
+        </div>
+        {% endif %}
         {% endfor %}
+        {% if req_people %}<div class="op-ppl"><span class="lbl2">부서 요청</span><span class="op-chips">{% for p in req_people %}<span class="op-pchip req" title="아래 「부서 요청」에서 PM·구성원으로 들어온 사람 — 따로 적지 않아도 비율에 셈">{{ p.label }}</span>{% endfor %}</span></div>{% endif %}
+        <input type="hidden" name="people_form" value="1">
         {% if can_money %}
         <div class="op-step">
           <span class="lbl">🔗 견적서 연결</span>
@@ -182,7 +209,7 @@
 
       <div class="op-card">
         <h3>비고</h3>
-        <div class="op-f full"><textarea name="note" rows="2" {% if not can_edit %}disabled{% endif %}>{{ opp.note|default('') }}</textarea></div>
+        <div class="op-f full"><textarea name="note" rows="2" {% if not can_edit %}disabled{% endif %}>{{ opp.note|default('', true) }}</textarea></div>
       </div>
 
       <div class="op-actions">
@@ -308,4 +335,31 @@
 }, 550); })();</script>
 {# v5H226z419 (대표 지시): 날짜 입력은 KNK 달력 표준(일요일 시작·일/공휴일 빨강·토 파랑·K/V 배지·오늘 호박테두리) 적용 — 달력 사양 MD 준수 #}
 {% include "_v5_partials/knk_datepicker.html" ignore missing %}
+<script>
+/* z1191z109: 참여자 칩 더하기·빼기 · 실주·취소 이유 칸 보이기 */
+(function(){
+  document.addEventListener('change', function(e){
+    var s = e.target;
+    if (s.classList && s.classList.contains('op-padd')) {
+      var v = s.value, row = s.closest('.op-ppl'); if (!v || !row) return;
+      var step = row.getAttribute('data-step'), box = row.querySelector('.op-chips');
+      if (!box.querySelector('input[value="' + v + '"]')) {
+        var t = s.options[s.selectedIndex].text, ch = document.createElement('span'); ch.className = 'op-pchip';
+        ch.appendChild(document.createTextNode(t));
+        var h = document.createElement('input'); h.type = 'hidden'; h.name = step + '_people'; h.value = v; ch.appendChild(h);
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'op-px'; b.setAttribute('aria-label', '빼기'); b.title = '빼기'; b.textContent = '×'; ch.appendChild(b);
+        box.appendChild(ch);
+      }
+      s.value = '';
+    }
+    if (s.name === 'status') {
+      var bx = document.getElementById('oppCloseBox'); if (bx) bx.hidden = !(s.value === 'lost' || s.value === 'cancel');
+    }
+    if (s.id === 'oppCloseReason') { var w = document.getElementById('oppCloseWarn'); if (w) w.hidden = !!s.value; }
+  });
+  document.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('.op-px') : null; if (b) { var ch = b.closest('.op-pchip'); if (ch) ch.remove(); }
+  });
+})();
+</script>
 </main></div></body></html>

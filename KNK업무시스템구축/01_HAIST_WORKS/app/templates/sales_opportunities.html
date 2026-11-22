@@ -24,9 +24,39 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
 .op-prog{font-size:11px;color:#94a3b8;letter-spacing:1px;}
 .op-prog b{color:#15a34a;}
 .op-muted{color:#94a3b8;}
+/* z1191z109 (대표 11-22): 결과 비율 칸 */
+.zr{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:12px 16px;margin-bottom:14px;}
+.zr-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.zr-head b{font-size:13.5px;color:#A5282C;}
+.zr-p{padding:3px 11px;border:1px solid #d6cdb6;border-radius:999px;font-size:12px;color:#64748b;text-decoration:none;background:#fff;}
+.zr-p.on{background:#A5282C;border-color:#A5282C;color:#fff;font-weight:700;}
+.zr-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px;}
+.zr-k a{display:block;text-decoration:none;border-radius:8px;padding:8px 12px;border:1px solid transparent;}
+.zr-k a:hover{border-color:#94a3b8;}
+.zr-k .l{font-size:11.5px;} .zr-k .n{font-size:20px;font-weight:800;}
+.zr-won{background:#dcfce7;color:#166534;} .zr-lost{background:#fee2e2;color:#991b1b;} .zr-cancel{background:#fef3c7;color:#92400e;} .zr-open{background:#f1f5f9;color:#334155;}
+.zr-bar{display:flex;height:20px;border-radius:5px;overflow:hidden;gap:2px;margin:4px 0 12px;font-size:11.5px;font-weight:700;}
+.zr-bar span{display:flex;align-items:center;padding-left:6px;white-space:nowrap;overflow:hidden;}
+.zr-sub{font-size:11.5px;color:#64748b;}
+.zr-fun{display:grid;grid-template-columns:110px minmax(0,1fr) 110px;gap:5px 10px;align-items:center;font-size:12.5px;margin:6px 0 4px;}
+.zr-fun i{display:block;height:13px;background:#93c5fd;border-radius:0 4px 4px 0;min-width:2px;}
+.zr-fun i.w{background:#4ade80;}
+.zr-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 18px;margin-top:10px;}
+.zr-t{width:100%;border-collapse:collapse;font-size:12px;}
+.zr-t th{font-size:11px;color:#8a7842;font-weight:700;text-align:right;padding:4px 6px;border-bottom:1px solid #f1e8d4;}
+.zr-t th:first-child,.zr-t td:first-child{text-align:left;}
+.zr-t td{padding:4px 6px;border-bottom:1px solid #f8f3e6;text-align:right;font-variant-numeric:tabular-nums;}
+.zr-t td a{color:inherit;text-decoration:none;} .zr-t td a:hover{text-decoration:underline;}
+.zr-t .rt{font-weight:800;color:#166534;}
+.zr-cap{font-size:12px;font-weight:800;color:#334155;margin-bottom:2px;}
+.zr-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;padding:7px 12px;background:#eef6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12.5px;color:#1e3a8a;}
+.zr-filter a{color:#b91c1c;font-weight:700;text-decoration:none;}
+.op-out{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:800;}
+.op-out.won{background:#dcfce7;color:#166534;} .op-out.lost{background:#fee2e2;color:#991b1b;} .op-out.cancel{background:#fef3c7;color:#92400e;} .op-out.hold{background:#e5e7eb;color:#4b5563;}
+.op-ppl{font-size:11.5px;color:#475569;}
 .op-name a{font-weight:700;color:#1e293b;text-decoration:none;}
 /* z452 mobile: 9컬럼 표(table.op)가 .op-wrap을 넘쳐 폰 전체가 찌부러지는 문제 → 래퍼만 가로 스크롤 */
-@media (max-width:768px){ .op-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;} table.op{min-width:760px;} }
+@media (max-width:768px){ .op-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;} table.op{min-width:860px;} }
 </style></head>
 <body>
 <div class="app">{% set active_tab='sales' %}
@@ -40,6 +70,52 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
   <div class="op-wrap">
     <p class="op-intro">관리코드 발번 전 <b>수주 전 영업 건</b>을 관리합니다 — <b>미팅 → 제안서 → 견적서</b> 진행을 기록하고, 수주 확정 시 <b>[✅ 제작요청(프로젝트) 승격]</b>으로 관리코드를 발번합니다.<br>👉 <b>승격(수주확정)한 건은 「📋 관리코드대장(프로젝트)」에 새 관리코드로 기록</b>되고, 이 목록에서는 <b>'수주확정'으로 표시되어 기본 화면에서는 숨겨집니다</b> — <b>「수주확정」 칩</b>이나 <b>「완료·실주도 보기」</b>를 누르면 보이고, 행의 <b>✅ 관리코드 링크</b>로 바로 이동할 수 있습니다.</p>
 
+    {# ═══ z1191z109 (대표 11-22 「수주 성공한거 · 수주 성공못한거 · 취소된거 … 비율을 알고 싶어」) — 결과 비율 칸 ═══ #}
+    {% set k = zs.k %}{% set fu = zs.fun %}
+    {% macro zq(key, val) -%}/sales/opportunities?rp={{ rp }}&{{ key }}={{ val|urlencode }}{%- endmacro %}
+    <section class="zr" aria-label="영업 기회 결과 비율">
+      <div class="zr-head"><b>📊 결과 비율</b>
+        {% for code, lb in [('y','올해'),('py','작년'),('all','전체')] %}<a class="zr-p{% if rp == code %} on{% endif %}" href="/sales/opportunities?rp={{ code }}">{{ lb }}</a>{% endfor %}
+        <span class="zr-sub">등록일 기준 {{ k.n }}건 · 수주율 = 수주 ÷ (수주 + 실주 + 취소) · 숫자를 누르면 아래 목록이 그 건만</span></div>
+      <div class="zr-k">
+        <a class="zr-won" href="{{ zq('res','won') }}"><div class="l">수주 성공</div><div class="n">{{ k.won }}건{% if k.fin %} · {{ k.won_p }}%{% endif %}</div></a>
+        <a class="zr-lost" href="{{ zq('res','lost') }}"><div class="l">실주</div><div class="n">{{ k.lost }}건{% if k.fin %} · {{ k.lost_p }}%{% endif %}</div></a>
+        <a class="zr-cancel" href="{{ zq('res','cancel') }}"><div class="l">취소</div><div class="n">{{ k.cancel }}건{% if k.fin %} · {{ k.cancel_p }}%{% endif %}</div></a>
+        <a class="zr-open" href="{{ zq('res','active') }}"><div class="l">아직 진행 · 보류</div><div class="n">{{ k.active }} · {{ k.hold }}건</div></a>
+      </div>
+      {% if k.fin %}
+      <div class="zr-sub">끝난 {{ k.fin }}건 중 비율(진행·보류는 빼고 셈)</div>
+      <div class="zr-bar">{% if k.won %}<span style="width:{{ k.won_p }}%;background:#4ade80;color:#14532d;">수주 {{ k.won_p }}%</span>{% endif %}{% if k.lost %}<span style="width:{{ k.lost_p }}%;background:#f87171;color:#fff;">실주 {{ k.lost_p }}%</span>{% endif %}{% if k.cancel %}<span style="width:{{ k.cancel_p }}%;background:#fbbf24;color:#422006;">취소 {{ k.cancel_p }}%</span>{% endif %}</div>
+      {% endif %}
+      <div class="zr-cap">단계별 흐름 — 몇 건이 다음 단계까지 갔나</div>
+      <div class="zr-fun">
+        {% for lb, n, p, w in [('영업 기회 등록', fu.n, 100, ''), ('미팅 완료', fu.meet, fu.meet_p, ''), ('제안서 제출', fu.prop, fu.prop_p, ''), ('견적서 제출', fu.quote, fu.quote_p, ''), ('수주 성공', fu.won, fu.won_p, 'w')] %}
+        <span>{{ lb }}</span><i class="{{ w }}" style="width:{{ p if fu.n else 0 }}%;"></i><span class="zr-sub">{{ n }}건{% if fu.n and loop.index > 1 %} · {{ p }}%{% endif %}</span>
+        {% endfor %}
+      </div>
+      {% if zs.prop.n %}<div class="zr-sub">제안서를 낸 {{ zs.prop.n }}건만 보면: 수주 {{ zs.prop.won }} · 실주 {{ zs.prop.lost }} · 취소 {{ zs.prop.cancel }} · 아직 진행 {{ zs.prop.active + zs.prop.hold }}{% if zs.prop.fin %} → 끝난 {{ zs.prop.fin }}건 중 수주 <b>{{ zs.prop.rate }}%</b>{% endif %}</div>{% endif %}
+      {% macro ztab(cap, rows, key, first) %}
+      <div><div class="zr-cap">{{ cap }}</div>
+        <table class="zr-t"><thead><tr><th>{{ first }}</th><th>기회</th><th>수주</th><th>실주</th><th>취소</th><th>수주율</th></tr></thead><tbody>
+        {% for d in rows %}<tr><td><a href="{{ zq(key, d.key) }}">{{ d.label }}</a></td><td><a href="{{ zq(key, d.key) }}">{{ d.n }}</a></td><td>{{ d.won }}</td><td>{{ d.lost }}</td><td>{{ d.cancel }}</td><td class="rt">{{ (d.rate ~ '%') if d.rate is not none else '—' }}</td></tr>{% else %}<tr><td colspan="6" class="op-muted">—</td></tr>{% endfor %}
+        </tbody></table></div>
+      {% endmacro %}
+      <div class="zr-tabs">
+        {{ ztab('담당별', zs.owners, 'owner', '담당') }}
+        {{ ztab('사업부별', zs.bizs, 'biz', '사업부') }}
+        {{ ztab('참여 부서별 (미팅·제안서 참여 · 부서 요청)', zs.teams, 'team', '참여 부서') }}
+        <div><div class="zr-cap">실주·취소 이유</div>
+          <table class="zr-t"><thead><tr><th>이유</th><th>실주</th><th>취소</th><th>합계</th></tr></thead><tbody>
+          {% for d in zs.reasons %}<tr><td><a href="{{ zq('reason', d.key) }}">{{ d.label }}</a></td><td>{{ d.lost }}</td><td>{{ d.cancel }}</td><td><a href="{{ zq('reason', d.key) }}">{{ d.n }}</a></td></tr>{% else %}<tr><td colspan="4" class="op-muted">실주·취소 건이 없습니다</td></tr>{% endfor %}
+          </tbody></table></div>
+      </div>
+    </section>
+    {% if zf %}
+    {% set _zfl = {'res': '결과', 'owner': '담당', 'biz': '사업부', 'team': '참여 부서', 'reason': '이유'} %}
+    <div class="zr-filter">🔎 결과 비율에서 고른 건만 보는 중({{ {'y':'올해','py':'작년','all':'전체'}[rp] }}) ·
+      {% for kk, vv in zf.items() %}{{ _zfl[kk] }} = {% if kk == 'res' %}{{ outcome_label.get(vv, vv) }}{% elif kk == 'biz' %}{{ {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타'}.get(vv, vv) }}{% elif kk == 'owner' %}{% set _ow = zs.owners|selectattr('key','equalto',vv)|first %}{{ _ow.label if _ow else vv }}{% elif vv == 'none' %}{{ '다른 부서 참여 없음' if kk == 'team' else '이유 안 적음' }}{% else %}{{ vv }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
+      · {{ rows|length }}건 <a href="/sales/opportunities">✕ 거르기 풀기</a></div>
+    {% endif %}
     <div class="op-bar">
       <a class="op-chip {{ 'on' if not stage_f }}" href="/sales/opportunities{{ '?closed=1' if show_closed }}">전체</a>
       {% for s in stages %}
@@ -53,7 +129,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
     <table class="op">
       <thead><tr>
         <th>기회번호</th><th>건명</th><th>고객사</th><th>사업부</th><th>단계</th>
-        <th>진행</th><th class="num">예상금액</th><th>담당</th><th>다음 할 일</th>
+        <th>진행</th><th class="num">예상금액</th><th>담당</th><th>참여</th><th>다음 할 일</th>
       </tr></thead>
       <tbody>
       {% for o in rows %}
@@ -62,7 +138,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
         <td class="op-name"><a href="/sales/opportunities/{{ o.id }}">{{ o.title }}</a></td>
         <td class="op-muted">{{ (cust_alias|default({},true)).get(o.customer_id) or o.customer_name or '—' }}</td>
         <td>{{ {'T':'검사기','M':'자동화','L':'라이프밸류','E':'기타'}.get(o.biz_div, o.biz_div or '—') }}</td>
-        <td><span class="op-stage {{ o.stage }}">{{ o.stage }}</span></td>
+        <td><span class="op-stage {{ o.stage }}">{{ o.stage }}</span>{% if o.outcome in ('won','lost','cancel','hold') %}{% if not (o.outcome == 'won' and o.stage == '수주확정') and not (o.outcome == 'lost' and o.stage == '실주') and not (o.outcome == 'hold' and o.stage == '보류') %}<span class="op-out {{ o.outcome }}">{{ outcome_label[o.outcome] }}</span>{% endif %}{% endif %}</td>
         <td class="op-prog">
           <b>{{ '●' if o.meeting_done else '○' }}</b>미팅
           <b>{{ '●' if o.proposal_done else '○' }}</b>제안
@@ -70,10 +146,11 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
         </td>
         <td class="num">{% if can_money %}{% if o.expected_amount %}{{ money(o.expected_amount, o.currency or 'KRW') }}{% else %}—{% endif %}{% else %}🔒{% endif %}</td>
         <td class="op-muted">{{ o.owner_name or '—' }}</td>
+        <td class="op-ppl">{% if o.ppl and o.ppl.names %}{{ o.ppl.names|join(' · ') }}{% if o.ppl.n %} <span class="op-muted">({{ o.ppl.n }}명)</span>{% endif %}{% else %}<span class="op-muted">—</span>{% endif %}</td>
         <td class="op-next">{% if o.promoted_pid %}<a href="/project/{{ o.promoted_pid }}" onclick="event.stopPropagation();" style="color:#15a34a;font-weight:700;text-decoration:none;" title="이 영업 기회가 승격된 프로젝트로 이동">✅ {{ o.promoted_code or '관리코드' }} 프로젝트 →</a>{% else %}{{ o.next_action }}{% endif %}</td>
       </tr>
       {% endfor %}
-      {% if not rows %}<tr><td colspan="9" class="op-muted" style="text-align:center;padding:30px 0;">{{ '해당 조건의 영업 기회가 없습니다.' if stage_f else '아직 등록된 영업 기회가 없습니다. [+ 새 영업 기회]로 시작하세요.' }}</td></tr>{% endif %}
+      {% if not rows %}<tr><td colspan="10" class="op-muted" style="text-align:center;padding:30px 0;">{{ '해당 조건의 영업 기회가 없습니다.' if stage_f else '아직 등록된 영업 기회가 없습니다. [+ 새 영업 기회]로 시작하세요.' }}</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
