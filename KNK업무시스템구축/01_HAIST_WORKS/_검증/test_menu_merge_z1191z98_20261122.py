@@ -161,7 +161,7 @@ S["user"] = SALES
 print("§2 탭 화면 → 그 메뉴에 불")
 for path, want_act in (("/sales/outstanding", "/sales/receipts-check"), ("/sales/receipts-check", "/sales/receipts-check"),
                        ("/sales/quotations", "/sales/opportunities"), ("/sales/orders", "/projects"),
-                       ("/sales/opportunities/new", "/projects/new"), ("/sales/quotes/new", "/projects/new"),
+                       ("/sales/opportunities/new", "/projects/new"),   # z1191z105: /sales/quotes/new → 견적 관리로 보냄(아래)
                        ("/sales/shipments-receipts", "/sales/shipments-receipts")):
     r = q(cl.get, path)
     check("%s → 메뉴 %s 에 불" % (path, want_act), r.status_code == 200 and active(r.text) == want_act, (r.status_code, active(r.text)))
@@ -224,12 +224,15 @@ check("견적서: 같은 탭 줄(견적서 = 지금) · 「＋ 새 견적」·�
       '<span class="t on">📋 견적서</span>' in hq and 'href="/sales/quotes/new"' not in hq)
 hn = q(cl.get, "/projects/new").text
 cards = [c.split("?")[0] for c in re.findall(r'<a class="pc-card[^"]*" href="([^"]+)"', hn)]
-check("🆕 등록 카드 8개: … 소모품 · 🤝 고객사 · 🎯 영업 기회 · 📋 견적서",
+check("🆕 등록 카드 8개: … 소모품 · 🤝 고객사 · 🎯 영업 기회 · 📋 견적서(→ 견적 관리 · z1191z105)",
       cards == ["/projects/quick", "/projects/quick", "/projects/quick", "/projects/new", "/consumables/new", "/customers/new",
-                "/sales/opportunities/new", "/sales/quotes/new"], cards)
+                "/sales/opportunities/new", "/sales/quotations"], cards)
+r105 = q(cl.get, "/sales/quotes/new", follow_redirects=False)
+check("z1191z105: 시스템 견적서 작성 주소 → 견적 관리", r105.status_code == 303 and r105.headers.get("location") == "/sales/quotations",
+      (r105.status_code, r105.headers.get("location")))
 S["user"] = VIEWER
 cards_v = [c.split("?")[0] for c in re.findall(r'<a class="pc-card[^"]*" href="([^"]+)"', q(cl.get, "/projects/new").text)]
-check("매출 등록 권한 없는 분: 🎯 · 📋 카드 안 보임(경로가 막는 것과 같게)", "/sales/quotes/new" not in cards_v and "/sales/opportunities/new" not in cards_v, cards_v)
+check("매출 등록 권한 없는 분: 🎯 · 📋 카드 안 보임(경로가 막는 것과 같게)", "/sales/quotations" not in cards_v and "/sales/opportunities/new" not in cards_v, cards_v)
 S["user"] = SALES
 
 print("§7 📋 프로젝트 탭 줄에 📑 수주 목록")

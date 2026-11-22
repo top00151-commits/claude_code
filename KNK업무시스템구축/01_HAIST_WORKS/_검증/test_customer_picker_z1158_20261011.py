@@ -90,7 +90,7 @@ def order_in(h):
 
 
 for url, what in [("/home/2026-10-12", "오늘 업무"), ("/daily/2026-10-12", "일일업무"), ("/issues/new", "이슈 등록"),
-                  ("/stock/issue", "재고 출고"), ("/consumables", "소모품"), ("/sales/quotes/new", "견적"),
+                  ("/stock/issue", "재고 출고"), ("/consumables", "소모품"),   # z1191z105: 시스템 견적서 작성 화면 없앰(→ 견적 관리)
                   ("/qc/inspection-reports/new", "품질 보고"), ("/contacts/new", "연락처")]:
     r = cl.get(url)
     o = order_in(r.text)
@@ -101,8 +101,8 @@ names = [(x["alias"] or x["name"]) + ((" [" + x["sub_biz_no"] + "]") if x.get("s
 check("공용 고객 선택기 API 순서도 같은 기준(%s)" % " | ".join(names), names == WANT, names)
 check("공용 함수 customers_for_picker()(프로젝트 등록·영업 기회) 순서·이름표",
       [CT.customer_pick_label(x) for x in D.customers_for_picker()] == WANT)
-h = cl.get("/quotes/new" if False else "/sales/quotes/new").text
-check("견적 화면: 보이는 이름만 바뀌고 고르는 값은 고객 번호 그대로(value=775)", 'value="775">드림텍(아산) [0005]</option>' in h)
+r105 = cl.get("/sales/quotes/new", follow_redirects=False)
+check("z1191z105: 시스템 견적서 작성 화면 없앰 → 견적 관리로", r105.status_code == 303 and r105.headers.get("location") == "/sales/quotations")
 
 # ════════════════════════════════════════════════════════════════════
 print("\n§3 일일업무 — 화면에 실린 진짜 pickFromDatalist() 를 node 로")

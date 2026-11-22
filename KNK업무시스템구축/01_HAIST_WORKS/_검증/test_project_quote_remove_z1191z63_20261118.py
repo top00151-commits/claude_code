@@ -177,20 +177,28 @@ F1 = row(tok)["id"]
 h = hist(P)
 check(len(h) == 1 and h[0]["changed_by"] == UA["id"] and "가영업" in h[0]["note"], "등록 화면에서 올림 → 이력에 올린 사람(번호·이름)", h)
 as_(UD)
-F2 = attach(P, "라영업이 올린 견적서.pdf")
-h = hist(P)
+# z1191z105 (대표 11-22): 대표 견적 자리 1장 · 남이 올린 것 바꾸기 = 올린 사람·기술영업팀만
+r105 = q(cl.post, "/api/project-quote/attach/%d" % P, files={"file": ("라영업이 바꾸려는 견적서.pdf", b"%PDF-1.4 x", "application/pdf")})
+check(r105.status_code == 403 and "기술영업팀" in r105.json().get("message", ""), "z1191z105: 라영업은 가영업 견적서를 못 바꿈(403)", r105.json())
+as_(UA)
+P2, _ = reg(model="TP-63B", quote_tok="")
+as_(UD)
+F2 = attach(P2, "라영업이 올린 견적서.pdf")
+h = hist(P2)
 check(h[-1]["changed_by"] == UD["id"] and "라영업" in h[-1]["note"] and "상세 화면" in h[-1]["note"], "상세에서 올림 → 이력에 올린 사람", h[-1])
 
 print("§2 누가 뺄 수 있나 — 올린 사람 · 관리자 · 기술영업팀")
 as_(UD)
-hd = q(cl.get, "/project/%d" % P).text
-check(hd.count('class="z63-rm"') == 1 and 'data-fid="%d" data-name="라영업이 올린 견적서.pdf"' % F2 in hd, "라영업(올린 사람 아님·일반)은 자기가 올린 것에만 🗑", hd.count('class="z63-rm"'))
+hd = q(cl.get, "/project/%d" % P2).text
+check(hd.count('class="z63-rm"') == 1 and 'data-fid="%d" data-name="라영업이 올린 견적서.pdf"' % F2 in hd
+      and 'class="z63-rm"' not in q(cl.get, "/project/%d" % P).text, "라영업(올린 사람 아님·일반)은 자기가 올린 것에만 🗑", hd.count('class="z63-rm"'))
 s_, j = rm(F1)
 check(s_ == 403 and "올린 사람과 기술영업팀만" in j["message"], "라영업이 가영업 것을 빼려 하면 403 「올린 사람과 기술영업팀만」", j)
 as_(UT)
-check(q(cl.get, "/project/%d" % P).text.count('class="z63-rm"') == 2, "기술영업팀(마기술)은 모두 🗑")
+check(q(cl.get, "/project/%d" % P).text.count('class="z63-rm"') + q(cl.get, "/project/%d" % P2).text.count('class="z63-rm"') == 2, "기술영업팀(마기술)은 모두 🗑")
 as_(UADM)
-check(q(cl.get, "/project/%d" % P).text.count('class="z63-rm"') == 0 and rm(F1)[0] == 403, "관리자(바관리)는 남의 것 못 뺌(대표 「관리자는 빼자」) · 403")
+check(q(cl.get, "/project/%d" % P).text.count('class="z63-rm"') + q(cl.get, "/project/%d" % P2).text.count('class="z63-rm"') == 0 and rm(F1)[0] == 403,
+      "관리자(바관리)는 남의 것 못 뺌(대표 「관리자는 빼자」) · 403")
 as_(UC)
 check(rm(F1)[0] == 403 and 'class="z63-rm"' not in q(cl.get, "/project/%d" % P).text, "금액 권한 없는 다물류 → 단추 없음 · 403")
 
@@ -208,7 +216,7 @@ check(h[-1]["changed_by"] == UT["id"] and h[-1]["old_value"] == "가영업이 �
       "이력: 「견적서 파일: 가영업이 올린 … → (빈칸)」 · 「빼기 · 마기술」", h[-1])
 as_(UA)
 hd = q(cl.get, "/project/%d" % P).text
-check("가영업이 올린 견적서.png</a>" not in hd and "라영업이 올린 견적서.pdf</a>" in hd, "상세 목록에서 사라짐(다른 견적서는 그대로)")
+check("가영업이 올린 견적서.png</a>" not in hd and "라영업이 올린 견적서.pdf</a>" in q(cl.get, "/project/%d" % P2).text, "상세 목록에서 사라짐(다른 견적서는 그대로)")
 check(q(cl.get, "/projects/%d/quote-files/%d" % (P, F1)).status_code == 404, "뺀 파일 주소는 404")
 s_, j = rm(F1)
 check(s_ == 404 and len(hist(P)) == len(h), "두 번 빼면 「이미 뺐을 수 있습니다」 · 이력 늘지 않음", j)
@@ -224,7 +232,7 @@ check('class="z63-have"' in he and he.count('class="z63-rm"') == 1, "고급 편�
 i_f = he.find('<form method="post" action="/projects/%d/edit"' % P); i_h = he.find('class="z63-have"'); i_fe = he.find("</form>", i_f)
 check(i_f < i_h < i_fe and 'type="button" class="z63-rm"' in he, "목록은 양식 안 · 🗑 은 type=button(누르면 저장되지 않음)")
 as_(UT)
-check(q(cl.get, "/projects/%d/quick-edit" % P).text.count('class="z63-rm"') == 2, "기술영업팀이 열면 수정 화면에도 🗑 둘")
+check(q(cl.get, "/projects/%d/quick-edit" % P).text.count('class="z63-rm"') == 1, "기술영업팀이 열면 수정 화면에도 🗑(1장 · z1191z105)")
 as_(UA)
 hn = q(cl.get, "/projects/quick?biz_div=T").text
 check('class="z63-have"' not in hn and 'id="z61qX"' in hn, "새 등록 화면: 붙은 견적서 목록 없음 · 올린 견적서는 「빼기」(z61)")
@@ -235,10 +243,11 @@ with D.db_session() as c:
     st2 = c.execute("SELECT stored FROM project_quote_files WHERE id=?", (F2,)).fetchone()[0]
     c.execute("UPDATE project_quote_files SET removed_at='2026-11-18 22:27', removed_by=? WHERE id=?", (UD["id"], F2))   # 예전 방식(숨김)
 as_(UA)
+hd2 = q(cl.get, "/project/%d" % P2).text
 hd = q(cl.get, "/project/%d" % P).text
 with D.db_session() as c:
     gone = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE id=?", (F2,)).fetchone()[0] == 0
-check(gone and not os.path.exists(os.path.join(TMP, "project_quotes", st2)) and "라영업이 올린 견적서.pdf</a>" not in hd, "숨겨 둔 것은 상세를 열 때 파일·줄 지움(대표 PP1-1.png 같은 경우)")
+check(gone and not os.path.exists(os.path.join(TMP, "project_quotes", st2)) and "라영업이 올린 견적서.pdf</a>" not in hd2, "숨겨 둔 것은 상세를 열 때 파일·줄 지움(대표 PP1-1.png 같은 경우)")
 none_hidden = re.search(r'<div class="z63-none" style="[^"]*display:none;[^"]*">등록된 견적서가 없습니다.</div>', hd)
 check(none_hidden and "가영업 두번째 견적서.pdf</a>" in hd, "견적서가 남아 있으면 「등록된 견적서가 없습니다.」는 숨김")
 as_(UT)

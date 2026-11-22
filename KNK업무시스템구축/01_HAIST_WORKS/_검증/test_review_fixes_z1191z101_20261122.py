@@ -264,8 +264,9 @@ print("§8 남은 옛 이름 · 메뉴 찾기 · 내 건만")
 g = q(cl.get, "/sales/flow-guide").text
 check("안내 끝 줄: 「🎯 수주 전」·「📋 프로젝트 → 📑 수주 목록」(옛 「📑 수주」 메뉴 이름 없음)", "「🎯 수주 전」" in g and "📑 수주 목록" in g and "「📑 수주」" not in g)
 src_mc = io.open(os.path.join(ROOT, "app", "menu_catalog.py"), encoding="utf-8").read()
-check("빅터 메뉴 찾기: 💰 입금 확인(M-01-18 · 입금·수금) · 견적 신규 = /sales/quotes/new",
-      '"M-01-18"' in src_mc and '"/sales/receipts-check", ["입금", "수금"' in src_mc and '"/sales/quotes/new"' in src_mc)
+check("빅터 메뉴 찾기: 💰 입금 확인(M-01-18 · 입금·수금) · 견적서 올리기 = 견적 관리(z1191z105)",
+      '"M-01-18"' in src_mc and '"/sales/receipts-check", ["입금", "수금"' in src_mc and '"/sales/quotes/new"' not in src_mc
+      and '("M-01-02-N", "01", "견적서 올리기",    "/sales/quotations"' in src_mc)
 hh = io.open(os.path.join(ROOT, "app", "templates", "home.html"), encoding="utf-8").read()
 check("통합 홈 「새 견적 작성」 → 🆕 등록", '<a class="action-card" href="/projects/new">' in hh and 'href="/sales/quotes/new"' not in hh)
 hp = q(cl.get, "/projects?q=고침&view=list").text

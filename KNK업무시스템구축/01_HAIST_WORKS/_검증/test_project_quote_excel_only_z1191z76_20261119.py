@@ -225,11 +225,11 @@ PLAIN2 = xlsx_bytes([["견 적 서 (수정)"], ["품 명", "가상 패널 검사
 rj = q(cl.post, "/api/project-quote/attach/%d" % P1, files={"file": ("가상 견적서 최종_수정1.xlsx", PLAIN2, "application/octet-stream")}).json()
 check(rj["ok"], "고친 엑셀 올리기 → 보관", rj)
 hd = q(cl.get, "/project/%d" % P1).text
-i_new = hd.find("가상 견적서 최종_수정1.xlsx</a>"); i_badge = hd.find(">최신</span>")
-check(hd.count(">최신</span>") == 1 and 0 < i_new < i_badge and i_badge - i_new < 400 and hd.find("가상 견적서 최종.xlsx</a>") < i_new,
-      "엑셀이 둘 → 나중에 올린 「…_수정1.xlsx」에만 「최신」", (hd.count(">최신</span>"), i_new, i_badge))
+# z1191z105 (대표 11-22): 자리마다 최종 1장 — 고친 엑셀을 올리면 예전 것은 지움(「최신」 표시가 필요 없음)
+check("가상 견적서 최종_수정1.xlsx</a>" in hd and "가상 견적서 최종.xlsx</a>" not in hd and ">최신</span>" not in hd and rj.get("replaced") == 1,
+      "고친 엑셀 → 그 자리를 바꿈(예전 「최종.xlsx」 지움 · 1장)", rj)
 fs = M._z61_quote_files(P1)
-check([x.get("latest", False) for x in fs] == [False, True], "목록 자료: 마지막 엑셀만 latest", [(x["orig_name"], x.get("latest")) for x in fs])
+check([x["orig_name"] for x in fs] == ["가상 견적서 최종_수정1.xlsx"], "목록 자료: 고친 엑셀 1장", [x["orig_name"] for x in fs])
 P2, _ = reg(model="TP-77", quote_tok="")
 q(cl.post, "/api/project-quote/attach/%d" % P2, files={"file": ("하나뿐.xlsx", PLAIN, "application/octet-stream")})
 check(">최신</span>" not in q(cl.get, "/project/%d" % P2).text, "견적서가 하나뿐이면 「최신」 표시 없음")

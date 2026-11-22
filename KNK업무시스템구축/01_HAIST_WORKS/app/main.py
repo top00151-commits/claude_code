@@ -21919,6 +21919,33 @@ async def sales_orders_export_xlsx(req: Request):
 
 @app.get("/sales/quotations/export.xlsx")
 async def sales_quotations_export_xlsx(req: Request):
+    """z1191z105: 견적 관리 화면 그대로(같은 거르기) — 관리번호·수주번호별 최종 견적서 상태."""
+    u = _s1_guard(req)
+    if not u:
+        return RedirectResponse("/home", 303)
+    b = _z105_board(u, **_z105_args(req, u))
+    cm = b["can_money"]
+    st_txt = {"ok": "있음", "diff": "있음 · 금액 다름", "none": "없음"}
+    out = []
+    for r in b["rows"]:
+        p, pf = r["p"], r["pf"]
+        out.append([p["mgmt_code"], "", "관리번호 대표 견적", p["name"], p["customer_name"], p["sales_name"], "", "",
+                    (pf["orig_name"] if pf else ""), ((pf["created_at"] or "")[:10] if pf else ""), (pf["by_name"] if pf else ""),
+                    "", ("있음" if pf else ("없음" if not r["sos"] else "-"))])
+        for s in r["sos"]:
+            o, f = s["o"], s["f"]
+            out.append([p["mgmt_code"], o["order_no"], s["units"], p["name"], p["customer_name"], p["sales_name"],
+                        (o["total_amount"] if cm else "🔒"), (o["currency"] or "KRW"),
+                        (f["orig_name"] if f else ""), ((f["created_at"] or "")[:10] if f else ""), (f["by_name"] if f else ""),
+                        ((f["amt"] if f["amt"] is not None else "") if (f and cm) else ("🔒" if (f and not cm) else "")),
+                        st_txt.get(s["st"], "")])
+    return _make_xlsx_response([{"name": "견적 관리", "headers": [
+        "관리번호", "수주번호", "호기·구분", "프로젝트", "고객사", "영업담당", "수주 금액", "통화",
+        "최종 견적서(엑셀)", "올린 날", "올린 사람", "견적서 금액(읽은 값)", "상태"], "rows": out}], "견적관리")
+
+
+async def _sales_quotations_export_old_z105(req: Request):
+    """(z1191z105 전) 시스템 견적서 엑셀 — 쓰지 않음(기록용)."""
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
     can_sa = bool(can_view_field(u, "sales_amount"))   # v5H226z829: 견적 금액·단가=매출금액 정책 → 없으면 🔒
@@ -27577,10 +27604,15 @@ async def _alias_orders_new(req: Request):
 
 @app.get("/sales/quotes/new", response_class=HTMLResponse)
 async def sales_quotes_new_form(req: Request):
-    """v5H52: 견적 신규 작성 폼 (라인 동적 추가, 실시간 합계, 콤마 포맷)."""
+    """v5H52: 견적 신규 작성 폼 → z1191z105 (대표 11-22 「견적서는 엑셀파일로 작성해서 등록」): 견적 관리로 보냄."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    return RedirectResponse("/sales/quotations", 303)
+
+
+def _sales_quotes_new_form_old_z105(req, u):
+    """(z1191z105 전) 시스템 견적서 작성 화면 — 쓰지 않음(기록용)."""
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
             "SELECT " + _CUST_PICK_COLS + " FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY " + _CUST_PICK_ORDER_SQL   # z1158
@@ -41943,9 +41975,12 @@ def _z61_table(c):
         read_json TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS ix_pqf_project ON project_quote_files(project_id)")
     _cols = {r[1] for r in c.execute("PRAGMA table_info(project_quote_files)").fetchall()}   # z1191z63: 빼기(숨김) · 누가
-    for _cn, _ct in (("removed_at", "TEXT"), ("removed_by", "INTEGER"), ("removed_by_name", "TEXT")):
+    for _cn, _ct in (("removed_at", "TEXT"), ("removed_by", "INTEGER"), ("removed_by_name", "TEXT"),
+                     # z1191z105: 수주번호 자리(없으면 관리번호 대표 견적) · 견적 금액 ≠ 수주 금액 「확인했음」 누가·언제
+                     ("order_id", "INTEGER"), ("amt_ack_by", "INTEGER"), ("amt_ack_name", "TEXT"), ("amt_ack_at", "TEXT")):
         if _cn not in _cols:
             c.execute(f"ALTER TABLE project_quote_files ADD COLUMN {_cn} {_ct}")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_pqf_order ON project_quote_files(order_id)")   # z1191z105
 
 
 def _z61_cleanup(c):
@@ -42097,6 +42132,10 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
     with db_session() as c:
         if not c.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone():
             return JSONResponse({"ok": False, "message": "프로젝트를 찾지 못했습니다."}, 404)
+        _z61_table(c)
+        _old105 = [dict(r) for r in _z105_slot_rows(c, int(pid), None)]   # z1191z105: 대표 견적 자리에 이미 있는 것
+    if _old105 and not _z105_can_replace(u, _old105):
+        return JSONResponse({"ok": False, "message": _Z105_NO_REPLACE}, 403)
     name = _qr61._nfc(file.filename or "견적서")[:200]
     ext = _qr61.ext_of(name)
     if ext not in _Z76_XL_EXTS:   # z1191z76: 엑셀만
@@ -42127,7 +42166,9 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
                    vname_full(u) or u.get("name"), _z61_now(), _z61_now()))
         c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                   (int(pid), u.get("id"), "견적서 파일", "", name, f"z1191z62 상세 화면 「＋ 견적서 올리기」 · {vname_full(u) or u.get('name') or ''}"))   # z1191z63: 누가
-    return JSONResponse({"ok": True, "name": name})
+        _nid105 = c.execute("SELECT id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()[0]
+        _z105_drop_slot(c, u, int(pid), _nid105, _old105, "상세 「＋ 견적서 엑셀 올리기」")   # z1191z105: 예전 것 지움
+    return JSONResponse({"ok": True, "name": name, "replaced": len(_old105)})
 
 
 tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and can_view_sales(u)
@@ -42220,7 +42261,12 @@ def _z61_attach(pid, tok, u, note="z1191z61 등록 화면 「견적서로 채우
                           (tok, (u or {}).get("id"))).fetchone()
             if not r:
                 return False
-            c.execute("UPDATE project_quote_files SET project_id=?, attached_at=? WHERE id=?", (int(pid), _z61_now(), r["id"]))
+            _old105 = [dict(x) for x in _z105_slot_rows(c, int(pid), None)]   # z1191z105: 대표 견적 자리 1장
+            if _old105 and not _z105_can_replace(u, _old105):
+                print(f"[z1191z105] 대표 견적 바꾸기 권한 없음 pid={pid} — 붙이지 않음")
+                return False
+            c.execute("UPDATE project_quote_files SET project_id=?, order_id=NULL, attached_at=? WHERE id=?", (int(pid), _z61_now(), r["id"]))
+            _z105_drop_slot(c, u, int(pid), r["id"], _old105, note)
             c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                       (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], f"{note} · {vname_full(u or {}) or (u or {}).get('name') or ''}"))   # z1191z63: 누가
         return True
@@ -42237,7 +42283,7 @@ def _z61_quote_files(pid):
                 _z64_drop(c, _r64["id"], _r64["stored"])   # z1191z64: z63 때 숨겨 둔 것 → 바로 지움
             out = []
             for r in c.execute("SELECT id, orig_name, size, by_id, by_name, created_at, read_json FROM project_quote_files "
-                               "WHERE project_id=? AND removed_at IS NULL ORDER BY id",
+                               "WHERE project_id=? AND removed_at IS NULL AND order_id IS NULL ORDER BY id",   # z1191z105: 대표 견적만
                                (int(pid),)).fetchall():
                 x = dict(r)
                 try:   # z1191z62 (대표 「등록된 견적은 프로젝트 정보에서 볼수있게」): 읽은 값 요약(품명·금액·견적일)
@@ -42287,6 +42333,360 @@ async def project_quote_file_open(req: Request, pid: int, fid: int):
     return FileResponse(fp, media_type=mt, headers={
         "Content-Disposition": f"{disp}; filename*=UTF-8''{_uq61(r['orig_name'] or ('quote' + ext))}",
         "Cache-Control": "private, no-store"})
+
+
+# ═══ z1191z105 (대표 11-22 「견적관리 부분을 정리하자 … 관리번호별, 수주번호별 최종 견적서(엑셀) 등록 또는 등록된 상태를
+#     보는걸로 … 1호기 가격과 2호기, 3호기 가격이 다를수있어서 수주번호별 견적 등록이 필요」 → 「1,2 추천대로 · 3번은 그대로」)
+#   · 자리 = 관리번호 대표 견적(order_id 없음) 1장 + 수주번호마다 1장 — 엑셀만(z76) · 시스템에서 견적서를 쓰지 않는다
+#   · 새로 올리면 그 자리의 예전 파일은 바로 지움(대표 ① · 되돌릴 수 없음 · 변경 이력에 누가)
+#   · 바꾸기(=예전 것 지우기)는 예전 것을 뺄 수 있는 사람만(올린 사람·기술영업팀 · z63 규칙 그대로)
+#   · 🆕 등록 「📋 견적서」 카드 → 견적 관리로(대표 ②) · 상세 「＋ 견적서 엑셀 올리기」 단추는 그대로(대표 ③)
+#   · 화면 = /sales/quotations(견적 관리) · 엑셀을 넣으면 읽어서(z61 판독) 관리번호·수주번호 후보를 찾아 줌
+#     — 후보가 딱 하나일 때만 미리 고름(데이터 연결성 규칙) · 견적 금액 ≠ 수주 금액이면 알림(막지 않음 · 「확인했음」 한 번)
+_Z105_NO_REPLACE = ("이 자리에 이미 다른 분이 올린 견적서가 있습니다 — 바꾸기(예전 것 지우기)는 "
+                    "올린 사람과 기술영업팀만 할 수 있습니다.")
+import re as _re105
+_Z105_MGMT_RE = _re105.compile(r"(?<![0-9A-Za-z])(\d{3}[A-Za-z]\d{4})(?![0-9A-Za-z])")
+_Z105_SO_RE = _re105.compile(r"(?<![0-9A-Za-z])([A-Za-z]{1,3}-\d{6}-\d{1,3})(?![0-9])")
+
+
+def _z105_slot_rows(c, pid, oid):
+    if oid:
+        return c.execute("SELECT id, orig_name, stored, by_id FROM project_quote_files "
+                         "WHERE project_id=? AND order_id=?", (int(pid), int(oid))).fetchall()
+    return c.execute("SELECT id, orig_name, stored, by_id FROM project_quote_files "
+                     "WHERE project_id=? AND order_id IS NULL", (int(pid),)).fetchall()
+
+
+def _z105_can_replace(u, olds):
+    return all(_z63_can_remove(u, dict(r)) for r in (olds or []))
+
+
+def _z105_drop_slot(c, u, pid, keep_id, olds, note):
+    """자리에 있던 예전 견적서를 지움(새 것 keep_id 빼고) — 변경 이력에 누가."""
+    who = vname_full(u or {}) or (u or {}).get("name") or ""
+    for r in (olds or []):
+        if r["id"] == keep_id:
+            continue
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (int(pid), (u or {}).get("id"), "견적서 파일", r["orig_name"], "",
+                   f"z1191z105 견적서 바꾸기(예전 것 지움) · {note} · {who}"))
+        _z64_drop(c, r["id"], r["stored"])
+
+
+def _z105_num(v):
+    try:
+        x = float(str(v).replace(",", "").strip())
+        return x if x == x else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _z105_amt_same(a, ccy_a, b, ccy_b):
+    """견적 금액 = 수주 금액? (통화가 적혀 있으면 같아야 함 · 원화 1원 · 외화 0.01 차이까지 같음)"""
+    if a is None or b is None:
+        return None
+    ca, cb = (ccy_a or "").upper(), (ccy_b or "KRW").upper()
+    if ca and ca != cb:
+        return False
+    return abs(float(a) - float(b)) < (1 if cb == "KRW" else 0.01)
+
+
+def _z105_units_txt(labels):
+    """호기 줄이면 「1호기」·「1호기~4호기 (4줄)」 · 부품·소모품 줄(이름)이면 「품목 N줄」."""
+    labs = [str(x or "").strip() for x in labels if str(x or "").strip()]
+    if not labs:
+        return ""
+    hogi = [x for x in labs if _re105.match(r"^\d+\s*호기", x)]   # 「1호기」 모양만 호기(「1건」·부품 이름은 품목)
+    if len(hogi) != len(labs):
+        return labs[0] if len(labs) == 1 else "품목 %d줄" % len(labs)
+    if len(labs) == 1:
+        return labs[0]
+    return "%s~%s (%d줄)" % (labs[0], labs[-1], len(labs))
+
+
+def _z105_slot_label(code, order_no, units, amt, ccy, can_money):
+    s = (order_no + " · " + code) if order_no else (code + " · 관리번호 대표 견적")
+    if units:
+        s += " · " + units
+    if order_no and can_money and amt is not None:
+        s += " · " + _fmt_money(amt, ccy or "KRW")
+    return s
+
+
+def _z105_board(u, q="", mine=False, period="1y", only="", done=False):
+    """견적 관리 화면 자료 — 관리번호 줄 + 그 아래 수주번호 줄 · 줄마다 최종 견적서(엑셀) 상태."""
+    from datetime import date as _d105, timedelta as _td105
+    can_money = bool(can_view_sales(u))
+    since = {"1y": 365, "2y": 730}.get(period)
+    since = (_d105.today() - _td105(days=since)).isoformat() if since else ""
+    ql = (q or "").strip().lower()
+    with db_session() as c:
+        _z61_table(c)
+        projs = [dict(r) for r in c.execute(
+            "SELECT id, mgmt_code, name, customer_name, sales_name, currency, order_amount, order_date, stage, "
+            "COALESCE(NULLIF(TRIM(order_date),''), substr(COALESCE(created_at,''),1,10)) AS d0 "
+            "FROM projects WHERE COALESCE(mgmt_code,'')<>'' AND COALESCE(is_archived,0)=0 ORDER BY id DESC").fetchall()]
+        orders = {}
+        for r in c.execute("SELECT id, project_id, order_no, currency, total_amount, order_date, due_date, status FROM orders "
+                           "WHERE COALESCE(status,'')<>'CANCELLED' ORDER BY COALESCE(order_date,''), id").fetchall():
+            orders.setdefault(r["project_id"], []).append(dict(r))
+        labels = {}
+        for r in c.execute("SELECT order_id, unit_label FROM order_items ORDER BY order_id, id").fetchall():
+            labels.setdefault(r[0], []).append(r[1])
+        files = {}
+        for r in c.execute("SELECT id, project_id, order_id, orig_name, by_id, by_name, created_at, read_json, amt_ack_name, amt_ack_at "
+                           "FROM project_quote_files WHERE project_id IS NOT NULL AND removed_at IS NULL ORDER BY id").fetchall():
+            x = dict(r)
+            try:
+                fd = (_qr61.json.loads(x.pop("read_json") or "{}").get("fields") or {})
+            except Exception:
+                fd = {}
+            x["amt"] = _z105_num(fd.get("amount"))
+            x["cur"] = (fd.get("currency") or "").upper()
+            files[(x["project_id"], x["order_id"])] = x   # 자리마다 1장(혹시 둘이면 나중 것)
+    rows, cnt = [], {"so": 0, "so_with": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "mine": 0, "done_hidden": 0}
+    for p in projs:
+        if since and (p["d0"] or "") < since:
+            continue
+        sos_all = orders.get(p["id"], [])
+        # 기본 = 입금 전 수주만(입금까지 끝난 수주는 「입금 끝난 수주도 보기」) — 처음부터 1,000건 넘게 「없음」으로 뜨지 않게
+        sos = sos_all if done else [o for o in sos_all if (o.get("status") or "").upper() != "PAID"]
+        if sos_all and not sos:
+            cnt["done_hidden"] += 1
+            continue
+        is_mine = _is_mine_z92(u, p.get("sales_name"))
+        if is_mine:
+            cnt["mine"] += 1
+        if mine and not is_mine:
+            continue
+        if ql:
+            hay = " ".join([p["mgmt_code"] or "", p["name"] or "", p["customer_name"] or "", p["sales_name"] or ""]
+                           + [o["order_no"] or "" for o in sos]).lower()
+            if ql not in hay:
+                continue
+        pf = files.get((p["id"], None))
+        so_rows = []
+        for o in sos:
+            f = files.get((p["id"], o["id"]))
+            st = "none"
+            if f:
+                same = _z105_amt_same(f["amt"], f["cur"], o["total_amount"], o["currency"])
+                st = "diff" if (same is False and not f.get("amt_ack_at")) else "ok"
+            so_rows.append({"o": o, "f": f, "st": st, "units": _z105_units_txt(labels.get(o["id"], []))})
+            cnt["so"] += 1
+            cnt["so_with" if f else "so_none"] += 1
+            if st == "diff":
+                cnt["diff"] += 1
+        if not sos:
+            cnt["pre"] += 1
+            if pf:
+                cnt["pre_with"] += 1
+        if only == "none" and not (any(s["st"] == "none" for s in so_rows) or (not sos and not pf)):
+            continue
+        if only == "diff" and not any(s["st"] == "diff" for s in so_rows):
+            continue
+        rows.append({"p": p, "pf": pf, "sos": so_rows, "mine": is_mine})
+    return {"rows": rows, "cnt": cnt, "can_money": can_money, "q": q, "mine": mine, "period": period, "only": only, "done": done}
+
+
+def _z105_args(req, u):
+    qp = req.query_params
+    period = (qp.get("period") or "1y").strip()
+    if period not in ("1y", "2y", "all"):
+        period = "1y"
+    only = (qp.get("only") or "").strip()
+    if only not in ("", "none", "diff"):
+        only = ""
+    return dict(q=(qp.get("q") or "").strip()[:80], mine=_mine_pref_z92(u, qp.get("mine")), period=period, only=only,
+                done=(qp.get("done") or "") == "1")
+
+
+@app.get("/api/quotes-z105/cands")
+async def api_quotes_z105_cands(req: Request):
+    """올린(아직 안 붙인) 견적서 → 관리번호·수주번호 후보. 후보가 딱 하나로 분명할 때만 pick."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "견적서를 올릴 권한이 없습니다."}, 403)
+    tok = (req.query_params.get("tok") or "").strip()[:40]
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT orig_name, read_json, by_id, project_id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()
+        if not r or r["by_id"] != u.get("id") or r["project_id"] is not None:
+            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다 — 다시 올려 주세요."})
+        try:
+            fd = (_qr61.json.loads(r["read_json"] or "{}").get("fields") or {})
+        except Exception:
+            fd = {}
+        amt, ccy = _z105_num(fd.get("amount")), (fd.get("currency") or "").upper()
+        text = " ".join([r["orig_name"] or "", str(fd.get("quote_no") or ""), str(fd.get("item_name") or ""),
+                         str(fd.get("model_code") or "")])
+        cands, why = [], ""
+
+        def _so_cands(where, args):
+            out = []
+            for o in c.execute(
+                    "SELECT o.id, o.project_id, o.order_no, o.currency, o.total_amount, p.mgmt_code, p.name "
+                    "FROM orders o JOIN projects p ON p.id=o.project_id WHERE COALESCE(o.status,'')<>'CANCELLED' "
+                    "AND COALESCE(p.is_archived,0)=0 AND " + where + " ORDER BY COALESCE(o.order_date,'') DESC, o.id DESC LIMIT 40",
+                    args).fetchall():
+                labs = [x[0] for x in c.execute("SELECT unit_label FROM order_items WHERE order_id=? ORDER BY id", (o["id"],))]
+                has = c.execute("SELECT 1 FROM project_quote_files WHERE order_id=?", (o["id"],)).fetchone()
+                out.append({"pid": o["project_id"], "oid": o["id"], "has": bool(has),
+                            "same": _z105_amt_same(amt, ccy, o["total_amount"], o["currency"]),
+                            "label": _z105_slot_label(o["mgmt_code"] or "", o["order_no"] or "", _z105_units_txt(labs),
+                                                      o["total_amount"], o["currency"], True) + " · " + (o["name"] or "")})
+            return out
+
+        def _proj_slot(pid, code, name):
+            has = c.execute("SELECT 1 FROM project_quote_files WHERE project_id=? AND order_id IS NULL", (pid,)).fetchone()
+            return {"pid": pid, "oid": None, "has": bool(has), "same": None,
+                    "label": _z105_slot_label(code or "", "", "", None, "", True) + " · " + (name or "")}
+
+        sos_found = sorted({m.upper() for m in _Z105_SO_RE.findall(text)})
+        if sos_found:
+            cands = _so_cands("UPPER(o.order_no) IN (%s)" % ",".join("?" * len(sos_found)), sos_found)
+            why = "파일 이름·견적번호에 적힌 수주번호"
+        if not cands:
+            codes = sorted({m.upper() for m in _Z105_MGMT_RE.findall(text)})
+            for code in codes:
+                p = c.execute("SELECT id, mgmt_code, name FROM projects WHERE UPPER(mgmt_code)=? AND COALESCE(is_archived,0)=0",
+                              (code,)).fetchone()
+                if p:
+                    cands.append(_proj_slot(p["id"], p["mgmt_code"], p["name"]))
+                    cands += _so_cands("o.project_id=?", (p["id"],))
+            if cands:
+                why = "파일 이름·견적번호에 적힌 관리번호"
+        if not cands and fd.get("customer"):
+            cu = _z61_match_customer(c, fd.get("customer"))
+            if cu.get("id"):
+                cands = _so_cands("(o.customer_id=? OR p.customer_id=?)", (cu["id"], cu["id"]))
+                cands.sort(key=lambda x: 0 if x["same"] else 1)
+                cands = cands[:8]
+                why = "견적서의 고객사(" + (cu.get("label") or "") + ")" + (" · 금액이 같은 수주 먼저" if amt is not None else "")
+    strong = [x for x in cands if x["same"]] if amt is not None else []
+    pick = None
+    if len(cands) == 1:
+        pick = 0
+    elif len(strong) == 1:
+        pick = cands.index(strong[0])
+    return JSONResponse({"ok": True, "cands": cands, "pick": pick, "why": why,
+                         "amount": amt, "currency": ccy,
+                         "amount_txt": (_fmt_money(amt, ccy or "KRW") if amt is not None else "")})
+
+
+@app.get("/api/quotes-z105/search")
+async def api_quotes_z105_search(req: Request):
+    """관리번호·수주번호·프로젝트명·고객사로 자리 찾기(후보가 없거나 틀렸을 때)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "견적서를 올릴 권한이 없습니다."}, 403)
+    q = (req.query_params.get("q") or "").strip()[:60]
+    if len(q) < 2:
+        return JSONResponse({"ok": True, "items": []})
+    like = "%" + q + "%"
+    out = []
+    with db_session() as c:
+        _z61_table(c)
+        for p in c.execute("SELECT id, mgmt_code, name, customer_name FROM projects WHERE COALESCE(is_archived,0)=0 "
+                           "AND COALESCE(mgmt_code,'')<>'' AND (mgmt_code LIKE ? OR name LIKE ? OR customer_name LIKE ? "
+                           "OR id IN (SELECT project_id FROM orders WHERE order_no LIKE ?)) ORDER BY id DESC LIMIT 8",
+                           (like, like, like, like)).fetchall():
+            has = c.execute("SELECT 1 FROM project_quote_files WHERE project_id=? AND order_id IS NULL", (p["id"],)).fetchone()
+            out.append({"pid": p["id"], "oid": None, "has": bool(has),
+                        "label": (p["mgmt_code"] or "") + " · 관리번호 대표 견적 · " + (p["name"] or "") + " · " + (p["customer_name"] or "")})
+            for o in c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? "
+                               "AND COALESCE(status,'')<>'CANCELLED' ORDER BY COALESCE(order_date,''), id", (p["id"],)).fetchall():
+                labs = [x[0] for x in c.execute("SELECT unit_label FROM order_items WHERE order_id=? ORDER BY id", (o["id"],))]
+                hs = c.execute("SELECT 1 FROM project_quote_files WHERE order_id=?", (o["id"],)).fetchone()
+                out.append({"pid": p["id"], "oid": o["id"], "has": bool(hs),
+                            "label": "　└ " + _z105_slot_label(p["mgmt_code"] or "", o["order_no"] or "", _z105_units_txt(labs),
+                                                              o["total_amount"], o["currency"], True)})
+    return JSONResponse({"ok": True, "items": out[:40]})
+
+
+@app.post("/api/project-quote/place")
+async def api_project_quote_place(req: Request):
+    """올린(읽은) 견적서를 자리(관리번호 대표 견적 · 수주번호)에 붙임 — 그 자리 예전 파일은 지움."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "견적서를 올릴 권한이 없습니다."}, 403)
+    form = await req.form()
+    tok = (form.get("tok") or "").strip()[:40]
+    try:
+        pid = int(form.get("pid") or 0)
+        oid = int(form.get("order_id") or 0) or None
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "message": "자리를 다시 골라 주세요."}, 400)
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT id, orig_name, by_id, project_id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()
+        if not r or r["by_id"] != u.get("id") or r["project_id"] is not None:
+            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다 — 다시 올려 주세요."})
+        p = c.execute("SELECT id, mgmt_code FROM projects WHERE id=? AND COALESCE(is_archived,0)=0", (pid,)).fetchone()
+        if not p:
+            return JSONResponse({"ok": False, "message": "그 관리번호를 찾지 못했습니다."}, 404)
+        so = None
+        if oid:
+            so = c.execute("SELECT order_no FROM orders WHERE id=? AND project_id=?", (oid, pid)).fetchone()
+            if not so:
+                return JSONResponse({"ok": False, "message": "그 수주번호는 이 관리번호에 없습니다."}, 400)
+        olds = [dict(x) for x in _z105_slot_rows(c, pid, oid)]
+    if olds and not _z105_can_replace(u, olds):
+        return JSONResponse({"ok": False, "message": _Z105_NO_REPLACE}, 403)
+    slot = (so["order_no"] if so else ((p["mgmt_code"] or "") + " 대표 견적"))
+    with db_session() as c:
+        c.execute("UPDATE project_quote_files SET project_id=?, order_id=?, attached_at=? WHERE id=? AND project_id IS NULL",
+                  (pid, oid, _z61_now(), r["id"]))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (pid, u.get("id"), "견적서 파일", "", r["orig_name"],
+                   f"z1191z105 견적 관리 「올리기」 · {slot} · {vname_full(u) or u.get('name') or ''}"))
+        _z105_drop_slot(c, u, pid, r["id"], olds, "견적 관리 · " + slot)
+    return JSONResponse({"ok": True, "replaced": len(olds), "slot": slot})
+
+
+@app.post("/api/project-quote/ack/{fid}")
+async def api_project_quote_ack(req: Request, fid: int):
+    """견적 금액 ≠ 수주 금액 — 「확인했음」 한 번(막지 않고 알림 · 누가·언제 남김)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        _z61_table(c)
+        r = c.execute("SELECT project_id, orig_name FROM project_quote_files WHERE id=? AND project_id IS NOT NULL", (fid,)).fetchone()
+        if not r:
+            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다."}, 404)
+        c.execute("UPDATE project_quote_files SET amt_ack_by=?, amt_ack_name=?, amt_ack_at=? WHERE id=?",
+                  (u.get("id"), who, _z61_now(), fid))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (r["project_id"], u.get("id"), "견적서 금액 확인", "", r["orig_name"],
+                   f"z1191z105 견적 금액 ≠ 수주 금액 「확인했음」 · {who}"))
+    return JSONResponse({"ok": True})
+
+
+def _z105_so_quotes(pid):
+    """프로젝트 상세 수주 카드용 — {수주 id: 견적서 줄}."""
+    try:
+        with db_session() as c:
+            _z61_table(c)
+            return {r["order_id"]: dict(r) for r in c.execute(
+                "SELECT id, order_id, orig_name, by_name, created_at FROM project_quote_files "
+                "WHERE project_id=? AND order_id IS NOT NULL AND removed_at IS NULL ORDER BY id", (int(pid),)).fetchall()}
+    except Exception as _e:
+        print(f"[z1191z105] 수주 견적서 목록 실패 pid={pid}: {_e}")
+        return {}
+
+
+tpl.env.globals["z105_so_quotes"] = _z105_so_quotes
 
 
 # z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 … 우선 만들고 실무자들이 선택해서 저장할수있게」):
@@ -49526,10 +49926,17 @@ def _s1_guard(req: Request):
 
 @app.get("/sales/quotations", response_class=HTMLResponse)
 async def sales_quotations_page(req: Request):
-    """견적 탭 (시안 §1 탭1 QT) — quotations 리스트 + Empty State"""
+    """견적 관리 — z1191z105 (대표 11-22): 관리번호·수주번호별 최종 견적서(엑셀) 올리기·보기."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    _a105 = _z105_args(req, u)
+    return ctx(req, "sales_quotations.html", user=u, active="sales_quotations", tab="quotations",
+               qb=_z105_board(u, **_a105))
+
+
+def _sales_quotations_page_old_z105(req, u):
+    """(z1191z105 전) 시스템에서 쓴 견적서 목록 — 운영 0건 · 화면에서 쓰지 않음(기록용)."""
     with db_session() as c:
         rows = c.execute(
             """SELECT q.id, q.quote_no, q.customer_id,

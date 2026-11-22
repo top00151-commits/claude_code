@@ -1,16 +1,47 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>견적 · KNK</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>견적 관리 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 <style>
-/* v5H226z48: 시안1 토큰 + .mgmt-pill — sales_quotations v1+v2 차수 */
+/* z1191z105 (대표 11-22 「견적관리 … 관리번호별, 수주번호별 최종 견적서(엑셀) 등록 또는 등록된 상태를 보는걸로」) */
 body {
-  /* z1013: --qv → knk Sage 브리지 */
-  --qv-surface:var(--knk-bg-surface,#FAFBF9); --qv-surface-2:var(--knk-bg-inset,#F6F7F4); --qv-line:var(--knk-border-subtle,#E2E6E1);
+  --qv-surface:var(--knk-bg-surface,#FAFBF9); --qv-line:var(--knk-border-subtle,#E2E6E1);
   --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169);
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
 }
-@media (max-width:1100px){ .knk-page-title{font-size:22px;} }
 .main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
+.qm-wrap { padding: 12px var(--content-pad) 24px; }
+.qm-kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.qm-k { display:block; text-decoration:none; color:inherit; background:#fff; border:1px solid var(--qv-line); border-radius:10px; padding:10px 14px; }
+.qm-k:hover { border-color:#93c5fd; }
+.qm-k .l { font-size:12px; color:var(--qv-ink-3); }
+.qm-k .n { font-size:22px; font-weight:800; color:var(--qv-ink); }
+.qm-k.bad .n { color:#b91c1c; } .qm-k.warn .n { color:#b45309; }
+.qm-k.on { border-color:#2563eb; box-shadow:0 0 0 2px #dbeafe; }
+.qm-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.qm-bar .chip { padding:5px 11px; border:1px solid var(--qv-line); border-radius:999px; background:#fff; font-size:12.5px; color:var(--qv-ink-2); text-decoration:none; white-space:nowrap; }
+.qm-bar .chip.on { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; font-weight:700; }
+.qm-bar input[type=search] { padding:6px 10px; border:1px solid var(--qv-line); border-radius:8px; font-size:13px; min-width:220px; }
+.qm-drop { margin-left:auto; display:flex; align-items:center; gap:10px; padding:8px 14px; border:2px dashed #93c5fd; border-radius:10px; background:#f0f7ff; color:#1e3a8a; font-size:13px; cursor:pointer; }
+.qm-drop.over { border-color:#2563eb; background:#dbeafe; }
+.qm-t { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; font-size:13px; }
+.qm-t th { text-align:left; font-size:12px; color:var(--qv-ink-3); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--qv-line); background:#f8faf8; position:sticky; top:0; z-index:1; }
+.qm-t td { padding:7px 10px; border-bottom:1px solid #eef1ee; vertical-align:middle; }
+.qm-t tr.pj td { background:#fafbfa; border-top:1px solid var(--qv-line); }
+.qm-t tr.so td:first-child { padding-left:28px; color:var(--qv-ink-2); }
+.qm-t tr.over { outline:2px dashed #2563eb; outline-offset:-2px; }
+.qm-t .num { text-align:right; white-space:nowrap; }
+.qm-pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+.qm-pill.ok { background:#dcfce7; color:#166534; } .qm-pill.no { background:#fee2e2; color:#b91c1c; }
+.qm-pill.wn { background:#fef3c7; color:#92400e; } .qm-pill.rep { background:#e0e7ff; color:#3730a3; } .qm-pill.mute { background:#f1f5f9; color:#64748b; }
+.qm-f { color:#1d4ed8; font-weight:700; text-decoration:none; word-break:break-all; }
+.qm-meta { font-size:11px; color:#94a3b8; }
+.qm-btn { padding:3px 10px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.qm-btn.up { border-color:#93c5fd; color:#1d4ed8; background:#eff6ff; }
+.qm-panel { margin:0 0 12px; padding:12px 14px; border:1px solid #93c5fd; border-radius:10px; background:#fff; font-size:13px; }
+.qm-panel .row { margin-top:6px; }
+.qm-cand { display:flex; gap:8px; align-items:flex-start; padding:5px 8px; border-radius:8px; cursor:pointer; }
+.qm-cand:hover { background:#f1f5f9; }
+.qm-x { float:right; border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:2px 9px; cursor:pointer; font-size:12px; }
+@media (max-width:900px){ .qm-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } .qm-drop { margin-left:0; width:100%; } }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}
@@ -20,33 +51,220 @@ body {
     <div>
       <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · 🎯 수주 전 · <b>견적서</b></nav>
       <h1 class="knk-page-title">📋 견적 관리</h1>
+      <p class="knk-page-meta">최종 견적서는 <b>엑셀</b>로 만들어 올립니다 · 관리번호마다 <b>대표 견적</b> 1장 · 수주번호(호기)마다 <b>최종 견적</b> 1장 · 새로 올리면 그 자리의 예전 파일은 지워집니다</p>
     </div>
     <div class="knk-page-actions">
-      <a class="knk-btn knk-btn--ghost" href="/sales/quotations/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
+      <a class="knk-btn knk-btn--ghost" href="/sales/quotations/export.xlsx?{{ request.url.query }}" title="지금 보이는 목록을 엑셀로">📊 엑셀</a>
     </div>
   </header>
-  {# z1191z98: 「＋ 새 견적」 → 왼쪽 메뉴 🆕 등록 → 📋 견적서 카드(한 곳에서만) #}
   {% set stz_group = 'presale' %}{% set stz_cur = '/sales/quotations' %}{% include "_v5_partials/sales_subtabs_z98.html" %}
-  <div class="tbl-wrap tbl-sticky" data-dn="quotes-table" data-dn-tone="purple">
-    {% if items %}
-    <table class="tbl">
-      <thead data-dn="thead-row"><tr><th>견적번호</th><th>고객사 / 프로젝트</th><th class="num">금액</th><th class="center">상태</th><th class="center">발행일</th><th class="center">유효기한</th><th>담당</th></tr></thead>
+  {% set c = qb.cnt %}{% set cm = qb.can_money %}{% set can_up = z62_can_upload(user) %}
+  {% macro qs(only=None, mine=None, period=None, done=None) -%}
+  ?period={{ period if period is not none else qb.period }}{% set _dn = done if done is not none else qb.done %}{% if _dn %}&done=1{% endif %}&mine={{ ('1' if mine else '0') if mine is not none else ('1' if qb.mine else '0') }}{% set _o = only if only is not none else qb.only %}{% if _o %}&only={{ _o }}{% endif %}{% if qb.q %}&q={{ qb.q|urlencode }}{% endif %}
+  {%- endmacro %}
+  <div class="qm-wrap" data-knk-no-dropzone>
+    <div class="qm-kpis">
+      <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l">수주번호 견적서 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div></a>
+      <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l">견적서 없음</div><div class="n">{{ c.so_none }}건</div></a>
+      <a class="qm-k warn{% if qb.only == 'diff' %} on{% endif %}" href="{{ qs(only='diff') }}" title="엑셀에서 읽은 금액이 수주 금액과 다른 곳(「확인했음」 누르면 빠짐)"><div class="l">견적 금액 ≠ 수주 금액</div><div class="n">{{ c.diff }}건</div></a>
+      <div class="qm-k"><div class="l">수주 전(관리번호만)</div><div class="n">{{ c.pre }}건 <span style="font-size:12px;color:var(--qv-ink-3);font-weight:600;">· 대표 견적 {{ c.pre_with }}</span></div></div>
+    </div>
+    <form class="qm-bar" method="get" action="/sales/quotations">
+      <a class="chip{% if qb.mine %} on{% endif %}" href="{{ qs(mine=(not qb.mine)) }}" title="영업담당이 나인 관리번호만 (내 계정에 기억)">👤 내 건만{% if qb.mine %} · 남의 건 숨김{% endif %}</a>
+      <a class="chip{% if qb.period == '1y' %} on{% endif %}" href="{{ qs(period='1y') }}">최근 1년</a>
+      <a class="chip{% if qb.period == '2y' %} on{% endif %}" href="{{ qs(period='2y') }}">최근 2년</a>
+      <a class="chip{% if qb.period == 'all' %} on{% endif %}" href="{{ qs(period='all') }}">전체</a>
+      <a class="chip{% if qb.done %} on{% endif %}" href="{{ qs(done=(not qb.done)) }}" title="입금까지 끝난 수주는 기본으로 숨깁니다">{% if qb.done %}입금 끝난 수주도 보는 중{% else %}입금 끝난 수주도 보기{% if c.done_hidden %} ({{ c.done_hidden }}개 관리번호 숨김){% endif %}{% endif %}</a>
+      <input type="hidden" name="period" value="{{ qb.period }}"><input type="hidden" name="mine" value="{{ '1' if qb.mine else '0' }}">{% if qb.done %}<input type="hidden" name="done" value="1">{% endif %}{% if qb.only %}<input type="hidden" name="only" value="{{ qb.only }}">{% endif %}
+      <input type="search" name="q" value="{{ qb.q }}" placeholder="관리번호·수주번호·프로젝트·고객사·담당">
+      {% if can_up %}
+      <label class="qm-drop" id="qmTopDrop" title="엑셀을 여기에 끌어다 놓거나 눌러서 고르세요 — 읽어서 관리번호·수주번호를 찾아 드립니다">
+        📎 <span><b>최종 견적서 엑셀 올리기</b><br><span style="font-size:11.5px;color:#334155;">끌어다 놓기 · 어디에 붙일지 찾아 드립니다</span></span>
+        <input type="file" id="qmTopFile" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
+      </label>
+      {% endif %}
+    </form>
+    <div id="qmPanel" class="qm-panel" hidden></div>
+    {% if qb.rows %}
+    <table class="qm-t">
+      <colgroup><col style="width:20%"><col style="width:17%"><col style="width:12%"><col style="width:33%"><col style="width:18%"></colgroup>
+      <thead><tr><th>관리번호 · 수주번호</th><th>고객사 · 호기</th><th class="num">수주 금액</th><th>최종 견적서(엑셀)</th><th></th></tr></thead>
       <tbody>
-      {% for q in items %}
-        <tr onclick="location.href='/sales/quotes/{{ q.id }}'">
-          {# v5H226z48: 견적번호 amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
-          <td><span class="mgmt-pill sm">{{ q.quote_no|default(q.id) }}</span></td>
-          <td><b>{{ q.customer_name|default('—') }}</b>{% if q.project_name %}<div style="font-size:11px;color:var(--mute);">{{ q.project_name }}</div>{% endif %}</td>
-          <td class="num" style="font-weight:700;">{% if q.total_amount %}{{ money(q.total_amount, 'KRW') }}{% else %}—{% endif %}</td>
-          <td class="center"><span class="pill {% if q.status in ('수주','확정') %}pill-done{% elif q.status == '진행' %}pill-progress{% elif q.status == '거절' %}pill-danger{% else %}pill-muted{% endif %}">{{ q.status|default('—') }}</span></td>
-          <td class="center" style="font-size:12px;color:var(--mute);">{{ q.issued_at|default('—') }}</td>
-          <td class="center" style="font-size:12px;color:var(--mute);">{{ q.valid_until|default('—') }}</td>
-          <td style="font-size:12px;">{{ q.creator_name|default('—') }}</td>
+      {% for r in qb.rows %}{% set p = r.p %}{% set pf = r.pf %}
+        <tr class="pj qm-slot" data-pid="{{ p.id }}" data-oid="" data-label="{{ p.mgmt_code }} · 관리번호 대표 견적 · {{ p.name }}" data-has="{{ pf.orig_name if pf else '' }}">
+          <td><a href="/project/{{ p.id }}" style="font-weight:800;color:var(--qv-ink);text-decoration:none;"><span class="mgmt-pill sm">{{ p.mgmt_code }}</span> {{ p.name }}</a>{% if r.mine %} <span class="qm-meta">👤</span>{% endif %}</td>
+          <td>{{ p.customer_name or '—' }}<div class="qm-meta">{{ p.sales_name or '' }}{% if p.stage %} · {{ p.stage }}{% endif %}</div></td>
+          <td class="num qm-meta">{% if not r.sos %}수주 전{% else %}수주 {{ r.sos|length }}건{% endif %}</td>
+          <td>{% if pf %}<span class="qm-pill rep">대표 견적</span> {% if cm %}<a class="qm-f" href="/projects/{{ p.id }}/quote-files/{{ pf.id }}">⬇ {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>
+              {% elif not r.sos %}<span class="qm-pill no">없음</span>{% else %}<span class="qm-meta">대표 견적 없음(수주번호별로 올림)</span>{% endif %}</td>
+          <td>{% if can_up %}<button type="button" class="qm-btn{% if not pf %} up{% endif %} qm-pick">{% if pf %}바꾸기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
         </tr>
+        {% for s in r.sos %}{% set o = s.o %}{% set f = s.f %}
+        <tr class="so qm-slot" data-pid="{{ p.id }}" data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ f.orig_name if f else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
+          <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a></td>
+          <td>{{ s.units or '—' }}<div class="qm-meta">{% if o.due_date %}납기 {{ o.due_date }}{% endif %}</div></td>
+          <td class="num">{% if cm %}{{ money(o.total_amount or 0, o.currency or 'KRW') }}{% else %}🔒{% endif %}</td>
+          <td>{% if f %}
+              {% if s.st == 'diff' %}<span class="qm-pill wn" title="엑셀에서 읽은 금액이 수주 금액과 다릅니다 — 맞는지 보고 「확인했음」">견적 {{ money(f.amt, f.cur or o.currency or 'KRW') if cm else '🔒' }} · 다름</span>
+              {% else %}<span class="qm-pill ok">최종</span>{% endif %}
+              {% if cm %}<a class="qm-f" href="/projects/{{ p.id }}/quote-files/{{ f.id }}">⬇ {{ f.orig_name }}</a>{% else %}🔒{% endif %}
+              <span class="qm-meta">{{ (f.created_at or '')[:10] }} {{ f.by_name or '' }}{% if f.amt_ack_at %} · 금액 다름 확인 {{ f.amt_ack_name }}{% endif %}</span>
+            {% else %}<span class="qm-pill no">없음</span>{% endif %}</td>
+          <td>{% if can_up %}{% if s.st == 'diff' %}<button type="button" class="qm-btn qm-ack" data-fid="{{ f.id }}">확인했음</button> {% endif %}<button type="button" class="qm-btn{% if not f %} up{% endif %} qm-pick">{% if f %}바꾸기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
+        </tr>
+        {% endfor %}
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty"><div class="ico">📋</div><div class="ttl">견적이 없습니다</div><div style="margin-top:14px;font-size:12px;color:var(--mute);">＋ 견적은 왼쪽 메뉴 <b>🆕 등록</b> → 📋 견적서</div></div>{% endif %}
+    {% else %}
+    <div class="empty"><div class="ico">📋</div><div class="ttl">{% if qb.q or qb.only or qb.mine %}조건에 맞는 관리번호가 없습니다{% else %}이 기간에 관리번호가 없습니다{% endif %}</div><div style="margin-top:10px;font-size:12px;color:var(--mute);">기간을 「전체」로 바꾸거나 거르기를 풀어 보세요.</div></div>
+    {% endif %}
   </div>
   <div style="height: var(--space-7);"></div>
-</main></div></body></html>
+</main></div>
+{% if can_up %}
+<input type="file" id="qmRowFile" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
+<script>
+(function(){
+  if (window.__qm105) return; window.__qm105 = 1;
+  var panel = document.getElementById('qmPanel'), rowFile = document.getElementById('qmRowFile'), topFile = document.getElementById('qmTopFile');
+  var target = null, cur = null;
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function show(html){ panel.hidden = false; panel.innerHTML = '<button type="button" class="qm-x" id="qmX">✕ 닫기</button>' + html; panel.scrollIntoView({block:'nearest'}); }
+  function closeP(){ panel.hidden = true; panel.innerHTML = ''; cur = null; }
+  function isXl(n){ return /\.(xlsx|xlsm|xls)$/i.test(n||''); }
+  function slotOf(tr){ return tr ? {pid: tr.getAttribute('data-pid'), oid: tr.getAttribute('data-oid')||'', label: tr.getAttribute('data-label'), has: tr.getAttribute('data-has')||'', amt: tr.getAttribute('data-amt')||''} : null; }
+  function post(url, fd){ return fetch(url, {method:'POST', body:fd, credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }); }
+  function getj(url){ return fetch(url, {credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }); }
+
+  function start(file, slot){
+    if (!file) return;
+    if (!isXl(file.name)) { show('<b style="color:#b91c1c;">견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.</b>'); return; }
+    if (file.size > 20*1024*1024) { show('<b style="color:#b91c1c;">20MB 보다 큰 파일은 올릴 수 없습니다.</b>'); return; }
+    target = slot;
+    show('⏳ 「' + esc(file.name) + '」 읽는 중… (금액·고객사를 읽습니다)');
+    var fd = new FormData(); fd.append('file', file);
+    post('/api/project-quote/read', fd).then(afterRead).catch(function(){ show('<b style="color:#b91c1c;">인터넷 연결이 끊겨 올리지 못했습니다.</b>'); });
+  }
+  function afterRead(j){
+    if (!j || !j.ok) { show('<b style="color:#b91c1c;">' + esc((j && j.message) || '읽지 못했습니다 — 다시 올려 주세요.') + '</b>'); return; }
+    cur = j;
+    if (j.need_password) {
+      show('🔒 「' + esc(j.name) + '」은 암호가 걸린 엑셀입니다. 비밀번호를 넣으면 풀어서 금액을 읽습니다(비밀번호는 저장하지 않음 · 파일은 원본 그대로 보관).'
+        + (j.bad_password ? '<div style="color:#b91c1c;margin-top:4px;">비밀번호가 맞지 않습니다.</div>' : '')
+        + '<div class="row"><input type="password" id="qmPw" autocomplete="off" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;"> <button type="button" class="qm-btn up" id="qmPwGo">풀어서 읽기</button> <button type="button" class="qm-btn" id="qmPwSkip">읽지 않고 붙이기</button></div>');
+      return;
+    }
+    choose();
+  }
+  function readTxt(){
+    var f = (cur && cur.fields) || {}, a = [];
+    if (f.customer) a.push('고객사 ' + esc(f.customer));
+    if (f.item_name) a.push('품명 ' + esc(f.item_name));
+    if (f.amount != null && f.amount !== '') a.push('금액 <b>' + esc(f.currency || '') + ' ' + Number(f.amount).toLocaleString('en-US', {maximumFractionDigits: 2}) + '</b>');
+    if (f.quote_date) a.push('견적일 ' + esc(f.quote_date));
+    return a.length ? ('<div class="qm-meta" style="color:#475569;">읽은 값: ' + a.join(' · ') + '</div>') : '<div class="qm-meta">읽은 값이 없습니다(그래도 붙일 수 있습니다).</div>';
+  }
+  function choose(){
+    if (target) { confirmSlot(target); return; }
+    show('⏳ 어디에 붙일지 찾는 중…');
+    getj('/api/quotes-z105/cands?tok=' + encodeURIComponent(cur.tok)).then(function(c){
+      var h = '<b>「' + esc(cur.name) + '」을 어디에 붙일까요?</b>' + readTxt();
+      var list = (c && c.cands) || [];
+      if (list.length) {
+        h += '<div class="row qm-meta">' + esc(c.why || '') + (c.pick != null ? ' — 하나가 분명해 미리 골랐습니다(맞는지 확인)' : ' — 고르세요') + '</div>';
+        list.forEach(function(x, i){
+          h += '<label class="qm-cand"><input type="radio" name="qmC" value="' + i + '"' + (c.pick === i ? ' checked' : '') + '><span>' + esc(x.label)
+            + (x.same === true ? ' <span class="qm-pill ok">금액 같음</span>' : (x.same === false ? ' <span class="qm-pill wn">금액 다름</span>' : ''))
+            + (x.has ? ' <span class="qm-pill mute">견적서 있음 → 바꾸기</span>' : '') + '</span></label>';
+        });
+      } else {
+        h += '<div class="row qm-meta">파일에서 관리번호·수주번호·고객사를 찾지 못했습니다 — 아래에서 찾아 고르세요.</div>';
+      }
+      h += '<div class="row">🔎 <input type="search" id="qmFind" placeholder="관리번호·수주번호·프로젝트·고객사로 찾기" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;min-width:280px;"></div><div id="qmFindRes"></div>'
+        + '<div class="row"><button type="button" class="qm-btn up" id="qmNext">이 자리에 붙이기 →</button> <span class="qm-meta">고른 자리에 이미 견적서가 있으면 예전 것은 지워집니다</span></div>';
+      show(h);
+      panel.__cands = list;
+    });
+  }
+  function confirmSlot(s){
+    var f = (cur && cur.fields) || {};
+    var h = '<b>「' + esc(cur.name) + '」 → ' + esc(s.label) + '</b>' + readTxt();
+    if (s.amt) h += '<div class="qm-meta" style="color:#475569;">수주 금액 ' + esc(s.amt) + '</div>';
+    if (s.has) h += '<div class="row" style="color:#b45309;font-weight:700;">⚠ 이 자리에 이미 「' + esc(s.has) + '」가 있습니다 — 올리면 예전 파일은 지워지고 되돌릴 수 없습니다.</div>';
+    h += '<div class="row"><button type="button" class="qm-btn up" id="qmGo">' + (s.has ? '바꾸기' : '올리기') + '</button> <button type="button" class="qm-btn" id="qmBack">자리 다시 고르기</button></div>';
+    show(h); panel.__slot = s;
+  }
+  function place(){
+    var s = panel.__slot; if (!s || !cur) return;
+    var fd = new FormData(); fd.append('tok', cur.tok); fd.append('pid', s.pid); if (s.oid) fd.append('order_id', s.oid);
+    show('⏳ 붙이는 중…');
+    post('/api/project-quote/place', fd).then(function(j){
+      if (!j || !j.ok) { show('<b style="color:#b91c1c;">' + esc((j && j.message) || '붙이지 못했습니다 — 다시 해 보세요.') + '</b>'); return; }
+      show('✅ ' + esc(j.slot) + '에 올렸습니다' + (j.replaced ? ' (예전 견적서는 지움)' : '') + ' — 목록을 다시 불러옵니다…');
+      setTimeout(function(){ location.reload(); }, 600);
+    }).catch(function(){ show('<b style="color:#b91c1c;">인터넷 연결이 끊겨 붙이지 못했습니다.</b>'); });
+  }
+  var findT = null;
+  panel.addEventListener('input', function(e){
+    if (e.target.id !== 'qmFind') return;
+    clearTimeout(findT); var q = e.target.value.trim();
+    findT = setTimeout(function(){
+      var box = document.getElementById('qmFindRes'); if (!box) return;
+      if (q.length < 2) { box.innerHTML = ''; return; }
+      getj('/api/quotes-z105/search?q=' + encodeURIComponent(q)).then(function(j){
+        var it = (j && j.items) || [], base = (panel.__cands || []).length;
+        panel.__found = it;
+        box.innerHTML = it.length ? it.map(function(x, i){ return '<label class="qm-cand"><input type="radio" name="qmC" value="' + (base + i) + '"><span>' + esc(x.label) + (x.has ? ' <span class="qm-pill mute">견적서 있음 → 바꾸기</span>' : '') + '</span></label>'; }).join('') : '<div class="qm-meta">찾은 것이 없습니다.</div>';
+      });
+    }, 250);
+  });
+  panel.addEventListener('click', function(e){
+    var id = e.target.id;
+    if (id === 'qmX') { closeP(); return; }
+    if (id === 'qmPwGo') {
+      var pw = (document.getElementById('qmPw') || {}).value || ''; if (!pw) return;
+      var fd = new FormData(); fd.append('tok', cur.tok); fd.append('password', pw);
+      show('⏳ 풀어서 읽는 중…');
+      post('/api/project-quote/reread', fd).then(afterRead);
+      return;
+    }
+    if (id === 'qmPwSkip') { cur.need_password = false; cur.fields = {}; choose(); return; }
+    if (id === 'qmBack') { target = null; choose(); return; }
+    if (id === 'qmGo') { place(); return; }
+    if (id === 'qmNext') {
+      var r = panel.querySelector('input[name=qmC]:checked');
+      if (!r) { alert('붙일 자리를 고르세요.'); return; }
+      var i = +r.value, all = (panel.__cands || []).concat(panel.__found || []), x = all[i]; if (!x) return;
+      confirmSlot({pid: x.pid, oid: x.oid || '', label: x.label.replace(/^\s*└\s*/, ''), has: x.has ? '예전 견적서' : '', amt: ''});
+    }
+  });
+  panel.addEventListener('keydown', function(e){ if (e.target.id === 'qmPw' && e.key === 'Enter') { e.preventDefault(); document.getElementById('qmPwGo').click(); } });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !panel.hidden) closeP(); });
+
+  /* 줄마다 ＋ 올리기 / 바꾸기 · 확인했음 */
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.qm-pick');
+    if (b) { target = slotOf(b.closest('.qm-slot')); rowFile.click(); return; }
+    var a = e.target.closest && e.target.closest('.qm-ack');
+    if (a) {
+      if (!confirm('엑셀 견적서 금액과 수주 금액이 다른 것을 확인했습니까?\n(맞는 견적서라면 「확인」 — 누가 확인했는지 남습니다)')) return;
+      a.disabled = true;
+      post('/api/project-quote/ack/' + a.getAttribute('data-fid'), new FormData()).then(function(j){ if (j && j.ok) location.reload(); else { a.disabled = false; alert((j && j.message) || '저장하지 못했습니다.'); } });
+    }
+  });
+  rowFile.addEventListener('change', function(){ var f = rowFile.files && rowFile.files[0]; rowFile.value = ''; start(f, target); });
+  if (topFile) topFile.addEventListener('change', function(){ var f = topFile.files && topFile.files[0]; topFile.value = ''; start(f, null); });
+
+  /* 끌어다 놓기 — 줄에 놓으면 그 자리 · 위 칸에 놓으면 찾아 줌 */
+  function dz(el, slotFn){
+    el.addEventListener('dragover', function(e){ e.preventDefault(); el.classList.add(el.tagName === 'TR' ? 'over' : 'over'); });
+    el.addEventListener('dragleave', function(){ el.classList.remove('over'); });
+    el.addEventListener('drop', function(e){ e.preventDefault(); el.classList.remove('over'); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; start(f, slotFn()); });
+  }
+  var td = document.getElementById('qmTopDrop'); if (td) dz(td, function(){ return null; });
+  Array.prototype.forEach.call(document.querySelectorAll('tr.qm-slot'), function(tr){ dz(tr, function(){ return slotOf(tr); }); });
+})();
+</script>
+{% endif %}
+</body></html>

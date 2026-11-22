@@ -573,6 +573,7 @@
         {% endif %}
         
         <div class="list-scroll">
+        {% set _sq105 = z105_so_quotes(p.id) if can_money else {} %}{# z1191z105: 수주번호별 최종 견적서 #}
         {% for so in _ord %}
           {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') and loop.first %}{# v5H226v: SHIPPED 도 편집 허용(수금 전 정정 가능) / v5H226z650(대표 지시): 참고(추가) 수주는 읽기전용 — 최초(메인) 수주만 이 화면에서 편집, 추가 수주는 수주번호 클릭으로 해당 화면 이동 #}
           {% set _is_main_so = loop.first %}{# v5H226z650b: '호기 상태' 드롭다운도 참고 카드에선 읽기전용화 — units 루프 내부에선 loop.first 가 호기 기준이라 SO-루프 first 를 별도 캡처 #}
@@ -607,6 +608,11 @@
               {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 서버가 표시(호기별=완제품/1줄=제품)와 일치하게 계산(get_project_orders form_label/form_key). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
               {% if so.form_label %}<span class="so-form-badge sf-{{ so.form_key }}" title="형태: {{ so.form_label }} — 이 수주(발주) 기준">{{ so.form_label }}</span>{% endif %}
               <div class="so-meta">
+                {% if can_money %}{% set _qf105 = _sq105.get(so.id) %}
+                <span class="item" title="z1191z105: 이 수주번호의 최종 견적서(엑셀) — 올리기·바꾸기는 🎯 수주 전 → 📋 견적서(견적 관리)"><span class="k">📋 견적서</span>
+                  {% if _qf105 %}<a class="v" href="/projects/{{ p.id }}/quote-files/{{ _qf105.id }}" style="font-weight:700;color:#1d4ed8;text-decoration:none;">⬇ {{ _qf105.orig_name }}</a>
+                  {% else %}<a class="v" href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" style="color:#b45309;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
+                </span>{% endif %}
                 {# v5H226z1034 (안지연 프로 신고·대표 지시): **수주(SO)별 PO유형** — 이 화면은 PO유형을
                    프로젝트 한 줄로만 보여주고 **고칠 자리가 없었다**. 그래서 직원이 [프로젝트 정보 수정]으로
                    갈 수밖에 없었고, 거기서 고치면 자기 값이 없는 수주가 **통째로** 바뀌었다(002M2602 4건).
