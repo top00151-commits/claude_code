@@ -157,7 +157,7 @@ check("선택 막대 = 여러 통 일(삭제·보관·이동·읽음·중요) ·
 check("오른쪽 클릭 · 단축키 · 끌어 놓기 그대로",
       "addEventListener('contextmenu'" in h and all(x in h for x in ("'ArrowDown'", "mbxCmd('reply')", "mbxCmd('replyall')", "mbxCmd('forward')", "'Delete':'delete'", "'e':'archive'", "'u':'read'", "'Insert':'star'"))
       and "addEventListener('dragstart'" in h and "addEventListener('drop'" in h)
-check("이동 ▾ 메뉴에 「↺ 자동 분류로 되돌리기」(예전 여러 통 띠 기능 그대로)", "↺ 자동 분류로 되돌리기(보낸 사람 기준)" in h)
+check("이동 ▾ 메뉴에 「↺ 「이 메일만」 옮김 풀기」(11-22 내 규칙·자동 분류를 따라감)", "↺ 「이 메일만」 옮김 풀기" in h)
 ha = T(km.get("/mail/inbox?arc=1"))
 check("보관함에서는 선택 막대 「📥 받은편지함으로」", 'data-cmd="archive" title="받은편지함으로 되돌리기 (E)">📥' in ha)
 
