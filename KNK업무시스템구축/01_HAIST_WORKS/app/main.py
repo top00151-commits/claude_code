@@ -24795,8 +24795,9 @@ async def mail_company_sig_page(req: Request):
         my_from = _mail_from_address_for(c, u)
         for lg in _mguide.LANGS:
             v = _mguide.values_for(c, u["id"], lg, co, rank_label, my_from)
-            f = _mguide.fill(tpls[lg]["body"], v) if tpls[lg]["on"] else {"html": "", "missing": []}
-            prev[lg] = {"html": f["html"], "note": _mguide.missing_note(f["missing"], v["_corp"])}
+            f = _mguide.fill(tpls[lg]["body"], v) if tpls[lg]["on"] else {"html": "", "text": "", "missing": []}
+            prev[lg] = {"html": _mguide.design_html(f["text"], v["_corp"], lg) if f["text"].strip() else "",
+                        "note": _mguide.missing_note(f["missing"], v["_corp"])}
     return ctx(req, "mail_company_sig.html", user=u, tpls=tpls, names=names, prev=prev, langs=_mguide.LANGS,
                lang_name=_mguide.LANG_NAME, defaults=_mguide.DEFAULT, fields=_mguide.FIELDS)
 
@@ -24833,7 +24834,8 @@ async def mail_company_sig_preview(req: Request):
     with db_session() as c:
         v = _mguide.values_for(c, u["id"], lg, co, rank_label, _mail_from_address_for(c, u))
         res = _mguide.fill(_mguide._clean_tpl(f.get("body") or ""), v)
-    return JSONResponse({"ok": True, "html": res["html"], "note": _mguide.missing_note(res["missing"], v["_corp"])})
+    return JSONResponse({"ok": True, "html": _mguide.design_html(res["text"], v["_corp"], lg) if res["text"].strip() else "",
+                         "note": _mguide.missing_note(res["missing"], v["_corp"])})
 
 
 @app.get("/api/mail/tour")

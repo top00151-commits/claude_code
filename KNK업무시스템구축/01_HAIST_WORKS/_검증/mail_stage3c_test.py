@@ -121,18 +121,21 @@ def sigs(key, lang="ko"):
 print("\n⑧ 회사 서명 채우기")
 v, f = sigs("jo")
 lines = f["text"].split("\n")
-check("첫 줄 = 「이름 직책 부서」(웍스 직원 명단)", lines[0] == "조민혁 과장 시험품질팀", lines)
-check("본사 = 웍스 회사 정보(회사 이름·주소·전화)", "주식회사 시험회사" in lines and "경기도 시험시 시험로 1" in lines and "T. 031-000-0000" in lines, lines)
+# 11-22 대표 「디자이너라면」 새 기본 틀: 「이름 직책 · 부서」 / 영문 / M·T·F / E·W / 회사 · 주소
+check("첫 줄 = 「이름 직책 · 부서」(웍스 직원 명단)", lines[0] == "조민혁 과장 · 시험품질팀", lines)
+check("본사 = 웍스 회사 정보(회사 이름·주소·전화)", "주식회사 시험회사 · 경기도 시험시 시험로 1" in lines and "M. 010-3333-4444 · T. 031-000-0000" in lines, lines)
 check("팩스가 비면 그 토막만 뺌(전화는 남음)", "F." not in f["text"] and "T. 031-000-0000" in f["text"], f["text"])
-check("휴대폰·메일 = 직원 명단", "M. 010-3333-4444 · E. t1102@knknara.co.kr" in lines, lines)
+check("휴대폰·메일 = 직원 명단 · 홈페이지", "M. 010-3333-4444" in f["text"] and "E. t1102@knknara.co.kr · W. www.knknara.com" in lines, lines)
+check("영문 이름을 알 수 없으면(명단 칸 없음 · 메일 주소가 이름 꼴 아님) 영문 줄 통째로 빠짐", len(lines) == 4, lines)
 check("빈 칸 안내 = 팩스 · 웍스 회사 정보", ("팩스", "웍스 회사 정보") in f["missing"] and "팩스" in mg.missing_note(f["missing"], "kr"), f["missing"])
-check("첫 줄 굵게 · 줄바꿈 <br>", f["html"].startswith("<b>조민혁 과장 시험품질팀</b><br>"), f["html"][:80])
+check("첫 줄 굵게 · 줄바꿈 <br>", f["html"].startswith("<b>조민혁 과장 · 시험품질팀</b><br>"), f["html"][:80])
 
 v, f = sigs("vn")
 check("베트남 법인(사번 VN…) → 회사 = KNK VINA Co., Ltd.", v["_corp"] == "vn" and "KNK VINA Co., Ltd." in f["text"], f["text"])
 check("베트남 법인 → 본사 주소·전화 안 들어감 · 그 줄 빼고 안내", "경기도" not in f["text"] and "031-000-0000" not in f["text"]
       and "베트남 법인 것은 웍스 회사 정보에 아직 칸이 없어" in mg.missing_note(f["missing"], "vn"), (f["text"], f["missing"]))
-check("직책 비면 첫 줄은 「이름 부서」(빈칸 한 칸)", f["text"].split("\n")[0] == "쩐티하 시험구매팀", f["text"])
+check("직책 비면 첫 줄은 「이름 · 부서」(빈칸 한 칸)", f["text"].split("\n")[0] == "쩐티하 · 시험구매팀", f["text"])
+check("베트남 법인 → 주소 = 베트남 공장 주소(대표 11-22 서명 · 겹친 부분 뺌)", mg.VN_ADDRESS in f["text"] and f["text"].count("Bắc Ninh") == 1, f["text"])
 check("휴대폰 없음 → 「M.」 토막만 빠지고 메일은 남음", "M." not in f["text"] and "E. tvn201@knknara.co.kr" in f["text"], f["text"])
 
 v, f = sigs("odd")
@@ -146,6 +149,56 @@ v, f = sigs("ceo", "en")
 check("영문 이름이 있으면 영어 틀에 영문 이름", f["text"].startswith("Test Ceo"), f["text"][:40])
 check("자리 값이 모두 빈 줄은 통째로 빠짐", mg.fill("A\n{팩스}\nB", {"fax": ""})["text"] == "A\nB")
 
+# ═══════════════════════ ⑧-2 서명 모양 · 보안 문구 (대표 11-22) ═══════════════════════
+print("\n⑧-2 서명 모양 · 보안 문구")
+import base64 as _b64t
+from app import mail_send as _msend
+from app import mail_store as _mailbox_t
+v, f = sigs("jo")
+h = mg.design_html(f["text"], v["_corp"], "ko")
+check("맨 위 로고 + 오른쪽 QR = 본문에 품은 그림 둘(data:image/png) · 로고 너비 220 · QR 56", h.count('src="data:image/png;base64,') == 2 and 'width="220"' in h
+      and 'alt="KNK HAIST Innovation"' in h and 'width="56" height="56" alt="QR www.knknara.com"' in h, h[:200])
+check("로고·QR 을 누르면 홈페이지(https://www.knknara.com)", h.count('<a href="https://www.knknara.com" target="_blank"') == 2)
+try:
+    import cv2 as _cv2
+    _qr = _cv2.QRCodeDetector().detectAndDecode(_cv2.imdecode(__import__("numpy").fromfile(os.path.join(ROOT, "static", "mail_sig_qr.png"), dtype="uint8"), 1))[0]
+    check("QR 그림을 읽으면 = https://www.knknara.com(대표 11-22)", _qr == "https://www.knknara.com", _qr)
+except ImportError:
+    print("  (QR 읽기 도구 없음 — 그림 읽기 확인은 건너뜀)")
+check("첫 줄 = 굵게 15px · 마지막 줄(회사·주소) = 회색", "font-size:15px;font-weight:bold;color:#111827;line-height:1.5\">조민혁 과장 · 시험품질팀<" in h
+      and "color:#6b7280;line-height:1.6\">주식회사 시험회사 · 경기도 시험시 시험로 1<" in h, h[-1600:-1200])
+nko, nen = h.find("이 메일(첨부 파일 포함)은"), h.find("This email, including any attachments")
+check("본사 한국어 서명 = 보안 문구 한국어 먼저 · 영어 다음", 0 < nko < nen, (nko, nen))
+check("보안 문구 고친 점: 법률 정식 이름 · 첨부 포함 · 손으로 끊은 줄 없음",
+      "「부정경쟁방지 및 영업비밀보호에 관한 법률」" in mg.NOTICE["ko"] and "첨부 파일 포함" in mg.NOTICE["ko"] and "\n" not in mg.NOTICE["ko"]
+      and "금지됩니다" in mg.NOTICE["ko"] and "본 문서" not in mg.NOTICE["ko"])
+check("영어 보안 문구: 받는 사람 여럿 · 대한민국 법 · 첨부 · 중간 빈 줄 없음",
+      "addressee(s)" in mg.NOTICE["en"] and "Trade Secret Protection Act of the Republic of Korea" in mg.NOTICE["en"]
+      and "including any attachments" in mg.NOTICE["en"] and "\n" not in mg.NOTICE["en"])
+v2, f2 = sigs("vn")
+h2 = mg.design_html(f2["text"], v2["_corp"], "ko")
+check("베트남 법인 서명 = 보안 문구 영어 먼저", 0 < h2.find("This email, including") < h2.find("이 메일(첨부 파일 포함)은"))
+v3, f3 = sigs("jo", "en")
+h3 = mg.design_html(f3["text"], v3["_corp"], "en")
+check("본사 영어 서명 = 보안 문구 영어 먼저", 0 < h3.find("This email, including") < h3.find("이 메일(첨부 파일 포함)은"))
+check("이름의 꺾쇠는 서명 모양에서도 글자로(태그 안 됨)", "&lt;b&gt;꺾쇠&lt;/b&gt;" in mg.design_html(sigs("odd")[1]["text"], "kr") and "<b>꺾쇠</b>" not in mg.design_html(sigs("odd")[1]["text"], "kr"))
+check("영문 이름 = 메일 주소 이름 부분(jiman.park → Jiman Park) · 꼴이 다르면 빈 값",
+      mg.en_name_from_mail("jiman.park@knknara.co.kr") == "Jiman Park" and mg.en_name_from_mail("hyun_lee@x") == "Hyun Lee"
+      and mg.en_name_from_mail("knksales@knknara.co.kr") == "" and mg.en_name_from_mail("t1102@knknara.co.kr") == "")
+with _db.db_session() as c:
+    vv = mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, "minhyuk.jo@knknara.co.kr")
+check("영문 줄 = 「Minhyuk Jo · Manager」(과장 → Manager)", mg.fill(mg.DEFAULT["ko"], vv)["text"].split("\n")[1] == "Minhyuk Jo · Manager", mg.fill(mg.DEFAULT["ko"], vv)["text"])
+with _db.db_session() as c:
+    vv = mg.values_for(c, U["jo"]["id"], "ko", CO, lambda r, l: r, "minhyuk.jo@knknara.co.kr")
+check("영어로 못 바꾼 직책(한글 그대로)은 영문 줄에 안 넣음", mg.fill(mg.DEFAULT["ko"], vv)["text"].split("\n")[1] == "Minhyuk Jo", mg.fill(mg.DEFAULT["ko"], vv)["text"])
+_san = _mailbox_t.sanitize_html_for_view("<div>" + h + "</div>", 0, [])
+check("보낼 때 거르기(위생 처리)를 거쳐도 로고·QR·링크·글자 모양 그대로", _san.count('src="data:image/png;base64,') == 2
+      and _san.count('href="https://www.knknara.com"') == 2 and "font-size:15px" in _san)
+_html_s, _imgs = _msend._inline_data_images(_san)
+check("보낼 때 로고·QR = 인라인 첨부(cid) 둘로 바뀜(받는 쪽에서도 보임)", len(_imgs) == 2 and "data:image" not in _html_s and _html_s.count('src="cid:') == 2, len(_imgs))
+check("서명용 로고·QR 파일 = 가볍게(40KB · 4KB 아래)", 0 < os.path.getsize(os.path.join(ROOT, "static", "mail_sig_logo.png")) < 40000
+      and 0 < os.path.getsize(os.path.join(ROOT, "static", "mail_sig_qr.png")) < 4000)
+
 # ═══════════════════════ ⑧ 화면 ═══════════════════════
 print("\n⑧ 쓰기 화면 · 서명 화면")
 as_("jo")
@@ -153,9 +206,10 @@ cp = k.get("/mail/compose").text
 check("쓰기 화면 「✍」 고르기에 「🏢 회사 서명 (한국어)」·「(English)」", 'value="co-ko">🏢 회사 서명 (한국어)<' in cp and 'value="co-en">🏢 회사 서명 (English)<' in cp, cp[:0])
 mm = re.search(r"window\.CMP_SIGS = (\[.*?\]);", cp)
 cs = json.loads(mm.group(1)) if mm else []
-check("고르면 넣을 회사 서명 = 내 정보로 채운 것", any(x.get("slot") == "co-ko" and "조민혁 과장 시험품질팀" in x.get("body", "") for x in cs), cs[:1])
+check("쓰기 화면 회사 서명 = 새 모양(로고·보안 문구)", any(x.get("slot") == "co-ko" and 'class="knk-co-sig"' in x.get("body", "") and "이 메일(첨부 파일 포함)은" in x.get("body", "") for x in cs), "")
+check("고르면 넣을 회사 서명 = 내 정보로 채운 것", any(x.get("slot") == "co-ko" and "조민혁 과장 · 시험품질팀" in x.get("body", "") for x in cs), cs[:1])
 sp = k.get("/mail/signature").text
-check("서명 화면: 「🏢 회사 서명 쓰기」 + 미리 보기 + 빈 칸 안내", "🏢 회사 서명 쓰기" in sp and "조민혁 과장 시험품질팀" in sp and "팩스 — 웍스 회사 정보에 비어 있어 뺐습니다" in sp, "")
+check("서명 화면: 「🏢 회사 서명 쓰기」 + 미리 보기 + 빈 칸 안내", "🏢 회사 서명 쓰기" in sp and "조민혁 과장 · 시험품질팀" in sp and "팩스 — 웍스 회사 정보에 비어 있어 뺐습니다" in sp, "")
 check("직원에겐 「🔧 회사 서명 틀 고치기」 없음", "/mail/signature/company" not in sp)
 as_("ceo")
 check("대표에겐 「🔧 회사 서명 틀 고치기(관리자)」", "🔧 회사 서명 틀 고치기(관리자)" in k.get("/mail/signature").text)
@@ -276,6 +330,7 @@ for p in ("app/mail_guide.py", "app/main.py"):
     check("파이썬 3.8 문법: %s" % p, ok is True, ok)
 for p in ("app/mail_guide.py", "app/templates/mail_help_print.html", "app/templates/mail_company_sig.html", "app/templates/_v5_partials/mail_tour.html"):
     src = io.open(os.path.join(ROOT, p), encoding="utf-8").read()
+    src = src.replace(mg.VN_ADDRESS, "")   # 11-22 베트남 법인 주소 = 대표가 준 고유 주소(번역한 글 아님) — 이것만 빼고 검사
     check("베트남어 글 없음: %s" % p, not VI_CH.search(src), VI_CH.findall(src)[:5])
 as_("jo")
 tl_ = k.get("/mail/tools").text

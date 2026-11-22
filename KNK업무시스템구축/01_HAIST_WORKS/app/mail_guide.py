@@ -8,7 +8,9 @@
   ⑨ 처음 안내 — 「다시 보지 않기」는 서버(사용자별 · mail_user_prefs)에 둔다(다른 컴퓨터·휴대폰에서도 안 뜨게).
      설명서 내용(MANUAL)은 여기 한 곳 — 단추 이름은 화면 글자 그대로(시험이 템플릿 글자와 맞대 봄).
 """
+import base64 as _b64
 import html as _html
+import os as _os
 import re
 
 LANGS = ("ko", "en")          # 베트남어 틀은 대표 지시 전 보류(11-20 「베트남어는 아직 진행하지마」) — 말을 더할 땐 여기와 DEFAULT 만
@@ -25,19 +27,111 @@ FIELDS = [
     ("팩스", "fax", "웍스 회사 정보"),
     ("휴대폰", "mobile", "웍스 직원 명단"),
     ("메일", "email", "웍스 직원 명단"),
+    ("영문이름", "name_en", "웍스 직원 명단(영문 이름 · 없으면 메일 주소 이름 부분)"),
+    ("영문직책", "rank_en", "웍스 직원 명단"),
+    ("홈페이지", "web", "회사 기본값"),
 ]
 _FKEY = {k: v for k, v, _ in FIELDS}
 _FWHERE = {k: w for k, _, w in FIELDS}
 _PH = re.compile(r"\{(%s)\}" % "|".join(re.escape(k) for k, _, _ in FIELDS))
 _SEP = re.compile(r"(\s+[·|/]\s+)")
 
-# 기본 틀 — 관리자가 아직 정하지 않았을 때(코드에만 · DB 에 넣지 않음). 첫 줄 = 「이름 직책 부서」(회사 이름 표시 규칙)
+# 기본 틀 — 관리자가 아직 정하지 않았을 때(코드에만 · DB 에 넣지 않음).
+# 11-22 대표 「디자이너라면 어떻게 정리」 → 본사·베트남 같은 틀: 첫 줄 = 이름 직책 · 부서(굵게) · 둘째 줄 = 영문(회색)
+#   · 연락처 = M·T·F·E·W 한 글자 표지 · 마지막 줄 = 회사 · 주소(회색) · 맨 위 로고 그림 · 맨 아래 보안 문구(NOTICE)
 DEFAULT = {
-    "ko": "{이름} {직책} {부서}\n{회사}\n{주소}\nT. {전화} · F. {팩스}\nM. {휴대폰} · E. {메일}",
-    "en": "{이름} {직책} | {부서}\n{회사}\n{주소}\nT. {전화} · F. {팩스}\nM. {휴대폰} · E. {메일}",
+    "ko": "{이름} {직책} · {부서}\n{영문이름} · {영문직책}\nM. {휴대폰} · T. {전화} · F. {팩스}\nE. {메일} · W. {홈페이지}\n{회사} · {주소}",
+    "en": "{영문이름} · {영문직책}\n{이름} {직책} · {부서}\nM. {휴대폰} · T. {전화} · F. {팩스}\nE. {메일} · W. {홈페이지}\n{회사} · {주소}",
 }
 VN_COMPANY = "KNK VINA Co., Ltd."   # 웍스 수출 화면(export_ship)이 쓰는 법인 이름 그대로 — 웍스 회사 정보엔 법인 칸이 없음
+# 11-22 대표가 준 베트남 서명의 주소(뒤에 한 번 더 적힌 성·현·사 이름 줄은 뺌 · 끝에 나라 이름) — 웍스 회사 정보에 법인 칸이 생기면 그쪽 값으로
+VN_ADDRESS = "Lô CN5B-2, KCN Quế Võ 3, Xã Việt Hùng, Quế Võ, Bắc Ninh, Việt Nam"
+WEB = "www.knknara.com"
+WEB_URL = "https://www.knknara.com"   # 11-22 대표 「QR 도 만들어 배치 · www.knknara.com 이 연결되도록」 — 로고·QR 을 누르면 이 주소
 MAX_TPL = 1200
+
+# 11-22 대표 「각 서명 아래에 보안 문구 · 고칠 부분 있으면 고쳐서」 — 회사 서명마다 맨 아래(본사 = 한국어 먼저 · 베트남 법인 = 영어 먼저)
+#   고친 점: 「본 문서」→ 메일(첨부 포함) · 법률 정식 이름 · 손으로 끊은 줄(「금지/됩니다」) 없앰 · 영어 복수·대한민국 법 표기 · 중간 빈 줄 없앰
+NOTICE = {
+    "ko": ("이 메일(첨부 파일 포함)은 지정된 수신인만을 위한 것이며, 「부정경쟁방지 및 영업비밀보호에 관한 법률」 등 관련 법령에 따라 "
+           "보호되는 영업비밀·산업기술 또는 기밀 정보를 담고 있을 수 있습니다. 이 메일에 담긴 정보의 전부 또는 일부를 허가 없이 "
+           "제3자에게 공개·배포·복사하거나 사용하는 것은 엄격히 금지됩니다. 이 메일을 잘못 받으신 경우 발신인에게 알려 주시고 "
+           "즉시 삭제해 주시기 바랍니다."),
+    "en": ("This email, including any attachments, is intended solely for the named addressee(s) and may contain trade secrets, "
+           "industrial technology, or other confidential information protected under applicable laws, including the Unfair Competition "
+           "Prevention and Trade Secret Protection Act of the Republic of Korea. Any unauthorized disclosure, distribution, copying, "
+           "or use of all or part of this information is strictly prohibited. If you have received this email in error, please "
+           "notify the sender immediately and delete it."),
+}
+_LOGO = {}
+
+
+def _img_src(fn: str) -> str:
+    """서명 그림 — 본문에 품어(data:) 둠 → 보낼 때 인라인 첨부(cid)로 바뀌어 받는 쪽에서도 보임(mail_send._inline_data_images)."""
+    if fn not in _LOGO:
+        p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "static", fn)
+        try:
+            with open(p, "rb") as fh:
+                _LOGO[fn] = "data:image/png;base64," + _b64.b64encode(fh.read()).decode()
+        except Exception:
+            _LOGO[fn] = ""
+    return _LOGO[fn]
+
+
+def logo_src() -> str:
+    return _img_src("mail_sig_logo.png")
+
+
+def qr_src() -> str:
+    """홈페이지 QR(https://www.knknara.com) — 이 PC 에서 만든 그림(static/mail_sig_qr.png · 외부 QR 서비스 안 씀)."""
+    return _img_src("mail_sig_qr.png")
+
+
+_RE_EN_FROM_MAIL = re.compile(r"^([a-z]{2,})[._]([a-z]{2,})$")
+
+
+def en_name_from_mail(email: str) -> str:
+    """영문 이름 칸이 없을 때 — 메일 주소 이름 부분 「jiman.park」→「Jiman Park」(본인이 정한 로마자 그대로 · 꼴이 다르면 빈 값)."""
+    loc = (email or "").split("@", 1)[0].strip().lower()
+    m = _RE_EN_FROM_MAIL.match(loc)
+    return ("%s %s" % (m.group(1).title(), m.group(2).title())) if m else ""
+
+
+def design_html(text: str, corp: str, lang: str = "ko") -> str:
+    """채운 서명 글 → 메일 서명 모양(표 · 글자 모양은 칸마다 직접 — 메일 프로그램마다 같게).
+    맨 위 로고 · 첫 줄 굵게 · 둘째 줄 회색(영문) · 마지막 줄 회색(회사·주소) · 맨 아래 보안 문구(본사 한국어 서명 = 한국어 먼저 · 베트남 법인·영어 서명 = 영어 먼저)."""
+    lines = [ln for ln in (text or "").split("\n") if ln.strip()]
+    n = len(lines)
+    rows = []
+    src, qr = logo_src(), qr_src()
+    if src or qr:
+        cells = ""
+        if src:
+            cells += ('<td style="vertical-align:middle;padding:0 14px 0 0"><a href="%s" target="_blank" style="text-decoration:none">'
+                      '<img src="%s" width="220" alt="KNK HAIST Innovation" style="display:block;width:220px;height:auto;border:0"></a></td>'
+                      % (WEB_URL, src))
+        if qr:
+            cells += ('<td style="vertical-align:middle;padding:0"><a href="%s" target="_blank" title="%s" style="text-decoration:none">'
+                      '<img src="%s" width="56" height="56" alt="QR %s" style="display:block;width:56px;height:56px;border:0"></a></td>'
+                      % (WEB_URL, WEB, qr, WEB))
+        rows.append('<tr><td style="padding:0 0 10px"><table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">'
+                    '<tr>%s</tr></table></td></tr>' % cells)
+    for i, ln in enumerate(lines):
+        e = _html.escape(ln)
+        if i == 0:
+            st = "font-size:15px;font-weight:bold;color:#111827;line-height:1.5"
+        elif (i == 1 and n >= 4) or (i == n - 1 and n >= 3):
+            st = "font-size:12px;color:#6b7280;line-height:1.6"
+        else:
+            st = "font-size:12.5px;color:#1f2937;line-height:1.7"
+        pad = "padding:0 0 4px" if (i == 1 and n >= 4) else "padding:0"
+        rows.append('<tr><td style="%s;%s">%s</td></tr>' % (pad, st, e))
+    order = ("en", "ko") if (corp == "vn" or lang == "en") else ("ko", "en")
+    nt = "".join('<p style="margin:0 0 6px">%s</p>' % _html.escape(NOTICE[k]) for k in order)
+    rows.append('<tr><td style="padding:12px 0 0"><div style="border-top:1px solid #e5e7eb;padding-top:8px;font-size:11px;'
+                'line-height:1.55;color:#9ca3af;max-width:640px">%s</div></td></tr>' % nt)
+    return ('<table class="knk-co-sig" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;'
+            "font-family:'Malgun Gothic','Apple SD Gothic Neo',Arial,sans-serif;max-width:640px\">%s</table>" % "".join(rows))
 
 
 def ensure(c):
@@ -140,8 +234,18 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
         except Exception:
             pass
     co = company or {}
+    em = (from_addr or "").strip() or (p.get("email") or "").strip()
+    nm_en = (p.get("name_en") or "").strip() or en_name_from_mail(em) or en_name_from_mail(p.get("email") or "")
+    rank_en = ""
+    if nm_en and rank and rank_fn:
+        try:
+            rank_en = (rank_fn((p.get("rank") or "").strip(), "en") or "").strip()
+        except Exception:
+            rank_en = ""
+    if rank_en == (p.get("rank") or "").strip():
+        rank_en = ""          # 영문으로 못 바꾼 직책(한글 그대로)은 영문 줄에 넣지 않음
     if corp == "vn":
-        comp, addr, tel, fax = VN_COMPANY, "", "", ""
+        comp, addr, tel, fax = VN_COMPANY, VN_ADDRESS, "", ""
     elif lang == "ko":
         comp, addr = co.get("company_name_ko", ""), co.get("company_address", "")
         tel, fax = co.get("company_tel", ""), co.get("company_fax", "")
@@ -151,7 +255,8 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
     email = (from_addr or "").strip() or (p.get("email") or "").strip()
     return {"name": nm, "rank": rank, "dept": (p.get("team_name") or "").strip(), "company": (comp or "").strip(),
             "address": (addr or "").strip(), "tel": (tel or "").strip(), "fax": (fax or "").strip(),
-            "mobile": (p.get("phone") or "").strip(), "email": email, "_corp": corp}
+            "mobile": (p.get("phone") or "").strip(), "email": email, "name_en": nm_en, "rank_en": rank_en, "web": WEB,
+            "_corp": corp}
 
 
 def fill(tpl: str, vals: dict) -> dict:
@@ -233,7 +338,7 @@ def company_sigs(c, uid, company: dict, rank_fn=None, from_addr: str = "", user_
         if not f["text"].strip():
             continue
         nm = "🏢 회사 서명" + ("" if len(on) == 1 else " (%s)" % LANG_NAME[lg])
-        out.append({"slot": "co-" + lg, "lang": lg, "name": nm, "body": f["html"], "text": f["text"],
+        out.append({"slot": "co-" + lg, "lang": lg, "name": nm, "body": design_html(f["text"], v["_corp"], lg), "text": f["text"],
                     "note": missing_note(f["missing"], v["_corp"]), "corp": v["_corp"]})
     return out
 
