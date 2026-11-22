@@ -59,9 +59,11 @@ css = src[src.find("<style>"):src.find("</style>")]
 check("제목 띠 = sticky · top:0 · z-index", "position: sticky; top: 0; z-index: 40;" in css)
 check("폰 폭(767px 이하) 제외", "@media (min-width: 768px)" in css and "matchMedia('(min-width: 768px)')" in src)
 check("배경·줄은 우선순위 0(:where) — 화면이 정한 배경 그대로", ":where(.main) :where(.knk-page-head, .page-head)" in css)
-check("본문 위 여백만큼 올려 붙임", "h.style.top = (-pt) + 'px'" in src)
+check("넓은 화면(본문 스크롤) = 본문 위 여백만큼 올려 붙임 · 좁은 창(몸통 스크롤 768~1023px) = 위 상단바 바로 아래",
+      "h.style.top = (mainScrolls ? -pt : off) + 'px'" in src and "function shellBottom" in src and "/(auto|scroll)/.test(getComputedStyle(m).overflowY)" in src)
 check("다른 고정(표 머리줄·옆 칸) = 원래 top + 제목 높이 · 중간 칸이 스크롤하면 그대로",
-      "stuck[j].style.top = (t0 + Math.max(0, hh - pt)) + 'px'" in src and "function scrollsInside" in src)
+      "stuck[j].style.top = (mainScrolls ? (t0 + Math.max(0, hh - pt)) : (Math.max(t0, off) + hh)) + 'px'" in src and "function scrollsInside" in src)
+check("자체 고정 틀 화면(권한 일괄 z1191i)은 건드리지 않음", "function ownFrame" in src and "if (!h) {" in src)
 check("두 번째 제목 띠는 고정 안 함", "hs[k].classList.add('knk-head-free')" in src)
 check("!important 없음", "!important" not in css)
 print("\n결과: 통과 %d · 실패 %d" % (OK, FAIL))
