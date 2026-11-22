@@ -141,7 +141,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
     <div class="z75-kpis" role="group" aria-label="볼 기준 고르기">
       {% for g in G %}
       <button type="button" class="z75-k" data-v="{{ g.key }}" style="--kc:{{ g.color }};" aria-pressed="{{ 'true' if g.key == view else 'false' }}"
-              title="{{ g.label }} {{ '{:,.0f}'.format(g.total) }}원">
+              title="{{ g.label }} {{ money(g.total, 'KRW') }}">
         <div class="l">{{ g.label }}<small>· {{ g.basis }}</small></div>
         <div class="v">{{ g.txt }}</div>
         <div class="d">{{ s3.period_label }}에 {{ g.desc }}{% if g.so or g.co %} · {% if g.so %}수주 {{ '{:,}'.format(g.so) }}건{% endif %}{% if g.so and g.co %} · {% endif %}{% if g.co %}소모품 {{ g.co }}건{% endif %}{% endif %}</div>
@@ -160,7 +160,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
           <div class="z75-mc">
             {% for x in g.months %}
             <div class="z75-mcol{% if not x.in %} off{% endif %}{% if x.future %} fut{% endif %}{% if g.best and g.best.m == x.m %} best{% endif %}"
-                 title="{{ x.m }}월 {{ '{:,.0f}'.format(x.v) }}원 · 1~{{ x.m }}월 누적 {{ x.acc_txt }}">
+                 title="{{ x.m }}월 {{ money(x.v, 'KRW') }} · 1~{{ x.m }}월 누적 {{ x.acc_txt }}">
               <div class="z75-mval">{% if x.v %}{{ x.txt }}{% endif %}</div>
               <div class="z75-mwrap"><div class="z75-mbar" style="height:{{ x.h }}%;"></div></div>
               <div class="z75-mlab">{{ x.m }}월</div>
@@ -178,7 +178,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
           {% if g.biz %}
           <div class="z75-hb">
             {% for b in g.biz %}
-            <div class="z75-hr" title="{{ b.label }} {{ '{:,.0f}'.format(b.v) }}원">
+            <div class="z75-hr" title="{{ b.label }} {{ money(b.v, 'KRW') }}">
               <div class="z75-hn"><a href="/sales/drill?biz={{ b.biz }}&amp;{{ P }}">{{ b.label }}</a></div>
               <div class="z75-ht"><div class="z75-hf" style="width:{{ b.w }}%;"></div></div><span class="z75-hv">{{ b.txt }}<i>{{ ('%.0f'|format(b.pct) ~ '%') if b.pct >= 1 else '1% 미만' }}</i></span>
             </div>
@@ -195,7 +195,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
           {% if g.cust %}
           <div class="z75-hb">
             {% for cst in g.cust %}
-            <div class="z75-hr" title="{{ cst.name }} {{ '{:,.0f}'.format(cst.v) }}원">
+            <div class="z75-hr" title="{{ cst.name }} {{ money(cst.v, 'KRW') }}">
               <div class="z75-hn"><span class="rk">{{ loop.index }}</span><a href="/sales/drill?cust={{ cst.name|urlencode }}&amp;{{ P }}">{{ cst.name }}</a></div>
               <div class="z75-ht"><div class="z75-hf" style="width:{{ cst.w }}%;"></div></div><span class="z75-hv">{{ cst.txt }}<i>{{ ('%.0f'|format(cst.pct) ~ '%') if cst.pct >= 1 else '1% 미만' }}</i></span>
               {% if cst.kids %}<div class="z75-kid">└ {% for k in cst.kids %}{{ k.name }} {{ k.txt }}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
@@ -212,7 +212,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
             {% if g.years %}
             <div class="z75-yc">
               {% for y in g.years %}
-              <div class="z75-ycol{% if y.sel %} sel{% endif %}" title="{{ y.year }}년 {{ '{:,.0f}'.format(y.v) }}원">
+              <div class="z75-ycol{% if y.sel %} sel{% endif %}" title="{{ y.year }}년 {{ money(y.v, 'KRW') }}">
                 <div class="yv">{{ y.txt }}</div><div class="yb" style="height:{{ y.h }}%;"></div>
               </div>
               {% endfor %}

@@ -268,7 +268,7 @@ html,body{background:#fff!important;overflow:auto!important;}
 {% macro so_table7(rows) %}
 <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;">
   <thead><tr style="background:var(--qv-surface-3);"><th style="padding:6px 8px;text-align:left;">수주번호</th><th style="padding:6px 8px;text-align:left;">형태</th><th style="padding:6px 8px;text-align:left;">PO유형</th><th style="padding:6px 8px;text-align:left;">고객사</th><th style="padding:6px 8px;text-align:right;">수량</th><th style="padding:6px 8px;text-align:right;">금액</th><th style="padding:6px 8px;text-align:left;">발주일</th><th style="padding:6px 8px;text-align:left;">납기</th></tr></thead>
-  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line,#e5e7eb);"><td style="padding:6px 8px;font-weight:700;white-space:nowrap;"><a href="?so={{ r.order_no|urlencode }}" class="z14-pick-link" data-so="{{ r.order_no }}" style="color:#1d4ed8;text-decoration:underline;" title="이 화면에서 이 수주만 고치기(z1191z14)">{{ r.order_no }}</a> <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" style="color:var(--qv-ink-3);font-size:11px;text-decoration:none;" title="상세 화면의 이 수주 카드로(수량·금액·호기)">↗</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ '{:,.2f}'.format(r.amount) if r.currency != 'KRW' else '{:,.0f}'.format(r.amount) }} {{ r.currency }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td><td style="padding:6px 8px;">{{ r.due_date|default('') }}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line,#e5e7eb);"><td style="padding:6px 8px;font-weight:700;white-space:nowrap;"><a href="?so={{ r.order_no|urlencode }}" class="z14-pick-link" data-so="{{ r.order_no }}" style="color:#1d4ed8;text-decoration:underline;" title="이 화면에서 이 수주만 고치기(z1191z14)">{{ r.order_no }}</a> <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" style="color:var(--qv-ink-3);font-size:11px;text-decoration:none;" title="상세 화면의 이 수주 카드로(수량·금액·호기)">↗</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ money(r.amount, r.currency or 'KRW') }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td><td style="padding:6px 8px;">{{ r.due_date|default('') }}</td></tr>{% endfor %}</tbody>
 </table>
 {% endmacro %}
     {# z1191z7 (안지연 프로 신고 · 대표 2026-11-06): 이 화면은 관리번호 전체의 공통 정보 — 수주마다 다른 값은 상세 수주 카드에서 #}
@@ -294,7 +294,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       </div>
       {% for r in so_rows %}
       <div class="z14-panel" data-so="{{ r.order_no }}" data-soid="{{ r.id }}" style="display:none;">
-        <div class="z14-head">📌 수주 <b>{{ r.order_no }}</b> · {{ r.form }} · {{ r.qty }} · {{ '{:,.2f}'.format(r.amount) if r.currency != 'KRW' else '{:,.0f}'.format(r.amount) }} {{ r.currency }}
+        <div class="z14-head">📌 수주 <b>{{ r.order_no }}</b> · {{ r.form }} · {{ r.qty }} · {{ money(r.amount, r.currency or 'KRW') }}
           <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" class="z14-detail" title="수량·금액·호기는 상세 화면 수주 카드에서">상세 수주 카드 ↗</a></div>
         {% if not r.editable14 %}
         <div class="z14-warn">🔒 이 수주는 <b>{{ r.status }}</b> 상태라 고칠 수 없습니다(계산서·수금이 끝났거나 취소된 수주).</div>
@@ -1032,7 +1032,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row solo"><div class="pf-field full">
         <label>수주별 수량 · 금액 <span class="sub">(실제 등록된 값 · 읽기 전용 — 고치려면 수주번호를 눌러 상세 카드에서)</span></label>
         {{ so_table7(so_rows) }}
-        <div style="margin-top:8px;text-align:right;font-size:13px;">합계 <b style="color:var(--knk-red);font-size:15px;">{{ '{:,.2f}'.format(_p_amt) if (project.currency or 'KRW') != 'KRW' else '{:,.0f}'.format(_p_amt) }} {{ project.currency or 'KRW' }}</b> <span class="sub">(수주 {{ so_rows|length }}건)</span></div>
+        <div style="margin-top:8px;text-align:right;font-size:13px;">합계 <b style="color:var(--knk-red);font-size:15px;">{{ money(_p_amt, project.currency or 'KRW') }}</b> <span class="sub">(수주 {{ so_rows|length }}건)</span></div>
         <input type="hidden" id="pf_unit_price" name="unit_price" value="{{ '{:,.0f}'.format(_p_price) if _p_price else '' }}">
         <input type="hidden" id="pf_unit_qty" name="unit_qty" value="{{ _p_qty }}">
         <input type="hidden" id="pf_amount_display" value="{{ '{:,.0f}'.format(_p_amt) }}">
@@ -1276,23 +1276,38 @@ html,body{background:#fff!important;overflow:auto!important;}
         let counter = 0;
         let unitsTouched = false;  // v5H226z160: 호기 라인 직접 편집 시 true → 헤더 자동반영 중단
         function fmt(n){ return (Math.round(n||0)).toLocaleString('ko-KR'); }
+        // z103 (대표 지시): 합계 글자 = 화폐 기호 앞 · KRW 정수 · 외화 소수 2자리. 호기 통화가 섞이면 기호 없이 숫자만(통화를 하나로 못 정함)
+        const _SYM103 = {KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
+        function money103(n, ccy){
+          const c = String(ccy||'KRW').toUpperCase(), sy = _SYM103[c] || (c + ' '); let x = Number(n)||0; const neg = x < 0; x = Math.abs(x);
+          return (neg ? '-' : '') + sy + (c === 'KRW' ? Math.round(x).toLocaleString('en-US') : x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
+        }
         function recalc(){
           let total = 0;
           const groups = new Set();
+          const ccys = new Set();   // z103
           tbody.querySelectorAll('tr').forEach(tr => {
             const v = parseFloat(((tr.querySelector('input[name="unit_amount[]"]')||{}).value||'0').replace(/,/g,'')) || 0;
+            const _cs = tr.querySelector('select.unit_ccy_sel'); if (_cs && _cs.value) ccys.add(_cs.value);   // z103
             total += v;
             const due = ((tr.querySelector('input[name="unit_due[]"]')||{}).value||'').trim();
             const ship = ((tr.querySelector('input[name="unit_ship[]"]')||{}).value||'').trim();
             groups.add(due + '||' + ship);
           });
-          sumCell.textContent = fmt(total);
+          // z103: 통화 하나 = 그 통화 기호 · 줄이 없으면 머리 통화 · 섞이면 숫자만
+          const _hc = (document.getElementById('pf_currency')||{}).value || 'KRW';
+          const _c1 = ccys.size === 1 ? Array.from(ccys)[0] : (ccys.size === 0 ? _hc : '');
+          sumCell.textContent = _c1 ? money103(total, _c1) : fmt(total);
           const n = groups.size;
           const rows = tbody.querySelectorAll('tr').length;
           hintCell.textContent = rows > 0
             ? `호기 ${rows}대 → 수주번호 ${n}건 발행 예정`
             : '';
         }
+        // z103: 머리·호기 통화를 바꾸면 합계 기호도 다시 그림(값·자동 채움은 그대로)
+        document.addEventListener('change', function(ev){
+          const t = ev.target; if (t && (t.id === 'pf_currency' || (t.classList && t.classList.contains('unit_ccy_sel')))) setTimeout(recalc, 0);
+        });
         function addRow(label){
           counter++;
           const tr = document.createElement('tr');

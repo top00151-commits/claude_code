@@ -263,7 +263,7 @@ check(r.json()["ok"] and rr["orig_name"] == "나중에 받은 견적서.pdf" and
       "올리면 바로 보관(AI·칸 채우기 없음) · 이력 「상세 화면」", rr.get("orig_name"))
 hd = q(cl.get, "/project/%d" % P9).text
 check(hd.count('class="z61-qf"') == 2 and "나중에 받은 견적서.pdf" in hd, "상세에 📄 두 개(수정 때 + 상세에서)")
-check('<dt class="fullw">견적서</dt>' in hd and "품명 <b style=\"color:#0f172a;\">TOUCH 타공검사기</b>" in hd and "11,300,000</b> KRW" in hd and "견적일 2026-11-13" in hd,
+check('<dt class="fullw">견적서</dt>' in hd and "품명 <b style=\"color:#0f172a;\">TOUCH 타공검사기</b>" in hd and "₩11,300,000</b>" in hd and "견적일 2026-11-13" in hd,
       "프로젝트 정보 「견적서」 칸(한 줄 전체)에 읽은 품명·금액·견적일")
 check(hd.count('class="z62-view"') == 2 and 'data-kind="img"' in hd and 'data-kind="pdf"' in hd, "줄마다 「👁 보기」(사진·PDF → 미리보기 창)")
 check(q(cl.post, "/api/project-quote/attach/%d" % P9, files={"file": ("x.docx", b"abc", "application/octet-stream")}).json()["ok"] is False, "docx 거절")

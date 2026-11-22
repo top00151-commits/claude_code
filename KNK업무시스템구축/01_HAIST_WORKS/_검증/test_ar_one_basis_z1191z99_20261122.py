@@ -155,8 +155,8 @@ check("받을 돈 = 입금 확인 줄 합 = 800,000 + 1,100,000×4 = 5,200,000 �
 print("§2 매출 분석")
 h = q(cl.get, "/sales/dashboard").text
 m = main_part(h)
-check("「받을 돈(미수)」 칸 5,200,000원 · 예정일 지남 3,000,000원 · 누르면 📊 미수 현황",
-      "받을 돈(미수)" in m and "5,200,000" in m and "예정일 지남 3,000,000원" in m and 'href="/sales/outstanding"' in m)
+check("「받을 돈(미수)」 칸 ₩5,200,000 · 예정일 지남 ₩3,000,000 · 누르면 📊 미수 현황(z103: 금액 앞 ₩)",
+      "받을 돈(미수)" in m and "₩5,200,000" in m and "예정일 지남 ₩3,000,000" in m and 'href="/sales/outstanding"' in m)
 check("통화별 받을 돈 표: KRW · 5장 · ₩5,200,000 · ₩3,000,000 · 옛 「INVOICED+SHIPPED+PAID 수주 − 수금」 없음",
       "통화별 받을 돈" in m and "5장" in m and "₩5,200,000" in m and "₩3,000,000" in m and "INVOICED+SHIPPED+PAID" not in m)
 check("옛 「다른 기준」 띠 없음", "ar-after-z94" not in m and "ar-baseline-z92" not in m)

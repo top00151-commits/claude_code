@@ -63,7 +63,7 @@ body {
               <td><b>{{ p.name }}</b></td>
               <td class="center">{% if p.stage %}<span class="pill pill-progress">{{ p.stage }}</span>{% endif %}</td>
               <td class="center">{% if p.status %}<span class="pill {% if p.status in ('완료','종료') %}pill-done{% elif p.status == '취소' %}pill-danger{% else %}pill-progress{% endif %}">{{ p.status }}</span>{% endif %}</td>
-              <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ '{:,.0f}'.format(p.order_amount) }}{% else %}—{% endif %}</td>
+              <td class="num" style="font-weight:700;">{% if p.order_amount %}{{ money(p.order_amount, p.currency or 'KRW') }}{% else %}—{% endif %}</td>
             </tr>
           {% endfor %}
           </tbody>

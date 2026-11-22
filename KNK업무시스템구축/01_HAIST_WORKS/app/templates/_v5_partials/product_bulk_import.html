@@ -76,6 +76,8 @@
   // v5H226z613 (대표 지시): 환율·USD = 소수점 2자리(셋째자리 반올림). 매출 총액에 영향.
   function pbFx(n){ return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function pbUsd(n){ return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  // z103 (대표 지시): 화면 금액 앞 통화 기호 — KRW 정수·외화 소수 2자리(서버 money() 규칙과 같게). 환율은 기호 없음.
+  function pbMoney(n, ccy){ var c = String(ccy||'KRW').toUpperCase(); var sym = ({KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'})[c] || (c + ' '); return sym + ((c === 'KRW') ? Number(n||0).toLocaleString('en-US',{maximumFractionDigits:0}) : pbUsd(n)); }
   async function pbUpload(file){
     if(!file){ alert('파일이 선택되지 않았습니다.'); return; }
     // v5H226z1025 (대표 지시): 확정 뒤 '올린 엑셀 원본 ↔ 저장값' 대조에 같은 파일을 다시 쓴다.
@@ -122,6 +124,7 @@
     else { errBox.style.display='none'; errBox.innerHTML=''; }
     var tb = document.querySelector('#pbTable tbody');
     tb.innerHTML = '';
+    var _lc = (p.currency||'KRW');   // z103: 줄 금액·인보이스 단가 = 프로젝트(수주) 통화
     (j.lines||[]).forEach(function(l, i){
       var tr = document.createElement('tr');
       tr.style.background = (i%2)?'#fafbff':'#fff';
@@ -134,21 +137,21 @@
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;">' + pbEsc(l.maker||'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;">' + pbEsc(l.supplier||'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;">' + pbFmt(l.qty) + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#fff7ed;">' + (l.cost_krw?pbFmt(l.cost_krw):'-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#fff7ed;">' + (l.cost_krw?pbMoney(l.cost_krw,'KRW'):'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#fff7ed;">' + ((l.margin_pct!=null)?(l.margin_pct + '%'):'-') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;">' + (l.sell_krw?pbFmt(l.sell_krw):(unpriced?'<span style="color:#b45309;">미정</span>':pbFmt(l.unit_price))) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;">' + (l.sell_krw?pbMoney(l.sell_krw,'KRW'):(unpriced?'<span style="color:#b45309;">미정</span>':pbMoney(l.unit_price,_lc))) + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;color:#64748b;">' + (l.fx_rate?pbFx(l.fx_rate):'-') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#eef6ff;font-weight:600;color:#1d4ed8;">' + (l.invoice_usd?pbUsd(l.invoice_usd):'-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;background:#eef6ff;font-weight:600;color:#1d4ed8;">' + (l.invoice_usd?pbMoney(l.invoice_usd,_lc):'-') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:center;">' + pbEsc(PB_STAT_KR[l.status]||l.status||'진행중') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;font-weight:600;">' + (_isUsd?pbUsd(l.amount):pbFmt(l.amount)) + '</td>';
+        '<td style="padding:5px 8px;border-bottom:1px solid #eef;text-align:right;font-weight:600;">' + pbMoney(l.amount,_lc) + '</td>';
       tb.appendChild(tr);
     });
     var tot = document.getElementById('pbTotals');
     var unp = j.n_unpriced || 0;
     var _ccy = (p.currency||'KRW');
-    tot.innerHTML = '부품 ' + (j.lines||[]).length + '건 · 매입합계(KRW) <b style="color:#c2410c;">' + pbFmt(j.cost_total_krw!=null?j.cost_total_krw:j.cost_total) + '</b>'
+    tot.innerHTML = '부품 ' + (j.lines||[]).length + '건 · 매입합계(KRW) <b style="color:#c2410c;">' + pbMoney(j.cost_total_krw!=null?j.cost_total_krw:j.cost_total, 'KRW') + '</b>'
       + (j.fx_rate ? (' · 환율 <b>' + pbFx(j.fx_rate) + '</b>') : '')
-      + ' · 판매합계(수주금액) <b style="color:#1d4ed8;font-size:15px;">' + (_isUsd?pbUsd(j.total):pbFmt(j.total)) + '</b> ' + pbEsc(_ccy)
+      + ' · 판매합계(수주금액) <b style="color:#1d4ed8;font-size:15px;">' + pbMoney(j.total,_ccy) + '</b>'
       + ((_ccy!=='KRW' && j.amount_krw) ? (' <span style="color:#64748b;">(≈ ₩' + pbFmt(j.amount_krw) + ')</span>') : '')
       + (unp ? ('<br><span style="color:#b45309;font-weight:600;font-size:12px;">⚠ 판매단가 미정 ' + unp + '건 — 등록 후 상세에서 마진 정리하면 채워집니다</span>') : '');
     var btn = document.getElementById('pbConfirmBtn');
@@ -185,7 +188,7 @@
                       : ('\n\n⚠ 원본 대조 실패: ' + (vj.error || '알 수 없음'));
       } catch(e){ _vmsg = '\n\n⚠ 원본 대조 통신 실패: ' + e; }
     }
-    alert('✅ 상품 등록 완료' + (j.followup ? ' (기존 관리번호에 추가 수주)' : '') + '\n관리번호 ' + (j.code||'-') + ' · 부품 ' + j.inserted + '건 · 이번 등록 금액 ' + Number(j.total||0).toLocaleString('en-US') + _vmsg);
+    alert('✅ 상품 등록 완료' + (j.followup ? ' (기존 관리번호에 추가 수주)' : '') + '\n관리번호 ' + (j.code||'-') + ' · 부품 ' + j.inserted + '건 · 이번 등록 금액 ' + pbMoney(j.total||0, ((_pbData&&_pbData.project)||{}).currency) + _vmsg);
     pbClose();
     var dest = '/project/' + j.pid;
     try { (window.top||window).location.href = dest; } catch(e){ location.href = dest; }

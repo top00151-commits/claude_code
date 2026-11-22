@@ -68,7 +68,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
           <b>{{ '●' if o.proposal_done else '○' }}</b>제안
           <b>{{ '●' if o.quotation_done else '○' }}</b>견적
         </td>
-        <td class="num">{% if can_money %}{% if o.expected_amount %}{{ '{:,.0f}'.format(o.expected_amount) }} {{ o.currency }}{% else %}—{% endif %}{% else %}🔒{% endif %}</td>
+        <td class="num">{% if can_money %}{% if o.expected_amount %}{{ money(o.expected_amount, o.currency or 'KRW') }}{% else %}—{% endif %}{% else %}🔒{% endif %}</td>
         <td class="op-muted">{{ o.owner_name or '—' }}</td>
         <td class="op-next">{% if o.promoted_pid %}<a href="/project/{{ o.promoted_pid }}" onclick="event.stopPropagation();" style="color:#15a34a;font-weight:700;text-decoration:none;" title="이 영업 기회가 승격된 프로젝트로 이동">✅ {{ o.promoted_code or '관리코드' }} 프로젝트 →</a>{% else %}{{ o.next_action }}{% endif %}</td>
       </tr>

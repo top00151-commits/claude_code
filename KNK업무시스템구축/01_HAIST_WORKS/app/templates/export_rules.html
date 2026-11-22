@@ -62,7 +62,7 @@
       <div class="ex-card"><div class="ex-h">✍ 최근에 고른 것 <small>범위 밖 단가를 허용·고치기로 고른 기록</small></div>
         {% if acks %}<table class="ex-tbl"><thead><tr><th>인보이스</th><th>규격</th><th class="num">이번</th><th class="num">차이</th><th>고른 것</th><th>누가 · 언제</th></tr></thead><tbody>
           {% for a in acks %}<tr><td><a href="/export/s/{{ a.invoice_no }}#price">{{ a.invoice_no }}</a></td><td style="word-break:break-all">{{ (a.descr or '')[:40] }}</td>
-            <td class="num">{{ '%g' % (a.price_key|float) }}</td><td class="num">{{ ('%+.1f%%' % a.diff) if a.diff is not none else '' }}</td>
+            {# z1191z103: 인보이스 단가(USD) — $ 앞 · 소수 2~4자리(작은 단가 그대로) #}<td class="num">{% set _pk103 = a.price_key|float %}${{ '{:,.4f}'.format(_pk103).rstrip('0') if '{:.4f}'.format(_pk103)[-2:] != '00' else '{:,.2f}'.format(_pk103) }}</td><td class="num">{{ ('%+.1f%%' % a.diff) if a.diff is not none else '' }}</td>
             <td>{% if a.decision == 'allow' %}✓ 허용 — {{ a.reason }}{% else %}<b style="color:#b45309">✎ 고치기</b>{% endif %}</td>
             <td style="font-size:11.5px">{{ a.by_name }}<div class="ex-sub" style="margin:0">{{ (a.at or '')[:16] }}</div></td></tr>{% endfor %}
         </tbody></table>{% else %}<div class="ex-empty">아직 없습니다</div>{% endif %}

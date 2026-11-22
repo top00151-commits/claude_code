@@ -188,6 +188,9 @@
   var cur = null, warned = '';
   function num(v){ return parseFloat(String(v||'').replace(/,/g,'')) || 0; }
   function fmt(v, ccy){ return ccy === 'KRW' ? Math.round(v).toLocaleString('ko-KR') : v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  // z1191z103 (대표 「모든 금액 숫자 앞에 화폐 단위」): 안내·경고 글의 금액만 기호 앞 — 입력칸(rcAmt) 값은 fmt 그대로(숫자만)
+  var RC_SYM = {KRW:'₩', USD:'$', VND:'₫', EUR:'€', JPY:'¥', CNY:'元'};
+  function fmtS(v, ccy){ var c = String(ccy || 'KRW').toUpperCase(); return (RC_SYM[c] || (c + ' ')) + fmt(v, c); }
   function today(){ var d=new Date(); var z=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
   window.rcFilter = function(b){
     document.querySelectorAll('.rc-cust').forEach(function(s){ s.style.display = (b==='all' || s.getAttribute('data-b')===b) ? '' : 'none'; });
@@ -237,8 +240,8 @@
     var amt = num(document.getElementById('rcAmt').value), rem = num(cur.dataset.rem), d = document.getElementById('rcDate').value, w = [];
     if (d && d > today()) w.push('입금일이 <b>오늘 뒤</b>입니다(' + d + ').');
     if (d && cur.dataset.issue && d < cur.dataset.issue) w.push('입금일이 <b>계산서 발행일(' + cur.dataset.issue + ')보다 앞</b>입니다.');
-    if (amt > rem + 0.5) w.push('적은 금액이 <b>남은 금액보다 ' + fmt(amt - rem, cur.dataset.ccy) + ' 많습니다</b> — 다른 계산서 몫이 섞였는지 확인하세요.');
-    else if (amt < rem - 0.5) w.push('남은 금액보다 적습니다(<b>일부 입금</b>) — 그대로 저장하면 나머지 ' + fmt(rem - amt, cur.dataset.ccy) + '은 받을 돈으로 남습니다.');
+    if (amt > rem + 0.5) w.push('적은 금액이 <b>남은 금액보다 ' + fmtS(amt - rem, cur.dataset.ccy) + ' 많습니다</b> — 다른 계산서 몫이 섞였는지 확인하세요.');
+    else if (amt < rem - 0.5) w.push('남은 금액보다 적습니다(<b>일부 입금</b>) — 그대로 저장하면 나머지 ' + fmtS(rem - amt, cur.dataset.ccy) + '은 받을 돈으로 남습니다.');
     return w.join('<br>');
   }
   window.rcSave = function(){

@@ -113,6 +113,8 @@ function renderImportPreview(j) {
   var tb = document.querySelector('#importPreviewTable tbody');
   tb.innerHTML = '';
   var fmt = function(n){ return Number(n||0).toLocaleString(); };
+  // z103 (대표 지시): 금액 앞 통화 기호 — KRW 정수·외화 소수 2자리(서버 money() 규칙과 같게)
+  var fmtM = function(n, ccy){ var c = String(ccy||'KRW').toUpperCase(); var sym = ({KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'})[c] || (c + ' '); var d = (c === 'KRW') ? 0 : 2; return sym + Number(n||0).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}); };
   j.rows.forEach(function(r, idx) {
     var tr = document.createElement('tr');
     var hasErr = r._errors && r._errors.length > 0;
@@ -159,7 +161,7 @@ function renderImportPreview(j) {
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.po_type ? escapeHtml(r.po_type) : '<span style="color:#bbb;">신규</span>') + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + sfLabel + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.status) + '</td>' +
-      '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmt(r.unit_price) + ' × ' + r.unit_qty + ' = <b>' + fmt(r.amount) + '</b> ' + r.currency + '</td>' +
+      '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmtM(r.unit_price, r.currency) + ' × ' + r.unit_qty + ' = <b>' + fmtM(r.amount, r.currency) + '</b></td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + finA + '</td>' +
       '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + soHint + '</td>';
     tb.appendChild(tr);

@@ -249,7 +249,7 @@
           <tr><td class="mono"><button type="button" class="hf-inv" data-no="{{ iv.invoice_no }}" onclick="hfInvView(this)" title="이 인보이스의 품목(사진·단가) 보기">{{ iv.invoice_no }}</button></td>
             <td style="font-size:11.5px;">{{ iv.inv_date or '' }}</td><td>{{ iv.kind or '구분 모름' }}</td>
             <td style="word-break:break-all;font-size:11.5px;">{{ iv.file_name }}</td><td class="num">{{ iv.n_lines }}</td>
-            <td class="num">{{ iv.amount_txt }}</td>
+            <td class="num">{{ money(iv.total_amount or 0, 'USD') }}</td>
             <td style="font-size:11.5px;">{{ iv.src_name }}<div class="hf-ev">{% if iv.reg_name %}{{ iv.reg_name }} · {% endif %}{{ (iv.reg_at or '')[:16] }}</div></td></tr>
           {% endfor %}
           </tbody></table></div>
@@ -340,6 +340,8 @@
   /* z1191p: 지난 수출 이력과 비교 — 단가가 정한 범위(z1191z86 사용자 조건) 밖인 줄 · 마지막 수출과 HS 가 다른 줄(본사 화면에만) */
   var SRC = {register:'📚 등록', reply:'③ 회신', dict:'HS 사전 올림', fill:'① 회신 필요 없음'};
   function money(v){ return v == null ? '' : Number(v).toLocaleString('en-US', {maximumFractionDigits: 4}); }
+  /* z1191z103 (대표 「모든 금액 숫자 앞에 화폐 단위」): 인보이스(본사→법인 · USD) 단가·금액 글자만 $ 앞 · 소수 2~4자리 — 수량(money)은 그대로 */
+  function hfUsd(v){ return (v == null || v === '') ? '' : '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 4}); }
   /* z1191r: 지난 수출 사진 — 화면용으로 줄인 것 · 누르면 새 창에 크게
      (⚠ loading=lazy 쓰지 않음 — 숨은 칸 + lazy = 안 받는다는 교훈) */
   function thumb(name, sm){
@@ -572,7 +574,7 @@
           ? '<td style="font-size:11.5px;white-space:nowrap;">' + esc(l.invoice_no) + '<div class="hf-ev">' + esc(l.inv_date || '날짜 모름') + (l.kind ? ' · ' + esc(l.kind) : '') + '</div></td>'
           : '<td class="num">' + (multi ? '<span class="hf-ev">' + esc(l.sheet) + '</span> ' : '') + esc(l.row_no) + '</td>')
         + '<td>' + thumb(l.img) + '</td><td>' + esc(l.descr) + '</td>'
-        + '<td class="num">' + money(l.qty) + '</td><td class="num">' + money(l.unit_price) + '</td><td class="num">' + money(l.amount) + '</td>'
+        + '<td class="num">' + money(l.qty) + '</td><td class="num">' + hfUsd(l.unit_price) + '</td><td class="num">' + hfUsd(l.amount) + '</td>'
         + '<td class="mono">' + esc(l.hs_code || '—') + '</td>'
         + '<td style="font-size:11.5px;" title="' + esc(l.vn_name || '') + '">' + esc(cut(l.vn_name, 40)) + '</td></tr>';
     });
@@ -599,7 +601,7 @@
       if(!j.ok){ view.innerHTML = '<div class="hf-err">' + esc(j.error || '불러오지 못했습니다') + '</div>'; return; }
       var iv = j.invoice || {}, ls = j.lines || [], ni = ls.filter(function(l){ return l.img; }).length;
       view.innerHTML = '<div class="hf-view">' + viewHead('📄 ' + esc(no), esc(iv.inv_date || '날짜 모름') + ' · ' + esc(iv.kind || '구분 모름')
-        + ' · 품목 ' + ls.length + '줄 · 사진 ' + ni + ' · 금액 합계 ' + money(iv.total_amount) + ' · ' + esc(iv.file_name || '')) + linesTable(ls) + '</div>';
+        + ' · 품목 ' + ls.length + '줄 · 사진 ' + ni + ' · 금액 합계 ' + hfUsd(iv.total_amount) + ' · ' + esc(iv.file_name || '')) + linesTable(ls) + '</div>';
       view.scrollIntoView({block:'nearest'});
     } catch(e){ view.innerHTML = '<div class="hf-err">통신이 끊겼습니다 — ' + esc(e) + '</div>'; }
   };

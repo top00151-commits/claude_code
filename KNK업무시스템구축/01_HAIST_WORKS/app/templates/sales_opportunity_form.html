@@ -172,7 +172,7 @@
           <span class="lbl">🔗 견적서 연결</span>
           <select name="quotation_id" class="op-qsel" {% if not can_edit %}disabled{% endif %}>
             <option value="">— 정식 견적서 연결 안 함 —</option>
-            {% for q in quotations %}<option value="{{ q.id }}" {{ 'selected' if opp and opp.quotation_id==q.id }}>{{ q.quote_no }} · {{ q.cust or '-' }} · {{ '{:,.0f}'.format(q.total_amount or 0) }}원</option>{% endfor %}
+            {% for q in quotations %}<option value="{{ q.id }}" {{ 'selected' if opp and opp.quotation_id==q.id }}>{{ q.quote_no }} · {{ q.cust or '-' }} · {{ money(q.total_amount or 0, 'KRW') }}</option>{% endfor %}
           </select>
           {% if opp and opp.quotation_id %}<a href="/sales/quotations/{{ opp.quotation_id }}/print" target="_blank" class="op-qlink">견적서 보기 →</a>{% endif %}
           <a href="/sales/quotations" target="_blank" class="op-qlink">+ 새 견적서</a>

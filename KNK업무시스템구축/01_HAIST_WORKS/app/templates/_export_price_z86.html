@@ -29,7 +29,8 @@
 (function(){
   if(window.XP) return;
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
-  function money(v){ return v == null ? '' : Number(v).toLocaleString('en-US', {maximumFractionDigits: 4}); }
+  /* z1191z103 (대표 「모든 금액 숫자 앞에 화폐 단위」): 인보이스 단가(본사→법인 · USD) — $ 앞 · 소수 2~4자리(작은 단가 그대로) */
+  function money(v){ return (v == null || v === '') ? '' : '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 4}); }
   function pk(v){ return (Math.round(Number(v) * 10000) / 10000).toFixed(4); }
   function groups(rows){
     var g = [], at = {};

@@ -12,7 +12,7 @@
     <div><div class="crumbs"><a href="/export">수출 관리</a> · <b>{{ s.invoice_no }}</b></div>
       <h1 class="page-title" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span class="ex-mono">{{ s.invoice_no }}</span>
         <span class="ex-chip {{ 'k1' if s.kind == '수책통관' else ('k2' if s.kind == '일반통관' else 'k0') }}" style="font-size:13px">{{ s.kind or '구분 모름' }}</span></h1>
-      <div class="ex-sub">인보이스 {{ s.inv_date or '날짜 모름' }} · {{ s.lines or '—' }}줄 · USD {{ s.amount_txt }}{% if s.old %} · <b>지난 건</b>(시스템 전에 끝난 일 — 적어 두고 싶으면 아래 칸에){% endif %}</div></div>
+      <div class="ex-sub">인보이스 {{ s.inv_date or '날짜 모름' }} · {{ s.lines or '—' }}줄 · {{ money(s.amount, 'USD') if s.amount else '—' }}{% if s.old %} · <b>지난 건</b>(시스템 전에 끝난 일 — 적어 두고 싶으면 아래 칸에){% endif %}</div></div>
     <div class="ex-act">
       <a class="ex-btn" href="/export">← 보드</a>
       {% if s.stage < 5 %}
@@ -38,7 +38,7 @@
             <div><span>구간</span>{{ f.pol or '—' }} → {{ f.dest or '—' }}</div>
             <div><span>조건 · 결제</span>{{ f.incoterms or '—' }} · {{ f.payment or '—' }}</div>
             <div><span>선적일(Sailing On or About)</span>{{ f.sail_date or '—' }}</div>
-            <div><span>품목 · 금액</span>{{ sm.lines or '—' }}줄 · USD {{ "{:,.2f}".format(sm.amount) if sm.amount else '—' }}</div>
+            <div><span>품목 · 금액</span>{{ sm.lines or '—' }}줄 · {{ money(sm.amount, 'USD') if sm.amount else '—' }}</div>
             <div><span>무게 · 부피(패킹)</span>{% if sm.gross %}순 {{ sm.net|round(1) }} · 총 {{ sm.gross|round(1) }} kg{% if sm.meas %} · {{ sm.meas }}{% endif %}{% if sm.boxes %} · 박스 {{ sm.boxes }}{% endif %}{% else %}아직 없음{% endif %}</div>
             {% if sm.uses %}<div style="grid-column:1/-1"><span>용도 · 고객(인보이스 J칸)</span>{{ sm.uses|join(' · ') }}</div>{% endif %}
           </div>
@@ -163,6 +163,8 @@
   });
   function v(k){ var e = document.getElementById('f_' + k); return e ? e.value.trim() : ''; }
   function fmt(n){ n = parseFloat(n); return isNaN(n) ? '' : n.toLocaleString('en-US', {maximumFractionDigits: 2}); }
+  // z1191z103 (대표 「모든 금액 숫자 앞에 화폐 단위」): 인보이스 금액(USD) 글자만 $ 앞 · 소수 2자리 — 무게(fmt)는 그대로
+  function usd(n){ n = parseFloat(n); return isNaN(n) ? '' : '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
   function txt(kind){
     var L = [], pk = v('pkgs'), kg = v('gross_kg') || (SM.gross ? String(SM.gross) : ''), cbm = v('cbm');
     var load = [pk ? pk + ' 포장' : '', kg ? '총중량 ' + fmt(kg) + ' kg' : '', cbm ? cbm + ' CBM' : ''].filter(Boolean).join(' / ');
@@ -179,7 +181,7 @@
       L.push('[선적 안내] ' + NO + (KIND ? ' (' + KIND + ')' : ''));
       L.push('- 운송: ' + (v('ship_mode') || '—') + (v('awb_no') ? ' / AWB·B/L ' + v('awb_no') : '') + (v('forwarder') ? ' / ' + v('forwarder') : ''));
       L.push('- 출발 ' + (v('etd') || '—') + ' → 도착 예정 ' + (v('eta') || '—'));
-      L.push('- 품목 ' + (LINES || SM.lines || '—') + '줄 · USD ' + fmt(AMT || SM.amount || 0) + (load ? ' · ' + load : ''));
+      L.push('- 품목 ' + (LINES || SM.lines || '—') + '줄 · ' + usd(AMT || SM.amount || 0) + (load ? ' · ' + load : ''));
       L.push('- 통관이 끝나면 수입신고번호 · 검사 구분(녹색/황색/적색) · 통관일을 WORKS 이 건 화면에 적어 주세요:');
       L.push('  ' + location.origin + '/export/s/' + NO);
     }

@@ -204,17 +204,17 @@ a.z45-all:hover { text-decoration:underline; }
       {% macro _z40cnt(so, co) %}{% if so %}수주 {{ '{:,}'.format(so) }}건{% endif %}{% if so and co %} · {% endif %}{% if co %}소모품 {{ '{:,}'.format(co) }}건{% endif %}{% if not so and not co %}0건{% endif %}{% endmacro %}
       <div class="kpi">
         <div class="kpi-label">수주매출 · {{ s3.period_label }} <button type="button" class="z40-i" data-z40="order" aria-label="수주매출 설명">ⓘ</button></div>
-        <div class="kpi-num" style="color:#2563eb;">{{ '{:,.0f}'.format(s3.kpi.order or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-num" style="color:#2563eb;">{{ money(s3.kpi.order or 0, 'KRW') }}</div>
         <div class="kpi-trend neutral">발주일 기준<br><span class="z40-cnt">{{ _z40cnt(s3.kpi.order_so, s3.kpi.order_co) }}</span></div>
       </div>
       <div class="kpi">
         <div class="kpi-label">진행매출 · {{ s3.period_label }} <button type="button" class="z40-i" data-z40="prog" aria-label="진행매출 설명">ⓘ</button></div>
-        <div class="kpi-num" style="color:#15803d;">{{ '{:,.0f}'.format(s3.kpi.prog or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-num" style="color:#15803d;">{{ money(s3.kpi.prog or 0, 'KRW') }}</div>
         <div class="kpi-trend neutral">출하(납품)일 기준<br><span class="z40-cnt">{{ _z40cnt(s3.kpi.prog_so, s3.kpi.prog_co) }}</span></div>
       </div>
       <div class="kpi">
         <div class="kpi-label">최종매출 · {{ s3.period_label }} <button type="button" class="z40-i" data-z40="final" aria-label="최종매출 설명">ⓘ</button></div>
-        <div class="kpi-num" style="color:#b45309;">{{ '{:,.0f}'.format(s3.kpi.final or 0) }}<span style="font-size:14px;color:var(--qv-ink-3);"> 원</span></div>
+        <div class="kpi-num" style="color:#b45309;">{{ money(s3.kpi.final or 0, 'KRW') }}</div>
         <div class="kpi-trend neutral">세금계산서 발행일 기준<br><span class="z40-cnt">{{ _z40cnt(s3.kpi.final_so, s3.kpi.final_co) }}</span></div>
       </div>
       <div class="kpi z40-open" id="z40OpenCard" role="button" tabindex="0" title="눌러서 진행 중인 프로젝트 보기">
@@ -331,16 +331,16 @@ a.z45-all:hover { text-decoration:underline; }
               {% for b in s3.biz_rows %}
               <tr>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?biz={{ b.biz }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="{{ b.label }} — 고객사별 수주·진행·최종 매출 보기">{{ b.label }} <span class="z45-go">›</span></a></td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ '{:,.0f}'.format(b.order) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(b.prog) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ '{:,.0f}'.format(b.final) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ money(b.order, 'KRW') }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ money(b.prog, 'KRW') }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ money(b.final, 'KRW') }}</td>
               </tr>
               {% endfor %}
               <tr style="font-weight:800;background:#fafaf7;">
                 <td style="padding:8px;">합계</td>
-                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(s3.kpi.order) }}</td>
-                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(s3.kpi.prog) }}</td>
-                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(s3.kpi.final) }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ money(s3.kpi.order, 'KRW') }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ money(s3.kpi.prog, 'KRW') }}</td>
+                <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ money(s3.kpi.final, 'KRW') }}</td>
               </tr>
             </tbody>
           </table>
@@ -362,9 +362,9 @@ a.z45-all:hover { text-decoration:underline; }
               {% for y in s3.years %}
               <tr{% if y.year == s3.sel_year %} style="background:#fffbeb;"{% endif %}>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a href="/sales?mode={{ s3.mode }}&year={{ y.year }}&q={{ s3.sel_q }}&m={{ s3.sel_m }}" style="font-weight:700;color:#1e293b;text-decoration:none;">{{ y.year }}</a></td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ '{:,.0f}'.format(y.order) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(y.prog) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ '{:,.0f}'.format(y.final) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;font-weight:600;">{{ money(y.order, 'KRW') }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ money(y.prog, 'KRW') }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;font-weight:600;">{{ money(y.final, 'KRW') }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -386,24 +386,24 @@ a.z45-all:hover { text-decoration:underline; }
               {% for c in (rows or []) %}
               <tr>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}{{ '&amp;by=end' if by else '' }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a>{% if c.children %}<button type="button" class="z73-tg" data-z73="{{ tag }}{{ loop.index }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});" style="margin-left:6px;padding:1px 8px;font-size:11px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;"><span>▸ </span>{{ c.children|length }}곳</button>{% endif %}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(c.order) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ '{:,.0f}'.format(c.prog) }}</td>
-                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(c.final) }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ money(c.order, 'KRW') }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;font-weight:600;">{{ money(c.prog, 'KRW') }}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ money(c.final, 'KRW') }}</td>
               </tr>
               {% set ti = loop.index %}{% for q in (c.children or []) %}{# z1191z73: 펼치면 종사업장(시스템명)별 #}
               <tr class="z73p-{{ tag }}{{ ti }}" hidden style="background:#f8fafc;font-size:12px;">
                 <td style="padding:5px 8px 5px 26px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ q.customer_name|urlencode }}&amp;mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}{{ '&amp;by=end' if by else '' }}" title="{{ q.customer_name }} — 이 사업장 수주 보기" style="font-weight:600;color:#334155;"><span style="color:#94a3b8;">└</span> {{ q.customer_name }} <span class="z45-go">›</span></a></td>
-                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ '{:,.0f}'.format(q.order) }}</td>
-                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ '{:,.0f}'.format(q.prog) }}</td>
-                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ '{:,.0f}'.format(q.final) }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#2563eb;">{{ money(q.order, 'KRW') }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#15803d;">{{ money(q.prog, 'KRW') }}</td>
+                <td style="padding:5px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);text-align:right;font-variant-numeric:tabular-nums;color:#b45309;">{{ money(q.final, 'KRW') }}</td>
               </tr>
               {% endfor %}
               {% for v in (c.vias or []) %}{# z1191z88: 청구처 ↔ 최종 고객이 다른 몫 — 늘 보인다 #}
               <tr class="z88-via" style="font-size:11.5px;color:#64748b;">
                 <td style="padding:3px 8px 4px 26px;border-bottom:1px dashed #e2e8f0;">↳ 이 중 {{ '청구처' if by else '최종 고객' }} <b style="color:#475569;">{{ v.customer_name }}</b></td>
-                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(v.order) }}</td>
-                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(v.prog) }}</td>
-                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ '{:,.0f}'.format(v.final) }}</td>
+                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ money(v.order, 'KRW') }}</td>
+                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ money(v.prog, 'KRW') }}</td>
+                <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ money(v.final, 'KRW') }}</td>
               </tr>
               {% endfor %}
               {% else %}
@@ -472,7 +472,7 @@ a.z45-all:hover { text-decoration:underline; }
               <div class="ttl">{{ p.name }}</div>
               <div class="meta">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.stage %} · {{ p.stage }}{% endif %}</div>
             </div>
-            <div class="list-amount">{% if p.amount_krw_disp %}{{ '{:,.0f}'.format(p.amount_krw_disp) }}{% if p.currency and p.currency != 'KRW' %} <small style="color:var(--qv-ink-3,#94a3b8);font-weight:600;">({{ p.currency }})</small>{% endif %}{% else %}—{% endif %}</div>
+            <div class="list-amount">{% if p.amount_krw_disp %}{{ money(p.amount_krw_disp, 'KRW') }}{% if p.currency and p.currency != 'KRW' %} <small style="color:var(--qv-ink-3,#94a3b8);font-weight:600;">({{ p.currency }})</small>{% endif %}{% else %}—{% endif %}</div>
           </a>
           {% else %}
           <div style="padding:20px;text-align:center;color:var(--qv-ink-3);font-size:13px;">데이터 없음</div>

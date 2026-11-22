@@ -100,14 +100,14 @@ def q(fn, *a, **k):
 
 print("§1 금액 줄여 보이기(억·만)")
 W_ = M._z75_won
-check([W_(36804119183), W_(4900000), W_(83380000), W_(0), W_(None), W_(5000), W_(123456789012)] == ["368.0억", "490만", "8,338만", "0", "0", "5,000원", "1,234.6억"],
+check([W_(36804119183), W_(4900000), W_(83380000), W_(0), W_(None), W_(5000), W_(123456789012)] == ["₩368.0억", "₩490만", "₩8,338만", "₩0", "₩0", "₩5,000", "₩1,234.6억"],   # z1191z103: 앞에 ₩
       "368.0억 · 490만 · 8,338만 · 0 · 5,000원 · 1,234.6억", [W_(36804119183), W_(4900000), W_(83380000), W_(5000), W_(123456789012)])
 
 print("§2 숫자 = 매출 홈과 같은 계산(원 단위까지)")
 h1 = q(cl.get, "/sales?mode=year&year=2026").text
 h2 = q(cl.get, "/sales/glance?mode=year&year=2026").text
-n1 = re.findall(r'<div class="kpi-num"[^>]*>([\d,]+)<', h1)[:3]
-n2 = dict(re.findall(r'class="z75-k" data-v="(\w+)"[^>]*\n\s*title="[^"]* ([\d,]+)원"', h2))
+n1 = re.findall(r'<div class="kpi-num"[^>]*>₩([\d,]+)<', h1)[:3]   # z1191z103: 금액 앞 ₩
+n2 = dict(re.findall(r'class="z75-k" data-v="(\w+)"[^>]*\n\s*title="[^"]* ₩([\d,]+)"', h2))
 check(n1 and [n2.get("order"), n2.get("prog"), n2.get("final")] == n1, "카드 3장 원 단위 = 숫자 화면 카드", (n1, n2))
 check("590만" in h2 and "진행매출" in h2, "진행매출 590만(억·만으로 줄여 보임)")
 
@@ -133,7 +133,7 @@ check(gp["months"][11]["future"] and not gp["months"][10]["future"], "오늘(11-
 check(abs(sum(x["v"] for x in gp["months"]) - S["kpi"]["prog"]) < 1, "월별 합 = 진행매출 합")
 cu = {x["name"]: x for x in gp["cust"]}
 check(round(cu["삼성전기(주)"]["v"]) == 3400000 and cu["삼성전기(주)"]["kids"] == [], "고객사: 삼성전기(주) 340만(등록명 합산)", cu.get("삼성전기(주)"))
-check(round(cu["(주) 드림텍"]["v"]) == 1200000 and [(k["name"], k["txt"]) for k in cu["(주) 드림텍"]["kids"]] == [("드림텍(동탄)", "50만"), ("드림텍(아산)", "40만"), ("드림텍(본사)", "30만")],
+check(round(cu["(주) 드림텍"]["v"]) == 1200000 and [(k["name"], k["txt"]) for k in cu["(주) 드림텍"]["kids"]] == [("드림텍(동탄)", "₩50만"), ("드림텍(아산)", "₩40만"), ("드림텍(본사)", "₩30만")],
       "드림텍 = 막대 하나 120만 · 아래 작은 글 동탄 50만 · 아산 40만 · 본사 30만", cu.get("(주) 드림텍"))
 check(gp["cust"][0]["name"] == "삼성전기(주)" and gp["cust"][0]["w"] == 100 and abs(sum(x["pct"] for x in gp["cust"]) + gp["rest_pct"] - 100) < 0.01,
       "큰 순 · 1위 막대 100% · 비율 합 100%")

@@ -311,7 +311,7 @@ button { font-family: inherit; cursor: pointer; }
         <div style="position:absolute;top:10px;right:10px;background:var(--qv-surface-3);color:var(--qv-ink-2);font-size:9px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.5px;">🔒 경영진</div>
         <div class="card-label">이번 달 수주</div>
         {% if monthly_revenue is not none and monthly_revenue > 0 %}
-        <div class="card-value" style="font-size:24px;">{{ '{:,.0f}'.format(monthly_revenue) }}<span class="unit">원</span></div>
+        <div class="card-value" style="font-size:24px;">{{ money(monthly_revenue, 'KRW') }}</div>
         {% if yoy_delta is not none %}
         <div class="card-trend {% if yoy_delta >= 0 %}up{% else %}alert{% endif %}">전년 동월 {{ '%+.1f'|format(yoy_delta) }}%</div>
         {% endif %}

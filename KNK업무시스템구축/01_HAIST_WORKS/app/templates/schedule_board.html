@@ -475,6 +475,8 @@
 (function(){
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function won(n){ try{ return Number(n||0).toLocaleString(); }catch(e){ return n; } }
+  // z103: 통화를 아는 금액은 기호 앞(KRW 정수·외화 소수 2자리). 서버가 currency 를 안 주면 기호 없이 숫자만(짐작 금지).
+  function wonC(n, ccy){ if(!ccy) return won(n); var c=String(ccy).toUpperCase(), sy=({KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'})[c]||(c+' '), d=(c==='KRW')?0:2; try{ return sy+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}); }catch(e){ return n; } }
   window.openSoBackfill = function(){
     var m=document.getElementById('soBackfillModal'); if(!m) return;
     m.style.display='flex';
@@ -492,7 +494,7 @@
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;">'+esc(it.name)+'</td>'+
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date)+'</td>'+
           '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888;">'+esc(it.status||'')+'</td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:right;">'+won(it.amount)+'</td></tr>';
+          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:right;">'+wonC(it.amount, it.currency)+'</td></tr>';
       }).join('');
       body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:#c0392b;">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급/수리합니다.<br>'+
         '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 정상 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · <b>신규</b>=새 발급, <b>수리</b>=깨진 번호 교체 · <b>초기협의 단계는 수주확정으로 올림</b>(진행중·출하는 보존)</span></div>'+

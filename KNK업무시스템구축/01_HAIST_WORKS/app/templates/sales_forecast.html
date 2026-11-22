@@ -34,8 +34,8 @@ body {
 
   {% if forecast %}
   <div class="bento" data-dn="forecast-kpi" data-dn-tone="green" style="grid-template-columns:repeat(3,1fr);grid-auto-rows:110px;">
-    <div class="kpi-card"><div class="kpi-label">다음달 예측</div><div class="kpi-num">{{ '{:,.0f}'.format(forecast.next_month|default(0)) }}<span class="unit">원</span></div></div>
-    <div class="kpi-card"><div class="kpi-label">분기 예측</div><div class="kpi-num">{{ '{:,.0f}'.format(forecast.quarter|default(0)) }}<span class="unit">원</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">다음달 예측</div><div class="kpi-num">{{ money(forecast.next_month|default(0), 'KRW') }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">분기 예측</div><div class="kpi-num">{{ money(forecast.quarter|default(0), 'KRW') }}</div></div>
     <div class="kpi-card"><div class="kpi-label">신뢰도</div><div class="kpi-num">{{ '%.1f'|format(forecast.confidence|default(0)) }}<span class="unit">%</span></div></div>
   </div>
   {% endif %}
@@ -48,7 +48,7 @@ body {
       <div class="bar-row">
         <span style="font-size:12px;font-weight:600;">{{ s.ym }}</span>
         <div class="bar-track"><div class="bar-fill{% if s.is_forecast %} forecast{% endif %}" style="width:{{ ((s.amount|default(0))*100/(chart_max|default(1)))|round }}%"></div></div>
-        <span style="font-size:12px;font-weight:700;{% if s.is_forecast %}color:var(--amber-deep);{% endif %}">{{ '{:,.0f}'.format(s.amount|default(0)) }}{% if s.is_forecast %} <span style="font-size:10px;">예측</span>{% endif %}</span>
+        <span style="font-size:12px;font-weight:700;{% if s.is_forecast %}color:var(--amber-deep);{% endif %}">{{ money(s.amount|default(0), 'KRW') }}{% if s.is_forecast %} <span style="font-size:10px;">예측</span>{% endif %}</span>
       </div>
       {% endfor %}
       {% else %}<div style="padding:30px;text-align:center;color:var(--mute);">데이터 부족</div>{% endif %}

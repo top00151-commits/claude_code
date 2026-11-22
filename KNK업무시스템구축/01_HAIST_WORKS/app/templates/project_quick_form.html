@@ -294,7 +294,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="대" {% if ed and (board_unit|default('')) == '대' %}selected{% endif %}>대</option>{# z1191z4d (대표 지시) #}
             </select></div>
           <div class="qf-f c4" id="qSemiAmtCell" style="display:none;"><label>금액 <span style="font-weight:400;color:var(--qv-ink-3);">({% if ed %}수주 금액{% else %}항목 합계 · 자동{% endif %})</span></label>
-            <div id="qSemiAmt" style="min-height:38px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px;background:var(--qv-surface-3);border:1px solid var(--qv-line);border-radius:8px;font-weight:700;">0 <span id="qSemiAmtCur" style="font-weight:400;font-size:11px;color:var(--qv-ink-3);">KRW</span></div></div>
+            <div id="qSemiAmt" style="min-height:38px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px;background:var(--qv-surface-3);border:1px solid var(--qv-line);border-radius:8px;font-weight:700;">₩0 <span id="qSemiAmtCur" style="display:none;font-weight:400;font-size:11px;color:var(--qv-ink-3);">KRW</span></div></div>
           {% endif %}
           {# 형태=상품(부품 품명/모델) · 기타(기타 품명) 선택 시 펼침 — 신규 등록 전용(수정은 부품 상세를 '고급 편집'에서) #}
           {% if not ed %}
@@ -353,7 +353,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;flex-wrap:wrap;gap:8px;">
               <button type="button" onclick="qAddPart()" style="padding:6px 13px;border:1px solid #b9d2ff;background:#e0edff;color:#1d4ed8;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 부품 추가</button>
-              <div style="font-size:12.5px;color:var(--qv-ink-2);">합계 <b id="qPartsSum" style="color:var(--knk-red);font-size:14px;">0</b> <span id="qPartsSumCur" style="color:var(--qv-ink-3);font-size:11px;">KRW</span></div>
+              <div style="font-size:12.5px;color:var(--qv-ink-2);">합계 <b id="qPartsSum" class="q103m" style="color:var(--knk-red);font-size:14px;">₩0</b></div>
             </div>
             <div style="background:#eef6ff;border:1px solid #b9d2ff;border-radius:8px;padding:8px 11px;font-size:12px;color:#1e40af;line-height:1.5;margin-top:8px;">
               💡 입력한 자재는 <b>등록 시 함께 저장</b>됩니다. 많거나 사진·통관 등 상세가 필요하면 <b>등록 후 상세 → PACKING LIST</b>에서 추가하세요.
@@ -431,7 +431,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <span style="margin-left:auto;font-weight:600;color:#1e293b;font-size:12px;cursor:pointer;"><input type="checkbox" id="qUnitDueAll" checked onchange="qUnitDueSync()" style="vertical-align:middle;margin-right:3px;">납기일 일괄 적용 (전체 동일)</span>
             </label>
             <div id="qUnitRows" style="display:flex;flex-direction:column;gap:6px;border:1px solid var(--qv-line);border-radius:8px;padding:9px 11px;background:var(--qv-surface-2,#f7f8fa);"></div>
-            <div style="text-align:right;font-size:13px;margin-top:6px;">호기 합계 <b id="qUnitSum" style="color:var(--knk-red);font-size:14px;">0</b> <span id="qUnitSumCur" style="color:var(--qv-ink-3);font-size:11.5px;">KRW</span></div>
+            <div style="text-align:right;font-size:13px;margin-top:6px;">호기 합계 <b id="qUnitSum" class="q103m" style="color:var(--knk-red);font-size:14px;">₩0</b></div>
           </div>
           {% endif %}
           </div></div>
@@ -630,6 +630,19 @@ function qToggleFx(){
   var sel=document.getElementById('qCurrency'); if(!sel) return;
   var w=document.getElementById('qFxWrap'); if(w) w.style.display=(sel.value!=='KRW')?'flex':'none';
   var cc=document.getElementById('qSemiAmtCur'); if(cc) cc.textContent=sel.value;   /* v5H226z1088: 제품 금액 표기의 통화 코드 동기화 */
+  try{ qPaint103(); }catch(e){} try{ qSemiAmtSync(); }catch(e){}   /* z103: 화폐 기호도 새 통화로 */
+}
+/* z103 (대표 지시): 화면에 보이는 금액 = 화폐 기호 앞(₩·$·₫ …) · KRW 정수 · 외화 소수 2자리(서버 money() 와 같은 규칙).
+   보이는 글자에만 쓴다 — 입력칸 value·서버로 가는 값은 그대로. */
+var Q103_SYM={KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
+function qMoney103(n, ccy){
+  var c=String(ccy||'KRW').toUpperCase(), sy=Q103_SYM[c]||(c+' '); var x=Number(n)||0, neg=x<0; x=Math.abs(x);
+  return (neg?'-':'')+sy+(c==='KRW'?Math.round(x).toLocaleString('en-US'):x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}));
+}
+function qCur103(){ var el=document.getElementById('qCurrency')||document.querySelector('[name="currency"]'); return (el&&el.value)||'KRW'; }
+function qPaint103(){   /* 합계 글자만 다시 그림(계산·자동 채움은 건드리지 않는다) */
+  var c=qCur103();
+  document.querySelectorAll('.q103m').forEach(function(el){ el.textContent=qMoney103(Number(el.dataset.v||0), c); });
 }
 /* v5H226z1088 (대표 지시 08-19): 형태=제품(SEMI) — '수량·금액' 구획을 숨기고 통화·환율 칸을 '품목·사양'으로 옮긴다.
    ⚠칸을 복제하지 않고 DOM 째로 옮긴다(입력값·onchange 유지 — 두 벌이면 어긋난다). 다른 형태로 바꾸면 원위치.
@@ -665,7 +678,7 @@ function qSemiAmtSync(){
   var box=document.getElementById('qSemiAmt'); if(!box) return;
   var am=document.getElementById('qAmount');
   var cc=box.querySelector('#qSemiAmtCur');
-  box.textContent=((am&&am.value)||'0')+' ';
+  box.textContent=qMoney103(qItemNum(am&&am.value), qCur103())+' ';   /* z103: 화폐 기호 앞 · 통화 코드 꼬리는 숨김 */
   if(cc) box.appendChild(cc);
   var sel=document.getElementById('qCurrency');
   if(cc && sel) cc.textContent=sel.value;
@@ -907,9 +920,9 @@ function qCalcParts(){
     var q=parseFloat((qe&&qe.value)||'0')||0;
     var p=parseFloat(((pe&&pe.value)||'0').replace(/,/g,''))||0;
     var amt=q*p; sum+=amt;
-    var a=row.querySelector('.qf-pk-amt'); if(a) a.textContent=amt?amt.toLocaleString('en-US'):'0';
+    var a=row.querySelector('.qf-pk-amt'); if(a){ a.classList.add('q103m'); a.dataset.v=amt; a.textContent=qMoney103(amt, qCur103()); }   /* z103 */
   });
-  var s=document.getElementById('qPartsSum'); if(s) s.textContent=sum.toLocaleString('en-US');
+  var s=document.getElementById('qPartsSum'); if(s){ s.dataset.v=sum; s.textContent=qMoney103(sum, qCur103()); }   /* z103 */
   var ft=document.getElementById('qFormType');
   if(ft && ft.value==='PARTS'){
     var oa=document.querySelector('[name="order_amount"]'); if(oa) oa.value=sum;
@@ -1082,7 +1095,7 @@ function qSyncUnitStatic(disable){
 function qUnitSum(){
   var sum=0; document.querySelectorAll('#qUnitRows .qf-unit-amt').forEach(function(a){ sum+=parseFloat((a.value||'0').replace(/,/g,''))||0; });
   var v=qUnitVals();
-  var s=document.getElementById('qUnitSum'); if(s) s.textContent=sum.toLocaleString('en-US');
+  var s=document.getElementById('qUnitSum'); if(s){ s.dataset.v=sum; s.textContent=qMoney103(sum, v.cur); }   /* z103 */
   var sc=document.getElementById('qUnitSumCur'); if(sc) sc.textContent=v.cur;
   // v5H226z1028 (안지연 프로 신고·대표 지시): '호기별 모드일 때만' 헤더 단가·금액을 자동으로 덮는다.
   //   ⚠기존엔 v.qty>=2 만 봐서 **추가발주(호기줄 없음)에서도 실행**됐다. 호기줄이 비어 있으니

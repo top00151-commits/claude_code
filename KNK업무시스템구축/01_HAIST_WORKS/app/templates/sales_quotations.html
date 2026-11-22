@@ -37,7 +37,7 @@ body {
           {# v5H226z48: 견적번호 amber 텍스트 → .mgmt-pill sm 잉크 알약 #}
           <td><span class="mgmt-pill sm">{{ q.quote_no|default(q.id) }}</span></td>
           <td><b>{{ q.customer_name|default('—') }}</b>{% if q.project_name %}<div style="font-size:11px;color:var(--mute);">{{ q.project_name }}</div>{% endif %}</td>
-          <td class="num" style="font-weight:700;">{% if q.total_amount %}{{ '{:,.0f}'.format(q.total_amount) }}{% else %}—{% endif %}</td>
+          <td class="num" style="font-weight:700;">{% if q.total_amount %}{{ money(q.total_amount, 'KRW') }}{% else %}—{% endif %}</td>
           <td class="center"><span class="pill {% if q.status in ('수주','확정') %}pill-done{% elif q.status == '진행' %}pill-progress{% elif q.status == '거절' %}pill-danger{% else %}pill-muted{% endif %}">{{ q.status|default('—') }}</span></td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ q.issued_at|default('—') }}</td>
           <td class="center" style="font-size:12px;color:var(--mute);">{{ q.valid_until|default('—') }}</td>

@@ -57,7 +57,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
 {% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
 {%- set P = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m ~ ('&by=end' if by else '') -%}
-{%- macro dz(v, cls) -%}{% if v %}<span class="{{ cls }}">{{ '{:,.0f}'.format(v) }}</span>{% else %}<span class="z">—</span>{% endif %}{%- endmacro -%}
+{%- macro dz(v, cls) -%}{% if v %}<span class="{{ cls }}">{{ money(v, 'KRW') }}</span>{% else %}<span class="z">—</span>{% endif %}{%- endmacro -%}
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
     <div>
@@ -98,9 +98,9 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
   </div>
 
   <div class="dr-kpi" data-dn="drill-kpi">
-    <div><div class="l c-o">💙 수주매출</div><div class="v c-o">{{ '{:,.0f}'.format(dr.tot.order) }}</div><div class="s">이 기간에 발주(수주)받은 금액</div></div>
-    <div><div class="l c-p">💚 진행매출</div><div class="v c-p">{{ '{:,.0f}'.format(dr.tot.prog) }}</div><div class="s">이 기간에 출하(납품)한 금액</div></div>
-    <div><div class="l c-f">🧡 최종매출</div><div class="v c-f">{{ '{:,.0f}'.format(dr.tot.final) }}</div><div class="s">이 기간에 세금계산서를 발행한 금액</div></div>
+    <div><div class="l c-o">💙 수주매출</div><div class="v c-o">{{ money(dr.tot.order, 'KRW') }}</div><div class="s">이 기간에 발주(수주)받은 금액</div></div>
+    <div><div class="l c-p">💚 진행매출</div><div class="v c-p">{{ money(dr.tot.prog, 'KRW') }}</div><div class="s">이 기간에 출하(납품)한 금액</div></div>
+    <div><div class="l c-f">🧡 최종매출</div><div class="v c-f">{{ money(dr.tot.final, 'KRW') }}</div><div class="s">이 기간에 세금계산서를 발행한 금액</div></div>
   </div>
 
   {% if dr.kind == 'cust' %}
@@ -146,7 +146,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
       </tbody>
       <tfoot><tr>
         <td></td><td>합계</td>
-        <td class="r c-o">{{ '{:,.0f}'.format(dr.tot.order) }}</td><td class="r c-p">{{ '{:,.0f}'.format(dr.tot.prog) }}</td><td class="r c-f">{{ '{:,.0f}'.format(dr.tot.final) }}</td><td></td>
+        <td class="r c-o">{{ money(dr.tot.order, 'KRW') }}</td><td class="r c-p">{{ money(dr.tot.prog, 'KRW') }}</td><td class="r c-f">{{ money(dr.tot.final, 'KRW') }}</td><td></td>
       </tr></tfoot>
     </table>
   </div>
@@ -156,7 +156,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
   {# ── 고객사 → 수주(소모품 발주)별 ── #}
   <div class="dr-chips" data-dn="drill-cust-biz">
     <a href="/sales/drill?cust={{ cust|urlencode }}&amp;{{ P }}"{% if not biz %} class="on"{% endif %}>전체 사업부</a>
-    {% for s in dr.biz_sub %}{% if not biz or s.biz == biz %}<a href="/sales/drill?cust={{ cust|urlencode }}&amp;biz={{ s.biz }}&amp;{{ P }}"{% if biz == s.biz %} class="on"{% endif %} title="수주 {{ '{:,.0f}'.format(s.order) }} · 진행 {{ '{:,.0f}'.format(s.prog) }} · 최종 {{ '{:,.0f}'.format(s.final) }}">{{ s.label }}</a>{% endif %}{% endfor %}
+    {% for s in dr.biz_sub %}{% if not biz or s.biz == biz %}<a href="/sales/drill?cust={{ cust|urlencode }}&amp;biz={{ s.biz }}&amp;{{ P }}"{% if biz == s.biz %} class="on"{% endif %} title="수주 {{ money(s.order, 'KRW') }} · 진행 {{ money(s.prog, 'KRW') }} · 최종 {{ money(s.final, 'KRW') }}">{{ s.label }}</a>{% endif %}{% endfor %}
     {% if biz %}<a href="/sales/drill?biz={{ biz }}&amp;{{ P }}">← {{ biz_label }} 고객사 전체</a>{% endif %}
   </div>
   <div class="dr-note">
@@ -204,7 +204,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
       </tbody>
       <tfoot><tr>
         <td></td><td colspan="7">합계</td>
-        <td class="r c-o">{{ '{:,.0f}'.format(dr.tot.order) }}</td><td class="r c-p">{{ '{:,.0f}'.format(dr.tot.prog) }}</td><td class="r c-f">{{ '{:,.0f}'.format(dr.tot.final) }}</td>
+        <td class="r c-o">{{ money(dr.tot.order, 'KRW') }}</td><td class="r c-p">{{ money(dr.tot.prog, 'KRW') }}</td><td class="r c-f">{{ money(dr.tot.final, 'KRW') }}</td>
       </tr></tfoot>
     </table>
   </div>

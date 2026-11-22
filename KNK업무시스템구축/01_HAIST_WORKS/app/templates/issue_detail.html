@@ -324,7 +324,7 @@
                   {% if issue.detected_at %}<dt>감지시각</dt><dd style="font-family:var(--pq-mono);font-size:11px;">{{ issue.detected_at[:16] }}</dd>{% endif %}
                   {% if issue.responded_at %}<dt>응답시각</dt><dd style="font-family:var(--pq-mono);font-size:11px;">{{ issue.responded_at[:16] }}</dd>{% endif %}
                   {% if issue.resolved_at %}<dt>해결시각</dt><dd style="font-family:var(--pq-mono);font-size:11px;">{{ issue.resolved_at[:16] }}</dd>{% endif %}
-                  {% if issue.cost_estimate %}<dt>비용추정</dt><dd>{{ '{:,.0f}'.format(issue.cost_estimate|float) }} 원</dd>{% endif %}
+                  {% if issue.cost_estimate %}<dt>비용추정</dt><dd>{{ money(issue.cost_estimate|float, 'KRW') }}</dd>{% endif %}
                 </dl>
               </div>
             </div>

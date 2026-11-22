@@ -37,8 +37,8 @@
       <div class="ex-kpi"><div class="l">진행 중인 선적</div><div class="n">{{ live|length }}</div><div class="s">마감 전 · 11-20 전 인보이스는 출고·통관을 적은 건만</div></div>
       <div class="ex-kpi {% if alerts %}hot{% endif %}"><div class="l">손이 필요한 일</div><div class="n">{{ alerts|length }}</div><div class="s">회신 늦음 · 출고/통관/송금 기록 빠짐 · 서류 오류</div></div>
       {% set m1 = this_m['수책통관'] %}{% set m2 = this_m['일반통관'] %}
-      <div class="ex-kpi"><div class="l">이번 달({{ cur_m }}) 인보이스</div><div class="n">{{ m1[0] + m2[0] }}건</div><div class="s">수책 {{ m1[0] }} · 일반 {{ m2[0] }} · USD {{ "{:,.0f}".format(m1[1] + m2[1]) }}</div></div>
-      <div class="ex-kpi"><div class="l">올해 인보이스</div><div class="n">{{ ytd.n }}건</div><div class="s">USD {{ "{:,.0f}".format(ytd.usd) }}</div></div>
+      <div class="ex-kpi"><div class="l">이번 달({{ cur_m }}) 인보이스</div><div class="n">{{ m1[0] + m2[0] }}건</div><div class="s">수책 {{ m1[0] }} · 일반 {{ m2[0] }} · {{ "${:,.0f}".format(m1[1] + m2[1]) }}</div></div>
+      <div class="ex-kpi"><div class="l">올해 인보이스</div><div class="n">{{ ytd.n }}건</div><div class="s">{{ "${:,.0f}".format(ytd.usd) }}</div></div>
     </div>
 
     {% if alerts %}
@@ -62,7 +62,7 @@
             <div class="r1"><span class="ex-mono">{{ s.invoice_no }}</span>
               <span class="ex-chip {{ 'k1' if s.kind == '수책통관' else ('k2' if s.kind == '일반통관' else 'k0') }}">{{ (s.kind or '구분 모름')|replace('통관','') }}</span>
               {% if ck.get('err') %}<span class="ex-chip err" title="서류 점검 오류">✕{{ ck.err }}</span>{% elif ck.get('warn') %}<span class="ex-chip warn" title="서류 점검 확인할 것">⚠{{ ck.warn }}</span>{% elif s.check %}<span class="ex-chip ok" title="서류 점검 통과">✓</span>{% endif %}</div>
-            <div class="r2">{{ s.inv_date }} · {{ s.lines or '—' }}줄 · USD {{ s.amount_txt }}{% if s.ship.get('awb_no') %} · {{ s.ship.awb_no }}{% endif %}</div>
+            <div class="r2">{{ s.inv_date }} · {{ s.lines or '—' }}줄 · {{ s.amount_txt }}{% if s.ship.get('awb_no') %} · {{ s.ship.awb_no }}{% endif %}</div>
             {% for a in s.alerts[:2] %}<div class="r3">● {{ a }}</div>{% endfor %}
           </a>
           {% else %}<div class="ex-empty">없음</div>{% endfor %}
@@ -77,9 +77,9 @@
       <div style="overflow-x:auto"><table class="ex-tbl">
         <thead><tr><th>달</th><th class="num">수책통관</th><th class="num">USD</th><th class="num">일반통관</th><th class="num">USD</th><th class="num">합계 건</th><th class="num">합계 USD</th></tr></thead>
         <tbody>{% for m in mrows %}{% set a = m['수책통관'] %}{% set b = m['일반통관'] %}{% set z = m[''] %}
-          <tr><td>{{ m.m }}</td><td class="num">{{ a[0] or '' }}</td><td class="num">{{ "{:,.0f}".format(a[1]) if a[1] else '' }}</td>
-            <td class="num">{{ b[0] or '' }}</td><td class="num">{{ "{:,.0f}".format(b[1]) if b[1] else '' }}</td>
-            <td class="num"><b>{{ a[0] + b[0] + z[0] }}</b></td><td class="num"><b>{{ "{:,.0f}".format(a[1] + b[1] + z[1]) }}</b></td></tr>
+          <tr><td>{{ m.m }}</td><td class="num">{{ a[0] or '' }}</td><td class="num">{{ "${:,.0f}".format(a[1]) if a[1] else '' }}</td>
+            <td class="num">{{ b[0] or '' }}</td><td class="num">{{ "${:,.0f}".format(b[1]) if b[1] else '' }}</td>
+            <td class="num"><b>{{ a[0] + b[0] + z[0] }}</b></td><td class="num"><b>{{ "${:,.0f}".format(a[1] + b[1] + z[1]) }}</b></td></tr>
         {% else %}<tr><td colspan="7" class="ex-empty">아직 인보이스가 없습니다 — ① 인보이스 올리기부터</td></tr>{% endfor %}</tbody>
       </table></div>
     </div>

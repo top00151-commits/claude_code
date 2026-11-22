@@ -245,7 +245,7 @@ def register_export_board(app, d):
                 al.append("서류 점검 오류 %d" % ck["err"] + (" (단가 고치기 %d 포함)" % pn["fix"] if pn.get("fix") else ""))
         s["alerts"] = al
         s["days"] = (now - dd).days if dd else None
-        s["amount_txt"] = "{:,.0f}".format(s["amount"]) if s["amount"] else "—"
+        s["amount_txt"] = "${:,.0f}".format(s["amount"]) if s["amount"] else "—"   # z1191z103: 인보이스 TOTAL(USD) 앞에 $
 
     # ---------------- 보드 ----------------
     @app.get("/export", response_class=HTMLResponse)

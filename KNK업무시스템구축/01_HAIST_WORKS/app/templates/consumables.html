@@ -126,7 +126,7 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
               <td>{{ (cust_alias|default({},true)).get(r.customer_id) or r.customer_name or '—' }}</td>
               <td><span class="pill pill-{{ r.status|lower }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
               <td class="amount">
-                {% if r.currency and r.currency != 'KRW' %}{{ r.currency }} {% endif %}{{ '{:,.0f}'.format(r.total_amount or 0) }}{% if not r.currency or r.currency=='KRW' %}원{% endif %}
+                {{ money(r.total_amount or 0, r.currency or 'KRW') }}{# z103: 통화 기호 앞(전: 'USD 1,234' / '1,234원') #}
               </td>
               <td>{{ r.order_date or '—' }}</td>
               <td style="color:var(--qv-ink-3);font-size:12px;">{{ (r.note or '')[:40] }}</td>

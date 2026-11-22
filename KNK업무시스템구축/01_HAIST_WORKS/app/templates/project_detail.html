@@ -202,11 +202,11 @@
       <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="color:var(--mute);">수주 총액 (단가 × 수량)</span>
-          <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">0</span> <span id="followup-cur">KRW</span></b>
+          <b style="font-family:monospace; font-size:15px; color:var(--knk-red);"><span id="followup-total">₩0</span><span id="followup-cur" style="display:none;">KRW</span></b>
         </div>
         <div style="font-size:11px; color:var(--mute); margin-top:6px; line-height:1.5;">
           수량을 N대로 입력하면 <b>N개 호기 라인이 자동 생성</b>됩니다 (각 라인 = 동일 단가).<br>
-          예: 단가 4,900,000 × 4대 = 19,600,000 KRW (3호기·4호기·5호기·6호기 자동 라벨링)
+          예: 단가 ₩4,900,000 × 4대 = ₩19,600,000 (3호기·4호기·5호기·6호기 자동 라벨링)
         </div>
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
@@ -287,9 +287,18 @@
   }
   // v5H131: 단가 × 수량 라이브 합계
   // v5H178: 통화 표기 동기화
+  // z103 (대표 지시): 화면에 보이는 금액 = 화폐 기호 앞(₩·$·₫ …) · KRW 정수 · 외화 소수 2자리(서버 money() 와 같은 규칙)
+  var PD103_SYM = {KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
+  function pdMoney103(n, ccy){
+    var c = String(ccy || 'KRW').toUpperCase(), sy = PD103_SYM[c] || (c + ' ');
+    var x = Number(n) || 0, neg = x < 0; x = Math.abs(x);
+    return (neg ? '-' : '') + sy + (c === 'KRW' ? Math.round(x).toLocaleString('en-US') : x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}));
+  }
+  window.pdMoney103 = pdMoney103;
   function onFupCurrencyChange(){
     var ccy = (document.getElementById('fup_currency').value || 'KRW');
     document.getElementById('followup-cur').textContent = ccy;
+    try { recalcFollowupTotal(); } catch (e) {}   // z103: 기호도 새 통화로
     // 단가 라벨도 동적 표기
     var lbl = document.getElementById('fup_unit_label');
     if (lbl) {
@@ -304,8 +313,8 @@
     if (q < 1) q = 1;
     if (q > 100) q = 100;
     var total = unit * q;
-    document.getElementById('followup-total').textContent = total.toLocaleString('en-US');
     var ccy = (document.getElementById('fup_currency').value || 'KRW');
+    document.getElementById('followup-total').textContent = pdMoney103(total, ccy);   // z103
     document.getElementById('followup-cur').textContent = ccy;
   }
   // v5H196: submitConfirmOrder 폐기 — confirmOrderDirect 가 대체
@@ -333,7 +342,7 @@
     const j = await r.json();
     if (j.ok) {
       var detail = (j.qty && j.qty > 1)
-        ? `\n수량: ${j.qty}대\n단가: ${(j.unit_price||0).toLocaleString()} KRW\n총액: ${(j.total_amount||0).toLocaleString()} KRW`
+        ? `\n수량: ${j.qty}대\n단가: ${pdMoney103(j.unit_price||0, fd.get('currency'))}\n총액: ${pdMoney103(j.total_amount||0, fd.get('currency'))}`
         : '';
       alert(`＋ 추가 발주 완료\n\n관리번호: ${j.mgmt_code} (유지)\n신규 수주번호: ${j.so_no}${detail}`);
       (window.knkLeaveOk=true, location.reload());
@@ -1797,7 +1806,11 @@
                   const amt = Math.round(q * pr);
                   const s = amt ? amt.toLocaleString('en-US') : '0';
                   if (amtInp) amtInp.value = s;
-                  if (pamtDispR) pamtDispR.textContent = s;
+                  // z103: 보이는 글자에만 기호 — 판매단가 칸 앞 기호(서버 _krw_col_ccy|ccysym)와 같은 통화
+                  if (pamtDispR) {
+                    const _pre = priceInpR && priceInpR.previousElementSibling && priceInpR.previousElementSibling.classList.contains('ccy-pre') ? priceInpR.previousElementSibling.textContent.trim() : '';
+                    pamtDispR.textContent = _pre ? (_pre + (_pre === '₩' ? amt.toLocaleString('en-US') : amt.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}))) : s;
+                  }
                 };
                 const _fromCostMargin = () => {   // 매입·마진 → 판매(가산). 마진 빈칸이면 판매 그대로(미정 유지)
                   // v5H226z1026 (안지연 프로 확인·대표 확정): 판매단가는 소수점 이하 **버림**(기존 반올림).
@@ -1851,7 +1864,7 @@
                     const _warn = [];
                     row.querySelectorAll('.ti-cell').forEach(t => {
                       const _d = t.dataset.date || '', _a = t.dataset.amt || '';
-                      if (_d || _a) _warn.push('· ' + (t.dataset.title || '발행 기록') + ' (' + [_d, _a ? Number(_a).toLocaleString('en-US') : ''].filter(Boolean).join(' · ') + ')');
+                      if (_d || _a) _warn.push('· ' + (t.dataset.title || '발행 기록') + ' (' + [_d, _a ? (t.dataset.ccy && window.pdMoney103 ? window.pdMoney103(_a, t.dataset.ccy) : Number(_a).toLocaleString('en-US')) : ''].filter(Boolean).join(' · ') + ')');
                     });
                     const _st = row.querySelector('select.unit-status-sel');
                     const _isLast = card.querySelectorAll('tr[data-uid]').length <= 1;
@@ -2187,7 +2200,7 @@
             {% if p.currency and p.currency != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
               {% set _krw_eq = p.amount_krw if p.amount_krw else (_displayed_amt * p.fx_rate) %}
               <div style="font-size:11px;color:var(--mute);font-weight:600;margin-top:3px;">
-                ≈ <span style="color:#1e3a8a;">{{ '{:,.0f}'.format(_krw_eq) }} KRW</span>
+                ≈ <span style="color:#1e3a8a;">{{ money(_krw_eq, 'KRW') }}</span>
                 <span style="color:#94a3b8;font-weight:500;">(환율 1 {{ p.currency }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
               </div>
             {% endif %}
@@ -2262,7 +2275,7 @@
           <dd style="font-weight:700;color:#1d4ed8;">{% if can_sales_amt %}
             {% if p.final_amount %}{{ money(p.final_amount, p.currency or 'KRW') }}{% else %}—{% endif %}
             {% if p.final_amount and _displayed_amt %}
-            <div style="font-size:10.5px;color:#64748b;font-weight:500;margin-top:3px;">↳ 차액(법인 가공분) <b>{{ '{:,.0f}'.format(p.final_amount - _displayed_amt) }}</b> {{ p.currency or 'KRW' }}</div>
+            <div style="font-size:10.5px;color:#64748b;font-weight:500;margin-top:3px;">↳ 차액(법인 가공분) <b>{{ money(p.final_amount - _displayed_amt, p.currency or 'KRW') }}</b></div>
             {% endif %}
           {% else %}🔒{% endif %}</dd>
           {% endif %}
@@ -3056,7 +3069,9 @@
     if(av===''||av==null) return '';
     var n=Number(av); if(isNaN(n)) return '';
     if((ccy||'KRW')==='KRW') return '₩'+Math.round(n).toLocaleString();
-    return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy;
+    var _s103={USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'}[String(ccy).toUpperCase()];   // z103: 외화도 기호 앞
+    return _s103 ? _s103+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
+                 : n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' '+ccy;
   }
   async function _tiSave(iid, field, value){
     var r=await fetch('/sales/schedule/unit-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({iid:Number(iid),field:field,value:value})});

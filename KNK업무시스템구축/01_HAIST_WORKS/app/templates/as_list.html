@@ -77,7 +77,7 @@
           <td style="white-space:nowrap;color:var(--qv-ink-3);">{{ t.customer_phone or '—' }}</td>
           <td>{{ t.product_name or '—' }}{% if t.model_name %} <span style="color:var(--qv-ink-3);font-size:12px;">/ {{ t.model_name }}</span>{% endif %}</td>
           <td style="max-width:220px;color:var(--qv-ink-2);">{{ (t.symptom or '')[:40] }}{% if (t.symptom or '')|length > 40 %}…{% endif %}</td>
-          <td>{% if t.is_paid %}<span class="paid-y">유상 {% if t.repair_fee %}{{ '{:,.0f}'.format(t.repair_fee) }}원{% endif %}</span>{% else %}<span class="paid-n">무상</span>{% endif %}</td>
+          <td>{% if t.is_paid %}<span class="paid-y">유상 {% if t.repair_fee %}{{ money(t.repair_fee, 'KRW') }}{% endif %}</span>{% else %}<span class="paid-n">무상</span>{% endif %}</td>
           <td><span class="badge b-{{ t.status }}">{{ t.status }}</span></td>
           <td style="white-space:nowrap;color:var(--qv-ink-3);">{{ t.assignee_name or '—' }}</td>
         </tr>

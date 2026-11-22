@@ -697,7 +697,7 @@ document.querySelectorAll('.ef[data-field]').forEach(el=>{
     var ccy = (el.value || 'KRW').toUpperCase();
     var amt = Number(CO_TOTAL) || 0;
     if(ccy !== 'KRW' && amt >= 50000){
-      if(!confirm('합계가 ' + amt.toLocaleString('ko-KR') + ' 입니다.\n\n'
+      if(!confirm('합계가 ' + _shMoney(amt, String(prev||'KRW').toUpperCase()) + ' 입니다.\n\n'   // z103: 바꾸기 전 통화 기호 앞
                   + '통화를 ' + ccy + ' 로 두면 이 금액이 ' + ccy + ' 로 읽혀\n'
                   + '원화 매출이 1,000배 이상으로 잡힙니다.\n\n'
                   + '정말 ' + ccy + ' 가 맞습니까?')){

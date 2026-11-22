@@ -30459,19 +30459,19 @@ _Z75_METRICS = (("prog", "진행매출", "출하(납품)한 금액", "#15803d", 
 
 
 def _z75_won(v):
-    """금액을 한눈에: 368.0억 · 4,900만 · 0."""
+    """금액을 한눈에: ₩368.0억 · ₩4,900만 · ₩0. z1191z103 (대표 11-22 「금액 앞에는 화폐단위가 항상」): 앞에 ₩."""
     try:
         v = float(v or 0)
     except (TypeError, ValueError):
         v = 0.0
     a = abs(v)
     if a >= 1e8:
-        return "%s억" % "{:,.1f}".format(v / 1e8)
+        return "₩%s억" % "{:,.1f}".format(v / 1e8)
     if a >= 1e4:
-        return "%s만" % "{:,.0f}".format(v / 1e4)
+        return "₩%s만" % "{:,.0f}".format(v / 1e4)
     if a < 0.5:
-        return "0"
-    return "%s원" % "{:,.0f}".format(v)
+        return "₩0"
+    return "₩%s" % "{:,.0f}".format(v)
 
 
 def _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today):
@@ -30979,7 +30979,8 @@ def _z23_fx_txt(fx):
     out = []
     for ccy, v in sorted(fx.items(), key=lambda kv: (-abs(kv[1]), kv[0])):
         d = _Z23_FX_DEC.get(ccy, 2)
-        out.append("%s %s" % (ccy, format(round(v, d), ",.%df" % d)))
+        _sym = _CCY_SYMBOL.get(str(ccy).upper())   # z1191z103: $·₫ 기호 앞(소수 자리는 그 통화 그대로 — VND 0자리)
+        out.append((_sym + format(round(v, d), ",.%df" % d)) if _sym else "%s %s" % (ccy, format(round(v, d), ",.%df" % d)))
     return " · ".join(out)
 
 
@@ -35382,6 +35383,7 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                     "status": _st_logi,
                     "stage": _st_logi,
                     "order_amount": cr.get("total_amount") or 0,
+                    "currency": cr.get("currency") or "KRW",   # z1191z103: 금액 앞 기호
                     "order_date": cr.get("order_date") or "",
                     "_co_no": cr.get("co_no"),
                     "sales_name": cr.get("sales_name") or "",   # z1191z92: 👤 내 건만
@@ -45166,6 +45168,7 @@ async def projects_so_backfill_preview(request: Request):
                     "name": (r.get("name") or "")[:40], "biz_div": r.get("biz_div") or "",
                     "order_date": (r.get("order_date") or "")[:10],
                     "amount": float(r.get("order_amount") or 0),
+                    "currency": (r.get("currency") or "KRW"),   # z1191z103: 화면이 금액 앞 기호를 붙이게
                     "status": r.get("status") or "",
                     "mode": "수리" if _exc > 0 else "신규",   # 행 있으나 번호 비정상 = 수리
                 })

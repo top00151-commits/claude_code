@@ -301,6 +301,10 @@ html,body{background:#fff!important;overflow:auto!important;}
       const hasErr = r._errors && r._errors.length > 0;
       tr.style.background = hasErr ? '#fff0f0' : (idx % 2 ? '#fafaf5' : '#fff');
       const fmt = (n) => Number(n||0).toLocaleString();
+      // z103: 화면 금액 = 화폐 기호 앞(₩·$·₫ …) · KRW 정수 · 외화 소수 2자리(서버 money() 와 같은 규칙)
+      const _SYM = {KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
+      const fmtM = (n, ccy) => { const c = String(ccy||'KRW').toUpperCase(), sy = _SYM[c] || (c + ' '); let x = Number(n||0); const neg = x < 0; x = Math.abs(x);
+        return (neg ? '-' : '') + sy + (c === 'KRW' ? Math.round(x).toLocaleString('en-US') : x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})); };
       const errHtml = hasErr
         ? r._errors.map(e => '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>').join('')
         : (r._promoted_new
@@ -316,7 +320,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       // 2차 고객사 / 최종매출 (2단계 발주면 강조)
       const sec = r.secondary_customer ? escapeHtml(r.secondary_customer) : '<span style="color:#bbb;">-</span>';
       const finA = (r.final_amount && Number(r.final_amount) > 0)
-        ? '<b style="color:#1d4ed8;">' + fmt(r.final_amount) + '</b> <span style="color:#999;font-size:10px;">VND</span>'
+        ? '<b style="color:#1d4ed8;">' + fmtM(r.final_amount, 'VND') + '</b>'
         : '<span style="color:#bbb;">-</span>';
       tr.innerHTML =
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + r.row_no + '</td>' +
@@ -328,7 +332,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.po_type ? escapeHtml(r.po_type) : '<span style="color:#bbb;">신규</span>') + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + sfLabel + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.status) + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmt(r.unit_price) + ' × ' + r.unit_qty + ' = <b>' + fmt(r.amount) + '</b> ' + r.currency + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmtM(r.unit_price, r.currency) + ' × ' + r.unit_qty + ' = <b>' + fmtM(r.amount, r.currency) + '</b></td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + finA + '</td>' +
         '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + '</td>';
       tb.appendChild(tr);

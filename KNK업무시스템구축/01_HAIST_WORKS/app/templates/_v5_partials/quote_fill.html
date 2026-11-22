@@ -69,6 +69,9 @@ input.z61-filled, select.z61-filled { background:#fefce8 !important; box-shadow:
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
   function fld(n){ return f.querySelector('[name="'+n+'"]'); }
   function num(n){ if(n===null||n===undefined||n==='') return ''; var x=Number(n); if(!isFinite(x)) return ''; return x.toLocaleString('en-US',{maximumFractionDigits:2}); }
+  /* z1191z103 (대표 「모든 금액 숫자 앞에 화폐 단위」): 읽은 결과 표에 보이는 단가·금액 글자만 기호 앞(입력칸 값은 그대로 num) · KRW 0자리 · 외화 2자리 */
+  var Z103_SYM={KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
+  function z103m(n, c){ c=String(c||'').toUpperCase(); var s=Z103_SYM[c]; if(!s||n===null||n===undefined||n==='') return ''; var x=Number(n); if(!isFinite(x)) return ''; var k=(c==='KRW'?0:2); return s+x.toLocaleString('en-US',{minimumFractionDigits:k,maximumFractionDigits:k}); }
   /* 사람이 손댄 칸 기억(사람이 고른 통화·수량은 기본값이 아니다) · 손대면 노란 표시 풀기 */
   function userTouch(e){ var t=e.target; if(!e.isTrusted||!t||!t.name) return; t.setAttribute('data-z61u','1'); if(t.classList) t.classList.remove('z61-filled'); }
   f.addEventListener('input', userTouch, true); f.addEventListener('change', userTouch, true);
@@ -169,7 +172,8 @@ input.z61-filled, select.z61-filled { background:#fefce8 !important; box-shadow:
             : r.st==='ro' ? '<span class="z61q-st keep">자동 계산 칸이라 그대로</span>'
             : r.st==='ref' ? '<span class="z61q-st keep">참고 — 금액·수량은 수주 카드에서</span>'
             : '<span class="z61q-st keep">이미 적혀 있어 그대로</span>'+(r.apply?' <button type="button" class="z61q-mini" data-z61i="'+i+'">이 값으로 바꾸기</button>':'');
-      h+='<tr><td class="k">'+esc(r.label)+'</td><td class="v">'+esc(r.val)+'</td><td class="s">'+s+'</td></tr>';
+      var _dv = (r.label==='단가') ? (z103m(d.unit_price, d.currency)||r.val) : (r.label==='금액') ? (z103m(d.amount, d.currency)||r.val) : r.val;
+      h+='<tr><td class="k">'+esc(r.label)+'</td><td class="v">'+esc(_dv)+'</td><td class="s">'+s+'</td></tr>';
     });
     if(!d.model_code && !((fld('model')||{}).value||'').trim()) h+='<tr><td class="k">모델명</td><td class="v" style="color:#94a3b8;">견적서에 MODEL 칸 없음</td><td class="s"><span class="z61q-st none">직접 적어 주세요</span></td></tr>';
     h+='</table><div class="z61q-foot">'+(MODE==='edit'?'금액·수량은 수주 카드 합계라 여기서 바꾸지 않습니다. 이미 적힌 칸은 「이 값으로 바꾸기」를 눌러야 바뀝니다.':'발주일·납품일은 견적서에 없어 채우지 않습니다(납품 조건은 비고에).')+'</div>';

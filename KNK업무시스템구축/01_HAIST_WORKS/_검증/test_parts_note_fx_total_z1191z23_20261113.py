@@ -142,8 +142,8 @@ src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
 check('"note": "[상품 일괄등록]"' not in src and '"note": "",   # z1191z23' in src, "등록 코드에 표시 글 없음")
 
 print("§7 합계(외화) — 글 모양")
-check(M._z23_fx_txt({"USD": 24180.5}) == "USD 24,180.50", "USD 24,180.50", M._z23_fx_txt({"USD": 24180.5}))
-check(M._z23_fx_txt({"VND": 1234567.4, "USD": 10}) == "VND 1,234,567 · USD 10.00", "여러 통화 = 큰 금액 먼저 · VND 소수 없음", M._z23_fx_txt({"VND": 1234567.4, "USD": 10}))
+check(M._z23_fx_txt({"USD": 24180.5}) == "$24,180.50", "$24,180.50", M._z23_fx_txt({"USD": 24180.5}))
+check(M._z23_fx_txt({"VND": 1234567.4, "USD": 10}) == "₫1,234,567 · $10.00", "여러 통화 = 큰 금액 먼저 · VND 소수 없음", M._z23_fx_txt({"VND": 1234567.4, "USD": 10}))
 check(M._z23_fx_txt({}) == "" and M._z23_fx_txt(None) == "", "외화 없으면 빈 글")
 
 print("§8 매출 보고서 표 — 고객사별 · KNK VINA 2차 · 프로젝트별 · 합계 줄")
@@ -162,17 +162,17 @@ M._z17_lines = lambda c, rates, oi_map, basis: ([dict(x) for x in LINES], set(),
 with D.db_session() as c:
     R = M._sales_report_z17(c, {}, {}, "tax", "month", "2026", "3", "9")
 cu = {a["name"]: a["fx_txt"] for a in R["cust_rows"]}
-check(cu == {"KNK VINA": "USD 1,500.00", "드림텍": "VND 2,000,000"}, "고객사별 합계(외화): KNK VINA USD 1,500.00 · 드림텍 VND 2,000,000(원화 줄은 빼고)", cu)
+check(cu == {"KNK VINA": "$1,500.00", "드림텍": "₫2,000,000"}, "고객사별 합계(외화): KNK VINA $1,500.00 · 드림텍 ₫2,000,000(원화 줄은 빼고)", cu)
 vi = {a["name"]: a["fx_txt"] for a in R["vina_rows"]}
-check(vi == {"SEV": "USD 1,000.00", "SEVT": "USD 500.00"} and R["fx_vina_txt"] == "USD 1,500.00", "KNK VINA 2차별 · 합계 줄", (vi, R["fx_vina_txt"]))
+check(vi == {"SEV": "$1,000.00", "SEVT": "$500.00"} and R["fx_vina_txt"] == "$1,500.00", "KNK VINA 2차별 · 합계 줄", (vi, R["fx_vina_txt"]))
 pr = {a["code"]: a["fx_txt"] for a in R["proj_rows"]}
-check(pr == {"001M2509": "USD 1,500.00", "002T2509": "VND 2,000,000"} and R["fx_total_txt"] == "VND 2,000,000 · USD 1,500.00",
+check(pr == {"001M2509": "$1,500.00", "002T2509": "₫2,000,000"} and R["fx_total_txt"] == "₫2,000,000 · $1,500.00",
       "프로젝트별 · 전체 합계 줄(통화 섞임)", (pr, R["fx_total_txt"]))
 check(abs(R["total"] - 7210000) < 1 and R["checks_ok"], "합계(원)·맞춤은 그대로", (R["total"], R["checks"]))
 h = q(cl.get, "/sales/report?basis=tax&mode=month&year=2026&m=9").text
 M._z17_lines = _orig
 check(h.count("합계(외화)") >= 3, "화면 머리줄 「합계(외화)」 3곳(고객사별·KNK VINA·프로젝트별)", h.count("합계(외화)"))
-check("USD 1,500.00" in h and "VND 2,000,000" in h and "VND 2,000,000 · USD 1,500.00" in h, "화면에 외화 합계 글")
+check("$1,500.00" in h and "₫2,000,000" in h and "₫2,000,000 · $1,500.00" in h, "화면에 외화 합계 글")
 
 print("§9 z1191z33 건수 = 수주번호 수 · 순위 번호")
 so_c = {a["name"]: a["so_n"] for a in R["cust_rows"]}
