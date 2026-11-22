@@ -596,7 +596,7 @@
     <nav class="mbx-side" aria-label="메일함·폴더">
       {# 11-19 대표 「즐겨찾기·메일함은 스크롤에서 빼고 · 접을 수 있게」: 이 상자는 왼쪽 칸 맨 위에 붙어 있고(폴더만 굴러감) · 머리를 누르면 접힘(이 컴퓨터에 기억) #}
       <div class="mbx-side-top">
-      <a href="/mail/compose" class="mbx-write" title="새 메일 쓰기">✏️ 메일 쓰기</a>
+      <a href="/mail/compose" class="mbx-write" onclick="return window.mailNewWin ? mailNewWin(event) : true" title="새 메일 쓰기">✏️ 메일 쓰기</a>
       <div class="mbx-fold-h mbx-sec-h" data-sec="fav" role="button" tabindex="0" title="눌러서 접기·펼치기" onclick="mbxSecToggle('fav')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mbxSecToggle('fav')}"><span class="mf-tg">▾</span>즐겨찾기</div>
       <div class="mbx-sec" data-sec="fav">
       {% set _fdok = (fd_choices|default([]))|selectattr('key')|map(attribute='key')|list %}
@@ -703,7 +703,7 @@
     <div class="mbx-lhead">
       <b class="mbx-cmd-n" id="mbxCmdN">선택 0통</b>
       <div class="mbx-cmd" id="mbxCmd">
-        <button type="button" class="c new" onclick="location.href='/mail/compose'" title="새 메일 쓰기 (N)">✉ <span class="t">새 메일</span></button>
+        <button type="button" class="c new" onclick="if(window.mailNewWin) mailNewWin(event); else location.href='/mail/compose'" title="새 메일 쓰기 — 새 창으로 (N)">✉ <span class="t">새 메일</span></button>
         <button type="button" class="c" data-cmd="delete" title="삭제 — 휴지통으로 (Delete)">🗑 <span class="t">삭제</span></button>
         {% if cur_arc|default(false) %}<button type="button" class="c" data-cmd="archive" title="받은편지함으로 되돌리기 (E)">📥 <span class="t">받은편지함으로</span></button>{% else %}<button type="button" class="c" data-cmd="archive" title="보관 — 받은편지함에서만 빼기 (E)">📦 <span class="t">보관</span></button>{% endif %}
         <span class="mv"><button type="button" class="c" data-cmd="move" title="이 메일만 다른 폴더로">📁 <span class="t">이동</span> ▾</button></span>
@@ -1693,7 +1693,7 @@ async function mbxDropDo(tg, ids){
       return;
     }
     var map={'Delete':'delete','e':'archive','E':'archive','u':'read','U':'read','Insert':'star','s':'star','S':'star'};   // 11-19 3단계: 노트북(Insert 없음) = S
-    if(k==='n'||k==='N'){ e.preventDefault(); location.href='/mail/compose'; return; }
+    if(k==='n'||k==='N'){ e.preventDefault(); if(window.mailNewWin) mailNewWin(null); else location.href='/mail/compose'; return; }
     if(k==='r' && !e.shiftKey){ e.preventDefault(); mbxCmd('reply'); return; }
     if((k==='R'||k==='r') && e.shiftKey){ e.preventDefault(); mbxCmd('replyall'); return; }
     if((k==='F'||k==='f') && e.shiftKey){ e.preventDefault(); mbxCmd('forward'); return; }

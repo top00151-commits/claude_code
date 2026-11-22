@@ -179,6 +179,9 @@
     .cmp-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:11px 8px;font-size:14px}
   }
 </style>
+{# 11-23 대표 「새 메일 클릭하면 새 창으로」 — 새 창(주소 win=1)이면 위 머리·도구 줄·경로 숨김 · 끝나면 창 닫기(cmpGo) #}
+<script>window.CMP_WIN=/[?&]win=1(&|$)/.test(location.search); if(window.CMP_WIN) document.documentElement.classList.add("cmp-win");</script>
+<style>html.cmp-win .mail-app-fixed, html.cmp-win .mail-app-top, html.cmp-win .mail-tools, html.cmp-win .page-head .crumbs{display:none !important} html.cmp-win{--mail-fixed-h:0px}</style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
@@ -1044,7 +1047,7 @@ function abPut(target){
   window.cmpSchedGo=async function(at){
     scClose(); var fd=gather(); fd.append('at', at); setSend(true); cmsg('⏱ 예약하는 중...','');
     try{ var r=await fetch('/mail/schedule',{method:'POST',body:fd}); var j={}; try{ j=await r.json(); }catch(_){ j={ok:false,message:'서버 응답을 읽지 못했습니다'}; }
-      if(j.ok){ window._cmpSent=true; if(window.cKeepClear) window.cKeepClear(); cmsg(j.message,'green'); setTimeout(function(){ location.href='/mail/sent'; }, 1400); }
+      if(j.ok){ window._cmpSent=true; if(window.cKeepClear) window.cKeepClear(); cmsg(j.message+(window.CMP_WIN?' — 창을 닫습니다':''),'green'); setTimeout(function(){ cmpGo('/mail/sent'); }, 1400); }
       else { if(j.bad && j.bad.length) markBad(['cTo','cCc','cBcc']); cmsg('⚠ '+(j.message||'예약하지 못했습니다'),'red'); setSend(false); }
     }catch(e){ cmsg('⚠ 네트워크 오류 — 예약됐는지 「보낸편지함」 위 「보낼 예정」을 확인해 주세요','red'); setSend(false); }
   };
@@ -1061,6 +1064,12 @@ function abPut(target){
     window.cmpUndoCancel=function(){ stop(); setSend(false); cmsg('↺ 보내기를 취소했습니다 — 고친 뒤 다시 보내세요',''); };
     window.cmpUndoNow=function(){ stop(); doSend(fd); };
   }
+  /* 11-23 새 창(win=1)이면 끝난 뒤 창을 닫고 연 창(받은편지함 등)의 숫자만 새로 · 닫히지 않으면(주소로 직접 연 창) 예전처럼 그 화면으로 */
+  window.cmpGo=function(url){
+    window._cmpLeaving=true;
+    if(window.CMP_WIN){ try{ if(window.opener && !window.opener.closed && window.opener.mailCountsRefresh) window.opener.mailCountsRefresh(); }catch(e){}
+      try{ window.close(); }catch(e){} setTimeout(function(){ location.href=url; }, 400); return; }
+    location.href=url; };
   async function doSend(fd){
     setSend(true); cmsg('📤 보내는 중...','');
     try{
@@ -1073,11 +1082,11 @@ function abPut(target){
           cmsg('⚠ 일부 주소에는 못 갔습니다','red');
           scOpen('<h3>⚠ 보냈지만, 일부 주소에는 못 갔습니다</h3><div class="sc-sub">'+(j.sent_n||0)+'명에게는 보냈습니다. 아래 주소는 메일 서버가 받지 않았습니다 — 주소를 확인해 다시 보내 주세요.</div>'+
             rf.map(function(x){ return '<div class="sc-item"><span class="ic">✉</span><div><b>'+esc(x.addr)+'</b><span class="who">'+esc(x.why||'')+'</span></div></div>'; }).join('')+
-            '<div class="sc-btns"><button type="button" class="go" onclick="location.href=\'/mail/sent\'">보낸편지함으로</button></div>');
+            '<div class="sc-btns"><button type="button" class="go" onclick="cmpGo(\'/mail/sent\')">'+(window.CMP_WIN?'확인 — 창 닫기':'보낸편지함으로')+'</button></div>');
           return;
         }
-        cmsg('✅ 보냈습니다'+(j.dup?'(이미 보낸 메일 — 두 번 보내지 않았습니다)':'')+'. 보낸편지함으로 이동합니다...','green');
-        setTimeout(function(){ location.href='/mail/sent'; }, 900);
+        cmsg('✅ 보냈습니다'+(j.dup?'(이미 보낸 메일 — 두 번 보내지 않았습니다)':'')+(window.CMP_WIN?'. 창을 닫습니다...':'. 보낸편지함으로 이동합니다...'),'green');
+        setTimeout(function(){ cmpGo('/mail/sent'); }, 900);
       } else {
         if(j.bad && j.bad.length){ markBad(['cTo','cCc','cBcc'].filter(function(i){ var v=document.getElementById(i).value; return j.bad.some(function(b){ return v.indexOf(b)>=0; }); })); }
         cmsg('⚠ '+(j.message||'보내지 못했습니다'),'red'); setSend(false);
@@ -1099,7 +1108,7 @@ function abPut(target){
     if(await window.saveDraft(true)){ lastAuto=sig; if(wasNew) AUTO_DRAFT=true; }
   }, 30000);
   window.cmpCancel=function(){
-    if(!window._cDirty && !AUTO_DRAFT){ window._cmpLeaving=true; if(window.cKeepClear) window.cKeepClear(); location.href='/mail/inbox'; return; }
+    if(!window._cDirty && !AUTO_DRAFT){ window._cmpLeaving=true; if(window.cKeepClear) window.cKeepClear(); cmpGo('/mail/inbox'); return; }
     scOpen('<h3>쓰던 메일을 어떻게 할까요?</h3><div class="sc-sub">임시보관함에 두면 나중에 이어 쓸 수 있습니다.</div>'+
       '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">계속 쓰기</button>'+
       '<button type="button" onclick="cmpLeave(false)">🗑 버리고 나가기</button><button type="button" class="go" onclick="cmpLeave(true)">📝 임시보관함에 두고 나가기</button></div>');
@@ -1109,7 +1118,7 @@ function abPut(target){
     if(keep){ await window.saveDraft(true); }
     else if(AUTO_DRAFT){ var did=document.getElementById('cDraftId').value; if(did){ try{ await fetch('/mail/draft/'+encodeURIComponent(did)+'/discard',{method:'POST'}); }catch(_){ } } }
     if(window.cKeepClear) window.cKeepClear();
-    location.href = keep ? '/mail/drafts' : '/mail/inbox';
+    cmpGo(keep ? '/mail/drafts' : '/mail/inbox');
   };
 
   // ── 받는사람 자동완성 (전사 연락처) — 쉼표로 여러 명, 마지막 토큰 기준 ──
