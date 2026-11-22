@@ -6,6 +6,7 @@
   ② 받는 사람·참조 나누기: 따옴표 안 쉼표 · 이름 없는 주소 · 같은 주소 한 번 · ; 구분
   ③ 칩: 직원 = 「이름 직책」(전체는 마우스) · 바깥 = 이름 또는 주소 · 나 = 「나」 · 넷 넘으면 「외 N명 ▾」 · 받는 사람/참조 따로
   ④ 화면: 받는 사람 원문 한 줄 대신 칩 · 그룹 주소는 그 칩 자리에서 「👥 이름(N명 ▾)」 · 주소 못 읽은 메일 = ⚠ 알림 · 파이썬 3.8 · node 문법
+  ⑤ 내 주소가 받는 사람·참조에 없을 때: 내가 든 그룹 칩 = 초록 「나」(숨기지 않음) · 아니면 받는 사람 줄 끝 「🙈 숨은참조」(따로 한 줄 아님)
 """
 import ast
 import base64
@@ -120,6 +121,35 @@ check("그룹 = 그 칩 자리에서 「👥 이름(N명 ▾)」 · 칩이 있�
 check("「외 N명」 펼치기·접기", "window.mvRcMore=function(b)" in v)
 nv = k.get("/mail/%d?app=1" % NOF).text
 check("보낸 사람 주소 못 읽은 메일 = ⚠ 알림(「? <>」 아님)", "⚠ 보낸 사람 주소를 읽지 못한 메일" in nv and "&lt;&gt;" not in nv[nv.find('class="mv-hname"'):nv.find('class="mv-hname"') + 600])
+print("⑤ 받는 사람·참조에 내 주소가 없을 때(대표 11-22 「🙈 띠가 괜히 한 줄 차지」)")
+import json as _json
+from app import mail_work as _MW
+with _db.db_session() as c:
+    _MW.ensure(c)
+    c.execute("INSERT INTO mail_groups(kind, name, address, members) VALUES('company','시험영업부','sales-demo" + D + "',?)",
+              (_json.dumps([{"email": "a1" + D}, {"email": "ME" + D}, {"email": "a2" + D}]),))
+    c.execute("INSERT INTO mail_groups(kind, name, address, members) VALUES('company','시험구매팀','buy-demo" + D + "',?)",
+              (_json.dumps([{"email": "b1" + D}, {"email": "b2" + D}]),))
+    _cc5 = ", ".join(["buy-demo" + D] + ["p%d-demo@partner-demo.example" % i for i in range(1, 5)] + ["시험영업부 <sales-demo" + D + ">"])
+    VIA, _ = MS.store_inbound(c, to_email="hm-demo@partner-demo.example", to_all="[가공] HM <hm-demo@partner-demo.example>", cc=_cc5,
+                              from_email="hong" + D, from_name="시험홍", subject="그룹으로 받음", text="가짜", owner_id=9890, run_ai=False, message_id="rc3@test")
+    BCC, _ = MS.store_inbound(c, to_email="hm-demo@partner-demo.example", to_all="[가공] HM <hm-demo@partner-demo.example>", cc="buy-demo" + D,
+                              from_email="hong" + D, from_name="시험홍", subject="숨은참조로 받음", text="가짜", owner_id=9890, run_ai=False, message_id="rc4@test")
+for nm, u in (("메일 보기", "/mail/%d?app=1" % VIA), ("읽기 칸 조각", "/mail/%d/pane" % VIA)):
+    h = k.get(u).text
+    hs = h[h.find('id="mvHsub"'):h.find('</div>', h.find('id="mvHsub"'))]
+    check("%s: 내가 든 그룹 칩 = 초록 「나」(여섯째라도 숨기지 않음)" % nm, 'class="mv-rc-p via" data-addr="sales-demo@knknara.co.kr"' in hs and '<b class="mv-via">나</b>' in hs, hs[:600])
+    check("%s: 그룹으로 받으면 🙈 칩·띠 없음 · 「외 1명」(내 그룹 빼고 셈)" % nm, "🙈" not in hs and "외 1명 ▾" in hs and hs.count('class="mv-rc-p x"') == 1, hs.count('class="mv-rc-p x"'))
+    check("%s: 칩 마우스 = 「나는 이 그룹 메일로 받았습니다」" % nm, "나는 이 그룹 메일로 받았습니다" in hs)
+h = k.get("/mail/%d?app=1" % BCC).text
+hs = h[h.find('id="mvHsub"'):h.find('</div>', h.find('id="mvHsub"'))]
+_to = hs[hs.find('class="mv-rc mv-rc-to"'):hs.find('class="mv-rc mv-rc-cc"')]
+check("숨은참조 = 받는 사람 줄 끝 작은 칩 「🙈 숨은참조」(따로 한 줄 아님)", "🙈 숨은참조</b>" in _to and "🙈 숨은참조·그룹 주소로 받음" not in hs
+      and hs.find("🙈") > hs.find('class="mv-rc mv-rc-to"'), hs[:500])
+check("화면 스크립트: 그룹 칩을 그릴 때 초록 「나」 유지", "var via=chip.classList.contains('via');" in k.get("/mail/%d?app=1" % VIA).text)
+check("내 그룹 찾기 = 그룹 명단에 내 주소(대소문자 무시) · 명단 없는 그룹·바깥은 빼고",
+      __import__("app.mail_people", fromlist=["x"]).via_groups({"g" + D: {"members": [{"email": "ME" + D}]}, "h" + D: {"members": [{"email": "x" + D}]}},
+                                                              "g" + D + ", h" + D + ", z@partner-demo.example", {"me" + D}) == ["g" + D])
 css = io.open("app/templates/_v5_partials/mail_view_styles.html", encoding="utf-8").read()
 check("넓은 화면: 받는 사람 줄 = 보낸 사람 아래 전체 폭 · 길면 다음 줄(잘리지 않음)", "flex:1 1 100%;min-width:0;margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap" in css and ".mv-hsub .mv-rc-to:has(~ .mv-rc-cc){flex-basis:100%}" in css)
 for f in ("app/main.py", "app/mail_store.py", "app/mail_people.py"):

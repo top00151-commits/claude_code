@@ -27,6 +27,9 @@
   .mv-rc.all .mv-rc-p.x{display:inline-block}
   .mv-rc-p.grp{padding:0;border:0;background:none;overflow:visible;max-width:none}
   .mv-rc-p.grp .mv-grp-i{position:relative;display:inline-block;padding:0;border:0;background:none}
+  .mv-via{display:inline-block;font-size:10.5px;font-weight:800;line-height:1.4;padding:0 5px;margin-right:4px;border-radius:999px;background:#16a34a;color:#fff;vertical-align:1px}
+  .mv-rc-p.via{border-color:#86efac;background:#f0fdf4;color:#166534;font-weight:700}
+  .mv-rc .mv-me.bcc{margin:0 0 0 2px;font-size:11px;padding:0 7px;line-height:1.75;border-radius:999px;font-weight:600;white-space:nowrap}
   .mv-rc-more{border:0;background:none;color:#1d4ed8;font-size:12px;font-weight:600;cursor:pointer;padding:0 4px;white-space:nowrap}
   .mv-hsub .mv-rc-to:has(~ .mv-rc-cc){flex-basis:100%}   /* 참조가 있으면 받는 사람 = 한 줄 · 참조(+시각) = 다음 줄 */
   .mv-hsub .mv-rc{min-width:0}
@@ -362,6 +365,8 @@
     .mv-grp-i:not(.open) .mv-grp-p{display:none}
     .mv-grp-i.open .mv-grp-p{display:flex;position:absolute;left:0;top:calc(100% + 4px);z-index:35;width:max-content;max-width:min(520px,70vw);background:var(--mt-surface,#fff);border:1px solid #bfdbfe;border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.14);padding:8px;margin:0}
     html[data-mt="dark"] .mv-grp-b{background:#1e293b;border-color:#334155;color:#bfdbfe}
+    .mv-rc-p.via .mv-grp-b{border-color:#86efac;background:#f0fdf4;color:#166534}
+    html[data-mt="dark"] .mv-rc-p.via .mv-grp-b{background:#14532d;border-color:#166534;color:#bbf7d0}
     .mv-hrow .mv-actions{flex:0 1 auto;min-width:0;justify-content:flex-start;gap:4px}
     .mv-hrow .mv-actions .btn{padding:4px 9px}
     .mv-hrow .mv-actions .mv-ico{min-width:32px;padding:4px 7px;font-size:14px;justify-content:center}

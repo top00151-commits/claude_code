@@ -26851,8 +26851,22 @@ def _mail_view_people(c, u, m) -> dict:
         # 11-22 대표 「받는 사람이 도대체 누구인지」 — 받는 사람·참조를 사람마다 칩으로(직원 = 이름 직책 · 나 = 「나」)
         _to = _mpeople.rcpt_list(st, (m.get("to_all") or m.get("to_email") or ""), _mine)
         _cc = _mpeople.rcpt_list(st, (m.get("cc") or ""), _mine)
+        _role = _mpeople.my_role(m, _mine)
+        # 11-22 대표 「🙈 숨은참조·그룹 주소로 받음 — 괜히 한 줄 차지 · 어느 그룹인지」: 내가 든 그룹 칩 = 초록 「나」 표시(따로 띠 없음)
+        _via = []
+        if _role == "bcc":
+            try:
+                _via = _mpeople.via_groups(_mwork.company_group_map(c), " ".join((m.get("to_all") or "", m.get("to_email") or "", m.get("cc") or "")), _mine)
+            except Exception as _e2:
+                print("[MAIL-PEOPLE] 그룹 명단 확인 실패: %s" % str(_e2)[:160], flush=True)
+        for _lst in (_to, _cc):
+            for _i, _r in enumerate(_lst):
+                _r["via"] = _r["email"] in _via
+                if _r["via"]:
+                    _r["title"] = "나는 이 그룹 메일로 받았습니다 — " + _r["title"]
+                _r["x"] = _i >= 4 and not _r["me"] and not _r["via"]   # 「외 N명」에 숨기는 칩(나·내 그룹은 늘 보임)
         return {"disp": s.get("disp", ""), "boss": s.get("boss", ""),
-                "role": _mpeople.my_role(m, _mine), "rcpt_to": _to, "rcpt_cc": _cc}
+                "role": _role, "via": _via, "rcpt_to": _to, "rcpt_cc": _cc}
     except Exception as _e:
         print("[MAIL-PEOPLE] 메일 보기 사람 표시 실패: %s" % str(_e)[:160], flush=True)
         return {}

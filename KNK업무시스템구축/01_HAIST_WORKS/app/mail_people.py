@@ -155,6 +155,19 @@ def rcpt_list(st: dict, header: str, mine: set) -> list:
     return out
 
 
+def via_groups(gmap: dict, text: str, mine: set) -> list:
+    """받는 사람·참조에 있는 회사 그룹 주소 중 내 주소가 명단에 든 것 — [그룹 주소] (11-22 대표 「어느 그룹으로 받았는지」)."""
+    out = []
+    for a in _RE_EMAIL.findall(text or ""):
+        a = a.lower()
+        g = (gmap or {}).get(a)
+        if not g or a in out:
+            continue
+        if any((x.get("email") or "").strip().lower() in (mine or set()) for x in (g.get("members") or [])):
+            out.append(a)
+    return out
+
+
 def my_role(m: dict, mine: set) -> str:
     """이 메일에서 나는 — "to"(받는 사람) · "cc"(참조) · "bcc"(받는 사람·참조에 내 주소가 없음 = 숨은참조·그룹 주소 등) · ""(보낸 메일·모름)."""
     if not mine or (m.get("direction") or "in") != "in":
