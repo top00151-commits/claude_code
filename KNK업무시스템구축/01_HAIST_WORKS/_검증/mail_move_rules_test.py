@@ -447,6 +447,16 @@ try:
     with _db.db_session() as c:
         bad = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND pattern='x'", (OTHER,)).fetchone()[0]
     check("(남의 폴더 번호로 보내도 규칙 안 생김)", bad == 0)
+
+    print("== 17. 폴더 관리 「💾 저장」 단추(11-22 대표 「수정 후 저장 버튼 · 저장이 된 건지 헷갈려」) ==")
+    fh = k.get("/mail/folders").text
+    check("단추 없던 칸(이름·다른 이름·🏷 꼬리표·묶음·부서)에 「💾 저장」 · 고치면 노란 칸 · 저장 안 하고 나가면 물음",
+          "mf-save" in fh and "💾 저장" in fh and "form.dirty" in fh and "beforeunload" in fh and 'id="mfUnsaved"' in fh)
+    check("줄마다 표시 열쇠(폴더·묶음·부서)", ('data-hl="f%d"' % dr) in fh and ('data-hl="f%d"' % by["1.고객사"]["id"]) in fh and ('data-hl="t%d"' % T_QA) in fh)
+    r = k.post("/mail/folders/op", data={"op": "aliases", "id": dr, "aliases": "Dreamtech"})
+    check("저장 뒤 그 줄로 돌아가 「✓ 저장됨」(hl)", r.status_code == 303 and ("hl=f%d" % dr) in r.headers.get("location", ""), r.headers.get("location"))
+    r = k.post("/mail/folders/team", data={"op": "rename", "key": "t%d" % T_QA, "name": ""})
+    check("부서 이름 저장 뒤에도 그 줄(hl=t…)", r.status_code == 303 and ("hl=t%d" % T_QA) in r.headers.get("location", ""), r.headers.get("location"))
 finally:
     pass
 

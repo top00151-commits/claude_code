@@ -24235,7 +24235,8 @@ async def mail_folders_team(req: Request):
     except ValueError as e:
         msg = "⚠ " + str(e)
     import urllib.parse as _up
-    return RedirectResponse("/mail/folders?msg=" + _up.quote(msg) + "#staff", 303)
+    # 11-22 대표 「저장이 된 건지 헷갈려」 — 저장한 줄로 돌아가 「✓ 저장됨」 표시(hl)
+    return RedirectResponse("/mail/folders?msg=" + _up.quote(msg) + ("&hl=" + _up.quote(key) if key else "") + "#staff", 303)
 
 
 @app.get("/mail/folders/general", response_class=HTMLResponse)
@@ -24406,7 +24407,9 @@ async def mail_folders_op(req: Request):
         elif op == "parent":   # 11-22 폴더 위치(묶음 바로 아래 · 다른 폴더 아래)
             msg = "위치를 바꿨습니다." if _mail_folders.set_parent(c, uid, _i("id"), _i("parent_id")) else "그 자리로는 옮길 수 없습니다(3단계까지 · 아래 폴더가 있는 폴더는 묶음 바로 아래만)."
     from urllib.parse import quote
-    return RedirectResponse("/mail/folders" + (("?msg=" + quote(msg)) if msg else ""), 303)
+    _hl = ("f%d" % _i("id")) if (_i("id") and op in ("rename", "aliases", "subjtags", "parent", "up", "down")) else ""
+    _q = [x for x in (("msg=" + quote(msg)) if msg else "", ("hl=" + _hl) if _hl else "") if x]
+    return RedirectResponse("/mail/folders" + (("?" + "&".join(_q)) if _q else ""), 303)
 
 
 @app.post("/mail/{mail_id:int}/reply-mark")
