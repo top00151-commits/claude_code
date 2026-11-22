@@ -189,7 +189,7 @@
   <div class="mf-box">
     {% for r in rules %}
     <div class="mf-rule">
-      <span>{% if r.kind == 'domain' %}회사 주소 <b>@{{ r.pattern }}</b> <small>에서 온 메일 모두</small>{% else %}<b>{{ r.pattern }}</b> <small>에서 온 메일</small>{% endif %}</span>
+      <span>{% if r.kind == 'domain' %}회사 주소 <b>@{{ r.pattern }}</b> <small>에서 온 메일 모두</small>{% elif r.kind == 'subject' %}🏷 제목 <b>[{{ r.pattern }}…]</b> <small>꼬리표가 붙은 메일(보낸 사람 상관없이)</small>{% else %}<b>{{ r.pattern }}</b> <small>에서 온 메일</small>{% endif %}</span>
       <span class="ar">→</span>
       <span>📁 {{ r.folder_name or '(지운 폴더·부서)' }}</span>
       <span class="dt"><small>{% if r.since %}⏩ {{ r.since[:16] }}부터 받은 메일{% else %}⏪ 지난 메일도 모두{% endif %} · {{ (r.created_at or '')[:16] }}</small></span>

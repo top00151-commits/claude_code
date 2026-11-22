@@ -620,29 +620,62 @@ def _set_flag(c, uid, flag, val) -> None:
               "ON CONFLICT(user_id, flag) DO UPDATE SET val=excluded.val", (uid, flag, val or ""))
 
 
+# 11-22 대표 「제목에 포함된 내용에 따라서도 구분 — [MaPS] · [G-DIX] 같은 구분자로도 분류」
+_RE_SUBJ_TAG = re.compile(r"[\[【〔]\s*([^\]】〕]{2,40}?)\s*[\]】〕]")
+
+
+def subj_tags(sj) -> list:
+    """제목의 [꼬리표] 들(원래 글자) — 예: 「[MaPS - Equip] …」 → ['MaPS - Equip']."""
+    return [t.strip() for t in _RE_SUBJ_TAG.findall(sj or "") if t.strip()]
+
+
+def tag_token(tag) -> str:
+    """꼬리표의 첫 낱말 — 「MaPS - Equip」 → 「MaPS」 · 「G-DIX」 → 「G-DIX」(붙은 - 는 그대로)."""
+    return re.split(r"\s+[-–:|/·]\s*|\s+", (tag or "").strip())[0][:30]
+
+
+def subj_hit(sj, pat_norm) -> bool:
+    """제목의 꼬리표 중 하나가 그 낱말로 시작하는가(대소문자·띄어쓰기·기호 무시)."""
+    if not pat_norm:
+        return False
+    return any(norm_name(t).startswith(pat_norm) for t in subj_tags(sj))
+
+
 def _rule_index(c, uid, valid):
-    """규칙 → {주소: [(언제부터, 번호, 옮긴 곳)…]}(사람) · {회사 주소: […]}(회사). 새 기준·새 규칙 먼저. 없어진 곳으로 가는 규칙은 뺌."""
-    em, dm = {}, {}
+    """규칙 → {주소: [(언제부터, 번호, 옮긴 곳)…]}(사람) · {회사 주소: […]}(회사) · {제목 꼬리표: […]}(제목). 새 기준·새 규칙 먼저.
+    없어진 곳으로 가는 규칙은 뺌."""
+    em, dm, sm = {}, {}, {}
     for r in c.execute("SELECT id, kind, pattern, target, COALESCE(since,'') AS since FROM mail_move_rules WHERE user_id=?",
                        (uid,)).fetchall():
         if (r["target"] or "") not in valid:
             continue
-        (em if r["kind"] == "email" else dm).setdefault((r["pattern"] or "").lower(), []).append(
-            (r["since"] or "", r["id"], r["target"]))
-    for m in (em, dm):
+        if r["kind"] == "subject":
+            m, key = sm, norm_name(r["pattern"] or "")
+        else:
+            m, key = (em if r["kind"] == "email" else dm), (r["pattern"] or "").lower()
+        if key:
+            m.setdefault(key, []).append((r["since"] or "", r["id"], r["target"]))
+    for m in (em, dm, sm):
         for k in m:
             m[k].sort(reverse=True)
-    return em, dm
+    return em, dm, sm
 
 
-def _rule_for(ri, e, ts):
-    """그 메일(보낸 주소 e · 받은 때 ts)에 걸리는 규칙 → (옮긴 곳, 까닭) 또는 None.
-    사람 규칙 먼저 → 회사 규칙. 같은 대상의 규칙이 여럿이면 **그 메일 받은 때에 이미 있던 가장 새 기준**(「지금부터만」 = 그때부터)."""
+def _rule_for(ri, e, ts, sj=""):
+    """그 메일(보낸 주소 e · 받은 때 ts · 제목 sj)에 걸리는 규칙 → (옮긴 곳, 까닭) 또는 None.
+    제목 꼬리표 규칙 먼저 → 사람 규칙 → 회사 규칙. 같은 대상의 규칙이 여럿이면 **그 메일 받은 때에 이미 있던 가장 새 기준**(「지금부터만」 = 그때부터)."""
     if not ri:
         return None
-    em, dm = ri
+    em, dm = ri[0], ri[1]
+    sm = ri[2] if len(ri) > 2 else {}
     ts = ts or ""
     d = _dom(e)
+    if sm and sj:
+        for pn, lst in sm.items():
+            if subj_hit(sj, pn):
+                for since, _rid, tgt in lst:
+                    if since <= ts:
+                        return tgt, "내 규칙(제목 [%s…])" % pn + (" · %s부터 받은 메일" % since[:16] if since else "")
     for lst, how in ((em.get(e), "내 규칙(이 사람)"), (dm.get(d) if d else None, "내 규칙(회사 주소 @%s)" % d)):
         for since, _rid, tgt in (lst or ()):
             if since <= ts:
@@ -910,8 +943,49 @@ def classify(c, uid) -> dict:
     cnt, gcnt = {}, {}
     upd_key, upd_team = [], []
     _ref_cache = {}
+    # 11-22 대표 「제목의 [MaPS] · [G-DIX] 구분자로도」 — 메일이 회사 폴더(또는 그 아래)에 들면, 제목 꼬리표가
+    #   **그 회사 폴더 아래 폴더** 이름·다른 이름과 한 곳만 맞을 때 그 아래 폴더로(예: 삼성전기 › MaPS · G-DIX)
+    root_of, sub_tree_idx, _tag_cache = {}, {}, {}
+
+    def _root(fid):
+        if fid in root_of:
+            return root_of[fid]
+        cur, hop = fid, 0
+        while cur in par and par.get(cur) in par and hop < 5:
+            cur, hop = par[cur], hop + 1
+        root_of[fid] = cur if cur in par else None   # 묶음(맨 위) 자체면 None
+        return root_of[fid]
+
+    def tag_refine(k, sj):
+        if not sj or not k.startswith("f") or not k[1:].isdigit():
+            return k
+        rt = _root(int(k[1:]))
+        if not rt or rt not in kids:
+            return k
+        tags = tuple(subj_tags(sj))
+        if not tags:
+            return k
+        ck = (rt, tags)
+        if ck not in _tag_cache:
+            if rt not in sub_tree_idx:
+                its, stack = [], list(kids.get(rt, []))
+                while stack:
+                    f0 = stack.pop()
+                    its.extend(_names(f0))
+                    stack.extend(kids.get(f0["id"], []))
+                sub_tree_idx[rt] = NameIndex(its)
+            hit = None
+            for t in tags:
+                h = _spec(sub_tree_idx[rt].find(t), par) or _spec(sub_tree_idx[rt].find(tag_token(t)), par)
+                h1 = _one(h)
+                if h1:
+                    hit = h1
+                    break
+            _tag_cache[ck] = hit
+        hit = _tag_cache[ck]
+        return ("f%d" % hit) if hit else k
     for r in c.execute("SELECT id, lower(from_email) AS e, COALESCE(received_at,'') AS ts, COALESCE(fd_pin,'') AS pin, "
-                       "fd_team, COALESCE(fd_key,'') AS fk, is_read FROM mail_messages "
+                       "fd_team, COALESCE(fd_key,'') AS fk, is_read, substr(COALESCE(subject,''),1,200) AS sj FROM mail_messages "
                        "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0", (uid,)).fetchall():
         e = (r["e"] or "").strip()
         s = senders.get(e)
@@ -919,7 +993,7 @@ def classify(c, uid) -> dict:
         if pin and pin in valid:                       # ① 이 메일만
             k = pin
         else:
-            rr = _rule_for(ri, e, r["ts"])             # ② 내가 옮긴 규칙(그 메일 받은 때 기준)
+            rr = _rule_for(ri, e, r["ts"], r["sj"])    # ② 내가 옮긴 규칙(제목 꼬리표 → 사람 → 회사 · 그 메일 받은 때 기준)
             if rr:
                 k = rr[0]
                 if k in split_keys and s is not None:   # 옮긴 폴더에 아래 폴더가 있으면(삼성그룹 등) 그 안에서 한 번 더
@@ -937,6 +1011,8 @@ def classify(c, uid) -> dict:
                 k = ("t%d" % tid) if (tid is not None and tid in tmap) else "tx"
             else:                                      # ④ 보낸 사람 자동
                 k = s["key"] if s else "gen"
+            if not (rr and rr[1].startswith("내 규칙(제목")):
+                k = tag_refine(k, r["sj"])             # ⑤ 제목 꼬리표 → 그 회사 아래 폴더
         k = mg(k)
         if k != r["fk"]:
             upd_key.append((k, r["id"]))
@@ -1310,8 +1386,14 @@ def mail_where(res, m) -> dict:
     s = res["senders"].get(e) or {}
     if not k or k not in labels:
         k = s.get("fin", s.get("key", "gen")) if s else "gen"
-    rr = _rule_for(res.get("_ri"), e, m.get("received_at") or "")
-    if rr:
+    sj = m.get("subject") or ""
+    rr = _rule_for(res.get("_ri"), e, m.get("received_at") or "", sj)
+    nk = norm_name(labels.get(k, ""))
+    if rr and rr[0] == k:
+        how = rr[1]
+    elif nk and any(norm_name(t).startswith(nk) or norm_name(tag_token(t)) == nk for t in subj_tags(sj)):
+        how = "제목 꼬리표 [%s] → 그 회사 아래 폴더" % next(t for t in subj_tags(sj) if norm_name(t).startswith(nk) or norm_name(tag_token(t)) == nk)
+    elif rr:
         how = rr[1]
     elif k.startswith("t") and _dom(e) in OUR_DOMAINS:
         how = "직원 — 이 메일 받은 때 부서"
@@ -1404,22 +1486,29 @@ def set_rule(c, uid, folder_id, sender, res=None) -> dict:
     return {"ok": True, "kind": kind, "pattern": pat, "moved": n}
 
 
-def _pat_tables(c, pats):
+def _pat_tables(c, pats, uid=None):
     c.execute("CREATE TEMP TABLE IF NOT EXISTS _mv_e(e TEXT PRIMARY KEY)")
     c.execute("CREATE TEMP TABLE IF NOT EXISTS _mv_d(d TEXT PRIMARY KEY)")
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS _mv_i(i INTEGER PRIMARY KEY)")
     c.execute("DELETE FROM _mv_e")
     c.execute("DELETE FROM _mv_d")
+    c.execute("DELETE FROM _mv_i")
     c.executemany("INSERT OR IGNORE INTO _mv_e(e) VALUES(?)", [(p,) for k, p in pats if k == "email"])
     c.executemany("INSERT OR IGNORE INTO _mv_d(d) VALUES(?)", [(p,) for k, p in pats if k == "domain"])
+    sp = [norm_name(p) for k, p in pats if k == "subject"]
+    if sp and uid is not None:   # 제목 꼬리표 = 서버 안에서 골라 번호로
+        ids = [r["id"] for r in c.execute("SELECT id, subject FROM mail_messages WHERE user_id=? AND direction='in' AND subject LIKE '%[%'",
+                                         (uid,)).fetchall() if any(subj_hit(r["subject"], x) for x in sp)]
+        c.executemany("INSERT OR IGNORE INTO _mv_i(i) VALUES(?)", [(i,) for i in ids])
     return ("(lower(from_email) IN (SELECT e FROM _mv_e) OR "
-            "substr(lower(from_email), instr(lower(from_email),'@')+1) IN (SELECT d FROM _mv_d))")
+            "substr(lower(from_email), instr(lower(from_email),'@')+1) IN (SELECT d FROM _mv_d) OR id IN (SELECT i FROM _mv_i))")
 
 
 def _match_count(c, uid, pats, key=None) -> int:
     """규칙 대상(사람·회사 주소)의 받은 메일 수(지운 것·스팸 빼고) · key 를 주면 그 폴더에 있는 것만."""
     if not pats:
         return 0
-    w = _pat_tables(c, pats)
+    w = _pat_tables(c, pats, uid)
     sql = ("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
            "AND COALESCE(is_blocked,0)=0 AND " + w)
     args = [uid]
@@ -1440,13 +1529,15 @@ def _own_rows(c, uid, ids):
         return []
     q = ",".join("?" * len(nums))
     return [dict(r) for r in c.execute(
-        "SELECT id, lower(from_email) AS e, COALESCE(fd_pin,'') AS pin, COALESCE(fd_key,'') AS fk FROM mail_messages "
+        "SELECT id, lower(from_email) AS e, COALESCE(fd_pin,'') AS pin, COALESCE(fd_key,'') AS fk, COALESCE(subject,'') AS sj FROM mail_messages "
         "WHERE user_id=? AND direction='in' AND id IN (" + q + ")", (uid, *nums)).fetchall()]
 
 
 def _pat_label(pats) -> str:
     if len(pats) == 1:
         k, p = pats[0]
+        if k == "subject":
+            return "제목 [%s…]" % p
         return ("회사 주소 @" + p) if k == "domain" else p
     nd = sum(1 for k, _p in pats if k == "domain")
     ne = len(pats) - nd
@@ -1467,7 +1558,21 @@ def move_scopes(c, uid, res, ids) -> dict:
            "person": {"label": _pat_label(pers), "n": _match_count(c, uid, pers)}}
     fk = {r["fk"] for r in rows if r["fk"]}
     out["from"] = (res.get("labels") or {}).get(next(iter(fk)), "") if len(fk) == 1 else ""
+    tok = _common_tag(rows)
+    if tok:   # 11-22 고른 메일이 모두 같은 제목 꼬리표 → 「🏷 제목 [MaPS…] 메일」 범위
+        out["subject"] = {"label": _pat_label([("subject", tok)]), "n": _match_count(c, uid, [("subject", tok)]), "tok": tok}
     return out
+
+
+def _common_tag(rows) -> str:
+    """고른 메일 모두의 제목에 같은 꼬리표 첫 낱말이 있으면 그 낱말(예: MaPS) · 없으면 ''."""
+    common = None
+    for r in rows:
+        toks = {tag_token(t) for t in subj_tags(r.get("sj") or "") if len(norm_name(tag_token(t))) >= 2}
+        common = toks if common is None else {t for t in common if norm_name(t) in {norm_name(x) for x in toks}}
+        if not common:
+            return ""
+    return sorted(common, key=len, reverse=True)[0] if common else ""
 
 
 def move(c, uid, res, ids, target, when, scope) -> dict:
@@ -1494,7 +1599,12 @@ def move(c, uid, res, ids, target, when, scope) -> dict:
         pats = []
     else:
         es = sorted({r["e"] for r in rows})
-        if scope == "person":
+        if scope == "subject":
+            tok = _common_tag(rows)
+            if not tok:
+                return {"ok": False, "message": "고른 메일의 제목에 같은 [꼬리표]가 없습니다."}
+            pats = [("subject", tok)]
+        elif scope == "person":
             pats = sorted({("email", e) for e in es})
         else:
             pats = sorted({rule_target(e, res) for e in es if rule_target(e, res)})
@@ -1505,7 +1615,7 @@ def move(c, uid, res, ids, target, when, scope) -> dict:
             _put_rule(c, uid, kind, pat, target, since, undo)
         if when == "all":
             # 지난 메일도 모두 — 그 보낸 곳의 「이 메일만」 옮김도 풀어 함께 따라가게
-            w = _pat_tables(c, pats)
+            w = _pat_tables(c, pats, uid)
             for r in c.execute("SELECT id, fd_pin FROM mail_messages WHERE user_id=? AND direction='in' AND COALESCE(fd_pin,'')<>'' AND "
                                + w, (uid,)).fetchall():
                 undo["pins"].append([r["id"], r["fd_pin"]])

@@ -388,6 +388,36 @@ try:
     check("왼쪽 폴더 = 오른쪽 클릭 표시(data-fk·깊이·다른 이름) + 메뉴(이름 바꾸기·아래 폴더·추천·다른 이름·지우기)",
           ('data-fk="f%d" data-dep="1"' % dr) in hi and 'data-al="Dreamtech, dt-x.example"' in hi
           and all(x in hi for x in ("✏️ 이름 바꾸기", "＋ 아래 폴더 만들기", "💡 아래 폴더 추천", "🏷 다른 이름", "🗑 폴더 지우기", "/mail/folders/quick")))
+
+    print("== 15. 제목 꼬리표 [MaPS] · [G-DIX](11-22 대표 「제목의 구분자로도 분류」) ==")
+    cx = q(op="add", parent_id=by["1.고객사"]["id"], name="시험전기").json()["id"]
+    q(op="aliases", id=cx, aliases="semx.example")
+    mp = q(op="add", parent_id=cx, name="MaPS").json()["id"]
+    gd = q(op="add", parent_id=cx, name="G-DIX").json()["id"]
+    t1 = put("mailer@semx.example", "[MaPS - Equip] 4500000000 - 00130 제작완료단계 실행계획일이 경과되었습니다.", "가짜", name="시험전기 메일관리자")
+    t2 = put("mailer@semx.example", "[MaPS] Logged in", "가짜", name="시험전기 메일관리자")
+    t3 = put("mailer@semx.example", "[G-DIX] 통보문서 확인 요청 (홍길동 - 시험 건)", "가짜", name="시험전기 메일관리자")
+    t4 = put("mailer@semx.example", "시험전기 내방신청시스템 안내", "가짜", name="시험전기 메일관리자")
+    check("같은 보낸 사람이라도 제목 꼬리표로 나눔: [MaPS - Equip]·[MaPS] → MaPS · [G-DIX] → G-DIX · 꼬리표 없음 → 회사 폴더",
+          key_of(t1) == "f%d" % mp and key_of(t2) == "f%d" % mp and key_of(t3) == "f%d" % gd and key_of(t4) == "f%d" % cx,
+          [row(x)["fd_key"] for x in (t1, t2, t3, t4)])
+    j = k.post("/mail/move", data={"ids": str(t4), "key": "f%d" % gd, "when": "all", "scope": "person"}).json()
+    check("보낸 사람을 G-DIX 로 옮겨도(내 규칙) 제목 [MaPS] 메일은 MaPS · 꼬리표 없는 메일은 G-DIX",
+          j.get("ok") and key_of(t1) == "f%d" % mp and key_of(t4) == "f%d" % gd, [row(x)["fd_key"] for x in (t1, t4)])
+    vp = k.get("/mail/%d/pane" % t1).text
+    check("읽기 칸 까닭 = 「제목 꼬리표 [MaPS - Equip] → 그 회사 아래 폴더」", "📁 MaPS" in vp and "제목 꼬리표 [MaPS - Equip]" in vp)
+    # 직접 정하는 제목 규칙(보낸 사람 상관없이)
+    o1 = put("other@elsewhere-x.example", "[MaPS] 다른 곳에서 온 알림", "가짜", name="다른 곳")
+    d = k.post("/mail/move", data={"ids": str(t2), "dry": "1"}).json()
+    check("묻는 창에 「🏷 제목 [MaPS…] 메일」 범위 + 통수", d.get("subject", {}).get("label") == "제목 [MaPS…]" and d["subject"]["n"] == 3, d)
+    j = k.post("/mail/move", data={"ids": str(t2), "key": "f%d" % mp, "when": "all", "scope": "subject"}).json()
+    check("제목 규칙(지난 메일도) → 다른 보낸 사람의 [MaPS] 메일도 MaPS", j.get("ok") and key_of(o1) == "f%d" % mp and j.get("label") == "제목 [MaPS…]", (j, row(o1)))
+    o2 = put("third@another-x.example", "[MaPS-Equip] 새로 온 알림", "가짜", name="또 다른 곳")
+    check("그 뒤 새로 온 [MaPS-Equip] 메일도 MaPS(붙여 쓴 꼬리표도)", key_of(o2) == "f%d" % mp, row(o2))
+    check("폴더 관리 규칙 목록 「🏷 제목 [MaPS…]」", "🏷 제목 <b>[MaPS…]</b>" in k.get("/mail/folders").text)
+    check("꼬리표가 다르면 제목 범위 없음(MaPS·G-DIX 섞어 고름)", "subject" not in k.post("/mail/move", data={"ids": "%d,%d" % (t2, t3), "dry": "1"}).json())
+    check("제목 범위인데 꼬리표가 없으면 400", k.post("/mail/move", data={"ids": str(t4), "key": "f%d" % mp, "when": "all", "scope": "subject"}).status_code == 400)
+    check("꼬리표 뽑기 · 첫 낱말", mf.subj_tags("[MaPS - Equip] x [G-DIX] y") == ["MaPS - Equip", "G-DIX"] and mf.tag_token("MaPS - Equip") == "MaPS" and mf.tag_token("G-DIX") == "G-DIX")
 finally:
     pass
 

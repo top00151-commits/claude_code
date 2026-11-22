@@ -49,12 +49,18 @@
         '<button type="button" class="x" title="닫기(옮기지 않음)" aria-label="닫기">✕</button>'+
         '<h3>📁 「'+esc(name)+'」(으)로 옮기기</h3>'+
         '<div class="sub">고른 메일 '+n(info.n)+'통'+(info.from?(' · 지금 「'+esc(info.from)+'」'):'')+' · 나에게만 적용</div>';
-      if(info.same){
+      if(info.same && !info.subject){
         html+='<div class="scope"><label><span>👤 <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label></div>';
+      } else if(info.same){
+        html+='<div class="scope">'+
+          '<label><input type="radio" name="mmvScope" value="person" checked><span>👤 <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
+          '<label><input type="radio" name="mmvScope" value="subject"><span>🏷 <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>'+
+          '</div>';
       } else {
         html+='<div class="scope">'+
           '<label><input type="radio" name="mmvScope" value="company" checked><span>🏢 <b>'+esc(info.company.label)+'</b> 에서 온 메일 모두 <small>(지금 '+n(info.company.n)+'통)</small></span></label>'+
           '<label><input type="radio" name="mmvScope" value="person"><span>👤 '+(many?'고른 메일의 보낸 사람만':'이 사람만')+' — '+esc(info.person.label)+' <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
+          (info.subject?'<label><input type="radio" name="mmvScope" value="subject"><span>🏷 <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>':'')+
           '</div>';
       }
       html+='<div class="q">언제 받은 메일부터 옮길까요?</div>'+
@@ -73,7 +79,7 @@
       box.querySelector('.x').onclick=function(){ close(null); };
       bg.querySelectorAll('input[name="mmvScope"]').forEach(function(r){ r.addEventListener('change', function(){
         var sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||'company';
-        bg.querySelector('.mmv-n').textContent=n(sc==='person'?info.person.n:info.company.n); }); });
+        bg.querySelector('.mmv-n').textContent=n(sc==='person'?info.person.n:(sc==='subject'?info.subject.n:info.company.n)); }); });
       bg.querySelectorAll('[data-when]').forEach(function(b){ b.addEventListener('click', async function(){
         var when=b.getAttribute('data-when'), sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||(info.same?'person':'company');
         bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,#64748b)'; msg.textContent='옮기는 중…';
