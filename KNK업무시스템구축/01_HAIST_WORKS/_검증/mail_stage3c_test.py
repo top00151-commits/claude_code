@@ -63,7 +63,8 @@ VI_CH = re.compile(r"[ạảấầẩẫậắằẳẵặẹẻẽếềểễ�
 
 with _db.db_session() as c:
     for ddl in ("ALTER TABLE users ADD COLUMN employee_no TEXT", "ALTER TABLE users ADD COLUMN phone TEXT",
-                "ALTER TABLE users ADD COLUMN entity TEXT", "ALTER TABLE users ADD COLUMN name_en TEXT"):
+                "ALTER TABLE users ADD COLUMN entity TEXT", "ALTER TABLE users ADD COLUMN name_en TEXT",
+                "ALTER TABLE users ADD COLUMN name_vi TEXT"):
         try:
             c.execute(ddl)
         except Exception:
@@ -81,6 +82,7 @@ with _db.db_session() as c:
     for uid, lid, nm, role, emp, team, rank, ph, ne, lg in ppl:
         c.execute("INSERT INTO users(id, login_id, name, role, is_active, password, email, team_id, rank, employee_no, phone, name_en, lang) "
                   "VALUES(?,?,?,?,1,'x',?,?,?,?,?,?,?)", (uid, lid, nm, role, lid + "@knknara.co.kr", team, rank, emp, ph, ne, lg))
+    c.execute("UPDATE users SET name_vi='Trần Thị Hà' WHERE id=9803")   # 이음 메신저 베트남 이름(가짜)
     for kk, vv in (("company_name_ko", "주식회사 시험회사"), ("company_name_en", "Test Co., Ltd."),
                    ("company_address", "경기도 시험시 시험로 1"), ("company_tel", "031-000-0000"), ("company_fax", "")):
         c.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES(?,?)", (kk, vv))
@@ -143,7 +145,12 @@ check("이름의 꺾쇠는 HTML 로 안전하게(태그로 안 들어감)", "&lt
 check("부서 없는 사람 → 첫 줄 = 이름만", f["text"].split("\n")[0] == "<b>꺾쇠</b>", f["text"])
 
 v, f = sigs("jo", "en")
-check("영어 틀 = 직책 영어(과장 → Manager) · 회사 영문 이름", f["text"].split("\n")[0].startswith("조민혁 Manager") and "Test Co., Ltd." in f["text"], f["text"])
+# 11-22 영어 틀 = 「{영문이름} · {영문직책}」 다음 줄 「{한국이름} {한국직책} · {부서}」 — 영문 이름을 모르면 영문 줄은 빠지고 한국 이름 줄이 첫 줄
+check("영어 틀: 영문 이름 모르면 첫 줄 = 한국 이름 줄 · 회사 영문 이름", f["text"].split("\n")[0] == "조민혁 과장 · 시험품질팀" and "Test Co., Ltd." in f["text"], f["text"])
+with _db.db_session() as c:
+    _ve = mg.values_for(c, U["jo"]["id"], "en", CO, m.rank_label, "minhyuk.jo@knknara.co.kr")
+_fe = mg.fill(mg.DEFAULT["en"], _ve)["text"].split("\n")
+check("영어 틀: 첫 줄 영문(Minhyuk Jo · Manager) · 둘째 줄 한국 이름 그대로(영문 되풀이 아님)", _fe[0] == "Minhyuk Jo · Manager" and _fe[1] == "조민혁 과장 · 시험품질팀", _fe)
 check("영문 주소 비면 그 줄 빼고 안내(한국어 주소 섞지 않음)", "경기도" not in f["text"] and ("주소", "웍스 회사 정보") in f["missing"], f["text"])
 v, f = sigs("ceo", "en")
 check("영문 이름이 있으면 영어 틀에 영문 이름", f["text"].startswith("Test Ceo"), f["text"][:40])
@@ -199,11 +206,58 @@ check("보낼 때 로고·QR = 인라인 첨부(cid) 둘로 바뀜(받는 쪽에
 check("서명용 로고·QR 파일 = 가볍게(40KB · 4KB 아래)", 0 < os.path.getsize(os.path.join(ROOT, "static", "mail_sig_logo.png")) < 40000
       and 0 < os.path.getsize(os.path.join(ROOT, "static", "mail_sig_qr.png")) < 4000)
 
+# ═══════════════════════ ⑧-3 사람마다 회사 서명 · 기본 서명 (대표 11-22) ═══════════════════════
+print("\n⑧-3 사람마다 회사 서명 · 기본 서명")
+with _db.db_session() as c:
+    L_jo, L_vn = mg.sig_langs(c, U["jo"]["id"]), mg.sig_langs(c, U["vn"]["id"])
+    c.execute("UPDATE users SET lang='ko' WHERE id=9803")
+    L_vk = mg.sig_langs(c, U["vn"]["id"])
+    c.execute("UPDATE users SET lang='vi' WHERE id=9803")
+check("본사 = 한국어(기본)·영어", L_jo == ["ko", "en"], L_jo)
+check("베트남 법인 베트남 사람(이음 쓰는 말 = 베트남어) = 베트남어(기본)·한국어·영어", L_vn == ["vi", "ko", "en"], L_vn)
+check("베트남 법인 한국 사람(쓰는 말 = 한국어) = 한국어(기본)·영어", L_vk == ["ko", "en"], L_vk)
+v4, f4 = sigs("vn", "vi")
+h4 = mg.design_html(f4["text"], v4["_corp"], "vi")
+L4 = f4["text"].split("\n")
+check("베트남어 서명 첫 줄 = 이음 메신저 베트남 이름 · 둘째 줄 = 한국 이름 · 부서", L4[0] == "Trần Thị Hà" and L4[1] == "쩐티하 · 시험구매팀", L4)
+check("베트남어 서명: 회사 = Công ty KNK Vina · 베트남 주소", L4[-1] == "Công ty KNK Vina · " + mg.VN_ADDRESS, L4[-1])
+check("베트남어 서명 보안 문구 = 베트남어 먼저 · 영어 다음(한국어 없음)",
+      0 < h4.find("Thư điện tử này") < h4.find("This email, including") and "이 메일(첨부 파일 포함)은" not in h4)
+v5, f5 = sigs("vn", "ko")
+check("베트남 법인 한국어 서명: 회사 = KNK VINA Co., Ltd. · 첫 줄 한국 이름", "KNK VINA Co., Ltd. · " + mg.VN_ADDRESS in f5["text"] and f5["text"].startswith("쩐티하 · 시험구매팀"), f5["text"])
+as_("vn")
+cpv = k.get("/mail/compose").text
+check("베트남 사람 쓰기 화면: 「🏢 회사 서명 (베트남어)」 골라져 있음 · 한국어·영어도 고를 수 있음",
+      'value="co-vi" selected>🏢 회사 서명 (베트남어)<' in cpv and 'value="co-ko">' in cpv and 'value="co-en">' in cpv)
+mmv = re.search(r'<textarea id="cSigHtml" style="display:none">(.*?)</textarea>', cpv, re.S)
+check("새 메일에 들어갈 서명 = 베트남어 회사 서명", mmv and "Trần Thị Hà" in __import__("html").unescape(mmv.group(1)), "")
+as_("jo")
+cpj = k.get("/mail/compose").text
+mmj = re.search(r'<textarea id="cSigHtml" style="display:none">(.*?)</textarea>', cpj, re.S)
+check("본사 사람 새 메일 = 한국어 회사 서명이 기본으로 들어감", mmj and "조민혁 과장 · 시험품질팀" in __import__("html").unescape(mmj.group(1))
+      and 'value="co-ko" selected>' in cpj, "")
+spj = k.get("/mail/signature").text
+check("서명 화면: 「✉ 새 메일에 기본으로 넣을 서명」 고르기(회사 기본 = 한국어)", 'id="sigDefSel"' in spj and "회사 기본(🏢 회사 서명 (한국어))" in spj, "")
+r = k.post("/mail/signature/default", data={"slot": "co-en"})
+cpj2 = k.get("/mail/compose").text
+check("기본을 영어로 바꾸면 새 메일에 영어 서명 골라져 있음", r.json().get("ok") and 'value="co-en" selected>' in cpj2 and 'value="co-ko" selected>' not in cpj2)
+r = k.post("/mail/signature/default", data={"slot": "none"})
+cpj3 = k.get("/mail/compose").text
+mm3 = re.search(r'<textarea id="cSigHtml" style="display:none">(.*?)</textarea>', cpj3, re.S)
+check("「서명 없음」을 기본으로 → 새 메일에 서명 안 들어감", r.json().get("ok") and 'value="none" selected>' in cpj3 and mm3 and not mm3.group(1).strip())
+check("모르는 서명 값 → 400", k.post("/mail/signature/default", data={"slot": "co-xx"}).status_code == 400)
+r = k.post("/mail/signature/default", data={"slot": "1"})
+check("내용 없는 개인 서명을 기본으로 골라도 → 회사 기본(한국어)으로", r.json().get("ok") and 'value="co-ko" selected>' in k.get("/mail/compose").text)
+r = k.post("/mail/signature/default", data={"slot": ""})
+check("「회사 기본」으로 되돌리기", r.json().get("ok") and 'value="co-ko" selected>' in k.get("/mail/compose").text)
+as_("ceo")
+
 # ═══════════════════════ ⑧ 화면 ═══════════════════════
 print("\n⑧ 쓰기 화면 · 서명 화면")
 as_("jo")
 cp = k.get("/mail/compose").text
-check("쓰기 화면 「✍」 고르기에 「🏢 회사 서명 (한국어)」·「(English)」", 'value="co-ko">🏢 회사 서명 (한국어)<' in cp and 'value="co-en">🏢 회사 서명 (English)<' in cp, cp[:0])
+check("쓰기 화면 「✍」 고르기에 「🏢 회사 서명 (한국어)」(기본 · 골라져 있음)·「(English)」", 'value="co-ko" selected>🏢 회사 서명 (한국어)<' in cp and 'value="co-en">🏢 회사 서명 (English)<' in cp
+      and 'value="co-vi"' not in cp, cp[:0])
 mm = re.search(r"window\.CMP_SIGS = (\[.*?\]);", cp)
 cs = json.loads(mm.group(1)) if mm else []
 check("쓰기 화면 회사 서명 = 새 모양(로고·보안 문구)", any(x.get("slot") == "co-ko" and 'class="knk-co-sig"' in x.get("body", "") and "이 메일(첨부 파일 포함)은" in x.get("body", "") for x in cs), "")
@@ -228,7 +282,9 @@ as_("adm")
 r = k.get("/mail/signature/company")
 check("관리자(admin) 틀 화면 200 · 자리 단추 · 웍스 회사 정보 안내", r.status_code == 200 and "{휴대폰}" in r.text and "웍스 「회사 정보」에서 고치기" in r.text, r.status_code)
 _mn = r.text[r.text.find('<main'):r.text.find('</main>')]   # 웍스 공통 틀(chrome.html 앱 설치 안내)의 원래 글은 빼고 이 화면 본문만
-check("틀 화면 본문에 베트남어 없음(보류)", _mn and not VI_CH.search(_mn) and "Tiếng" not in _mn, VI_CH.findall(_mn)[:5])
+_vi0 = _mn.find('data-lang="vi"')
+_mn_novi = _mn[:_vi0] if _vi0 > 0 else _mn
+check("틀 화면: 베트남어는 「베트남어」 서명 칸에만(11-22 대표 베트남어 서명) · 나머지 본문은 없음", _vi0 > 0 and _mn_novi and not VI_CH.search(_mn_novi), VI_CH.findall(_mn_novi)[:5])
 r = k.post("/api/mail/company-sig/preview", data={"lang": "ko", "body": "{이름} / {직책}\n{없는칸}\n{팩스}"})
 j = r.json()
 check("미리 보기 = 관리자 본인 정보 · 저장 안 함", j.get("ok") and "시험관리자 / 부장" in j.get("html", ""), j)
@@ -246,9 +302,9 @@ check("빈 틀 저장 → 400(끄기는 따로)", k.post("/mail/signature/compan
 check("영어 「이 말은 쓰지 않기」", k.post("/mail/signature/company", data={"lang": "en", "mode": "off"}).json().get("ok"))
 as_("jo")
 cp3 = k.get("/mail/compose").text
-check("끈 말은 직원 화면에서 빠짐 · 하나만 남으면 이름은 「🏢 회사 서명」", 'value="co-en"' not in cp3 and 'value="co-ko">🏢 회사 서명<' in cp3)
+check("끈 말은 직원 화면에서 빠짐 · 하나만 남으면 이름은 「🏢 회사 서명」", 'value="co-en"' not in cp3 and re.search(r'value="co-ko"( selected)?>🏢 회사 서명<', cp3) is not None)
 as_("adm")
-check("모르는 말 → 400", k.post("/mail/signature/company", data={"lang": "vi", "body": "{이름}", "mode": "save"}).status_code == 400)
+check("모르는 말 → 400", k.post("/mail/signature/company", data={"lang": "ja", "body": "{이름}", "mode": "save"}).status_code == 400)
 check("기본 틀로 되돌리기", k.post("/mail/signature/company", data={"lang": "ko", "mode": "default"}).json().get("ok"))
 with _db.db_session() as c:
     tt = mg.get_templates(c)
@@ -330,7 +386,6 @@ for p in ("app/mail_guide.py", "app/main.py"):
     check("파이썬 3.8 문법: %s" % p, ok is True, ok)
 for p in ("app/mail_guide.py", "app/templates/mail_help_print.html", "app/templates/mail_company_sig.html", "app/templates/_v5_partials/mail_tour.html"):
     src = io.open(os.path.join(ROOT, p), encoding="utf-8").read()
-    src = src.replace(mg.VN_ADDRESS, "")   # 11-22 베트남 법인 주소 = 대표가 준 고유 주소(번역한 글 아님) — 이것만 빼고 검사
     check("베트남어 글 없음: %s" % p, not VI_CH.search(src), VI_CH.findall(src)[:5])
 as_("jo")
 tl_ = k.get("/mail/tools").text

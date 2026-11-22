@@ -22,7 +22,7 @@
   .co-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;font-size:14.5px;margin-bottom:4px}
   .co-h a{font-size:12.5px;font-weight:600;margin-left:auto}
   .co-d{font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:10px}
-  .co-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .co-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:10px}   /* 11-22 새 회사 서명(로고·QR·보안 문구) = 넓게 */
   .co-one{border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
   .co-lg{font-size:12px;font-weight:700;color:#3730a3}
   .co-pv{font-size:13px;line-height:1.65;word-break:break-word}
@@ -39,6 +39,23 @@
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 서명</div>
     <h1 class="page-title">✍️ 메일 <em>서명</em></h1>
   </div></div>
+
+  {% if sig_choices is defined and sig_choices %}
+  {# 11-22 대표 「본사 = 한국어 기본 · 베트남 사람 = 베트남어 기본 · 영어는 고를 수 있게」 — 새 메일에 기본으로 넣을 서명(메일마다 「✍」로 바꿀 수 있음) #}
+  <div class="co-card" id="sigDefBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+    <b style="font-size:14px">✉ 새 메일에 기본으로 넣을 서명</b>
+    <select id="sigDefSel" style="font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:4px 8px">
+      <option value=""{% if not sig_pref %} selected{% endif %}>회사 기본({% for g in sig_choices if (g.slot|string) == (sig_default|string) %}{{ g.name }}{% else %}서명 없음{% endfor %})</option>
+      {% for g in sig_choices %}<option value="{{ g.slot }}"{% if sig_pref and (g.slot|string) == sig_pref %} selected{% endif %}>{{ g.name }}</option>{% endfor %}
+      <option value="none"{% if sig_pref == 'none' %} selected{% endif %}>서명 없음</option>
+    </select>
+    <span id="sigDefMsg" style="font-size:12.5px;color:var(--mute)">메일을 쓸 때 「✍」에서 그 메일만 바꿀 수 있습니다</span>
+  </div>
+  <script>(function(){ var s=document.getElementById('sigDefSel'), m=document.getElementById('sigDefMsg'); if(!s) return;
+    s.addEventListener('change', async function(){ var fd=new FormData(); fd.append('slot', s.value);
+      try{ var r=await fetch('/mail/signature/default',{method:'POST',body:fd}); var j=await r.json(); m.textContent=(j.ok?'✅ ':'⚠ ')+(j.msg||''); m.style.color=j.ok?'var(--success,#15803d)':'var(--knk-red,#b91c1c)'; }
+      catch(e){ m.textContent='⚠ 네트워크 오류'; } }); })();</script>
+  {% endif %}
 
   {% if co_sigs|default([]) or can_company|default(false) %}
   <div class="co-card" id="coCard">

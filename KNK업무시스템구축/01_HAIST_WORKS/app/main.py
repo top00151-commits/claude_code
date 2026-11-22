@@ -24732,8 +24732,31 @@ async def mail_signature_page(req: Request, slot: int = 0):
         cur = _mailbox.get_signature_slot(c, u["id"], slot)
         alts = [_mailbox.get_signature_slot(c, u["id"], k) for k in (0, 1, 2)]
         co_sigs = _mguide_sigs(c, u, _co_info, _mail_from_address_for(c, u))   # 11-20 3단계 ⑧ 🏢 회사 서명(내 정보로 채운 것)
+        try:
+            _all = [{"slot": a["slot"], "name": (a["name"] or ("기본 서명" if not a["slot"] else "서명 %d" % (a["slot"] + 1))), "body": a["body"]}
+                    for a in alts] + co_sigs
+            sig_default = _mguide.default_slot(c, u["id"], _all)
+            sig_pref = _mguide.get_pref(c, u["id"], _mguide.SIG_PREF, "")
+        except Exception:
+            _all, sig_default, sig_pref = [], "0", ""
     return ctx(req, "mail_signature.html", user=u, sig=cur["body"], sig_slot=slot, sig_name=cur["name"], sig_alts=alts,
-               co_sigs=co_sigs, can_company=_mw_admin(u))
+               co_sigs=co_sigs, can_company=_mw_admin(u), sig_choices=[g for g in _all if str(g["slot"]).startswith("co-") or (g.get("body") or "").strip()],
+               sig_default=sig_default, sig_pref=sig_pref)
+
+
+@app.post("/mail/signature/default")
+async def mail_signature_default(req: Request):
+    """11-22 새 메일에 기본으로 넣을 서명 — 사람마다(서명 화면) · 빈 값 = 회사 규칙(본사 한국어 · 베트남 사람 베트남어)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    f = await req.form()
+    v = (f.get("slot") or "").strip()
+    if v not in ("", "none", "0", "1", "2") and v not in ("co-ko", "co-en", "co-vi"):
+        return JSONResponse({"ok": False, "msg": "모르는 서명입니다"}, 400)
+    with db_session() as c:
+        _mguide.set_pref(c, u["id"], _mguide.SIG_PREF, v)
+    return JSONResponse({"ok": True, "msg": "새 메일에 넣을 기본 서명을 바꿨습니다" if v else "회사 기본으로 되돌렸습니다"})
 
 
 @app.post("/mail/signature")
@@ -25051,6 +25074,13 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_from = _mail_from_address_for(c, u)
         sig_list = list(sig_list or []) + _mguide_sigs(c, u, _co_info, my_from)   # 「✍」 고르기에 「🏢 회사 서명」 함께
+        # 11-22 대표 「본사 = 한국어 기본 · 베트남 사람 = 베트남어 기본 · 영어는 고를 수 있게」 — 새 메일에 넣을 서명 = 사람이 고른 것 → 회사 서명 맨 앞
+        try:
+            sig_default = _mguide.default_slot(c, u["id"], sig_list)
+        except Exception:
+            sig_default = "0"
+        _sd = [g for g in sig_list if str(g.get("slot")) == sig_default]
+        sig = (_sd[0].get("body") or "") if _sd else ""
         _sched_off = _mail_off(c, u)   # 11-19 예약 달력 — 보는 사람 소속(본사 +9 · 베트남 +7) 기준 날짜·시각
         my_addr = (my_from or "").lower()
         # 내 계정으로 보내도 되는 사람인가 / 이미 연결돼 있나 (안내문·진입경로용)
@@ -25146,7 +25176,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
                from_addr=my_from, ai_on=mail_ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,
                sched_off=_sched_off, me_name=(u.get("name") or ""),
-               sig_html=("" if draft else sig), sig_list=sig_list)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
+               sig_html=("" if draft else sig), sig_list=sig_list, sig_default=sig_default)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
 
 
 from starlette.concurrency import run_in_threadpool as _mpre_pool   # noqa: E402

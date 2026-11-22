@@ -13,8 +13,9 @@ import html as _html
 import os as _os
 import re
 
-LANGS = ("ko", "en")          # 베트남어 틀은 대표 지시 전 보류(11-20 「베트남어는 아직 진행하지마」) — 말을 더할 땐 여기와 DEFAULT 만
-LANG_NAME = {"ko": "한국어", "en": "English"}
+# 11-22 대표 「베트남 사람은 베트남어 서명을 기본으로」 — 회사 서명만 베트남어 틀을 더함(설명서·처음 안내의 베트남어는 여전히 보류)
+LANGS = ("ko", "en", "vi")
+LANG_NAME = {"ko": "한국어", "en": "English", "vi": "베트남어"}
 
 # 자리표시 → (값 열쇠, 비었을 때 어디서 채우는지)
 FIELDS = [
@@ -29,6 +30,9 @@ FIELDS = [
     ("메일", "email", "웍스 직원 명단"),
     ("영문이름", "name_en", "웍스 직원 명단(영문 이름 · 없으면 메일 주소 이름 부분)"),
     ("영문직책", "rank_en", "웍스 직원 명단"),
+    ("한국이름", "name_ko", "웍스 직원 명단"),
+    ("한국직책", "rank_ko", "웍스 직원 명단"),
+    ("베트남이름", "name_vi", "웍스 직원 명단(베트남 이름 · 없으면 이름)"),
     ("홈페이지", "web", "회사 기본값"),
 ]
 _FKEY = {k: v for k, v, _ in FIELDS}
@@ -41,11 +45,12 @@ _SEP = re.compile(r"(\s+[·|/]\s+)")
 #   · 연락처 = M·T·F·E·W 한 글자 표지 · 마지막 줄 = 회사 · 주소(회색) · 맨 위 로고 그림 · 맨 아래 보안 문구(NOTICE)
 DEFAULT = {
     "ko": "{이름} {직책} · {부서}\n{영문이름} · {영문직책}\nM. {휴대폰} · T. {전화} · F. {팩스}\nE. {메일} · W. {홈페이지}\n{회사} · {주소}",
-    "en": "{영문이름} · {영문직책}\n{이름} {직책} · {부서}\nM. {휴대폰} · T. {전화} · F. {팩스}\nE. {메일} · W. {홈페이지}\n{회사} · {주소}",
+    "en": "{영문이름} · {영문직책}\n{한국이름} {한국직책} · {부서}\nM. {휴대폰} · T. {전화} · F. {팩스}\nE. {메일} · W. {홈페이지}\n{회사} · {주소}",
+    "vi": "{베트남이름} · {영문직책}\n{한국이름} {한국직책} · {부서}\nM. {휴대폰} · T. {전화} · F. {팩스}\nE. {메일} · W. {홈페이지}\n{회사} · {주소}",
 }
 VN_COMPANY = "KNK VINA Co., Ltd."   # 웍스 수출 화면(export_ship)이 쓰는 법인 이름 그대로 — 웍스 회사 정보엔 법인 칸이 없음
-# 11-22 대표가 준 베트남 서명의 주소(뒤에 한 번 더 적힌 성·현·사 이름 줄은 뺌 · 끝에 나라 이름) — 웍스 회사 정보에 법인 칸이 생기면 그쪽 값으로
-VN_ADDRESS = "Lô CN5B-2, KCN Quế Võ 3, Xã Việt Hùng, Quế Võ, Bắc Ninh, Việt Nam"
+# 11-22 베트남 법인 주소·베트남어 회사 표기·베트남어 보안 문구 = app/mail_sig_vi.py 한 곳(베트남어 글자는 거기만)
+from .mail_sig_vi import VN_ADDRESS, VN_COMPANY_VI, NOTICE_VI
 WEB = "www.knknara.com"
 WEB_URL = "https://www.knknara.com"   # 11-22 대표 「QR 도 만들어 배치 · www.knknara.com 이 연결되도록」 — 로고·QR 을 누르면 이 주소
 MAX_TPL = 1200
@@ -62,7 +67,9 @@ NOTICE = {
            "Prevention and Trade Secret Protection Act of the Republic of Korea. Any unauthorized disclosure, distribution, copying, "
            "or use of all or part of this information is strictly prohibited. If you have received this email in error, please "
            "notify the sender immediately and delete it."),
+    "vi": NOTICE_VI,                  # 11-22 베트남어 서명용(app/mail_sig_vi.py)
 }
+SIG_PREF = "sig_default"     # 사람마다 「새 메일에 기본으로 넣을 서명」(mail_user_prefs) — 비면 회사 서명 기본 규칙
 _LOGO = {}
 
 
@@ -126,7 +133,7 @@ def design_html(text: str, corp: str, lang: str = "ko") -> str:
             st = "font-size:12.5px;color:#1f2937;line-height:1.7"
         pad = "padding:0 0 4px" if (i == 1 and n >= 4) else "padding:0"
         rows.append('<tr><td style="%s;%s">%s</td></tr>' % (pad, st, e))
-    order = ("en", "ko") if (corp == "vn" or lang == "en") else ("ko", "en")
+    order = ("vi", "en") if lang == "vi" else (("en", "ko") if (corp == "vn" or lang == "en") else ("ko", "en"))
     nt = "".join('<p style="margin:0 0 6px">%s</p>' % _html.escape(NOTICE[k]) for k in order)
     rows.append('<tr><td style="padding:12px 0 0"><div style="border-top:1px solid #e5e7eb;padding-top:8px;font-size:11px;'
                 'line-height:1.55;color:#9ca3af;max-width:640px">%s</div></td></tr>' % nt)
@@ -214,9 +221,9 @@ def person_row(c, uid) -> dict:
     def col(n):
         return ("COALESCE(u.%s,'')" % n) if n in cols else "''"
     r = c.execute(
-        "SELECT u.id, COALESCE(u.name,'') AS name, %s AS name_en, %s AS rank, %s AS phone, %s AS email, "
+        "SELECT u.id, COALESCE(u.name,'') AS name, %s AS name_en, %s AS name_vi, %s AS lang, %s AS rank, %s AS phone, %s AS email, "
         "COALESCE(t.name,'') AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id WHERE u.id=?"
-        % (col("name_en"), col("rank"), col("phone"), col("email")), (uid,)).fetchone()
+        % (col("name_en"), col("name_vi"), col("lang"), col("rank"), col("phone"), col("email")), (uid,)).fetchone()
     return dict(r) if r else {}
 
 
@@ -245,7 +252,7 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
     if rank_en == (p.get("rank") or "").strip():
         rank_en = ""          # 영문으로 못 바꾼 직책(한글 그대로)은 영문 줄에 넣지 않음
     if corp == "vn":
-        comp, addr, tel, fax = VN_COMPANY, VN_ADDRESS, "", ""
+        comp, addr, tel, fax = (VN_COMPANY_VI if lang == "vi" else VN_COMPANY), VN_ADDRESS, "", ""
     elif lang == "ko":
         comp, addr = co.get("company_name_ko", ""), co.get("company_address", "")
         tel, fax = co.get("company_tel", ""), co.get("company_fax", "")
@@ -256,7 +263,38 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
     return {"name": nm, "rank": rank, "dept": (p.get("team_name") or "").strip(), "company": (comp or "").strip(),
             "address": (addr or "").strip(), "tel": (tel or "").strip(), "fax": (fax or "").strip(),
             "mobile": (p.get("phone") or "").strip(), "email": email, "name_en": nm_en, "rank_en": rank_en, "web": WEB,
-            "_corp": corp}
+            "name_ko": (p.get("name") or "").strip(), "rank_ko": (p.get("rank") or "").strip(),
+            "name_vi": (p.get("name_vi") or "").strip() or (p.get("name") or "").strip(),
+            "_corp": corp, "_vi_person": is_vi_person(p, corp)}
+
+
+def is_vi_person(p: dict, corp: str) -> bool:
+    """베트남 법인의 베트남 사람인가 — 이음 메신저에서 넘어온 쓰는 말(users.lang = vi). 한국 사람(ko)은 아님."""
+    return corp == "vn" and (p.get("lang") or "").strip().lower() == "vi"
+
+
+def sig_langs(c, uid) -> list:
+    """이 사람의 회사 서명 말(맨 앞 = 기본) — 11-22 대표
+    본사 = 한국어(기본)·영어 · 베트남 법인 한국 사람 = 한국어(기본)·영어 · 베트남 법인 베트남 사람 = 베트남어(기본)·한국어·영어."""
+    corp = corp_of(c, uid)
+    if is_vi_person(person_row(c, uid), corp):
+        return ["vi", "ko", "en"]
+    return ["ko", "en"]
+
+
+def default_slot(c, uid, sig_list: list) -> str:
+    """새 메일에 넣을 서명 — 사람이 고른 것(서명 화면) → 없으면 회사 서명 맨 앞(한국어 · 베트남 사람은 베트남어) → 없으면 개인 기본 서명.
+    반환 = 서명 고르기 값('co-ko' · '0' · 'none' …)."""
+    have = {str(g.get("slot")): g for g in (sig_list or [])}
+    pref = (get_pref(c, uid, SIG_PREF, "") or "").strip()
+    if pref == "none":
+        return "none"
+    if pref and pref in have and (pref.startswith("co-") or (have[pref].get("body") or "").strip()):
+        return pref
+    for g in sig_list or []:
+        if str(g.get("slot", "")).startswith("co-"):
+            return str(g["slot"])
+    return "0" if "0" in have and (have["0"].get("body") or "").strip() else "none"
 
 
 def fill(tpl: str, vals: dict) -> dict:
@@ -328,8 +366,7 @@ def company_sigs(c, uid, company: dict, rank_fn=None, from_addr: str = "", user_
     """보는 사람 정보로 채운 회사 서명들 — [{slot:'co-ko', lang, name, body(html), text, note}] · 쓰는 말(on)만.
     순서 = 한국어 → 영어."""
     tpls = get_templates(c)
-    order = [user_lang] if user_lang in LANGS else []
-    order += [x for x in LANGS if x not in order]
+    order = sig_langs(c, uid)          # 11-22 대표: 사람마다 말·기본(맨 앞)이 정해짐 — 보는 화면 말과 상관없이
     on = [lg for lg in order if tpls[lg]["on"]]
     out = []
     for lg in on:
@@ -339,6 +376,7 @@ def company_sigs(c, uid, company: dict, rank_fn=None, from_addr: str = "", user_
             continue
         nm = "🏢 회사 서명" + ("" if len(on) == 1 else " (%s)" % LANG_NAME[lg])
         out.append({"slot": "co-" + lg, "lang": lg, "name": nm, "body": design_html(f["text"], v["_corp"], lg), "text": f["text"],
+                    "first": not out,
                     "note": missing_note(f["missing"], v["_corp"]), "corp": v["_corp"]})
     return out
 
