@@ -1562,10 +1562,14 @@ def startup():
     _start_daily_reminder_scheduler()
     # z1191z100 (대표 11-22 「수금 알림은 평일 9시, 안지연 프로만 받게 켜줘」) — 끄는 길: 환경변수 KNK_RUN_AR_ALERT=0
     try:
-        if os.environ.get("KNK_RUN_AR_ALERT", "1").strip().lower() not in ("0", "false", "no", "off"):
+        # z1191z101: 기본 = 운영 DB(/opt/knk_haist/) 에서만 켬 · KNK_RUN_AR_ALERT=1 이면 어디서나 켬 · =0 이면 끔
+        from .database import DB_PATH as _DBP101
+        _ar_env = os.environ.get("KNK_RUN_AR_ALERT", "").strip().lower()
+        _ar_on = (_ar_env in ("1", "true", "yes", "on")) or (_ar_env == "" and str(_DBP101).replace("\\", "/").startswith("/opt/knk_haist/"))
+        if _ar_on:
             _start_ar_alert_scheduler_z100()
         else:
-            print("[AR-ALERT] KNK_RUN_AR_ALERT=0 — 수금 알림 시계 꺼짐")
+            print("[AR-ALERT] 수금 알림 시계 꺼짐(운영 DB 아님 또는 KNK_RUN_AR_ALERT=0)")
     except Exception as _e:
         print(f"[AR-ALERT start ERR] {_e}")
     # v5H226z526 (대표 지시): 매일 새벽 자동 명부 동기화(메신저→WORKS). 공유키 없으면 자동 건너뜀.
@@ -41270,15 +41274,20 @@ async def projects_new_form(request: Request,
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
-    if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
     # v5H226z274 (대표 지시): 작업 일정표 '여기서 등록' — embed 모드(메뉴·상단바 없이 폼만, 모달용)
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
-    # type 없으면 chooser 페이지
     _t = (type or "").strip().upper()
+    if not can_use_sales(u):
+        # z1191z101 (다시 보기): 「🆕 등록」 은 등록 입구 한 곳 — 매출 등록 권한이 없는 분도 🤝 고객사는 등록할 수 있어야 한다
+        #   (고객사 등록 경로는 원래 로그인만 보면 열림 · z96 에서 고객사 목록 단추를 빼며 길이 끊겼었다)
+        if _t or _embed:
+            return RedirectResponse("/home", 303)
+        return ctx(request, "project_new_chooser.html", user=u, active="sales_projects", embed=False,
+                   can_reg_proj=False, can_manual=False)
+    # type 없으면 chooser 페이지
     if not _t:
         return ctx(request, "project_new_chooser.html",
-                   user=u, active="sales_projects", embed=_embed)
+                   user=u, active="sales_projects", embed=_embed, can_reg_proj=True, can_manual=_can_manual_mgmt(u))
     # v5H221: CONSUMABLE 도 폼 재활용 (project_form.html — 일정/금액 숨김), SERVICE 만 OTHER 흡수
     if _t not in ("NEW_EQUIP", "OTHER", "CONSUMABLE"):
         _t = "OTHER" if _t == "SERVICE" else "NEW_EQUIP"
@@ -42587,6 +42596,16 @@ async def projects_new_submit(request: Request):
     #     '추가 발주'(동일 관리번호 + 신규 SO)로 연결. 고객사 불일치 시 차단.
     mgmt_code_in = (form.get("mgmt_code") or "").strip().upper()
     _is_followup = bool(po_type_v and po_type_v != "신규")
+    # z1191z101 (다시 보기): 신규인데 관리번호를 직접 넣으면 = 수동발행 → 권한(기술영업팀 전원 + 지정) · 사업부 글자 · 월 검증
+    #   (추가 발주는 기존 관리번호를 고르는 것이라 그대로)
+    if mgmt_code_in and not _is_followup:
+        if not _can_manual_mgmt(_u):
+            return _err_redirect("manual_mgmt_denied", f"code={mgmt_code_in}")
+        _mm101_ok, _mm101_res = _validate_manual_mgmt_code(mgmt_code_in, _expected_mgmt_letter(_ptype, biz_div))
+        if not _mm101_ok:
+            from urllib.parse import quote as _q101
+            return _err_redirect("manual_mgmt_invalid", "mreason=" + _q101(_mm101_res))
+        mgmt_code_in = _mm101_res
     if mgmt_code_in:
         import re as _re2
         if not _re2.fullmatch(r"\d{3}[TMLEC]\d{4}", mgmt_code_in):
@@ -44362,6 +44381,8 @@ async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    if not _can_manual_mgmt(u):   # z1191z101: 엑셀의 관리번호를 그대로 쓰는 길 = 관리번호 수동발행 권한(기술영업팀 전원 + 지정)
+        return JSONResponse({"ok": False, "error": "엑셀 일괄 등록(관리번호를 그대로 씀)은 관리번호 수동발행 권한이 있는 분만 할 수 있습니다"}, 403)
     _migrate = str(migrate_mode).strip().lower() in ("1", "true", "on", "yes", "y")
     try:
         body = await xlsx.read()
@@ -44410,6 +44431,8 @@ async def projects_import_confirm(request: Request):
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     if not can_use_sales(u):
         return JSONResponse({"ok": False, "error": "permission_denied"}, 403)
+    if not _can_manual_mgmt(u):   # z1191z101: 엑셀의 관리번호를 그대로 쓰는 길 = 관리번호 수동발행 권한(기술영업팀 전원 + 지정)
+        return JSONResponse({"ok": False, "error": "엑셀 일괄 등록(관리번호를 그대로 씀)은 관리번호 수동발행 권한이 있는 분만 할 수 있습니다"}, 403)
     try:
         body = await request.json()
     except Exception:
@@ -50238,11 +50261,16 @@ async def sales_receipts_check_record_z94(request: Request):
         j = await request.json()
     except Exception:
         j = {}
+    if not isinstance(j, dict):   # z1191z101: 배열 등 엉뚱한 몸통 → 500 대신 400
+        j = {}
     try:
         oid = int(j.get("order_id") or 0)
         amount = float(str(j.get("amount") or "0").replace(",", ""))
     except (TypeError, ValueError):
         return JSONResponse({"ok": False, "error": "수주·금액을 읽지 못했습니다"}, 400)
+    import math as _m101
+    if not _m101.isfinite(amount):   # z1191z101: inf·nan 이 저장되면 그 수주의 받을 돈이 통째로 사라짐
+        return JSONResponse({"ok": False, "error": "입금 금액을 숫자로 적어 주세요"}, 400)
     rat = str(j.get("received_at") or "").strip()[:10]
     note = str(j.get("note") or "").strip()[:300]
     from datetime import date as _d94
@@ -50252,6 +50280,28 @@ async def sales_receipts_check_record_z94(request: Request):
         return JSONResponse({"ok": False, "error": "입금일을 골라 주세요"}, 400)
     if oid <= 0 or amount <= 0:
         return JSONResponse({"ok": False, "error": "입금 금액을 0보다 크게 적어 주세요"}, 400)
+    # z1191z101 (다시 보기 2번): 화면 경고는 화면을 연 때 값이라 두 사람·두 탭이면 두 번 기록됐다 → 서버가 지금 값으로 한 번 더 본다.
+    #   막지 않고 알린다(대표 원칙 「입력하는 순간 실수를 알린다 · 확인했음 한 번」) — confirm 이 오면 기록.
+    if not j.get("confirm"):
+        _left101 = sum(x["rem"] for x in _rc_rows_z94(u)["rows"] if x["oid"] == oid)
+        _warn101 = []
+        with db_session() as c:
+            _o101 = c.execute("SELECT COALESCE(currency,'KRW'), COALESCE(status,'') FROM orders WHERE id=?", (oid,)).fetchone()
+            if not _o101:   # 없는·취소된 수주는 알림보다 먼저 그대로 거절
+                return JSONResponse({"ok": False, "error": "수주를 찾지 못했습니다"}, 404)
+            if _o101[1] == "CANCELLED":
+                return JSONResponse({"ok": False, "error": "취소된 수주입니다"}, 400)
+            _ccy101 = (_o101[0] or "KRW").upper()
+            _eps101 = 1.0 if _ccy101 == "KRW" else 0.01
+            if amount - _left101 > _eps101:
+                _warn101.append("이 수주에 남은 받을 돈은 %s 인데 %s 을 적었습니다(남은 돈보다 많음 — 이미 누가 기록했을 수 있습니다)."
+                                % (_fmt_money(_left101, _ccy101), _fmt_money(amount, _ccy101)))
+            _dup101 = c.execute("SELECT COUNT(*) FROM receipts_payment WHERE order_id=? AND received_at=? AND ABS(amount-?)<=?",
+                                (oid, rat, amount, _eps101)).fetchone()[0]
+            if _dup101:
+                _warn101.append("같은 수주 · 같은 입금일 · 같은 금액의 입금이 이미 %d건 기록되어 있습니다(두 번 기록인지 확인)." % _dup101)
+        if _warn101:
+            return JSONResponse({"ok": False, "need_confirm": True, "error": " ".join(_warn101)}, 409)
     with db_session() as c:
         o = c.execute("SELECT id, COALESCE(status,'') AS st, COALESCE(currency,'KRW') AS ccy, COALESCE(total_amount,0) AS total "
                       "FROM orders WHERE id=?", (oid,)).fetchone()
@@ -50283,8 +50333,10 @@ async def sales_receipts_check_record_z94(request: Request):
             issued = 0.0
             for n in range(1, _RC_TI_MAX_Z94 + 1):
                 ac = "tax_invoice_amt%d" % n
-                if ac in oic:
-                    issued += float(c.execute("SELECT COALESCE(SUM(%s),0) FROM order_items WHERE order_id=?" % ac, (oid,)).fetchone()[0] or 0)
+                dc = "tax_invoice_date" if n == 1 else "tax_invoice_date%d" % n
+                if ac in oic and dc in oic:   # z1191z101: 발행일 없는 금액은 받을 돈 줄에도 없으므로 여기서도 셈하지 않음
+                    issued += float(c.execute("SELECT COALESCE(SUM(%s),0) FROM order_items WHERE order_id=? AND COALESCE(%s,'')<>''"
+                                              % (ac, dc), (oid,)).fetchone()[0] or 0)
             eps = 1.0 if ccy == "KRW" else 0.01
             if o["total"] > 0 and issued >= float(o["total"]) - eps:
                 if c.execute("UPDATE orders SET status='PAID' WHERE id=? AND status=?", (oid, o["st"])).rowcount == 1:
@@ -51547,6 +51599,27 @@ def _ar_alert_claim_z100(day_iso):
         return cur.rowcount == 1
 
 
+def _ar_alert_release_z100(day_iso):
+    """보내다 실패한 날 — 잡아 둔 오늘 몫을 푼다(다시 시도할 수 있게)."""
+    try:
+        with db_session() as c:
+            c.execute("UPDATE app_settings SET value='' WHERE key=? AND value=?", (_AR_ALERT_LAST_Z100, day_iso))
+    except Exception as e:
+        print(f"[AR-ALERT release ERR] {e}")
+
+
+def _ar_alert_retry_z100():
+    """실패 뒤 다시 한 번(다음 예약은 원래 시계가 따로 잡고 있으므로 여기서는 다시 걸지 않음)."""
+    try:
+        now = _kst_wall_now()
+        if (not _nas_quiet_now(now)) and _ar_alert_due_now_z100(now) and _ar_alert_claim_z100(now.date().isoformat()):
+            r = check_receivable_alerts()
+            print("[AR-ALERT] 다시 보냄 %s — 받는 사람 %d · 웍스 %d건" % (now.strftime("%m-%d %H:%M"), r["recipients"], r["sent"]))
+    except Exception as e:
+        print(f"[AR-ALERT retry ERR] {e}")
+        _ar_alert_release_z100(_kst_wall_now().date().isoformat())
+
+
 def _ar_alert_due_now_z100(now_kst=None):
     """지금 보낼 때인가 — 평일 09:00~17:59(재기동으로 9시를 놓쳐도 그날 안에는 한 번)."""
     now = now_kst if now_kst is not None else _kst_wall_now()
@@ -51560,9 +51633,16 @@ def _ar_alert_tick_z100():
         if _nas_quiet_now(now):   # 이중 안전 — 09:00 은 월요일 NAS 백업 시간(02:00~07:30) 밖이지만 계산이 어긋나도 안 돈다
             print("[AR-ALERT] 월요일 NAS 백업 시간 — 이번엔 건너뜀")
         elif _ar_alert_due_now_z100(now) and _ar_alert_claim_z100(now.date().isoformat()):
-            r = check_receivable_alerts()
-            print("[AR-ALERT] 수금 알림 %s — 받는 사람 %d · 새로 챙길 %d장 · 웍스 %d건 · 이음 %s"
-                  % (now.strftime("%m-%d %H:%M"), r["recipients"], r["new"], r["sent"], r["messenger"]))
+            try:
+                r = check_receivable_alerts()
+                print("[AR-ALERT] 수금 알림 %s — 받는 사람 %d · 새로 챙길 %d장 · 웍스 %d건 · 이음 %s"
+                      % (now.strftime("%m-%d %H:%M"), r["recipients"], r["new"], r["sent"], r["messenger"]))
+            except Exception as e:   # z1191z101: 잡아 둔 오늘 몫을 풀고 10분 뒤 다시(18시 전까지)
+                print(f"[AR-ALERT send ERR] {e} — 10분 뒤 다시")
+                _ar_alert_release_z100(now.date().isoformat())
+                retry = _th.Timer(600, _ar_alert_retry_z100)
+                retry.daemon = True
+                retry.start()
     except Exception as e:
         print(f"[AR-ALERT tick ERR] {e}")
     delay = _ar_alert_seconds_until_next_z100()
@@ -51626,9 +51706,11 @@ async def sales_ar_alert_recipients_z100(request: Request):
     with db_session() as c:
         if ids:
             ph = ",".join("?" * len(ids))
-            ok = {int(r[0]) for r in c.execute("SELECT id FROM users WHERE id IN (%s) AND COALESCE(is_active,1)=1" % ph, ids).fetchall()}
-            if set(ids) - ok:
-                return JSONResponse({"ok": False, "error": "일하지 않는 계정이 들어 있습니다 — 화면을 새로 고쳐 다시 골라 주세요"}, 400)
+            ok = {int(r[0]) for r in c.execute(
+                "SELECT id FROM users WHERE id IN (%s) AND COALESCE(is_active,1)=1 "
+                "AND (COALESCE(can_use_sales,0)=1 OR role IN ('ceo','executive') OR team_id=1)" % ph, ids).fetchall()}
+            if set(ids) - ok:   # z1191z101: 고를 수 있는 사람만(고객사 이름·금액이 담긴 알림)
+                return JSONResponse({"ok": False, "error": "고를 수 없는 계정이 들어 있습니다(일하지 않거나 매출 권한 없음) — 화면을 새로 고쳐 다시 골라 주세요"}, 400)
         before = _ar_alert_recipient_ids_z100(c)
         c.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", (_AR_ALERT_KEY_Z100, _j100.dumps(ids)))
         _doc_audit_log(c, "ar_alert_recipients", 0, "SET", u.get("id"), "z1191z100 수금 알림 받는 사람 %s → %s" % (before, ids))
@@ -51741,10 +51823,11 @@ def _sales_aging_page_old_z98(req: Request):
 
 @app.post("/sales/alerts/check")
 async def sales_alerts_check(req: Request):
-    """Top3-S1-4차 수금 알림 수동 트리거 — JSON {sent, skipped, items}."""
-    u = _s1_guard(req)
-    if not u:
-        return JSONResponse({"error": "권한 없음"}, 401)
+    """Top3-S1-4차 수금 알림 수동 트리거 — JSON {sent, skipped, items}.
+    z1191z101: 하루 한 번 규칙 밖이라 받는 사람 바꾸는 분(대표·임원·매출 등록 관리자)만."""
+    u = get_user(req)
+    if not _can_bank_z98(u):
+        return JSONResponse({"error": "권한 없음"}, 403)
     result = check_receivable_alerts()
     return JSONResponse({"ok": True, **result})
 

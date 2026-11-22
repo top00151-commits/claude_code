@@ -126,7 +126,8 @@ for sb, want_open in (("J920", False), ("J922", False), ("J921", True), ("J900",
         check("3 %s(%s · 매출 %s) — 매출 화면 9곳 홈으로(303) · 저장 주소 2곳 401" % (sb, U[sb]["role"], "".join(str(U[sb][k]) for k in ("can_view_sales", "can_use_sales"))),
               not bad, bad)
 a0, a1 = hit("J920", "/sales/alerts/check", "post"), hit("J921", "/sales/alerts/check", "post")
-check("4 매출 알림 확인 API: 체크 없는 관리자 401 · 매출 등록 관리자 200", a0[0] == 401 and a1[0] == 200, (a0, a1))
+# z1191z101: 수동 「지금 보내기」 = 받는 사람 바꾸는 분(대표·임원·매출 등록 관리자)만 · 막히면 403
+check("4 매출 알림 확인 API: 체크 없는 관리자 403 · 매출 등록 관리자 200", a0[0] == 403 and a1[0] == 200, (a0, a1))
 
 print()
 print("=" * 78)

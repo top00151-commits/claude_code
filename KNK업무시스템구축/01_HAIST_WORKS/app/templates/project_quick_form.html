@@ -1295,6 +1295,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       mgmt_code_dup:'이미 등록된 관리번호입니다.',
       mgmt_code_format:'관리번호 형식이 올바르지 않습니다.',
       manual_mgmt_invalid:'수동발행 관리번호를 쓸 수 없습니다 — 다시 [검증]하세요.',
+      manual_mgmt_denied:'신규 등록에 관리번호를 직접 넣으려면 관리번호 수동발행 권한이 있어야 합니다.',
       reg_locked:'지금 다른 분이 등록 화면에서 작업 중이라 저장하지 않았습니다 — 입력한 내용은 이 기기에 남아 있습니다. 화면이 열리면 다시 [등록]하세요.',
       parts_need_confirm:'부품을 저장하려면 아래 「수주확정」을 체크하고 등록하세요. (제안 단계면 등록 후 상세 → PACKING LIST 에서 입력)'}[er] || ('오류: '+er);
     if(er==='reg_locked'){ var _hd=p.get('holder'); if(_hd) msg='지금 '+_hd+' 님이 등록 화면에서 작업 중이라 저장하지 않았습니다 — 입력한 내용은 이 기기에 남아 있습니다. 화면이 열리면 다시 [등록]하세요.'; }   // z1191z57

@@ -239,6 +239,10 @@ html,body{background:#fff!important;overflow:auto!important;}
         ⚠ <b>수정 잠금 해제</b> 후 저장 가능합니다. [🔓 수정 잠금 해제] 버튼을 눌러주세요.
       {% elif _err == 'password_invalid' %}
         ⚠ 수정 잠금 해제가 필요합니다. 다시 시도해주세요.
+      {% elif _err == 'manual_mgmt_denied' %}
+        ⚠ 신규 등록에 관리코드 <b>"{{ request.query_params.get('code') }}"</b> 를 직접 넣으려면 <b>관리번호 수동발행 권한</b>(기술영업팀)이 있어야 합니다 — 칸을 비우면 자동 발급됩니다.
+      {% elif _err == 'manual_mgmt_invalid' %}
+        ⚠ 이 관리코드는 쓸 수 없습니다 — {{ request.query_params.get('mreason') }}
       {% elif _err == 'mgmt_code_format' %}
         ⚠ 관리코드 <b>"{{ request.query_params.get('code') }}"</b> 형식이 올바르지 않습니다.
         <span style="font-weight:500;">— 8자리: 일련3자리 + 사업부(T/M/L/E/C) + 연월(YYMM). 예: 001M2403</span>

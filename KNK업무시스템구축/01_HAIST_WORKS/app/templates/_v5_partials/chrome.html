@@ -595,7 +595,7 @@ var CH = {
     {{ a('/sales/opportunities',   i.ch_m_presale_z98, 'M-01-16') }}
     {{ a('/projects',              i.ch_m_proj,        'M-01-11') }}
     {{ a('/sales/schedule',        i.ch_m_sched,       'M-01-14') }}
-    {{ a('/sales/shipments-receipts', i.ch_m_close_z98, 'M-01-04') }}
+    {% if (user.role or '')|lower in ('ceo','executive') or user.can_use_sales %}{{ a('/sales/shipments-receipts', i.ch_m_close_z98, 'M-01-04') }}{% endif %}{# z1191z101: 경로와 같게 #}
     {# 보이기 = 경로 판정(_s1_guard)과 같은 규칙: 대표·임원 또는 매출 등록 체크 — 메뉴 틀만 따로 그리는 곳이 있어 전역 함수 없이 적음 #}
     {% if (user.role or '')|lower in ('ceo','executive') or user.can_use_sales %}{{ a('/sales/receipts-check', i.ch_m_money_z98, 'M-01-18') }}{% endif %}
     {{ a('/customers',             i.ch_m_cust,        'M-01-09') }}

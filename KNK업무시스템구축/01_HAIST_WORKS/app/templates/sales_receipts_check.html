@@ -148,6 +148,7 @@
     <label for="rcNote">메모 <span style="font-weight:400;">(선택 · 예: 관리팀 ○○ 확인)</span></label>
     <input type="text" id="rcNote" maxlength="300" autocomplete="off">
     <div class="rc-warn" id="rcWarn"></div>
+    <div style="font-size:11.5px;color:var(--knk-text-muted,#657169);margin-top:8px;line-height:1.5;">ⓘ 같은 수주에 계산서가 여러 장이면 입금은 <b>먼저 발행한 계산서부터</b> 채웁니다 — 기록 뒤 남는 줄이 누른 줄과 다를 수 있습니다.</div>
     <div class="rc-btns"><button type="button" onclick="rcClose()">닫기</button><button type="button" class="go" id="rcGo" onclick="rcSave()">입금 기록</button></div>
   </div>
 </div>
@@ -248,11 +249,14 @@
     var w = check();
     if (w && warned !== w) { warned = w; showWarn(w + '<br><b>맞으면 [입금 기록]을 한 번 더 누르세요.</b>'); return; }
     var btn = document.getElementById('rcGo'); btn.disabled = true;
+    var sig = [cur.dataset.oid, d, amt].join('|');   // z1191z101: 서버가 알린 것을 확인한 같은 입력이면 confirm
     fetch('/sales/receipts-check/record', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({order_id: Number(cur.dataset.oid), received_at: d, amount: amt, note: document.getElementById('rcNote').value})})
+      body: JSON.stringify({order_id: Number(cur.dataset.oid), received_at: d, amount: amt, note: document.getElementById('rcNote').value,
+                            confirm: (window.__rcSrvOk === sig) || !!w})})   // 화면 경고를 이미 확인했으면 서버도 기록
       .then(function(r){ return r.json().then(function(j){ return [r.ok, j]; }); })
       .then(function(a){
         btn.disabled = false;
+        if (a[1] && a[1].need_confirm) { window.__rcSrvOk = sig; showWarn(a[1].error + '<br><b>맞으면 [입금 기록]을 한 번 더 누르세요.</b>'); return; }
         if (!a[0] || !a[1].ok) { showWarn((a[1] && a[1].error) || '저장하지 못했습니다'); return; }
         rcClose(); toast(a[1].status === 'PAID' ? '입금 기록 · 이 수주는 입금 완료가 되었습니다' : '입금 기록했습니다');
         setTimeout(function(){ location.reload(); }, 700);

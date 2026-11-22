@@ -169,7 +169,7 @@
     <a class="sbm{% if biz=='E' %} on{% endif %}" href="?{{ _period }}&biz=E{{ _q }}"><span class="ti">🌐</span> 기타 <b>{{ div_counts.E }}</b></a>
     <a class="sbm{% if biz=='C' %} on{% endif %}" href="?{{ _period }}&biz=C{{ _q }}"><span class="ti">📦</span> 소모품 <b>{{ div_counts.C }}</b></a>
     {# z1191z92 (대표 11-21 P0-6): 👤 내 건만 — 영업담당자 칸 = 내 이름 · 누르면 내 계정에 기억(달·사업부 바꿔도 유지) #}
-    {% if mine_count %}<a class="sbm{% if mine_on %} on{% endif %}" id="sbMineBtn" href="?{{ _period }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{{ _q }}&mine={{ 0 if mine_on else 1 }}" title="영업담당자 칸에 내 이름이 적힌 건만 보기 · 다시 누르면 전체" style="margin-left:10px;"><span class="ti">👤</span> 내 건만 <b>{{ mine_count }}</b></a>{% endif %}{# z1191z36: 사업부 아이콘 = 등록 화면(🔬 🤖 💄 🌐 📦) #}
+    {% if mine_count %}<a class="sbm{% if mine_on %} on{% endif %}" id="sbMineBtn" href="?{{ _period }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{{ _q }}&mine={{ 0 if mine_on else 1 }}" title="영업담당자 칸에 내 이름이 적힌 건만 보기 · 다시 누르면 전체" style="margin-left:10px;"><span class="ti">👤</span> 내 건만 <b>{{ mine_count }}</b>{% if mine_on %} <span style="font-weight:600;font-size:11px;">· 남의 건 숨김</span>{% endif %}</a>{% endif %}{# z1191z36: 사업부 아이콘 = 등록 화면(🔬 🤖 💄 🌐 📦) #}
     {# z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 소모품 탭 안 하위 책갈피 — 소모품 등록 때 고른 진행 사업부(검사기/자동화)로 나눠 보기 #}
     {% if biz == 'C' %}<span class="sbm-sub" title="소모품 등록 때 고른 진행 사업부로 나눠 보기">
       <span class="sbm-sub-lab">↳ 소모품 나눠 보기</span>

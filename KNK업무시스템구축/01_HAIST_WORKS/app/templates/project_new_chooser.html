@@ -79,7 +79,14 @@ html,body{background:#fff!important;overflow:auto!important;}
       <span style="color:#8a7842;">· 새 거래처는 <b>🤝 고객사</b> · 수주 전 건은 <b>🎯 영업 기회</b> · <b>📋 견적서</b> 카드.</span>
     </p>
 
+    {# z1191z101: 매출 등록 권한이 없는 분 = 🤝 고객사 카드만 #}
+    {% if can_reg_proj is defined and not can_reg_proj %}
+    <div style="margin:0 0 12px;padding:9px 14px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12.5px;color:#92400e;">
+      ⓘ 프로젝트 · 소모품 · 영업 기회 · 견적서 등록은 <b>매출 등록 권한</b>이 있어야 합니다(관리자에게 요청). 새 거래처(🤝 고객사)는 여기서 등록할 수 있습니다.
+    </div>
+    {% endif %}
     <div class="pc-grid">
+      {% if can_reg_proj is not defined or can_reg_proj %}
       <a class="pc-card" href="/projects/quick?biz_div=T{% if embed %}&embed=1{% endif %}">
         <div class="ic">🔬</div>
         <div class="code">TESTER</div>
@@ -127,6 +134,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <span class="go">소모품 수주 →</span>
       </a>
 
+      {% endif %}
       {# z1191z96 (대표 11-22 「고객사도 등록을 누르고 등록」): 새 고객사도 여기서 — 🤝 고객사 메뉴는 보기·고치기(결제 조건) #}
       {% if not embed %}
       <a class="pc-card" href="/customers/new">
@@ -164,6 +172,8 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     <!-- v5H152: 프로젝트 엑셀 일괄 등록 -->
     {# v5H226z449 (대표 지시): 엑셀 일괄 등록도 자주 쓰지 않으니 평소엔 접기(details, open 없음=기본 닫힘) — 제목 클릭하면 펼침 #}
+    {# z1191z101: 엑셀 일괄 등록은 엑셀의 관리번호를 그대로 쓴다 → 관리번호 수동발행 권한이 있는 분만(서버도 같은 판정) #}
+    {% if can_manual is not defined or can_manual %}
     <details style="margin-top:14px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;">
       <summary style="cursor:pointer;padding:14px 20px;font-size:14px;font-weight:700;color:#8a6a1a;">
         📥 엑셀 일괄 등록 <span style="font-weight:400;font-size:12px;color:#9a8a5a;">— 여러 건을 한 번에 (통합 양식 1종 · 자주 안 쓰면 접어두세요 · 클릭하면 펼침)</span>
@@ -196,6 +206,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       </label>
       </div>
     </details>
+    {% endif %}
   </div>
 
   <!-- v5H152: 미리보기 모달 -->

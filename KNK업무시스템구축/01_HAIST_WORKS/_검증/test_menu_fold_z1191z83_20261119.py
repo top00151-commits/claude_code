@@ -140,8 +140,9 @@ print("§3 매출영업 · 자재구매 화면 — A/S 관리 · 출고 요청�
 g, fl, _, _ = parse(render("/sales", active_tab="sales"))
 # z1191z92 (대표 11-21 P0-2·P0-7): 「🆕 등록」(z1191z97 대표 11-22: 매출 홈 다음) · 맨 아래 「📖 처음이면 — 등록부터 입금까지」 두 줄이 더해짐
 # z1191z98 (대표 11-22 「5·6 합치기 · 1번 진행」): 10줄 — 견적서·수주 목록·미수금·입금 대사는 탭으로 · 💰 입금은 매출 등록 권한만
+# z1191z101: 🧾 마감 = 경로와 같은 사람(대표·임원·매출 등록)만 — 이 일반 계정(매출 등록 없음)에는 안 보임
 chk(hrefs(g, G_SALES) == ["/sales", "/projects/new", "/sales/opportunities", "/projects", "/sales/schedule",
-                          "/sales/shipments-receipts", "/customers", "/export", "/sales/flow-guide"],
+                          "/customers", "/export", "/sales/flow-guide"],
     "매출·영업 묶음 = A/S 관리만 빠짐 · 실제 %s" % hrefs(g, G_SALES))
 chk("/as" in [h for h, _, _ in fl], "A/S 관리는 접은 묶음에")
 chk(hrefs(g, G_COMMON) == COMMON_NOW, "매출영업 화면에서도 공통 = 같은 5개")

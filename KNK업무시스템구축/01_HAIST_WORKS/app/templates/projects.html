@@ -93,7 +93,7 @@ body {
   {# v5H226z217 (대표 지시): 사업부별 책갈피 — 탭으로 사업부 선택 (이동 없이 즉시 필터) #}
   <div class="proj-bm proj-bm-div" data-dn="proj-bm-div" style="margin-bottom:8px;">
     {# z1191z92 (대표 11-21 P0-6): 👤 내 건만 — 영업담당자 칸 = 내 이름 · 누르면 내 계정에 기억(작업 일정표와 같이) #}
-    {% if mine_count %}<a href="/projects?mine={{ 0 if mine_on else 1 }}" id="projMineBtn" class="bm{% if mine_on %} on{% endif %}" title="영업담당자 칸에 내 이름이 적힌 건만 보기 · 다시 누르면 전체">👤 내 건만 <b>{{ mine_count }}</b></a>{% endif %}
+    {% if mine_count %}<a href="/projects?{% for _k, _v in request.query_params.multi_items() if _k != 'mine' %}{{ _k|urlencode }}={{ _v|urlencode }}&amp;{% endfor %}mine={{ 0 if mine_on else 1 }}" id="projMineBtn" class="bm{% if mine_on %} on{% endif %}" title="영업담당자 칸에 내 이름이 적힌 건만 보기 · 다시 누르면 전체">👤 내 건만 <b>{{ mine_count }}</b>{% if mine_on %} <span style="font-weight:600;font-size:11px;">· 남의 건 숨김</span>{% endif %}</a>{% endif %}{# z1191z101: 검색어·폐기함·보기 값 유지 #}
     <a href="#" data-div="all" onclick="projDivFilter('all');return false;" class="bm on">🗂 전체 <b>{{ div_counts.all }}</b></a>
     <a href="#" data-div="T"   onclick="projDivFilter('T');return false;"   class="bm">🔬 검사기 <b>{{ div_counts.T }}</b></a>
     <a href="#" data-div="M"   onclick="projDivFilter('M');return false;"   class="bm">🤖 자동화 <b>{{ div_counts.M }}</b></a>
