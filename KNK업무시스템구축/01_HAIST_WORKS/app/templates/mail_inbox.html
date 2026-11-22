@@ -531,6 +531,7 @@
   {# 글자 크게(11-18 · ⚙ 설정·정리에서 켬 · 이 기기에만) — 본문 안에 두어야 다른 화면에서 들어와도 돈다(머리 스크립트는 화면 전환 때 안 돎) #}
   {% include "_v5_partials/mail_fs.html" %}
   {% include "_v5_partials/mail_popx.html" %}
+  {% include "_v5_partials/mail_move_ask.html" %}
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
@@ -598,7 +599,7 @@
       <a href="/mail/compose" class="mbx-write" title="새 메일 쓰기">✏️ 메일 쓰기</a>
       <div class="mbx-fold-h mbx-sec-h" data-sec="fav" role="button" tabindex="0" title="눌러서 접기·펼치기" onclick="mbxSecToggle('fav')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mbxSecToggle('fav')}"><span class="mf-tg">▾</span>즐겨찾기</div>
       <div class="mbx-sec" data-sec="fav">
-      {% set _fdok = (fd_choices|default([]))|map(attribute='id')|list %}
+      {% set _fdok = (fd_choices|default([]))|selectattr('key')|map(attribute='key')|list %}
       <a href="/mail/inbox" class="mbx-fold {{ 'on' if _all_on else '' }}"{% if cur_arc|default(false) %} data-drop="unarchive" data-dname="받은편지함"{% endif %}>
         <span class="fname">📥 받은편지함</span>
         {% if folders %}<span class="cnt">{{ folders.total }}</span>{% endif %}
@@ -640,7 +641,7 @@
       {% for g in mf.nodes %}
       <div class="mf-g" data-g="{{ g.key }}">
         {% set _gid = (g.key[1:]|int) if (g.key[:1] == 'f' and g.key[1:].isdigit()) else 0 %}
-        <a href="/mail/inbox?fd={{ g.key }}" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == g.key else '' }}" {% if _gid and _gid in _fdok %}data-drop="pin" data-fid="{{ _gid }}" data-fkey="{{ g.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ g.name }}"{% else %}data-drop="no" data-why="{{ g.name }} 은(는) 보낸 직원의 부서로 저절로 나뉘는 폴더라 옮겨 넣을 수 없어요"{% endif %} title="{{ g.name }} — 받은 메일 {{ g.n }}통{% if g.u %} · 안 읽음 {{ g.u }}통{% endif %}">
+        <a href="/mail/inbox?fd={{ g.key }}" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == g.key else '' }}" {% if g.key in _fdok %}data-drop="pin" data-fkey="{{ g.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ g.name }}"{% else %}data-drop="no" data-why="「{{ g.name }}」 묶음에는 바로 넣을 수 없어요 — 그 안의 부서 폴더에 놓으세요"{% endif %} title="{{ g.name }} — 받은 메일 {{ g.n }}통{% if g.u %} · 안 읽음 {{ g.u }}통{% endif %}">
           {% if g.children %}<span class="mf-tg" onclick="return mfToggle(event,'{{ g.key }}')" title="펼치기·접기">▾</span>{% else %}<span class="mf-tg mf-tg-x"></span>{% endif %}
           <span class="mf-dot fk-{{ g.kind or 'x' }}"></span><span class="fname">{{ g.name }}</span>{% if g.n %}<span class="mf-n">{{ '{:,}'.format(g.n) }}</span>{% endif %}{% if g.u %}<span class="mf-u">{{ '{:,}'.format(g.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'{{ g.key }}')" title="「{{ g.name }}」 안 읽은 메일 {{ g.u }}통 모두 읽음으로">✓</span>{% endif %}
         </a>
@@ -648,7 +649,7 @@
         {% set _zero = g.children|selectattr('n', 'equalto', 0)|list %}
         {% for k in g.children %}
           {% set _kid = (k.key[1:]|int) if (k.key[:1] == 'f' and k.key[1:].isdigit()) else 0 %}
-          <a href="/mail/inbox?fd={{ k.key }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" {% if _kid and _kid in _fdok %}data-drop="pin" data-fid="{{ _kid }}" data-fkey="{{ k.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k.name }}"{% else %}data-drop="no" data-why="{{ k.name }} 은(는) 보낸 직원의 부서로 저절로 나뉘는 폴더라 옮겨 넣을 수 없어요"{% endif %} title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
+          <a href="/mail/inbox?fd={{ k.key }}" class="mbx-fold mf-k {{ 'on' if cur_fd|default('') == k.key else '' }}{{ ' mf-zero' if not k.n else '' }}" {% if k.key in _fdok %}data-drop="pin" data-fkey="{{ k.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k.name }}"{% else %}data-drop="no" data-why="「{{ k.name }}」에는 바로 넣을 수 없어요 — 그 안의 폴더에 놓으세요"{% endif %} title="{{ k.name }} — 받은 메일 {{ k.n }}통{% if k.u %} · 안 읽음 {{ k.u }}통{% endif %}">
             {% if k.children %}<span class="mf-tg mf-stg" onclick="return mfSubToggle(event,'{{ k.key }}')" title="펼치기·접기">▾</span>{% endif %}<span class="fname">{{ k.name }}</span>{% if k.n %}<span class="mf-n">{{ '{:,}'.format(k.n) }}</span>{% endif %}{% if k.u %}<span class="mf-u">{{ '{:,}'.format(k.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'{{ k.key }}')" title="「{{ k.name }}」 안 읽은 메일 {{ k.u }}통 모두 읽음으로">✓</span>{% endif %}
           </a>
           {% if k.children %}
@@ -658,7 +659,7 @@
           {% endif %}
           {% for k2 in (k.children or []) %}
           {# 11-18 대표: 「20_베트남법인」 안 부서(번호 없는 부서 = 베트남 법인) — 한 칸 더 들여 씀 #}
-          <a href="/mail/inbox?fd={{ k2.key }}" class="mbx-fold mf-k mf-k2 {{ 'on' if cur_fd|default('') == k2.key else '' }}" data-drop="no" data-why="{{ k2.name }} 은(는) 보낸 직원의 부서로 저절로 나뉘는 폴더라 옮겨 넣을 수 없어요" title="{{ k2.name }}(베트남 법인) — 받은 메일 {{ k2.n }}통{% if k2.u %} · 안 읽음 {{ k2.u }}통{% endif %}">
+          <a href="/mail/inbox?fd={{ k2.key }}" class="mbx-fold mf-k mf-k2 {{ 'on' if cur_fd|default('') == k2.key else '' }}" {% if k2.key in _fdok %}data-drop="pin" data-fkey="{{ k2.key }}" data-gkey="{{ g.key }}" data-kind="{{ g.kind or 'x' }}" data-dname="{{ k2.name }}"{% else %}data-drop="no" data-why="「{{ k2.name }}」에는 넣을 수 없어요"{% endif %} title="{{ k2.name }} — 받은 메일 {{ k2.n }}통{% if k2.u %} · 안 읽음 {{ k2.u }}통{% endif %}">
             <span class="fname">{{ k2.name }}</span>{% if k2.n %}<span class="mf-n">{{ '{:,}'.format(k2.n) }}</span>{% endif %}{% if k2.u %}<span class="mf-u">{{ '{:,}'.format(k2.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'{{ k2.key }}')" title="「{{ k2.name }}」 안 읽은 메일 {{ k2.u }}통 모두 읽음으로">✓</span>{% endif %}
           </a>
           {% endfor %}
@@ -668,7 +669,7 @@
         </div>
       </div>
       {% endfor %}
-      <a href="/mail/inbox?fd=gen" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" data-drop="no" data-why="「일반」은 어느 폴더에도 안 걸린 메일이 저절로 모이는 곳이라 넣을 수 없어요 — 폴더로 옮긴 메일을 되돌리려면 ↺ 되돌리기나 메일 화면의 「↺ 자동으로」" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
+      <a href="/mail/inbox?fd=gen" class="mbx-fold mf-gh {{ 'on' if cur_fd|default('') == 'gen' else '' }}" data-drop="pin" data-fkey="gen" data-gkey="gen" data-kind="gen" data-dname="일반" title="위 폴더 어디에도 안 걸린 메일 {{ mf.gen.n }}통 — 메일을 열어 「📁 이 폴더로」를 누르면 그 회사 메일이 모두 그 폴더로 갑니다">
         <span class="mf-tg mf-tg-x"></span><span class="mf-dot fk-gen"></span><span class="fname">일반</span>{% if mf.gen.n %}<span class="mf-n">{{ '{:,}'.format(mf.gen.n) }}</span>{% endif %}{% if mf.gen.u %}<span class="mf-u">{{ '{:,}'.format(mf.gen.u) }}</span><span class="mf-ra" role="button" tabindex="0" onclick="return mbxReadAll(event,'gen')" title="「일반」 안 읽은 메일 {{ mf.gen.u }}통 모두 읽음으로">✓</span>{% endif %}
       </a>
       {% if mf.gen.n %}<a href="/mail/folders/general" class="mbx-fold mf-k" style="color:#1d4ed8;font-size:12px" title="일반에 남은 메일 {{ mf.gen.n }}통을 보낸 곳별로 묶어 한 번에 폴더로"><span class="fname">🧹 일반 정리하기</span></a>{% endif %}
@@ -757,10 +758,10 @@
       <button type="button" onclick="mbxBulk('star')">⭐ 중요</button>
       {% if cur_reply|default(false) %}<button type="button" onclick="mbxReplyPicked()" title="고른 메일을 「회신 안 해도 됨」으로 — 메일은 보내지 않음 · 회신 필요 숫자에서 빠짐">✓ 회신 안 해도 됨</button>{% endif %}
       {% if cur_arc|default(false) %}<button type="button" onclick="mbxBulk('unarchive')">📥 받은편지함으로</button>{% else %}<button type="button" onclick="mbxBulk('archive')" title="받은편지함에서 빼기(지우지 않음)">📦 보관</button>{% endif %}
-      {% if fd_choices|default([]) %}<select id="mbxSelFd" onchange="mbxBulkPin(this)" title="고른 메일만 그 폴더로(보낸 회사 메일 전부가 아니라 이 메일들만)">
-        <option value="">📁 이 메일들만 폴더로…</option>
-        {% for f in fd_choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
-        <option value="0">↺ 자동 분류로 되돌리기</option>
+      {% if fd_choices|default([]) %}<select id="mbxSelFd" onchange="mbxBulkPin(this)" title="고른 메일을 다른 폴더로 — 지금부터 오는 메일만 / 지난 메일도 모두 / 고른 메일만 중에서 고릅니다">
+        <option value="">📁 다른 폴더로…</option>
+        {% for f in fd_choices %}{% if f.head %}<option value="" disabled>{{ '　' * f.depth }}{{ f.name }}</option>{% else %}<option value="{{ f.key }}">{{ '　' * f.depth }}{{ '└ ' if f.depth else '' }}{{ f.name }}</option>{% endif %}{% endfor %}
+        <option value="0">↺ 「이 메일만」 옮김 풀기</option>
       </select>{% endif %}
       <button type="button" class="del" onclick="mbxBulk('delete')">🗑 삭제</button>
       <span class="sp"></span>
@@ -1179,9 +1180,15 @@ async function mbxBulkPin(sel){
   var v=sel.value; if(v===''){ return; }
   var ids=mbxPicked(); if(!ids.length){ sel.value=''; return; }
   var name=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
-  if(!confirm(v==='0' ? (ids.length+'통을 자동 분류(보낸 사람 기준)로 되돌릴까요?') : (ids.length+'통만 「'+name+'」 폴더로 옮길까요?\n(보낸 회사의 다른 메일·앞으로 올 메일은 그대로)'))){ sel.value=''; return; }
-  var fd=new FormData(); fd.append('op','pin'); fd.append('ids', ids.join(',')); fd.append('folder_id', v);
-  var j=await mbxPost(fd); sel.value=''; if(j) location.reload();
+  if(v==='0'){
+    if(!confirm(ids.length+'통의 「이 메일만」 옮김을 풀까요?\n(내가 옮긴 규칙·자동 분류를 따라갑니다)')){ sel.value=''; return; }
+    var fd=new FormData(); fd.append('op','pin'); fd.append('ids', ids.join(',')); fd.append('folder_id', '0');
+    var j=await mbxPost(fd); sel.value=''; if(j) location.reload(); return;
+  }
+  sel.value='';
+  // 11-22 대표 「옮길 때 지금부터만 / 지난 메일도 — 꼭 물어보고 고르게」
+  var jm=await mailMoveAsk({ids:ids, key:v, name:name});
+  if(jm){ mbxUndoSave({k:'move', msg:jm.text}); location.reload(); }
 }
 /* 읽기 칸에서 📦 보관 / 📥 받은편지함으로 — 받은편지함(보관 뺀 목록)이면 그 줄을 빼고, 다른 목록이면 표시만 */
 window.mailPaneAfterArchive=function(id, on){
@@ -1198,6 +1205,7 @@ window.mailPaneAfterArchive=function(id, on){
    손가락 화면(휴대폰·태블릿)은 끌기가 스크롤과 겹쳐 쓰지 않는다 → 지금처럼 📁 단추 */
 window._mbxBox = '{{ box }}';
 window._mbxCurFd = '{{ cur_fd|default('') }}';
+window._mbxTargets = {{ (fd_choices|default([]))|tojson }};
 window._mbxCurArc = {{ 'true' if cur_arc|default(false) else 'false' }};
 function mbxRowsOf(i){ return document.querySelectorAll('.mbx-list [data-mail-id="'+i+'"]'); }
 function mbxToast(msg, acts, warn){
@@ -1257,8 +1265,8 @@ window.mbxReplyPicked=function(){ var ids=mbxPicked(); if(ids.length) mbxReplyAl
   var o=null; try{ o=JSON.parse(sessionStorage.getItem('mbxUndo')||'null'); sessionStorage.removeItem('mbxUndo'); }catch(e){}
   if(!o || !o.msg) return;
   function go(){ mbxToast(o.msg, o.k ? [['↺ 되돌리기', async function(){
-    var j = o.k==='read' ? await mbxForm('/mail/read-all/undo',{ids:o.ids||''}) : await mbxForm('/mail/reply/done-all/undo',{undo:o.undo||''});
-    if(j){ mbxUndoSave({k:'', msg:'↺ '+(j.n||0).toLocaleString()+'통 되돌렸어요'}); location.reload(); } }]] : null);
+    var j = o.k==='read' ? await mbxForm('/mail/read-all/undo',{ids:o.ids||''}) : (o.k==='move' ? await mbxForm('/mail/move/undo',{}) : await mbxForm('/mail/reply/done-all/undo',{undo:o.undo||''}));
+    if(j){ mbxUndoSave({k:'', msg:(o.k==='move' ? '↺ 방금 옮긴 것을 되돌렸어요(폴더·앞으로 올 메일 모두 예전대로)' : '↺ '+(j.n||0).toLocaleString()+'통 되돌렸어요')}); location.reload(); } }]] : null);
     if(o.k){ clearTimeout(window._mbxToastT); window._mbxToastT=setTimeout(function(){ var t=document.getElementById('mbxToast'); if(t) t.hidden=true; }, 30000); } }   // 한꺼번에 바꾼 뒤라 되돌리기는 30초
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
@@ -1270,11 +1278,14 @@ async function mbxDropDo(tg, ids){
   if(op==='pin'){
     if(!inb.length){ mbxToast('📤 보낸 메일은 폴더에 넣을 수 없어요 (폴더는 받은 메일만)', null, true); return; }
     if(inb.every(function(i){ return prev[i] && prev[i].fd===tg.dataset.fkey; })){ mbxToast('이미 「'+name+'」 폴더에 있는 메일이에요'); return; }
+    // 11-22 대표 「내가 옮기면 옮긴 위치가 기준 · 관련 메일도 따라 · 옮길 때 지금부터만/지난 메일도 꼭 묻기」 → 묻는 창
+    var jm=await mailMoveAsk({ids:inb, key:tg.dataset.fkey, name:name});
+    if(jm){ mbxUndoSave({k:'move', msg:jm.text}); location.reload(); }
+    return;
   }
   if(op==='star' && ids.every(function(i){ return prev[i] && prev[i].star; })){ mbxToast('이미 ⭐ 중요로 표시한 메일이에요'); return; }
   if(op==='archive' && ids.every(function(i){ return prev[i] && prev[i].arc; })){ mbxToast('이미 📦 보관한 메일이에요'); return; }
-  var fd=new FormData(); fd.append('op', op); fd.append('ids', (op==='pin'?inb:ids).join(','));
-  if(op==='pin') fd.append('folder_id', tg.dataset.fid);
+  var fd=new FormData(); fd.append('op', op); fd.append('ids', ids.join(','));
   var j=await mbxPost(fd); if(!j) return;
   var n=j.n||0;
   if(!n){ mbxToast('옮길 메일이 없었어요 (이미 지웠거나 내 받은 메일이 아님)', null, true); return; }
@@ -1328,24 +1339,6 @@ async function mbxDropDo(tg, ids){
   if(op==='pin' && ids.length>inb.length) msg+=' · 보낸 메일 '+(ids.length-inb.length)+'통은 빼고';
   if(op==='archive' && ids.some(function(i){ return prev[i] && prev[i].reply; })) msg+=' · ↩ 「회신 필요」에서도 빠졌어요(아직 답할 메일이면 ↺ 되돌리기)';   // 11-19 3단계: 조용히 빠지지 않게
   var acts=[['↺ 되돌리기', undo]];
-  // 같은 회사(같은 주소) 메일만 끌었으면 「이 회사 메일 모두」 — 지난·앞으로 올 메일까지(규칙)
-  if(op==='pin'){
-    var frs=inb.map(function(i){ return prev[i]?prev[i].from:''; }), dms=frs.map(function(e){ return e.split('@')[1]||''; });
-    var oneAddr=frs[0] && frs.every(function(e){ return e===frs[0]; });
-    var oneDom=dms[0] && !MBX_FREE[dms[0]] && dms.every(function(d){ return d===dms[0]; });
-    if(oneAddr || oneDom){
-      var who = oneDom ? ('@'+dms[0]) : frs[0];
-      acts.push(['이 회사('+who+') 메일 모두 이 폴더로', async function(){
-        if(!confirm(who+' 에서 온 메일을 모두 「'+name+'」 폴더로 옮길까요?\n\n지난 메일과 앞으로 올 메일 모두 · 나에게만 적용됩니다.\n(폴더 ⚙ 관리에서 언제든 지울 수 있습니다)')) return;
-        try{ var f=new FormData(); f.append('folder_id', tg.dataset.fid);
-          var r=await fetch('/mail/'+inb[0]+'/folder',{method:'POST',body:f}); var jj=await r.json();
-          if(!jj.ok){ alert('⚠ '+(jj.message||'옮기지 못했습니다')); return; }
-          var f2=new FormData(); f2.append('op','pin'); f2.append('ids', inb.join(',')); f2.append('folder_id','0'); await mbxPost(f2);  // 규칙을 따르게(이 메일만 표시 풀기)
-          location.reload();
-        }catch(e){ alert('네트워크 오류'); }
-      }]);
-    }
-  }
   mbxToast(msg, acts);
   mbxSideRefresh();
   try{ if(window.mailCountsRefresh) window.mailCountsRefresh(); }catch(_){}
@@ -1539,9 +1532,13 @@ async function mbxDropDo(tg, ids){
   function hr(){ menu.appendChild(document.createElement('hr')); }
   function head(t){ var d=document.createElement('div'); d.className='h'; d.textContent=t; menu.appendChild(d); }
   function folderItems(ids){
-    var fs=document.querySelectorAll('.mbx-side [data-drop="pin"]');
-    if(!fs.length){ item('(옮길 수 있는 폴더 없음)', null, {cls:'dis'}); return; }
-    fs.forEach(function(f){ item((f.classList.contains('mf-k')?'　└ ':'')+'📁 '+(f.dataset.dname||''), function(){ mbxDropDo(f, ids); }, {cls: f.classList.contains('mf-k')?'sub':''}); });
+    var ts=window._mbxTargets||[];
+    if(!ts.length){ item('(옮길 수 있는 폴더 없음)', null, {cls:'dis'}); return; }
+    ts.forEach(function(t){
+      var pad='　'.repeat(t.depth||0);
+      if(t.head){ item(pad+(t.name||''), null, {cls:'dis'}); return; }
+      item(pad+(t.depth?'└ ':'')+'📁 '+(t.name||''), function(){ mbxDropDo({dataset:{drop:'pin', fkey:t.key, dname:t.name, gkey:''}}, ids); }, {cls: t.depth?'sub':''});
+    });
   }
   /* 11-20 👉 맡김 표시 — 목록에 보이는 맡긴 메일만 모아 새 상태를 한 번 물음(서버가 1분 캐시 · 이음 대화는 읽지 않음) */
   window.mbxDlgRefresh=function(root){
@@ -1590,9 +1587,9 @@ async function mbxDropDo(tg, ids){
   };
   window.mbxMoveMenu=function(anchorEl, ids){
     if(!ids.length) return need();
-    menu.innerHTML=''; head('이 메일만 다른 폴더로 — '+ids.length+'통'); folderItems(ids);
-    if(document.querySelector('.mbx-side [data-drop="pin"]')){ hr(); item('↺ 자동 분류로 되돌리기(보낸 사람 기준)', async function(){
-      if(!confirm(ids.length+'통을 자동 분류(보낸 사람 기준)로 되돌릴까요?')) return;
+    menu.innerHTML=''; head('다른 폴더로 — '+ids.length+'통 (다음에 언제부터 옮길지 묻습니다)'); folderItems(ids);
+    if((window._mbxTargets||[]).length){ hr(); item('↺ 「이 메일만」 옮김 풀기', async function(){
+      if(!confirm(ids.length+'통의 「이 메일만」 옮김을 풀까요?\n(내가 옮긴 규칙·자동 분류를 따라갑니다)')) return;
       var fd=new FormData(); fd.append('op','pin'); fd.append('ids', ids.join(',')); fd.append('folder_id','0'); var j=await mbxPost(fd); if(j) location.reload(); }); }
     var r=(anchorEl||document.body).getBoundingClientRect(); place(r.left, r.bottom+4);
   };

@@ -94,20 +94,15 @@
   <div class="mv-chips">
     {% if folder_info is defined and folder_info %}
     {# 받은 메일 폴더(아웃룩식 · 11-17) — 지금 폴더 + 「📁 다른 폴더로…」(이 메일만 / 이 회사 메일 모두 · 나에게만) #}
-    <span id="mvFolderCur" class="mv-fd-cur" title="{{ folder_info.cur.how or '어디에도 안 걸린 메일' }}">📁 {{ folder_info.cur.name }}</span>{% if folder_info.pinned %} <span class="mv-fd-pin">이 메일만 옮김</span> <a href="#" class="mv-fd-undo" onclick="return mailPinUndo()" title="보낸 사람 기준 자동 분류로 되돌리기">↺ 자동으로</a>{% endif %}
+    <span id="mvFolderCur" class="mv-fd-cur" title="{{ folder_info.cur.how or '어디에도 안 걸린 메일' }}">📁 {{ folder_info.cur.name }}</span>{% if folder_info.pinned %} <span class="mv-fd-pin">이 메일만 옮김</span> <a href="#" class="mv-fd-undo" onclick="return mailPinUndo()" title="「이 메일만」 옮김을 풀고 내 규칙·자동 분류를 따라가기">↺ 자동으로</a>{% endif %}
     {% if folder_info.target %}
+    {# 11-22 대표 「옮길 때 지금부터만 / 지난 메일도 — 꼭 물어보고 고르게 · 우리 회사 부서 폴더로도」 — 고르면 묻는 창(mail_move_ask) #}
     <select id="mvFolderSel" class="mv-fd-sel" onchange="mailSetFolder(this)"
             data-kind="{{ folder_info.target.kind }}" data-pattern="{{ folder_info.target.pattern }}"
-            title="{% if folder_info.target.kind == 'domain' %}회사 주소 @{{ folder_info.target.pattern }} 에서 온 메일을 모두{% else %}{{ folder_info.target.pattern }} 에서 온 메일을 모두{% endif %} 고른 폴더로 — 지난 메일·앞으로 올 메일 · 나에게만">
+            title="다른 폴더(우리 회사 부서 폴더 포함)로 — 고르면 「지금부터 오는 메일만」·「지난 메일도 모두」를 묻습니다 · 나에게만">
       <option value="">📁 다른 폴더로…</option>
-      {% for f in folder_info.choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
+      {% for f in folder_info.choices %}{% if f.head %}<option value="" disabled>{{ '　' * f.depth }}{{ f.name }}</option>{% else %}<option value="{{ f.key }}"{% if f.key == folder_info.cur.key %} disabled{% endif %}>{{ '　' * f.depth }}{{ '└ ' if f.depth else '' }}{{ f.name }}</option>{% endif %}{% endfor %}
     </select>
-    <span id="mvFolderAsk" class="mv-fd-ask" hidden>
-      <b id="mvFolderAskName"></b> 로 —
-      <button type="button" onclick="mailFolderGo('one')" title="이 메일 한 통만 옮김 · 보낸 회사의 다른 메일은 그대로">이 메일만</button>
-      <button type="button" onclick="mailFolderGo('all')" title="이 보낸 곳(회사 주소)의 지난 메일·앞으로 올 메일 모두 · 나에게만">이 회사 메일 모두</button>
-      <button type="button" class="x" onclick="mailFolderGo('')">취소</button>
-    </span>
     <span id="mvFolderMsg" class="mv-fd-msg"></span>
     {% endif %}
     {% endif %}
@@ -359,11 +354,18 @@
   };
   // 「📁 이 폴더로」 (11-17) — 그 회사 주소(개인 메일은 그 주소)를 기억 → 지난·앞으로 메일 모두 그 폴더로(나에게만)
   // (11-18 3단계) 폴더를 고르면 「이 메일만 / 이 회사 메일 모두」 를 묻는다
-  window.mailSetFolder=function(sel){
-    var ask=document.getElementById('mvFolderAsk'); if(!sel.value){ if(ask) ask.hidden=true; return; }
-    var nm=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
-    if(!ask){ return mailSetFolderAll(sel); }
-    document.getElementById('mvFolderAskName').textContent='「'+nm+'」'; ask.hidden=false;
+  // 11-22 대표 「옮길 때 지금부터만 / 지난 메일도 — 꼭 물어보고 고르게」 → 공용 묻는 창(mail_move_ask)
+  window.mailSetFolder=async function(sel){
+    var key=sel.value; if(!key) return;
+    var nm=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,''); sel.value='';
+    if(!window.mailMoveAsk){ alert('화면을 새로 고친 뒤 다시 해 주세요'); return; }
+    var j=await mailMoveAsk({ids:[MAIL_ID], key:key, name:nm}); if(!j) return;
+    var cur=document.getElementById('mvFolderCur'); if(cur){ cur.textContent='📁 '+(j.name||nm); cur.title=(j.when==='one'?'이 메일만 직접 옮김':'내 규칙'); }
+    var msg=document.getElementById('mvFolderMsg');
+    if(msg){ msg.textContent='✓ '+(j.text||'')+' '; var a=document.createElement('a'); a.href='#'; a.textContent='↺ 되돌리기';
+      a.onclick=function(){ (async function(){ var u=await mailMoveUndo(); msg.textContent=(u&&u.ok)?'↺ 되돌렸습니다 · 화면을 새로 고치면 폴더가 보입니다':'⚠ 되돌리지 못했습니다'; })(); return false; };
+      msg.appendChild(a); }
+    try{ if(window.mbxSideRefresh) mbxSideRefresh(); }catch(e){}
   };
   window.mailFolderGo=async function(how){
     var sel=document.getElementById('mvFolderSel'), ask=document.getElementById('mvFolderAsk');

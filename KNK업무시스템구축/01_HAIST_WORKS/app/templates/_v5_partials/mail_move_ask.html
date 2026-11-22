@@ -1,0 +1,98 @@
+{# 11-22 대표 「내가 옮기면 옮긴 위치가 기준 · 관련 메일도 따라 · 새 메일도 · 옮길 때 지금부터만 / 지난 메일도 — 꼭 물어보고 고르게」
+   메일을 다른 폴더(부서 폴더·일반 포함)로 옮기는 모든 곳(끌어 놓기 · 여러 통 고르기 · 이동 메뉴 · 메일 보기 「📁」)이 이 창 하나로 묻는다.
+   window.mailMoveAsk({ids:[…], key:'f12'|'t5'|'gen', name:'05_품질팀'}) → 옮겼으면 결과(JSON) · 닫으면 null
+   언제부터는 미리 골라 두지 않음(두 단추 중 하나를 눌러야 옮김) · 범위 = 회사 주소 모두(기본) / 이 사람만 · 「이 메일만」은 작은 글자 #}
+<style>
+  .mmv-bg{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px}
+  .mmv{position:relative;background:var(--mt-surface,#fff);color:var(--ink,#111827);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.25);
+       width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:18px 18px 14px;font-size:13.5px;line-height:1.55}
+  .mmv h3{margin:0 30px 4px 0;font-size:16px;font-weight:800;overflow-wrap:anywhere}
+  .mmv .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:16px;font-weight:700;color:var(--mute,#64748b);cursor:pointer}
+  .mmv .x:hover{background:var(--mt-hover,#f1f3f5);color:var(--ink,#111827)}
+  .mmv .sub{color:var(--mute,#64748b);font-size:12.5px;margin-bottom:10px;overflow-wrap:anywhere}
+  .mmv .scope{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px;padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:var(--mt-soft,#f8fafc)}
+  .mmv .scope label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;overflow-wrap:anywhere}
+  .mmv .scope input{margin-top:3px}
+  .mmv .scope small{color:var(--mute,#64748b)}
+  .mmv .q{font-weight:700;margin:4px 0 8px}
+  .mmv .go{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mmv .go button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid #c7d2fe;background:#eef2ff;color:#1e3a8a;
+       border-radius:10px;padding:10px 12px;font:inherit;cursor:pointer;min-width:0}
+  .mmv .go button b{font-size:14px}
+  .mmv .go button span{font-size:12px;color:#475569;line-height:1.45}
+  .mmv .go button:hover{background:#e0e7ff;border-color:#818cf8}
+  .mmv .go button:disabled{opacity:.5;cursor:wait}
+  .mmv .one{margin-top:10px;font-size:12.5px;color:var(--mute,#64748b)}
+  .mmv .one a{color:#1d4ed8;cursor:pointer}
+  .mmv .msg{margin-top:8px;font-size:12.5px;color:#b91c1c;min-height:1em}
+  @media(max-width:520px){.mmv .go{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+  if(window.mailMoveAsk) return;
+  function esc(t){ return String(t==null?'':t).replace(/[&<>"]/g,function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function n(x){ return (x||0).toLocaleString(); }
+  async function post(obj){
+    var fd=new FormData(); Object.keys(obj).forEach(function(k){ fd.append(k, obj[k]); });
+    var r=await fetch('/mail/move',{method:'POST',body:fd,credentials:'same-origin'}); return await r.json();
+  }
+  window.mailMoveAsk=function(o){
+    return new Promise(async function(resolve){
+      var ids=(o.ids||[]).filter(Boolean), key=o.key||'', name=o.name||'';
+      if(!ids.length || !key){ resolve(null); return; }
+      var info;
+      try{ info=await post({ids:ids.join(','), dry:'1'}); }catch(e){ alert('네트워크 오류'); resolve(null); return; }
+      if(!info || !info.ok){ alert('⚠ '+((info&&info.message)||'옮길 수 없습니다')); resolve(null); return; }
+      var bg=document.createElement('div'); bg.className='mmv-bg';
+      var many=info.n>1;
+      var html='<div class="mmv" role="dialog" aria-modal="true" aria-label="메일 옮기기">'+
+        '<button type="button" class="x" title="닫기(옮기지 않음)" aria-label="닫기">✕</button>'+
+        '<h3>📁 「'+esc(name)+'」(으)로 옮기기</h3>'+
+        '<div class="sub">고른 메일 '+n(info.n)+'통'+(info.from?(' · 지금 「'+esc(info.from)+'」'):'')+' · 나에게만 적용</div>';
+      if(info.same){
+        html+='<div class="scope"><label><span>👤 <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label></div>';
+      } else {
+        html+='<div class="scope">'+
+          '<label><input type="radio" name="mmvScope" value="company" checked><span>🏢 <b>'+esc(info.company.label)+'</b> 에서 온 메일 모두 <small>(지금 '+n(info.company.n)+'통)</small></span></label>'+
+          '<label><input type="radio" name="mmvScope" value="person"><span>👤 '+(many?'고른 메일의 보낸 사람만':'이 사람만')+' — '+esc(info.person.label)+' <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
+          '</div>';
+      }
+      html+='<div class="q">언제 받은 메일부터 옮길까요?</div>'+
+        '<div class="go">'+
+          '<button type="button" data-when="new"><b>⏩ 지금부터 오는 메일만</b><span>고른 메일과 앞으로 받는 메일이 이리로 · 지난 메일은 지금 자리 그대로<br>(예: 부서를 옮긴 날부터)</span></button>'+
+          '<button type="button" data-when="all"><b>⏪ 지난 메일도 모두</b><span>이미 받은 메일 <i class="mmv-n">'+n(info.same?info.person.n:info.company.n)+'</i>통과 앞으로 받는 메일 모두 이리로</span></button>'+
+        '</div>'+
+        '<div class="one">또는 <a data-when="one">고른 메일 '+n(info.n)+'통만 옮기기</a> (보낸 곳의 다른 메일·앞으로 올 메일은 자동 분류 그대로)</div>'+
+        '<div class="msg"></div></div>';
+      bg.innerHTML=html; document.body.appendChild(bg);
+      var box=bg.querySelector('.mmv'), msg=bg.querySelector('.msg');
+      function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
+      function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(null); } }
+      document.addEventListener('keydown', onKey, true);
+      bg.addEventListener('mousedown', function(e){ if(e.target===bg) close(null); });
+      box.querySelector('.x').onclick=function(){ close(null); };
+      bg.querySelectorAll('input[name="mmvScope"]').forEach(function(r){ r.addEventListener('change', function(){
+        var sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||'company';
+        bg.querySelector('.mmv-n').textContent=n(sc==='person'?info.person.n:info.company.n); }); });
+      bg.querySelectorAll('[data-when]').forEach(function(b){ b.addEventListener('click', async function(){
+        var when=b.getAttribute('data-when'), sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||(info.same?'person':'company');
+        bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,#64748b)'; msg.textContent='옮기는 중…';
+        try{ var j=await post({ids:ids.join(','), key:key, when:when, scope:sc});
+          if(!j.ok){ msg.style.color='#b91c1c'; msg.textContent='⚠ '+(j.message||'옮기지 못했습니다'); bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); return; }
+          j.text = window.mailMoveText(j); close(j);
+        }catch(e){ msg.style.color='#b91c1c'; msg.textContent='⚠ 네트워크 오류'; bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); }
+      }); });
+      var first=bg.querySelector('.go button'); if(first) first.focus();
+    });
+  };
+  window.mailMoveText=function(j){
+    var nm='「'+(j.name||'')+'」';
+    if(j.when==='one') return '📁 고른 메일 '+n(j.n_sel)+'통만 '+nm+'(으)로 옮겼어요';
+    if(j.when==='new') return '📁 '+(j.label||'')+' — 고른 메일과 앞으로 받는 메일이 '+nm+'(으)로 · 지난 메일 '+n(j.kept)+'통은 그대로';
+    return '📁 '+(j.label||'')+' 메일 '+n(j.in_target)+'통을 '+nm+'(으)로 · 앞으로 받는 메일도'+(j.kept?(' · '+n(j.kept)+'통은 따로 정한 곳 그대로'):'');
+  };
+  window.mailMoveUndo=async function(){
+    try{ var r=await fetch('/mail/move/undo',{method:'POST',credentials:'same-origin'}); return await r.json(); }catch(e){ return null; }
+  };
+})();
+</script>

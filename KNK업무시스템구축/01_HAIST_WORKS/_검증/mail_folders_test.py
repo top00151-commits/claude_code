@@ -121,8 +121,12 @@ try:
         fl_other = mf.folders(c, OTHER)
     gnames = [f["name"] for f in fl if not f["parent_id"]]
     check("대표 계정: 묶음 6개가 아웃룩 순서 그대로", gnames == ["1.고객사", "2.기타 고객사", "3.외주업체", "4.PIN BLOCK 업체", "5.CHIP업체", "6.케이엔케이"], gnames)
-    check("1.고객사 아래 19곳 · 5.CHIP업체 아래 9곳",
-          len([f for f in fl if f["parent_id"] == fl[0]["id"]]) == 19 and len([f for f in fl if f["parent_id"] == [g for g in fl if g["name"] == "5.CHIP업체"][0]["id"]]) == 9)
+    # 11-22 대표 「삼성은 삼성그룹으로 묶고 그 아래 삼성전자·삼성전기」 → 1.고객사 아래 18곳(삼성그룹 포함) · 삼성그룹 아래 2곳
+    _sg = [f for f in fl if f["name"] == "삼성그룹"]
+    check("1.고객사 아래 18곳(삼성그룹) · 삼성그룹 아래 삼성전자·삼성전기 · 5.CHIP업체 아래 9곳",
+          len([f for f in fl if f["parent_id"] == fl[0]["id"]]) == 18 and len(_sg) == 1 and _sg[0]["parent_id"] == fl[0]["id"]
+          and sorted(f["name"] for f in fl if f["parent_id"] == _sg[0]["id"]) == ["삼성전기", "삼성전자"]
+          and len([f for f in fl if f["parent_id"] == [g for g in fl if g["name"] == "5.CHIP업체"][0]["id"]]) == 9)
     check("왼쪽에 「📁 폴더」 + 묶음 이름 + 「일반」", "📁 폴더" in h and "1.고객사" in h and "4.PIN BLOCK 업체" in h and 'href="/mail/inbox?fd=gen"' in h)
     check("폴더가 생기면 예전 「📁 거래처 폴더」는 숨김", "📁 거래처 폴더" not in h)
     k.get("/mail/inbox")
@@ -194,7 +198,8 @@ try:
     print("== 4. 「📁 이 폴더로」 ==")
     pane = k.get("/mail/%d/pane" % ids["free"]).text
     check("읽기 칸에 「폴더 · 📁 일반」 + 고르기", "📁 일반" in pane and 'id="mvFolderSel"' in pane and "와이제이전자" in pane)
-    check("6.케이엔케이 묶음은 고를 수 없음(부서 자동)", ">6.케이엔케이<" not in pane)
+    check("6.케이엔케이 묶음 이름은 고를 수 없는 머리 줄 · 그 아래 부서 폴더는 고를 수 있음(11-22 대표 「부서 폴더가 안 보임」)",
+          '<option value="" disabled>6.케이엔케이</option>' in pane and 'value="t981"' in pane and 'value="t982"' in pane)
     with _db.db_session() as c:
         yj = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='와이제이전자'", (OWN,)).fetchone()["id"]
         outs = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='3.외주업체'", (OWN,)).fetchone()["id"]
@@ -254,14 +259,17 @@ try:
     check("짧은 이름은 낱말이 같을 때만 — 「김다온」은 다온 아님", fo("kimdaon@personal-x.example") == "일반")
     check("「다온 김철수」 → 다온", fo("cs@daon-x.example") == "다온", mf.folder_of(res, "cs@daon-x.example"))
     check("같은 회사 주소의 다른 사람이 어보브반도체 → 나머지도 어보브반도체", fo("b2@abovsemi.example") == "어보브반도체", mf.folder_of(res, "b2@abovsemi.example"))
-    check("한 회사 주소가 두 폴더(삼성전기·삼성전자)면 나머지는 짐작 안 함(일반)",
-          fo("x@samsung.example") == "삼성전기" and fo("y@samsung.example") == "삼성전자" and fo("z@samsung.example") == "일반")
+    check("삼성: 서명 = 삼성전기·삼성전자 아래 폴더로 · 구분 안 되면 삼성그룹(11-22 대표)",
+          fo("x@samsung.example") == "삼성전기" and fo("y@samsung.example") == "삼성전자" and fo("z@samsung.example") == "삼성그룹",
+          [mf.folder_of(res, e) for e in ("x@samsung.example", "y@samsung.example", "z@samsung.example")])
+    check("삼성: 한 주소를 여러 폴더가 나눠 쓰면 규칙은 그 사람 한 명(회사 주소 모두 아님)",
+          mf.rule_target("z@samsung.example", res) == ("email", "z@samsung.example") and mf.rule_target("kim@partron.example", res) == ("domain", "partron.example"))
     check("제목 [파인텍] 만으로는 자동으로 옮기지 않음(추천만)", fo("q@unknown-fine.example") == "일반")
     check("이름 비교에서 Incheon 의 inc 를 지우지 않음", mf.norm_name("Incheon Tech") == "incheontech", mf.norm_name("Incheon Tech"))
     with _db.db_session() as c:
         gg = mf.general_groups(c, OWN, res)
     gmap = {g["key"]: g for g in gg}
-    check("일반 정리: 회사 주소별로 묶음(@samsung.example 한 줄)", "samsung.example" in gmap and gmap["samsung.example"]["n"] == 1)
+    check("일반 정리: 회사 주소별로 묶음(@personal-x.example 한 줄)", "personal-x.example" in gmap and gmap["personal-x.example"]["n"] == 1, sorted(gmap)[:20])
     check("일반 정리: 제목 [파인텍] → 추천 폴더 파인텍", gmap.get("unknown-fine.example", {}).get("suggest_name") == "파인텍", gmap.get("unknown-fine.example"))
     check("일반 정리: 개인 메일은 주소 하나로", "other.person@gmail.com" in gmap and gmap["other.person@gmail.com"]["is_domain"] is False)
     gp = k.get("/mail/folders/general")
@@ -309,12 +317,12 @@ try:
     k.post("/mail/folders/op", data={"op": "delete", "id": outs})
     with _db.db_session() as c:
         n_mail_after = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0", (OWN,)).fetchone()[0]
-        left = c.execute("SELECT COUNT(*) FROM mail_folder_rules WHERE user_id=? AND folder_id IN (?,?)", (OWN, outs, yj)).fetchone()[0]
+        left = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND target IN (?,?)", (OWN, "f%d" % outs, "f%d" % yj)).fetchone()[0]
         res = mf.classify(c, OWN)
     check("묶음 지우기: 아래 폴더·규칙도 지움 · 메일은 그대로", left == 0 and n_mail_before == n_mail_after)
     check("지운 폴더의 메일 → 일반으로 돌아감", mf.folder_of(res, "a@newco.example")["name"] == "일반" and mf.folder_of(res, "hello.yj@gmail.com")["name"] == "일반")
     with _db.db_session() as c:
-        rid = c.execute("SELECT id FROM mail_folder_rules WHERE user_id=?", (OWN,)).fetchone()["id"]
+        rid = c.execute("SELECT id FROM mail_move_rules WHERE user_id=? AND pattern='shared.example'", (OWN,)).fetchone()["id"]
     k.post("/mail/folders/op", data={"op": "delrule", "id": rid})
     with _db.db_session() as c:
         res = mf.classify(c, OWN)

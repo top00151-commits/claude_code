@@ -310,7 +310,10 @@ def _ensure_security_cols(c):
             # 11-19 2단계 — 🚩 기한(YYYY-MM-DD · 받는 사람 현지 날짜) · ⏰ 다시 알림(서버 시각 · 그때까지 받은편지함에서 숨김) · 돌아온 시각
             "flag_due": "TEXT DEFAULT ''", "snooze_until": "TEXT DEFAULT ''", "snooze_back": "TEXT DEFAULT ''",
             # 11-19 2단계-나 — ⏱ 예약 발송(direction='sched' 줄) · 보낼 때(서버 시각) · 상태 wait|sending|fail · 못 보낸 까닭 · 덧붙임(JSON)
-            "sched_at": "TEXT DEFAULT ''", "sched_state": "TEXT DEFAULT ''", "sched_err": "TEXT DEFAULT ''", "sched_meta": "TEXT DEFAULT ''"}
+            "sched_at": "TEXT DEFAULT ''", "sched_state": "TEXT DEFAULT ''", "sched_err": "TEXT DEFAULT ''", "sched_meta": "TEXT DEFAULT ''",
+            # 11-22 대표 「자동 분류 · 옮기면 옮긴 위치가 기준 · 부서 이동은 바뀐 날부터」 — 메일 한 통마다 정한 폴더 열쇠(mail_folders.classify 가 적음)
+            #   · 받은 때 보낸 직원의 부서(사내 메일 · 받을 때 적음 → 부서가 바뀌어도 지난 메일은 그 부서 폴더)
+            "fd_key": "TEXT DEFAULT ''", "fd_team": "INTEGER"}
     try:
         have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
     except Exception:
@@ -547,6 +550,11 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     mail_id = cur.lastrowid
     if attachments:
         _save_attachments(c, mail_id, attachments)
+    try:   # 11-22 사내 메일 = 받은 때 부서를 적어 둠(부서가 바뀌어도 이 메일은 그 부서 폴더)
+        from . import mail_folders as _mfo
+        _mfo.stamp_arrival(c, mail_id, from_email)
+    except Exception as _e:
+        print("[MAIL-FOLDERS] 받은 때 부서 적기 실패(폴더 열 때 채움): %s" % str(_e)[:120], flush=True)
     return (mail_id, owner)
 
 
@@ -814,20 +822,23 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         args += _ids
     # (11-17 대표 지시 「아웃룩처럼 폴더」) 폴더 = 보낸 사람 묶음 — mail_folders.classify 가 정한 주소들만.
     #   주소가 수백 개일 수 있어 IN (?,?,…) 대신 이 연결 전용 임시 표로 거른다(SQLite 인자 개수 한도 회피).
-    if senders is not None:
+    #   11-22: 폴더 = 메일 한 통마다 적어 둔 폴더 열쇠(fd_key · 「이 메일만」·내 규칙·받은 때 부서까지 반영) — 열쇠가 오면 그것만 본다
+    if fd_keys is not None:
+        _fk = sorted({k for k in fd_keys if k})
+        if not _fk:
+            return 0 if count_only else []
+        c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_keys(k TEXT PRIMARY KEY)")
+        c.execute("DELETE FROM _mf_keys")
+        c.executemany("INSERT OR IGNORE INTO _mf_keys(k) VALUES(?)", [(x,) for x in _fk])
+        where += " AND direction='in' AND COALESCE(fd_key,'') IN (SELECT k FROM _mf_keys)"
+    elif senders is not None:
         _ss = sorted({(x or "").strip().lower() for x in senders})
-        _fk = sorted({k for k in (fd_keys or []) if k and k.startswith("f")})
-        if not _ss and not _fk:
+        if not _ss:
             return 0 if count_only else []
         c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_senders(e TEXT PRIMARY KEY)")
         c.execute("DELETE FROM _mf_senders")
         c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
-        # 「이 메일만」 옮긴 메일(fd_pin)은 보낸 사람 폴더가 아니라 옮긴 폴더에 나온다
-        _pin = ""
-        if _fk:
-            _pin = " OR COALESCE(fd_pin,'') IN (" + ",".join("?" * len(_fk)) + ")"
-        where += " AND ((lower(from_email) IN (SELECT e FROM _mf_senders) AND COALESCE(fd_pin,'')='')" + _pin + ")"
-        args += _fk
+        where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
     # 광고·알림 빼고 보기(11-18) — 「보낸 곳별 정리」가 광고·알림으로 본 주소(받은 메일만 해당)
     if noad:
         _na = sorted({(x or "").strip().lower() for x in noad if x})
@@ -872,7 +883,7 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     rows = c.execute(
         f"""SELECT id, direction, from_email, from_name, to_email, cc, subject, category, lang,
                    is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
-                   COALESCE(is_archived,0) AS is_archived, COALESCE(fd_pin,'') AS fd_pin,
+                   COALESCE(is_archived,0) AS is_archived, COALESCE(fd_pin,'') AS fd_pin, COALESCE(fd_key,'') AS fd_key,
                    COALESCE(flag_due,'') AS flag_due, COALESCE(snooze_until,'') AS snooze_until, COALESCE(snooze_back,'') AS snooze_back,
                    {_dup_count_sql(c)} AS dup_count,
                    (SELECT COUNT(*) FROM mail_attachments a WHERE a.mail_id=mail_messages.id
@@ -1031,19 +1042,25 @@ def unread_ids(c, user_id, senders=None, fd_keys=None) -> list:
     senders(+fd_keys) → 그 폴더(왼쪽 폴더 숫자와 같은 조건: 스팸 빼고 · 보관·다시 알림 포함)."""
     where = "user_id=? AND direction='in' AND is_deleted=0 AND is_read=0"
     args = [user_id]
-    if senders is not None:
+    if fd_keys is not None or senders is not None:
         _ensure_security_cols(c)
         where += " AND COALESCE(is_blocked,0)=0"
+    if fd_keys is not None:   # 11-22: 메일마다 적어 둔 폴더 열쇠(목록 거르기와 같은 조건)
+        _fk = sorted({k for k in fd_keys if k})
+        if not _fk:
+            return []
+        c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_keys(k TEXT PRIMARY KEY)")
+        c.execute("DELETE FROM _mf_keys")
+        c.executemany("INSERT OR IGNORE INTO _mf_keys(k) VALUES(?)", [(x,) for x in _fk])
+        where += " AND COALESCE(fd_key,'') IN (SELECT k FROM _mf_keys)"
+    elif senders is not None:
         _ss = sorted({(x or "").strip().lower() for x in senders})
-        _fk = sorted({k for k in (fd_keys or []) if k and k.startswith("f")})
-        if not _ss and not _fk:
+        if not _ss:
             return []
         c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_senders(e TEXT PRIMARY KEY)")
         c.execute("DELETE FROM _mf_senders")
         c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
-        _pin = (" OR COALESCE(fd_pin,'') IN (" + ",".join("?" * len(_fk)) + ")") if _fk else ""
-        where += " AND ((lower(from_email) IN (SELECT e FROM _mf_senders) AND COALESCE(fd_pin,'')='')" + _pin + ")"
-        args += _fk
+        where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
     return [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE " + where + " ORDER BY id", args).fetchall()]
 
 

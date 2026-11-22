@@ -14,6 +14,10 @@
   .mf-row:last-child{border-bottom:0}
   .mf-row.g{background:var(--mt-panel,#f8fafc)}
   .mf-row.k{padding-left:34px}
+  .mf-row.k2{padding-left:58px;background:#fcfdff}
+  .mf-pl select{border:1px solid transparent;border-radius:6px;padding:3px 4px;font-size:12px;font-family:inherit;color:var(--mute);background:transparent;max-width:170px}
+  .mf-pl select:hover,.mf-pl select:focus{border-color:var(--mt-line,#cbd5e1);background:var(--mt-surface,#fff);color:var(--ink)}
+  @media(max-width:720px){.mf-pl{display:none}}
   .mf-row form{display:flex;align-items:center;gap:6px;margin:0}
   .mf-name{border:1px solid transparent;border-radius:6px;padding:4px 7px;font-size:13px;font-family:inherit;min-width:0;width:240px;background:transparent}
   .mf-row.g .mf-name{font-weight:700}
@@ -67,12 +71,33 @@
     받은 메일은 <b>보낸 사람으로 저절로</b> 폴더에 나뉩니다(아웃룩 규칙과 같습니다 · <b>나에게만</b> 적용).
     <br>· <b>고객사·업체</b> — 주소록·거래처 담당자 이메일, 같은 회사 주소(@ 뒤), 서명의 회사 이름이 폴더 이름과 같을 때. 이음웍스 거래처인데 폴더가 없으면 「기타 고객사」로.
     <br>· <b>케이엔케이</b> — 우리 회사 주소(@knknara.co.kr)는 직원 명부의 부서로(명부에 없으면 서명의 부서 이름).
-    <br>· 어디에도 안 걸리면 <b>「일반」</b>. 메일을 열어 <b>「📁 다른 폴더로…」</b>에서 고르면 그 회사(개인 메일은 그 주소)에서 온 메일이 지난 것·앞으로 올 것 모두 그 폴더로 갑니다.
+    <br>· 어디에도 안 걸리면 <b>「일반」</b>.
+    <br>· <b>내가 옮기면 그곳이 기준</b>입니다 — 메일을 끌어 놓거나 「📁 다른 폴더로…」를 고르면 <b>「지금부터 오는 메일만」</b> / <b>「지난 메일도 모두」</b>를 묻고, 그 회사(개인 메일·우리 회사는 그 사람)에서 오는 새 메일도 그리로 갑니다. 우리 회사 <b>부서 폴더</b>로도 옮길 수 있습니다.
+    <br>· 직원 메일은 <b>그 메일을 받은 때의 부서</b> 폴더에 남습니다 — 부서를 옮기면 그날부터 오는 메일만 새 부서로 갑니다.
+    <br>· 폴더 안에 <b>아래 폴더</b>를 둘 수 있습니다(예: 삼성그룹 → 삼성전자·삼성전기) — 서명·보낸 사람 이름으로 아래 폴더를 찾고, 모르면 위 폴더에 둡니다.
     <br>· 폴더 이름 옆 <b>다른 이름</b>(영문 이름·회사 주소)도 같이 봅니다 — 예: 「드림텍」 옆에 Dreamtech 를 적어 두면 @dreamtech… 주소와 영문 서명도 드림텍으로.
     <br>· 폴더를 지워도 <b>메일은 지워지지 않습니다</b>(자동 분류나 「일반」으로 돌아갑니다).
     {% if gen.n %}<br>· 「일반」에 <b>{{ gen.n }}통</b> 남아 있습니다 → <a href="/mail/folders/general"><b>🧹 일반 정리하기</b></a>(보낸 곳별로 묶어 한 번에){% endif %}
   </div>
 
+  {% macro frow(k, g, cls) %}
+    {% set kk = 'f%d' % k.id %}
+    <div class="mf-row {{ cls }}">
+      <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="rename"><input type="hidden" name="id" value="{{ k.id }}">
+        <input class="mf-name" name="name" value="{{ k.name }}" maxlength="60" title="이름을 고치고 Enter — 서명의 회사 이름과 맞출 때도 이 이름을 씁니다"></form>
+      <form method="post" action="/mail/folders/op" class="mf-al"><input type="hidden" name="op" value="aliases"><input type="hidden" name="id" value="{{ k.id }}">
+        <input name="aliases" value="{{ k.aliases }}" maxlength="300" placeholder="다른 이름(영문·회사 주소) — 쉼표로" title="서명·보낸 사람 이름·회사 주소(@ 뒤)와 맞출 때 같이 봅니다. 예: Dreamtech, dreamtech.co.kr — 고치고 Enter"></form>
+      <span class="mf-n">{{ cnt.get(kk, (0,0))[0] }}통{% if cnt.get(kk, (0,0))[1] %} · <b>{{ cnt.get(kk)[1] }}</b>{% endif %}</span>
+      <form method="post" action="/mail/folders/op" class="mf-pl"><input type="hidden" name="op" value="parent"><input type="hidden" name="id" value="{{ k.id }}">
+        <select name="parent_id" onchange="this.form.submit()" title="위치 — 묶음 바로 아래 또는 다른 폴더 아래(3단계까지)">
+          {% for pid, pnm in g.places if pid != k.id %}<option value="{{ pid }}"{% if pid == k.parent_id %} selected{% endif %}>{{ pnm }}</option>{% endfor %}
+        </select></form>
+      <form method="post" action="/mail/folders/op"><input type="hidden" name="id" value="{{ k.id }}">
+        <button class="mf-btn" name="op" value="up" title="위로">↑</button><button class="mf-btn" name="op" value="down" title="아래로">↓</button></form>
+      <form method="post" action="/mail/folders/op" onsubmit="return confirm('「{{ k.name }}」 폴더를 지울까요?{% if k.kids %}\n아래 폴더도 함께 지웁니다.{% endif %}\n메일은 지워지지 않습니다.')">
+        <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="{{ k.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
+    </div>
+  {% endmacro %}
   {% if not groups %}
   <div class="mf-box"><div class="mf-empty">
     아직 폴더가 없습니다.<br><br>
@@ -141,22 +166,15 @@
       <input name="name" maxlength="60" style="width:min(460px,70vw)" placeholder="+ 부서 폴더 더하기 (예: 21_영업지원) — 만든 뒤 각 부서 「위치」에서 고르면 그 안으로"><button class="mf-btn" type="submit">더하기</button></form></div>
     {% endif %}
     {% for k in g.kids %}
-    {% set kk = 'f%d' % k.id %}
-    <div class="mf-row k">
-      <form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="rename"><input type="hidden" name="id" value="{{ k.id }}">
-        <input class="mf-name" name="name" value="{{ k.name }}" maxlength="60" title="이름을 고치고 Enter — 서명의 회사 이름과 맞출 때도 이 이름을 씁니다"></form>
-      <form method="post" action="/mail/folders/op" class="mf-al"><input type="hidden" name="op" value="aliases"><input type="hidden" name="id" value="{{ k.id }}">
-        <input name="aliases" value="{{ k.aliases }}" maxlength="300" placeholder="다른 이름(영문·회사 주소) — 쉼표로" title="서명·보낸 사람 이름·회사 주소(@ 뒤)와 맞출 때 같이 봅니다. 예: Dreamtech, dreamtech.co.kr — 고치고 Enter"></form>
-      <span class="mf-n">{{ cnt.get(kk, (0,0))[0] }}통{% if cnt.get(kk, (0,0))[1] %} · <b>{{ cnt.get(kk)[1] }}</b>{% endif %}</span>
-      <form method="post" action="/mail/folders/op"><input type="hidden" name="id" value="{{ k.id }}">
-        <button class="mf-btn" name="op" value="up" title="위로">↑</button><button class="mf-btn" name="op" value="down" title="아래로">↓</button></form>
-      <form method="post" action="/mail/folders/op" onsubmit="return confirm('「{{ k.name }}」 폴더를 지울까요?\n메일은 지워지지 않습니다.')">
-        <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="{{ k.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
-    </div>
+    {{ frow(k, g, 'k') }}
+    {% for k2 in k.kids or [] %}{{ frow(k2, g, 'k k2') }}{% endfor %}
     {% endfor %}
     {% if g.kind != 'staff' %}
-    <div class="mf-add"><form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="add"><input type="hidden" name="parent_id" value="{{ g.id }}">
-      <input name="name" maxlength="60" placeholder="+ 「{{ g.name }}」 안에 폴더 더하기 (업체 이름)"><button class="mf-btn" type="submit">더하기</button></form></div>
+    <div class="mf-add"><form method="post" action="/mail/folders/op"><input type="hidden" name="op" value="add">
+      <input name="name" maxlength="60" placeholder="+ 새 폴더 이름 (업체 이름)">
+      <select name="parent_id" style="font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:3px 4px" title="어디에 넣을지 — 다른 폴더 아래(3단계)도 됩니다">
+        {% for pid, pnm in g.places %}<option value="{{ pid }}">{{ pnm }}</option>{% endfor %}
+      </select><button class="mf-btn" type="submit">더하기</button></form></div>
     {% endif %}
     {% endfor %}
     <div class="mf-row g"><span style="padding:4px 7px;font-weight:700">일반</span><span class="mf-n">{{ gen.n }}통{% if gen.u %} · <b>{{ gen.u }}</b>{% endif %}</span><span style="font-size:12px;color:var(--mute)">어디에도 안 걸린 메일(지울 수 없음)</span></div>
@@ -173,13 +191,13 @@
     <div class="mf-rule">
       <span>{% if r.kind == 'domain' %}회사 주소 <b>@{{ r.pattern }}</b> <small>에서 온 메일 모두</small>{% else %}<b>{{ r.pattern }}</b> <small>에서 온 메일</small>{% endif %}</span>
       <span class="ar">→</span>
-      <span>📁 {{ r.folder_name or '(지운 폴더)' }}</span>
-      <span class="dt"><small>{{ (r.created_at or '')[:16] }}</small></span>
+      <span>📁 {{ r.folder_name or '(지운 폴더·부서)' }}</span>
+      <span class="dt"><small>{% if r.since %}⏩ {{ r.since[:16] }}부터 받은 메일{% else %}⏪ 지난 메일도 모두{% endif %} · {{ (r.created_at or '')[:16] }}</small></span>
       <form method="post" action="/mail/folders/op" onsubmit="return confirm('이 규칙을 지울까요? 메일은 자동 분류(또는 일반)로 돌아갑니다.')" style="margin:0;text-align:right">
         <input type="hidden" name="op" value="delrule"><input type="hidden" name="id" value="{{ r.id }}"><button class="mf-btn del" type="submit">지우기</button></form>
     </div>
     {% else %}
-    <div class="mf-empty">아직 없습니다. 메일을 열어 「📁 다른 폴더로…」에서 「이 회사 메일 모두」를 고르면 여기에 생깁니다.</div>
+    <div class="mf-empty">아직 없습니다. 메일을 끌어 다른 폴더에 놓거나 「📁 다른 폴더로…」에서 고르면(「지금부터 오는 메일만」·「지난 메일도 모두」) 여기에 생깁니다.</div>
     {% endfor %}
   </div>
 </div>

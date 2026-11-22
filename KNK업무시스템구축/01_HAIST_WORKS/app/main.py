@@ -23266,9 +23266,9 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _m["fdname"], _m["fdkind"], _m["fdkey"] = "", "", ""
             if mf and _inb:
                 try:
-                    _pk = _m.get("fd_pin") or ""
-                    if _pk and _pk in (mf.get("labels") or {}):          # 「이 메일만」 옮긴 폴더가 먼저
-                        _f = {"key": _pk, "name": mf["labels"][_pk]}
+                    _fk0 = _m.get("fd_key") or ""                      # 11-22 메일 한 통마다 정한 폴더(이 메일만·내 규칙·받은 때 부서)
+                    if _fk0 and _fk0 in (mf.get("labels") or {}):
+                        _f = {"key": _fk0, "name": mf["labels"][_fk0]}
                     else:
                         _f = _mail_folders.folder_of(mf, _m.get("from_email") or "")
                     _m["fdkey"] = _f.get("key") or ""
@@ -23836,14 +23836,15 @@ def _mail_folder_info(c, uid, m):
         if m.get("direction") == "out" or not _mail_folders.has_tree(c, uid):
             return None
         res = _mail_folders.classify(c, uid)
-        cur = _mail_folders.folder_of(res, m.get("from_email") or "")
-        pinned = False
-        _pk = (m.get("fd_pin") or "")
-        if _pk and _pk in (res.get("labels") or {}):     # 「이 메일만」 옮긴 메일(11-18 3단계)
-            cur = {"key": _pk, "name": res["labels"][_pk], "how": "이 메일만 직접 옮김"}
-            pinned = True
-        tgt = _mail_folders.rule_target(m.get("from_email") or "")
-        return {"cur": cur, "pinned": pinned, "choices": _mail_folders.assignable(c, uid),
+        if not m.get("fd_key"):
+            try:
+                _r0 = c.execute("SELECT COALESCE(fd_key,'') AS k FROM mail_messages WHERE id=?", (m.get("id"),)).fetchone()
+                m = dict(m, fd_key=(_r0["k"] if _r0 else ""))
+            except Exception:
+                pass
+        cur = _mail_folders.mail_where(res, m)      # 11-22 메일 한 통의 폴더 + 까닭(이 메일만·내 규칙·받은 때 부서·자동)
+        tgt = _mail_folders.rule_target(m.get("from_email") or "", res)
+        return {"cur": cur, "pinned": bool(cur.get("pinned")), "choices": _mail_folders.assignable_list(res),
                 "target": ({"kind": tgt[0], "pattern": tgt[1]} if tgt else None),
                 "staff": (cur["key"] == "tx" or cur["key"].startswith("t"))}
     except Exception as _e:
@@ -23879,15 +23880,17 @@ async def mail_bulk(req: Request):
         return JSONResponse({"ok": False, "message": "고른 메일이 없습니다."}, 400)
     with db_session() as c:
         if op == "pin":
-            key = ""
+            key = (form.get("key") or "").strip()[:20]
             try:
                 fid = int(form.get("folder_id") or 0)
             except Exception:
                 fid = 0
-            if fid:
-                if fid not in {f["id"] for f in _mail_folders.assignable(c, u["id"])}:
-                    return JSONResponse({"ok": False, "message": "옮길 수 없는 폴더입니다."}, 400)
+            if fid and not key:
                 key = "f%d" % fid
+            if key:
+                _res = _mail_folders.classify(c, u["id"]) if _mail_folders.has_tree(c, u["id"]) else {}
+                if key not in (_res.get("valid") or ()):
+                    return JSONResponse({"ok": False, "message": "옮길 수 없는 폴더입니다."}, 400)
             n = _mailbox.set_pin(c, u["id"], ids, key)
         elif op in ("read", "unread", "star", "unstar", "archive", "unarchive", "delete", "restore"):
             n = _mailbox.bulk_apply(c, u["id"], ids, op)
@@ -24026,12 +24029,14 @@ async def mail_pin_one(req: Request, mail_id: int):
     except Exception:
         fid = 0
     with db_session() as c:
-        key, name = "", ""
-        if fid:
-            ch = {f["id"]: f["name"] for f in _mail_folders.assignable(c, u["id"])}
-            if fid not in ch:
+        key, name = (form.get("key") or "").strip()[:20], ""
+        if fid and not key:
+            key = "f%d" % fid
+        if key:
+            _res = _mail_folders.classify(c, u["id"]) if _mail_folders.has_tree(c, u["id"]) else {}
+            if key not in (_res.get("valid") or ()):
                 return JSONResponse({"ok": False, "message": "옮길 수 없는 폴더입니다."}, 400)
-            key, name = "f%d" % fid, ch[fid]
+            name = (_res.get("labels") or {}).get(key, "")
         n = _mailbox.set_pin(c, u["id"], [mail_id], key)
         if not n:
             return JSONResponse({"ok": False, "message": "내 받은 메일이 아닙니다."}, 404)
@@ -24073,13 +24078,48 @@ async def mail_set_folder(req: Request, mail_id: int):
         m = _mailbox.get_mail(c, mail_id, u["id"])
         if not m or m.get("direction") == "out":
             return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 받은 메일만)."}, 404)
-        r = _mail_folders.set_rule(c, u["id"], fid, m.get("from_email") or "")
+        r = _mail_folders.set_rule(c, u["id"], fid, m.get("from_email") or "", _mail_folders.classify(c, u["id"]))
         if not r.get("ok"):
             return JSONResponse(r, 400)
         res = _mail_folders.classify(c, u["id"])
         cur = _mail_folders.folder_of(res, m.get("from_email") or "")
     return JSONResponse({"ok": True, "folder": cur["name"], "key": cur["key"], "kind": r["kind"],
                          "pattern": r["pattern"], "moved": r["moved"]})
+
+
+@app.post("/mail/move")
+async def mail_move(req: Request):
+    """11-22 대표 「내가 옮기면 옮긴 위치가 기준 · 관련 메일 따라 · 새 메일도 · 옮길 때 지금부터만/지난 메일도 꼭 묻기 · 부서 폴더로도」
+    ids = 고른 받은 메일 · key = 옮길 곳(f…·t…·gen) · dry=1 → 묻는 창에 보일 범위·통수만
+    when = new(지금부터 오는 메일 + 고른 메일) · all(지난 메일도 모두) · one(고른 메일만) · scope = company · person · 나에게만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    ids = [x for x in (form.get("ids") or "").replace(" ", "").split(",") if x][:500]
+    if not ids:
+        return JSONResponse({"ok": False, "message": "고른 메일이 없습니다."}, 400)
+    with db_session() as c:
+        if not _mail_folders.has_tree(c, u["id"]):
+            return JSONResponse({"ok": False, "message": "폴더가 없습니다."}, 400)
+        res = _mail_folders.classify(c, u["id"])
+        if (form.get("dry") or "") == "1":
+            r = _mail_folders.move_scopes(c, u["id"], res, ids)
+        else:
+            r = _mail_folders.move(c, u["id"], res, ids, (form.get("key") or "").strip()[:20],
+                                   (form.get("when") or "").strip(), (form.get("scope") or "company").strip())
+    return JSONResponse(r, 200 if r.get("ok") else 400)
+
+
+@app.post("/mail/move/undo")
+async def mail_move_undo(req: Request):
+    """마지막 옮기기 ↺ 되돌리기(나에게만)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        n = _mail_folders.move_undo(c, u["id"])
+    return JSONResponse({"ok": bool(n), "n": n, "message": "" if n else "되돌릴 옮기기가 없습니다."})
 
 
 @app.get("/mail/folders", response_class=HTMLResponse)
@@ -24097,6 +24137,10 @@ async def mail_folders_page(req: Request, msg: str = ""):
     groups = [f for f in fl if not f["parent_id"]]
     for g in groups:
         g["kids"] = [f for f in fl if f["parent_id"] == g["id"]]
+        for k in g["kids"]:   # 11-22 아래 폴더(삼성그룹 → 삼성전자·삼성전기)
+            k["kids"] = [f for f in fl if f["parent_id"] == k["id"]]
+        # 「위치」 고르기 = 이 묶음 바로 아래 · 이 묶음의 다른 폴더 아래(아래 폴더가 없는 폴더만 그 아래로 감)
+        g["places"] = [(g["id"], "「%s」 바로 아래" % g["name"])] + [(k["id"], "　└ %s 아래" % k["name"]) for k in g["kids"]]
     cnt = {}
     for g in ((res or {}).get("nodes") or []):
         cnt[g["key"]] = (g["n"], g["u"])
@@ -24223,7 +24267,7 @@ async def mail_folders_rule(req: Request):
         if not c.execute("SELECT 1 FROM mail_messages WHERE user_id=? AND direction='in' AND lower(from_email)=? LIMIT 1",
                          (u["id"], sender)).fetchone():
             return JSONResponse({"ok": False, "message": "내 받은 메일의 보낸 주소가 아닙니다."}, 404)
-        r = _mail_folders.set_rule(c, u["id"], fid, sender)
+        r = _mail_folders.set_rule(c, u["id"], fid, sender, _mail_folders.classify(c, u["id"]))
     return JSONResponse(r, 200 if r.get("ok") else 400)
 
 
@@ -24260,6 +24304,8 @@ async def mail_folders_op(req: Request):
             msg = "다른 이름을 저장했습니다." if _mail_folders.set_aliases(c, uid, _i("id"), form.get("aliases")) else ""
         elif op == "delrule":
             msg = "규칙을 지웠습니다." if _mail_folders.delete_rule(c, uid, _i("id")) else ""
+        elif op == "parent":   # 11-22 폴더 위치(묶음 바로 아래 · 다른 폴더 아래)
+            msg = "위치를 바꿨습니다." if _mail_folders.set_parent(c, uid, _i("id"), _i("parent_id")) else "그 자리로는 옮길 수 없습니다(3단계까지 · 아래 폴더가 있는 폴더는 묶음 바로 아래만)."
     from urllib.parse import quote
     return RedirectResponse("/mail/folders" + (("?msg=" + quote(msg)) if msg else ""), 303)
 

@@ -79,6 +79,34 @@ def ensure(c) -> None:
         c.execute("ALTER TABLE mail_folders ADD COLUMN aliases TEXT")
     except Exception:
         pass
+    # 11-22 대표 「옮길 때 지금부터만 / 지난 메일도 — 꼭 묻기 · 부서 폴더로도」 → 옮긴 규칙 = 옮긴 곳(폴더·부서·일반) + 언제부터
+    #   target: 'f<폴더id>' · 't<부서id>' · 'gen' / since: '' = 지난 메일도 모두 · 'YYYY-MM-DD HH:MM:SS' = 그때부터 받은 메일
+    #   같은 대상(사람·회사 주소)에 여러 줄 = 기간마다 다른 곳(예: 품질팀 → 11-22부터 설계팀)
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_move_rules(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        pattern TEXT NOT NULL,
+        target TEXT NOT NULL,
+        since TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now','localtime')))""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_mailmove_user ON mail_move_rules(user_id, kind, pattern)")
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_folder_flags(
+        user_id INTEGER NOT NULL,
+        flag TEXT NOT NULL,
+        val TEXT DEFAULT '',
+        PRIMARY KEY(user_id, flag))""")
+    # 옛 규칙 표(mail_folder_rules · 폴더 번호만)는 한 번만 새 표로 옮겨 적는다(옛 표는 그대로 둠 · 지우지 않음)
+    try:
+        if not c.execute("SELECT 1 FROM mail_folder_flags WHERE user_id=0 AND flag='rules_v2'").fetchone():
+            c.execute("INSERT INTO mail_move_rules(user_id, kind, pattern, target, since, created_at) "
+                      "SELECT r.user_id, r.kind, r.pattern, 'f'||r.folder_id, '', r.created_at FROM mail_folder_rules r "
+                      "WHERE NOT EXISTS(SELECT 1 FROM mail_move_rules m WHERE m.user_id=r.user_id AND m.kind=r.kind "
+                      "AND m.pattern=r.pattern) ORDER BY r.id")
+            c.execute("INSERT OR REPLACE INTO mail_folder_flags(user_id, flag, val) VALUES(0,'rules_v2','1')")
+    except Exception as e:
+        print("[MAIL-FOLDERS] 옛 규칙 옮기기 실패(다음에 다시): %s" % str(e)[:160], flush=True)
+        return
     _OK["v"] = True
 
 
@@ -215,6 +243,10 @@ def seed(c, uid) -> bool:
             c.execute("INSERT INTO mail_folders(user_id, parent_id, name, sort, kind) VALUES(?,?,?,?,'')",
                       (uid, gid, kname, (ki + 1) * 10))
     _CACHE.pop(uid, None)
+    try:
+        apply_seed_v2(c, uid)
+    except Exception:
+        pass
     return True
 
 
@@ -228,7 +260,44 @@ def seed_if_owner(c, uid) -> bool:
         return False
     made = seed(c, uid)
     apply_seed_aliases(c, uid)
+    try:
+        apply_seed_v2(c, uid)
+    except Exception as e:
+        print("[MAIL-FOLDERS] 삼성그룹 묶기 실패: %s" % str(e)[:160], flush=True)
     return made
+
+
+# 11-22 대표 「삼성 경우는 삼성그룹으로 묶고 그 아래 삼성전자·삼성전기로 구분되는 건 구분해서 넣고 안 되는 건 삼성그룹으로」
+#   (묶음, 새 폴더, 다른 이름, 아래로 넣을 폴더) — @samsung.com 은 삼성그룹 · 서명·보낸 사람 이름으로 아래 폴더를 한 번 더 찾음
+SPLIT_SEED = (("1.고객사", "삼성그룹", "samsung.com, Samsung, 삼성", ("삼성전자", "삼성전기")),)
+
+
+def apply_seed_v2(c, uid) -> int:
+    """삼성그룹 폴더를 만들고 삼성전자·삼성전기를 그 아래로 — 사람마다 **한 번만**(나중에 지우거나 옮겨도 다시 안 만듦)."""
+    ensure(c)
+    if _flag(c, uid, "seed_v2"):
+        return 0
+    n = 0
+    for gname, pname, al, names in SPLIT_SEED:
+        g = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND parent_id IS NULL AND name=?", (uid, gname)).fetchone()
+        if not g:
+            continue
+        ks = []
+        for nm in names:
+            r = c.execute("SELECT id, sort FROM mail_folders WHERE user_id=? AND parent_id=? AND name=? "
+                          "AND NOT EXISTS(SELECT 1 FROM mail_folders x WHERE x.parent_id=mail_folders.id)", (uid, g["id"], nm)).fetchone()
+            if r:
+                ks.append(r)
+        if not ks or c.execute("SELECT 1 FROM mail_folders WHERE user_id=? AND name=?", (uid, pname)).fetchone():
+            continue
+        pid = c.execute("INSERT INTO mail_folders(user_id, parent_id, name, sort, kind, aliases) VALUES(?,?,?,?,'',?)",
+                        (uid, g["id"], pname, min(r["sort"] for r in ks), al)).lastrowid
+        for i, r in enumerate(ks):
+            c.execute("UPDATE mail_folders SET parent_id=?, sort=? WHERE id=? AND user_id=?", (pid, (i + 1) * 10, r["id"], uid))
+        n += 1
+    _set_flag(c, uid, "seed_v2", "1")
+    _CACHE.pop(uid, None)
+    return n
 
 
 def apply_seed_aliases(c, uid) -> int:
@@ -374,25 +443,25 @@ def team_label(t: dict) -> str:
     return ("%s_%s" % (code, t["name"])) if code and code.isdigit() else t["name"]
 
 
-def rules(c, uid) -> list:
-    ensure(c)
-    return [dict(r) for r in c.execute(
-        "SELECT r.id, r.folder_id, r.kind, r.pattern, r.created_at, f.name AS folder_name "
-        "FROM mail_folder_rules r LEFT JOIN mail_folders f ON f.id=r.folder_id "
-        "WHERE r.user_id=? ORDER BY r.id DESC", (uid,)).fetchall()]
-
-
 # ─── 분류 ─────────────────────────────────────────────────────────
+# 11-22 대표 「자동 분류를 더 자세히 · 내가 옮기면 옮긴 위치가 기준 · 관련 메일 따라 이동 · 새 메일도 · 옮길 때 지금부터만/지난 메일도 꼭 묻기 ·
+#   부서 이동은 바뀐 날부터 새 부서」 → 폴더는 **메일 한 통마다** 정한다(보낸 사람 단위로는 날짜 기준을 못 나타냄).
+#   한 통의 폴더 = ① 「이 메일만」(fd_pin) ② 내가 옮긴 규칙(사람 규칙 → 회사 규칙 · 그 메일 받은 때에 걸리는 가장 새 규칙)
+#                 ③ 우리 회사 직원 = 그 메일을 **받은 때의 부서**(fd_team · 받을 때 기록 · 처음 한 번은 지금 부서로 채움)
+#                 ④ 보낸 사람 자동 분류(아래 ③~⑧)
+#   정한 폴더는 메일 칸 fd_key 에 적어 둔다(목록 거르기·숫자 = 이 칸 하나) — 바뀐 메일만 고쳐 쓴다.
 def _stamp(c, uid):
     a = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_messages WHERE user_id=? AND direction='in'",
                   (uid,)).fetchone()
     b = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_folders WHERE user_id=?", (uid,)).fetchone()
-    try:   # 「이 메일만」 옮김이 바뀌면 다시 계산(같은 개수로 옮겨도 달라지게 폴더 번호까지)
-        pn = tuple(c.execute("SELECT COUNT(*), COALESCE(SUM(id * CAST(substr(fd_pin,2) AS INTEGER)),0) FROM mail_messages "
+    try:   # 「이 메일만」 옮김이 바뀌면 다시 계산(같은 개수로 옮겨도 달라지게 옮긴 곳 글자까지)
+        pn = tuple(c.execute("SELECT COUNT(*), COALESCE(SUM(id * (length(fd_pin) * 7 + unicode(fd_pin) + "
+                             "COALESCE(CAST(substr(fd_pin,2) AS INTEGER),0))),0) FROM mail_messages "
                              "WHERE user_id=? AND COALESCE(fd_pin,'')<>''", (uid,)).fetchone())
     except Exception:
         pn = ()
-    r = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0) FROM mail_folder_rules WHERE user_id=?", (uid,)).fetchone()
+    r = c.execute("SELECT COUNT(*), COALESCE(MAX(id),0), COALESCE(SUM(id),0) FROM mail_move_rules WHERE user_id=?",
+                  (uid,)).fetchone()
     try:   # 11-19 부서 폴더 설정(이름·위치·지움)이 바뀌면 다시 계산
         r = tuple(r) + tuple(c.execute("SELECT COALESCE(group_concat(key||':'||name||':'||parent||':'||merge,'|'),'') "
                                        "FROM mail_team_prefs WHERE user_id=?", (uid,)).fetchone())
@@ -406,7 +475,8 @@ def _stamp(c, uid):
                 "SELECT COUNT(*), COALESCE(MAX(id),0) FROM customer_contacts",
                 "SELECT COUNT(*), COALESCE(MAX(id),0) FROM customers",
                 "SELECT COUNT(*), COALESCE(SUM(COALESCE(team_id,0)),0) FROM users",
-                "SELECT COUNT(*), COALESCE(MAX(id),0) FROM suppliers"):
+                "SELECT COUNT(*), COALESCE(MAX(id),0) FROM suppliers",
+                "SELECT COUNT(*), COALESCE(SUM(id),0) FROM teams"):
         try:
             ex.append(tuple(c.execute(sql).fetchone()))
         except Exception:
@@ -512,23 +582,109 @@ def _sig_of(c, sender, mail_id, from_name):
     return comp, dept
 
 
+def rules(c, uid) -> list:
+    """내가 옮긴 규칙(새 것 먼저) — 폴더 관리 화면 목록. folder_name = 옮긴 곳 이름(폴더·부서·일반) · since = 언제부터('' = 지난 메일도)."""
+    ensure(c)
+    fn = {("f%d" % r["id"]): r["name"] for r in c.execute("SELECT id, name FROM mail_folders WHERE user_id=?", (uid,)).fetchall()}
+    tn = {("t%d" % t["id"]): folder_team_label(t) for t in teams(c)}
+    tp = team_prefs(c, uid)
+    out = []
+    for r in c.execute("SELECT id, kind, pattern, target, COALESCE(since,'') AS since, created_at FROM mail_move_rules "
+                       "WHERE user_id=? ORDER BY id DESC", (uid,)).fetchall():
+        d = dict(r)
+        t = d["target"] or ""
+        if t == "gen":
+            nm = "일반"
+        elif t.startswith("f"):
+            nm = fn.get(t, "")
+        elif t.startswith("t"):
+            nm = (tp.get(t, {}).get("name") or tn.get(t, ""))
+            nm = ("6.케이엔케이 › " + nm) if nm else ""
+        else:
+            nm = ""
+        d["folder_name"] = nm
+        out.append(d)
+    return out
+
+
+def _flag(c, uid, flag) -> str:
+    try:
+        r = c.execute("SELECT val FROM mail_folder_flags WHERE user_id=? AND flag=?", (uid, flag)).fetchone()
+        return (r["val"] or "") if r else ""
+    except Exception:
+        return ""
+
+
+def _set_flag(c, uid, flag, val) -> None:
+    c.execute("INSERT INTO mail_folder_flags(user_id, flag, val) VALUES(?,?,?) "
+              "ON CONFLICT(user_id, flag) DO UPDATE SET val=excluded.val", (uid, flag, val or ""))
+
+
+def _rule_index(c, uid, valid):
+    """규칙 → {주소: [(언제부터, 번호, 옮긴 곳)…]}(사람) · {회사 주소: […]}(회사). 새 기준·새 규칙 먼저. 없어진 곳으로 가는 규칙은 뺌."""
+    em, dm = {}, {}
+    for r in c.execute("SELECT id, kind, pattern, target, COALESCE(since,'') AS since FROM mail_move_rules WHERE user_id=?",
+                       (uid,)).fetchall():
+        if (r["target"] or "") not in valid:
+            continue
+        (em if r["kind"] == "email" else dm).setdefault((r["pattern"] or "").lower(), []).append(
+            (r["since"] or "", r["id"], r["target"]))
+    for m in (em, dm):
+        for k in m:
+            m[k].sort(reverse=True)
+    return em, dm
+
+
+def _rule_for(ri, e, ts):
+    """그 메일(보낸 주소 e · 받은 때 ts)에 걸리는 규칙 → (옮긴 곳, 까닭) 또는 None.
+    사람 규칙 먼저 → 회사 규칙. 같은 대상의 규칙이 여럿이면 **그 메일 받은 때에 이미 있던 가장 새 기준**(「지금부터만」 = 그때부터)."""
+    if not ri:
+        return None
+    em, dm = ri
+    ts = ts or ""
+    d = _dom(e)
+    for lst, how in ((em.get(e), "내 규칙(이 사람)"), (dm.get(d) if d else None, "내 규칙(회사 주소 @%s)" % d)):
+        for since, _rid, tgt in (lst or ()):
+            if since <= ts:
+                return tgt, how + (" · %s부터 받은 메일" % since[:16] if since else "")
+    return None
+
+
+def _spec(hits, par):
+    """찾은 폴더 중 다른 찾은 폴더의 윗 폴더는 뺀다(삼성그룹 + 삼성전기 → 삼성전기)."""
+    hits = set(hits or ())
+    if len(hits) < 2:
+        return hits
+    ups = set()
+    for h in hits:
+        p, hop = par.get(h), 0
+        while p and hop < 5:
+            ups.add(p)
+            p, hop = par.get(p), hop + 1
+    return hits - ups
+
+
 def classify(c, uid) -> dict:
-    """보낸 사람별 폴더 열쇠. 반환 {
-        'senders': {email: {'key','how','n','u'}},
-        'nodes':   [{key,name,depth,n,u,kind,children:[...]}],   # 화면용 나무(묶음 → 자식)
-        'labels':  {key: 이름}, 'keys_of': {key: set(자기+자손 열쇠)} }
+    """메일 → 폴더 열쇠(메일 한 통마다 · fd_key 칸). 반환 {
+        'senders': {email: {'key'(보낸 사람 자동),'fin'(가장 최근 메일의 폴더),'how','n','u'}},
+        'nodes':   [{key,name,depth,n,u,kind,children:[...]}],   # 화면용 나무(묶음 → 폴더 → 아래 폴더 · 6.케이엔케이 → 본사 → 부서)
+        'labels':  {key: 이름}, 'keys_of': {key: set(자기+자손 열쇠)},
+        'targets': 옮길 수 있는 곳(묶음·폴더·아래 폴더·부서·일반), 'valid': 그 열쇠 집합 }
     열쇠: 'f<폴더id>' · 't<부서id>'(6.케이엔케이 아래) · 'tx'(KNK 기타) · 'gen'(일반)."""
     ensure(c)
-    try:   # 메일 표의 더한 칸(차단·보관·이 메일만 폴더)이 먼저 있어야 아래 셈이 맞다(11-18)
+    try:   # 메일 표의 더한 칸(차단·보관·이 메일만 폴더·폴더 열쇠·받은 때 부서)이 먼저 있어야 아래 셈이 맞다
         from .mail_store import _ensure_security_cols
         _ensure_security_cols(c)
+    except Exception:
+        pass
+    try:
+        c.execute("CREATE INDEX IF NOT EXISTS idx_mail_fdkey ON mail_messages(user_id, fd_key)")
     except Exception:
         pass
     st = _stamp(c, uid)
     hit = _CACHE.get(uid)
     if hit and hit[0] == st:
         # 11-22 대표 「폴더마다 안 읽은 메일 수」 — 읽음·지움·스팸만 바뀌면 나누기는 그대로 두고 숫자만 다시 센다
-        #   (예전엔 새 메일이 와야 다시 세어, 읽어도 폴더 숫자가 줄지 않았음)
         rs = _read_stamp(c, uid)
         if rs == _RS.get(uid):
             return hit[1]
@@ -537,6 +693,7 @@ def classify(c, uid) -> dict:
             return hit[1]
     fl = folders(c, uid)
     by_id = {f["id"]: f for f in fl}
+    par = {f["id"]: f["parent_id"] for f in fl if f["parent_id"] and f["parent_id"] in by_id}
     groups = [f for f in fl if not f["parent_id"]]
     kids = {}
     for f in fl:
@@ -555,15 +712,32 @@ def classify(c, uid) -> dict:
     for f in fl:
         if f["parent_id"]:
             leaf_by_name.setdefault(norm_name(f["name"]), set()).add(f["id"])
+
+    def _names(f):
+        out = [(f["id"], f["name"])]
+        for a in re.split(r"[,\n]+", f.get("aliases") or ""):
+            if a.strip():
+                out.append((f["id"], a.strip()))
+        return out
     # 이름·다른 이름(영문·회사 주소) 찾기 — 묶음 아래 폴더만
     _items = []
     for f in fl:
         if f["parent_id"]:
-            _items.append((f["id"], f["name"]))
-            for a in re.split(r"[,\n]+", f.get("aliases") or ""):
-                if a.strip():
-                    _items.append((f["id"], a.strip()))
+            _items.extend(_names(f))
     idx = NameIndex(_items)
+    # 11-22 대표 「삼성은 삼성그룹으로 묶고 그 아래 삼성전자·삼성전기로 구분되는 건 구분 · 안 되면 삼성그룹」
+    #   아래 폴더가 있는 폴더(삼성그룹)에 걸리면 서명의 회사 이름 → 보낸 사람 이름으로 아래 폴더를 한 번 더 찾는다(한 곳만 걸릴 때만)
+    sub_idx = {}
+    for pid, ks in kids.items():
+        if pid in par:
+            its = []
+            for f in ks:
+                its.extend(_names(f))
+            sub_idx[pid] = NameIndex(its)
+    split_keys = set()
+    for pid in sub_idx:
+        split_keys.add("f%d" % pid)
+        split_keys |= {"f%d" % f["id"] for f in kids.get(pid, [])}
     cust_by_name = {}
     for cid, nm in M["customers"].items():
         cust_by_name.setdefault(norm_name(nm), set()).add(cid)
@@ -582,14 +756,28 @@ def classify(c, uid) -> dict:
         fid = _one(leaf_by_name.get(nm)) if nm else None
         return ("f%d" % fid, "공급업체") if fid else None
 
-    rl = {}
-    for r in c.execute("SELECT folder_id, kind, pattern FROM mail_folder_rules WHERE user_id=?", (uid,)).fetchall():
-        if r["folder_id"] in by_id:
-            rl[(r["kind"], (r["pattern"] or "").lower())] = r["folder_id"]
-
     from .mail_cleanup import _RE_ROBOT
+
+    def refine(key, e, nm, last_id):
+        """삼성그룹처럼 아래 폴더가 있는 폴더 → 서명의 회사 이름·보낸 사람 이름으로 아래 폴더(한 곳만 걸릴 때)."""
+        if not key or not key.startswith("f") or not key[1:].isdigit():
+            return key, ""
+        si = sub_idx.get(int(key[1:]))
+        if not si:
+            return key, ""
+        comp = ""
+        if not _RE_ROBOT.match(e.split("@")[0] or ""):
+            comp = _sig_of(c, e, last_id, nm)[0]
+        for txt, how in ((comp, "서명의 회사 이름"), (nm or "", "보낸 사람 이름")):
+            if txt:
+                k = _one(si.find(txt))
+                if k:
+                    return "f%d" % k, " → %s(으)로 아래 폴더" % how
+        return key, ""
+
     senders = {}
     _last_ids = {}
+    staff_tid = {}
     rows = c.execute(
         "SELECT lower(from_email) AS e, MAX(from_name) AS nm, MAX(id) AS last_id, COUNT(*) AS n, "
         "SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u FROM mail_messages "
@@ -599,13 +787,8 @@ def classify(c, uid) -> dict:
         e = (r["e"] or "").strip()
         d = _dom(e)
         key, how = None, ""
-        # ① 내 규칙
-        if (("email", e) in rl):
-            key, how = "f%d" % rl[("email", e)], "내 규칙(주소)"
-        elif d and ("domain", d) in rl:
-            key, how = "f%d" % rl[("domain", d)], "내 규칙(회사 주소 @%s)" % d
-        # ② 우리 회사
-        elif d in OUR_DOMAINS:
+        # ② 우리 회사 — 지금 부서(새 메일에 적어 둘 부서 · 메일 한 통의 폴더는 그 메일 받은 때 부서)
+        if d in OUR_DOMAINS:
             if staff_g:
                 tid = _one(M["staff_addr"].get(e))
                 how = "직원 명부"
@@ -631,6 +814,7 @@ def classify(c, uid) -> dict:
                     how = "서명의 부서"
                 if tid is not None and tid in tmap:
                     key = "t%d" % tid
+                    staff_tid[e] = tid
                 else:
                     key, how = "tx", "KNK(부서 모름)"
         else:
@@ -654,9 +838,9 @@ def classify(c, uid) -> dict:
                     got = folder_for_supplier(sid)
                     if got:
                         key, how = got[0], got[1]
-            # ⑤ 회사 주소(@ 뒤)가 폴더의 영문 이름·적어 둔 주소와 같음(예: @partron.co.kr → 파트론)
+            # ⑤ 회사 주소(@ 뒤)가 폴더의 영문 이름·적어 둔 주소와 같음(예: @partron.co.kr → 파트론 · @samsung.com → 삼성그룹)
             if key is None and d and d not in M["free"]:
-                fid = _one(idx.find_domain(d))
+                fid = _one(_spec(idx.find_domain(d), par))
                 if fid:
                     key, how = "f%d" % fid, "회사 주소 @%s = 폴더 이름" % d
             # ⑥ 서명의 회사 이름(사람 주소만 — 알림·광고 주소는 건너뜀)
@@ -664,7 +848,7 @@ def classify(c, uid) -> dict:
                 comp, _dept = _sig_of(c, e, r["last_id"], r["nm"])
                 cn = norm_name(comp)
                 if cn and len(cn) >= 2:
-                    fid = _one(leaf_by_name.get(cn)) or _one(idx.find(comp))
+                    fid = _one(_spec(leaf_by_name.get(cn), par)) or _one(_spec(idx.find(comp), par))
                     if fid:
                         key, how = "f%d" % fid, "서명의 회사 이름"
                     else:
@@ -675,26 +859,29 @@ def classify(c, uid) -> dict:
                                 key, how = got[0], got[1] + "(서명의 회사 이름)"
             # ⑦ 보낸 사람 이름 칸(예: 「홍길동(드림텍)」「Dreamtech Kim」)
             if key is None and r["nm"]:
-                fid = _one(idx.find(r["nm"]))
+                fid = _one(_spec(idx.find(r["nm"]), par))
                 if fid:
                     key, how = "f%d" % fid, "보낸 사람 이름의 회사"
+            if key is not None:
+                k2, h2 = refine(key, e, r["nm"] or "", r["last_id"])
+                if k2 != key:
+                    key, how = k2, how + h2
         if key is None:
             key, how = "gen", "일반"
         senders[e] = {"key": key, "how": how, "n": r["n"] or 0, "u": r["u"] or 0}
         _last_ids[e] = r["last_id"]
 
-    # ⑧ 같은 회사 주소의 다른 사람이 폴더 **한 곳**으로만 갔으면 나머지도 그리로(개인 메일·우리 회사 주소 제외)
+    # ⑧ 같은 회사 주소의 다른 사람이 폴더 **한 곳**으로만 갔으면 나머지도 그리로(개인 메일·우리 회사 주소 · 여러 폴더가 나눠 쓰는 주소 제외)
     by_dom = {}
     for e2, s2 in senders.items():
         d2 = _dom(e2)
-        if s2["key"].startswith("f") and d2 and d2 not in M["free"] and d2 not in OUR_DOMAINS \
-                and not s2["how"].startswith("내 규칙(주소)"):
+        if s2["key"].startswith("f") and d2 and d2 not in M["free"] and d2 not in OUR_DOMAINS:
             by_dom.setdefault(d2, set()).add(s2["key"])
     for e2, s2 in senders.items():
         if s2["key"] == "gen":
             d2 = _dom(e2)
             ks = by_dom.get(d2)
-            if ks and len(ks) == 1:
+            if ks and len(ks) == 1 and not (ks & split_keys):
                 s2["key"] = next(iter(ks))
                 s2["how"] = "같은 회사 주소(@%s)의 다른 사람이 이 폴더" % d2
 
@@ -706,52 +893,97 @@ def classify(c, uid) -> dict:
             _tk = "t%d" % _t["id"]
             if is_vn_bucket(_t) and _tk not in _merge and not _tp.get(_tk, {}).get("parent"):
                 _merge[_tk] = "tv"
-    if _merge:
-        for s in senders.values():
-            k0, hop = s["key"], 0
-            while s["key"] in _merge and hop < 5:
-                s["key"] = _merge[s["key"]]
-                hop += 1
-            if s["key"] != k0:
-                s["how"] = (s["how"] or "") + " → 지운 부서라 합친 곳"
-    cnt = {}
+
+    def mg(k):
+        hop = 0
+        while k in _merge and hop < 5:
+            k, hop = _merge[k], hop + 1
+        return k
+
+    # 옮길 수 있는 곳 — 폴더(6.케이엔케이 묶음 칸 빼고) · 부서 · 일반
+    valid = {"gen"} | {"f%d" % f["id"] for f in fl if not (not f["parent_id"] and f["kind"] == "staff")}
+    if staff_g:
+        valid |= {"t%d" % t["id"] for t in tlist}
+    ri = _rule_index(c, uid, valid)
+
+    # ── 메일 한 통마다 ──
+    cnt, gcnt = {}, {}
+    upd_key, upd_team = [], []
+    for r in c.execute("SELECT id, lower(from_email) AS e, COALESCE(received_at,'') AS ts, COALESCE(fd_pin,'') AS pin, "
+                       "fd_team, COALESCE(fd_key,'') AS fk, is_read FROM mail_messages "
+                       "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0", (uid,)).fetchall():
+        e = (r["e"] or "").strip()
+        s = senders.get(e)
+        pin = r["pin"]
+        if pin and pin in valid:                       # ① 이 메일만
+            k = pin
+        else:
+            rr = _rule_for(ri, e, r["ts"])             # ② 내가 옮긴 규칙(그 메일 받은 때 기준)
+            if rr:
+                k = rr[0]
+            elif staff_g and _dom(e) in OUR_DOMAINS:   # ③ 직원 = 받은 때 부서
+                tid = r["fd_team"]
+                cur = staff_tid.get(e)
+                if tid is None and cur is not None:
+                    upd_team.append((cur, r["id"]))
+                if tid is None or tid not in tmap:
+                    tid = cur
+                k = ("t%d" % tid) if (tid is not None and tid in tmap) else "tx"
+            else:                                      # ④ 보낸 사람 자동
+                k = s["key"] if s else "gen"
+        k = mg(k)
+        if k != r["fk"]:
+            upd_key.append((k, r["id"]))
+        a = cnt.setdefault(k, [0, 0])
+        a[0] += 1
+        a[1] += 0 if r["is_read"] else 1
+        if k == "gen":
+            g0 = gcnt.setdefault(e, [0, 0])
+            g0[0] += 1
+            g0[1] += 0 if r["is_read"] else 1
+        if s is not None and r["id"] >= s.get("_lid", 0):
+            s["_lid"], s["fin"] = r["id"], k
+    for i in range(0, len(upd_team), 500):
+        c.executemany("UPDATE mail_messages SET fd_team=? WHERE id=? AND fd_team IS NULL", upd_team[i:i + 500])
+    for i in range(0, len(upd_key), 500):
+        c.executemany("UPDATE mail_messages SET fd_key=? WHERE id=?", upd_key[i:i + 500])
     for s in senders.values():
-        a = cnt.setdefault(s["key"], [0, 0])
-        a[0] += s["n"]
-        a[1] += s["u"]
-    # (11-18 3단계) 「이 메일만」 옮긴 메일 — 보낸 사람 폴더에서 빼고 옮긴 폴더로(없어진 폴더면 그대로 둠)
-    try:
-        for r in c.execute("SELECT lower(from_email) AS e, fd_pin, is_read FROM mail_messages WHERE user_id=? AND direction='in' "
-                           "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(fd_pin,'')<>''", (uid,)).fetchall():
-            pk = r["fd_pin"] or ""
-            if not pk.startswith("f") or not pk[1:].isdigit() or int(pk[1:]) not in by_id:
-                continue
-            nat = (senders.get((r["e"] or "").strip()) or {}).get("key", "gen")
-            if nat == pk:
-                continue
-            a = cnt.setdefault(nat, [0, 0])
-            a[0] -= 1
-            a[1] -= 0 if r["is_read"] else 1
-            b = cnt.setdefault(pk, [0, 0])
-            b[0] += 1
-            b[1] += 0 if r["is_read"] else 1
-    except Exception:
-        pass
+        s.pop("_lid", None)
+        s.setdefault("fin", mg(s["key"]))
+        if s["key"] in _merge:
+            s["key"] = mg(s["key"])
+            s["how"] = (s["how"] or "") + " → 지운 부서라 합친 곳"
 
     labels, keys_of, nodes = {}, {}, []
+    targets = []
     for g in groups:
         gk = "f%d" % g["id"]
         labels[gk] = g["name"]
         ch = []
+        if g["kind"] != "staff":
+            targets.append({"key": gk, "name": g["name"], "depth": 0})
         for f in kids.get(g["id"], []):
             fk = "f%d" % f["id"]
             labels[fk] = f["name"]
-            keys_of[fk] = {fk}
-            ch.append({"key": fk, "name": f["name"], "n": cnt.get(fk, [0, 0])[0], "u": cnt.get(fk, [0, 0])[1],
-                       "assignable": True})
+            targets.append({"key": fk, "name": f["name"], "depth": 1, "up": g["name"]})
+            sub = []
+            for f2 in kids.get(f["id"], []):
+                f2k = "f%d" % f2["id"]
+                labels[f2k] = f2["name"]
+                keys_of[f2k] = {f2k}
+                targets.append({"key": f2k, "name": f2["name"], "depth": 2, "up": f["name"]})
+                sub.append({"key": f2k, "name": f2["name"], "n": cnt.get(f2k, [0, 0])[0], "u": cnt.get(f2k, [0, 0])[1],
+                            "assignable": True})
+            keys_of[fk] = {fk} | {x["key"] for x in sub}
+            node = {"key": fk, "name": f["name"], "assignable": True,
+                    "n": sum(cnt.get(k, [0, 0])[0] for k in keys_of[fk]), "u": sum(cnt.get(k, [0, 0])[1] for k in keys_of[fk])}
+            if sub:
+                node["children"] = sub
+            ch.append(node)
         if g["kind"] == "staff":
-            # 11-18 대표: 부서 앞 번호 있는 것 = 본사 · 없는 것 = 베트남 법인 → 「20_베트남법인」 폴더 안으로(번호 순서 자리)
+            # 11-18 대표: 부서 앞 번호 있는 것 = 본사 · 없는 것 = 베트남 법인 → 「베트남법인」 폴더 안으로(번호 순서 자리)
             #   11-19: 메일에서만 이름 바꾸기·지우기(합치기)·부서 폴더 더하기·위치 옮기기(mail_team_prefs) · 순서 = 이름 앞 번호
+            #   11-22: 부서 폴더도 옮길 곳(「품질팀 김정록 팀장 메일을 다른 부서로」) — 메일이 없는 부서도 옮길 곳 목록에는 나옴
             gdefs = []
             if not _tp.get("th", {}).get("merge"):
                 gdefs.append(("th", _tp.get("th", {}).get("name") or HQ_FOLDER_NAME))
@@ -760,6 +992,8 @@ def classify(c, uid) -> dict:
             for gk2 in sorted([k for k in _tp if k.startswith("g")], key=lambda x: int(x[1:]) if x[1:].isdigit() else 0):
                 gdefs.append((gk2, _tp[gk2].get("name") or "새 부서 폴더"))
             gnodes = {k: {"key": k, "name": nm, "children": [], "assignable": False, "group": True} for k, nm in gdefs}
+            tgroups = {k: [] for k, _nm in gdefs}
+            ttop = []
             top = []
             for oi, t in enumerate(tlist):
                 tk = "t%d" % t["id"]
@@ -767,17 +1001,20 @@ def classify(c, uid) -> dict:
                 nm = pr.get("name") or folder_team_label(t)
                 labels[tk] = nm
                 keys_of[tk] = {tk}
-                if pr.get("merge") or tk not in cnt:
+                if pr.get("merge"):
                     continue
-                node = {"key": tk, "name": nm, "n": cnt[tk][0], "u": cnt[tk][1], "assignable": False, "_o": oi,
+                par_t = pr.get("parent") or ""
+                if par_t == "top":
+                    par_t = ""
+                elif not par_t:
+                    par_t = "tv" if is_vn_team(t) else "th"
+                (tgroups[par_t] if par_t in tgroups else ttop).append({"key": tk, "name": nm, "_o": oi})
+                if tk not in cnt:
+                    continue
+                node = {"key": tk, "name": nm, "n": cnt[tk][0], "u": cnt[tk][1], "assignable": True, "_o": oi,
                         "auto_name": folder_team_label(t), "renamed": bool(pr.get("name")), "par_pref": pr.get("parent") or "",
                         "vn": is_vn_team(t)}
-                par = pr.get("parent") or ""
-                if par == "top":
-                    par = ""
-                elif not par:
-                    par = "tv" if is_vn_team(t) else "th"
-                (gnodes[par]["children"] if par in gnodes else top).append(node)
+                (gnodes[par_t]["children"] if par_t in gnodes else top).append(node)
             for gk2, gn in gnodes.items():
                 labels[gk2] = gn["name"]
                 gn["children"].sort(key=lambda x: (_lead_num(x["name"]), x.get("_o", 0)))
@@ -799,6 +1036,17 @@ def classify(c, uid) -> dict:
             if "tx" in cnt:
                 ch.append({"key": "tx", "name": "KNK 기타(부서 모름)", "n": cnt["tx"][0], "u": cnt["tx"][1],
                            "assignable": False})
+            # 옮길 곳 목록(부서) — 6.케이엔케이 › 본사 › 부서
+            targets.append({"key": "", "name": g["name"], "depth": 0, "head": True})
+            for gk2, nm in gdefs:
+                lst = sorted(tgroups.get(gk2) or [], key=lambda x: (_lead_num(x["name"]), x["_o"]))
+                if not lst:
+                    continue
+                targets.append({"key": "", "name": nm, "depth": 1, "head": True})
+                for x in lst:
+                    targets.append({"key": x["key"], "name": x["name"], "depth": 2, "up": nm, "team": True})
+            for x in sorted(ttop, key=lambda x: (_lead_num(x["name"]), x["_o"])):
+                targets.append({"key": x["key"], "name": x["name"], "depth": 1, "up": g["name"], "team": True})
         ks = {gk} | {x["key"] for x in ch} | {y["key"] for x in ch for y in (x.get("children") or [])}
         keys_of[gk] = ks
         nodes.append({"key": gk, "name": g["name"], "kind": g["kind"], "children": ch,
@@ -806,9 +1054,14 @@ def classify(c, uid) -> dict:
                       "assignable": g["kind"] != "staff"})
     labels["gen"] = "일반"
     keys_of["gen"] = {"gen"}
+    targets.append({"key": "gen", "name": "일반", "depth": 0})
+    shown = {"gen"}
+    for g in nodes:
+        shown |= keys_of.get(g["key"], set())
     res = {"senders": senders, "nodes": nodes, "labels": labels, "keys_of": keys_of,
            "gen": {"n": cnt.get("gen", [0, 0])[0], "u": cnt.get("gen", [0, 0])[1]},
-           "_idx": idx, "_last": dict(_last_ids)}
+           "_idx": idx, "_last": dict(_last_ids), "targets": targets, "valid": valid, "_ri": ri,
+           "gen_senders": gcnt, "_shown": shown, "_split": split_keys, "_staff_tid": staff_tid}
     _CACHE[uid] = (st, res)
     _RS[uid] = _read_stamp(c, uid)
     return res
@@ -827,40 +1080,23 @@ def _read_stamp(c, uid):
 
 
 def _recount(c, uid, res) -> bool:
-    """폴더 나누기(보낸 사람 → 폴더)는 그대로 · 폴더마다 통수·안 읽음 수만 다시. 모르는 보낸 사람이 나오면 False(처음부터 다시)."""
+    """폴더 나누기(메일마다 fd_key)는 그대로 · 폴더마다 통수·안 읽음 수만 다시.
+    폴더 열쇠가 비었거나(지운 메일을 되살림 등) 나무에 없는 열쇠가 나오면 False(처음부터 다시)."""
     try:
-        snd = res["senders"]
-        cnt, seen = {}, set()
+        cnt = {}
+        shown = res.get("_shown") or set()
+        for r in c.execute("SELECT COALESCE(fd_key,'') AS k, COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
+                           "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
+                           "GROUP BY COALESCE(fd_key,'')", (uid,)).fetchall():
+            if not r["k"] or r["k"] not in shown:
+                return False
+            cnt[r["k"]] = [r["n"] or 0, r["u"] or 0]
+        gs = {}
         for r in c.execute("SELECT lower(from_email) AS e, COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
                            "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
-                           "GROUP BY lower(from_email)", (uid,)).fetchall():
-            e = (r["e"] or "").strip()
-            s = snd.get(e)
-            if s is None:
-                return False
-            seen.add(e)
-            s["n"], s["u"] = r["n"] or 0, r["u"] or 0
-            a = cnt.setdefault(s["key"], [0, 0])
-            a[0] += s["n"]
-            a[1] += s["u"]
-        for e, s in snd.items():
-            if e not in seen:
-                s["n"], s["u"] = 0, 0
-        labels = res.get("labels") or {}
-        for r in c.execute("SELECT lower(from_email) AS e, fd_pin, is_read FROM mail_messages WHERE user_id=? AND direction='in' "
-                           "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(fd_pin,'')<>''", (uid,)).fetchall():
-            pk = r["fd_pin"] or ""
-            if not pk.startswith("f") or pk not in labels:
-                continue
-            nat = (snd.get((r["e"] or "").strip()) or {}).get("key", "gen")
-            if nat == pk:
-                continue
-            a = cnt.setdefault(nat, [0, 0])
-            a[0] -= 1
-            a[1] -= 0 if r["is_read"] else 1
-            b = cnt.setdefault(pk, [0, 0])
-            b[0] += 1
-            b[1] += 0 if r["is_read"] else 1
+                           "AND fd_key='gen' GROUP BY lower(from_email)", (uid,)).fetchall():
+            gs[(r["e"] or "").strip()] = [r["n"] or 0, r["u"] or 0]
+        res["gen_senders"] = gs
         ko = res.get("keys_of") or {}
 
         def walk(nodes):
@@ -887,15 +1123,15 @@ def general_groups(c, uid, res, limit=300) -> list:
     idx = res.get("_idx")
     labels = res.get("labels", {})
     groups = {}
-    for e, s0 in res["senders"].items():
-        if s0["key"] != "gen":
+    for e, nu in (res.get("gen_senders") or {}).items():
+        if not nu or not nu[0]:
             continue
         d = _dom(e)
         gk = e if (not d or d in free or d in OUR_DOMAINS) else d
         g = groups.setdefault(gk, {"key": gk, "is_domain": gk == d, "senders": [], "n": 0, "u": 0})
         g["senders"].append(e)
-        g["n"] += s0["n"]
-        g["u"] += s0["u"]
+        g["n"] += nu[0]
+        g["u"] += nu[1]
     out = sorted(groups.values(), key=lambda g: (-g["n"], g["key"]))[:limit]
     if not out:
         return []
@@ -906,7 +1142,7 @@ def general_groups(c, uid, res, limit=300) -> list:
     recent = {}
     for r in c.execute(
             "SELECT lower(from_email) AS e, from_name AS nm, subject AS sj, received_at AS at FROM mail_messages "
-            "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
+            "WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND fd_key='gen' "
             "AND lower(from_email) IN (SELECT e FROM _mf_gs) ORDER BY received_at DESC, id DESC LIMIT 6000",
             (uid,)).fetchall():
         recent.setdefault(r["e"], []).append(r)
@@ -955,31 +1191,46 @@ def senders_in(res, key) -> list:
     ks = res["keys_of"].get(key)
     if not ks:
         return []
-    return [e for e, s in res["senders"].items() if s["key"] in ks]
+    return [e for e, s in res["senders"].items() if s.get("fin", s["key"]) in ks]
 
 
 def folder_of(res, sender) -> dict:
     s = res["senders"].get((sender or "").strip().lower())
     if not s:
         return {"key": "gen", "name": "일반", "how": ""}
-    return {"key": s["key"], "name": res["labels"].get(s["key"], "일반"), "how": s["how"]}
+    k = s.get("fin", s["key"])
+    return {"key": k, "name": res["labels"].get(k, "일반"), "how": s["how"]}
+
+
+def mail_where(res, m) -> dict:
+    """메일 한 통의 폴더 + 까닭(읽기 화면 「📁」 줄). 반환 {key, name, how, pinned}."""
+    e = (m.get("from_email") or "").strip().lower()
+    labels = res.get("labels") or {}
+    pin = m.get("fd_pin") or ""
+    if pin and pin in (res.get("valid") or ()):
+        return {"key": pin, "name": labels.get(pin, "일반"), "how": "이 메일만 직접 옮김", "pinned": True}
+    k = m.get("fd_key") or ""
+    s = res["senders"].get(e) or {}
+    if not k or k not in labels:
+        k = s.get("fin", s.get("key", "gen")) if s else "gen"
+    rr = _rule_for(res.get("_ri"), e, m.get("received_at") or "")
+    if rr:
+        how = rr[1]
+    elif k.startswith("t") and _dom(e) in OUR_DOMAINS:
+        how = "직원 — 이 메일 받은 때 부서"
+    else:
+        how = s.get("how", "") if s else ""
+    return {"key": k, "name": labels.get(k, "일반"), "how": how, "pinned": False}
 
 
 def assignable_list(res) -> list:
-    """여러 통 「📁 폴더로」 고르기 — classify 결과에서(DB 다시 안 읽음). 6.케이엔케이(부서 자동)는 뺀다."""
-    out = []
-    for g in (res or {}).get("nodes") or []:
-        if g.get("kind") == "staff":
-            continue
-        out.append({"id": int(g["key"][1:]), "name": g["name"], "depth": 0})
-        for k in g.get("children") or []:
-            if k["key"].startswith("f") and k["key"][1:].isdigit():
-                out.append({"id": int(k["key"][1:]), "name": k["name"], "depth": 1})
-    return out
+    """옮길 곳 고르기(여러 통 「📁」·이동 메뉴·끌어 놓기) — classify 결과에서(DB 다시 안 읽음).
+    11-22: 열쇠로(폴더 f… · 부서 t… · 일반) · 머리 줄(head) = 고를 수 없는 이름(6.케이엔케이 · 본사 · 베트남법인)."""
+    return list((res or {}).get("targets") or [])
 
 
 def assignable(c, uid) -> list:
-    """「📁 이 폴더로」 고를 수 있는 폴더(6.케이엔케이 묶음은 부서로 자동이라 뺌)."""
+    """「📁 이 폴더로」 고를 수 있는 폴더(폴더 번호 · 6.케이엔케이 묶음은 빼고) — 일반 정리 화면·예전 경로."""
     out = []
     fl = folders(c, uid)
     groups = [f for f in fl if not f["parent_id"]]
@@ -989,50 +1240,244 @@ def assignable(c, uid) -> list:
         for f in fl:
             if f["parent_id"] == g["id"]:
                 out.append({"id": f["id"], "name": f["name"], "depth": 1, "group": g["name"]})
+                for f2 in fl:
+                    if f2["parent_id"] == f["id"]:
+                        out.append({"id": f2["id"], "name": f2["name"], "depth": 2, "group": f["name"]})
     return out
 
 
 # ─── 규칙 ─────────────────────────────────────────────────────────
-def rule_target(sender: str):
-    """보낸 사람 주소 → 기억할 규칙. 회사 주소면 @ 뒤 전체, 개인 메일·우리 회사면 그 주소 하나."""
+def shared_domain(res, d) -> bool:
+    """한 회사 주소를 여러 폴더가 나눠 쓰는가(예: @samsung.com = 삼성그룹·삼성전자·삼성전기) — 그러면 규칙은 그 사람 한 명."""
+    if not res or not d:
+        return False
+    ks = set()
+    for e, s in (res.get("senders") or {}).items():
+        if _dom(e) == d:
+            k = s.get("fin", s["key"])
+            if k != "gen":
+                ks.add(k)
+    if len(ks) > 1:
+        return True
+    return bool(ks & (res.get("_split") or set()))
+
+
+def rule_target(sender: str, res=None):
+    """보낸 사람 주소 → 기억할 규칙. 회사 주소면 @ 뒤 전체, 개인 메일·우리 회사·여러 폴더가 나눠 쓰는 회사 주소면 그 주소 하나."""
     e = (sender or "").strip().lower()
     d = _dom(e)
     if not d:
         return None
-    if d in _free_domains() or d in OUR_DOMAINS:
+    if d in _free_domains() or d in OUR_DOMAINS or shared_domain(res, d):
         return ("email", e)
     return ("domain", d)
 
 
-def set_rule(c, uid, folder_id, sender) -> dict:
-    """「📁 이 폴더로」 — 규칙을 저장(같은 대상의 예전 규칙은 바꿈). 반환 {ok, kind, pattern, moved}."""
+def _put_rule(c, uid, kind, pat, target, since, undo) -> int:
+    """규칙 하나 넣기. since='' (지난 메일도 모두) = 같은 대상의 예전 규칙을 모두 바꿈 ·
+    since=지금 (지금부터만) = 예전 규칙은 지난 메일에 그대로 두고, 같은 때·그 뒤 규칙만 바꿈. 지운 규칙은 undo 에 남김."""
+    if since:
+        dels = c.execute("SELECT * FROM mail_move_rules WHERE user_id=? AND kind=? AND pattern=? AND COALESCE(since,'')>=? "
+                         "AND COALESCE(since,'')<>''", (uid, kind, pat, since)).fetchall()
+    else:
+        dels = c.execute("SELECT * FROM mail_move_rules WHERE user_id=? AND kind=? AND pattern=?", (uid, kind, pat)).fetchall()
+    for r in dels:
+        undo["del"].append({k: r[k] for k in r.keys()})
+        c.execute("DELETE FROM mail_move_rules WHERE id=?", (r["id"],))
+    rid = c.execute("INSERT INTO mail_move_rules(user_id, kind, pattern, target, since) VALUES(?,?,?,?,?)",
+                    (uid, kind, pat, target, since or "")).lastrowid
+    undo["add"].append(rid)
+    return rid
+
+
+def set_rule(c, uid, folder_id, sender, res=None) -> dict:
+    """「📁 이 폴더로」(예전 경로·일반 정리 화면) — 그 보낸 곳의 지난·앞으로 메일 모두. 반환 {ok, kind, pattern, moved}."""
     ensure(c)
     f = c.execute("SELECT id, parent_id, kind FROM mail_folders WHERE id=? AND user_id=?",
                   (folder_id, uid)).fetchone()
     if not f or (not f["parent_id"] and f["kind"] == "staff"):
         return {"ok": False, "message": "고를 수 없는 폴더입니다."}
-    tgt = rule_target(sender)
+    tgt = rule_target(sender, res)
     if not tgt:
         return {"ok": False, "message": "보낸 사람 주소가 없습니다."}
     kind, pat = tgt
-    c.execute("INSERT INTO mail_folder_rules(user_id, folder_id, kind, pattern) VALUES(?,?,?,?) "
-              "ON CONFLICT(user_id, kind, pattern) DO UPDATE SET folder_id=excluded.folder_id, "
-              "created_at=datetime('now','localtime')", (uid, folder_id, kind, pat))
-    if kind == "domain":
-        n = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
-                      "AND lower(from_email) LIKE ?", (uid, "%@" + pat)).fetchone()[0]
-    else:
-        n = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
-                      "AND lower(from_email)=?", (uid, pat)).fetchone()[0]
+    _put_rule(c, uid, kind, pat, "f%d" % folder_id, "", {"add": [], "del": []})
+    n = _match_count(c, uid, [(kind, pat)])
     _CACHE.pop(uid, None)
     return {"ok": True, "kind": kind, "pattern": pat, "moved": n}
 
 
+def _pat_tables(c, pats):
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS _mv_e(e TEXT PRIMARY KEY)")
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS _mv_d(d TEXT PRIMARY KEY)")
+    c.execute("DELETE FROM _mv_e")
+    c.execute("DELETE FROM _mv_d")
+    c.executemany("INSERT OR IGNORE INTO _mv_e(e) VALUES(?)", [(p,) for k, p in pats if k == "email"])
+    c.executemany("INSERT OR IGNORE INTO _mv_d(d) VALUES(?)", [(p,) for k, p in pats if k == "domain"])
+    return ("(lower(from_email) IN (SELECT e FROM _mv_e) OR "
+            "substr(lower(from_email), instr(lower(from_email),'@')+1) IN (SELECT d FROM _mv_d))")
+
+
+def _match_count(c, uid, pats, key=None) -> int:
+    """규칙 대상(사람·회사 주소)의 받은 메일 수(지운 것·스팸 빼고) · key 를 주면 그 폴더에 있는 것만."""
+    if not pats:
+        return 0
+    w = _pat_tables(c, pats)
+    sql = ("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
+           "AND COALESCE(is_blocked,0)=0 AND " + w)
+    args = [uid]
+    if key is not None:
+        sql += " AND COALESCE(fd_key,'')=?"
+        args.append(key)
+    return c.execute(sql, args).fetchone()[0] or 0
+
+
+def _own_rows(c, uid, ids):
+    nums = []
+    for x in list(ids or [])[:500]:
+        try:
+            nums.append(int(x))
+        except Exception:
+            pass
+    if not nums:
+        return []
+    q = ",".join("?" * len(nums))
+    return [dict(r) for r in c.execute(
+        "SELECT id, lower(from_email) AS e, COALESCE(fd_pin,'') AS pin, COALESCE(fd_key,'') AS fk FROM mail_messages "
+        "WHERE user_id=? AND direction='in' AND id IN (" + q + ")", (uid, *nums)).fetchall()]
+
+
+def _pat_label(pats) -> str:
+    if len(pats) == 1:
+        k, p = pats[0]
+        return ("회사 주소 @" + p) if k == "domain" else p
+    nd = sum(1 for k, _p in pats if k == "domain")
+    ne = len(pats) - nd
+    return "보낸 곳 %d곳" % len(pats) + (" (회사 %d · 사람 %d)" % (nd, ne) if nd and ne else "")
+
+
+def move_scopes(c, uid, res, ids) -> dict:
+    """옮기기 묻는 창 — 고른 메일의 보낸 곳 · 「회사 모두」/「이 사람만」 범위와 그 범위의 받은 메일 수."""
+    rows = _own_rows(c, uid, ids)
+    rows = [r for r in rows if "@" in (r["e"] or "")]
+    if not rows:
+        return {"ok": False, "message": "옮길 받은 메일이 없습니다(보낸 메일은 폴더에 넣지 않습니다)."}
+    es = sorted({r["e"] for r in rows})
+    comp = sorted({rule_target(e, res) for e in es if rule_target(e, res)})
+    pers = sorted({("email", e) for e in es})
+    out = {"ok": True, "n": len(rows), "same": comp == pers,
+           "company": {"label": _pat_label(comp), "n": _match_count(c, uid, comp)},
+           "person": {"label": _pat_label(pers), "n": _match_count(c, uid, pers)}}
+    fk = {r["fk"] for r in rows if r["fk"]}
+    out["from"] = (res.get("labels") or {}).get(next(iter(fk)), "") if len(fk) == 1 else ""
+    return out
+
+
+def move(c, uid, res, ids, target, when, scope) -> dict:
+    """11-22 대표 「내가 옮기면 옮긴 위치가 기준 · 관련 메일도 따라 · 새 메일도 · 지금부터만/지난 메일도 꼭 묻기」.
+    when = 'new'(지금부터 오는 메일 + 고른 메일) · 'all'(지난 메일도 모두) · 'one'(고른 메일만)
+    scope = 'company'(회사 주소 모두 · 개인 메일·우리 회사·나눠 쓰는 주소는 그 사람) · 'person'(그 사람만).
+    마지막 한 번은 ↺ 되돌리기(move_undo)."""
+    ensure(c)
+    valid = (res or {}).get("valid") or set()
+    if target not in valid:
+        return {"ok": False, "message": "옮길 수 없는 곳입니다."}
+    if when not in ("new", "all", "one"):
+        return {"ok": False, "message": "언제부터 옮길지 골라 주세요."}
+    rows = [r for r in _own_rows(c, uid, ids) if "@" in (r["e"] or "")]
+    if not rows:
+        return {"ok": False, "message": "옮길 받은 메일이 없습니다(보낸 메일은 폴더에 넣지 않습니다)."}
+    undo = {"add": [], "del": [], "pins": []}
+    name = (res.get("labels") or {}).get(target, "")
+    if when == "one":
+        for r in rows:
+            if r["pin"] != target:
+                undo["pins"].append([r["id"], r["pin"]])
+                c.execute("UPDATE mail_messages SET fd_pin=? WHERE id=? AND user_id=?", (target, r["id"], uid))
+        pats = []
+    else:
+        es = sorted({r["e"] for r in rows})
+        if scope == "person":
+            pats = sorted({("email", e) for e in es})
+        else:
+            pats = sorted({rule_target(e, res) for e in es if rule_target(e, res)})
+        since = ""
+        if when == "new":
+            since = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+        for kind, pat in pats:
+            _put_rule(c, uid, kind, pat, target, since, undo)
+        if when == "all":
+            # 지난 메일도 모두 — 그 보낸 곳의 「이 메일만」 옮김도 풀어 함께 따라가게
+            w = _pat_tables(c, pats)
+            for r in c.execute("SELECT id, fd_pin FROM mail_messages WHERE user_id=? AND direction='in' AND COALESCE(fd_pin,'')<>'' AND "
+                               + w, (uid,)).fetchall():
+                undo["pins"].append([r["id"], r["fd_pin"]])
+            c.execute("UPDATE mail_messages SET fd_pin='' WHERE user_id=? AND direction='in' AND COALESCE(fd_pin,'')<>'' AND " + w, (uid,))
+        else:
+            # 지금부터만 — 고른 메일은 함께 옮김(끌어 놓은 메일이 제자리에 남지 않게) · 그 밖의 지난 메일은 그대로
+            for r in rows:
+                if r["pin"] != target:
+                    undo["pins"].append([r["id"], r["pin"]])
+                    c.execute("UPDATE mail_messages SET fd_pin=? WHERE id=? AND user_id=?", (target, r["id"], uid))
+    before = _match_count(c, uid, pats, target) if pats else 0
+    _CACHE.pop(uid, None)
+    res2 = classify(c, uid)
+    after = _match_count(c, uid, pats, target) if pats else 0
+    total = _match_count(c, uid, pats) if pats else 0
+    import json as _json
+    _set_flag(c, uid, "move_undo", _json.dumps(undo, ensure_ascii=False))
+    return {"ok": True, "name": name or res2.get("labels", {}).get(target, ""), "when": when, "scope": scope,
+            "n_sel": len(rows), "moved": max(0, after - before), "in_target": after, "total": total,
+            "kept": max(0, total - after), "label": _pat_label(pats) if pats else ""}
+
+
+def move_undo(c, uid) -> int:
+    """마지막 옮기기 되돌리기 — 넣은 규칙 지우고 · 바꾼 규칙 다시 넣고 · 「이 메일만」 표시를 예전대로."""
+    ensure(c)
+    import json as _json
+    try:
+        u = _json.loads(_flag(c, uid, "move_undo") or "{}")
+    except Exception:
+        u = {}
+    if not u:
+        return 0
+    n = 0
+    for rid in u.get("add") or []:
+        n += c.execute("DELETE FROM mail_move_rules WHERE id=? AND user_id=?", (rid, uid)).rowcount
+    for r in u.get("del") or []:
+        c.execute("INSERT INTO mail_move_rules(user_id, kind, pattern, target, since, created_at) VALUES(?,?,?,?,?,?)",
+                  (uid, r.get("kind"), r.get("pattern"), r.get("target"), r.get("since") or "", r.get("created_at")))
+        n += 1
+    for mid, pin in u.get("pins") or []:
+        n += c.execute("UPDATE mail_messages SET fd_pin=? WHERE id=? AND user_id=?", (pin or "", mid, uid)).rowcount
+    _set_flag(c, uid, "move_undo", "")
+    _CACHE.pop(uid, None)
+    return n
+
+
 def delete_rule(c, uid, rule_id) -> bool:
     ensure(c)
-    n = c.execute("DELETE FROM mail_folder_rules WHERE id=? AND user_id=?", (rule_id, uid)).rowcount
+    n = c.execute("DELETE FROM mail_move_rules WHERE id=? AND user_id=?", (rule_id, uid)).rowcount
     _CACHE.pop(uid, None)
     return bool(n)
+
+
+def stamp_arrival(c, mail_id, from_email) -> None:
+    """11-22 대표 「부서 이동은 바뀐 날부터 새 부서」 — 새로 받은 사내 메일에 **지금 부서**를 적어 둔다
+    (나중에 부서가 바뀌어도 이 메일은 이 부서 폴더 그대로). 주소로 한 부서만 나올 때만 · 못 찾으면 폴더를 열 때 채움."""
+    e = (from_email or "").strip().lower()
+    if _dom(e) not in OUR_DOMAINS:
+        return
+    tids = set()
+    for sql in ("SELECT team_id FROM users WHERE lower(trim(COALESCE(email,'')))=?",
+                "SELECT u.team_id FROM user_mail_creds m JOIN users u ON u.id=m.user_id WHERE lower(trim(m.smtp_email))=?",
+                "SELECT u.team_id FROM mail_aliases m JOIN users u ON u.id=m.user_id WHERE lower(trim(m.address))=?"):
+        try:
+            tids |= {r[0] for r in c.execute(sql, (e,)).fetchall() if r[0] is not None}
+        except Exception:
+            pass
+    if len(tids) == 1:
+        c.execute("UPDATE mail_messages SET fd_team=? WHERE id=? AND fd_team IS NULL", (next(iter(tids)), mail_id))
 
 
 # ─── 폴더 고치기(관리 화면) ────────────────────────────────────────
@@ -1042,9 +1487,7 @@ def add_folder(c, uid, name, parent_id=None, kind="") -> int:
     if not name:
         return 0
     if parent_id:
-        p = c.execute("SELECT id FROM mail_folders WHERE id=? AND user_id=? AND parent_id IS NULL",
-                      (parent_id, uid)).fetchone()
-        if not p:
+        if _depth(c, uid, parent_id) not in (0, 1):   # 11-22: 묶음 → 폴더 → 아래 폴더(삼성그룹 → 삼성전자)까지
             return 0
         kind = ""
     else:
@@ -1057,6 +1500,39 @@ def add_folder(c, uid, name, parent_id=None, kind="") -> int:
                     (uid, parent_id, name, (mx or 0) + 10, kind))
     _CACHE.pop(uid, None)
     return cur.lastrowid
+
+
+def _depth(c, uid, fid):
+    """폴더 깊이 — 0 묶음 · 1 폴더 · 2 아래 폴더 · 없으면 None."""
+    d, cur = 0, fid
+    for _ in range(5):
+        r = c.execute("SELECT parent_id FROM mail_folders WHERE id=? AND user_id=?", (cur, uid)).fetchone()
+        if not r:
+            return None
+        if not r["parent_id"]:
+            return d
+        d, cur = d + 1, r["parent_id"]
+    return None
+
+
+def set_parent(c, uid, fid, parent_id) -> bool:
+    """폴더 위치 바꾸기(관리 화면 「위치」) — 묶음 바로 아래 또는 다른 폴더 아래(3단계까지 · 아래 폴더가 있는 폴더는 묶음 아래만)."""
+    ensure(c)
+    if _depth(c, uid, fid) not in (1, 2):
+        return False
+    pd = _depth(c, uid, parent_id)
+    if pd not in (0, 1) or parent_id == fid:
+        return False
+    if pd == 1:
+        if c.execute("SELECT 1 FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, fid)).fetchone():
+            return False
+        g = c.execute("SELECT kind FROM mail_folders WHERE id=(SELECT parent_id FROM mail_folders WHERE id=?)", (parent_id,)).fetchone()
+        if g and g["kind"] == "staff":
+            return False
+    mx = c.execute("SELECT COALESCE(MAX(sort),0) FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, parent_id)).fetchone()[0]
+    c.execute("UPDATE mail_folders SET parent_id=?, sort=? WHERE id=? AND user_id=?", (parent_id, (mx or 0) + 10, fid, uid))
+    _CACHE.pop(uid, None)
+    return True
 
 
 def rename_folder(c, uid, fid, name) -> bool:
@@ -1093,12 +1569,18 @@ def move_folder(c, uid, fid, step) -> bool:
 
 def delete_folder(c, uid, fid) -> int:
     """폴더 지우기 — 그 폴더(와 아래 폴더)와 규칙만 지운다. 메일은 지우지 않는다(자동 분류·일반으로 돌아감)."""
-    ids = [fid] + [r["id"] for r in c.execute(
-        "SELECT id FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, fid)).fetchall()]
     if not c.execute("SELECT 1 FROM mail_folders WHERE id=? AND user_id=?", (fid, uid)).fetchone():
         return 0
+    ids, cur = [fid], [fid]
+    for _ in range(3):   # 아래 폴더·그 아래 폴더까지
+        q0 = ",".join("?" * len(cur))
+        cur = [r["id"] for r in c.execute("SELECT id FROM mail_folders WHERE user_id=? AND parent_id IN (%s)" % q0,
+                                          (uid, *cur)).fetchall()]
+        if not cur:
+            break
+        ids += cur
     q = ",".join("?" * len(ids))
-    c.execute("DELETE FROM mail_folder_rules WHERE user_id=? AND folder_id IN (%s)" % q, (uid, *ids))
+    c.execute("DELETE FROM mail_move_rules WHERE user_id=? AND target IN (%s)" % q, (uid, *["f%d" % i for i in ids]))
     try:   # 「이 메일만」 그 폴더로 옮긴 메일은 자동 분류로 되돌림(메일은 그대로)
         c.execute("UPDATE mail_messages SET fd_pin='' WHERE user_id=? AND fd_pin IN (%s)" % q, (uid, *["f%d" % i for i in ids]))
     except Exception:

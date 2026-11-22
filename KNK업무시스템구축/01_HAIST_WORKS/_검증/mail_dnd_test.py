@@ -103,8 +103,8 @@ try:
     h = k.get("/mail/inbox").text
     with _db.db_session() as c:
         res = mf.classify(c, OWN)
-        ok_ids = {f["id"] for f in mf.assignable_list(res)}
-        srv_ok = {f["id"] for f in mf.assignable(c, OWN)}
+        ok_ids = {f["key"] for f in mf.assignable_list(res) if f.get("key")}   # 11-22 옮길 곳 = 열쇠(폴더·부서·일반)
+        srv_ok = set(res["valid"])
         staff_ids = [int(g["key"][1:]) for g in res["nodes"] if g.get("kind") == "staff"]
     sd = side(h)
 
@@ -112,12 +112,13 @@ try:
     check("⭐ 중요 · 📦 보관함 · 🗑 휴지통에 놓을 곳 표시",
           'data-drop="star"' in sd and 'data-drop="archive"' in sd and 'data-drop="delete"' in sd)
     check("받은편지함(그냥 보기)에서는 「📥 받은편지함」에 놓을 곳 없음(같은 곳)", 'data-drop="unarchive"' not in sd)
-    fids = [int(x) for x in re.findall(r'data-drop="pin" data-fid="(\d+)"', sd)]
-    check("폴더에 놓을 곳이 있고 모두 「📁 폴더로」 고를 수 있는 폴더(여러 통 띠와 같은 목록)", fids and set(fids) <= ok_ids and set(fids) == ok_ids, (fids, ok_ids))
-    check("서버도 그 폴더들을 받아 줌(옮길 수 없는 폴더 아님)", set(fids) <= srv_ok, set(fids) - srv_ok)
-    check("6.케이엔케이(부서 자동)·그 아래 부서는 놓을 수 없음 + 이유", staff_ids and all(s not in fids for s in staff_ids)
-          and sd.count('data-drop="no"') >= 2 and "보낸 직원의 부서로 저절로 나뉘는 폴더" in sd, staff_ids)
-    check("「일반」은 놓을 수 없음 + 이유", re.search(r'href="/mail/inbox\?fd=gen"[^>]*data-drop="no"[^>]*data-why="「일반」', sd) is not None)
+    fids = re.findall(r'data-drop="pin" data-fkey="([^"]+)"', sd)
+    check("폴더에 놓을 곳이 있고 모두 「📁 다른 폴더로」 고를 수 있는 곳(여러 통 띠와 같은 목록)", fids and set(fids) <= ok_ids, (fids, ok_ids))
+    check("서버도 그곳들을 받아 줌(옮길 수 없는 곳 아님)", set(fids) <= srv_ok, set(fids) - srv_ok)
+    # 11-22 대표 「우리 회사 부서에서 온 메일을 다른 부서로 옮기려 하면 부서 폴더가 안 보임」 → 부서 폴더에도 놓을 수 있음 · 묶음 이름(6.케이엔케이·본사)만 안 됨
+    check("부서 폴더에도 놓을 수 있음 · 6.케이엔케이·본사 같은 묶음 이름은 안 됨 + 이유", staff_ids and any(x.startswith("t") for x in fids)
+          and all(("f%d" % s_) not in fids for s_ in staff_ids) and "묶음에는 바로 넣을 수 없어요" in sd, (staff_ids, fids))
+    check("「일반」에도 놓을 수 있음(자동 분류가 잘못 넣은 메일을 일반으로)", re.search(r'href="/mail/inbox\?fd=gen"[^>]*data-drop="pin"[^>]*data-fkey="gen"', sd) is not None)
     check("보낸편지함·쓰다 만 메일·회신 필요에는 놓을 곳 없음",
           all(not re.search(r'href="%s"[^>]*data-drop' % re.escape(u), sd) for u in ("/mail/sent", "/mail/drafts", "/mail/inbox?reply=1")))
 
@@ -132,7 +133,8 @@ try:
     print("== 3. 끌기 코드(화면) ==")
     check("끌기 시작·놓기·끝 처리 + 손가락 화면 제외", all(x in h for x in ("addEventListener('dragstart'", "addEventListener('drop'", "addEventListener('dragend'", "(pointer:fine)")))
     check("고른 줄을 끌면 고른 것 모두 · 아니면 그 줄(대화=그 대화)", "(ck && ck.checked) ? mbxPicked()" in h)
-    check("놓은 뒤 안내 + ↺ 되돌리기 + 같은 회사면 「이 회사 메일 모두」", "↺ 되돌리기" in h and "메일 모두 이 폴더로" in h and "mbxSideRefresh()" in h)
+    check("폴더에 놓으면 묻는 창(지금부터 오는 메일만 / 지난 메일도 모두 / 고른 메일만) → 새로 고친 뒤 ↺ 되돌리기",
+          "mailMoveAsk({ids:inb, key:tg.dataset.fkey" in h and "지금부터 오는 메일만" in h and "지난 메일도 모두" in h and "k:'move'" in h and "/mail/move/undo" in h and "mbxSideRefresh()" in h)
     check("빈 읽기 칸에 사용법 한 줄", "끌어서</b> 왼쪽 폴더" in h)
     check("접힌 폴더 묶음·「메일 없는 N곳」 위에 머물면 펼침", "mf-zero-more" in h and "showzero" in h and "650" in h)
 
@@ -152,7 +154,7 @@ try:
     check("목록 줄 = ① 보낸 사람·시각 ② 제목 ③ 꼬리표·본문 첫 줄(아웃룩 순서)",
           0 < a1x.find('class="mbx-from"') < a1x.find('class="mbx-subj"') < a1x.find('class="mbx-pv') and "발주서 송부드립니다" in a1x, a1x[:600])
     check("명령 줄: 새 메일·삭제·보관·이동·답장·전체 답장·전달·읽음·중요", 'id="mbxCmd"' in h and all(('data-cmd="%s"' % c_) in h for c_ in ("delete", "archive", "move", "reply", "replyall", "forward", "read", "star")))
-    check("오른쪽 클릭 메뉴 + 이동 ▾ 메뉴(왼쪽 폴더와 같은 목록)", "addEventListener('contextmenu'" in h and "mbxMoveMenu" in h and '.mbx-side [data-drop="pin"]' in h)
+    check("오른쪽 클릭 메뉴 + 이동 ▾ 메뉴(옮길 곳 목록 = 부서 폴더까지)", "addEventListener('contextmenu'" in h and "mbxMoveMenu" in h and "window._mbxTargets" in h and '"key": "t' in h)
     check("단축키(아웃룩): ↑↓ · R · Shift+R · Shift+F · Delete · E · U · Insert · N — 글 쓰는 칸에서는 안 함",
           all(x in h for x in ("'ArrowDown'", "mbxCmd('reply')", "mbxCmd('replyall')", "mbxCmd('forward')", "'Delete':'delete'", "'e':'archive'", "'u':'read'", "'Insert':'star'")) and "isContentEditable" in h)
     check("지우거나 보관하면 그 자리의 다음 메일이 열림(아웃룩처럼)", "loadPane(_nx.dataset.mailId, _nx)" in h)
@@ -282,7 +284,7 @@ try:
     check("보통 풀페이지는 그대로(← 목록 · 웍스 틀)", "← 목록</a>" in k.get("/mail/%d" % ids["s1"]).text)
 
     print("== 4. 서버 길(놓기 · 되돌리기) ==")
-    f1 = sorted(ok_ids)[0]
+    f1 = int(sorted(x for x in fids if x.startswith("f"))[0][1:])
     j = k.post("/mail/bulk", data={"op": "pin", "ids": "%d,%d" % (ids["s1"], ids["other"]), "folder_id": f1}).json()
     check("폴더에 놓기 = 이 메일만 그 폴더로 · 남의 메일은 조용히 뺌", j.get("ok") and j.get("n") == 1 and mrow(ids["s1"])["fd_pin"] == "f%d" % f1 and mrow(ids["other"])["fd_pin"] in ("", None), j)
     h2 = k.get("/mail/inbox").text

@@ -111,6 +111,9 @@ def node_n(name):
         for kk in g["children"]:
             if kk["name"] == name:
                 return kk["n"]
+            for k2 in kk.get("children") or []:   # 11-22 아래 폴더(삼성그룹 → 삼성전기)
+                if k2["name"] == name:
+                    return k2["n"]
     return None
 
 
@@ -207,7 +210,8 @@ try:
     check("목록 꼬리표 = 옮긴 폴더(파트론)", row and ">파트론</span>" in row.group(0), row and row.group(0)[-400:])
     p = k.get("/mail/%d/pane" % ids["s1"]).text
     check("읽기 화면: 📁 파트론 · 「이 메일만 옮김」 · ↺ 자동으로", "📁 파트론" in p and "이 메일만 옮김" in p and "mailPinUndo()" in p)
-    check("읽기 화면: 폴더 고르면 「이 메일만 / 이 회사 메일 모두」 묻기", 'id="mvFolderAsk"' in p and "mailFolderGo('one')" in p and "mailFolderGo('all')" in p)
+    # 11-22 대표 「옮길 때 지금부터만 / 지난 메일도 — 꼭 물어보고 고르게」 → 공용 묻는 창(mail_move_ask)
+    check("읽기 화면: 폴더 고르면 묻는 창(지금부터 오는 메일만 / 지난 메일도 모두 / 고른 메일만)", 'id="mvFolderSel"' in p and "mailMoveAsk({ids:[MAIL_ID], key:key" in p)
     j = k.post("/mail/%d/pin" % ids["s1"], data={"folder_id": 0}).json()
     check("↺ 자동으로 → 삼성전기로 돌아감", j.get("ok") and j.get("folder") == "삼성전기" and not j.get("pinned"), j)
     check("케이엔케이(부서 자동) 폴더·없는 폴더로는 못 옮김(400)", k.post("/mail/%d/pin" % ids["s1"], data={"folder_id": 999999}).status_code == 400)
