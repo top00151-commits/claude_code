@@ -406,47 +406,42 @@ try:
           j.get("ok") and key_of(t1) == "f%d" % mp and key_of(t4) == "f%d" % gd, [row(x)["fd_key"] for x in (t1, t4)])
     vp = k.get("/mail/%d/pane" % t1).text
     check("읽기 칸 까닭 = 「제목 꼬리표 [MaPS - Equip] → 그 회사 아래 폴더」", "📁 MaPS" in vp and "제목 꼬리표 [MaPS - Equip]" in vp)
-    # 직접 정하는 제목 규칙(보낸 사람 상관없이)
+    # 11-22 밤 대표 「제목에 특정 단어로 잡았더니 그 제목에 회신으로 보내는 메일도 적용 — 취소하자」 → 제목 규칙 끔(자동 꼬리표는 그대로)
     o1 = put("other@elsewhere-x.example", "[MaPS] 다른 곳에서 온 알림", "가짜", name="다른 곳")
+    rq = put("staff-x@knknara.co.kr", "RE: [MaPS] Logged in", "가짜", name="시험직원")
     d = k.post("/mail/move", data={"ids": str(t2), "dry": "1"}).json()
-    check("묻는 창에 「🏷 제목 [MaPS…] 메일」 범위 + 통수", d.get("subject", {}).get("label") == "제목 [MaPS…]" and d["subject"]["n"] == 3, d)
-    j = k.post("/mail/move", data={"ids": str(t2), "key": "f%d" % mp, "when": "all", "scope": "subject"}).json()
-    check("제목 규칙(지난 메일도) → 다른 보낸 사람의 [MaPS] 메일도 MaPS", j.get("ok") and key_of(o1) == "f%d" % mp and j.get("label") == "제목 [MaPS…]", (j, row(o1)))
-    o2 = put("third@another-x.example", "[MaPS-Equip] 새로 온 알림", "가짜", name="또 다른 곳")
-    check("그 뒤 새로 온 [MaPS-Equip] 메일도 MaPS(붙여 쓴 꼬리표도)", key_of(o2) == "f%d" % mp, row(o2))
-    check("폴더 관리 규칙 목록 「🏷 제목 [MaPS…]」", "🏷 제목 <b>[MaPS…]</b>" in k.get("/mail/folders").text)
-    check("꼬리표가 다르면 제목 범위 없음(MaPS·G-DIX 섞어 고름)", "subject" not in k.post("/mail/move", data={"ids": "%d,%d" % (t2, t3), "dry": "1"}).json())
-    check("제목 범위인데 꼬리표가 없으면 400", k.post("/mail/move", data={"ids": str(t4), "key": "f%d" % mp, "when": "all", "scope": "subject"}).status_code == 400)
+    check("(취소) 묻는 창에 「🏷 제목」 범위 없음", d.get("ok") and "subject" not in d, d)
+    r = k.post("/mail/move", data={"ids": str(t2), "key": "f%d" % mp, "when": "all", "scope": "subject"})
+    check("(취소) 제목 범위로 보내도 400 · 「쓰지 않습니다」 안내 · 다른 보낸 사람 [MaPS] 메일은 그대로",
+          r.status_code == 400 and "쓰지 않습니다" in r.json().get("message", "") and key_of(o1) != "f%d" % mp, (r.text[:200], row(o1)))
+    with _db.db_session() as c:   # 예전에 만든 제목 규칙이 남아 있어도
+        c.execute("INSERT INTO mail_move_rules(user_id, kind, pattern, target, since) VALUES(?,?,?,?,'')", (OWN, "subject", "MaPS", "f%d" % mp))
+    mf._CACHE.pop(OWN, None)
+    check("(취소) 남아 있는 제목 규칙은 쓰지 않음 — 직원 회신 「RE: [MaPS] …」은 부서 폴더 · 다른 곳 [MaPS] 메일도 MaPS 아님",
+          key_of(rq).startswith("t") and key_of(o1) != "f%d" % mp, (row(rq), row(o1)))
+    check("(취소) 그 회사 사람이 보낸 [MaPS] 메일은 자동 꼬리표로 그대로 MaPS", key_of(t2) == "f%d" % mp and key_of(t1) == "f%d" % mp)
+    fh = k.get("/mail/folders").text
+    check("(취소) 폴더 관리에 🏷 칸 없음 · 규칙 목록에도 제목 규칙 안 보임",
+          'value="subjtags"' not in fh and "제목 꼬리표 —" not in fh and "🏷 제목 <b>" not in fh and "🏷 [MaPS" not in fh)
     check("꼬리표 뽑기 · 첫 낱말", mf.subj_tags("[MaPS - Equip] x [G-DIX] y") == ["MaPS - Equip", "G-DIX"] and mf.tag_token("MaPS - Equip") == "MaPS" and mf.tag_token("G-DIX") == "G-DIX")
 
-    print("== 16. 폴더 관리 「🏷 제목 꼬리표」 칸(11-22 대표 「폴더에 항목 구분 · 구분되는 항목을 작성해서 그 규칙을 적용」) ==")
+    print("== 16. 제목 규칙 — 폴더 관리 🏷 칸 입구도 끔 · 켜면 되살아남(자료 그대로) ==")
     pl = q(op="add", parent_id=cx, name="PLM").json()["id"]
-    p1 = put("plm@other-sys.example", "[PLM GPLM] 결재 요청", "가짜", name="PLM 시스템")
-    p2 = put("noti@third-sys.example", "[PLM] 알림", "가짜", name="다른 시스템")
-    r = k.post("/mail/folders/op", data={"op": "subjtags", "id": pl, "tags": "[PLM], PLM GPLM, plm"})
+    p1 = put("noti@other-sys.example", "[PLM GPLM] 결재 요청", "가짜", name="결재 알림")
+    r = k.post("/mail/folders/op", data={"op": "subjtags", "id": pl, "tags": "PLM"})
     with _db.db_session() as c:
-        sr = [dict(x) for x in c.execute("SELECT pattern, since FROM mail_move_rules WHERE user_id=? AND kind='subject' AND target=?", (OWN, "f%d" % pl)).fetchall()]
-    check("칸에 적고 Enter = 꼬리표마다 제목 규칙(대괄호 빼고 · 같은 말 겹치면 하나) · 지난 메일도 모두",
-          r.status_code == 303 and sorted(x["pattern"] for x in sr) == ["PLM", "PLM GPLM"] and all(x["since"] == "" for x in sr), sr)
-    check("보낸 사람 상관없이 그 꼬리표 메일 → 이 폴더(지난 메일)", key_of(p1) == "f%d" % pl and key_of(p2) == "f%d" % pl, (row(p1), row(p2)))
-    p3 = put("new@fourth-sys.example", "[PLM] 새 알림", "가짜", name="새 시스템")
-    check("새로 받는 메일도", key_of(p3) == "f%d" % pl, row(p3))
-    fh = k.get("/mail/folders").text
-    check("폴더 줄에 칸 + 적은 꼬리표 그대로 · 다른 규칙은 작은 표시(✕로 지우기)",
-          'name="tags" value="PLM, PLM GPLM"' in fh and 'value="subjtags"' in fh and "mf-chip" in fh and "👤 mailer@semx.example" in fh)
-    r = k.post("/mail/folders/op", data={"op": "subjtags", "id": gd, "tags": "PLM, G-DIX"})
+        sr = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND kind='subject' AND target=?", (OWN, "f%d" % pl)).fetchone()[0]
+    check("(취소) 🏷 칸 입구로 보내도 규칙 안 생김 · 「쓰지 않습니다」 안내", r.status_code == 303 and sr == 0 and key_of(p1) != "f%d" % pl,
+          (r.status_code, sr, r.headers.get("location")))
+    mf.SUBJECT_RULES_ON = True
+    mf._CACHE.pop(OWN, None)
     with _db.db_session() as c:
-        sp = {x["pattern"]: x["target"] for x in c.execute("SELECT pattern, target FROM mail_move_rules WHERE user_id=? AND kind='subject' AND COALESCE(since,'')=''", (OWN,)).fetchall()}
-    check("같은 꼬리표를 다른 폴더에 적으면 그 폴더로 옮겨 감(한 꼬리표 = 한 폴더)", sp.get("PLM") == "f%d" % gd and sp.get("G-DIX") == "f%d" % gd and key_of(p2) == "f%d" % gd, sp)
-    k.post("/mail/folders/op", data={"op": "subjtags", "id": gd, "tags": ""})
-    with _db.db_session() as c:
-        left = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND kind='subject' AND target=?", (OWN, "f%d" % gd)).fetchone()[0]
-    check("칸을 비우고 Enter = 그 폴더 제목 규칙 지움 · 메일은 자동 분류로", left == 0 and key_of(p2) != "f%d" % gd, row(p2))
-    check("남의 폴더 칸은 못 고침", (lambda: (_UID.__setitem__("v", OTHER), mf_ok := k.post("/mail/folders/op", data={"op": "subjtags", "id": pl, "tags": "x"}).status_code)[1])() == 303)
-    _UID["v"] = OWN
-    with _db.db_session() as c:
-        bad = c.execute("SELECT COUNT(*) FROM mail_move_rules WHERE user_id=? AND pattern='x'", (OTHER,)).fetchone()[0]
-    check("(남의 폴더 번호로 보내도 규칙 안 생김)", bad == 0)
+        mf.set_subject_tags(c, OWN, pl, "PLM")
+    mf._CACHE.pop(OWN, None)
+    check("(되살리기) SUBJECT_RULES_ON = True 면 예전 제목 규칙이 다시 동작", key_of(p1) == "f%d" % pl and key_of(o1) == "f%d" % mp, (row(p1), row(o1)))
+    mf.SUBJECT_RULES_ON = False
+    mf._CACHE.pop(OWN, None)
+    check("(다시 끔) 끄면 그 메일은 자동 분류로", key_of(p1) != "f%d" % pl, row(p1))
 
     print("== 17. 폴더 관리 「💾 저장」 단추(11-22 대표 「수정 후 저장 버튼 · 저장이 된 건지 헷갈려」) ==")
     fh = k.get("/mail/folders").text

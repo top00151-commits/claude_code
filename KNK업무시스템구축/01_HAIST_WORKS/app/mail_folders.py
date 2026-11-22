@@ -641,6 +641,9 @@ def subj_hit(sj, pat_norm) -> bool:
     return any(norm_name(t).startswith(pat_norm) for t in subj_tags(sj))
 
 
+SUBJECT_RULES_ON = False   # 11-22 밤 대표 취소 — True 로 바꾸면 예전 제목 규칙이 다시 살아남
+
+
 def _rule_index(c, uid, valid):
     """규칙 → {주소: [(언제부터, 번호, 옮긴 곳)…]}(사람) · {회사 주소: […]}(회사) · {제목 꼬리표: […]}(제목). 새 기준·새 규칙 먼저.
     없어진 곳으로 가는 규칙은 뺌."""
@@ -650,6 +653,11 @@ def _rule_index(c, uid, valid):
         if (r["target"] or "") not in valid:
             continue
         if r["kind"] == "subject":
+            # 11-22 밤 대표 「메일 제목에 특정 단어로 잡았더니 그 제목에 회신으로 보내는 메일도 적용이 되어 — 취소하자」
+            #   → 제목 규칙(🏷 칸 · 옮길 때 「제목」 범위)은 쓰지 않음(자료는 그대로 두어 되살릴 수 있게).
+            #   그 회사 폴더 안에서만 거는 자동 꼬리표(tag_refine — 그 회사 사람이 보낸 메일만)는 그대로.
+            if not SUBJECT_RULES_ON:
+                continue
             m, key = sm, norm_name(r["pattern"] or "")
         else:
             m, key = (em if r["kind"] == "email" else dm), (r["pattern"] or "").lower()
@@ -1558,8 +1566,8 @@ def move_scopes(c, uid, res, ids) -> dict:
            "person": {"label": _pat_label(pers), "n": _match_count(c, uid, pers)}}
     fk = {r["fk"] for r in rows if r["fk"]}
     out["from"] = (res.get("labels") or {}).get(next(iter(fk)), "") if len(fk) == 1 else ""
-    tok = _common_tag(rows)
-    if tok:   # 11-22 고른 메일이 모두 같은 제목 꼬리표 → 「🏷 제목 [MaPS…] 메일」 범위
+    tok = _common_tag(rows) if SUBJECT_RULES_ON else ""
+    if tok:   # 11-22 고른 메일이 모두 같은 제목 꼬리표 → 「🏷 제목 [MaPS…] 메일」 범위(11-22 밤 취소 — 꺼 둠)
         out["subject"] = {"label": _pat_label([("subject", tok)]), "n": _match_count(c, uid, [("subject", tok)]), "tok": tok}
     return out
 
@@ -1599,6 +1607,8 @@ def move(c, uid, res, ids, target, when, scope) -> dict:
         pats = []
     else:
         es = sorted({r["e"] for r in rows})
+        if scope == "subject" and not SUBJECT_RULES_ON:
+            return {"ok": False, "message": "제목으로 옮기기는 쓰지 않습니다(회신 메일까지 옮겨져 취소) — 「회사 모두」나 「이 사람만」을 골라 주세요."}
         if scope == "subject":
             tok = _common_tag(rows)
             if not tok:

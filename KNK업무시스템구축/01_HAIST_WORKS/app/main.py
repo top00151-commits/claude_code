@@ -24750,6 +24750,8 @@ async def mail_folders_op(req: Request):
             msg = ("폴더 %d개를 지웠습니다(메일은 그대로 · 자동 분류나 일반으로 돌아갑니다)." % n) if n else ""
         elif op == "aliases":
             msg = "다른 이름을 저장했습니다." if _mail_folders.set_aliases(c, uid, _i("id"), form.get("aliases")) else ""
+        elif op == "subjtags" and not _mail_folders.SUBJECT_RULES_ON:   # 11-22 밤 대표 취소(회신 메일까지 옮겨짐)
+            msg = "제목 꼬리표 규칙은 쓰지 않습니다(회신 메일까지 옮겨져 취소)."
         elif op == "subjtags":   # 11-22 폴더마다 「🏷 제목 꼬리표」 칸
             r = _mail_folders.set_subject_tags(c, uid, _i("id"), form.get("tags") or "")
             msg = ((("제목 꼬리표 규칙을 저장했습니다 — " + ", ".join("[%s…]" % t for t in r["tags"]) + " 메일 %d통이 이 폴더에 있습니다." % r["n"])
