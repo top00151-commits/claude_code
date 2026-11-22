@@ -2,13 +2,13 @@
 <div class="mt-cards" role="radiogroup" aria-label="화면 테마">
   {% for k, ico, nm, desc, c in [
       ('clear', '☀️', '밝게', '흰 바탕 · 또렷한 검은 글씨 — 낮에 사무실에서 (기본)', {'side':'#f6f7f9','list':'#ffffff','read':'#eceff3','tx':'#111827','mu':'#c3c9d1'}),
-      ('soft',  '🌤', '부드럽게', '옅은 회청색 바탕 — 눈부심이 적어 오래 볼 때', {'side':'#e1e8ee','list':'#edf1f5','read':'#d3dce5','tx':'#16202c','mu':'#a3b0bf'}),
+      ('soft',  '🌤', '부드럽게', '차분한 회청색 바탕 · 메일 본문도 살짝 낮춤 — 눈부심이 적어 오래 볼 때', {'side':'#d2dae3','list':'#dfe5eb','read':'#c6d0da','tx':'#1c2633','mu':'#97a5b5','paper':'#ebebeb'}),
       ('dark',  '🌙', '어둡게', '어두운 바탕 · 밝은 글씨 — 저녁·어두운 곳에서 (메일 본문은 흰 종이 그대로)', {'side':'#171a1e','list':'#1c1f24','read':'#111317','tx':'#e8ebef','mu':'#4b525c'}) ] %}
   <button type="button" class="mt-card" data-mt-k="{{ k }}" role="radio" aria-checked="false" onclick="mailThemeSet('{{ k }}')" title="{{ nm }} — {{ desc }}">
     <span class="mt-pv" aria-hidden="true"><span class="t"></span><span class="b">
       <span class="s" style="background:{{ c.side }}"><i style="background:{{ c.tx }};width:80%"></i><i style="background:{{ c.mu }};width:60%"></i><i style="background:{{ c.mu }};width:70%"></i><i style="background:{{ c.mu }};width:50%"></i></span>
       <span class="l" style="background:{{ c.list }}"><i style="background:{{ c.tx }};width:85%"></i><i style="background:{{ c.mu }};width:65%"></i><i style="background:{{ c.tx }};width:75%"></i><i style="background:{{ c.mu }};width:55%"></i></span>
-      <span class="r" style="background:{{ c.read }}"><i style="background:{{ c.tx }}"></i><i class="paper"></i></span>
+      <span class="r" style="background:{{ c.read }}"><i style="background:{{ c.tx }}"></i><i class="paper"{% if c.paper %} style="background:{{ c.paper }}"{% endif %}></i></span>
     </span></span>
     <b>{{ ico }} {{ nm }}<span class="ck">✓ 사용 중</span></b>
     <span class="d">{{ desc }}</span>

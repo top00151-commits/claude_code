@@ -1,7 +1,7 @@
 {# 메일 화면 테마(11-19 대표 「테마 3가지 · 골라서 쓰게 · 지금은 누런 바탕이라 눈이 아프고 글씨가 잘 안 보임」)
    ☀️ 밝게(기본) · 🌤 부드럽게 · 🌙 어둡게 — 이 컴퓨터에 기억(knkmail.theme) · 메일 화면에만(WORKS 다른 화면은 그대로)
    화면 글 속 고정 색은 var(--mt-*, 원래 색) 으로 바꿔 두었고, 여기서 그 값을 테마마다 정한다.
-   메일 본문(보낸 사람이 만든 모양)과 쓰는 칸은 어느 테마에서나 흰 종이 그대로 — 받는 사람이 보는 모양과 같게. #}
+   메일 본문(보낸 사람이 만든 모양)과 쓰는 칸은 흰 종이 그대로 — 받는 사람이 보는 모양과 같게(11-22 「부드럽게」만 밝기를 살짝 낮춤 · 색은 그대로). #}
 <script>
 (function(){ var t='clear'; try{ t=localStorage.getItem('knkmail.theme')||'clear'; }catch(e){}
   if(['clear','soft','dark'].indexOf(t)<0) t='clear'; document.documentElement.setAttribute('data-mt', t); })();
@@ -23,11 +23,15 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
     --mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e; --mt-sel:#e2ecfd; --mt-unread:#1d4ed8; --mt-link:#1d4ed8;
     --paper:#eceff3; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f6f7f9; --warm-tan:#e5e7eb;
     --ink:#111827; --ink-soft:#374151; --mute:#56606e; --mute-2:#9aa3af; --line:#cfd6de; --line-strong:#a9b3bf; --line-soft:#eef0f3; }
+  /* 11-22 대표 「부드럽게를 조금 더 눈부심이 덜하게」 — 바탕·목록 칸을 한 단계 낮춤(가장 밝던 목록 칸 #edf1f5 → #dfe5eb)
+     · 글자는 아주 검은색 대신 짙은 남회색(대비는 읽기 좋은 정도 그대로) · 메일 본문 흰 종이도 이 테마에서만 살짝 낮춤(아래) */
   html[data-mt="soft"]{ color-scheme:light;
-    --mt-bg:#d3dce5; --mt-surface:#edf1f5; --mt-panel:#e1e8ee; --mt-hover:#d5dee7; --mt-line:#b2bfcc; --mt-sep:#8f9fb1; --mt-gutter:#c3ceda; --mt-thumb:#8696a8; --mt-track:#cdd6df;
-    --mt-text:#16202c; --mt-text2:#2d3949; --mt-mute:#4a5768; --mt-sel:#c6d9ef; --mt-unread:#1a4cb0; --mt-link:#1a4cb0;
-    --paper:#d3dce5; --paper-2:#e1e8ee; --paper-3:#edf1f5; --paper-warm:#e1e8ee; --warm-tan:#c9d3de;
-    --ink:#16202c; --ink-soft:#2d3949; --mute:#4a5768; --mute-2:#8491a1; --line:#b2bfcc; --line-strong:#8f9fb1; --line-soft:#dbe2e9; }
+    --mt-bg:#c6d0da; --mt-surface:#dfe5eb; --mt-panel:#d2dae3; --mt-hover:#c8d2dc; --mt-line:#a5b3c2; --mt-sep:#8494a7; --mt-gutter:#b6c2cf; --mt-thumb:#7b8c9f; --mt-track:#c0cad5;
+    --mt-text:#1c2633; --mt-text2:#313d4c; --mt-mute:#465365; --mt-sel:#b9cce3; --mt-unread:#1a49a6; --mt-link:#1a49a6;
+    --paper:#c6d0da; --paper-2:#d2dae3; --paper-3:#dfe5eb; --paper-warm:#d2dae3; --warm-tan:#bcc7d3;
+    --ink:#1c2633; --ink-soft:#313d4c; --mute:#465365; --mute-2:#77869a; --line:#a5b3c2; --line-strong:#8494a7; --line-soft:#ced6df; }
+  html[data-mt="soft"] .mv-frame{ filter:brightness(.92); }
+  html[data-mt="soft"] .cmp-editor{ background:#eef0f3 !important; }
   html[data-mt="dark"]{ color-scheme:dark;
     --mt-bg:#111317; --mt-surface:#1c1f24; --mt-panel:#171a1e; --mt-hover:#282d34; --mt-line:#363c45; --mt-sep:#525b67; --mt-gutter:#24282e; --mt-thumb:#5c6571; --mt-track:#1a1d21;
     --mt-text:#e8ebef; --mt-text2:#c6ccd4; --mt-mute:#9ba4b0; --mt-sel:#203454; --mt-unread:#8ab4f8; --mt-link:#8ab4f8;
