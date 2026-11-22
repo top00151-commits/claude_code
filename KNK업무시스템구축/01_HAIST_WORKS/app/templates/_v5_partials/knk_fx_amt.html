@@ -1,0 +1,31 @@
+{#═══════════════════════════════════════════════════════════════════════════
+  외화 금액 = 원래 통화로 크게 + 「≈ ₩」 작게   ·   z1191z104 (대표 2026-11-22)
+
+  대표 말씀: 「₩44,701,543 (USD)」 — 원화인지 달러인지 헷갈린다 → 원래 통화(예 $30,053.68)를 크게,
+            원화 환산은 「≈ ₩4,470만」 작게. 원화에 마우스를 올리면 몇 월 기준환율·얼마로 바꿨는지 보이고,
+            마우스를 치우면 사라진다(풍선 = 공용 _v5_partials/knk_fx_tip.html · 모든 화면 틀에 들어 있음).
+
+  넘겨받는 것 bd = 서버 공용 _ccy_breakdown(...) 결과 그대로(by_ccy · mixed · krw · tip).
+  ⛔ 「≈ ₩」을 템플릿에서 따로 곱해 만들지 말 것 — 환율은 월 기준환율 한 벌(대표규정 §4 규칙48).
+═══════════════════════════════════════════════════════════════════════════#}
+
+{# 「≈ ₩…」 한 줄(풍선 포함). short=true 면 ₩4,470만 처럼 줄여서(풍선 안에는 정확한 원 단위). #}
+{% macro krw_line(bd, short=false) -%}
+{%- if bd and bd.krw is not none -%}
+<span class="knk-fx-krw" tabindex="0" data-fx-tip="{{ bd.tip }}">≈ {{ won_short_z104(bd.krw) if short else money(bd.krw, 'KRW') }}</span>
+{%- elif bd -%}
+<span class="knk-fx-krw knk-fx-nofx" tabindex="0" data-fx-tip="{{ bd.tip }}">⚠ 기준환율 없음</span>
+{%- endif -%}
+{%- endmacro %}
+
+{# 금액 묶음: 원화뿐이면 ₩ 한 줄 · 외화면 원래 통화(여럿이면 통화마다) + 「≈ ₩」 #}
+{% macro fx_amt(bd, short=false, left=false) -%}
+{%- if not bd or not bd.by_ccy -%}—
+{%- elif not bd.mixed and bd.by_ccy[0].currency == 'KRW' -%}{{ money(bd.by_ccy[0].total, 'KRW') }}
+{%- else -%}
+<span class="knk-fx-amt{% if left %} knk-fx-left{% endif %}">
+{%- for r in bd.by_ccy %}<span class="knk-fx-orig{% if not loop.first %} knk-fx-sub{% endif %}">{{ money(r.total, r.currency) }}</span>{% endfor -%}
+{{ krw_line(bd, short) }}
+</span>
+{%- endif -%}
+{%- endmacro %}

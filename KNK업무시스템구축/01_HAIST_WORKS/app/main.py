@@ -11846,6 +11846,11 @@ async def project_detail(req: Request, pid: int):
     so_total_bd = _ccy_breakdown(
         project_orders, "total_amount", "currency",
         date_keys=("due_date", "order_date"), rates=_fx_rates_now())
+    # z1191z104 (대표 11-22): 「수주액」 옆 「≈ ₩」 — 매출 홈 「최근 프로젝트」와 같은 숫자(월 기준환율).
+    #   수주가 있으면 수주 합계, 없으면 프로젝트 금액(납기 달 → 없으면 발주 달).
+    proj_fx_bd_z104 = so_total_bd if project_orders else (
+        _ccy_breakdown([p], "order_amount", "currency", date_keys=("due_date", "order_date"),
+                       rates=_fx_rates_now()) if p else None)
     # v5H136 (2026-05-05): 이 프로젝트(장비)에 연결된 PO 라인 = 소모품·부품 사용 이력
     consumables = {"rows": [], "total_amount": 0, "total_qty": 0, "count": 0}
     try:
@@ -11954,6 +11959,7 @@ async def project_detail(req: Request, pid: int):
                by_team=by_team_list, by_user=by_user_list, total_tasks=len(tasks),
                timeline=timeline_list[:30], all_comments=all_comments, retro=retro,
                project_orders=project_orders,
+               proj_fx_bd_z104=proj_fx_bd_z104,   # z1191z104
                focus_so=focus_so,   # v5H226z695: 보드에서 누른 수주번호 → 메인 카드 지정
                PO_TYPES=_logi.PO_TYPES,   # v5H226z1034: SO 카드에서 그 수주만 PO유형 수정
                STATUSES=_logi.LOGI_STATUSES,
@@ -29774,7 +29780,7 @@ def _ccy_get(row, key):
         return None
 
 
-def _ccy_breakdown(rows, amount_key, ccy_key="currency", date_keys=(), rates=None):
+def _ccy_breakdown(rows, amount_key, ccy_key="currency", date_keys=(), rates=None, basis=None):
     """z1097 (대표 지시 2026-09-10) 여러 건 금액 = **통화별 합계 + 월 기준환율 원화 환산**.
 
     ⭐ 왜 공용 한 벌인가 — 화면마다 for 문으로 직접 더하다가 **원화와 달러를 환산 없이
@@ -29796,8 +29802,11 @@ def _ccy_breakdown(rows, amount_key, ccy_key="currency", date_keys=(), rates=Non
       krw     원화 환산 합계(환율이 없어 못 바꾸면 None)
       missing 환율이 없어 못 바꾼 (통화, 'YYYY-MM') 목록
       naive   ⚠ 통화 무시 단순합 — **화면에 쓰지 말 것**(회귀 시험 대조 전용)
+      used    z1191z104: 실제로 쓴 기준환율 [{ccy, ym(적용월), rate, req(요청월들), fb(대체 여부), cnt, amt, krw}]
+      tip     z1191z104: 「≈ ₩」에 마우스를 올리면 뜨는 글(몇 월 기준환율·얼마) — basis 는 기준 날짜 이름
     """
     per, cnt = {}, {}
+    _used = {}   # z1191z104
     krw = 0.0
     ok = rates is not None
     missing = set()
@@ -29823,13 +29832,28 @@ def _ccy_breakdown(rows, amount_key, ccy_key="currency", date_keys=(), rates=Non
                 ok = False          # 환율이 없으면 원화 합계를 아예 내지 않는다(반쪽 숫자 금지)
             else:
                 krw += conv
+                if ccy != "KRW" and amt:   # z1191z104: 어느 달 환율을 얼마로 썼는지(같은 대체 규칙 _fx_pick)
+                    _ur, _uym = _fx_pick(rates, ccy, ym or None)
+                    _e = _used.setdefault((ccy, _uym), {"ccy": ccy, "ym": _uym, "rate": _ur, "req": set(),
+                                                        "cnt": 0, "amt": 0.0, "krw": 0.0})
+                    _e["req"].add(ym or "")
+                    _e["cnt"] += 1
+                    _e["amt"] += amt
+                    _e["krw"] += conv
     by_ccy = sorted(
         [{"currency": k, "total": v, "cnt": cnt.get(k, 0)} for k, v in per.items()],
         key=lambda z: -abs(z["total"]),
     )
-    return {"by_ccy": by_ccy, "mixed": len(by_ccy) > 1,
-            "krw": (krw if ok else None),
-            "missing": sorted(missing), "naive": naive}
+    used = []
+    for _k in sorted(_used, key=lambda k: (k[0], k[1] or "")):
+        _e = _used[_k]
+        _req = sorted(_e["req"])
+        used.append(dict(_e, req=_req, fb=any(r != _e["ym"] for r in _req)))
+    out = {"by_ccy": by_ccy, "mixed": len(by_ccy) > 1,
+           "krw": (krw if ok else None),
+           "missing": sorted(missing), "naive": naive, "used": used}
+    out["tip"] = _fx_tip_z104(out, basis if basis is not None else _fx_basis_txt_z104(date_keys))
+    return out
 
 
 
@@ -30481,6 +30505,25 @@ async def sales_dashboard(request: Request):
             _ref = ((d.get("due_date") or d.get("order_date") or "") or "")[:7]
             d["amount_krw_disp"] = _fx_to_krw(rates, d.get("order_amount"),
                                               d.get("currency"), _ref, _miss)
+        # z1191z104 (대표 11-22): 원래 통화로 크게 + 「≈ ₩」 작게(마우스 → 몇 월 기준환율·얼마).
+        #   숫자 = 프로젝트 상세 「수주액」과 같게: 수주가 있으면 수주 합계(각 수주 납기 달 기준환율), 없으면 프로젝트 금액.
+        _ids104 = [d["id"] for d in recent]
+        _so104 = {}
+        if _ids104:
+            for _r104 in c.execute(
+                    "SELECT project_id, total_amount, currency, due_date, order_date FROM orders "
+                    "WHERE project_id IN (%s)" % ",".join("?" * len(_ids104)), _ids104).fetchall():
+                _so104.setdefault(_r104[0], []).append(
+                    {"total_amount": _r104[1], "currency": _r104[2], "due_date": _r104[3], "order_date": _r104[4]})
+        for d in recent:
+            if _so104.get(d["id"]):
+                _bd104 = _ccy_breakdown(_so104[d["id"]], "total_amount", "currency",
+                                        date_keys=("due_date", "order_date"), rates=rates)
+            else:
+                _bd104 = _ccy_breakdown([d], "order_amount", "currency",
+                                        date_keys=("due_date", "order_date"), rates=rates)
+            d["fx_bd_z104"] = _bd104
+            d["fx_show_z104"] = any(abs(float(x["total"] or 0)) >= 0.005 for x in _bd104["by_ccy"])
     sales_kpi = {
         "recent": recent,
         "ym": ym, "year": year,
@@ -30518,6 +30561,93 @@ def _z75_won(v):
     if a < 0.5:
         return "₩0"
     return "₩%s" % "{:,.0f}".format(v)
+
+
+# ── z1191z104 (대표 11-22 「원화에 마우스 포인트 올리면 적용 환율이 언제 기준환율이고 얼마로 적용됐는지」) ──
+#   외화 금액 = 원래 통화로 크게 + 「≈ ₩」 작게. 「≈ ₩」에 마우스를 올리면 아래 글이 뜨고, 치우면 사라진다
+#   (화면 쪽 = 공용 _v5_partials/knk_fx_tip.html · 금액 묶음 = _v5_partials/knk_fx_amt.html).
+#   ⭐ 환율은 월 기준환율 한 벌(대표규정 §4 규칙48 · _fx_pick 대체 규칙 그대로) — 다른 환율로 「≈ ₩」을 만들지 말 것.
+_FX_BASIS_NAME_Z104 = {"due_date": "납기", "order_date": "발주", "expected_date": "입고 예정",
+                       "last_so_date": "마지막 수주", "date": "매출"}
+
+
+def _fx_basis_txt_z104(date_keys):
+    """기준 날짜 이름: ('due_date','order_date') → 「납기 달 기준(납기가 없으면 발주 달)」."""
+    names = [_FX_BASIS_NAME_Z104.get(k, k) for k in (date_keys or ())]
+    if not names:
+        return ""
+    s = "%s 달 기준" % names[0]
+    if len(names) > 1:
+        s += "(없으면 %s 달)" % " → ".join(names[1:])
+    return s
+
+
+def _fx_ym_txt_z104(ym):
+    try:
+        return "%s년 %d월" % (ym[:4], int(ym[5:7]))
+    except (TypeError, ValueError, IndexError):
+        return str(ym or "?")
+
+
+def _fx_rate_num_z104(rate):
+    r = float(rate or 0)
+    return "{:,.2f}".format(r) if r >= 1 else "{:,.4f}".format(r)
+
+
+def _fx_unit_txt_z104(ccy, rate):
+    """1 USD = ₩1,487.39 · 작은 통화는 입력 단위 그대로(100 VND = ₩5.41)."""
+    c = str(ccy or "").upper()
+    unit = FX_INPUT_UNIT.get(c, 1)
+    return "%s %s = ₩%s" % ("{:,}".format(unit), c, _fx_rate_num_z104(float(rate or 0) * unit))
+
+
+def _fx_tip_z104(bd, basis=""):
+    """「≈ ₩」 풍선 글(여러 줄). 한 건이면 「몇 월 기준환율 · 1 USD = ₩… · 계산식」, 여러 건이면 달마다 한 줄."""
+    if not bd:
+        return ""
+    used = bd.get("used") or []
+    if bd.get("krw") is None:
+        miss = ", ".join("%s %s" % (m[0], _fx_ym_txt_z104(m[1])) for m in (bd.get("missing") or []))
+        return "기준환율이 없어 원화로 바꾸지 못했습니다" + (" — " + miss if miss else "") + "\n(관리 → 월 기준환율에서 넣으면 바로 반영)"
+    if not used:
+        return ""
+    lines = []
+
+    def _fb(e):
+        req = [r for r in (e.get("req") or []) if r != e["ym"]]
+        if not req:
+            return ""
+        if req == [""]:
+            return "※ 날짜가 비어 가장 이른 달(%s) 환율로 계산" % _fx_ym_txt_z104(e["ym"])
+        return "※ %s 기준환율이 아직 없어 %s 환율로 계산" % (
+            "·".join(_fx_ym_txt_z104(r) for r in req if r), _fx_ym_txt_z104(e["ym"]))
+
+    if not bd.get("mixed") and len(used) == 1 and used[0]["cnt"] == 1:
+        e = used[0]
+        lines.append("%s 기준환율 적용%s" % (_fx_ym_txt_z104(e["ym"]), (" · " + basis) if basis else ""))
+        lines.append(_fx_unit_txt_z104(e["ccy"], e["rate"]))
+        lines.append("%s × %s = %s" % (_fmt_money(e["amt"], e["ccy"]), _fx_rate_num_z104(e["rate"]),
+                                       _fmt_money(e["krw"], "KRW")))
+        if _fb(e):
+            lines.append(_fb(e))
+    else:
+        lines.append("건마다 그 달 기준환율로 바꾼 합계%s" % ((" · " + basis) if basis else ""))
+        for e in used[:8]:
+            lines.append("%s · %s · %d건 %s → %s" % (_fx_ym_txt_z104(e["ym"]), _fx_unit_txt_z104(e["ccy"], e["rate"]),
+                                                    e["cnt"], _fmt_money(e["amt"], e["ccy"]), _fmt_money(e["krw"], "KRW")))
+            if _fb(e):
+                lines.append("   " + _fb(e))
+        if len(used) > 8:
+            lines.append("… 외 %d개 달" % (len(used) - 8))
+        for _b in (bd.get("by_ccy") or []):   # 통화가 섞이면 원화 건은 그대로 더한다는 것도 적는다
+            if _b["currency"] == "KRW" and _b["total"]:
+                lines.append("원화 %d건 %s — 그대로 더함" % (_b["cnt"], _fmt_money(_b["total"], "KRW")))
+        lines.append("합계 ≈ %s" % _fmt_money(bd["krw"], "KRW"))
+    lines.append("(월 기준환율 = 관리 → 월 기준환율)")
+    return "\n".join(lines)
+
+
+tpl.env.globals["won_short_z104"] = _z75_won
 
 
 def _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today):
@@ -31169,6 +31299,11 @@ def sales_report_z17(request: Request):
     with db_session() as c:
         rates = _fx_load_rates(c)
         rep = _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m)
+        # z1191z104 (대표 11-22): 상세 줄의 외화 → 원화 칸에 마우스 → 몇 월 기준환율·얼마(화면에 보이는 3,000줄만)
+        _b104 = {"tax": "세금계산서 발행 달 기준", "ship": "출하 달 기준", "order": "발주 달 기준"}.get(basis, "")
+        for _x in (rep.get("lines") or [])[:3000]:
+            if (_x.get("ccy") or "KRW") != "KRW" and _x.get("amt"):
+                _x["fxtip"] = _ccy_breakdown([_x], "amt", "ccy", date_keys=("date",), rates=rates, basis=_b104)["tip"]
     from datetime import date as _d
     yr = _d.today().year
     year_span = [str(y) for y in range(yr, yr - 4, -1)]

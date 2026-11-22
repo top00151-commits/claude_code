@@ -122,7 +122,7 @@
           <summary style="cursor:pointer;font-weight:800;">상세 줄 {{ rep.cnt }}줄 보기 <span class="sub">— 어떤 호기·소모품을 더한 숫자인지 (엑셀 「상세」 시트와 같음)</span></summary>
           <div class="rp-scroll" style="margin-top:8px;"><table class="rp-t">
             <thead><tr><th>날짜</th><th>차수</th><th>관리번호</th><th>수주번호</th><th>호기</th><th>모델명</th><th>구분</th><th>고객사</th><th>2차</th><th>통화</th><th class="n">금액</th><th class="n">원화</th></tr></thead>
-            <tbody>{% for x in rep.lines[:3000] %}<tr><td>{{ x.date }}</td><td>{{ x.nth }}</td><td>{{ x.code }}</td><td>{{ x.so }}</td><td>{{ x.label }}</td><td>{{ x.model }}</td><td>{{ x.cat }}</td><td>{{ x.cust_br or x.cust }}</td><td>{{ x.cust2 }}</td><td>{{ x.ccy }}</td><td class="n">{{ '{:,.2f}'.format(x.amt) if x.ccy != 'KRW' else money(x.amt, 'KRW') }}</td><td class="n">{{ money(x.krw, 'KRW') }}</td></tr>{% endfor %}</tbody>
+            <tbody>{% for x in rep.lines[:3000] %}<tr><td>{{ x.date }}</td><td>{{ x.nth }}</td><td>{{ x.code }}</td><td>{{ x.so }}</td><td>{{ x.label }}</td><td>{{ x.model }}</td><td>{{ x.cat }}</td><td>{{ x.cust_br or x.cust }}</td><td>{{ x.cust2 }}</td><td>{{ x.ccy }}</td><td class="n">{{ money(x.amt, x.ccy or 'KRW') }}</td><td class="n">{% if x.fxtip %}<span class="knk-fx-tipon" tabindex="0" data-fx-tip="{{ x.fxtip }}">{{ money(x.krw, 'KRW') }}</span>{% else %}{{ money(x.krw, 'KRW') }}{% endif %}</td></tr>{% endfor %}</tbody>
           </table>{% if rep.cnt > 3000 %}<div class="sub">앞 3,000줄만 보입니다 — 전체는 엑셀로</div>{% endif %}</div>
         </details>
       </section>

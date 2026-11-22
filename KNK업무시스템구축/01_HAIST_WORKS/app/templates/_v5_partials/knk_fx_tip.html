@@ -1,0 +1,46 @@
+{#═══════════════════════════════════════════════════════════════════════════
+  「≈ ₩」 풍선 — 마우스를 올리면 몇 월 기준환율·얼마로 바꿨는지, 치우면 사라짐   ·   z1191z104 (대표 2026-11-22)
+
+  쓰는 법: 글자에 data-fx-tip="여러 줄 글" 만 달면 된다(서버 _fx_tip_z104 · _ccy_breakdown(...)["tip"]).
+  · 풍선은 화면 맨 위 층(position:fixed)에 그려서, 스크롤 칸 안에 있어도 잘리지 않는다.
+  · 키보드(Tab)로 와도 보이고, 벗어나면 사라진다. 스크롤하면 사라진다.
+  · 모든 화면 틀(chrome.html)에 들어 있고, 두 번 들어와도 한 번만 돈다(가드).
+═══════════════════════════════════════════════════════════════════════════#}
+<style>
+.knk-fx-amt { display:inline-flex; flex-direction:column; align-items:flex-end; line-height:1.25; vertical-align:middle; }
+.knk-fx-amt.knk-fx-left { align-items:flex-start; }
+.knk-fx-orig { white-space:nowrap; }
+.knk-fx-orig.knk-fx-sub { font-size:.85em; color:var(--mute,#64748b); font-weight:600; }
+.knk-fx-krw { font-size:11.5px; color:#1e3a8a; font-weight:600; white-space:nowrap; margin-top:2px; }
+.knk-fx-krw.knk-fx-nofx { color:#b45309; }
+[data-fx-tip] { cursor:help; border-bottom:1px dotted #94a3b8; outline:none; }
+[data-fx-tip]:hover, [data-fx-tip]:focus { border-bottom-color:#1e3a8a; }
+#knkFxTip { position:fixed; z-index:2147483000; display:none; max-width:min(380px, calc(100vw - 16px));
+  background:#0f172a; color:#f8fafc; font-size:12.5px; line-height:1.6; font-weight:500; text-align:left;
+  padding:8px 11px; border-radius:8px; box-shadow:0 8px 24px rgba(15,23,42,.28); white-space:pre-line;
+  pointer-events:none; letter-spacing:0; }
+</style>
+<script>
+(function(){
+  if (window.__knkFxTipZ104) return; window.__knkFxTipZ104 = 1;
+  var box = null, cur = null;
+  function el(){ if (!box){ box = document.createElement('div'); box.id = 'knkFxTip'; box.setAttribute('role','tooltip'); document.body.appendChild(box); } return box; }
+  function show(t){
+    var s = t.getAttribute('data-fx-tip'); if (!s) return;
+    cur = t; var d = el(); d.textContent = s; d.style.display = 'block';
+    var r = t.getBoundingClientRect(), w = d.offsetWidth, h = d.offsetHeight,
+        vw = window.innerWidth, vh = window.innerHeight;
+    var x = Math.min(Math.max(8, r.right - w), vw - w - 8), y = r.bottom + 6;
+    if (y + h > vh - 8) y = Math.max(8, r.top - h - 6);
+    d.style.left = x + 'px'; d.style.top = y + 'px';
+  }
+  function hide(){ cur = null; if (box) box.style.display = 'none'; }
+  function tipOf(n){ return (n && n.closest) ? n.closest('[data-fx-tip]') : null; }
+  document.addEventListener('mouseover', function(e){ var t = tipOf(e.target); if (t){ if (t !== cur) show(t); } else if (cur) hide(); }, true);
+  document.addEventListener('mouseout', function(e){ if (cur && !tipOf(e.relatedTarget)) hide(); }, true);
+  document.addEventListener('focusin', function(e){ var t = tipOf(e.target); if (t) show(t); }, true);
+  document.addEventListener('focusout', function(e){ if (tipOf(e.target) === cur) hide(); }, true);
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('blur', hide);
+})();
+</script>

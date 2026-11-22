@@ -152,7 +152,7 @@
     tot.innerHTML = '부품 ' + (j.lines||[]).length + '건 · 매입합계(KRW) <b style="color:#c2410c;">' + pbMoney(j.cost_total_krw!=null?j.cost_total_krw:j.cost_total, 'KRW') + '</b>'
       + (j.fx_rate ? (' · 환율 <b>' + pbFx(j.fx_rate) + '</b>') : '')
       + ' · 판매합계(수주금액) <b style="color:#1d4ed8;font-size:15px;">' + pbMoney(j.total,_ccy) + '</b>'
-      + ((_ccy!=='KRW' && j.amount_krw) ? (' <span style="color:#64748b;">(≈ ₩' + pbFmt(j.amount_krw) + ')</span>') : '')
+      + ((_ccy!=='KRW' && j.amount_krw) ? (' <span style="color:#64748b;">(<span class="knk-fx-tipon" tabindex="0" data-fx-tip="' + (j.fx_rate ? ('엑셀에 적은 환율로 계산(등록 전 미리보기)\n1 ' + _ccy + ' = ₩' + pbFx(j.fx_rate)) : '엑셀에 적은 환율로 계산(등록 전 미리보기)') + '">≈ ₩' + pbFmt(j.amount_krw) + '</span>)</span>') : '')   // z1191z104
       + (unp ? ('<br><span style="color:#b45309;font-weight:600;font-size:12px;">⚠ 판매단가 미정 ' + unp + '건 — 등록 후 상세에서 마진 정리하면 채워집니다</span>') : '');
     var btn = document.getElementById('pbConfirmBtn');
     // 치명 오류(고객사·부품 없음)면 확정 막음. 미연결·미정은 경고만(등록 허용).

@@ -44,7 +44,7 @@ body {
     <div class="kpi-card"><div class="kpi-label">진행 중</div><div class="kpi-num">{{ pjts|selectattr('status','in',['진행중','진행'])|list|length }}</div></div>
     {# z1097 (대표 지시 2026-09-10): 통화를 안 보고 더한 뒤 '원'이라 적던 것을
         통화별 합계 + 월 기준환율 원화 합계로. 통화가 하나면 그 통화로 정확히 적는다. #}
-    <div class="kpi-card"><div class="kpi-label">총 수주액</div><div class="kpi-num">{{ _ccy.ccy_total(pjts_total_bd, compact=true) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 수주액</div><div class="kpi-num">{{ _ccy.ccy_total(pjts_total_bd, compact=true, krw_single=true) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">관련 업무</div><div class="kpi-num">{{ total_tasks }}</div></div>
   </div>
 

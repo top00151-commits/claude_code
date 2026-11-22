@@ -10,6 +10,7 @@
 {% include "_v5_partials/knk_tax_multi.html" %}
 {# z1097: 통화별 합계 표기 공용 한 벌 — 원화+달러 환산 없는 합산 재발 방지 #}
 {% import "_v5_partials/knk_ccy_total.html" as _ccy %}
+{% import "_v5_partials/knk_fx_amt.html" as _fx %}{# z1191z104 #}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
 {# v5H226z971 (대표 지적): 부품 추가 업로드·전체 교체는 [✏️ 수정](편집 모드) 후에만 — 잠금 상태에선 흐리게(클릭 시 JS 가드가 안내) #}
 <style>.so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}</style></head>
@@ -1336,12 +1337,10 @@
                통화가 하나면 예전 그대로(프로젝트 환율 병기)를 유지한다. #}
             {{ _ccy.ccy_total(so_total_bd) }}
             <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
-            {% if not (so_total_bd and so_total_bd.mixed) and _gt_ccy != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
-            {% set _gt_one = (so_total_bd.by_ccy[0].total if so_total_bd and so_total_bd.by_ccy else 0) %}
-            <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">
-              ≈ {{ money(_gt_one * p.fx_rate, 'KRW') }}
-              <span style="color:#94a3b8;font-weight:500;font-size:11px;">(환율 1 {{ _gt_ccy }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
-            </div>
+            {# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(각 수주 납기 달) · 마우스 → 몇 월 기준환율·얼마.
+               예전엔 프로젝트에 적은 환율(fx_rate)로 계산해 매출 홈 숫자와 달랐다. #}
+            {% if so_total_bd and so_total_bd.by_ccy and not so_total_bd.mixed and so_total_bd.by_ccy[0].currency != 'KRW' %}
+            <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">{{ _fx.krw_line(so_total_bd) }}</div>
             {% endif %}
             {% else %}🔒 <span style="font-size:11px;color:var(--mute);font-weight:500;" title="단가·금액은 영업·관리 권한자만">(수주번호 합계)</span>{% endif %}
           </div>
@@ -2193,16 +2192,15 @@
               {% for r in currency_mix %}
               <div>{{ money(r.total, r.currency) }} <span style="font-size:10px;color:#94a3b8;font-weight:500;">({{ r.cnt }}건)</span></div>
               {% endfor %}
+              {% if proj_fx_bd_z104 and proj_fx_bd_z104.mixed %}<div style="font-size:11px;font-weight:600;margin-top:3px;">{{ _fx.krw_line(proj_fx_bd_z104) }}</div>{% endif %}{# z1191z104 #}
             {% else %}
             {% if _displayed_amt %}{{ money(_displayed_amt, p.currency or 'KRW') }}{% else %}—{% endif %}
             {% if project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %} <span style="font-size:10px;color:var(--mute);" title="SO 합계 기준">⚠</span>{% endif %}
-            {# v5H173: 외화 + fx_rate 있으면 원화 환산 표시 (저장된 amount_krw 우선, 없으면 fx_rate × _displayed_amt 즉석 환산) #}
-            {% if p.currency and p.currency != 'KRW' and p.fx_rate and p.fx_rate > 0 %}
-              {% set _krw_eq = p.amount_krw if p.amount_krw else (_displayed_amt * p.fx_rate) %}
-              <div style="font-size:11px;color:var(--mute);font-weight:600;margin-top:3px;">
-                ≈ <span style="color:#1e3a8a;">{{ money(_krw_eq, 'KRW') }}</span>
-                <span style="color:#94a3b8;font-weight:500;">(환율 1 {{ p.currency }} = {{ '{:,.2f}'.format(p.fx_rate) }} KRW)</span>
-              </div>
+            {# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(매출 홈 「최근 프로젝트」와 같은 숫자) · 마우스 → 몇 월 기준환율·얼마.
+               예전(v5H173)엔 프로젝트에 적은 환율(fx_rate · 외화 프로젝트 55건 중 23건만 있음)로 계산해 매출 홈과 숫자가 달랐다. #}
+            {% set _fxb104 = proj_fx_bd_z104 %}
+            {% if _displayed_amt and _fxb104 and _fxb104.by_ccy and not _fxb104.mixed and _fxb104.by_ccy[0].currency != 'KRW' %}
+              <div style="font-size:11px;font-weight:600;margin-top:3px;">{{ _fx.krw_line(_fxb104) }}</div>
             {% endif %}
             {# v5H132: 단가 × 수량 = 금액 분해 표시 (등록폼 unit_qty/unit_price 폴백 포함) — 단일 통화일 때만(혼합은 위 통화별 합계)
                v5H226z1034 (안지연 프로 신고·대표 지시): **산수가 안 맞는 문장이 떴다.**

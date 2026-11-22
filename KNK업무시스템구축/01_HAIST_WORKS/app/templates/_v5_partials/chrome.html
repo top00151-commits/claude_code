@@ -983,6 +983,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 {% include "_v5_partials/knk_amt.html" %}
 {% include "_v5_partials/knk_tax_sameday.html" %}
 {% include "_v5_partials/knk_tax_multi.html" %}
+{% include "_v5_partials/knk_fx_tip.html" %}{# z1191z104: 「≈ ₩」에 마우스 → 몇 월 기준환율·얼마(모든 화면 공용 · 중복 가드) #}
 
 {# v5H226z28 (2026-05-08): 디버그 오버레이 - URL ?debug=1 시 영역명·크기 표시 (전 페이지 공통) #}
 {% include "_v5_partials/debug_overlay.html" ignore missing %}

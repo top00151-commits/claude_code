@@ -45,6 +45,9 @@ MAIN_PY = os.path.join(ROOT, "app", "main.py")
 WANT = ["_fmt_qty", "_fmt_price", "_CCY_SYMBOL", "_fmt_money", "_ccy_sym",
         "_fx_load_rates", "_fx_pick", "_fx_rate_for", "_fx_to_krw",
         "_ccy_get", "_ccy_breakdown",
+        # z1191z104: _ccy_breakdown 이 「≈ ₩」 풍선 글(tip)도 만든다 — 그 함수들
+        "FX_INPUT_UNIT", "_FX_BASIS_NAME_Z104", "_fx_basis_txt_z104", "_fx_ym_txt_z104", "_fx_rate_num_z104",
+        "_fx_unit_txt_z104", "_fx_tip_z104",
         "_recalc_project_amount", "_apply_project_amount",
         # z1191z89: 합계 블록의 「총 수량」 = 단위별 합(soqty_join) — 그 함수와 딸린 것
         "_QTY_UNIT_BY_FORM_Z4E", "_parts_qty_unit_z15", "_parts_qty_z15", "_board_qty_unit", "_FORM_LABEL_BY_KEY_Z89",
@@ -192,6 +195,8 @@ env.globals.update({"soqty_join": M._so_qty_join_orders_z89, "partsqty": M._part
 env.globals.update({"url_for": lambda *a, **k: "#",
                     "vname": lambda *a, **k: "", "vname_full": lambda *a, **k: ""})
 CCY_NS = env.get_template("_v5_partials/knk_ccy_total.html").module
+env.globals["won_short_z104"] = lambda v: "₩%s" % "{:,.0f}".format(float(v or 0))   # z1191z104
+FX_NS = env.get_template("_v5_partials/knk_fx_amt.html").module   # z1191z104: 「≈ ₩」 묶음
 
 SRC_PD = io.open(os.path.join(TPL_DIR, "project_detail.html"), encoding="utf-8").read()
 
@@ -211,7 +216,7 @@ def render_total(orders, proj, can_amt=True):
     bd = M._ccy_breakdown(orders, "total_amount", "currency",
                           date_keys=("due_date", "order_date"), rates=RATES)
     return env.from_string(BLOCK_TOTAL).render(
-        _ccy=CCY_NS, project_orders=orders, p=proj,
+        _ccy=CCY_NS, _fx=FX_NS, project_orders=orders, p=proj,
         so_total_bd=bd, can_sales_amt=can_amt)
 
 
@@ -228,8 +233,9 @@ chk(18, "섞임: 프로젝트 환율(1,456.51) 병기 줄은 안 나온다(기�
 SO_USD1 = [{"order_no": "A", "currency": "USD", "total_amount": 1000.0,
             "due_date": "2026-04-01", "form_key": "", "unit_qty": 1}]
 html1 = render_total(SO_USD1, P_BIM)
-chk(19, "통화 하나(USD): 예전 그대로 $1,000.00 + 프로젝트 환율 병기",
-     "$1,000.00" in html1 and "1,456.51" in html1, html1[:400])
+# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(납기 4월 1,486.64) · 프로젝트에 적은 환율(1,456.51)은 쓰지 않음(매출 홈과 같은 숫자)
+chk(19, "통화 하나(USD): $1,000.00 + ≈ ₩1,486,640(월 기준환율 · 프로젝트 환율 1,456.51 아님)",
+     "$1,000.00" in html1 and "≈ ₩1,486,640" in html1 and "1,456.51" not in html1, html1[:400])
 
 SO_KRW1 = [{"order_no": "A", "currency": "KRW", "total_amount": 5000000.0,
             "due_date": "2026-04-01", "form_key": "", "unit_qty": 1}]
