@@ -493,8 +493,10 @@ def assess_risk(from_email, to_email="", subject="", body="", html="", attachmen
 def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = "",
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
                   size=0, owner_id=None, run_ai: bool = True, attachments=None,
-                  message_id: str = "", auth=None, reply_to: str = "", to_all: str = ""):
+                  message_id: str = "", auth=None, reply_to: str = "", to_all: str = "",
+                  raw_headers: str = ""):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
+    raw_headers: 원문 머리글(11-22 대표 「보낸 사람 주소를 알 수 없는 건 치명적」) — 서버 안에 남겨 언제든 다시 읽게(save_raw_headers).
     to_all: 원문 「받는 사람」 머리 그대로(여러 명) — 전체 답장 명단용(11-19).
     owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None).
     attachments: parse_raw_email 이 만든 [{filename,mime,size,content_id,inline,data}, ...]."""
@@ -578,6 +580,11 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     mail_id = cur.lastrowid
     if attachments:
         _save_attachments(c, mail_id, attachments)
+    if raw_headers:
+        try:
+            save_raw_headers(c, mail_id, raw_headers, from_ok="@" in _norm_addr(from_email))
+        except Exception as _e:
+            print("[MAIL-HDR] 원문 머리글 남기기 실패(메일은 저장됨): %s" % str(_e)[:120], flush=True)
     try:   # 11-22 사내 메일 = 받은 때 부서를 적어 둠(부서가 바뀌어도 이 메일은 그 부서 폴더)
         from . import mail_folders as _mfo
         _mfo.stamp_arrival(c, mail_id, from_email)
@@ -2011,7 +2018,72 @@ def parse_raw_email(raw) -> dict:
         "from_email": from_addr, "from_name": from_name, "to_email": to_addr, "to_all": _h("To"),
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
         "message_id": message_id, "auth": _auth, "reply_to": reply_to, "auto_hdr": auto_hdr,
+        "raw_headers": header_block(raw_bytes),
     }
+
+
+# ─── 원문 머리글 보관 (11-22 대표 「메일이 왔는데 보낸 사람 메일 주소를 알 수 없는 건 너무 치명적 · 완벽하게 해결」) ──
+#   까닭: 예전엔 원문을 남기지 않아, 읽기가 틀린 메일은 하이웍스 원본(POP3 는 최근 몇백 통만 보임)에서만 다시 읽을 수 있었다.
+#   → 받을 때 머리글을 서버에 남긴다. 주소를 읽은 메일 = 주소 관련 머리만(작게) · **주소를 못 읽은 메일 = 머리글 전부**.
+#   읽는 방식을 또 고치면 서버 안에서 바로 다시 읽어 채울 수 있다(reparse_from).
+HDR_KEEP = ("from", "sender", "reply-to", "return-path", "to", "cc", "message-id", "date",
+            "x-original-from", "x-sender", "x-original-sender", "resent-from", "envelope-from", "x-envelope-from")
+HDR_MAX = 64 * 1024
+
+
+def header_block(raw) -> str:
+    """원문(바이트/글) → 머리글 부분(첫 빈 줄 앞)만 글로. 64KB 까지."""
+    try:
+        b = raw if isinstance(raw, (bytes, bytearray)) else (raw or "").encode("utf-8", "surrogateescape")
+        b = bytes(b)
+        cut = [i for i in (b.find(b"\r\n\r\n"), b.find(b"\n\n")) if i >= 0]
+        hb = b[:min(cut)] if cut else b[:HDR_MAX]
+        return hb[:HDR_MAX].decode("utf-8", "replace")
+    except Exception:
+        return ""
+
+
+def _hdr_subset(hdr: str) -> str:
+    """머리글 중 주소에 관한 것만(이어진 줄 포함)."""
+    out, keep = [], False
+    for ln in (hdr or "").replace("\r\n", "\n").split("\n"):
+        if ln[:1] in (" ", "\t"):
+            if keep:
+                out.append(ln)
+            continue
+        nm = ln.split(":", 1)[0].strip().lower()
+        keep = nm in HDR_KEEP
+        if keep:
+            out.append(ln)
+    return "\n".join(out)
+
+
+def _ensure_raw_hdr(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_raw_headers (
+        mail_id INTEGER PRIMARY KEY,
+        hdr TEXT,
+        full INTEGER DEFAULT 0,          -- 1 = 머리글 전부(보낸 사람 주소를 못 읽은 메일)
+        from_ok INTEGER DEFAULT 1,       -- 받을 때 보낸 사람 주소를 읽었나
+        created_at TEXT DEFAULT (datetime('now','localtime')))""")
+
+
+def save_raw_headers(c, mail_id, hdr: str, from_ok: bool = True):
+    _ensure_raw_hdr(c)
+    if not hdr:
+        return
+    body = hdr[:HDR_MAX] if not from_ok else _hdr_subset(hdr)
+    c.execute("INSERT OR REPLACE INTO mail_raw_headers(mail_id, hdr, full, from_ok) VALUES(?,?,?,?)",
+              (int(mail_id), body, 0 if from_ok else 1, 1 if from_ok else 0))
+
+
+def reparse_from(c, mail_id):
+    """서버에 남긴 머리글로 보낸 사람을 다시 읽음 → (이름, 주소, 찾은 머리) · 머리글이 없으면 None."""
+    _ensure_raw_hdr(c)
+    r = c.execute("SELECT hdr FROM mail_raw_headers WHERE mail_id=?", (int(mail_id),)).fetchone()
+    if not r or not (r["hdr"] or "").strip():
+        return None
+    p = parse_raw_email((r["hdr"] or "").rstrip("\r\n") + "\r\n\r\n") or {}
+    return ((p.get("from_name") or "").strip(), (p.get("from_email") or "").strip(), "원문 머리글")
 
 
 # ─── 첨부 저장·조회 + 안전 HTML 렌더(원본처럼 보이기) ────────────────

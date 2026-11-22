@@ -2079,7 +2079,8 @@ def _mailfetch_run_owner(owner_id):
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
                     owner_id=acct["owner_user_id"], run_ai=ai_on,
                     attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
-                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""))
+                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
+                    raw_headers=parsed.get("raw_headers", ""))   # 11-22 원문 머리글 보관
                 if mid:
                     stored += 1
                     if mid > _ar_max:
@@ -23099,6 +23100,7 @@ async def mail_inbound(req: Request):
     raw = d.get("raw") or ""
     _atts = None
     _auth, _reply_to = None, ""
+    _raw_hdr = ""
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
         if parsed:
@@ -23110,6 +23112,7 @@ async def mail_inbound(req: Request):
             f["size"] = len(raw)
             _atts = parsed.get("attachments")
             _auth, _reply_to = parsed.get("auth"), parsed.get("reply_to", "")
+            _raw_hdr = parsed.get("raw_headers", "")
 
     if not f["to_email"]:
         return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
@@ -23119,7 +23122,7 @@ async def mail_inbound(req: Request):
             from_name=f["from_name"], subject=f["subject"], text=f["text"],
             html=f["html"], cc=f["cc"], size=f["size"], run_ai=None,   # 11-18: 받는 사람의 메일 AI 허용(OpenAI)일 때만
             attachments=_atts, message_id=f.get("message_id", ""),
-            auth=_auth, reply_to=_reply_to,
+            auth=_auth, reply_to=_reply_to, raw_headers=_raw_hdr,   # 11-22 원문 머리글 보관
         )
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
@@ -23963,6 +23966,19 @@ async def mail_from_refill_status(req: Request):
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     from . import mail_from_refill as _mfr
     return JSONResponse(dict(_mfr.status(u["id"]), ok=True))
+
+
+@app.get("/mail/from-guess")
+async def mail_from_guess_count(req: Request):
+    """11-22 대표 「④랑 ③ 숫자 세기부터 진행해」 — 보낸 사람 주소를 모르는 내 메일을 우리 자료(원문 머리글·같은 이름·직원·주소록·
+    내 답장·본문 서명)로 찾으면 몇 통이 되는지 **숫자만**(자료 안 바꿈 · 주소·이름 안 돌려줌 · 바깥으로 안 보냄)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_from_guess as _mfg
+    with db_session() as c:
+        out = _mfg.count(c, u["id"], u)
+    return JSONResponse(dict(out, ok=True))
 
 
 @app.post("/mail/read-all/undo")
@@ -26784,7 +26800,8 @@ async def admin_mail_fetch_run(req: Request):
                     subject=parsed.get("subject", ""), text=parsed.get("text", ""),
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
                     owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
-                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""))
+                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
+                    raw_headers=parsed.get("raw_headers", ""))   # 11-22 원문 머리글 보관
                 if mid:
                     stored += 1
             except Exception:
