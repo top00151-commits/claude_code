@@ -252,15 +252,69 @@ check("서명 화면: 「✉ 새 메일에 기본으로 넣을 서명」 고르�
 r = k.post("/mail/signature/default", data={"slot": "co-en"})
 cpj2 = k.get("/mail/compose").text
 check("기본을 영어로 바꾸면 새 메일에 영어 서명 골라져 있음", r.json().get("ok") and 'value="co-en" selected>' in cpj2 and 'value="co-ko" selected>' not in cpj2)
+# 11-22 대표 「서명은 공통 · 보안 문구 무조건」 — 「서명 없음」·개인 서명은 기본으로 못 고름 · 쓰기 화면에도 없음
 r = k.post("/mail/signature/default", data={"slot": "none"})
 cpj3 = k.get("/mail/compose").text
-mm3 = re.search(r'<textarea id="cSigHtml" style="display:none">(.*?)</textarea>', cpj3, re.S)
-check("「서명 없음」을 기본으로 → 새 메일에 서명 안 들어감", r.json().get("ok") and 'value="none" selected>' in cpj3 and mm3 and not mm3.group(1).strip())
+check("「서명 없음」은 기본으로 못 고름(400) · 쓰기 화면에 「서명 없음」 없음 · 영어 그대로", r.status_code == 400 and 'value="none"' not in cpj3 and 'value="co-en" selected>' in cpj3)
+_sel3 = cpj3[cpj3.find('id="cSigSel"'):cpj3.find("</select>", cpj3.find('id="cSigSel"'))]
+check("쓰기 화면 서명 고르기 = 회사 서명만(개인 「기본 서명」 없음)", _sel3 and 'value="0"' not in _sel3 and ">기본 서명<" not in _sel3 and 'value="co-ko"' in _sel3, _sel3[:200])
 check("모르는 서명 값 → 400", k.post("/mail/signature/default", data={"slot": "co-xx"}).status_code == 400)
 r = k.post("/mail/signature/default", data={"slot": "1"})
-check("내용 없는 개인 서명을 기본으로 골라도 → 회사 기본(한국어)으로", r.json().get("ok") and 'value="co-ko" selected>' in k.get("/mail/compose").text)
+check("개인 서명은 기본으로 못 고름(400)", r.status_code == 400)
 r = k.post("/mail/signature/default", data={"slot": ""})
 check("「회사 기본」으로 되돌리기", r.json().get("ok") and 'value="co-ko" selected>' in k.get("/mail/compose").text)
+as_("ceo")
+
+# ═══════════════════════ ⑧-4 내 서명 정보(개인 칸만) · 보안 문구 무조건 (대표 11-22) ═══════════════════════
+print("\n⑧-4 내 서명 정보 · 보안 문구 무조건")
+as_("jo")
+sp4 = k.get("/mail/signature").text
+check("내 서명 정보 칸 = 이름·직책·부서·영문 이름·영문 직책·휴대폰·메일(본사 = 베트남 이름 칸 없음)",
+      all(('name="f_%s"' % x) in sp4 for x in ("name", "rank", "dept", "name_en", "rank_en", "mobile", "email")) and 'name="f_name_vi"' not in sp4)
+check("자동 값 = 흐린 글씨(이음 → 웍스 명단 · 휴대폰 010-3333-4444)", 'placeholder="010-3333-4444"' in sp4 and 'placeholder="조민혁"' in sp4)
+r = k.post("/mail/signature/me", data={"f_mobile": "010-9999-8888", "f_name_en": "Minhyuk Jo", "f_rank": "차장"})
+with _db.db_session() as c:
+    _v8 = mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, "")
+    _p8 = mg.person_values(c, U["jo"]["id"], m.rank_label, "")
+check("고친 칸만 서명에 씀(휴대폰·영문 이름·직책) · 나머지는 자동", r.json().get("ok") and _v8["mobile"] == "010-9999-8888" and _v8["name_en"] == "Minhyuk Jo"
+      and _v8["rank_ko"] == "차장" and _v8["dept"] == "시험품질팀" and _v8["name_ko"] == "조민혁", _v8)
+check("직책을 고치면 영문 직책도 따라감(차장 → 영어)", _v8["rank_en"] and _v8["rank_en"] != "차장" and _v8["rank_en"] == m.rank_label("차장", "en"), _v8["rank_en"])
+check("자동 값은 그대로 보관(되돌릴 수 있게)", _p8["auto"]["mobile"] == "010-3333-4444" and _p8["auto"]["rank"] == "과장", _p8["auto"])
+with _db.db_session() as c:
+    _snapj = c.execute("SELECT phone, rank FROM users WHERE id=?", (U["jo"]["id"],)).fetchone()
+check("웍스 직원 명단은 안 바뀜(서명용 값만 따로)", _snapj["phone"] == "010-3333-4444" and _snapj["rank"] == "과장", dict(_snapj))
+sp5 = k.get("/mail/signature").text
+check("서명 화면: 고친 칸은 노란 칸 · 「자동 값: …」 안내", 'value="010-9999-8888"' in sp5 and "✏️ 고친 값을 씁니다 · 자동 값: 010-3333-4444" in sp5)
+for bad, why in (({"f_email": "abc"}, "메일 꼴"), ({"f_mobile": "공일공"}, "휴대폰 꼴"), ({"f_name": "<b>x</b>"}, "꺾쇠"), ({"f_dept": "가" * 81}, "80자")):
+    check("잘못된 값은 저장 안 함(400) — " + why, k.post("/mail/signature/me", data=bad).status_code == 400)
+r = k.post("/mail/signature/me", data={"f_mobile": "", "f_name_en": "", "f_rank": ""})
+with _db.db_session() as c:
+    _v9 = mg.values_for(c, U["jo"]["id"], "ko", CO, m.rank_label, "")
+check("비우면 다시 자동 값(휴대폰·직책)", r.json().get("ok") and _v9["mobile"] == "010-3333-4444" and _v9["rank_ko"] == "과장", _v9)
+as_("vn")
+check("베트남 법인 = 「베트남 이름」 칸도 있음", 'name="f_name_vi"' in k.get("/mail/signature").text)
+as_("jo")
+
+with _db.db_session() as c:
+    b1, h1, a1 = mg.ensure_notice(c, U["jo"]["id"], "안녕하세요", "<div>안녕하세요</div>")
+    b2, h2, a2 = mg.ensure_notice(c, U["jo"]["id"], b1, h1)
+    q_old = '<div><br></div><div class="knk-quote"><div>보낸 사람: x</div><blockquote>' + mg.notice_html(("ko", "en")) + '</blockquote></div>'
+    b3, h3, a3 = mg.ensure_notice(c, U["jo"]["id"], "답장입니다", "<div>답장입니다</div>" + q_old)
+    b4, h4, a4 = mg.ensure_notice(c, U["vn"]["id"], "Xin chao", "<div>Xin chao</div>")
+    b5, h5, a5 = mg.ensure_notice(c, U["jo"]["id"], "글자만 보내는 메일", "")
+check("보안 문구 없는 메일 → 붙임(한국어 먼저 · 영어)", a1 and h1.count('class="knk-notice"') == 1 and h1.find("이 메일(첨부 파일 포함)은") < h1.find("This email, including") and mg.NOTICE["ko"] in b1)
+check("이미 붙어 있으면 다시 안 붙임(두 번 안 됨)", not a2 and h2 == h1 and b2 == b1)
+check("답장: 인용된 옛 메일에 보안 문구가 있어도 내가 쓴 부분 끝(인용 앞)에 붙임",
+      a3 and h3.find('class="knk-notice"') < h3.find('class="knk-quote"') and h3.count("이 메일(첨부 파일 포함)은") == 2)
+check("베트남 사람 메일 = 베트남어 먼저 · 영어", a4 and 0 < h4.find("Thư điện tử này") < h4.find("This email, including") and "이 메일(첨부" not in h4)
+check("HTML 없는 글자만 메일도 붙임", a5 and h5 == "" and b5.startswith("글자만 보내는 메일") and mg.NOTICE["ko"] in b5)
+with _db.db_session() as c:
+    _cs = [x for x in mg.company_sigs(c, U["jo"]["id"], CO, m.rank_label, "")]
+    _bx, _hx, _ax = mg.ensure_notice(c, U["jo"]["id"], "", "<div>본문</div><div class=\"knk-sig\">--<br>" + _cs[0]["body"] + "</div>")
+check("회사 서명이 들어간 메일엔 더 안 붙임(서명 속 보안 문구로 충분)", "class=\"knk-notice\"" not in _hx)
+src_main = io.open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
+_core = src_main[src_main.find("def _mail_send_core("):src_main.find("def _mail_send_core(") + 3000]
+check("보내기 한 곳(_mail_send_core = 지금 보내기·예약·자동 응답)에서 보안 문구 확인", "_mguide.ensure_notice(c, u[\"id\"], body, body_html)" in _core and _core.find("ensure_notice") < _core.find("sanitize_html_for_view"))
 as_("ceo")
 
 # ═══════════════════════ ⑧ 화면 ═══════════════════════
@@ -274,7 +328,7 @@ cs = json.loads(mm.group(1)) if mm else []
 check("쓰기 화면 회사 서명 = 새 모양(로고·보안 문구)", any(x.get("slot") == "co-ko" and 'class="knk-co-sig"' in x.get("body", "") and "이 메일(첨부 파일 포함)은" in x.get("body", "") for x in cs), "")
 check("고르면 넣을 회사 서명 = 내 정보로 채운 것", any(x.get("slot") == "co-ko" and "조민혁 과장 · 시험품질팀" in x.get("body", "") for x in cs), cs[:1])
 sp = k.get("/mail/signature").text
-check("서명 화면: 「🏢 회사 서명 쓰기」 + 미리 보기 + 빈 칸 안내", "🏢 회사 서명 쓰기" in sp and "조민혁 과장 · 시험품질팀" in sp and "에 비어 있어 뺐습니다" in sp and "팩스 —" not in sp, "")
+check("서명 화면: 회사 서명 미리 보기 + 「✏️ 내 서명 정보」 + 빈 칸 안내 · 자유 서명 편집기·「회사 서명 쓰기」 없음", "✏️ 내 서명 정보" in sp and 'id="sBody"' not in sp and "🏢 회사 서명 쓰기" not in sp and "조민혁 과장 · 시험품질팀" in sp and "에 비어 있어 뺐습니다" in sp and "팩스 —" not in sp, "")
 check("직원에겐 「🔧 회사 서명 틀 고치기」 없음", "/mail/signature/company" not in sp)
 as_("ceo")
 check("대표에겐 「🔧 회사 서명 틀 고치기(관리자)」", "🔧 회사 서명 틀 고치기(관리자)" in k.get("/mail/signature").text)
@@ -313,7 +367,8 @@ check("빈 틀 저장 → 400(끄기는 따로)", k.post("/mail/signature/compan
 check("영어 「이 말은 쓰지 않기」", k.post("/mail/signature/company", data={"lang": "en", "mode": "off"}).json().get("ok"))
 as_("jo")
 cp3 = k.get("/mail/compose").text
-check("끈 말은 직원 화면에서 빠짐 · 하나만 남으면 이름은 「🏢 회사 서명」", 'value="co-en"' not in cp3 and re.search(r'value="co-ko"( selected)?>🏢 회사 서명<', cp3) is not None)
+_m3 = re.search(r'<textarea id="cSigHtml" style="display:none">(.*?)</textarea>', cp3, re.S)
+check("끈 말은 직원 화면에서 빠짐 · 하나만 남으면 고르기 없이 그 서명이 들어감", 'value="co-en"' not in cp3 and _m3 and "knk-co-sig" in __import__("html").unescape(_m3.group(1)))
 as_("adm")
 check("모르는 말 → 400", k.post("/mail/signature/company", data={"lang": "ja", "body": "{이름}", "mode": "save"}).status_code == 400)
 check("기본 틀로 되돌리기", k.post("/mail/signature/company", data={"lang": "ko", "mode": "default"}).json().get("ok"))

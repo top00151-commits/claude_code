@@ -234,30 +234,104 @@ def person_row(c, uid) -> dict:
     return dict(r) if r else {}
 
 
-def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = "") -> dict:
-    """틀에 넣을 값 — 보는 사람 소속 법인 기준. company = 웍스 _company_info_dict() 결과(읽기만)."""
+# 11-22 대표 「서명은 공통 · 이름·전화번호·메일 주소 등 개인적인 것만 · 자동으로 잘못됐으면 개인적인 부분만 고칠 수 있게」
+#   자동 값 = 이음 메신저 → 웍스 직원 명단 · 사람이 고친 값(mail_user_prefs sig_f_*)이 있으면 그 값 먼저 · 비우면 다시 자동
+ME_FIELDS = [   # (열쇠, 화면 이름, 베트남 법인만)
+    ("name", "이름", False),
+    ("rank", "직책", False),
+    ("dept", "부서", False),
+    ("name_en", "영문 이름", False),
+    ("rank_en", "영문 직책", False),
+    ("name_vi", "베트남 이름", True),
+    ("mobile", "휴대폰", False),
+    ("email", "메일 주소", False),
+]
+_ME_KEYS = tuple(k for k, _l, _v in ME_FIELDS)
+_RE_BAD_ME = re.compile(r"[<>\r\n\t]")
+
+
+def get_overrides(c, uid) -> dict:
+    """사람이 고친 서명 칸 — {열쇠: 값}(빈 값은 빼고)."""
+    ensure(c)
+    out = {}
+    for r in c.execute("SELECT key, value FROM mail_user_prefs WHERE user_id=? AND key LIKE 'sig_f_%'", (uid,)).fetchall():
+        k = (r["key"] or "")[6:]
+        v = (r["value"] or "").strip()
+        if k in _ME_KEYS and v:
+            out[k] = v
+    return out
+
+
+def set_overrides(c, uid, vals: dict):
+    """서명 칸 고치기 — 반환 (ok, 메시지). 빈 값 = 자동으로 되돌림. 한 줄 글자만(꺾쇠·줄바꿈 안 됨) · 80자까지."""
+    ensure(c)
+    clean = {}
+    for k in _ME_KEYS:
+        if k not in vals:
+            continue
+        v = re.sub(r"\s+", " ", str(vals.get(k) or "")).strip()
+        if _RE_BAD_ME.search(v):
+            return False, "「<」「>」는 넣을 수 없습니다"
+        if len(v) > 80:
+            return False, "한 칸은 80자까지입니다"
+        if k == "email" and v and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v):
+            return False, "메일 주소 꼴이 아닙니다"
+        if k == "mobile" and v and not re.fullmatch(r"[0-9+()\-. ]{6,30}", v):
+            return False, "휴대폰 번호는 숫자·+·-·( )만 넣어 주세요"
+        clean[k] = v
+    for k, v in clean.items():
+        if v:
+            set_pref(c, uid, "sig_f_" + k, v)
+        else:
+            c.execute("DELETE FROM mail_user_prefs WHERE user_id=? AND key=?", (uid, "sig_f_" + k))
+    return True, "저장했습니다 — 서명에 바로 들어갑니다"
+
+
+def person_values(c, uid, rank_fn=None, from_addr: str = "") -> dict:
+    """서명의 개인 칸 — {"auto": 자동 값, "value": 쓰일 값(고친 값 먼저), "ov": 고친 값, "corp", "lang"}."""
     p = person_row(c, uid)
     corp = corp_of(c, uid)
-    nm = (p.get("name") or "").strip()
-    if lang == "en" and (p.get("name_en") or "").strip():
-        nm = p["name_en"].strip()
+    email = (from_addr or "").strip() or (p.get("email") or "").strip()
     rank = (p.get("rank") or "").strip()
-    if rank and rank_fn and lang != "ko":
+
+    def en_rank(r):
+        if not (r and rank_fn):
+            return ""
         try:
-            rank = rank_fn(rank, lang) or rank
+            e = (rank_fn(r, "en") or "").strip()
         except Exception:
-            pass
+            e = ""
+        return "" if e == r else e          # 영어로 못 바꾼 직책(한글 그대로)은 넣지 않음
+    auto = {"name": (p.get("name") or "").strip(), "rank": rank, "dept": (p.get("team_name") or "").strip(),
+            "name_en": (p.get("name_en") or "").strip() or en_name_from_mail(email) or en_name_from_mail(p.get("email") or ""),
+            "rank_en": en_rank(rank), "name_vi": (p.get("name_vi") or "").strip(),
+            "mobile": (p.get("phone") or "").strip(), "email": email}
+    ov = {}
+    try:
+        ov = get_overrides(c, uid)
+    except Exception:
+        ov = {}
+    val = {k: (ov.get(k) or auto[k]) for k in auto}
+    if "rank" in ov and "rank_en" not in ov:
+        val["rank_en"] = en_rank(val["rank"])      # 직책을 고치면 영문 직책도 따라 바뀜(영문 직책을 따로 고치지 않았을 때)
+    return {"auto": auto, "value": val, "ov": ov, "corp": corp, "lang": (p.get("lang") or "").strip().lower(), "p": p}
+
+
+def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = "") -> dict:
+    """틀에 넣을 값 — 보는 사람 소속 법인 기준. company = 웍스 _company_info_dict() 결과(읽기만)."""
+    pv = person_values(c, uid, rank_fn, from_addr)
+    v, corp, p = pv["value"], pv["corp"], pv["p"]
+    nm = v["name_en"] if (lang == "en" and v["name_en"]) else v["name"]
+    rank = v["rank"]
+    if rank and lang != "ko":
+        if v["rank_en"]:
+            rank = v["rank_en"]
+        elif rank_fn:
+            try:
+                rank = rank_fn(rank, lang) or rank
+            except Exception:
+                pass
     co = company or {}
-    em = (from_addr or "").strip() or (p.get("email") or "").strip()
-    nm_en = (p.get("name_en") or "").strip() or en_name_from_mail(em) or en_name_from_mail(p.get("email") or "")
-    rank_en = ""
-    if nm_en and rank and rank_fn:
-        try:
-            rank_en = (rank_fn((p.get("rank") or "").strip(), "en") or "").strip()
-        except Exception:
-            rank_en = ""
-    if rank_en == (p.get("rank") or "").strip():
-        rank_en = ""          # 영문으로 못 바꾼 직책(한글 그대로)은 영문 줄에 넣지 않음
     if corp == "vn":
         comp, addr, tel, fax = (VN_COMPANY_VI if lang == "vi" else VN_COMPANY), VN_ADDRESS, "", ""
     elif lang == "ko":
@@ -266,13 +340,13 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
     else:
         comp, addr = co.get("company_name_en", ""), (co.get("company_address_en", "") or "").strip() or HQ_ADDRESS_EN
         tel, fax = (co.get("company_tel", "") or "").strip() or HQ_TEL, (co.get("company_fax", "") or "").strip() or HQ_FAX
-    email = (from_addr or "").strip() or (p.get("email") or "").strip()
-    return {"name": nm, "rank": rank, "dept": (p.get("team_name") or "").strip(), "company": (comp or "").strip(),
+    return {"name": nm, "rank": rank, "dept": v["dept"], "company": (comp or "").strip(),
             "address": (addr or "").strip(), "tel": (tel or "").strip(), "fax": (fax or "").strip(),
-            "mobile": (p.get("phone") or "").strip(), "email": email, "name_en": nm_en, "rank_en": rank_en, "web": WEB,
-            "name_ko": (p.get("name") or "").strip(), "rank_ko": (p.get("rank") or "").strip(),
-            "name_vi": (p.get("name_vi") or "").strip() or (p.get("name") or "").strip(),
+            "mobile": v["mobile"], "email": v["email"], "name_en": v["name_en"],
+            "rank_en": v["rank_en"] if v["name_en"] else "", "web": WEB,
+            "name_ko": v["name"], "rank_ko": v["rank"], "name_vi": v["name_vi"] or v["name"],
             "_corp": corp, "_vi_person": is_vi_person(p, corp)}
+
 
 
 def is_vi_person(p: dict, corp: str) -> bool:
@@ -290,13 +364,12 @@ def sig_langs(c, uid) -> list:
 
 
 def default_slot(c, uid, sig_list: list) -> str:
-    """새 메일에 넣을 서명 — 사람이 고른 것(서명 화면) → 없으면 회사 서명 맨 앞(한국어 · 베트남 사람은 베트남어) → 없으면 개인 기본 서명.
+    """새 메일에 넣을 서명 — 사람이 고른 회사 서명 말(서명 화면) → 없으면 회사 서명 맨 앞(한국어 · 베트남 사람은 베트남어).
+    11-22 대표 「서명은 공통」 — 개인 서명·「서명 없음」은 고르지 않음(회사 서명이 하나도 없을 때만 개인 기본 서명).
     반환 = 서명 고르기 값('co-ko' · '0' · 'none' …)."""
     have = {str(g.get("slot")): g for g in (sig_list or [])}
     pref = (get_pref(c, uid, SIG_PREF, "") or "").strip()
-    if pref == "none":
-        return "none"
-    if pref and pref in have and (pref.startswith("co-") or (have[pref].get("body") or "").strip()):
+    if pref.startswith("co-") and pref in have:
         return pref
     for g in sig_list or []:
         if str(g.get("slot", "")).startswith("co-"):
@@ -386,6 +459,62 @@ def company_sigs(c, uid, company: dict, rank_fn=None, from_addr: str = "", user_
                     "first": not out,
                     "note": missing_note(f["missing"], v["_corp"]), "corp": v["_corp"]})
     return out
+
+
+# ═══════════════════════ 보안 문구 — 보내는 모든 메일(대표 11-22 「무조건 붙이고」) ═══════════════════════
+def _norm_txt(s: str) -> str:
+    t = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", s or "")
+    t = re.sub(r"<[^>]+>", " ", t)
+    return re.sub(r"\s+", " ", _html.unescape(t)).strip()
+
+
+_NOTICE_MARKS = tuple(re.sub(r"\s+", " ", NOTICE[k])[:36] for k in ("ko", "en", "vi"))
+
+
+def has_notice(text: str) -> bool:
+    t = _norm_txt(text)
+    return any(m in t for m in _NOTICE_MARKS)
+
+
+def notice_order(c, uid) -> tuple:
+    """보안 문구 말 순서 — 회사 서명과 같음(본사 = 한국어·영어 · 베트남 법인 = 영어·한국어 · 베트남 사람 = 베트남어·영어)."""
+    langs = sig_langs(c, uid)
+    if langs and langs[0] == "vi":
+        return ("vi", "en")
+    return ("en", "ko") if corp_of(c, uid) == "vn" else ("ko", "en")
+
+
+def notice_html(order) -> str:
+    nt = "".join('<p style="margin:0 0 6px">%s</p>' % _html.escape(NOTICE[k]) for k in order)
+    return ('<div class="knk-notice" style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:8px;font-size:11px;'
+            "line-height:1.55;color:#9ca3af;max-width:640px;font-family:'Malgun Gothic','Apple SD Gothic Neo',Arial,sans-serif\">%s</div>" % nt)
+
+
+_RE_QUOTE_START = re.compile(r'<div[^>]*class="[^"]*knk-quote', re.I)
+
+
+def ensure_notice(c, uid, body: str, body_html: str):
+    """보내기 직전 — 내가 쓴 부분(답장·전달 인용 앞)에 보안 문구가 없으면 붙임. 반환 (body, body_html, 붙였나).
+    서명을 지웠거나 개인 서명을 쓴 메일도 보안 문구는 늘 나감 · 인용된 옛 메일의 보안 문구로 「있다」고 보지 않음."""
+    order = notice_order(c, uid)
+    added = False
+    if body_html and body_html.strip():
+        m = _RE_QUOTE_START.search(body_html)
+        own = body_html[:m.start()] if m else body_html
+        if not has_notice(own):
+            blk = notice_html(order)
+            body_html = (body_html[:m.start()] + blk + body_html[m.start():]) if m else (body_html + blk)
+            added = True
+    txt_own = (body or "")
+    for mk in ("\n-----Original Message-----", "\n----- 원본 메시지 -----", "\n---------- Forwarded message"):
+        i = txt_own.find(mk)
+        if i >= 0:
+            txt_own = txt_own[:i]
+    if added or not has_notice(txt_own):
+        if not has_notice(txt_own):
+            body = (body or "").rstrip("\n") + "\n\n" + "\n\n".join(NOTICE[k] for k in order) + "\n"
+            added = True
+    return body, body_html, added
 
 
 # ═══════════════════════ ⑨ 처음 안내 — 사용자별 「다시 보지 않기」 ═══════════════════════

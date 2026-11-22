@@ -24733,15 +24733,32 @@ async def mail_signature_page(req: Request, slot: int = 0):
         alts = [_mailbox.get_signature_slot(c, u["id"], k) for k in (0, 1, 2)]
         co_sigs = _mguide_sigs(c, u, _co_info, _mail_from_address_for(c, u))   # 11-20 3단계 ⑧ 🏢 회사 서명(내 정보로 채운 것)
         try:
-            _all = [{"slot": a["slot"], "name": (a["name"] or ("기본 서명" if not a["slot"] else "서명 %d" % (a["slot"] + 1))), "body": a["body"]}
-                    for a in alts] + co_sigs
-            sig_default = _mguide.default_slot(c, u["id"], _all)
+            sig_default = _mguide.default_slot(c, u["id"], co_sigs)
             sig_pref = _mguide.get_pref(c, u["id"], _mguide.SIG_PREF, "")
         except Exception:
-            _all, sig_default, sig_pref = [], "0", ""
+            sig_default, sig_pref = "", ""
+        try:   # 11-22 대표 「개인적인 부분만 고칠 수 있게」 — 칸마다 자동 값 · 고친 값
+            _pv = _mguide.person_values(c, u["id"], rank_label, _mail_from_address_for(c, u))
+            me_fields = [{"key": k, "label": lb, "auto": _pv["auto"].get(k, ""), "ov": _pv["ov"].get(k, "")}
+                         for k, lb, vn_only in _mguide.ME_FIELDS if (not vn_only) or _pv["corp"] == "vn"]
+        except Exception:
+            me_fields = []
     return ctx(req, "mail_signature.html", user=u, sig=cur["body"], sig_slot=slot, sig_name=cur["name"], sig_alts=alts,
-               co_sigs=co_sigs, can_company=_mw_admin(u), sig_choices=[g for g in _all if str(g["slot"]).startswith("co-") or (g.get("body") or "").strip()],
-               sig_default=sig_default, sig_pref=sig_pref)
+               co_sigs=co_sigs, can_company=_mw_admin(u), sig_choices=co_sigs, sig_default=sig_default, sig_pref=sig_pref,
+               me_fields=me_fields)
+
+
+@app.post("/mail/signature/me")
+async def mail_signature_me(req: Request):
+    """11-22 내 서명 정보 — 개인 칸만(이름·직책·부서·영문·베트남 이름·휴대폰·메일) · 빈 칸 = 자동 값(이음 → 웍스 직원 명단)으로."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    f = await req.form()
+    vals = {k: (f.get("f_" + k) or "") for k, _l, _v in _mguide.ME_FIELDS if ("f_" + k) in f}
+    with db_session() as c:
+        ok, msg = _mguide.set_overrides(c, u["id"], vals)
+    return JSONResponse({"ok": ok, "msg": msg}, 200 if ok else 400)
 
 
 @app.post("/mail/signature/default")
@@ -24752,7 +24769,7 @@ async def mail_signature_default(req: Request):
         return JSONResponse({"ok": False}, 401)
     f = await req.form()
     v = (f.get("slot") or "").strip()
-    if v not in ("", "none", "0", "1", "2") and v not in ("co-ko", "co-en", "co-vi"):
+    if v not in ("", "co-ko", "co-en", "co-vi"):   # 11-22 서명은 공통 — 회사 서명 말만 고름
         return JSONResponse({"ok": False, "msg": "모르는 서명입니다"}, 400)
     with db_session() as c:
         _mguide.set_pref(c, u["id"], _mguide.SIG_PREF, v)
@@ -25073,7 +25090,9 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             sig_list = []
         sigblock = ""   # 서명은 HTML 로 분리 전달(아래 sig_html) — 텍스트 본문에 안 엮음 (이미지 서명 지원)
         my_from = _mail_from_address_for(c, u)
-        sig_list = list(sig_list or []) + _mguide_sigs(c, u, _co_info, my_from)   # 「✍」 고르기에 「🏢 회사 서명」 함께
+        _co_sigs = _mguide_sigs(c, u, _co_info, my_from)
+        # 11-22 대표 「서명은 지금 정한 서명을 공통으로」 — 고르기 = 회사 서명만(개인 서명은 회사 서명이 하나도 없을 때만)
+        sig_list = _co_sigs if _co_sigs else list(sig_list or [])
         # 11-22 대표 「본사 = 한국어 기본 · 베트남 사람 = 베트남어 기본 · 영어는 고를 수 있게」 — 새 메일에 넣을 서명 = 사람이 고른 것 → 회사 서명 맨 앞
         try:
             sig_default = _mguide.default_slot(c, u["id"], sig_list)
@@ -25313,6 +25332,11 @@ def _mail_send_core(u, to_email, cc, bcc, subject, body, body_html, attachments,
         if not _mail.system_send_ready(c, u["id"]):
             return {"ok": False, "status": 400, "message": "보내기 설정이 안 돼 있습니다. 관리자 '메일 보내기 설정'에서 발송망을 먼저 등록하세요."}
         large_block = _mailbox.large_links_block(c, large_tokens, _WORKS_PUBLIC_BASE) if large_tokens else ""
+        # 11-22 대표 「보안 문구 무조건」 — 지금 보내기·⏱ 예약·🏖 자동 응답 모두 여기를 지남 · 내가 쓴 부분에 없으면 붙임(실패해도 보내기는 그대로)
+        try:
+            body, body_html, _ntc = _mguide.ensure_notice(c, u["id"], body, body_html)
+        except Exception as _ne:
+            print("[MAIL-NOTICE] 보안 문구 붙이기 실패: %s" % str(_ne)[:160], flush=True)
         send_body = body + large_block
         send_html = ""
         if body_html and body_html.strip():

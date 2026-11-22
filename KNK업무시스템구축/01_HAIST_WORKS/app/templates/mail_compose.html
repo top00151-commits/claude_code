@@ -239,7 +239,7 @@
       <button type="button" id="cClear" title="서식 지우기">✕ 서식</button>
       <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📝 양식</button>
         <div class="cmp-tpl-pop" id="cTplPop" hidden></div></span>
-      {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">✍ <select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}"{% if (g.slot|string) == (sig_default|default('')|string) %} selected{% endif %}>{{ g.name }}</option>{% endfor %}<option value="none"{% if sig_default|default('') == 'none' %} selected{% endif %}>서명 없음</option></select></label>{% endif %}
+      {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">✍ <select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}"{% if (g.slot|string) == (sig_default|default('')|string) %} selected{% endif %}>{{ g.name }}</option>{% endfor %}{% if not (sig_list|default([]) and (sig_list[0].slot|string).startswith('co-')) %}<option value="none"{% if sig_default|default('') == 'none' %} selected{% endif %}>서명 없음</option>{% endif %}</select></label>{% endif %}
     </div>
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>

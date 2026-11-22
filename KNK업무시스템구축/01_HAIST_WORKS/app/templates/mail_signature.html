@@ -3,34 +3,26 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .sig-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 24px}
-  .sig-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
-  .sig-tab{padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:13px;text-decoration:none;color:var(--ink)}
-  .sig-tab.on{background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c);color:#fff;font-weight:700}
-  .sig-tab small{opacity:.7}
-  .sig-tb{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
-  .sig-tb button{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:13px}
-  .sig-tb button:hover{background:var(--mt-hover,#f3f4f6)}
-  .sig-ed{width:100%;min-height:180px;border:1px solid var(--line);border-radius:10px;outline:none;
-    font-size:14px;line-height:1.7;padding:12px;box-sizing:border-box;background:var(--mt-surface,#fff)}
-  .sig-ed:empty:before{content:attr(data-ph);color:var(--mute)}
-  .sig-ed img{max-width:100%}
-  .sig-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
-  .sig-tip{font-size:12px;color:var(--mute);line-height:1.7;margin-top:10px}
-  /* 11-20 3단계 ⑧ 🏢 회사 서명 — 회사가 정한 틀 + 내 정보(웍스 직원 명단·회사 정보 읽기만) */
+  /* 11-22 대표 「서명은 지금 정한 서명을 공통으로 · 이름·전화번호·메일 주소 등 개인적인 것만 · 잘못됐으면 개인적인 부분만 고칠 수 있게 · 보안 문구 무조건」
+     → 이 화면 = ① 새 메일에 넣을 회사 서명 말 ② 회사 서명 미리 보기(내 정보로 채움) ③ 내 서명 정보(개인 칸만 고침 · 비우면 자동) */
   .co-card{border:1px solid #c7d2fe;background:#f5f7ff;border-radius:12px;padding:14px 16px;margin:0 var(--content-pad,32px) 14px}
   .co-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;font-size:14.5px;margin-bottom:4px}
   .co-h a{font-size:12.5px;font-weight:600;margin-left:auto}
   .co-d{font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:10px}
-  .co-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:10px}   /* 11-22 새 회사 서명(로고·QR·보안 문구) = 넓게 */
+  .co-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:10px}
   .co-one{border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
   .co-lg{font-size:12px;font-weight:700;color:#3730a3}
   .co-pv{font-size:13px;line-height:1.65;word-break:break-word}
   .co-note{font-size:11.5px;color:#b45309;line-height:1.5}
-  .co-one .btn{align-self:flex-start}
-  .co-ask{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;padding:8px 10px;font-size:12.5px}
-  .co-ask[hidden]{display:none}
-  @media(max-width:640px){.co-card{margin:0 12px 12px}.sig-card{margin:0 12px 20px;padding:14px}}
+  .me-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:14px 16px;margin:0 var(--content-pad,32px) 24px}
+  .me-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:10px 14px;margin-top:8px}
+  .me-f{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .me-f label{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .me-f input{font:inherit;font-size:13.5px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+  .me-f input.ov{border-color:#f59e0b;background:#fffbeb}
+  .me-f small{font-size:11.5px;color:var(--mute);line-height:1.45;overflow-wrap:anywhere}
+  .me-act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+  @media(max-width:640px){.co-card{margin:0 12px 12px}.me-card{margin:0 12px 20px;padding:14px}}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -41,15 +33,13 @@
   </div></div>
 
   {% if sig_choices is defined and sig_choices %}
-  {# 11-22 대표 「본사 = 한국어 기본 · 베트남 사람 = 베트남어 기본 · 영어는 고를 수 있게」 — 새 메일에 기본으로 넣을 서명(메일마다 「✍」로 바꿀 수 있음) #}
   <div class="co-card" id="sigDefBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
     <b style="font-size:14px">✉ 새 메일에 기본으로 넣을 서명</b>
     <select id="sigDefSel" style="font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:4px 8px">
-      <option value=""{% if not sig_pref %} selected{% endif %}>회사 기본({% for g in sig_choices if (g.slot|string) == (sig_default|string) %}{{ g.name }}{% else %}서명 없음{% endfor %})</option>
+      <option value=""{% if not sig_pref %} selected{% endif %}>회사 기본({% for g in sig_choices if (g.slot|string) == (sig_default|string) %}{{ g.name }}{% else %}{{ sig_choices[0].name }}{% endfor %})</option>
       {% for g in sig_choices %}<option value="{{ g.slot }}"{% if sig_pref and (g.slot|string) == sig_pref %} selected{% endif %}>{{ g.name }}</option>{% endfor %}
-      <option value="none"{% if sig_pref == 'none' %} selected{% endif %}>서명 없음</option>
     </select>
-    <span id="sigDefMsg" style="font-size:12.5px;color:var(--mute)">메일을 쓸 때 「✍」에서 그 메일만 바꿀 수 있습니다</span>
+    <span id="sigDefMsg" style="font-size:12.5px;color:var(--mute)">메일을 쓸 때 「✍」에서 그 메일만 다른 말 서명으로 바꿀 수 있습니다</span>
   </div>
   <script>(function(){ var s=document.getElementById('sigDefSel'), m=document.getElementById('sigDefMsg'); if(!s) return;
     s.addEventListener('change', async function(){ var fd=new FormData(); fd.append('slot', s.value);
@@ -59,11 +49,10 @@
 
   {% if co_sigs|default([]) or can_company|default(false) %}
   <div class="co-card" id="coCard">
-    <div class="co-h">🏢 회사 서명 <span style="font-size:12px;font-weight:600;color:var(--mute)">회사가 정한 모양 · 내 정보로 채움</span>
+    <div class="co-h">🏢 회사 서명 <span style="font-size:12px;font-weight:600;color:var(--mute)">회사 공통 모양 · 내 정보로 채움 · 보안 문구 늘 붙음</span>
       {% if can_company|default(false) %}<a href="/mail/signature/company">🔧 회사 서명 틀 고치기(관리자)</a>{% endif %}</div>
-    <div class="co-d">이름·직책·부서는 웍스 직원 명단, 회사 이름·주소·전화는 웍스 회사 정보에서 읽어 옵니다(메일에서는 고치지 않음).
-      「🏢 회사 서명 쓰기」를 누르면 아래 <b>{{ '기본 서명' if not sig_slot|default(0) else (sig_name or '이 서명') }}</b> 칸에 넣고 바로 저장합니다 — 고칠 곳이 있으면 고친 뒤 「💾 저장」.
-      메일 쓰기 화면 「✍」 고르기에서도 「🏢 회사 서명」을 바로 고를 수 있습니다.</div>
+    <div class="co-d">서명 모양은 회사가 정한 하나만 씁니다. 이름·직책·휴대폰·메일은 <b>이음 메신저에 등록한 정보</b>로 자동으로 채우고, 틀린 곳은 아래 「✏️ 내 서명 정보」에서 그 칸만 고칩니다.
+      보안 문구는 서명을 지우고 보내도 <b>보내는 모든 메일에 저절로</b> 붙습니다.</div>
     {% if co_sigs|default([]) %}
     <div class="co-list">
       {% for g in co_sigs %}
@@ -71,85 +60,43 @@
         <div class="co-lg">{{ g.name }}</div>
         <div class="co-pv">{{ g.body|safe }}</div>
         {% if g.note %}<div class="co-note">ⓘ {{ g.note }}</div>{% endif %}
-        <button type="button" class="btn btn-primary" onclick="coUse({{ loop.index0 }})">🏢 회사 서명 쓰기</button>
       </div>
       {% endfor %}
     </div>
-    <div class="co-ask" id="coAsk" hidden>지금 서명이 회사 서명으로 바뀝니다. <button type="button" class="btn btn-primary" onclick="coUseGo()">바꾸고 저장</button> <button type="button" class="btn btn-secondary" onclick="coAskClose()">그만두기</button></div>
     {% else %}
     <div class="co-d" style="margin:0">지금 쓰는 회사 서명 틀이 없습니다 — 「🔧 회사 서명 틀 고치기」에서 정해 주세요.</div>
     {% endif %}
   </div>
-  <script>window.CO_SIGS = {{ (co_sigs|default([]))|tojson }};</script>
   {% endif %}
 
-  <div class="sig-card">
-    {# 11-19 2단계-나 — 서명 여러 개: 기본 + 2개(예: English · Tiếng Việt) · 메일 쓰기에서 골라 바꿈 #}
-    <div class="sig-tabs">
-      {% for a in sig_alts|default([]) %}<a href="/mail/signature?slot={{ a.slot }}" class="sig-tab{{ ' on' if a.slot == sig_slot|default(0) else '' }}">{{ '✍ 기본 서명' if a.slot == 0 else ('✍ ' ~ (a.name or ('서명 ' ~ (a.slot + 1)))) }}{% if a.slot and not a.body %} <small>(비어 있음)</small>{% endif %}</a>{% endfor %}
+  {% if me_fields is defined and me_fields %}
+  <div class="me-card" id="meCard">
+    <div class="co-h">✏️ 내 서명 정보 <span style="font-size:12px;font-weight:600;color:var(--mute)">자동으로 채운 값 · 틀린 칸만 고치세요 · 비우면 다시 자동</span></div>
+    <div class="me-grid">
+      {% for f in me_fields %}
+      <div class="me-f">
+        <label for="me_{{ f.key }}">{{ f.label }}</label>
+        <input id="me_{{ f.key }}" name="f_{{ f.key }}" type="{{ 'email' if f.key == 'email' else 'text' }}" maxlength="80" value="{{ f.ov }}" placeholder="{{ f.auto or '(자동 값 없음)' }}"{% if f.ov %} class="ov"{% endif %}>
+        <small>{% if f.ov %}✏️ 고친 값을 씁니다 · 자동 값: {{ f.auto or '없음' }}{% else %}자동: {{ f.auto or '없음(비어 있으면 서명에서 빠짐)' }}{% endif %}</small>
+      </div>
+      {% endfor %}
     </div>
-    {% if sig_slot|default(0) %}<div style="margin-bottom:8px"><label style="font-size:12.5px;color:var(--mute)">이 서명 이름 </label><input id="sigName" type="text" maxlength="40" value="{{ sig_name|default('') }}" placeholder="예) English · Tiếng Việt · 짧은 서명" style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;width:min(320px,100%)"></div>{% endif %}
-    <div style="font-size:13px;color:var(--mute);margin-bottom:8px;">{% if sig_slot|default(0) %}메일 쓰기 화면 「✍ 서명」에서 골라 바꿔 넣을 수 있습니다(새 메일에는 기본 서명이 먼저 들어감).{% else %}한 번 저장하면 <b>메일 쓰기·답장·전달</b> 시 본문에 자동으로 들어갑니다. <b>로고·이미지</b>도 넣을 수 있어요.{% endif %}</div>
-    <div class="sig-tb">
-      <button type="button" onclick="sigCmd('bold')" title="굵게"><b>B</b></button>
-      <button type="button" onclick="sigCmd('italic')" title="기울임"><i>I</i></button>
-      <button type="button" onclick="sigCmd('underline')" title="밑줄"><u>U</u></button>
-      <button type="button" onclick="sigColor()" title="글자색">🎨</button>
-      <button type="button" onclick="sigLink()" title="링크 넣기">🔗</button>
-      <button type="button" onclick="document.getElementById('sigImg').click()" title="이미지/로고 넣기">🖼 이미지</button>
-      <button type="button" onclick="sigCmd('removeFormat')" title="서식 지우기">✕ 서식</button>
-      <input type="file" id="sigImg" accept="image/*" style="display:none">
+    <div class="me-act">
+      <button type="button" class="btn btn-primary" onclick="meSave(false)">💾 저장</button>
+      <button type="button" class="btn btn-secondary" onclick="meSave(true)">↺ 모두 자동 값으로</button>
+      <span id="meMsg" style="font-size:12.5px"></span>
     </div>
-    <div id="sBody" class="sig-ed" contenteditable="true" data-ph="예) ㈜케이엔케이  김정락 대표 · Mobile. 010-0000-0000 · E-mail. you@knknara.co.kr"></div>
-    <textarea id="sigSrc" style="display:none">{{ sig }}</textarea>
-    <div class="sig-actions">
-      <button type="button" class="btn btn-primary" onclick="saveSig()">💾 저장</button>
-      <a href="/mail/compose" class="btn btn-secondary">메일 쓰기로</a>
-      <button type="button" class="btn btn-secondary" onclick="clearSig()">비우기</button>
-      <span id="sMsg" style="font-size:12.5px;margin-left:6px;"></span>
-    </div>
-    <div class="sig-tip">※ 서명은 본인에게만 적용됩니다. 비우고 저장하면 서명 없이 보냅니다.<br>
-      ※ 넣은 이미지(로고)는 메일 보낼 때 <b>자동으로 인라인 첨부</b>로 변환돼 받는 쪽에서도 잘 보입니다.</div>
   </div>
+  <script>(function(){
+    window.meSave=async function(reset){
+      var fd=new FormData(); document.querySelectorAll('#meCard input[name^="f_"]').forEach(function(i){ fd.append(i.name, reset?'':i.value.trim()); });
+      var m=document.getElementById('meMsg'); m.textContent='저장 중…'; m.style.color='var(--mute)';
+      try{ var r=await fetch('/mail/signature/me',{method:'POST',body:fd}); var j=await r.json();
+        if(j.ok){ m.textContent='✅ '+(j.msg||'저장했습니다'); m.style.color='var(--success,#15803d)'; setTimeout(function(){ location.reload(); },500); }
+        else { m.textContent='⚠ '+(j.msg||'저장하지 못했습니다'); m.style.color='var(--knk-red,#b91c1c)'; } }
+      catch(e){ m.textContent='⚠ 네트워크 오류'; m.style.color='var(--knk-red,#b91c1c)'; }
+    };
+  })();</script>
+  {% endif %}
 </main></div>
-<script>
-(function(){
-  var ED=document.getElementById('sBody');
-  // 구버전(텍스트) 서명도 안전 로드: HTML 이면 innerHTML, 아니면 innerText(줄바꿈 보존)
-  (function(){ var s=document.getElementById('sigSrc'); if(!ED||!s)return; var v=s.value;
-    if(/<[a-z][\s\S]*>/i.test(v)) ED.innerHTML=v; else ED.innerText=v; })();
-  function focusED(){ ED.focus(); }
-  window.sigCmd=function(c){ focusED(); document.execCommand(c,false,null); };
-  window.sigColor=function(){ var c=prompt('글자색 (예: #c0392b 또는 red)','#c0392b'); if(c){ focusED(); document.execCommand('foreColor',false,c);} };
-  window.sigLink=function(){ var u=prompt('링크 주소 (예: https://www.knknara.co.kr)','https://'); if(u){ focusED(); document.execCommand('createLink',false,u);} };
-  document.getElementById('sigImg').addEventListener('change', function(e){
-    var f=e.target.files&&e.target.files[0]; if(!f)return;
-    if(f.size>1500000){ alert('이미지가 너무 큽니다(1.5MB 이하 권장). 작은 로고를 사용하세요.'); e.target.value=''; return; }
-    var rd=new FileReader();
-    rd.onload=function(){ focusED();
-      document.execCommand('insertHTML',false,'<img src="'+rd.result+'" style="max-width:240px">'); };
-    rd.readAsDataURL(f); e.target.value='';
-  });
-  function smsg(t,c){ var m=document.getElementById('sMsg'); if(!m)return; m.textContent=t;
-    m.style.color = c==='green'?'var(--success)':(c==='red'?'var(--knk-red)':'var(--mute)'); }
-  window.clearSig=function(){ if(confirm('서명을 비울까요?')) ED.innerHTML=''; };
-  window.saveSig=async function(){
-    var html=ED.innerHTML.trim();
-    if(html==='<br>'||html==='<div><br></div>') html='';
-    var fd=new FormData(); fd.append('body', html); fd.append('slot', '{{ sig_slot|default(0) }}');
-    var nm=document.getElementById('sigName'); if(nm) fd.append('name', nm.value.trim());
-    smsg('저장 중...','');
-    try{ var r=await fetch('/mail/signature',{method:'POST',body:fd}); var j=await r.json();
-      if(j.ok){ smsg('✅ 저장했습니다','green'); } else { smsg('⚠ 저장 실패','red'); }
-    }catch(e){ smsg('⚠ 네트워크 오류','red'); }
-  };
-  // 11-20 3단계 ⑧ 🏢 회사 서명 쓰기 — 비어 있으면 바로 넣고 저장 · 이미 쓴 서명이 있으면 한 번 물음(창 대신 띠)
-  var coPick=-1;
-  function coEmpty(){ var t=(ED.innerText||'').replace(/\s+/g,''); return !t && !ED.querySelector('img'); }
-  window.coUse=function(i){ coPick=i; if(coEmpty()) return coUseGo(); var a=document.getElementById('coAsk'); if(a){ a.hidden=false; a.scrollIntoView({block:'nearest'}); } };
-  window.coAskClose=function(){ var a=document.getElementById('coAsk'); if(a) a.hidden=true; };
-  window.coUseGo=function(){ var g=(window.CO_SIGS||[])[coPick]; if(!g) return; coAskClose();
-    ED.innerHTML=g.body||''; saveSig().then(function(){ ED.scrollIntoView({block:'nearest'}); }); };
-})();
-</script>
 </body></html>
