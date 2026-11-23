@@ -12,10 +12,11 @@ R = []
 def check(l, c):
     R.append(bool(c)); print(("✅ " if c else "❌ ") + l)
 spa = rd("_v5_partials", "spa_nav.html")
-m = re.search(r"var FULL_ONLY = \[(.*?)\];", spa)
+m = re.search(r"var FULL_ONLY = \[(.*?)\];", spa, re.S)
 pats = [re.compile(x.strip()[1:-1].replace("\\/", "/")) for x in re.findall(r"/\^[^,\]]*?\$/", m.group(1))] if m else []
 def full(path): return any(p.search(path) for p in pats)
-for pth in ["/project/1146", "/project/1146/", "/projects/1022/quick-edit", "/projects/quick", "/consumables/12"]:
+for pth in ["/project/1146", "/project/1146/", "/projects/1022/quick-edit", "/projects/quick", "/consumables/12",
+            "/sales/receipts-check", "/sales/quotations", "/qc/inspection-reports/new"]:   # z1191z120
     check("① 늘 새로 열기: %s" % pth, full(pth))
 for pth in ["/sales/schedule", "/projects", "/project/1146/history", "/home", "/mail"]:
     check("① 본문만 바꾸기 그대로: %s" % pth, not full(pth))

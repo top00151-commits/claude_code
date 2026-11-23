@@ -23,7 +23,12 @@
   //         무시되거나(요청 안 감) 앞 수주로 갔다 · 「입금 완료 수주 확인함」 표시도 다음 화면까지 남았다.
   //   정보 수정·새 등록: 시작 코드가 DOMContentLoaded 에 걸려 있어 본문만 갈아 끼우면 안 돌았다 → 고른 수주 값 대신 다른 수주 값 ·
   //         「수주 있는 정보 수정」 표시가 새 등록 화면까지 남아 단가 검사·호기 칸이 꺼졌다.
-  var FULL_ONLY = [/^\/consumables\/\d+\/?$/, /^\/project\/\d+\/?$/, /^\/projects\/\d+\/quick-edit\/?$/, /^\/projects\/quick\/?$/];
+  // z1191z120 (전 화면 점검 11-23): 본문 밖에 둔 칸·창을 스크립트가 찾는 화면 · 처음 열릴 때만 도는 시작 코드가 있는 화면
+  //   입금 확인(/sales/receipts-check): 「✅ 입금 확인됨」 창이 본문 밖 → 메뉴로 열면 단추가 먹통(운영 기록 0건)
+  //   견적서(/sales/quotations): 줄별 엑셀 올리기 칸이 본문 밖 → 메뉴로 열면 화면 스크립트가 멈춤
+  //   품질 검사 보고서 새로(/qc/inspection-reports/new): 첫 줄 만들기가 DOMContentLoaded → 옮겨 오면 줄이 없음
+  var FULL_ONLY = [/^\/consumables\/\d+\/?$/, /^\/project\/\d+\/?$/, /^\/projects\/\d+\/quick-edit\/?$/, /^\/projects\/quick\/?$/,
+                   /^\/sales\/receipts-check\/?$/, /^\/sales\/quotations\/?$/, /^\/qc\/inspection-reports\/new\/?$/];
   function mustFull(href){
     try { var pth = new URL(href, location.href).pathname; return FULL_ONLY.some(function(r){ return r.test(pth); }); } catch(e){ return false; }
   }
