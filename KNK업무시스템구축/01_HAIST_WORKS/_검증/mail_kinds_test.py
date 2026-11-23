@@ -153,6 +153,35 @@ m.get_user = lambda req: None
 check("로그인 안 하면 저장 안 됨", k.post("/mail/kinds", json={"reset": 1}).status_code == 401)
 m.get_user = lambda req: ME
 
+print("⑥ 광고·알림 내가 지정 · 다른 폴더로 목록 굴려도 안 닫힘(11-23)")
+from app import mail_cleanup as mcl  # noqa: E402
+from app import mail_find as mfi  # noqa: E402
+with _db.db_session() as c:
+    c.execute("INSERT INTO mail_messages(user_id, direction, from_email, from_name, to_email, subject, body_text, is_read, is_deleted, received_at) "
+              "VALUES(9930,'in','noreply@shop-demo.example','가짜쇼핑','kd" + D + "','[가짜] 주문 안내','가짜',1,0,datetime('now','localtime'))")
+    kinds0 = {g["addr"]: g["kind"] for g in mcl.sender_groups(c, 9930)["groups"]}
+check("자동 판단: noreply 주소 = 광고·알림 · 일반 거래처 = 아님", kinds0.get("noreply@shop-demo.example") == "bulk" and kinds0.get("a@cust-demo.example") == "normal", kinds0)
+r1 = k.post("/mail/ad-mark", data={"addr": "noreply@shop-demo.example", "mode": "off"})
+r2 = k.post("/mail/ad-mark", data={"addr": "A@cust-demo.example", "mode": "on"})
+with _db.db_session() as c:
+    gg = {g["addr"]: (g["kind"], g["reasons"]) for g in mcl.sender_groups(c, 9930)["groups"]}
+    bs = mfi.bulk_senders(c, 9930)
+check("「광고·알림 아님」 → 자동 판단보다 먼저(까닭 = 내가 표시)", r1.json().get("mode") == "off" and gg["noreply@shop-demo.example"] == ("normal", ["내가 「광고·알림 아님」으로 표시"]), gg.get("noreply@shop-demo.example"))
+check("「광고·알림으로 표시」(대문자 주소도) → 광고·알림 · 받은편지함 표시에도 바로", r2.json().get("mode") == "on" and gg["a@cust-demo.example"][0] == "bulk"
+      and "a@cust-demo.example" in bs and "noreply@shop-demo.example" not in bs, (gg.get("a@cust-demo.example"), bs))
+hr_ = T(k.get("/mail/inbox?app=1&noad=1"))
+check("「광고·알림 빼기」 = 내가 표시한 사람 메일(1통)만 빠지고 「아님」 표시한 noreply 는 남음(6→5)", NM(hr_) == 5 and "주문 안내" in hr_ and "제작 요청 — 검사기" not in hr_, NM(hr_))
+with _db.db_session() as c:
+    on_, off_ = mup.get_ad_marks(c, 9930)
+    mup.set_ad_mark(c, 9930, "a@cust-demo.example", "")
+    on2, off2 = mup.get_ad_marks(c, 9930)
+    fs_keep = mup.get_fs(c, 9930)
+check("표시 풀기('') = 자동 판단으로 · 다른 기억(글자 크기)은 그대로", on_ == {"a@cust-demo.example"} and off_ == {"noreply@shop-demo.example"} and on2 == set() and (fs_keep or {}).get("knkmail.fs") == 1, (on_, off_, on2))
+check("회사 안 주소·빈 주소는 거절", not k.post("/mail/ad-mark", data={"addr": "x" + D, "mode": "on"}).json()["ok"] and not k.post("/mail/ad-mark", data={"addr": "", "mode": "on"}).json()["ok"])
+check("오른쪽 클릭 메뉴: 📢 광고·알림으로 표시 / 아님(이 사람)", "📢 광고·알림으로 표시(이 사람)" in h and "📢 광고·알림 아님(이 사람)" in h and "fetch('/mail/ad-mark'" in h)
+check("다른 폴더로 ▸ 긴 목록: 메뉴 안에서 굴린 것은 안 닫힘 · 끝에서 뒤 목록으로 안 번짐",
+      "if(t && t.nodeType===1 && menu.contains(t)) return; closeMenu();" in h and "overscroll-behavior:contain" in h[h.find(".mbx-ctx{"):h.find(".mbx-ctx{") + 200])
+
 node = shutil.which("node")
 if node:
     bad = 0

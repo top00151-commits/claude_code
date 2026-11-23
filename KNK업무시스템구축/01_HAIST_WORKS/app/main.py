@@ -25719,6 +25719,26 @@ async def mail_contact_draft(req: Request, mail_id: int):
 
 
 # ─── 메일 자동분류 규칙 (Phase2) — 보낸사람/제목 키워드 → 카테고리 강제 ───
+@app.post("/mail/ad-mark")
+async def mail_ad_mark(req: Request):
+    """11-23 대표 「광고·알림은 내가 지정할 수 있어?」 — 보낸 사람(주소)을 광고·알림으로 / 아님으로 / 자동 판단으로(나에게만).
+    form: addr · mode(on|off|'') """
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    from . import mail_ui_prefs as _mup
+    addr = (form.get("addr") or "").strip()
+    if addr.lower().endswith("@knknara.co.kr"):
+        return JSONResponse({"ok": False, "message": "회사 안 주소는 광고·알림으로 정할 수 없습니다"})
+    with db_session() as c:
+        mode = _mup.set_ad_mark(c, u["id"], addr, (form.get("mode") or "").strip())
+    if mode is None:
+        return JSONResponse({"ok": False, "message": "보낸 사람 주소가 없습니다"})
+    _mail_find._BULK.pop(u["id"], None)   # 받은편지함 광고·알림 표시를 바로 다시 셈
+    return JSONResponse({"ok": True, "mode": mode})
+
+
 @app.get("/mail/kinds", response_class=HTMLResponse)
 async def mail_kinds_page(req: Request):
     """11-23 대표 「🏷 종류를 내가 지정해서 보고 싶어」 — 받은편지함 「🏷 종류 ▾」에 보일 목록 고치기(사람마다)."""

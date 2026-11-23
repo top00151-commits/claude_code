@@ -193,3 +193,46 @@ def save_kinds(c, user_id, lst):
               "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
               (int(user_id), json.dumps(d, ensure_ascii=False)))
     return d["kinds"]
+
+
+# ── 11-23 대표 「"광고·알림" 은 어떻게 지정? 내가 할 수 있는 거야?」 ──
+#   자동 판단(mail_cleanup.judge: 제목 (광고) · 수신거부 안내 · 답장 안 받는 자동 주소 · 주소록·보낸 적 있으면 빼기) 위에
+#   내가 보낸 사람(주소)마다 덮어씀 — prefs["ad"] = {"on": [주소], "off": [주소]} · 사람마다
+AD_MAX = 1000
+
+
+def _addr(a):
+    a = str(a or "").strip().lower()
+    return a if ("@" in a and len(a) <= 200 and " " not in a) else ""
+
+
+def get_ad_marks(c, user_id):
+    """(광고·알림으로 표시한 주소, 광고·알림 아님으로 표시한 주소)."""
+    if not user_id:
+        return set(), set()
+    d = _load(c, user_id).get("ad") or {}
+    if not isinstance(d, dict):
+        return set(), set()
+    on = {x for x in (_addr(a) for a in (d.get("on") or [])) if x}
+    off = {x for x in (_addr(a) for a in (d.get("off") or [])) if x}
+    return on - off, off
+
+
+def set_ad_mark(c, user_id, addr, mode):
+    """mode: 'on' = 광고·알림으로 · 'off' = 광고·알림 아님 · '' = 자동 판단으로 되돌림. 반환 지금 표시('on'|'off'|'')."""
+    a = _addr(addr)
+    if not a:
+        return None
+    d = _load(c, user_id)
+    m = d.get("ad") if isinstance(d.get("ad"), dict) else {}
+    on = [x for x in (m.get("on") or []) if _addr(x) and _addr(x) != a]
+    off = [x for x in (m.get("off") or []) if _addr(x) and _addr(x) != a]
+    if mode == "on":
+        on.append(a)
+    elif mode == "off":
+        off.append(a)
+    d["ad"] = {"on": on[-AD_MAX:], "off": off[-AD_MAX:]}
+    c.execute("INSERT INTO mail_ui_prefs(user_id, prefs, updated_at) VALUES(?,?,datetime('now','localtime')) "
+              "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
+              (int(user_id), json.dumps(d, ensure_ascii=False)))
+    return mode if mode in ("on", "off") else ""
