@@ -84,3 +84,112 @@ def save_fs(c, user_id, d):
               "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
               (int(user_id), json.dumps(allp, ensure_ascii=False)))
     return True, new
+
+
+# ── 11-23 대표 「🏷 종류(견적·발주·세금계산서)를 내가 지정해서 보고 싶어 · 고치는 메뉴를 팝업에서 바로」 ──
+#   prefs["kinds"] = 순서대로 [{id, b(기본 이름) | n(내 이름)·w(찾을 낱말)·i(그림), on(보이기)}]
+#   기본 셋(견적·발주·세금계산서) = AI 분류 + 제목 낱말(mail_store.KIND_WORDS) · 숨기기·순서만
+#   내 종류 = 제목·보낸 사람(이름·주소)에 낱말 중 하나라도 들어간 받은 메일
+BUILTIN_KINDS = (("견적", "💲"), ("발주", "🛒"), ("세금계산서", "🧾"))
+# 그림 = 메일 화면 선 아이콘(mail_design_v2 MAP)에 있는 것만 — 새 디자인에서 모양이 섞이지 않게
+KIND_ICONS = ("🏷", "🛠", "🚚", "📦", "📋", "📝", "📅", "⭐", "📌", "💬", "🏢", "👤", "📊", "💡", "⚠", "🔔", "📎", "✅")
+KIND_SUGGEST = (
+    ("제작요청", "🛠", ("제작 요청", "제작요청", "제작 진행", "제작진행")),
+    ("구매", "📦", ("구매", "구입", "purchase")),
+    ("가공", "🛠", ("가공", "machining")),
+    ("납품·출하", "🚚", ("납품", "출하", "delivery")),
+    ("성적서", "📋", ("성적서", "검사성적", "inspection report")),
+    ("샘플", "📌", ("샘플", "견본", "sample")),
+    ("도면", "📝", ("도면", "drawing")),
+)
+MAX_CUSTOM = 15
+
+
+def default_kinds():
+    return [{"id": "b:" + n, "b": n, "i": ic, "on": 1} for n, ic in BUILTIN_KINDS]
+
+
+def _words(v):
+    if isinstance(v, str):
+        v = v.replace("\n", ",").replace("·", ",").split(",")
+    if not isinstance(v, (list, tuple)):
+        return []
+    out, seen = [], set()
+    for w in v:
+        w = str(w or "").strip().replace("%", "").replace("_", " ").strip()[:40]
+        if w and w.lower() not in seen:
+            seen.add(w.lower())
+            out.append(w)
+    return out[:20]
+
+
+def clean_kinds(lst):
+    """받은 목록 거르기 — 기본 셋은 숨기기·순서만 · 내 종류는 이름(20자)·낱말(20개)·그림(정해진 것) · 빠진 기본은 끝에 「숨김」으로."""
+    import re as _re
+    bmap = dict(BUILTIN_KINDS)
+    out, seen, used = [], set(), set()
+    if not isinstance(lst, (list, tuple)):
+        lst = []
+    for x in list(lst)[:40]:
+        if isinstance(x, dict):
+            kid = str(x.get("id") or "")
+            if _re.fullmatch(r"u\d{1,6}", kid):
+                used.add(int(kid[1:]))
+    nxt = (max(used) + 1) if used else 1
+    ncus = 0
+    for x in list(lst)[:40]:
+        if not isinstance(x, dict):
+            continue
+        on = 1 if x.get("on") in (1, True, "1", "true", "on") else 0
+        b = x.get("b")
+        if b in bmap:
+            if "b:" + b in seen:
+                continue
+            seen.add("b:" + b)
+            out.append({"id": "b:" + b, "b": b, "i": bmap[b], "on": on})
+            continue
+        name = str(x.get("n") or "").strip()[:20]
+        words = _words(x.get("w"))
+        if not name or not words or ncus >= MAX_CUSTOM:
+            continue
+        kid = str(x.get("id") or "")
+        if not _re.fullmatch(r"u\d{1,6}", kid) or kid in seen:
+            kid = "u%d" % nxt
+            nxt += 1
+        seen.add(kid)
+        ic = str(x.get("i") or "")
+        if ic not in KIND_ICONS:
+            ic = "🏷"
+        out.append({"id": kid, "n": name, "w": words, "i": ic, "on": on})
+        ncus += 1
+    for n, ic in BUILTIN_KINDS:
+        if "b:" + n not in seen:
+            out.append({"id": "b:" + n, "b": n, "i": ic, "on": 0})
+    return out
+
+
+def _load(c, user_id):
+    ensure(c)
+    r = c.execute("SELECT prefs FROM mail_ui_prefs WHERE user_id=?", (int(user_id),)).fetchone()
+    try:
+        d = json.loads(r[0]) if r and r[0] else {}
+    except Exception:
+        d = {}
+    return d if isinstance(d, dict) else {}
+
+
+def get_kinds(c, user_id):
+    """내 종류 목록(순서대로 · 숨긴 것 포함). 고른 적 없으면 기본 셋."""
+    if not user_id:
+        return default_kinds()
+    k = _load(c, user_id).get("kinds")
+    return clean_kinds(k) if isinstance(k, list) and k else default_kinds()
+
+
+def save_kinds(c, user_id, lst):
+    d = _load(c, user_id)
+    d["kinds"] = clean_kinds(lst)
+    c.execute("INSERT INTO mail_ui_prefs(user_id, prefs, updated_at) VALUES(?,?,datetime('now','localtime')) "
+              "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
+              (int(user_id), json.dumps(d, ensure_ascii=False)))
+    return d["kinds"]

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>종류 목록 고치기 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+{# 11-23 대표 「🏷 종류(견적·발주·세금계산서)는 어디서 수정? 보고 싶은 걸 내가 지정해서 · 팝업에서 바로 가게」
+   받은편지함 「🏷 종류 ▾」 펼침 상자에 보일 목록 — 사람마다(내 계정에 기억 · mail_ui_prefs.kinds)
+   · 기본 셋(견적·발주·세금계산서) = AI 분류 + 제목 낱말 · 보이기/숨기기·순서만
+   · 내 종류 = 이름 + 찾을 낱말(제목·보낸 사람 이름·주소에 하나라도 들어가면) + 그림
+   · 낱말을 고치는 순간 「받은편지함에서 몇 통」을 바로 보여 줌(0통·너무 많음 알림) #}
+<style>
+  .kd-wrap{padding:0 var(--content-pad,32px) 40px}
+  .kd-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin-bottom:14px}
+  .kd-card h3{margin:0 0 4px;font-size:14.5px}
+  .kd-sub{color:var(--mute);font-size:12.5px;line-height:1.7;margin-bottom:10px}
+  .kd-row{display:grid;grid-template-columns:28px 40px minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 8px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:var(--mt-surface,#fff)}
+  .kd-row.off{background:var(--mt-panel,#f8fafc)}
+  .kd-row.off .kd-name,.kd-row.off .kd-ic{opacity:.5}
+  .kd-row input[type=checkbox]{width:18px;height:18px;margin:7px 0 0 4px;cursor:pointer}
+  .kd-ic{height:32px;width:40px;border:1px solid var(--line);border-radius:8px;background:var(--mt-surface,#fff);font-size:17px;cursor:pointer;padding:0}
+  .kd-ic:disabled{cursor:default;border-color:transparent;background:none}
+  .kd-main{min-width:0}
+  .kd-name{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;min-height:32px;flex-wrap:wrap}
+  .kd-name input{font:inherit;font-weight:700;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;width:180px;max-width:100%}
+  .kd-tag{font-size:11px;font-weight:600;color:var(--mute);background:var(--mt-hover,#f1f5f9);border-radius:6px;padding:1px 7px}
+  .kd-words{margin-top:5px}
+  .kd-words input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+  .kd-words .ro{font-size:12px;color:var(--mute);line-height:1.6}
+  .kd-n{font-size:12px;margin-top:4px;color:var(--mute)}
+  .kd-n.warn{color:#b45309;font-weight:600}
+  .kd-n.ok b{color:#15803d}
+  .kd-act{display:flex;gap:4px;align-items:center;padding-top:2px}
+  .kd-act button{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:var(--mt-surface,#fff);cursor:pointer;font-size:13px;color:inherit;padding:0}
+  .kd-act button:hover:not(:disabled){background:var(--mt-hover,#f1f3f5)}
+  .kd-act button:disabled{opacity:.3;cursor:default}
+  .kd-act .del{color:var(--knk-red,#b91c1c)}
+  .kd-sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .kd-sug button{border:1px dashed #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}
+  .kd-sug button:hover{background:#dbeafe}
+  .kd-sug button:disabled{opacity:.4;cursor:default}
+  .kd-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;background:var(--mt-bg,var(--bg,#f6f7f9));border-top:1px solid var(--line);margin-top:6px}
+  .kd-bar .msg{font-size:12.5px;color:var(--mute)}
+  .kd-bar .msg.ok{color:#15803d;font-weight:700}
+  .kd-bar .msg.dirty{color:#b45309;font-weight:700}
+  .kd-icpop{position:fixed;z-index:9500;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.16);padding:8px;display:grid;grid-template-columns:repeat(6,34px);gap:4px}
+  .kd-icpop[hidden]{display:none}
+  .kd-icpop button{width:34px;height:32px;border:0;border-radius:7px;background:none;font-size:17px;cursor:pointer}
+  .kd-icpop button:hover{background:var(--mt-hover,#f1f3f5)}
+  @media(max-width:640px){ .kd-row{grid-template-columns:24px 36px minmax(0,1fr)} .kd-act{grid-column:1 / -1;justify-content:flex-end} }
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 종류 목록</div>
+    <h1 class="page-title">🏷 종류 목록 <em>고치기</em> <small style="font-size:13px;color:var(--mute);font-weight:500">받은편지함 「🏷 종류 ▾」에 보일 것</small></h1>
+  </div></div>
+  <div class="kd-wrap">
+    <div class="kd-card">
+      <h3>내 종류 목록</h3>
+      <div class="kd-sub">✔ 를 끄면 펼침 상자에서 숨깁니다(지우지 않음) · ↑↓ 로 순서 · <b>내 종류</b>는 이름과 <b>찾을 낱말</b>(쉼표로 여러 개)을 적으면
+        <b>제목이나 보낸 사람(이름·주소)</b>에 그 낱말이 하나라도 들어간 메일을 모아 보여 줍니다 · 내 계정에 기억(다른 컴퓨터에서도 같음)</div>
+      <div id="kdList"></div>
+      <button type="button" class="btn btn-secondary" id="kdAdd" onclick="kdAdd()">＋ 내 종류 더하기</button>
+      <div class="kd-sub" style="margin:12px 0 0">자주 쓸 만한 것 — 누르면 바로 더해집니다(낱말은 고칠 수 있어요)</div>
+      <div class="kd-sug" id="kdSug"></div>
+    </div>
+    <div class="kd-bar">
+      <button type="button" class="btn btn-primary" onclick="kdSave()">💾 저장</button>
+      <a class="btn btn-secondary" href="/mail/inbox" onclick="return kdLeave(event, this.href)">← 받은편지함에서 보기</a>
+      <button type="button" class="btn btn-secondary" onclick="kdReset()" title="견적·발주·세금계산서 셋만(내 종류는 지움)">↺ 처음 목록으로</button>
+      <span class="msg" id="kdMsg"></span>
+    </div>
+  </div>
+  <div class="kd-icpop" id="kdIcPop" hidden></div>
+</main></div>
+<script>
+(function(){
+  var K={{ kinds|tojson }}, ICONS={{ kind_icons|tojson }}, SUG={{ kind_suggest|tojson }}, BW={{ builtin_words|tojson }}, MAX={{ max_custom }};
+  var dirty=false, cnt={}, timers={}, icFor=-1;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function words(v){ return String(v||'').split(/[,\n·]/).map(function(x){ return x.trim(); }).filter(Boolean); }
+  function nCustom(){ return K.filter(function(k){ return !k.b; }).length; }
+  function mark(d){ dirty=d; var m=document.getElementById('kdMsg'); if(d){ m.textContent='● 고친 내용이 있어요 — 「💾 저장」을 눌러야 받은편지함에 나옵니다'; m.className='msg dirty'; } }
+  function warnOf(k){   // 입력하는 순간 실수 알림(막지 않음)
+    if(k.b) return '';
+    var w=k.w||[], out=[];
+    if(!String(k.n||'').trim()) out.push('이름을 적어 주세요');
+    if(!w.length) out.push('찾을 낱말을 한 개 이상 적어 주세요');
+    w.forEach(function(x){ if(x.length<2) out.push('「'+x+'」 은 너무 짧아 엉뚱한 메일까지 걸려요'); });
+    var dup=K.filter(function(o){ return o!==k && (o.n||o.b)===String(k.n||'').trim(); }); if(dup.length && k.n) out.push('같은 이름이 이미 있어요');
+    return out.join(' · ');
+  }
+  function render(){
+    var h='';
+    K.forEach(function(k, i){
+      var nm = k.b ? '<span>'+esc(k.b)+'</span><span class="kd-tag">기본</span>'
+                   : '<input type="text" maxlength="20" value="'+esc(k.n||'')+'" placeholder="예: 제작요청" data-f="n" data-i="'+i+'">';
+      var wd = k.b ? '<div class="ro">AI 분류 + 제목 낱말: '+esc((BW[k.b]||[]).slice(0,6).join(' · '))+' … · 고치기는 「설정·정리 → 메일 종류 규칙」</div>'
+                   : '<input type="text" value="'+esc((k.w||[]).join(', '))+'" placeholder="찾을 낱말 — 쉼표로 여러 개 (예: 제작 요청, 제작요청, 제작 진행)" data-f="w" data-i="'+i+'">';
+      var wn=warnOf(k), c=cnt[i];
+      var info = k.b ? '' : (wn ? '<div class="kd-n warn">⚠ '+esc(wn)+'</div>'
+                 : (c==null ? '<div class="kd-n">받은편지함에서 세는 중…</div>'
+                 : (c===0 ? '<div class="kd-n warn">⚠ 지금 받은편지함에 맞는 메일이 없어요 — 낱말을 확인해 주세요(저장은 됩니다)</div>'
+                 : '<div class="kd-n ok">받은편지함에서 <b>'+c.toLocaleString()+'통</b> 걸림'+(c>3000?' · 많아요 — 낱말을 더 좁히면 찾기 쉬워요':'')+'</div>')));
+      h+='<div class="kd-row'+(k.on?'':' off')+'" data-i="'+i+'">'
+        +'<input type="checkbox" '+(k.on?'checked':'')+' data-f="on" data-i="'+i+'" title="펼침 상자에 보이기">'
+        +'<button type="button" class="kd-ic" data-ic="'+i+'" '+(k.b?'disabled':'title="그림 바꾸기"')+'>'+esc(k.i||'🏷')+'</button>'
+        +'<div class="kd-main"><div class="kd-name">'+nm+'</div><div class="kd-words">'+wd+'</div>'+info+'</div>'
+        +'<div class="kd-act"><button type="button" data-mv="-1" data-i="'+i+'" title="위로" '+(i===0?'disabled':'')+'>↑</button>'
+        +'<button type="button" data-mv="1" data-i="'+i+'" title="아래로" '+(i===K.length-1?'disabled':'')+'>↓</button>'
+        +(k.b?'':'<button type="button" class="del" data-del="'+i+'" title="이 종류 지우기">🗑</button>')+'</div></div>';
+    });
+    document.getElementById('kdList').innerHTML=h;
+    var full=nCustom()>=MAX; document.getElementById('kdAdd').disabled=full;
+    var have=K.map(function(k){ return k.n||k.b; });
+    document.getElementById('kdSug').innerHTML=SUG.map(function(s, j){ var on=have.indexOf(s.n)>=0;
+      return '<button type="button" data-sug="'+j+'" '+((on||full)?'disabled':'')+' title="낱말: '+esc(s.w.join(', '))+'">'+esc(s.i)+' '+esc(s.n)+(on?' ✓':'')+'</button>'; }).join('');
+  }
+  function count(i){ var k=K[i]; if(!k || k.b) return; clearTimeout(timers[i]);
+    var key=(k.w||[]).join('\u0001'); if(!key){ cnt[i]=0; return; }
+    timers[i]=setTimeout(function(){ fetch('/mail/kinds/count',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({w:k.w})})
+      .then(function(r){ return r.json(); }).then(function(j){ if(K[i]===k){ cnt[i]=j.n|0; patchInfo(i); } }).catch(function(){}); }, 350); }
+  function patchInfo(i){   // 칸에 쓰는 중 커서를 잃지 않게 — 알림 줄만 다시
+    var row=document.querySelector('.kd-row[data-i="'+i+'"]'); if(!row){ render(); return; }
+    var k=K[i], wn=warnOf(k), c=cnt[i], old=row.querySelector('.kd-n'), div=document.createElement('div');
+    if(wn){ div.className='kd-n warn'; div.textContent='⚠ '+wn; }
+    else if(c==null){ div.className='kd-n'; div.textContent='받은편지함에서 세는 중…'; }
+    else if(c===0){ div.className='kd-n warn'; div.textContent='⚠ 지금 받은편지함에 맞는 메일이 없어요 — 낱말을 확인해 주세요(저장은 됩니다)'; }
+    else { div.className='kd-n ok'; div.innerHTML='받은편지함에서 <b>'+c.toLocaleString()+'통</b> 걸림'+(c>3000?' · 많아요 — 낱말을 더 좁히면 찾기 쉬워요':''); }
+    if(old) old.replaceWith(div); else row.querySelector('.kd-main').appendChild(div);
+  }
+  var L=document.getElementById('kdList');
+  L.addEventListener('input', function(e){ var t=e.target, i=+t.getAttribute('data-i'), f=t.getAttribute('data-f'); if(!f || !K[i]) return;
+    if(f==='n') K[i].n=t.value; else if(f==='w'){ K[i].w=words(t.value); cnt[i]=null; count(i); }
+    mark(true); patchInfo(i); });
+  L.addEventListener('change', function(e){ var t=e.target; if(t.getAttribute('data-f')==='on'){ K[+t.getAttribute('data-i')].on=t.checked?1:0; mark(true); render(); } });
+  L.addEventListener('click', function(e){ var b=e.target.closest('button'); if(!b) return;
+    if(b.hasAttribute('data-mv')){ var i=+b.getAttribute('data-i'), j=i+(+b.getAttribute('data-mv')); if(j<0||j>=K.length) return;
+      var t=K[i]; K[i]=K[j]; K[j]=t; var c=cnt[i]; cnt[i]=cnt[j]; cnt[j]=c; mark(true); render(); }
+    else if(b.hasAttribute('data-del')){ var d=+b.getAttribute('data-del'); if(!confirm('「'+(K[d].n||'이름 없음')+'」 종류를 지울까요? (메일은 그대로 · 「💾 저장」해야 반영)')) return;
+      K.splice(d,1); cnt={}; K.forEach(function(_,x){ count(x); }); mark(true); render(); }
+    else if(b.hasAttribute('data-ic')){ icFor=+b.getAttribute('data-ic'); var p=document.getElementById('kdIcPop'), r=b.getBoundingClientRect();
+      p.innerHTML=ICONS.map(function(x){ return '<button type="button" data-pick="'+esc(x)+'">'+esc(x)+'</button>'; }).join('');
+      p.hidden=false; p.style.left=Math.min(r.left, innerWidth-p.offsetWidth-8)+'px'; p.style.top=(r.bottom+4)+'px'; e.stopPropagation(); } });
+  document.getElementById('kdIcPop').addEventListener('click', function(e){ var b=e.target.closest('[data-pick]'); if(!b || !K[icFor]) return;
+    K[icFor].i=b.getAttribute('data-pick'); this.hidden=true; mark(true); render(); });
+  document.addEventListener('click', function(e){ var p=document.getElementById('kdIcPop'); if(!p.hidden && !e.target.closest('#kdIcPop')) p.hidden=true; });
+  document.getElementById('kdSug').addEventListener('click', function(e){ var b=e.target.closest('[data-sug]'); if(!b || b.disabled) return; var s=SUG[+b.getAttribute('data-sug')];
+    K.push({n:s.n, i:s.i, w:s.w.slice(), on:1}); var i=K.length-1; cnt[i]=null; mark(true); render(); count(i); });
+  window.kdAdd=function(){ if(nCustom()>=MAX) return; K.push({n:'', i:'🏷', w:[], on:1}); mark(true); render();
+    var ins=document.querySelectorAll('.kd-row input[data-f="n"]'); if(ins.length) ins[ins.length-1].focus(); };
+  window.kdSave=function(){ var bad=K.filter(function(k){ return !k.b && (!String(k.n||'').trim() || !(k.w||[]).length); });
+    if(bad.length && !confirm('이름이나 찾을 낱말이 빈 종류 '+bad.length+'개는 빼고 저장할까요?')) return;
+    fetch('/mail/kinds',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({kinds:K})})
+      .then(function(r){ return r.json(); }).then(function(j){ if(!j.ok) throw 0; K=j.kinds; cnt={}; dirty=false; render(); K.forEach(function(_,x){ count(x); });
+        var m=document.getElementById('kdMsg'); m.textContent='✓ 저장했습니다 — 받은편지함 「🏷 종류 ▾」에 바로 나옵니다'; m.className='msg ok'; })
+      .catch(function(){ alert('저장하지 못했습니다 — 잠시 뒤 다시 눌러 주세요'); }); };
+  window.kdReset=function(){ if(!confirm('견적·발주·세금계산서 셋만 남기고 내 종류는 지울까요?')) return;
+    fetch('/mail/kinds',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({reset:1})})
+      .then(function(r){ return r.json(); }).then(function(j){ K=j.kinds; cnt={}; dirty=false; render(); var m=document.getElementById('kdMsg'); m.textContent='✓ 처음 목록으로 돌렸습니다'; m.className='msg ok'; }); };
+  window.kdLeave=function(e, href){ if(dirty && !confirm('저장하지 않은 고친 내용이 있어요. 그냥 나갈까요?')){ e.preventDefault(); return false; } dirty=false; return true; };
+  window.addEventListener('beforeunload', function(e){ if(dirty){ e.preventDefault(); e.returnValue=''; } });
+  render(); K.forEach(function(_,i){ count(i); });
+})();
+</script>
+</body></html>

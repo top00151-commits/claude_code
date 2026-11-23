@@ -24124,11 +24124,19 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
                           reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
                           who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = "",
-                          arc: int = 0, flag: int = 0, snz: int = 0, boss: int = 0):
+                          arc: int = 0, flag: int = 0, snz: int = 0, boss: int = 0, kd: str = ""):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
     fd = (fd or "").strip()
+    # 11-23 대표 「🏷 종류를 내가 지정」 — 내 종류 목록(mail_ui_prefs) · kd = 내 종류 하나로 모아 보기
+    from . import mail_ui_prefs as _mup
+    with db_session() as c:
+        _my_kinds = _mup.get_kinds(c, u["id"])
+    kd = (kd or "").strip()[:12]
+    _kd_item = next((x for x in _my_kinds if x.get("id") == kd and x.get("w")), None) if kd else None
+    if not _kd_item:
+        kd = ""
     # (11-18 대표 「쉽게 찾기」 2단계) 기간 단추 → 날짜 · 보낸 메일 함께(폴더·거래처·회신 보기는 받은 메일만) · 이어서 더 보기
     q = (q or "").strip()[:200]
     who = (who or "").strip().lower()[:120]
@@ -24182,7 +24190,8 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                    qf=qf, with_sent=bool((_terms or who or dom) and where != "in"), who=who, dom=dom,
                    q_senders=_qs, noad=(_bulk if noad else None),
                    arc=bool(arc), fd_keys=(sorted((mf or {}).get("keys_of", {}).get(fd, set())) if fd else None),
-                   flagged=bool(flag), snoozed=bool(snz and not flag))
+                   flagged=bool(flag), snoozed=bool(snz and not flag),
+                   kind_words=(_kd_item["w"] if _kd_item else None))
         mails = _mailbox.list_inbox(c, u["id"], limit=_PAGE, offset=off, **_kw)
         total_n = _mailbox.list_inbox(c, u["id"], count_only=True, **_kw) or 0
         _kinds = _mail_find.folder_kinds(mf) if mf else {}
@@ -24230,7 +24239,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
     more_href = ("/mail/inbox?" + _ue(_keep_q + [("off", str(off + _PAGE)), ("frag", "1")])) if (off + len(mails) < total_n and len(mails) >= _PAGE) else ""
     _base_q = [(k, v) for k, v in req.query_params.multi_items()
                if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app")]
-    _base_nc = [(k, v) for k, v in _base_q if k != "cat"]   # 11-19 종류 단추(견적·발주·세금계산서)는 cat 만 바꿔 끼움
+    _base_nc = [(k, v) for k, v in _base_q if k not in ("cat", "kd")]   # 11-19 종류 단추는 cat(기본 셋)·kd(11-23 내 종류)만 바꿔 끼움
     with db_session() as c:
         _arc_n = _mailbox.count_archived(c, u["id"])
         _spam_n = _mailbox.count_blocked(c, u["id"])
@@ -24282,6 +24291,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                      fd_choices=((_mail_folders.assignable_list(mf) if mf else [])), remain_n=max(0, total_n - off - len(mails)),
                      prev_day=(prev or "")[:40], page_off=off,
                      base_q=_ue(_base_q), base_nc=_ue(_base_nc), cur_flag=bool(flag), cur_snz=bool(snz and not flag),
+                     my_kinds=[x for x in _my_kinds if x.get("on")], cur_kd=kd, cur_kd_name=(_kd_item["n"] if _kd_item else ""),
                      search_on=bool(_terms or who or dom or per or df or dt),
                      terms=_terms, cur_qf=qf, cur_where=where, cur_per=per, cur_who=who, cur_dom=dom,
                      cur_noad=bool(noad), periods=_mail_find.PERIOD_NAMES,
@@ -25709,6 +25719,57 @@ async def mail_contact_draft(req: Request, mail_id: int):
 
 
 # ─── 메일 자동분류 규칙 (Phase2) — 보낸사람/제목 키워드 → 카테고리 강제 ───
+@app.get("/mail/kinds", response_class=HTMLResponse)
+async def mail_kinds_page(req: Request):
+    """11-23 대표 「🏷 종류를 내가 지정해서 보고 싶어」 — 받은편지함 「🏷 종류 ▾」에 보일 목록 고치기(사람마다)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import mail_ui_prefs as _mup
+    with db_session() as c:
+        kinds = _mup.get_kinds(c, u["id"])
+    return ctx(req, "mail_kinds.html", user=u, kinds=kinds, kind_icons=_mup.KIND_ICONS,
+               kind_suggest=[{"n": n, "i": i, "w": list(w)} for n, i, w in _mup.KIND_SUGGEST],
+               builtin_words={k: list(v) for k, v in _mailbox.KIND_WORDS.items()}, max_custom=_mup.MAX_CUSTOM)
+
+
+@app.post("/mail/kinds")
+async def mail_kinds_save(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    from . import mail_ui_prefs as _mup
+    lst = body.get("kinds") if isinstance(body, dict) else None
+    if body.get("reset") if isinstance(body, dict) else False:
+        lst = _mup.default_kinds()
+    with db_session() as c:
+        kinds = _mup.save_kinds(c, u["id"], lst or [])
+    return JSONResponse({"ok": True, "kinds": kinds})
+
+
+@app.post("/mail/kinds/count")
+async def mail_kinds_count(req: Request):
+    """고치는 중에 「이 낱말이면 받은편지함에서 몇 통」 — 입력하는 순간 실수 알림(0통·너무 많음)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    from . import mail_ui_prefs as _mup
+    ws = _mup._words((body or {}).get("w") if isinstance(body, dict) else [])
+    if not ws:
+        return JSONResponse({"ok": True, "n": 0})
+    with db_session() as c:
+        n = _mailbox.list_inbox(c, u["id"], count_only=True, kind_words=ws) or 0
+    return JSONResponse({"ok": True, "n": int(n)})
+
+
 @app.get("/mail/rules", response_class=HTMLResponse)
 async def mail_rules_page(req: Request):
     u = get_user(req)

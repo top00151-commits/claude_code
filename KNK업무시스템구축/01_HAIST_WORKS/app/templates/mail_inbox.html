@@ -436,6 +436,9 @@
   #mailTools .mbx-rad.on,#mailTools .mbx-rad:has(input:checked){background:var(--ink);color:#fff;border-color:var(--ink);font-weight:400}
   /* 종류 ▾ — 넓은 화면은 단추 하나로 접고, 좁은 화면은 예전처럼 칩 셋 */
   .mbx-kinddd{display:contents}
+  /* 11-23 🏷 종류 펼침 상자 맨 아래 「✏ 종류 고치기」 — 위 목록과 점선으로 나눔 */
+  .mbx-kindmenu .mbx-kedit{border-style:dashed;color:#1d4ed8;background:transparent}
+  .mbx-kinddd.open .mbx-kindmenu .mbx-kedit{margin-top:3px;border-top:1px dashed var(--line);border-radius:0;border-width:1px 0 0;padding-top:7px;justify-content:center}
   .mbx-kindbtn{display:none}
   .mbx-chips .mbx-viewdd>summary{height:22px;padding:0 7px;border-radius:999px;font-size:12px}
   .mbx-chips .mbx-viewmenu,.mbx-kindmenu.pop,#mailTools .mbx-viewmenu{position:fixed;left:-9999px;top:0;z-index:9400}
@@ -820,9 +823,13 @@
       <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ '' if cur_noad|default(false) else '&noad=1' }}" class="mbx-chip ic-n {{ 'on' if cur_noad|default(false) else '' }}" data-ic="🔕" title="🔕 광고·알림 빼기 — 은행·쇼핑몰·소식지처럼 사람이 아닌 곳에서 온 메일을 빼고 보기(지우지 않음) — 누를 때마다 켜고 끔">🔕 광고·알림 빼기</a>
       <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}{{ _na }}" class="mbx-chip ic-n {{ 'on' if thread_on|default(true) else '' }}" data-ic="💬" title="💬 대화로 묶기 — 같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
       {% set _bn = '/mail/inbox?' ~ (base_nc|default('')) %}
-      {% set _kon = cur_cat|default('') in ('견적', '발주', '세금계산서') %}
-      <span class="mbx-kinddd" id="mbxKindDd"><button type="button" class="mbx-chip mbx-kindbtn ic-n{{ ' on' if _kon else '' }}" data-ic="🏷 ▾" onclick="mbxKindToggle(event)" title="견적·발주·세금계산서 메일만 모아 보기">🏷 {{ cur_cat if _kon else '종류' }} ▾</button><span class="mbx-kindmenu">
-      {% for _k, _ic in (('견적','💲'),('발주','🛒'),('세금계산서','🧾')) %}<a href="{{ _bn }}{{ ('&cat=' ~ _k) if cur_cat|default('') != _k else '' }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ _na }}" class="mbx-chip kind {{ 'on' if cur_cat|default('') == _k else '' }}" title="{{ _k }} 메일만 모아 보기(AI·내 규칙 종류 + 제목 낱말) · 다시 누르면 풂">{{ _ic }} {{ _k }}{{ ' ✕' if cur_cat|default('') == _k else '' }}</a>{% endfor %}</span></span>
+      {# 11-23 대표 「보고 싶은 걸 내가 지정 · 고치는 메뉴를 팝업에서 바로」 — 목록 = 내 종류(/mail/kinds · 기본 견적·발주·세금계산서) · 맨 아래 ✏ 종류 고치기 #}
+      {% set _kon = (cur_cat|default('') in ('견적', '발주', '세금계산서')) or cur_kd|default('') %}
+      {% set _kl = my_kinds if my_kinds is defined else [{'id':'b:견적','b':'견적','i':'💲'},{'id':'b:발주','b':'발주','i':'🛒'},{'id':'b:세금계산서','b':'세금계산서','i':'🧾'}] %}
+      {% set _sf = ('&unread=1' if cur_unread|default(false) else '') ~ ('&att=1' if cur_att|default(false) else '') ~ _thr ~ _na %}
+      <span class="mbx-kinddd" id="mbxKindDd"><button type="button" class="mbx-chip mbx-kindbtn ic-n{{ ' on' if _kon else '' }}" data-ic="🏷 ▾" onclick="mbxKindToggle(event)" title="내가 정한 종류의 메일만 모아 보기 · 맨 아래 「✏ 종류 고치기」로 목록을 바꿈">🏷 {{ (cur_kd_name|default('') or cur_cat) if _kon else '종류' }} ▾</button><span class="mbx-kindmenu">
+      {% for _k in _kl %}{% if _k.b %}<a href="{{ _bn }}{{ ('&cat=' ~ _k.b) if cur_cat|default('') != _k.b else '' }}{{ _sf }}" class="mbx-chip kind {{ 'on' if cur_cat|default('') == _k.b else '' }}" title="{{ _k.b }} 메일만 모아 보기(AI·내 규칙 종류 + 제목 낱말) · 다시 누르면 풂">{{ _k.i }} {{ _k.b }}{{ ' ✕' if cur_cat|default('') == _k.b else '' }}</a>{% else %}<a href="{{ _bn }}{{ ('&kd=' ~ _k.id) if cur_kd|default('') != _k.id else '' }}{{ _sf }}" class="mbx-chip kind {{ 'on' if cur_kd|default('') == _k.id else '' }}" title="{{ _k.n }} — 제목·보낸 사람에 「{{ _k.w|join('」「') }}」 중 하나라도 들어간 메일 · 다시 누르면 풂">{{ _k.i }} {{ _k.n }}{{ ' ✕' if cur_kd|default('') == _k.id else '' }}</a>{% endif %}{% endfor %}
+      <a href="/mail/kinds" class="mbx-chip mbx-kedit" title="이 목록 고치기 — 보일 종류 고르기·순서·내 종류 더하기(제목·보낸 사람 낱말)">✏ 종류 고치기</a></span></span>
       {% if cur_reply|default(false) %}{% if reply_n|default(0) %}<a href="#" class="mbx-chip mbx-chip-ra" onclick="return mbxReplyAll(event)" title="회신 필요 메일 모두 「회신 안 해도 됨」으로(메일은 안 보냄)">✓ 모두 처리</a>{% endif %}
       {% elif unread|default(0) %}<a href="#" class="mbx-chip mbx-chip-ra" onclick="return mbxReadAll(event,'{{ cur_fd|default('') }}')" title="{{ '이 폴더' if cur_fd|default('') else '받은편지함' }} 안 읽은 메일 모두 읽음으로">✓ 모두 읽음</a>{% endif %}
       <span class="mbx-chips-n" title="지금 조건에 맞는 메일">{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>

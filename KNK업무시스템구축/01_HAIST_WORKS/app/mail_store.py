@@ -785,8 +785,9 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None,
                senders=None, qf: str = "all", with_sent: bool = False, who: str = "", dom: str = "",
                q_senders=None, noad=None, count_only: bool = False, arc: bool = False, fd_keys=None,
-               flagged: bool = False, snoozed: bool = False):
+               flagged: bool = False, snoozed: bool = False, kind_words=None):
     """받은편지함 목록.
+    (11-23) kind_words = 「🏷 내 종류」 낱말 — 제목·보낸 사람(이름·주소)에 하나라도 들어간 메일.
     (11-18 대표 「쉽게 찾기」) q = 띄어 쓴 낱말 **모두** 들어간 메일(낱말마다 보낸 사람·받는 사람·참조·제목·본문·첨부 파일 이름 중 한 곳) ·
     qf = all|from|subj|att(어디서 찾을지) · with_sent = 보낸 메일도 함께 · who/dom = 이 사람·이 회사와 주고받은 메일 ·
     q_senders = 낱말마다 「그 이름의 폴더에 든 보낸 주소」(회사 이름을 치면 영문 주소로 온 메일도) · noad = 빼고 볼 광고·알림 주소 ·
@@ -830,6 +831,12 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     elif category and category in CATEGORIES:
         where += " AND category=?"
         args.append(category)
+    _kws = [str(w).strip().lower() for w in (kind_words or []) if str(w).strip()][:20]
+    if _kws:
+        where += (" AND (" + " OR ".join(["(lower(COALESCE(subject,'')) LIKE ? OR lower(COALESCE(from_name,'')) LIKE ? "
+                                          "OR lower(COALESCE(from_email,'')) LIKE ?)"] * len(_kws)) + ")")
+        for w in _kws:
+            args += ["%" + w + "%"] * 3
     if starred:
         where += " AND is_starred=1"
     if unread:
