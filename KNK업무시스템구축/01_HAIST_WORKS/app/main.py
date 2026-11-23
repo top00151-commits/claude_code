@@ -24413,6 +24413,42 @@ async def mail_from_refill_status(req: Request):
     return JSONResponse(dict(_mfr.status(u["id"]), ok=True, hold=_h))
 
 
+@app.get("/mail/body-refill")
+async def mail_body_refill_count(req: Request):
+    """11-23 대표 「이미 받아 둔 메일 중 본문이 빈 것을 운영 DB 에 다시 채워」 — 숫자만(자료 안 바꿈 · 제목·내용 안 돌려줌 · 내 메일만)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_body_refill as _mbr
+    from starlette.concurrency import run_in_threadpool
+
+    def _cnt():
+        with db_session() as c:
+            _mbr.ensure(c)
+            return _mbr.count(c, u["id"])
+    out = await run_in_threadpool(_cnt)
+    return JSONResponse(dict(out, ok=True))
+
+
+@app.post("/mail/body-refill")
+async def mail_body_refill_apply(req: Request):
+    """본문이 빈 채 저장된 내 메일을 서버에 남은 본문 부분으로 채움(되돌림 표) · 숨은 파일 첨부는 보이게 · undo=1 = 마지막 묶음 되돌림.
+    돌려주는 값 = 통수만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_body_refill as _mbr
+    from starlette.concurrency import run_in_threadpool
+    form = await req.form()
+    if (form.get("undo") or "") == "1":
+        with db_session() as c:
+            n = _mbr.undo(c, u["id"])
+        return JSONResponse({"ok": True, "undone": n})
+    out = await run_in_threadpool(_mbr.apply, db_session, u["id"])
+    print("[MAIL-BODY-REFILL] user=%s 메일 %s통 · 본문 %s · 파일 %s · 묶음 %s" % (u["id"], out["mails"], out["body"], out["files"], out["batch"]), flush=True)
+    return JSONResponse(dict(out, ok=True))
+
+
 @app.get("/mail/from-guess")
 async def mail_from_guess_count(req: Request):
     """11-22 대표 「④랑 ③ 숫자 세기부터 진행해」 — 보낸 사람 주소를 모르는 내 메일을 우리 자료(원문 머리글·같은 이름·직원·주소록·
