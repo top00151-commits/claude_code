@@ -153,6 +153,8 @@ def run(db_session, user_id, whole=False, prog=None):
     m_raw = m_xz = m_sampled = 0
     for m in months.values():
         _fin(m)
+        if prog:
+            prog(done, total_rows)
         if m["ratio"] is None:
             continue
         m_sampled += m["sampled"]
@@ -173,6 +175,8 @@ def run(db_session, user_id, whole=False, prog=None):
         s_raw += len(data)
         s_z += len(lzma.compress(data, preset=6))
         s_n += 1
+        if prog and s_n % 20 == 0:
+            prog(done, total_rows)
     comp_bytes = sum(x[1] for x in comp_cand)
 
     def _pub(cell):
@@ -187,6 +191,8 @@ def run(db_session, user_id, whole=False, prog=None):
                    "packed_bytes": packed_bytes, "compressible_bytes": comp_bytes,
                    "sample_n": s_n, "sample_raw": s_raw, "sample_xz": s_z}}
     if whole:
+        if prog:
+            prog(done, total_rows)
         out["server"] = _whole(db_session)
     out["secs"] = round(time.time() - t0, 1)
     out["at"] = now.strftime("%Y-%m-%d %H:%M")
