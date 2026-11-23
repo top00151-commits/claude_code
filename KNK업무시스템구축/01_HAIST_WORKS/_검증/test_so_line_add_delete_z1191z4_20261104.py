@@ -146,7 +146,7 @@ def main():
           and lbls[-1] == "추가 PIN", (j, o3, lbls))
 
     r = cl.post("/sales/orders/items/%d/delete" % S["inv_item"])
-    check("청구(INVOICED)된 수주 줄은 예전처럼 삭제 막힘", r.status_code == 400, (r.status_code, r.text[:120]))
+    check("청구(INVOICED)된 수주 줄 삭제 = 확인 없이는 막힘(409 · 「[✏️ 수정]에서 확인」 안내 · z1191z117)", r.status_code == 409 and r.json().get("need_closed_ok"), (r.status_code, r.text[:120]))
 
     # 표가 없는 옛 DB 에서도 삭제가 깨지지 않음(project_units 없음)
     with D.db_session() as c:

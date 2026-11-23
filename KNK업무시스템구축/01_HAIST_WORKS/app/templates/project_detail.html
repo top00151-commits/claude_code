@@ -27,7 +27,30 @@
 {% import "_v5_partials/knk_fx_amt.html" as _fx %}{# z1191z104 #}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
 {# v5H226z971 (대표 지적): 부품 추가 업로드·전체 교체는 [✏️ 수정](편집 모드) 후에만 — 잠금 상태에선 흐리게(클릭 시 JS 가드가 안내) #}
-<style>.so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}</style></head>
+<script>
+/* z1191z117 ⑦-1: 작업일정표 수량 = 품목 줄 합으로 맞추기 */
+async function knkBoardSync117(oid, btn){
+  try{
+    btn.disabled=true;
+    var r=await fetch('/sales/orders/'+oid+'/board-qty-sync',{method:'POST',credentials:'same-origin'});
+    var j=await r.json(); if(!j.ok) throw new Error(j.message||'저장 실패');
+    (window.knkLeaveOk=true, (window.knkReloadKeepView ? knkReloadKeepView() : location.reload()));
+  }catch(e){ btn.disabled=false; alert('맞추기 실패: '+e.message); }
+}
+/* z1191z117 ⑤: 수주 「단가 미정」 켜고 끄기 */
+async function knkTbd117(cb){
+  try{
+    var fd=new FormData(); fd.append('on', cb.checked?'1':'0');
+    var r=await fetch('/sales/orders/'+cb.dataset.soid+'/price-tbd',{method:'POST',body:fd,credentials:'same-origin'});
+    var j=await r.json(); if(!j.ok) throw new Error(j.message||'저장 실패');
+  }catch(e){ cb.checked=!cb.checked; alert('단가 미정 저장 실패: '+e.message); }
+}
+</script>
+<style>.so-card:not(.unlocked) .tbd117{display:none !important;}
+.so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}
+/* z1191z117 ④: 확인할 줄 */
+tr[data-chk117] > td:first-child{box-shadow:inset 5px 0 #dc2626;}
+tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 <body>
 {% set s = stats or {} %}
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -93,7 +116,7 @@
       {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
       {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 버튼은 **관리번호 전체**를 고친다. 수주 하나만 고치려는 사람이
          여기로 들어와 4건을 통째로 바꾸는 사고가 났다 → 버튼에서 미리 알린다(수주별 수정은 아래 수주 내역에서). #}
-      {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/edit{% if focus_so and project_orders and project_orders|length > 1 %}?so={{ focus_so|urlencode }}{% endif %}" title="관리번호 {{ p.mgmt_code }} 전체의 공통 정보(고객사·모델·사업부·상태 등)를 고칩니다{% if project_orders and project_orders|length > 1 %} — 수주번호 {{ project_orders|length }}건 모두에 영향.
+      {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/quick-edit{% if focus_so and project_orders and project_orders|length > 1 %}?so={{ focus_so|urlencode }}{% endif %}" title="관리번호 {{ p.mgmt_code }} 전체의 공통 정보(고객사·모델·사업부·상태 등)를 고칩니다{% if project_orders and project_orders|length > 1 %} — 수주번호 {{ project_orders|length }}건 모두에 영향.
 특정 수주 하나만 고치려면 아래 [수주 내역]의 그 카드에서 고치세요.{% endif %}">✏️ 프로젝트 정보 수정{% if project_orders and project_orders|length > 1 %} <span style="font-size:10px;opacity:.75;">(전체 {{ project_orders|length }}건)</span>{% endif %}</a>{% endif %}
       {# v5H226z946 (대표 지시): 수출 건 → 수출 서류(통관 입력·패킹리스트·인보이스·출고 QR)로 바로가기. '다음 단계' 연결. #}
       {% if can_sales and p.is_export %}<a class="btn btn-primary" style="background:#0369a1;" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
@@ -589,7 +612,8 @@
         <div class="list-scroll">
         {% set _sq105 = z105_so_quotes(p.id) if can_money else {} %}{# z1191z105: 수주번호별 최종 견적서 #}
         {% for so in _ord %}
-          {% set _editable = can_sales and so.status not in ('INVOICED','PAID','CANCELLED') and loop.first %}{# v5H226v: SHIPPED 도 편집 허용(수금 전 정정 가능) / v5H226z650(대표 지시): 참고(추가) 수주는 읽기전용 — 최초(메인) 수주만 이 화면에서 편집, 추가 수주는 수주번호 클릭으로 해당 화면 이동 #}
+          {% set _closed117 = ((so.status or '')|upper in ('INVOICED','PAID')) %}{# z1191z117 ①: 입금 완료·계산서 발행 = [✏️ 수정]에서 한 번 확인 후 고침 #}
+          {% set _editable = can_sales and (so.status or '')|upper != 'CANCELLED' %}{# z1191z117 ①②(대표 11-23 「수정할수있게」 · 안지연 프로 요청): 입금 완료·계산서 발행 수주와 같은 관리번호의 참고(추가) 수주도 이 화면에서 고친다(옛 z650 「참고 수주 읽기전용」·v5H226v 「INVOICED/PAID 잠금」 대체) #}{# v5H226v: SHIPPED 도 편집 허용(수금 전 정정 가능) / v5H226z650(대표 지시): 참고(추가) 수주는 읽기전용 — 최초(메인) 수주만 이 화면에서 편집, 추가 수주는 수주번호 클릭으로 해당 화면 이동 #}
           {% set _is_main_so = loop.first %}{# v5H226z650b: '호기 상태' 드롭다운도 참고 카드에선 읽기전용화 — units 루프 내부에선 loop.first 가 호기 기준이라 SO-루프 first 를 별도 캡처 #}
           {# v5H172: SO 통화가 비어있으면 프로젝트 헤더 통화로 fallback (백필 누락 대비) #}
           {% set _cur = so.currency or p.currency or 'KRW' %}
@@ -605,7 +629,7 @@
             </div>
             <div class="ref-sos-body">
           {% endif %}
-          <div class="so-card{% if _editable %} editable{% endif %}{% if not loop.first %} ref-so{% endif %}" data-soid="{{ so.id }}">
+          <div class="so-card{% if _editable %} editable{% endif %}{% if not loop.first %} ref-so{% endif %}" data-soid="{{ so.id }}"{% if _closed117 and _editable %} data-closed117="{{ (so.status or '')|upper }}" data-sono117="{{ so.order_no }}"{% endif %}>
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
               <div class="so-no">{# v5H226z650(대표 지시): 참고(추가) 수주번호 클릭 시 상태별 이동 — 진행중→작업일정표(해당 관리번호 검색·강조), 완료(출하/송장/수금/취소)→수주 상세(진행 이력) #}
@@ -621,6 +645,8 @@
                  실제 형태가 '제품'인 수주 옆에 'CONSUMABLE 소모품'이 같이 떠 오해를 유발했음(대표 지적). 데이터(so_type)는 불변·표시만 제거. #}
               {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 서버가 표시(호기별=완제품/1줄=제품)와 일치하게 계산(get_project_orders form_label/form_key). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
               {% if so.form_label %}<span class="so-form-badge sf-{{ so.form_key }}" title="형태: {{ so.form_label }} — 이 수주(발주) 기준">{{ so.form_label }}</span>{% endif %}
+              {% if so.price_tbd and not (so.total_amount|float) %}<span class="so-form-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;" title="단가 미정 — 정해지면 단가를 넣어 주세요(작업일정표에 [미정])">단가 미정</span>{% endif %}{# z1191z117 ⑤ #}
+              {% if _editable %}<label class="edit-only tbd117" style="font-size:11.5px;color:#92400e;display:inline-flex;gap:3px;align-items:center;cursor:pointer;" title="단가가 아직 안 정해졌으면 체크 — 작업일정표에 [무상] 대신 [미정]"><input type="checkbox" class="tbd117-cb" data-soid="{{ so.id }}" {% if so.price_tbd %}checked{% endif %} onchange="knkTbd117(this)" style="margin:0;"> 단가 미정</label>{% endif %}
               <div class="so-meta">
                 {% if can_money %}{% set _qf105 = _sq105.get(so.id) %}
                 <span class="item" title="z1191z105: 이 수주번호의 최종 견적서(엑셀) — 올리기·바꾸기는 🎯 수주 전 → 📋 견적서(견적 관리)"><span class="k">📋 견적서</span>
@@ -719,6 +745,7 @@
                    업로드는 상품 양식을 받는 이 버튼 하나로(overwrite-product·상품 파서). 관리번호·수주번호 유지·부품 채움(있으면 교체). #}
                 {# v5H226z943 (대표 지시): 부품은 추가 업로드 가능 → '추가'(기존 유지·append) + '전체 교체'(삭제 후 채움) 두 버튼. 둘 다 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신. #}
                 {# v5H226z971 (대표 지적): 두 버튼은 [✏️ 수정] 후에만(ow-need-edit — 잠금 시 흐림+knkOwClick 가드) #}
+                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'update', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 「📥 상품 양식 받기」로 받은 파일에서 값(수량·매입가·마진·판매가·환율·인보이스·규격·납기 등)만 고쳐 올립니다. 줄을 지우지 않아 세금계산서 발행 기록이 그대로 남고, 저장 전에 바뀌는 줄을 먼저 보여 줍니다." style="background:#ecfdf5;border-color:#6ee7b7;color:#047857;font-weight:700;">📝 값만 고치기(엑셀)</button>{# z1191z117 ③ #}
                 <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
                 {# z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지 — 파일 고르기 전에 안내(서버도 한 번 더 막음) · 「부품 추가」는 그대로 #}
                 <button type="button" class="btn-mini ow-need-edit{% if ti_so_issued(so.id) %} ow-tax-issued{% endif %}" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
@@ -819,6 +846,23 @@
               {% endif %}
               <button type="button" class="reset" id="partsResetCols-{{ so.id }}" title="컬럼 폭 원복">↻ 폭 리셋</button>
             </div>
+            {% set _chk117 = z117_parts_checks(so, _so_ccy) if can_sales_amt else {} %}
+            {% if _chk117 %}{# z1191z117 ④ (안지연 프로 「200개 이상이면 잘못 입력된 건을 찾기 힘들다」): 잘못 넣었을 수 있는 줄을 서버가 찾아 알린다(막지 않음) #}
+            {% set _byid117 = {} %}{% for _u in (so.units|sort(attribute='id')) %}{% set _ = _byid117.update({_u.id: loop.index}) %}{% endfor %}
+            <div class="chk117" data-so="{{ so.id }}" style="margin:6px 0;padding:8px 12px;border:1px solid #fca5a5;background:#fff1f2;border-radius:6px;font-size:12.5px;">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <b style="color:#b91c1c;">⚠ 확인할 줄 {{ _chk117|length }}개</b>
+                <span style="color:#7f1d1d;">— 판매가·환율·인보이스·마진·금액이 서로 안 맞거나 같은 품목인데 단가가 다른 줄입니다. 맞게 넣은 것이면 그대로 두셔도 됩니다.</span>
+                <button type="button" class="btn-mini chk117-only" style="margin-left:auto;">확인할 줄만 보기</button>
+                <button type="button" class="btn-mini chk117-list-tg">목록 펼치기 ▾</button>
+              </div>
+              <div class="chk117-list" style="display:none;margin-top:6px;max-height:260px;overflow:auto;">
+                {% for _uid, _ms in _chk117|dictsort(by='key') %}{% set _no = _byid117.get(_uid, '') %}
+                <div style="padding:3px 0;border-top:1px dashed #fecaca;"><a href="#" class="chk117-go" data-uid="{{ _uid }}" style="font-weight:700;color:#1d4ed8;text-decoration:none;">{{ _no }}번 {{ ((so.units|selectattr('id','equalto',_uid)|first) or {}).unit_label or '' }}</a> — {{ _ms|join(' · ') }}</div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
             {% endif %}
             <div{% if _is_parts or _is_equip or _is_co %} style="width:100%;min-width:0;overflow:hidden;"{% endif %}>
               {# v5H226z19: 중간 스크롤 제거 — wrapper 자연 높이 + 가로 스크롤만. #}
@@ -906,7 +950,7 @@
                 {# v5H226z1085: 이 줄의 중복 묶음 번호(①②…·51부터 #51) — 배지·행 속성(중복만 보기 필터 기준)에 함께 사용 #}
                 {% set _dgrp = _spec_grp.get((u.spec or '')|trim, 0) if _spec_dup else 0 %}
                 {% set _dmark = ((_GRP_MARKS[_dgrp-1]) if _dgrp <= 50 else ('#' ~ _dgrp)) if _dgrp else '' %}
-                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _spec_dup %} class="knk-row-flag" data-dupgrp="{{ _dgrp }}" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 (중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격) — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>{# v5H226z1029: 공용 강조 클래스로 통일(덧칠 방식) #}
+                <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _is_parts and _chk117 is defined and _chk117.get(u.id) %} data-chk117="{{ _chk117.get(u.id)|join(' · ') }}"{% endif %}{% if _spec_dup %} class="knk-row-flag" data-dupgrp="{{ _dgrp }}" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 (중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격) — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>{# v5H226z1029: 공용 강조 클래스로 통일(덧칠 방식) #}
                   {% if _is_parts %}
                   <td style="text-align:center;color:#888;font-size:10.5px;font-family:monospace;background:#f4f1e8;cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
                     <button type="button" class="row-toggle" title="행 접기/펴기">{{ loop.index }}</button>
@@ -1238,7 +1282,7 @@
                   {%- if so.items_n %} <span style="color:var(--mute);font-weight:500;">· 부품 {{ so.items_n }}종 {{ '{:,}'.format(_ppq974|int) }}개</span>{% endif %}</span>
                 {% elif _is_semi %}
                 {# z1191z4c: 제품 줄은 「대」로 세지 않는다 #}
-                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ qtyu(soqty(so), sounit(so)) }}</b>{% if soqty_note(so) %} <span style="color:var(--mute);font-weight:500;" title="등록 때 적은 「작업일정표 수량」을 보입니다(일정표·수정 화면과 같은 수) — 품목 줄 수량을 더한 수는 괄호">{{ soqty_note(so) }}</span>{% endif %}</span>{# z1191z89: 단위 = 일정표와 같은 규칙(비면 제품 EA) #}
+                <span>품목 <b>{{ so.items_n }}</b> · 수량 <b>{{ qtyu(soqty(so), sounit(so)) }}</b>{% if soqty_note(so) %} <span style="color:var(--mute);font-weight:500;" title="등록 때 적은 「작업일정표 수량」을 보입니다(일정표·수정 화면과 같은 수) — 품목 줄 수량을 더한 수는 괄호">{{ soqty_note(so) }}</span>{% if _editable %} <button type="button" class="btn-mini" style="font-size:11px;padding:1px 6px;" title="작업일정표 수량을 품목 줄 수량 합으로 맞춥니다" onclick="knkBoardSync117({{ so.id }}, this)">↻ {{ soqty_note(so)|replace('(품목 줄 합 ','')|replace(')','') }}(으)로 맞추기</button>{% endif %}{% endif %}</span>{# z1191z117 ⑦-1 #}{# z1191z89: 단위 = 일정표와 같은 규칙(비면 제품 EA) #}
                 {% elif so.form_key == 'consumable' and not so.board_unit %}
                 <span>수량 <b>{{ qtyu((so.units|length) or 1, '건') }}</b></span>{# z1191z89: 소모품 = 건(일정표와 같게) #}
                 {% else %}
@@ -1378,6 +1422,21 @@
             for (var i = 0; i < fns.length; i++) { try { if (fns[i]()) { e.preventDefault(); e.returnValue = '저장되지 않은 변경이 있습니다.'; return e.returnValue; } } catch (_e) {} }
           });
         }
+        // z1191z117 ⑦-2: 칸 값이 원래 값과 같은가 — 금액·수량·마진 칸은 숫자로(「60,000」 = 「60000」).
+        //   예전엔 글자로 비교해 판매가 칸이 있는 상품 줄은 「💾 저장」 때 모든 줄이 바뀐 것으로 잡혀,
+        //   줄마다 단가 = 판매가(원)÷환율로 다시 보내져 인보이스와 어긋났다(안지연 프로 「업로드 오류」 · 이력 「(변동 없음)」 수백 줄).
+        window._knkSame117 = function(inp){
+          if(!inp) return true;
+          var a = (inp.value || ''), b = (inp.dataset.orig || '');
+          if(inp.classList.contains('knk-money') || inp.classList.contains('qty-inp') || inp.classList.contains('margin-inp')){
+            var x = a.replace(/,/g,'').trim(), y = b.replace(/,/g,'').trim();
+            if(x === y) return true;
+            var fx = parseFloat(x), fy = parseFloat(y);
+            if(!isNaN(fx) && !isNaN(fy)) return Math.abs(fx - fy) < 1e-9;
+            return false;
+          }
+          return a === b;
+        };
         // v5H93/106/107: 카드 레이아웃 — 읽기/편집 모드 토글 + 인라인 편집
         (function(){
           document.querySelectorAll('.so-card').forEach(card => {
@@ -1431,7 +1490,7 @@
                 const aRaw = amtInp ? (amtInp.value || '0').replace(/,/g,'') : '0';
                 const aOrig = amtInp ? (amtInp.dataset.orig || '0') : '0';
                 // 헬퍼 — input dirty 검사 (값이 dataset.orig 와 다르면 dirty)
-                const dirtyInp = inp => inp && inp.value !== (inp.dataset.orig || '');
+                const dirtyInp = inp => inp && !window._knkSame117(inp);   // z1191z117 ⑦-2
                 const partsInputs = [specInp, makerInp, supplierInp, originInp, boxInp,
                                      qtyInp, unitInp, arrivalInp, costInp, marginInp, priceInp,
                                      hsInp, dutyRateInp,
@@ -1475,7 +1534,7 @@
               // 호기 라인 sequential save (FK/total_amount 정합 위해)
               // z1191z10 (대표 「4 진행」): 줄 안에서도 바뀐 칸만 보낸다(서버는 안 보낸 칸을 그대로 둔다).
               //   예전엔 한 칸만 고쳐도 줄 전부를 다시 보내 금액칸 없는 줄은 0, 외화 부품 단가는 원화 표시÷환율로 조금씩 어긋났다.
-              const _dz = inp => !!inp && (inp.value || '') !== (inp.dataset.orig || '');
+              const _dz = inp => !!inp && !window._knkSame117(inp);   // z1191z117 ⑦-2: 숫자 칸은 숫자로 비교
               const _dzN = inp => !!inp && parseFloat((inp.value || '0').replace(/,/g,'')) !== parseFloat((inp.dataset.orig || '0').replace(/,/g,''));
               for (const r of dirtyRows) {
                 const body = new URLSearchParams();
@@ -1586,6 +1645,15 @@
               //   잠금 해제 상태 클릭 → 일괄 저장 후 잠금 복귀
               toggleBtn.addEventListener('click', async () => {
                 if (!card.classList.contains('unlocked')) {
+                  // z1191z117 ①: 입금 완료·계산서 발행 수주 — 고치기 전에 한 번 확인(그 뒤 저장 요청에 확인 표시를 붙인다)
+                  if (card.dataset.closed117) {
+                    var _k117 = card.dataset.closed117 === 'PAID' ? '입금 완료' : '계산서 발행';
+                    if (!confirm('수주 ' + (card.dataset.sono117 || '') + ' 는 「' + _k117 + '」 수주입니다.\n\n'
+                        + '· 고치면 수주 금액·매출·미수가 바뀔 수 있습니다.\n'
+                        + '· 세금계산서·입금 기록은 지워지지 않고 그대로 남습니다.\n'
+                        + '· 고친 내용은 변경 이력에 「' + _k117 + ' 수주 정정」으로 남습니다.\n\n고칠까요?')) return;
+                    window.__knkClosedOk117 = true;
+                  }
                   // 잠금 → 편집 모드 진입
                   card.classList.add('unlocked');
                   toggleBtn.textContent = '💾 저장';
@@ -2953,12 +3021,26 @@
 <script>
 (function(){
   var _owSoId = null, _owSoNo = '', _owMode = 'replace';
+  // z1191z117 ①: 입금 완료·계산서 발행 수주를 [✏️ 수정]에서 확인했으면 이 화면의 수주 저장 요청에 확인 표시를 붙인다
+  if(!window.__knkFetch117){
+    window.__knkFetch117 = window.fetch;
+    window.fetch = function(u, o){
+      try{
+        var s = (typeof u === 'string') ? u : ((u && u.url) || '');
+        if(window.__knkClosedOk117 && /^\/sales\/(orders|schedule)\//.test(s)){
+          o = o || {}; var h = new Headers(o.headers || {}); h.set('X-KNK-Closed-OK', '1'); o.headers = h;
+        }
+      }catch(_e){}
+      return window.__knkFetch117(u, o);
+    };
+  }
   window.knkOwClick = function(soId, soNo, mode, btn){
-    mode = (mode === 'add') ? 'add' : 'replace';
-    // z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지 — 파일 고르기 전에 안내
+    mode = (mode === 'add') ? 'add' : (mode === 'update' ? 'update' : 'replace');
+    // z1191z30 → z1191z117 ③ (안지연 프로 요청 2): 세금계산서가 발행된 수주는 「전체 교체」 대신 「값만 고치기」로(줄·발행 기록 그대로)
     if(mode === 'replace' && btn && btn.classList.contains('ow-tax-issued')){
-      alert('⚠ 세금계산서가 발행 완료된 항목입니다 (수주번호 ' + (soNo||'') + ').\n「전체 교체」를 하면 기존 부품 줄이 지워지면서 세금계산서 발행 기록(발행일·금액·설명)도 함께 지워지므로 할 수 없습니다.\n부품이 더 생겼으면 「부품 추가」로 올려 주세요.');
-      return;
+      if(!confirm('⚠ 세금계산서가 발행된 수주입니다 (수주번호 ' + (soNo||'') + ').\n「전체 교체」는 줄을 지우므로 발행 기록(발행일·금액·설명)까지 지워져 할 수 없습니다.\n\n'
+                  + '대신 「📝 값만 고치기(엑셀)」로 하시겠어요?\n· 「📥 상품 양식 받기」로 받은 파일에서 값만 고쳐 올리면\n· 같은 순서·같은 품명 줄에 값만 바뀌고 세금계산서 발행 기록은 그대로 남습니다.\n· 저장 전에 바뀌는 줄을 먼저 보여 드립니다.')) return;
+      mode = 'update';
     }
     // v5H226z971 (대표 지적): 업로드/교체는 [✏️ 수정]을 눌러 편집 모드(unlocked)일 때만 — 실수로 눌러 데이터 갈아엎는 것 방지.
     var _card = document.querySelector('.so-card[data-soid="' + soId + '"]');
@@ -2966,7 +3048,9 @@
       alert('먼저 이 수주 카드의 [✏️ 수정] 버튼을 눌러 편집 모드로 들어간 뒤 사용할 수 있습니다.\n(부품을 통째로 바꾸는 기능이라 실수 방지를 위해 잠겨 있습니다)');
       return;
     }
-    var msg = (mode === 'add')
+    var msg = (mode === 'update')
+      ? ('수주번호 ' + (soNo||'') + ' — 📝 값만 고치기\n· 「📥 상품 양식 받기」로 받은 파일에서 값만 고친 파일을 고르세요(줄을 더하거나 지우지 말 것)\n· 저장 전에 바뀌는 줄을 먼저 보여 드립니다\n\n엑셀 파일을 선택할까요?')
+      : (mode === 'add')
       ? ('수주번호 ' + (soNo||'') + ' 에 상품 양식으로 부품을 추가합니다.\n· 기존 부품은 그대로 두고 엑셀 부품을 더합니다\n· 관리번호·수주번호 유지 (고객사·프로젝트명·PO유형·영업담당자 등은 엑셀값으로 갱신)\n\n엑셀 파일을 선택할까요?')
       : ('수주번호 ' + (soNo||'') + ' 의 부품을 상품 양식으로 전부 교체합니다.\n· 기존 부품은 모두 삭제되고 엑셀 내용으로 채워집니다\n· 관리번호·수주번호 유지 (고객사·프로젝트명 등도 엑셀값으로 갱신)\n\n엑셀 파일을 선택할까요?');
     if(!confirm(msg)) return;
@@ -2987,6 +3071,7 @@
       if(!file || !_owSoId){ return; }
       var fd = new FormData(); fd.append('xlsx', file); fd.append('mode', _owMode || 'replace');
       var soId = _owSoId; this.value = '';
+      if(_owMode === 'update'){ knkOwUpdate117(soId, file); return; }   // z1191z117 ③
       try {
         var r = await fetch('/sales/orders/' + soId + '/overwrite-product', { method: 'POST', body: fd, credentials: 'same-origin' });
         var j;
@@ -2998,6 +3083,75 @@
       } catch(e){ alert('덮어쓰기 통신 실패: ' + e); }
     });
   }
+  // z1191z117 ③: 값만 고치기 — ① 미리 보기(dry=1) → ② 확인 → 저장
+  function _e117(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function _v117(v){ if(v === null || v === undefined || v === '') return '(빈칸)'; var n = Number(v); return (typeof v === 'number' || (!isNaN(n) && String(v).trim() !== '')) ? n.toLocaleString(undefined, {maximumFractionDigits: 4}) : String(v); }
+  async function _post117(soId, file, dry){
+    var fd = new FormData(); fd.append('xlsx', file); fd.append('mode', 'update'); if(dry) fd.append('dry', '1');
+    var r = await fetch('/sales/orders/' + soId + '/overwrite-product', { method: 'POST', body: fd, credentials: 'same-origin' });
+    try { return await r.json(); } catch(e){ return { ok: false, message: '응답 오류(로그인 풀림 가능) — 새로고침 뒤 다시 해 주세요' }; }
+  }
+  window.knkOwUpdate117 = async function(soId, file){
+    var ov = window.KNKBusy ? KNKBusy.overlay('📝 바뀌는 줄을 찾는 중…', '아직 저장하지 않습니다.') : null;
+    var j = await _post117(soId, file, true);
+    if(ov) ov.close();   // 아직 저장 전 — 「완료」 글자 없이 닫는다
+    if(!j.ok){ alert('값만 고치기 — 확인 필요\n\n' + (j.message || '알 수 없음')); return; }
+    var box = document.createElement('div');
+    box.className = 'ow117-modal';
+    box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;');
+    var rows = (j.diffs || []).map(function(d){
+      return '<tr><td style="padding:4px 6px;border-top:1px solid #eee;white-space:nowrap;font-weight:700;">' + d.no + '</td>'
+        + '<td style="padding:4px 6px;border-top:1px solid #eee;">' + _e117(d.name) + '</td>'
+        + '<td style="padding:4px 6px;border-top:1px solid #eee;">' + d.changes.map(function(x){ return '<b>' + _e117(x.f) + '</b> ' + _e117(_v117(x.old)) + ' → <span style="color:#047857;font-weight:700;">' + _e117(_v117(x.new)) + '</span>'; }).join('<br>')
+        + (d.warn ? '<div style="color:#b45309;">⚠ ' + _e117(d.warn) + '</div>' : '') + '</td></tr>';
+    }).join('');
+    var chks = (j.checks || []).map(function(c){ return '<div style="padding:2px 0;"><b>' + c.no + '번 ' + _e117(c.name) + '</b> — ' + _e117(c.msgs.join(' · ')) + '</div>'; }).join('');
+    var fmt = function(n){ return Number(n || 0).toLocaleString(undefined, {minimumFractionDigits: j.currency === 'KRW' ? 0 : 2, maximumFractionDigits: j.currency === 'KRW' ? 0 : 2}); };
+    box.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:980px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
+      + '<div style="padding:12px 16px;border-bottom:1px solid #eee;position:relative;"><b style="font-size:15px;">📝 값만 고치기 — 바뀌는 줄 확인</b>'
+      + '<button type="button" class="ow117-x" style="position:absolute;right:10px;top:8px;border:0;background:none;font-size:20px;cursor:pointer;">✕</button>'
+      + '<div style="font-size:12.5px;color:#555;margin-top:4px;">전체 ' + j.n_rows + '줄 중 <b style="color:#047857;">' + j.n_changed + '줄</b>이 바뀝니다 · 합계 ' + fmt(j.total_old) + ' → <b>' + fmt(j.total_new) + '</b> ' + _e117(j.currency)
+      + ' · 줄과 세금계산서 발행 기록은 그대로입니다' + (j.closed ? ' · <b style="color:#b91c1c;">' + (j.status === 'PAID' ? '입금 완료' : '계산서 발행') + ' 수주</b>' : '') + '</div></div>'
+      + '<div style="overflow:auto;padding:8px 16px;flex:1;">'
+      + (j.n_changed ? '<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:4px 6px;">#</th><th style="text-align:left;padding:4px 6px;">품명</th><th style="text-align:left;padding:4px 6px;">바뀌는 값</th></tr></thead><tbody>' + rows + '</tbody></table>'
+                     : '<div style="padding:16px;color:#555;">바뀌는 값이 없습니다(엑셀과 저장된 값이 같습니다).</div>')
+      + (chks ? '<div style="margin-top:10px;padding:8px 10px;background:#fff1f2;border:1px solid #fca5a5;border-radius:6px;font-size:12.5px;"><b style="color:#b91c1c;">⚠ 고친 뒤에도 확인할 줄 ' + j.checks.length + '개</b> (맞게 넣은 것이면 그대로 두셔도 됩니다)' + chks + '</div>' : '')
+      + '</div><div style="padding:10px 16px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">'
+      + '<button type="button" class="btn-mini ow117-x">취소</button>'
+      + (j.n_changed ? '<button type="button" class="btn-mini primary ow117-ok" style="font-weight:700;">이대로 ' + j.n_changed + '줄 고치기</button>' : '')
+      + '</div></div>';
+    document.body.appendChild(box);
+    box.querySelectorAll('.ow117-x').forEach(function(b){ b.onclick = function(){ box.remove(); }; });
+    var ok = box.querySelector('.ow117-ok');
+    if(ok) ok.onclick = async function(){
+      ok.disabled = true; ok.textContent = '저장 중…';
+      var k = await _post117(soId, file, false);
+      if(!k.ok){ ok.disabled = false; ok.textContent = '다시 시도'; alert('저장 못 함\n\n' + (k.message || '알 수 없음')); return; }
+      box.remove();
+      var m = '✅ 값만 고치기 완료 — ' + k.updated + '줄 고침 · 합계 ' + fmt(k.total_old) + ' → ' + fmt(k.total);
+      if(window.KNKBusy) KNKBusy.flashOnReload(m, 'ok'); else alert(m);
+      (window.knkLeaveOk = true, location.reload());
+    };
+  };
+  // z1191z117 ④: 확인할 줄 — 목록 펼치기 · 그 줄로 가기 · 확인할 줄만 보기
+  document.querySelectorAll('.chk117').forEach(function(bx){
+    var card = bx.closest('.so-card');
+    var tg = bx.querySelector('.chk117-list-tg'), ls = bx.querySelector('.chk117-list'), only = bx.querySelector('.chk117-only');
+    card.querySelectorAll('tr[data-chk117]').forEach(function(tr){ tr.title = '⚠ 확인할 줄: ' + tr.getAttribute('data-chk117') + (tr.title ? '\n' + tr.title : ''); });
+    if(tg) tg.onclick = function(){ var on = ls.style.display === 'none'; ls.style.display = on ? '' : 'none'; tg.textContent = on ? '목록 접기 ▴' : '목록 펼치기 ▾'; };
+    if(only) only.onclick = function(){
+      var on = !bx.classList.contains('only-on'); bx.classList.toggle('only-on', on);
+      card.querySelectorAll('tr[data-uid]').forEach(function(tr){ tr.style.display = (on && !tr.hasAttribute('data-chk117')) ? 'none' : ''; });
+      only.textContent = on ? '전체 줄 보기' : '확인할 줄만 보기';
+    };
+    bx.querySelectorAll('.chk117-go').forEach(function(a){ a.onclick = function(e){
+      e.preventDefault();
+      var tr = card.querySelector('tr[data-uid="' + a.dataset.uid + '"]'); if(!tr) return;
+      var refw = card.closest('.ref-sos-wrap'); if(refw) refw.classList.add('open');
+      tr.style.display = ''; tr.scrollIntoView({block: 'center'});
+      tr.style.outline = '3px solid #dc2626'; setTimeout(function(){ tr.style.outline = ''; }, 2500);
+    }; });
+  });
 })();
 </script>
 

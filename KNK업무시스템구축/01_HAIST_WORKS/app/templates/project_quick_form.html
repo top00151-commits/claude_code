@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"/><title>신규 등록 (간편) · KNK</title>
+<html lang="ko"><head><meta charset="UTF-8"/><title>{% if project is defined and project %}프로젝트 수정 · {{ project.mgmt_code or '' }}{% else %}신규 등록 (간편){% endif %} · KNK</title>
 {% include "_v5_partials/styles.html" %}
 {# v5H226z961 (대표 지시): 등록 폼 통화·날짜 규정 통일 — 정식 폼(project_form)과 동일하게 실시간 천단위 콤마(knk_inputs)+공휴일 표시 달력(knk_datepicker). 이 폼은 이미 knkScanMoney를 가드 호출하고 계산부가 콤마를 제거하도록 설계됨(=include만 누락됐던 것). 두 partial은 전역 1회 가드·모든 input[type=date] 자동부착·동적행 대응. #}
 {% include "_v5_partials/knk_inputs.html" %}
@@ -118,6 +118,13 @@ html,body{background:#fff!important;overflow:auto!important;}
       <form id="quickForm" method="post" enctype="multipart/form-data" action="{% if ed %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}">
         {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
         <input type="hidden" name="quick" value="1">
+  {% if ed and (sos117|default([]))|length > 1 %}{# z1191z117k: 고치는 수주 고르기(안지연 프로 「E-260624-1 단위 식→SET」) #}
+  <div class="so117-pick" style="margin:0 0 10px;padding:9px 12px;border:2px solid #f97316;background:#fff7ed;border-radius:8px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+    <b style="color:#9a3412;">✏️ 고치는 수주:</b>
+    {% for s in sos117 %}<a href="/projects/{{ project.id }}/quick-edit?so={{ s.no|urlencode }}" style="padding:3px 10px;border-radius:14px;text-decoration:none;font-weight:700;{% if s.no == so_no %}background:#c2410c;color:#fff;{% else %}background:#fff;color:#9a3412;border:1px solid #fdba74;{% endif %}">{{ s.no }}{% if s.form %} <span style="font-weight:500;font-size:11px;">{{ s.form }}</span>{% endif %}</a>{% endfor %}
+    <span style="color:#7c2d12;font-size:12px;">— 수량 단위·납품처·발주일·납기는 이 수주에만 저장</span>
+  </div>
+  {% endif %}
         {% if not ed and reg_lock %}<input type="hidden" name="lock_token" id="qLockTok" value="{{ reg_lock.token }}">{# z1191z57 #}
         <div id="qLockCover" class="z57-cover"{% if reg_lock.held %} hidden{% endif %}>
           <div class="z57-card">
@@ -415,7 +422,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="CNY" {% if ed and project.currency == 'CNY' %}selected{% endif %}>¥ CNY (위안)</option><option value="EUR" {% if ed and project.currency == 'EUR' %}selected{% endif %}>€ EUR (유로)</option>
             </select>
           </div>
-          <div class="qf-f c3" id="qTopPriceCell"><label>단가</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="무상이면 0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>
+          <div class="qf-f c3" id="qTopPriceCell"><label>단가 {% if not ed %}<label style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;font-weight:600;color:#92400e;cursor:pointer;" title="단가가 아직 정해지지 않았으면 체크 — 단가를 비워도 등록되고, 작업일정표에 [무상] 대신 [미정]으로 보입니다. 정해지면 상세·작업일정표에서 단가를 넣으세요."><input type="checkbox" name="price_tbd" value="1" id="qPriceTbd" onchange="qTbd117()" style="margin:0;"> 단가 미정</label>{% endif %}</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="무상이면 0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>{# z1191z117 ⑤ #}
           <div class="qf-f c4" id="qTopAmtCell"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0" value="{{ project.order_amount|round|int if (ed and project.order_amount) else '' }}"></div>
           <div class="qf-f c4" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위=?원)</label>
             <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350" value="{{ project.fx_rate if (ed and project.fx_rate) else '' }}"></div>
@@ -599,6 +606,13 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
         </div>
         {% endif %}
+        {% if ed %}<input type="hidden" name="target_so" form="quickForm" value="{{ so_no|default('') }}">{% endif %}{# z1191z117k: 수주별 값(수량 단위·납품처·발주일·납기)을 저장할 수주 #}
+        {% if ed and (so_cnt117|default(0)) > 1 %}
+        <div style="margin-top:10px;padding:8px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:6px;font-size:12.5px;color:#92400e;">
+          📎 이 관리번호에는 수주가 <b>{{ so_cnt117 }}건</b> — 고객사·프로젝트명·모델·장비·담당자는 <b>관리번호 공통</b>, 수량 단위·납품처·발주일·납기는 위에서 고른 <b>수주 {{ so_no }}</b>에만 저장됩니다.
+          수량·단가·금액(줄 값)은 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 고칩니다.
+        </div>
+        {% endif %}
         {% if ed %}
         {# v5H226z354(대표 지시): 복잡 건 안전망 — 추가 품목·호기별 금액·부모 프로젝트 연결은 빠른 폼에 아직 없음 → 정식 폼으로 진입 #}
         <div style="margin-top:10px;font-size:12px;color:var(--qv-ink-3);">
@@ -758,7 +772,40 @@ function qItemRowHtml(){
 function qItemNum(v){ return Number(String(v==null?'':v).replace(/[^0-9.-]/g,''))||0; }
 /* z1171 (이새롬 프로 요청 · 대표 「0을 적으면 무상」 2026-10-13): 금액 칸을 **비워 두면** 아직 안 적은 것(막는다) ·
    **0을 적으면** 무상(통과). 빈칸과 0을 가르는 곳은 이 함수 하나 — 서버 /projects/new 도 같은 규칙(z1171). */
-function qPriceGiven(el){ return !!el && String(el.value==null?'':el.value).replace(/,/g,'').trim()!==''; }
+function qPriceGiven(el){ if(qTbdOn117()) return true; return !!el && String(el.value==null?'':el.value).replace(/,/g,'').trim()!==''; }
+/* z1191z117k: 수정 화면 — 고른 수주의 값으로 채우고, 수량·단가·금액(수주 줄 값)은 보기만 */
+{% if ed and tso117 %}
+document.addEventListener('DOMContentLoaded', function(){
+  var T = {{ tso117|tojson }};
+  var f = document.getElementById('quickForm'); if(!f) return;
+  {% if (so_cnt117|default(0)) > 1 %}
+  var od = f.querySelector('[name=order_date]'), dd = f.querySelector('[name=due_date]');
+  if(od && T.order_date) od.value = T.order_date; if(dd && T.due_date) dd.value = T.due_date;
+  {% endif %}
+  var g = document.getElementById('qQtyAmtGroup');
+  if(g && !document.getElementById('qSo117Hint')){
+    var d = document.createElement('div'); d.id = 'qSo117Hint';
+    d.setAttribute('style', 'margin:4px 0 0;font-size:11.5px;color:#9a3412;');
+    d.textContent = 'ⓘ 수주 ' + T.no + ' 는 ' + (T.qty || '') + ' ' + (T.unit || '') + ' — 수량·단가·금액은 수주 줄 값이라 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 고칩니다.';
+    g.appendChild(d);
+  }
+});
+{% endif %}
+/* z1191z117 ⑤ (안지연 프로 요청): ☐ 단가 미정 — 체크하면 단가 칸을 비워도 등록(0 으로 저장 · 작업일정표 [미정]) */
+function qTbdOn117(){ var c=document.getElementById('qPriceTbd'); return !!(c && c.checked); }
+function qTbd117(){
+  var on=qTbdOn117();
+  document.querySelectorAll('#qUnitPrice, #qAmount, #qUnitRows .qf-unit-amt, #qItemRows .qi-price').forEach(function(el){
+    if(on){ if(String(el.value||'').replace(/,/g,'').trim()==='' || el.value==='0') el.value=''; el.placeholder='미정'; el.dataset.tbd117='1'; }
+    else if(el.dataset.tbd117){ el.placeholder = el.id==='qAmount' ? '0' : '무상이면 0'; delete el.dataset.tbd117; }
+  });
+}
+document.addEventListener('submit', function(e){
+  if(!qTbdOn117() || !e.target || e.target.id!=='quickForm') return;
+  document.querySelectorAll('#qUnitPrice, #qAmount, #qUnitRows .qf-unit-amt, #qItemRows .qi-price').forEach(function(el){
+    if(String(el.value||'').replace(/,/g,'').trim()==='') el.value='0';
+  });
+}, true);
 function qItemCalc(){
   var box=document.getElementById('qItemRows');
   var rows=box?box.querySelectorAll('.qi-row'):[];

@@ -1270,6 +1270,8 @@ def get_project_orders(c, project_id: int) -> list[dict]:
         extra.append("board_unit")
     if "board_qty" in cols:   # z1191z89: 등록 때 적은 「작업일정표 수량」 — SO 카드·프로젝트 정보 수량이 일정표와 같은 수
         extra.append("board_qty")
+    if "price_tbd" in cols:   # z1191z117 ⑤: 단가 미정
+        extra.append("price_tbd")
     extra_sql = (", " + ", ".join(extra)) if extra else ""
     # v5H226z202 (대표 지시): 수주(SO)별 발주처 표시 — customer_id + 고객사명(서브쿼리)
     rows = c.execute(

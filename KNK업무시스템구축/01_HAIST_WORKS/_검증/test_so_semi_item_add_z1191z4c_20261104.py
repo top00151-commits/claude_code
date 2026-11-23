@@ -89,7 +89,7 @@ def main():
     print("§1 화면 — 혼합 프로젝트(완제품 + 제품)")
     # 작업일정표에서 그 수주를 눌러 들어온 것처럼(?so=) — 이새롬 프로 화면과 같다(그 수주가 편집 카드)
     h = cl.get("/project/%d?so=T-269997-2" % pid).text
-    i_b, i_a = h.find('<div class="so-card editable" data-soid="%d"' % ob), h.find('<div class="so-card ref-so" data-soid="%d"' % oa)
+    i_b, i_a = h.find('<div class="so-card editable" data-soid="%d"' % ob), h.find('<div class="so-card editable ref-so" data-soid="%d"' % oa)   # z1191z117: 참고 수주도 편집 카드
     check("제품 수주가 편집 카드 · 완제품 수주는 참고 카드", 0 < i_b < i_a, (i_b, i_a))
     cb = h[i_b:i_a]
     check("제품 수주 카드 단추 = 「＋ 품목 추가」(「＋ 호기 추가」 없음)", ">＋ 품목 추가</button>" in cb and "＋ 호기 추가" not in cb)
@@ -137,7 +137,7 @@ def main():
         qa = c.execute("SELECT unit_qty FROM orders WHERE id=?", (oa,)).fetchone()[0]
     ha = cl.get("/project/%d" % pid).text
     ca = ha[ha.find('<div class="so-card editable" data-soid="%d"' % oa):]
-    ca = ca[:ca.find('<div class="so-card ref-so"')]
+    ca = ca[:ca.find('<div class="so-card editable ref-so"')]   # z1191z117
     check("완제품 수주 카드(기본 진입)는 「＋ 호기 추가」 · 「수량 3대」 그대로(위에서 2대 더함)", ">＋ 호기 추가</button>" in ca and "수량 <b>3대</b>" in ca and "＋ 품목 추가" not in ca, (re.findall(r"add-unit\">[^<]*<", ca), re.findall(r"수량 <b>[^<]*</b>|품목 <b>[^<]*</b>", ca), len(ca)))
     check("완제품 수주 호기 추가는 예전 그대로(2대 = 2줄 · N호기 · 대수 3)",
           r.json().get("ok") and len(la) == 3 and all(x.endswith("호기") for x in la) and qa == 3, (la, qa))

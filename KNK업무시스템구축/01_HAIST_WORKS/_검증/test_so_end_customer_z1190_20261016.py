@@ -178,13 +178,13 @@ with contextlib.redirect_stdout(io.StringIO()):
 check("10 상세 화면: 수주 카드마다 「🌐 2차」", h.count("🌐 2차") == len(orders_of(P["id"])), (h.count("🌐 2차"), len(orders_of(P["id"]))))
 check("   적힌 2차는 굵게 · 같은 고객은 「가상최종A (프로젝트)」 · 다른 경로 빈칸은 —",
       "가상드림 베트남</b>" in h and "가상최종A (프로젝트)" in h, (h.count("가상드림 베트남"), h.count("(프로젝트)")))
-check("   수정 칸은 메인(편집) 카드 1장에만(나머지 추가 수주는 「📎 참고」 보기 전용 카드)", h.count('data-field="end_customer"') == 1,
+check("   수정 칸은 수주 카드마다(z1191z117: 참고 수주도 그 자리에서 고침 · 취소 수주 제외)", h.count('data-field="end_customer"') == len([o for o in orders_of(P["id"]) if str(o.get("status") or "").upper() != "CANCELLED"]),
       h.count('data-field="end_customer"'))
 with contextlib.redirect_stdout(io.StringIO()):
     h3 = cl.get("/project/%d?so=%s" % (P["id"], F3["order_no"])).text
 m3 = re.search(r'<div class="so-card editable" data-soid="(\d+)"', h3)
 check("   ?so=수주번호 로 열면 그 수주가 편집 카드 · 2차 수정 칸 있음(z695)", bool(m3) and m3.group(1) == str(F3["id"])
-      and h3.count('data-field="end_customer"') == 1, (m3 and m3.group(1), F3["id"]))
+      and h3.count('data-field="end_customer"') == len([o for o in orders_of(P["id"]) if str(o.get("status") or "").upper() != "CANCELLED"]), (m3 and m3.group(1), F3["id"]))   # z1191z117: 카드마다 수정 칸
 with contextlib.redirect_stdout(io.StringIO()):
     hs = cl.get("/sales/schedule?ym=2026-10").text
 check("11 작업일정표 화면(/sales/schedule): 「가상드림 베트남」 보임", "가상드림 베트남" in hs, hs.count("가상드림 베트남"))

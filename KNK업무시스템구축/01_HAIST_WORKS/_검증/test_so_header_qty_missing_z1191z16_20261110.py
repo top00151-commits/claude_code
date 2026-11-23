@@ -111,7 +111,7 @@ check(re.search(r"<dt>형태 <span class=\"hso-tag\"[^>]*>\(수주\)</span></dt>
 check(re.search(r"<dt>PO유형 <span class=\"hso-tag\"", dl) is not None and "추가" in dl, "PO유형 = 추가(수주)")
 check("⚠ 수량 미입력" in dl, "수량(수주) = ⚠ 수량 미입력")
 check(dl.count('class="hso-tag"') >= 7, "(수주) 표시 칸 7개 이상 — %d" % dl.count('class="hso-tag"'))
-check(('href="/projects/%d/edit?so=%s"' % (P["id"], S2["order_no"])) in h, "「프로젝트 정보 수정」 단추 = 보던 수주를 고른 채로(?so=) — 안지연 프로 순서 재검증에서 찾음")
+check(('href="/projects/%d/quick-edit?so=%s"' % (P["id"], S2["order_no"])) in h, "「프로젝트 정보 수정」 단추 = 보던 수주를 고른 채로(?so=) — 안지연 프로 순서 재검증에서 찾음")
 hr = q(cl.get, "/project/%d?so=%s&hdr=rep" % (P["id"], S2["order_no"])).text
 dlr = hr.split("<h3>프로젝트 정보</h3>")[1].split("</dl>")[0]
 check("관리번호 대표값</b>을 보는 중" in dlr and "<dd>대표모델</dd>" in dlr and 'class="hso-tag"' not in dlr, "?hdr=rep → 관리번호 대표값 · 「수주 … 기준으로 보기」")

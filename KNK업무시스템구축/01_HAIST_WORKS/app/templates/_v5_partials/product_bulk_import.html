@@ -120,7 +120,10 @@
     }
     var errBox = document.getElementById('pbErrors');
     var errs = (j.errors||[]).slice();
-    if(errs.length){ errBox.style.display='block'; errBox.innerHTML = errs.map(function(e){ return '⚠ ' + pbEsc(e); }).join('<br>'); }
+    var _ck117 = (j.checks||[]);   // z1191z117 ④: 잘못 넣었을 수 있는 줄(막지 않음 — 맞으면 그대로 등록)
+    var _ckHtml = _ck117.length ? ('<div style="margin-top:' + (errs.length?'6':'0') + 'px;color:#9a3412;"><b>⚠ 확인할 줄 ' + _ck117.length + '개</b> — 맞게 넣은 것이면 그대로 등록하셔도 됩니다'
+        + '<div style="max-height:160px;overflow:auto;margin-top:3px;">' + _ck117.map(function(c){ return '<div>· <b>' + c.no + '번 ' + pbEsc(c.name) + '</b> — ' + pbEsc(c.msgs.join(' · ')) + '</div>'; }).join('') + '</div></div>') : '';
+    if(errs.length || _ck117.length){ errBox.style.display='block'; errBox.innerHTML = errs.map(function(e){ return '⚠ ' + pbEsc(e); }).join('<br>') + _ckHtml; }
     else { errBox.style.display='none'; errBox.innerHTML=''; }
     var tb = document.querySelector('#pbTable tbody');
     tb.innerHTML = '';

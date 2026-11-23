@@ -3897,6 +3897,8 @@ def init_db():
                 #   표시 전용 — 금액·매출 계산에 일절 안 씀. NULL=미입력(작업일정표는 기존 품명별 줄 유지).
                 ("board_qty",          "ALTER TABLE orders ADD COLUMN board_qty INTEGER"),
                 ("board_unit",         "ALTER TABLE orders ADD COLUMN board_unit TEXT"),
+                # z1191z117 ⑤ (안지연 프로 요청): 단가 미정 — 1 이고 금액 0 인 동안 작업일정표에 [무상] 대신 [미정]
+                ("price_tbd",          "ALTER TABLE orders ADD COLUMN price_tbd INTEGER DEFAULT 0"),
             ]:
                 if col not in ocols:
                     try:

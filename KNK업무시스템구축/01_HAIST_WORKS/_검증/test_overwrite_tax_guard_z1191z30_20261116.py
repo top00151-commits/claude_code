@@ -130,13 +130,13 @@ btns = re.findall(r'<button[^>]*onclick="knkOwClick\((\d+), \'([^\']*)\', \'repl
 cls = {int(m[0]): m for m in btns}
 raw = {int(m.group(1)): m.group(0) for m in re.finditer(r'<button[^>]*onclick="knkOwClick\((\d+), \'[^\']*\', \'replace\', this\)"[^>]*>', h)}
 # 「전체 교체」 단추는 최초 수주 카드(A)에만 그려진다(참고 수주 카드는 읽기 전용 — 기존 화면 규칙)
-check(list(raw.keys()) == [SA] and "ow-tax-issued" in raw[SA], "발행된 수주(A) 「전체 교체」 단추 = ow-tax-issued", list(raw.keys()))
+check(SA in raw and "ow-tax-issued" in raw[SA], "발행된 수주(A) 「전체 교체」 단추 = ow-tax-issued(z1191z117: 참고 수주 카드에도 단추가 있음)", list(raw.keys()))
 with D.db_session() as c:
     c.execute("UPDATE order_items SET tax_invoice_date=NULL, tax_invoice_amt1=NULL WHERE order_id=?", (SA,))
 h2 = q(cl.get, "/project/%d" % P).text
 raw2 = {int(m.group(1)): m.group(0) for m in re.finditer(r'<button[^>]*onclick="knkOwClick\((\d+), \'[^\']*\', \'replace\', this\)"[^>]*>', h2)}
 check(SA in raw2 and "ow-tax-issued" not in raw2[SA], "발행 기록을 지우면 단추 표시도 사라짐(지금처럼 교체 가능)", raw2.get(SA, "")[-120:])
-check("btn.classList.contains('ow-tax-issued')" in h and "세금계산서가 발행 완료된 항목입니다" in h, "knkOwClick — 표시된 단추면 파일 고르기 전에 안내 후 멈춤")
+check("btn.classList.contains('ow-tax-issued')" in h and "세금계산서가 발행된 수주입니다" in h and "mode = 'update'" in h, "knkOwClick — 표시된 단추면 파일 고르기 전에 안내 → 「값만 고치기」로(z1191z117 · 줄·발행 기록 그대로)")
 add_btns = re.findall(r'onclick="knkOwClick\((\d+), \'[^\']*\', \'add\'\)"', h)
 check(str(SA) in add_btns, "「부품 추가」 단추는 그대로(발행된 수주도)")
 

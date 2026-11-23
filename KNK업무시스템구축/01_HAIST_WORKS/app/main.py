@@ -544,6 +544,93 @@ def _so_qty_lines_z89(so) -> int:
     return _s
 
 
+# z1191z117 ①: 입금 완료(PAID)·계산서 발행(INVOICED) 수주 = 「닫힌 수주」. 화면 [✏️ 수정]에서 한 번 확인하면 고칠 수 있다.
+#   (취소 수주는 그대로 못 고침.) 확인 표시 = 요청 머리 X-KNK-Closed-OK: 1 (또는 폼 closed_ok=1).
+_Z117_CLOSED = ("INVOICED", "PAID")
+
+
+def _closed_ok_z117(req, form=None) -> bool:
+    try:
+        if str(req.headers.get("x-knk-closed-ok") or "").strip() == "1":
+            return True
+    except Exception:
+        pass
+    try:
+        return form is not None and str(form.get("closed_ok") or "").strip() == "1"
+    except Exception:
+        return False
+
+
+def _closed_msg_z117(st: str) -> str:
+    _k = "입금 완료" if st == "PAID" else "계산서 발행"
+    return (f"{_k}된 수주입니다 — 프로젝트 상세에서 [✏️ 수정]을 눌러 「입금 완료 수주 고치기」를 확인한 뒤 고쳐 주세요. "
+            "(세금계산서·입금 기록은 그대로 남습니다)")
+
+
+def _quick_target_so_z117(c, pid, so_no):
+    """z1191z117k: 수정 화면(등록과 같은 화면)이 고치는 수주 — 그 프로젝트의 취소 아닌 수주 중 수주번호가 맞는 것 · 없으면 최신."""
+    _n = str(so_no or "").strip()
+    if _n:
+        r = c.execute("SELECT id FROM orders WHERE project_id=? AND order_no=? AND COALESCE(status,'')<>'CANCELLED'", (pid, _n)).fetchone()
+        if r:
+            return r[0]
+    r = c.execute("SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
+    return r[0] if r else None
+
+
+def _price_tbd_col_z117(c):
+    try:
+        if "price_tbd" not in {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}:
+            c.execute("ALTER TABLE orders ADD COLUMN price_tbd INTEGER DEFAULT 0")
+        return True
+    except Exception as _e:
+        print(f"[z1191z117 price_tbd col] {_e}")
+        return False
+
+
+def _tbd_mark_z117(form, pid, maxoid):
+    """⑤: 등록 화면 ☐ 단가 미정 → 이번에 새로 생긴 수주(id > 등록 전 최대)에 price_tbd=1."""
+    try:
+        if str(form.get("price_tbd") or "").strip() != "1" or maxoid is None or not pid:
+            return
+        with db_session() as c:
+            if _price_tbd_col_z117(c):
+                c.execute("UPDATE orders SET price_tbd=1 WHERE project_id=? AND id>?", (int(pid), int(maxoid)))
+    except Exception as _e:
+        print(f"[z1191z117 price_tbd mark] {_e}")
+
+
+def _board_sum_z117(c, oid):
+    """수주 하나의 (board_qty, 품목 줄 수량 합)."""
+    try:
+        _b = c.execute("SELECT board_qty FROM orders WHERE id=?", (oid,)).fetchone()
+        _b = int(float((_b[0] if _b else 0) or 0))
+    except Exception:
+        _b = 0
+    try:
+        _s = c.execute("SELECT COALESCE(SUM(qty),0) FROM order_items WHERE order_id=?", (oid,)).fetchone()
+        _s = int(round(float((_s[0] if _s else 0) or 0)))
+    except Exception:
+        _s = 0
+    return _b, _s
+
+
+def _board_follow_z117(c, oid, before):
+    """⑦-1: 고치기 전 작업일정표 수량(board_qty)이 줄 합과 같았으면(맞아 있던 것) 새 줄 합으로 같이 바꾼다.
+    처음부터 달랐던 것(일부러 다르게 적은 표시 수량)은 건드리지 않는다. 바뀌면 (전, 후) 를 돌려준다."""
+    try:
+        _b0, _s0 = before or (0, 0)
+        if not _b0 or _b0 != _s0:
+            return None
+        _b1, _s1 = _board_sum_z117(c, oid)
+        if _s1 > 0 and _s1 != _b0:
+            c.execute("UPDATE orders SET board_qty=? WHERE id=?", (_s1, oid))
+            return (_b0, _s1)
+    except Exception as _e:
+        print(f"[z1191z117 board_qty] {_e}")
+    return None
+
+
 def _so_qty_note_z89(so) -> str:
     """등록 때 적은 수량(board_qty)과 줄 합이 다르면 「(품목 줄 합 N)」 — 숫자를 숨기지 않는다."""
     so = so or {}
@@ -919,6 +1006,21 @@ def _ti_so_issued_tpl(oid):
 
 
 tpl.env.globals["ti_so_issued"] = _ti_so_issued_tpl
+
+
+def _z117_parts_checks_tpl(so, ccy="KRW"):
+    """z1191z117 ④: 상세 화면 상품 표 — 줄 id → [문구…] (화면 줄 순서 = id 순)."""
+    try:
+        _us = sorted(list((so.get("units") if hasattr(so, "get") else getattr(so, "units", None)) or []), key=lambda x: (x.get("id") or 0))
+        _fx = str(ccy or "KRW").upper() != "KRW"
+        _r = _parts_checks_z117(_us, fx_line=lambda _x: _fx)
+        return {_us[i].get("id"): m for i, m in _r.items()}
+    except Exception as _e:
+        print(f"[z1191z117 checks tpl] {_e}")
+        return {}
+
+
+tpl.env.globals["z117_parts_checks"] = _z117_parts_checks_tpl
 tpl.env.globals["ti_json"] = _ti_json
 tpl.env.globals["ti_bundle_json"] = _ti_bundle_json
 tpl.env.globals["ti_cell_html"] = _ti_cell_html
@@ -2042,83 +2144,8 @@ def _maybe_vacuum_mail_db():
         print(f"[MAIL-FETCH-AUTO VACUUM ERR] {e}")
 
 
-# 11-23 대표 「아웃룩처럼 '보내기/받기' — 눌러서 바로」: 한 사람 메일을 동시에 두 번 받지 않게 잠금
-#   (자동 타이머 · 일꾼 둘 · 「보내기/받기」 단추가 겹쳐도 하이웍스에 한 번씩만 붙음)
-#   같은 프로세스 = 스레드 잠금 · 일꾼끼리 = 데이터 폴더의 잠금 파일(리눅스 flock · 윈도 시험 PC 는 스레드 잠금만)
-import threading as _mf_thr
-_MF_LOCKS = {}
-_MF_LOCKS_G = _mf_thr.Lock()
-
-
-class _MailFetchLock:
-    def __init__(self, owner_id, wait=0):
-        self.oid = int(owner_id)
-        self.wait = max(0.0, float(wait or 0))
-        self.got = False
-        self._f = None
-        self._tl = None
-
-    def __enter__(self):
-        import time as _t
-        with _MF_LOCKS_G:
-            self._tl = _MF_LOCKS.setdefault(self.oid, _mf_thr.Lock())
-        t_end = _t.time() + self.wait
-        if not (self._tl.acquire(timeout=self.wait) if self.wait > 0 else self._tl.acquire(False)):
-            return self
-        try:
-            import fcntl as _fc
-        except ImportError:
-            _fc = None
-        if _fc is not None:
-            try:
-                from .database import DB_PATH as _dbp
-                self._f = open(os.path.join(os.path.dirname(_dbp), ".mail_fetch_%d.lock" % self.oid), "a")
-            except Exception as e:
-                print("[MAIL-FETCH] 잠금 파일 못 엶(스레드 잠금만): %s" % str(e)[:120], flush=True)
-                self._f = None
-            if self._f is not None:
-                while True:
-                    try:
-                        _fc.flock(self._f.fileno(), _fc.LOCK_EX | _fc.LOCK_NB)
-                        break
-                    except OSError:
-                        if _t.time() >= t_end:
-                            self._f.close()
-                            self._f = None
-                            self._tl.release()
-                            return self
-                        _t.sleep(0.5)
-        self.got = True
-        return self
-
-    def __exit__(self, *a):
-        if self._f is not None:
-            try:
-                import fcntl as _fc
-                _fc.flock(self._f.fileno(), _fc.LOCK_UN)
-            except Exception:
-                pass
-            try:
-                self._f.close()
-            except Exception:
-                pass
-            self._f = None
-        if self.got:
-            self.got = False
-            self._tl.release()
-        return False
-
-
-def _mailfetch_run_owner(owner_id, wait=0, label="자동 가져오기"):
-    """잠금을 잡고 한 계정 받기. 다른 곳에서 받는 중이면 wait 초까지 기다리고, 그래도 안 되면 (False, 0, "busy")."""
-    with _MailFetchLock(owner_id, wait) as lk:
-        if not lk.got:
-            return (False, 0, "busy")
-        return _mailfetch_run_owner_locked(owner_id, label)
-
-
-def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
-    """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드·「보내기/받기」 단추(스레드풀)에서 호출).
+def _mailfetch_run_owner(owner_id):
+    """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드에서 호출).
     /admin/mail-fetch/run 과 동일 수집·적재 로직의 '자동판'. 반환 (ok, stored, msg)."""
     from . import mail_fetch as _mailfetch
     with db_session() as c:
@@ -2151,7 +2178,7 @@ def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
                     _mailfetch.end_import(c, owner_id)   # 남은 지난 메일 없음 → 다음부터 보통 받기
     if not res.get("ok"):
         with db_session() as c:
-            _mailfetch.set_status(c, owner_id, status=("자동 실패: " if label == "자동 가져오기" else label + " 실패: ") + (res.get("error", "") or "")[:200])
+            _mailfetch.set_status(c, owner_id, status="자동 실패: " + (res.get("error", "") or "")[:200])
         return (False, 0, res.get("error", ""))
     # 소유자 사용자 dict → AI 분류 가능 여부 판정(수동 run 과 동일)
     with db_session() as c:
@@ -2191,10 +2218,10 @@ def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
                 pass
         if protocol == "imap":
             _mailfetch.set_status(c, owner_id, last_uid=res.get("max_uid", acct.get("last_uid") or 0),
-                                  status="%s %d건" % (label, stored), count=stored)
+                                  status="자동 가져오기 %d건" % stored, count=stored)
         else:
             _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
-            _mailfetch.set_status(c, owner_id, status="%s %d건" % (label, stored), count=stored)
+            _mailfetch.set_status(c, owner_id, status="자동 가져오기 %d건" % stored, count=stored)
         # [z521 핫픽스] 자동 중복정리 비활성화 — 가져오기 트랜잭션(db_session) 안에서 받은편지함
         # 전체 백필+대량삭제를 돌리면 긴 쓰기 락이 걸려, 그 사이 로그인(sso_land→upsert_user)이
         # 'database is locked' 로 실패함. 잠금 안 걸리는 방식(busy_timeout·소량 배치·짧은 전용
@@ -20617,15 +20644,34 @@ async def sales_order_item_edit(req: Request, iid: int):
         if "ship_to" not in form:
             u_ship = it["old_oi_ship"] or None
         st = (it["status"] or "").upper()
-        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
-            return JSONResponse({
-                "ok": False,
-                "message": f"{st} 상태 SO 의 호기는 수정 불가"
-            }, 400)
+        if st == "CANCELLED":
+            return JSONResponse({"ok": False, "message": "취소된 수주의 줄은 고칠 수 없습니다"}, 400)
+        _closed117 = st in _Z117_CLOSED
+        if _closed117 and not _closed_ok_z117(req, form):   # z1191z117 ①: 입금 완료·계산서 발행 수주 = 화면에서 확인 후 고침
+            return JSONResponse({"ok": False, "need_closed_ok": True, "message": _closed_msg_z117(st)}, 409)
         # v5H226z407: 동시 편집 감지(호기 라인 — 낙관적 잠금)
         _conf, _cur = _edit_conflict(c, "order_items", iid, form.get("base_ts"))
         if _conf:
             return _conflict_resp(_cur)
+        _bq_before117 = _board_sum_z117(c, it["order_id"])   # z1191z117 ⑦-1
+        # z1191z117 ⑦-2: 상품 줄(부품) — 단가·수량·인보이스 중 하나만 바뀌어도 금액(=수량×단가)·인보이스를 함께 맞춘다.
+        try:
+            _oic117 = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
+            _sel117 = ["oi.qty", "oi.unit_price", "oi.amount"] + [("oi." + k) if k in _oic117 else ("NULL AS " + k) for k in
+                       ("sell_krw", "fx_rate", "invoice_unit_price_usd", "invoice_amount_usd", "currency")]
+            _r117 = c.execute("SELECT " + ", ".join(_sel117) + ", COALESCE(o.so_type,'') AS so_type, "
+                              "COALESCE(p.shipment_form,'') AS sf FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                              "LEFT JOIN projects p ON p.id=o.project_id WHERE oi.id=?", (iid,)).fetchone()
+            _r117 = dict(_r117) if _r117 else {}
+        except Exception as _e117:
+            print(f"[z1191z117 parts sync read] {_e117}"); _r117 = {}
+        _parts117 = (str(_r117.get("so_type") or "").upper() == "PARTS_EXPORT") or (str(_r117.get("sf") or "").upper() == "PARTS")
+        _lccy117 = (str(_r117.get("currency") or "").strip().upper() or str(it["o_ccy"] or "KRW").upper())
+        _fxline117 = _parts117 and _lccy117 != "KRW"
+        _old_qty117 = float(_r117.get("qty") or 0)
+        _old_up117 = _r117.get("unit_price")
+        _old_inv117 = _r117.get("invoice_unit_price_usd")
+        _old_sell117 = _r117.get("sell_krw")
         # v5H177: order_items 에 override 컬럼이 있을 때만 같이 업데이트 (백워드 호환)
         try:
             _oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
@@ -20650,6 +20696,37 @@ async def sales_order_item_edit(req: Request, iid: int):
             _up_for_save = amt if u_unit_price == "__SKIP__" else u_unit_price
             if u_unit_price == "__SKIP__" and not _has_amt10:   # z1191z10: 금액·단가 둘 다 안 보냄 = 단가 그대로
                 _up_for_save = it["old_up"]
+            # z1191z117 ⑦-2: 상품 줄은 「단가 × 수량 = 금액」 · 외화면 「단가 = 인보이스 단가(2자리)」를 늘 같이 저장.
+            #   예전: 판매가(원)만 고치면 단가(USD)=판매가÷환율(4자리)만 바뀌고 인보이스·금액은 옛 값 → 화면 단가 ≠ 인보이스(안지연 프로 「업로드 오류」).
+            if _parts117:
+                _inv_sent117 = (u_inv_up_usd != "__SKIP__" and u_inv_up_usd is not None)
+                _up_sent117 = (u_unit_price != "__SKIP__" and u_unit_price is not None)
+                _q117 = float(u_qty) if (u_qty is not None) else (_old_qty117 or 1.0)
+                if _q117 <= 0:
+                    _q117 = 1.0
+                _new_up117 = None
+                if _fxline117 and _inv_sent117:
+                    _new_up117 = round(float(u_inv_up_usd), 2)
+                elif _up_sent117:
+                    _new_up117 = round(float(u_unit_price), 2) if _fxline117 else float(u_unit_price)
+                elif u_qty is not None and abs(_q117 - _old_qty117) > 1e-9:
+                    _new_up117 = (round(float(_old_inv117), 2) if (_fxline117 and _old_inv117 not in (None, "")) else
+                                  (float(_old_up117) if _old_up117 not in (None, "") else None))
+                elif _has_amt10:
+                    # 금액만 고친 상품 줄: 예전엔 단가 = 금액(수량 2 이상이면 단가가 수량배로 커짐) → 단가 = 금액 ÷ 수량
+                    _up_for_save = round(amt / _q117, 4)
+                    if _fxline117:
+                        u_inv_up_usd = round(amt / _q117, 2)
+                        if u_inv_amt_usd == "__SKIP__" or u_inv_amt_usd is None:
+                            u_inv_amt_usd = amt
+                if _new_up117 is not None:
+                    _up_for_save = _new_up117
+                    if not _has_amt10 or _inv_sent117 or _up_sent117 or (u_qty is not None):
+                        amt = _logi.money_r2(_q117 * _new_up117)
+                    if _fxline117:
+                        u_inv_up_usd = _new_up117
+                        if u_inv_amt_usd == "__SKIP__" or u_inv_amt_usd is None:
+                            u_inv_amt_usd = amt
             cols_set = ["unit_label=?", "unit_price=?", "amount=?", "line_note=?",
                         "order_date=?", "due_date=?", "ship_to=?"]
             vals_set = [_lbl_to_save, _up_for_save, amt, note or None, ov_o, ov_d, ov_s]
@@ -20723,6 +20800,11 @@ async def sales_order_item_edit(req: Request, iid: int):
         new_label = " · ".join((r["unit_label"] or f"호기 {i+1}") for i, r in enumerate(rows))
         c.execute("UPDATE orders SET total_amount=?, unit_label=?, updated_at=datetime('now','localtime') WHERE id=?",
                   (new_total, new_label, oid))
+        _bq_chg117 = _board_follow_z117(c, oid, _bq_before117)   # z1191z117 ⑦-1: 작업일정표 수량도 따라감
+        _warn117 = ""
+        if _closed117 and abs(float(it["old_total"] or 0) - new_total) > (0.5 if (it["o_ccy"] or "KRW") == "KRW" else 0.005):
+            _warn117 = (f"수주 합계가 바뀌었습니다({float(it['old_total'] or 0):,.2f} → {new_total:,.2f}) — "
+                        "입금 완료·계산서 발행 수주이니 세금계산서·입금 금액을 확인해 주세요.")
         # 프로젝트 합계 동기화
         try:
             pid = it["project_id"]
@@ -20736,12 +20818,20 @@ async def sales_order_item_edit(req: Request, iid: int):
             old_amt = float(it["old_amt"] or 0)
             old_total = float(it["old_total"] or 0)
             parts = [f"호기 라인 수정 [{old_lbl}"]
-            if old_lbl != (label or "—"):
-                parts.append(f"→ {label or '—'}")
+            if (_lbl_to_save or "—") != old_lbl:   # z1191z117 ⑦-3: 라벨을 안 보낸 줄에 「→ —」가 찍히던 것
+                parts.append(f"→ {_lbl_to_save or '—'}")
             parts.append("]")
             change_msgs = []
-            if abs(old_amt - amt) > 0.5:
-                change_msgs.append(f"단가 {old_amt:,.0f} → {amt:,.0f}")
+            if _closed117:
+                change_msgs.append("입금 완료·계산서 발행 수주 정정(확인함)")
+            if abs(old_amt - amt) > (0.5 if (it["o_ccy"] or "KRW") == "KRW" else 0.005):
+                change_msgs.append(f"금액 {old_amt:,.2f} → {amt:,.2f}" if (it["o_ccy"] or "KRW") != "KRW" else f"단가 {old_amt:,.0f} → {amt:,.0f}")
+            if u_qty is not None and abs(float(u_qty) - _old_qty117) > 1e-9:
+                change_msgs.append(f"수량 {_old_qty117:g} → {float(u_qty):g}")
+            if _parts117 and _old_up117 not in (None, "") and abs(float(_up_for_save or 0) - float(_old_up117)) > 0.0001:
+                change_msgs.append(f"단가 {float(_old_up117):,.4g} → {float(_up_for_save or 0):,.4g}")
+            if u_sell_krw != "__SKIP__" and u_sell_krw is not None and float(u_sell_krw) != float(_old_sell117 or 0):
+                change_msgs.append(f"판매가(원) {float(_old_sell117 or 0):,.0f} → {float(u_sell_krw):,.0f}")
             old_note_v = it["old_note"] or ""
             if old_note_v != (note or ""):
                 change_msgs.append(f"비고 변경")
@@ -20785,8 +20875,16 @@ async def sales_order_item_edit(req: Request, iid: int):
                     _detail_changes.append(f"납품처 {_old_eff_sh or '(미)'} → {_new_eff_sh or '(미)'}")
                 if (it["old_note"] or "") != (note or ""):
                     _detail_changes.append(f"비고 변경")
-                if (old_lbl or "") != (label or ""):
-                    _detail_changes.append(f"라벨 {old_lbl or '—'} → {label or '—'}")
+                if (it["old_lbl"] or "") != (_lbl_to_save or ""):   # z1191z117 ⑦-3: 안 보낸 라벨은 바뀐 것 아님
+                    _detail_changes.append(f"라벨 {it['old_lbl'] or '—'} → {_lbl_to_save or '—'}")
+                if u_qty is not None and abs(float(u_qty) - _old_qty117) > 1e-9:
+                    _detail_changes.append(f"수량 {_old_qty117:g} → {float(u_qty):g}")
+                if _parts117 and _old_up117 not in (None, "") and abs(float(_up_for_save or 0) - float(_old_up117)) > 0.0001:
+                    _detail_changes.append(f"단가 {float(_old_up117):,.4g} → {float(_up_for_save or 0):,.4g} {_ccy}")
+                if u_sell_krw != "__SKIP__" and u_sell_krw is not None and float(u_sell_krw) != float(_old_sell117 or 0):
+                    _detail_changes.append(f"판매가(원) {float(_old_sell117 or 0):,.0f} → {float(u_sell_krw):,.0f}")
+                if _closed117 and _detail_changes:
+                    _detail_changes.insert(0, "입금 완료·계산서 발행 수주 정정(확인함)")
                 # v5H189: 호기별 통화 변경 감지
                 if u_cur and u_cur != _ccy:
                     _detail_changes.append(f"통화 {_ccy} → {u_cur}")
@@ -20800,10 +20898,60 @@ async def sales_order_item_edit(req: Request, iid: int):
         except Exception:
             pass
         _new_ts = _row_ts(c, "order_items", iid)
-    return JSONResponse({"ok": True, "message": "라인 수정 완료", "updated_at": _new_ts})
+    return JSONResponse({"ok": True, "message": "라인 수정 완료", "updated_at": _new_ts,
+                         "board_qty": (_bq_chg117[1] if _bq_chg117 else None), "warn": _warn117})
 
 
 UNIT_STATUSES = ("진행중", "출하", "취소", "보류")
+
+
+@app.post("/sales/orders/{oid:int}/board-qty-sync")
+async def sales_order_board_qty_sync(req: Request, oid: int):
+    """z1191z117 ⑦-1: 작업일정표 수량(board_qty) = 품목 줄 수량 합으로 맞추기(수주 카드 「↻ N으로 맞추기」)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    with db_session() as c:
+        o = c.execute("SELECT id, order_no, project_id, status FROM orders WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
+        if str(o["status"] or "").upper() == "CANCELLED":
+            return JSONResponse({"ok": False, "message": "취소된 수주입니다"}, 400)
+        _b, _s = _board_sum_z117(c, oid)
+        if _s <= 0:
+            return JSONResponse({"ok": False, "message": "품목 줄 수량이 없습니다"}, 400)
+        c.execute("UPDATE orders SET board_qty=? WHERE id=?", (_s, oid))
+        try:
+            _logi.log_project_change(c, o["project_id"], u.get("id"), "작업일정표 수량", str(_b or ""), str(_s), note=f"SO {o['order_no']} · 품목 줄 합으로 맞춤")
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "board_qty": _s})
+
+
+@app.post("/sales/orders/{oid:int}/price-tbd")
+async def sales_order_price_tbd(req: Request, oid: int):
+    """z1191z117 ⑤: 수주 「단가 미정」 켜기·끄기(프로젝트 상세 수주 카드)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    form = await req.form()
+    on = 1 if str(form.get("on") or "").strip() == "1" else 0
+    with db_session() as c:
+        o = c.execute("SELECT id, order_no, project_id, status FROM orders WHERE id=?", (oid,)).fetchone()
+        if not o:
+            return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
+        if not _price_tbd_col_z117(c):
+            return JSONResponse({"ok": False, "message": "저장 칸을 만들지 못했습니다"}, 500)
+        c.execute("UPDATE orders SET price_tbd=? WHERE id=?", (on, oid))
+        try:
+            _logi.log_project_change(c, o["project_id"], u.get("id"), "단가 미정", "", ("켬" if on else "끔"), note=f"SO {o['order_no']}")
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "on": on})
 
 
 @app.post("/sales/orders/items/{iid:int}/status")
@@ -20939,11 +21087,11 @@ async def sales_order_item_delete(req: Request, iid: int):
         if not it:
             return JSONResponse({"ok": False, "message": "라인을 찾을 수 없습니다"}, 404)
         st = (it["status"] or "").upper()
-        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
+        if st == "CANCELLED" or (st in _Z117_CLOSED and not _closed_ok_z117(req)):   # z1191z117 ①
             return JSONResponse({
-                "ok": False,
-                "message": f"{st} 상태 SO 의 호기는 삭제 불가"
-            }, 400)
+                "ok": False, "need_closed_ok": st in _Z117_CLOSED,
+                "message": (_closed_msg_z117(st) if st in _Z117_CLOSED else "취소된 수주의 줄은 지울 수 없습니다")
+            }, 409 if st in _Z117_CLOSED else 400)
         # z1191z4: 「호기·일련번호 관리」(project_units)에 등록된 호기의 출처 줄은 지우지 않는다
         #   — 지우면 일련번호 기록이 가리키는 수주 줄이 사라진다. 상태 '취소'로 처리하게 안내.
         import sqlite3 as _sq_z4
@@ -20966,7 +21114,9 @@ async def sales_order_item_delete(req: Request, iid: int):
         old_total = float(it["old_total"] or 0)
         _isp974 = _so_is_parts974(c, oid)  # v5H226z1018b: 상품 여부 (unit_qty 보존 + 이력 표현 공용)
         _issemi = (not _isp974) and _so_is_semi_z4c(c, oid)   # z1191z4c: 제품 — 수량 = 품목 수량 합
+        _bq_before117 = _board_sum_z117(c, oid)   # z1191z117 ⑦-1
         c.execute("DELETE FROM order_items WHERE id=?", (iid,))
+        _board_follow_z117(c, oid, _bq_before117)
         # SO 재계산
         rows = c.execute(
             "SELECT unit_label, amount FROM order_items WHERE order_id=? ORDER BY id ASC",
@@ -21076,16 +21226,17 @@ async def sales_orders_add_unit(req: Request, oid: int):
         if not cur:
             return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
         st = (cur["status"] or "").upper()
-        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
+        if st == "CANCELLED" or (st in _Z117_CLOSED and not _closed_ok_z117(req)):   # z1191z117 ①
             return JSONResponse({
-                "ok": False,
-                "message": f"{st} 상태 SO 는 호기 추가 불가"
-            }, 400)
+                "ok": False, "need_closed_ok": st in _Z117_CLOSED,
+                "message": (_closed_msg_z117(st) if st in _Z117_CLOSED else "취소된 수주에는 줄을 더할 수 없습니다")
+            }, 409 if st in _Z117_CLOSED else 400)
         # v5H109: 자동 라벨은 프로젝트 전체 호기 라인 개수 기준 (관리코드 우선)
         try:
             items_in_so = c.execute(
                 "SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)
             ).fetchone()[0] or 0
+            _bq_before117 = _board_sum_z117(c, oid)   # z1191z117 ⑦-1
             project_id_local = cur["project_id"]
             items_in_project = c.execute(
                 "SELECT COUNT(*) FROM order_items oi "
@@ -21175,6 +21326,10 @@ async def sales_orders_add_unit(req: Request, oid: int):
                 "UPDATE orders SET unit_qty=?, total_amount=?, unit_label=? WHERE id=?",
                 (new_qty, new_total, new_lbl, oid)
             )
+        try:
+            _board_follow_z117(c, oid, _bq_before117)   # z1191z117 ⑦-1
+        except NameError:
+            pass
         # 프로젝트 합계 동기화
         try:
             pid = cur["project_id"]
@@ -21311,11 +21466,11 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         if not cur:
             return JSONResponse({"ok": False, "message": "수주를 찾을 수 없습니다"}, 404)
         st = (cur["status"] or "").upper()
-        if st in ("INVOICED", "PAID", "CANCELLED"):  # v5H226v: SHIPPED 도 편집 허용 (수금 시작 전엔 정정 가능)
+        if st == "CANCELLED" or (st in _Z117_CLOSED and not _closed_ok_z117(req)):   # z1191z117 ①
             return JSONResponse({
-                "ok": False,
-                "message": f"이미 {st} 상태인 SO 는 인라인 수정 불가 (필요 시 삭제 후 재발급)"
-            }, 400)
+                "ok": False, "need_closed_ok": st in _Z117_CLOSED,
+                "message": (_closed_msg_z117(st) if st in _Z117_CLOSED else "취소된 수주는 고칠 수 없습니다")
+            }, 409 if st in _Z117_CLOSED else 400)
         # v5H91: 호기 라인 vs 신규 호기수/금액 정합성 검증
         try:
             items = c.execute(
@@ -21430,8 +21585,172 @@ async def sales_orders_delete(req: Request, oid: int):
     return JSONResponse(res)
 
 
+def _f117(v):
+    try:
+        return None if v in (None, "") else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parts_checks_z117(rows, fx_line=None):
+    """z1191z117 ④: 상품 줄 점검 — 줄마다 [문구,…]. rows = dict(qty, unit_price, amount, cost_krw, sell_krw, fx_rate,
+    margin_pct, cost_price, invoice_unit_price_usd, unit_label, spec, currency). fx_line(row)->bool 이 없으면 통화로 판정.
+    반환 = {인덱스: [문구…]} (문제 없는 줄은 없음)."""
+    out = {}
+    def add(i, m):
+        out.setdefault(i, []).append(m)
+    groups = {}
+    for i, r in enumerate(rows or []):
+        g = r.get if hasattr(r, "get") else (lambda k, d=None, r=r: r[k] if k in r.keys() else d)
+        fx = fx_line(r) if fx_line else (str(g("currency") or "KRW").upper() != "KRW")
+        q = _f117(g("qty")) or 0.0
+        up = _f117(g("unit_price"))
+        am = _f117(g("amount"))
+        inv = _f117(g("invoice_unit_price_usd"))
+        sk = _f117(g("sell_krw")); ck = _f117(g("cost_krw")); rate = _f117(g("fx_rate")); mg = _f117(g("margin_pct"))
+        if not up:
+            add(i, "단가가 비었거나 0")
+        if up and q and am is not None:
+            want = round(q * ((inv if inv is not None else round(up, 2)) if fx else up), 2)   # 외화 = 인보이스(2자리) × 수량
+            if abs(want - am) > (0.011 if fx else 1.0):
+                add(i, ("수량×단가 = %s 인데 금액 %s" % (("{:,.2f}" if fx else "{:,.0f}").format(want), ("{:,.2f}" if fx else "{:,.0f}").format(am))))
+        if fx and inv is not None and up is not None and abs(inv - up) > 0.011:
+            add(i, "단가 %s ≠ 인보이스 %s" % ("{:,.2f}".format(up), "{:,.2f}".format(inv)))
+        if fx and sk and rate and rate > 1:
+            base = inv if inv is not None else up
+            if base is not None:
+                calc = sk / rate
+                if abs(calc - base) > max(0.011, abs(base) * 0.005):
+                    add(i, "판매가(원) {:,.0f} ÷ 환율 {:,.2f} = {:,.2f} 인데 인보이스 {:,.2f}".format(sk, rate, calc, base))
+        if ck and mg is not None and sk:
+            want_s = _sell_from_cost(ck, mg)
+            want_s2 = (ck / (1 - mg / 100.0)) if mg < 100 else 0   # 판매가 기준 마진율(매입가 ÷ (1−마진))로 적은 수주도 있다(M-251127-2 50% = 2배)
+            if want_s and abs(want_s - sk) > max(1.0, sk * 0.005) and not (want_s2 and abs(want_s2 - sk) <= max(1.0, sk * 0.005)):
+                add(i, "매입가 {:,.0f} × 마진 {:g}% = {:,.0f} 인데 판매가 {:,.0f}".format(ck, mg, want_s, sk))
+        if ck and sk and sk < ck:
+            add(i, "판매가(원)가 매입가보다 낮음")
+        elif (not fx) and _f117(g("cost_price")) and up and up < _f117(g("cost_price")):
+            add(i, "판매단가가 매입단가보다 낮음")
+        key = (" ".join(str(g("unit_label") or "").split()).lower(), " ".join(str(g("spec") or "").split()).lower())
+        if key[0] and up:
+            groups.setdefault(key, []).append((i, up))
+    for key, lst in groups.items():
+        ps = [p for _, p in lst]
+        if len(ps) > 1 and min(ps) > 0 and max(ps) / min(ps) >= 1.5:   # 마진 차이(1.2~1.4배)는 흔함 — 1.5배 이상만(자릿수·숫자 실수)
+            for i, p in lst:
+                add(i, "같은 품목(품명·규격) 다른 단가: " + " / ".join(sorted({"{:,.2f}".format(x) for x in ps})))
+    return out
+
+
+_UPD117_FIELDS = [   # (엑셀 줄 키, DB 칸, 화면 이름, 숫자?)
+    ("qty", "qty", "수량", True), ("unit_price", "unit_price", "단가", True), ("amount", "amount", "금액", True),
+    ("cost_krw", "cost_krw", "매입가(원)", True), ("margin_pct", "margin_pct", "마진%", True), ("sell_krw", "sell_krw", "판매가(원)", True),
+    ("fx_rate", "fx_rate", "환율", True), ("cost_price", "cost_price", "매입단가", True),
+    ("spec", "spec", "규격", False), ("material_no", "material_no", "자재번호", False), ("maker", "maker", "제작사", False),
+    ("supplier", "supplier", "공급사", False), ("line_note", "line_note", "비고", False), ("due_date", "due_date", "납기", False),
+    ("status", "unit_status", "상태", False),
+]
+
+
+def _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry):
+    """z1191z117 ③: 상품 양식 「값만 고치기」 — 같은 순서·같은 품명 줄에 값만 바꾼다(줄·세금계산서 그대로)."""
+    st = str(c.execute("SELECT status FROM orders WHERE id=?", (oid,)).fetchone()[0] or "").upper()
+    if st == "CANCELLED":
+        return JSONResponse({"ok": False, "message": "취소된 수주는 고칠 수 없습니다"}, 200)
+    if st in _Z117_CLOSED and not dry and not _closed_ok_z117(req):
+        return JSONResponse({"ok": False, "need_closed_ok": True, "message": _closed_msg_z117(st)}, 200)
+    oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    ccy = str(c.execute("SELECT COALESCE(currency,'KRW') FROM orders WHERE id=?", (oid,)).fetchone()[0] or "KRW").upper()
+    db = [dict(r) for r in c.execute("SELECT * FROM order_items WHERE order_id=? ORDER BY id", (oid,)).fetchall()]
+    if len(db) != len(lines):
+        return JSONResponse({"ok": False, "message": (
+            "줄 수가 다릅니다 — 엑셀 %d줄 · 저장된 줄 %d줄.\n「값만 고치기」는 받은 양식에서 줄을 더하거나 지우지 않고 값만 고쳐 올려야 합니다.\n"
+            "· 줄을 더하려면 「📤 부품 추가 업로드」\n· 줄을 지우려면 화면 [✏️ 수정] → 그 줄 오른쪽 ×" % (len(lines), len(db)))}, 200)
+    norm = lambda s: " ".join(str(s or "").split()).lower()
+    bad = [(i + 1, db[i].get("unit_label"), l.get("part_name")) for i, l in enumerate(lines) if norm(db[i].get("unit_label")) != norm(l.get("part_name"))]
+    if bad:
+        return JSONResponse({"ok": False, "message": (
+            "품명 순서가 저장된 줄과 다릅니다(%d곳) — 받은 양식의 줄 순서·품명은 그대로 두고 값만 고쳐 주세요.\n" % len(bad)
+            + "\n".join("· %d번째 줄: 저장 「%s」 ↔ 엑셀 「%s」" % b for b in bad[:8]) + ("\n…" if len(bad) > 8 else ""))}, 200)
+    fx = ccy != "KRW"
+    diffs, upd = [], []
+    for i, (l, r) in enumerate(zip(lines, db)):
+        new = dict(l)
+        new["due_date"] = _prodbulk_fmt_date(l.get("due_date")) or (r.get("due_date") or None)
+        new["status"] = _prodbulk_norm_status(l.get("status")) if l.get("status") else r.get("unit_status")
+        sets, ch = {}, []
+        for k, col, nm, isnum in _UPD117_FIELDS:
+            if col not in oic:
+                continue
+            nv, ov = new.get(k), r.get(col)
+            if isnum:
+                nvf, ovf = _f117(nv), _f117(ov)
+                if nvf is None and k in ("cost_krw", "margin_pct", "sell_krw", "fx_rate", "cost_price"):
+                    continue   # 엑셀에서 빈칸 = 그대로(지우지 않음)
+                _tol = ((0.0051 if fx else 0.5) if k in ("unit_price", "cost_price", "amount") else
+                        0.0051 if k == "fx_rate" else 0.5 if k in ("cost_krw", "sell_krw") else 1e-6)   # 반올림(넷째↔둘째 자리) 차이는 그대로
+                if (nvf is None) != (ovf is None) or (nvf is not None and abs(nvf - ovf) > _tol):
+                    sets[col] = nvf; ch.append((nm, ov, nvf))
+            else:
+                nvs = (str(nv).strip() if nv not in (None, "") else None)
+                ovs = (str(ov).strip() if ov not in (None, "") else None)
+                if nvs is None and k in ("spec", "material_no", "maker", "supplier", "line_note"):
+                    continue
+                if nvs != ovs:
+                    sets[col] = nvs; ch.append((nm, ov, nvs))
+        if fx and "invoice_unit_price_usd" in oic and ("unit_price" in sets or _f117(r.get("invoice_unit_price_usd")) != _f117(new.get("unit_price"))):
+            sets["invoice_unit_price_usd"] = _f117(new.get("unit_price"))
+            if "invoice_amount_usd" in oic:
+                sets["invoice_amount_usd"] = _f117(new.get("amount"))
+        if sets:
+            issued = sum(float(r.get(a) or 0) for a, d in zip(_TI_ACOLS, _TI_DCOLS) if a in oic and str(r.get(d) or "").strip())
+            w = ""
+            if issued and "amount" in sets and abs(issued - float(sets["amount"] or 0)) > (0.011 if fx else 1.0):
+                w = "세금계산서 발행분 %s ≠ 새 금액 %s" % (("{:,.2f}" if fx else "{:,.0f}").format(issued), ("{:,.2f}" if fx else "{:,.0f}").format(float(sets["amount"] or 0)))
+            diffs.append({"no": i + 1, "id": r["id"], "name": r.get("unit_label") or "",
+                          "changes": [{"f": nm, "old": ov, "new": nv} for nm, ov, nv in ch], "warn": w})
+            upd.append((r["id"], sets))
+    # ④ 고친 뒤 모습으로 점검(엑셀 값 기준)
+    after = []
+    for l, r in zip(lines, db):
+        x = dict(r); x.update({k: l.get(k) for k in ("qty", "unit_price", "amount", "cost_krw", "sell_krw", "fx_rate", "margin_pct", "cost_price") if l.get(k) not in (None, "")})
+        x["invoice_unit_price_usd"] = l.get("unit_price") if fx else r.get("invoice_unit_price_usd")
+        x["currency"] = ccy; x["unit_label"] = r.get("unit_label"); x["spec"] = l.get("spec") or r.get("spec")
+        after.append(x)
+    chk = _parts_checks_z117(after, fx_line=lambda _r: fx)
+    checks = [{"no": i + 1, "name": after[i].get("unit_label") or "", "msgs": m} for i, m in sorted(chk.items())]
+    _um = dict(upd)
+    total_new = round(sum(float((_um.get(r["id"], {}).get("amount", r.get("amount"))) or 0) for r in db), 2)
+    total_old = round(sum(float(r.get("amount") or 0) for r in db), 2)
+    if dry:
+        return JSONResponse({"ok": True, "dry": True, "mode": "update", "closed": st in _Z117_CLOSED, "status": st,
+                             "n_rows": len(db), "n_changed": len(diffs), "diffs": diffs[:400], "checks": checks[:400],
+                             "total_old": total_old, "total_new": total_new, "currency": ccy})
+    for iid, sets in upd:
+        cols = list(sets.keys())
+        c.execute("UPDATE order_items SET " + ", ".join(f"{k}=?" for k in cols) + ", updated_at=datetime('now','localtime') WHERE id=?",
+                  [sets[k] for k in cols] + [iid])
+    new_total = round(float(c.execute("SELECT COALESCE(SUM(amount),0) FROM order_items WHERE order_id=?", (oid,)).fetchone()[0] or 0), 2)
+    c.execute("UPDATE orders SET total_amount=?, updated_at=datetime('now','localtime') WHERE id=?", (new_total, oid))
+    try:
+        _apply_project_amount(c, pid, exclude_cancelled=True)
+    except Exception as _e:
+        print(f"[z1191z117 update amount] {_e}")
+    try:
+        _brief = "; ".join("%d번 %s(%s)" % (d["no"], d["name"], ", ".join(x["f"] for x in d["changes"])) for d in diffs[:12])
+        _logi.log_project_change(c, pid, u.get("id"), "부품 값만 고치기(엑셀)", f"부품 {len(db)}개", f"{len(diffs)}줄 바뀜",
+                                 f"수주 {so['order_no']} · 엑셀 '{fname}' · 줄·세금계산서 그대로" + (" · 입금 완료 수주 정정(확인함)" if st in _Z117_CLOSED else "")
+                                 + (" · " + _brief if _brief else ""))
+        c.execute("INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) VALUES(?,?,?,?,?)",
+                  (oid, st, st, u.get("id"), f"부품 값만 고치기(엑셀) {len(diffs)}줄 · 합계 {total_old:,.2f} → {new_total:,.2f}"))
+    except Exception as _e:
+        print(f"[z1191z117 update history] {_e}")
+    return JSONResponse({"ok": True, "mode": "update", "order_no": so["order_no"], "updated": len(diffs), "inserted": 0,
+                         "total": new_total, "total_old": total_old, "checks": checks[:400]})
+
+
 @app.post("/sales/orders/{oid:int}/overwrite-product")
-async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...), mode: str = Form("replace")):
+async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...), mode: str = Form("replace"), dry: str = Form("")):
     """v5H226z740 (대표 지시): 상품(수출) 수주 '엑셀 덮어쓰기' — 발행된 관리번호·수주번호(order_no)는
     그대로 두고, 이 수주(SO)의 라인만 업로드한 상품 양식으로 '제자리 교체'.
     삭제 후 재등록(=새 번호) 대신, 같은 수주번호로 내용만 갈아끼움. z738 처리(매입/판매 KRW·모델/장비·한글 상태) 동일."""
@@ -21496,6 +21815,9 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
             # 안전 ②: 엑셀 관리번호가 있고 이 수주의 관리번호와 다르면 차단 (다른 프로젝트 데이터로 덮어쓰기 방지)
             if ex_mgmt and cur_mgmt and ex_mgmt != cur_mgmt:
                 return JSONResponse({"ok": False, "message": f"엑셀 관리번호({ex_mgmt})가 이 수주의 관리번호({cur_mgmt})와 다릅니다. 같은 관리번호 파일만 덮어쓸 수 있습니다."}, 200)
+            # z1191z117 ③: 값만 고치기(줄·세금계산서 그대로) — 먼저 바뀌는 것 보여 주기(dry=1) → 확인 후 저장
+            if str(mode or "").strip().lower() == "update":
+                return _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry=(str(dry or "").strip() == "1"))
             # 안전 ③ → z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지(「부품 추가」는 된다 — 줄을 안 지운다).
             #   예전 ③은 tax_invoice_lines.order_id 로 찾았는데 그 표엔 order_id 칸이 없어 늘 오류 → 0건 → 한 번도 안 막았다.
             #   이제 실제로 쓰는 호기 칸(1~10차 발행일·금액)을 본다 — 교체하면 호기 줄이 지워지며 발행 기록·설명이 함께 사라진다.
@@ -27456,59 +27778,6 @@ async def mail_unblock_one(req: Request, mail_id: int):
     with db_session() as c:
         _mailbox.set_blocked(c, u["id"], mail_id, False)
     return JSONResponse({"ok": True})
-
-
-# 11-23 대표 「메일 메인 위에 아웃룩처럼 '보내기/받기' — 눌러 바로바로 · 지금은 새 메일이 저절로 들어올 때까지 기다려야 해 답답」
-#   누르면: 내 하이웍스 받기 계정에서 새 메일을 지금 바로 받아 옴(자동 받기와 같은 길 · 같은 잠금) → 화면 숫자·목록을 새로.
-#   「보내기」 쪽: KNK 메일은 「보내기」를 누를 때 곧바로 나가서 쌓여 기다리는 메일이 없음 → 못 보낸 예약 메일만 알려 줌(저절로 다시 보내지 않음).
-#   하이웍스에 너무 자주 붙지 않게 한 사람당 10초에 한 번만 실제로 받음(그 안에 또 누르면 화면만 새로).
-_MAIL_SYNC_LAST = {}
-_MAIL_SYNC_MIN_SEC = 10
-
-
-@app.post("/api/mail/sync-now")
-async def mail_sync_now_api(req: Request):
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, 401)
-    import time as _t
-    from starlette.concurrency import run_in_threadpool
-    from . import mail_fetch as _mailfetch
-    with db_session() as c:
-        _mailfetch._ensure_table(c)
-        acct = _mailfetch.get_account(c, u["id"]) or {}
-    fetch_on = bool(acct.get("enabled") and (acct.get("host") or "").strip()
-                    and (acct.get("username") or "").strip() and (acct.get("password_enc") or ""))
-    out = {"ok": True, "fetch": fetch_on, "stored": 0}
-    if fetch_on:
-        now = _t.time()
-        if now - _MAIL_SYNC_LAST.get(u["id"], 0) < _MAIL_SYNC_MIN_SEC:
-            out["recent"] = True   # 방금 받았음 — 화면만 새로
-        else:
-            _MAIL_SYNC_LAST[u["id"]] = now
-            # ⭐DB 를 쥔 채 하이웍스를 기다리지 않음 — 받기 함수가 스스로 짧게 열고 닫음(스레드풀)
-            ok, stored, msg = await run_in_threadpool(_mailfetch_run_owner, u["id"], 45, "바로 받기")
-            out["stored"] = int(stored or 0)
-            if not ok:
-                if msg == "busy":
-                    out["busy"] = True
-                else:
-                    out["ok"] = False
-                    out["message"] = "하이웍스에서 받지 못했습니다 — 잠시 뒤 다시 눌러 주세요(저절로 받기는 그대로 돎) · 까닭: " + (msg or "")[:160]
-    with db_session() as c:
-        try:
-            out["unread"] = int(_mailbox.count_unread(c, u["id"]) or 0)
-        except Exception:
-            pass
-        try:
-            out["sched_fail"] = int((_mailbox.count_scheduled(c, u["id"]) or {}).get("fail") or 0)
-        except Exception:
-            pass
-        try:
-            out["at"] = _mail_now_local(_mail_off(c, u)).strftime("%H:%M")
-        except Exception:
-            pass
-    return JSONResponse(out)
 
 
 @app.get("/api/mail/counts")
@@ -36798,6 +37067,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
             # z1191z23: 상품 수주 기타사항 = 수주 메모(NULL = 안 적음 → 지금처럼 프로젝트 메모 · '' = 지움)
             _bqty_col += (", o.unit_note AS o_unote" if "unit_note" in _ord_cols else ", NULL AS o_unote")
+            _bqty_col += (", COALESCE(o.price_tbd,0) AS o_tbd" if "price_tbd" in _ord_cols else ", 0 AS o_tbd")   # z1191z117 ⑤
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
                 + _sotype_col + ", "
@@ -36827,6 +37097,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
                         "o_qty_raw": d.get("o_qty_raw"),   # z1191z16: 상품 수량 0·빈칸 = 미입력 구분
                         "o_total_raw": d.get("o_total_raw"),   # z1191z8: NULL(안 적음) 과 0(무상) 구분용
+                        "o_tbd": int(d.get("o_tbd") or 0),   # z1191z117 ⑤: 단가 미정
                         "o_ord": str(d.get("o_ord") or "")[:10], "o_due": str(d.get("o_due") or "")[:10],
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
                         "o_cust": (d.get("o_cust_name") or ""), "o_cust_id": d.get("o_cust_id"),   # v5H226z668/z682: SO 고객사(이름·id)
@@ -36848,7 +37119,15 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
 
             # z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 「무상」 판정 — 단가 0 을 **적은** 것(z1171 「0 을 적으면 무상」).
             #   호기(order_items) 있으면 전부 단가·금액 0(NULL 아님) · 호기 없으면 수주금액이 0 으로 적혀 있을 때(NULL 은 안 적음).
+            def _zero_so_z117(_so):   # z1191z117 ⑤: 금액이 아직 0(미정 판정용)
+                _its = _so.get("items") or []
+                if _its:
+                    return all(float(it.get("up") or 0) == 0 and float(it.get("amt") or 0) == 0 for it in _its)
+                return float(_so.get("o_total_raw") or 0) == 0
+
             def _free_so(_so):
+                if _so.get("o_tbd"):   # z1191z117 ⑤: 단가 미정 = 무상 아님
+                    return False
                 _its = _so.get("items") or []
                 if _its:
                     return all((it.get("up") is not None or it.get("amt") is not None)
@@ -36923,6 +37202,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "find_note": _find_note_z12([_it.get("i_note") for _it in _citems]),
                     "form_label": _cflk[0], "form_key": _cflk[1],   # v5H226z1058: 이 수주 형태(작업일정표 형태 칸)
                     "is_free": _free_so(_so),   # z1191z8: 무상(단가 0 으로 적음)
+                    "is_tbd": bool(_so.get("o_tbd")) and _zero_so_z117(_so),   # z1191z117 ⑤: 단가 미정
                 }
 
             def _so_lines(_so):
@@ -36968,7 +37248,8 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "so_note": (None if it.get("i_note") is None else str(it.get("i_note")).strip()),
                         "find_note": _find_note_z12([it.get("i_note")]),   # z1191z12: 찾기용
                         "form_label": _lflk[0], "form_key": _lflk[1],   # v5H226z1058: 이 수주 형태(작업일정표 형태 칸)
-                        "is_free": _free_item(it),   # z1191z8: 무상(이 호기 단가 0 으로 적음)
+                        "is_free": (not _so.get("o_tbd")) and _free_item(it),   # z1191z8: 무상(이 호기 단가 0 으로 적음) · z1191z117 ⑤ 미정 제외
+                        "is_tbd": bool(_so.get("o_tbd")) and float(it.get("up") or 0) == 0 and float(it.get("amt") or 0) == 0,
                     })
                 if not _ul:
                     return [_collapse_line(_so)]
@@ -37561,6 +37842,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
             "equip": p.get("equip_name") or "", "note": p.get("logi_note") or "",
             "qty": p.get("unit_qty") or "", "price": p.get("unit_price") or 0,
             "is_free": _proj_free_z1191z8(p, _pfree8),   # z1191z8: 수주 없는 줄 — 단가·금액을 0 으로 적었을 때만 무상
+            "is_tbd": _proj_tbd_z117(p),   # z1191z117 ⑤: 단가 미정
             "amount": p.get("order_amount") or 0, "currency": (p.get("currency") or "KRW"),
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
             "po_type": p.get("po_type") or "",
@@ -37594,6 +37876,7 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
                 _iu["is_free"] = bool(_ln.get("is_free"))   # z1191z8: 무상 표기
+                _iu["is_tbd"] = bool(_ln.get("is_tbd"))   # z1191z117 ⑤: 미정 표기
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
@@ -38192,7 +38475,7 @@ async def schedule_board_export(request: Request, ym: str = "", cust: str = "", 
             keys += ["_ti_d%d" % _n, "_ti_a%d" % _n]
     headers += ["영업담당자"]   # v5H226z708: '단계'(폐기) 제거 — 상태는 위에서 표기
     keys += ["sales_owner"]
-    out_rows = [[("무상" if (r.get("is_free") and k in ("price", "amount")) else r.get(k, "")) for k in keys] for r in rows]   # z1191z8: 무상 표기
+    out_rows = [[("무상" if (r.get("is_free") and k in ("price", "amount")) else ("미정" if (r.get("is_tbd") and k in ("price", "amount")) else r.get(k, ""))) for k in keys] for r in rows]   # z1191z8: 무상 표기 · z1191z117 ⑤ 미정
     # v5H226z476 (대표 지시): 이 저장본을 그대로 '일괄업로드' 파일로 쓰도록 시트명을 '일괄등록'으로
     #   (파서가 '일괄등록' 시트를 찾음 · 자동/표시 컬럼은 업로드 시 무시). 파일명엔 월 표기 유지.
     sheets = [{"name": "일괄등록", "headers": headers, "rows": out_rows}]
@@ -39082,7 +39365,14 @@ async def projects_import_product_parse(request: Request,
         "po_type": (str(proj.get("po_type") or "신규").strip() or "신규"),
         "sales": str(proj.get("sales") or "").strip(),
     }
-    return JSONResponse({"ok": True, "project": proj_out, "lines": lines,
+    try:   # z1191z117 ④: 등록 미리 보기 — 잘못 넣었을 수 있는 줄
+        _fx117 = str(proj_out.get("currency") or "KRW").upper() != "KRW"
+        _ck117 = _parts_checks_z117([dict(l, unit_label=l.get("part_name"), invoice_unit_price_usd=l.get("invoice_usd")) for l in lines],
+                                    fx_line=lambda _x: _fx117)
+        _checks117 = [{"no": i + 1, "name": lines[i].get("part_name") or "", "msgs": m} for i, m in sorted(_ck117.items())]
+    except Exception as _e117:
+        print(f"[z1191z117 parse checks] {_e117}"); _checks117 = []
+    return JSONResponse({"ok": True, "project": proj_out, "lines": lines, "checks": _checks117,
                          "total": total, "cost_total": cost_total,
                          "cost_total_krw": cost_total_krw, "amount_krw": amount_krw,
                          "fx_rate": fx_rate,
@@ -39586,6 +39876,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             "qty": p.get("unit_qty") or "",
             "price": p.get("unit_price") or 0,      # v5H226z277: 단가
             "is_free": _proj_free_z1191z8(p, _pfree8),       # z1191z8: 수주 없는 줄 — 단가·금액을 0 으로 적었을 때만 무상
+            "is_tbd": _proj_tbd_z117(p),   # z1191z117 ⑤: 단가 미정
             "amount": p.get("order_amount") or 0,   # v5H226z277: 금액(수량×단가)
             "currency": (p.get("currency") or "KRW"),  # v5H226z278: 통화
             "trade": "수출" if int(p.get("is_export") or 0) else "내수",
@@ -39628,6 +39919,7 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
                 _iu["price"] = _ln["price"]
                 _iu["is_free"] = bool(_ln.get("is_free"))   # z1191z8: 무상 표기
+                _iu["is_tbd"] = bool(_ln.get("is_tbd"))   # z1191z117 ⑤: 미정 표기
                 _iu["amount"] = _ln["amount"]
                 _iu["currency"] = _ln["currency"] or info.get("currency") or "KRW"
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z454/z666: 행 표시 수량(라인 실수량, 폴백=호기수)
@@ -43872,9 +44164,10 @@ async def projects_quick_edit_form(request: Request, pid: int):
             _ship_sql = "ship_to" if "ship_to" in _ocols else "'' AS ship_to"
             _bq_sql = ("COALESCE(board_qty,''), COALESCE(board_unit,'')" if "board_qty" in _ocols
                        else "'', ''")
+            _tid117 = _quick_target_so_z117(c3, pid, request.query_params.get("so"))   # z1191z117k: 보던 수주(?so=) — 없으면 최신
             _r = c3.execute(
-                f"SELECT order_no, {_ship_sql}, {_bq_sql} FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1",
-                (pid,)).fetchone()
+                f"SELECT order_no, {_ship_sql}, {_bq_sql} FROM orders WHERE id=?",
+                (_tid117 or -1,)).fetchone()
             if _r:
                 _so_no = _r[0] or ""
                 _ship_to = (_r[1] if len(_r) > 1 else "") or ""
@@ -43883,7 +44176,26 @@ async def projects_quick_edit_form(request: Request, pid: int):
     except Exception:
         pass
     _embed = str(request.query_params.get("embed") or "").strip().lower() in ("1", "true", "on", "yes", "y")
-    return ctx(request, "project_quick_form.html",
+    try:   # z1191z117 ⑥: 수주 수(2건 이상이면 발주일·납기는 수주별로 고친다)
+        with db_session() as c4:
+            _so_cnt117 = int(c4.execute("SELECT COUNT(*) FROM orders WHERE project_id=? AND UPPER(COALESCE(status,''))<>'CANCELLED'", (pid,)).fetchone()[0] or 0)
+    except Exception:
+        _so_cnt117 = 0
+    _focus117 = str(request.query_params.get("so") or "").strip()
+    _sos117, _tso117 = [], {}
+    try:   # z1191z117k: 수주 고르기 칩 + 고치는 수주의 날짜·수량(보기)
+        with db_session() as c5:
+            for _o in _pwf.get_project_orders(c5, pid):
+                if str(_o.get("status") or "").upper() == "CANCELLED":
+                    continue
+                _sos117.append({"no": _o.get("order_no") or "", "form": _o.get("form_label") or ""})
+                if (_o.get("order_no") or "") == _so_no:
+                    _tso117 = {"no": _so_no, "order_date": str(_o.get("order_date") or "")[:10], "due_date": str(_o.get("due_date") or "")[:10],
+                               "qty": _so_qty_z89(_o), "unit": _so_qty_unit_z89(_o), "amount": float(_o.get("total_amount") or 0),
+                               "ccy": (_o.get("currency") or p.get("currency") or "KRW")}
+    except Exception as _e117k:
+        print(f"[z1191z117k quick-edit so] {_e117k}")
+    return ctx(request, "project_quick_form.html", so_cnt117=_so_cnt117, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
                user=u, active="sales_projects", embed=_embed,
                preset_biz=(p.get("biz_div") or "T"),
                can_money=bool(can_view_sales(u)),
@@ -43943,6 +44255,11 @@ async def projects_new_submit(request: Request):
         return RedirectResponse("/login", 303)
     if not can_use_sales(_u):
         return RedirectResponse("/home", 303)
+    try:   # z1191z117 ⑤: 등록 전 최대 수주 번호(이번 등록으로 생긴 수주에만 「단가 미정」을 붙이려고)
+        with db_session() as _c117:
+            _maxoid117 = int(_c117.execute("SELECT COALESCE(MAX(id),0) FROM orders").fetchone()[0] or 0)
+    except Exception:
+        _maxoid117 = None
     form = await request.form()
     # 템플릿/대체 필드명 둘 다 허용 (호환)
     project_name = (form.get("name") or form.get("project_name") or "").strip()
@@ -44384,6 +44701,7 @@ async def projects_new_submit(request: Request):
                             _cc3.execute("UPDATE orders SET board_unit=? WHERE id=?",
                                          ((form.get("etc_unit") or "").strip(), _fu_oidz4d))
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
+            _tbd_mark_z117(form, _existing["id"], _maxoid117)   # z1191z117 ⑤
             _fu_url = f"/project/{_existing['id']}?followup=1"
             if biz_div in ("T", "M", "L", "E"):   # z1191z116 ②: 성공했으니 다음 화면이 등록 화면 임시본을 지운다(다시 열면 앞 값이 되살아나던 문제)
                 _fu_url += "&qf_done=" + biz_div
@@ -44753,6 +45071,7 @@ async def projects_new_submit(request: Request):
                     _qs.append("prod_err=1")
             except Exception:
                 _qs.append("prod_err=1")
+        _tbd_mark_z117(form, _pid, _maxoid117)   # z1191z117 ⑤
         if biz_div in ("T", "M", "L", "E") and not _warn:   # z1191z116 ②: 성공 → 다음 화면이 등록 화면 임시본을 지운다
             _qs.append("qf_done=" + biz_div)
         _url = f"/project/{_pid}" + ("?" + "&".join(_qs) if _qs else "")
@@ -47624,6 +47943,9 @@ async def projects_edit_submit(request: Request, pid: int):
                                      (pid,)).fetchone()[0] or 0) >= 2
     except Exception:
         _multi14 = False
+    _tso_dates117 = None
+    if _multi14 and str(form.get("target_so") or "").strip():   # z1191z117k: 등록과 같은 수정 화면 — 고른 수주의 발주일·납기
+        _tso_dates117 = (str(form.get("order_date") or "").strip()[:10], str(form.get("due_date") or "").strip()[:10])
     if _multi14 and (("order_date" in form) or ("due_date" in form)):
         from starlette.datastructures import FormData as _FD14
         form = _FD14([(k, v) for k, v in form.multi_items() if k not in ("order_date", "due_date")])
@@ -47830,10 +48152,8 @@ async def projects_edit_submit(request: Request, pid: int):
             with db_session() as _sc1088:
                 _ocols1088 = {r[1] for r in _sc1088.execute("PRAGMA table_info(orders)").fetchall()}
                 if "board_qty" in _ocols1088:
-                    _so1088 = _sc1088.execute(
-                        "SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
-                        "ORDER BY id DESC LIMIT 1", (pid,)).fetchone()
-                    if _so1088:
+                    _so1088 = (_quick_target_so_z117(_sc1088, pid, form.get("target_so")),)   # z1191z117k: 고른 수주(없으면 최신)
+                    if _so1088[0]:
                         _sc1088.execute("UPDATE orders SET board_qty=?, board_unit=? WHERE id=?",
                                         ((_bq88 if _bq88 > 0 else None),
                                          (_bu88 if _bq88 > 0 else None), _so1088[0]))
@@ -47844,7 +48164,15 @@ async def projects_edit_submit(request: Request, pid: int):
         _eu_v = (form.get("etc_unit") or "").strip()
         if _eu_v in _BOARD_UNITS_Z4D:
             with db_session() as _scz4d:
-                _z4d_set_unit(_scz4d, pid, _eu_v, latest_only=True)
+                _tid4d = _quick_target_so_z117(_scz4d, pid, form.get("target_so"))   # z1191z117k: 고른 수주(없으면 최신)
+                if _tid4d and "board_unit" in {r[1] for r in _scz4d.execute("PRAGMA table_info(orders)").fetchall()}:
+                    _ou4d = _scz4d.execute("SELECT order_no, board_unit FROM orders WHERE id=?", (_tid4d,)).fetchone()
+                    if _ou4d and (_ou4d[1] or "") != _eu_v:
+                        _scz4d.execute("UPDATE orders SET board_unit=? WHERE id=?", (_eu_v, _tid4d))
+                        try:
+                            _logi.log_project_change(_scz4d, pid, _u.get("id") if isinstance(_u, dict) else None, "수량 단위", _ou4d[1] or "", _eu_v, note=f"SO {_ou4d[0]}")
+                        except Exception:
+                            pass
     # v5H226z354 (대표 지시): 빠른 폼 수정 모드는 납품위치(ship_to)를 대표 SO(orders 최신)에 반영.
     #   정식 폼은 호기별 unit_ship[] 을 쓰므로 top-level 'ship_to' 를 보내지 않음 → 빠른 폼에만 적용(필드 존재 시).
     if _is_quick_edit and (form.get("ship_to") is not None):
@@ -47854,13 +48182,27 @@ async def projects_edit_submit(request: Request, pid: int):
                 with db_session() as _sc:
                     _ocols = {r[1] for r in _sc.execute("PRAGMA table_info(orders)").fetchall()}
                     if "ship_to" in _ocols:
-                        _so_r = _sc.execute(
-                            "SELECT id FROM orders WHERE project_id=? ORDER BY id DESC LIMIT 1", (pid,)
-                        ).fetchone()
-                        if _so_r:
+                        _so_r = (_quick_target_so_z117(_sc, pid, form.get("target_so")),)   # z1191z117k: 고른 수주(없으면 최신)
+                        if _so_r[0]:
                             _sc.execute("UPDATE orders SET ship_to=? WHERE id=?", (_ship_v, _so_r[0]))
             except Exception as _ship_err:
                 print(f"[v5H226z354] quick-edit ship_to err: {_ship_err}")
+    if _tso_dates117 and _is_quick_edit:   # z1191z117k: 수주 2건 이상 — 고른 수주의 발주일·납기(빈칸 = 그대로)
+        try:
+            with db_session() as _sc117:
+                _tid = _quick_target_so_z117(_sc117, pid, form.get("target_so"))
+                _o117 = _sc117.execute("SELECT order_no, order_date, due_date FROM orders WHERE id=?", (_tid or -1,)).fetchone()
+                if _o117:
+                    for _k, _v in (("order_date", _tso_dates117[0]), ("due_date", _tso_dates117[1])):
+                        if _v and _v != str(_o117[_k] or "")[:10]:
+                            _sc117.execute(f"UPDATE orders SET {_k}=? WHERE id=?", (_v, _tid))
+                            try:
+                                _logi.log_project_change(_sc117, pid, _u.get("id") if isinstance(_u, dict) else None,
+                                                         ("발주일" if _k == "order_date" else "납기"), str(_o117[_k] or ""), _v, note=f"SO {_o117['order_no']} · 수정 화면")
+                            except Exception:
+                                pass
+        except Exception as _de117:
+            print(f"[z1191z117k so dates] {_de117}")
     # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
     # v5H132: 수량 N → N개 호기 라인
     # v5H142: NEW_EQUIP 만 자동 SO 발행
@@ -60732,6 +61074,16 @@ async def consumables_set_status(request: Request, co_id: int):
 # v5H226z1019 (대표 지시): 소모품 사업부 배지 = '소모품' 유지 + 진행사업부(biz_div) 부기('소모품·검사기').
 #   빈값/미지정은 '소모품'만. 목록 카드·소모품 상세·이음 카드 공용(표기 통일).
 _CONS_BIZ_SUB = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}
+_TBD117_MAP = {}   # z1191z117 ⑤: {project_id: 단가 미정이고 금액 0} — _proj_free_so_map_z1191z8 가 채운다(같은 요청 안에서 바로 씀)
+
+
+def _proj_tbd_z117(p):
+    try:
+        return bool(_TBD117_MAP.get(p.get("id")))
+    except Exception:
+        return False
+
+
 def _proj_free_so_map_z1191z8(pids=None):
     """z1191z8: 프로젝트별 「수주가 전부 무상인가」 {project_id: bool} — 호기(order_items) 분할 줄이 안 나오는
     단일 수주·호기 없는 프로젝트 줄용. 수주 무상 = 호기 있으면 단가·금액 전부 0(NULL 아님) · 호기 없으면 수주금액이 0 으로 적힘.
@@ -60739,14 +61091,20 @@ def _proj_free_so_map_z1191z8(pids=None):
     out = {}
     try:
         with db_session() as _c:
+            _tbdc = ("COALESCE(o.price_tbd,0)" if "price_tbd" in {x[1] for x in _c.execute("PRAGMA table_info(orders)").fetchall()} else "0")   # z1191z117 ⑤
             for r in _c.execute(
-                "SELECT o.project_id AS pid, o.total_amount AS tot, COUNT(oi.id) AS n, "
+                "SELECT o.project_id AS pid, o.total_amount AS tot, " + _tbdc + " AS tbd, COUNT(oi.id) AS n, "
                 "SUM(CASE WHEN oi.unit_price IS NULL AND oi.amount IS NULL THEN 1 ELSE 0 END) AS nn, "
                 "SUM(CASE WHEN COALESCE(oi.unit_price,0)<>0 OR COALESCE(oi.amount,0)<>0 THEN 1 ELSE 0 END) AS nz "
                 "FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id "
                 "WHERE o.project_id IS NOT NULL AND COALESCE(o.status,'')<>'CANCELLED'" + _board_in_frag("o.project_id", pids) +
                 " GROUP BY o.id"):
                 d = dict(r)
+                _zero117 = ((d["n"] or 0) > 0 and (d["nz"] or 0) == 0) or ((d["n"] or 0) == 0 and float(d["tot"] or 0) == 0)
+                if d.get("tbd"):   # z1191z117 ⑤: 단가 미정 수주 = 무상 아님 · 금액이 아직 0 이면 [미정]
+                    _TBD117_MAP[d["pid"]] = _TBD117_MAP.get(d["pid"], True) and _zero117
+                    out[d["pid"]] = False
+                    continue
                 _free = ((d["n"] or 0) > 0 and (d["nn"] or 0) == 0 and (d["nz"] or 0) == 0) or                         ((d["n"] or 0) == 0 and d["tot"] is not None and float(d["tot"] or 0) == 0)
                 out[d["pid"]] = out.get(d["pid"], True) and bool(_free)
     except Exception:
