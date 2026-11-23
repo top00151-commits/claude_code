@@ -791,6 +791,7 @@ function qItemNum(v){ return Number(String(v==null?'':v).replace(/[^0-9.-]/g,'')
    **0을 적으면** 무상(통과). 빈칸과 0을 가르는 곳은 이 함수 하나 — 서버 /projects/new 도 같은 규칙(z1171). */
 function qPriceGiven(el){ if(qTbdOn117()) return true; return !!el && String(el.value==null?'':el.value).replace(/,/g,'').trim()!==''; }
 /* z1191z117k: 수정 화면 — 고른 수주의 값으로 채우고, 수량·단가·금액(수주 줄 값)은 보기만 */
+window.__so118 = 0;   /* z1191z119: 앞 화면(수주 있는 정보 수정)의 표시가 새 등록·다른 정보 수정으로 넘어오지 않게 */
 {% if ed and tso117 %}
 window.__so118 = 1;   /* z1191z118: 수주 있는 정보 수정 — 수량·단가·금액은 고른 수주 값(보기). 호기별 금액 칸(새 수주 만들 때만 씀)이 덮지 않게 */
 document.addEventListener('DOMContentLoaded', function(){

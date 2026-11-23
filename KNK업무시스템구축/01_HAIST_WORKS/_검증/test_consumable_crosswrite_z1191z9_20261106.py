@@ -9,6 +9,7 @@
 import contextlib
 import io
 import os
+import re
 import sys
 import tempfile
 
@@ -137,7 +138,7 @@ check('id="coPage" data-co-id="%d"' % A in h and "page_co:_coPageId()" in h, "�
 
 print("§6 원문 — spa_nav 안전망 · 소모품 상세 전체 새로 열기")
 s = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "spa_nav.html"), encoding="utf-8").read()
-check("var FULL_ONLY = [/^\\/consumables\\/\\d+\\/?$/];" in s and "if (mustFull(href)) return false;" in s and "if (mustFull(url))" in s, "소모품 상세 = 클릭·뒤로 모두 전체 새로 열기")
+check(re.search(r"var FULL_ONLY = \[/\^\\/consumables\\/\\d\+\\/\?\$/[,\]]", s) is not None and "if (mustFull(href)) return false;" in s and "if (mustFull(url))" in s, "소모품 상세 = 클릭·뒤로 모두 전체 새로 열기")
 check("REDECL.test(m)) _redecl = true" in s and "if (_redecl) { window.knkLeaveOk = true; window.location.replace(url); return; }" in s, "재선언 오류 → 그 화면 전체 새로 열기")
 check(s.index("history.pushState({ knkSpa: true }") < s.index("document.startViewTransition(doSwap)"), "주소 기록이 본문 교체보다 먼저")
 print("결과: 통과 %d · 실패 %d" % (OK, FAIL))

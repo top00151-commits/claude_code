@@ -3115,14 +3115,14 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     var f = document.getElementById('knkOwFile');
     if(f){ f.value = ''; f.click(); }
   };
-  var f = document.getElementById('knkOwFile');
-  if(!f){
-    f = document.createElement('input');
-    f.type = 'file'; f.id = 'knkOwFile'; f.accept = '.xlsx,.xlsm'; f.style.display = 'none';
-    document.body.appendChild(f);
-  }
-  if(!f._owBound){
-    f._owBound = true;
+  // z1191z119 (안지연 프로 11-23): 파일 칸은 이 화면 것으로 늘 새로 만든다 — 앞 화면이 만든 칸(앞 수주 번호를 든 채)이 남아
+  //   두 번째 상세에서 고른 파일이 무시되거나 앞 수주로 가던 것 · 「확인함」 표시도 이 화면에서 다시 시작
+  window.__knkClosedOk117 = false;
+  var _oldF = document.getElementById('knkOwFile'); if(_oldF) _oldF.remove();
+  var f = document.createElement('input');
+  f.type = 'file'; f.id = 'knkOwFile'; f.accept = '.xlsx,.xlsm'; f.style.display = 'none';
+  document.body.appendChild(f);
+  {
     f.addEventListener('change', async function(){
       var file = this.files && this.files[0];
       if(!file || !_owSoId){ return; }
