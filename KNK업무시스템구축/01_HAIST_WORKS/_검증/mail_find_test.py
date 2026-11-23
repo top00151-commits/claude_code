@@ -185,7 +185,7 @@ try:
     h2 = k.get("/mail/inbox").text
     check("대화로 묶기 켠 상태도 더 보기 있음", "mbx-morerows" in h2)
     hf = k.get("/mail/inbox?fd=gen&thread=0").text
-    check("폴더 보기 띠 통수 = 전체 통수(200+ 표시 아님)", re.search(r'class="mf-cur">📁 <b>일반</b> <span>[\d,]+통</span>', hf) is not None)
+    check("폴더 보기 띠 통수 = 전체 통수(200+ 표시 아님)", re.search(r'class="mf-cur">📂 <b>분류 안 됨</b> <span>[\d,]+통 · ', hf) is not None)
 
     print("== D · F · G · B · E · H ==")
     h = k.get("/mail/inbox?thread=0").text

@@ -780,7 +780,8 @@
     <div class="mbx-listcol">
     {% if box=='in' and cur_fd|default('') %}
     {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
-    <div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
+    {# 11-23 대표 「분류 안 됨을 누르면 위에 「일반 2,315통」 줄이 왜 나와?」 — 일반 = 분류 안 됨(같은 메일) → 띠도 같은 이름·뜻으로 #}
+    {% if cur_fd == 'gen' %}<div class="mf-cur">📂 <b>분류 안 됨</b> <span>{{ '{:,}'.format(total_n|default(mails|length)) }}통 · 어느 폴더 규칙에도 안 걸린 받은 메일(왼쪽 📁 「일반」과 같음)</span>{% else %}<div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>{% endif %}{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
     {% endif %}
     {% if box=='in' %}
     {% set _b = '/mail/inbox?' ~ (base_q|default('')) %}
