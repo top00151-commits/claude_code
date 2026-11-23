@@ -141,7 +141,11 @@ try:
     hk = km.get("/mail/inbox").text
     top = hk[hk.find('class="mail-app-top"'):hk.find('id="mailTools"')]
     tools = hk[hk.find('id="mailTools"'):hk.find('</nav>', hk.find('id="mailTools"'))]
-    check("빨간 줄에는 링크 없음(이름·이전·새로고침·사용자만) — 메일함 길은 도구 줄 한 곳", 'href="/mail/sent"' not in top and 'href="/mail/compose"' not in top, top[:300])
+    # 11-23 대표 「메일함 글자 누르면 첫 화면 · 그 줄 오른쪽에 자주 쓰는 메뉴 7개 · 뒤로/앞으로」 — 새 메일 쓰기는 도구 줄에만
+    _qk = top[top.find('class="mt-quick"'):top.find('</nav>', top.find('class="mt-quick"'))]
+    check("머리줄: 메일함 글자 = 받은편지함 첫 화면", 'class="brand" href="/mail/inbox"' in top, top[:200])
+    check("머리줄: 자주 쓰는 메뉴 7개(새 메일 쓰기는 없음)", _qk.count('data-q=') == 7 and 'href="/mail/compose"' not in top, _qk[:200])
+    check("머리줄: 뒤로·앞으로 두 단추", top.count('mt-hist') == 2 and 'mailGoFwd()' in top)
     check("도구 줄: 새 메일·받은편지함·중요·회신 필요·보낸편지함·임시보관함·보관함·휴지통·스팸함·글자 크게·설정·정리·도움말",
           all(x in tools for x in ('href="/mail/compose"', 'href="/mail/inbox"', 'href="/mail/inbox?star=1"', 'href="/mail/inbox?reply=1"', 'href="/mail/sent"',
                                    'href="/mail/drafts"', 'href="/mail/inbox?arc=1"', 'href="/mail/trash"', 'href="/mail/blocked"', "mailFsStep(1)", 'href="/mail/tools"', "mailHelpToggle")), tools[:300])
