@@ -20798,6 +20798,12 @@ async def sales_order_item_edit(req: Request, iid: int):
             # v5H197: 거래구분 — 폼에서 받은 그대로 (NULL = 변경 안 함이 아니라 명시 입력만)
             # v5H226z460: PARTS 는 판매단가(unit_price)를 별도 전송 → amt(금액)와 분리. 미전송이면 호기 legacy(=amt).
             _up_for_save = amt if u_unit_price == "__SKIP__" else u_unit_price
+            # z1191z118 (이새롬 프로 11-23): 상품이 아닌 줄에 수량 2 이상인데 금액만 왔으면 단가 = 금액 ÷ 수량
+            #   (예전: 단가 = 금액 → 추가 발주 「4개 × 171,000」 줄이 단가 684,000 으로 덮임 · T-260827-8·T-260930-13·15·T-260624-1)
+            if (not _parts117) and u_unit_price == "__SKIP__" and _has_amt10:
+                _q118e = float(u_qty) if (u_qty is not None) else float(_old_qty117 or 1.0)
+                if _q118e > 1:
+                    _up_for_save = round(amt / _q118e, 4)
             if u_unit_price == "__SKIP__" and not _has_amt10:   # z1191z10: 금액·단가 둘 다 안 보냄 = 단가 그대로
                 _up_for_save = it["old_up"]
             # z1191z117 ⑦-2: 상품 줄은 「단가 × 수량 = 금액」 · 외화면 「단가 = 인보이스 단가(2자리)」를 늘 같이 저장.

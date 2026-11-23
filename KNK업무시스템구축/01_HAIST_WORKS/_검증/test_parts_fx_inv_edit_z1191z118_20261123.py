@@ -107,6 +107,17 @@ check("수정 화면에도 ☐ 단가 미정(고른 수주 있을 때) · 체크
 check("수량·단가·금액 칸 = 고른 수주 값(보기) · 서버로는 원래 프로젝트 값", "el.dataset.so118 = '1'" in qf and "h.type = 'hidden'; h.name = x[1]" in qf)
 check("제품(SEMI)도 단가 미정 칸이 보이게 옮김", "qPriceTbdLbl" in qf and "amtCell.querySelector('label')" in qf)
 check("서버: 수정 저장 → 고른 수주 price_tbd", "z1191z118 price_tbd edit" in mm and '_tso117["tbd"]' in mm)
+print("§6 제품·완제품 한 줄 수량 N — 금액만 보내도 단가 덮이지 않음(이새롬 프로 11-23)")
+with D.db_session() as c:
+    c.execute("INSERT INTO order_items (order_id, unit_label, qty, unit_price, amount, currency) VALUES (?, '핀블럭플로팅', 4, 171000, 684000, 'KRW')", (OID2,))
+    IID4 = c.execute("SELECT MAX(id) FROM order_items").fetchone()[0]
+r = q(cl.post, "/sales/orders/items/%d/edit" % IID4, data={"amount": "684000"}, headers=H)
+x = one("SELECT unit_price, amount FROM order_items WHERE id=?", (IID4,))
+check("수량 4 줄에 금액 684,000 만 → 단가 171,000(예전엔 684,000) · 금액 684,000", r.status_code == 200 and x == {"unit_price": 171000.0, "amount": 684000.0}, (r.status_code, x))
+r = q(cl.post, "/sales/orders/items/%d/edit" % IID4, data={"unit_price": "172000", "amount": "688000"}, headers=H)
+x = one("SELECT unit_price, amount FROM order_items WHERE id=?", (IID4,))
+check("단가·금액 함께 → 그대로 저장(172,000 · 688,000)", x == {"unit_price": 172000.0, "amount": 688000.0}, x)
+check("화면: 완제품 한 줄 수량 N = 1개 단가 칸(data-perunit118) · 「⚠ 단가×수량≠금액」 알림", "data-perunit118" in src and "단가×수량≠금액" in src)
 print()
 print("결과: %d 통과 / %d 실패" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)

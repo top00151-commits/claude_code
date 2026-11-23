@@ -1099,9 +1099,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                     {# v5H226z627 (대표 지시): 1줄에 수량 2+면 '합산금액'이 아니라 '단가(1대) ×수량'으로 표시 #}
                     {# v5H226z1076 (안지연 프로 신고): 제품(SEMI)의 편집칸 = 1대 단가(unit_price). 기존엔 amount(=수량×단가 총액)가
                        단가 자리에 보여 사용자가 '단가'로 고쳐 저장 → 총액이 단가로 덮여 수량이 금액에 반영 안 되던 원인. #}
-                    {% set _amt_edit_v = (u.unit_price or u.amount or 0) if _is_semi else (u.amount or u.unit_price or 0) %}
-                    <span class="display-val price">{% if can_sales_amt %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
-                    {% if _editable %}<span class="ccy-pre">{{ _u_ccy|ccysym }}</span><input type="text" class="unit-edit amt knk-money" data-orig="{{ ('%.2f'|format(_amt_edit_v)) if (_u_ccy != 'KRW') else ('%.0f'|format(_amt_edit_v)) }}" value="{{ '{:,.2f}'.format(_amt_edit_v) if (_u_ccy != 'KRW') else '{:,.0f}'.format(_amt_edit_v) }}">{% endif %}
+                    {# z1191z118 (이새롬 프로 11-23): 완제품 한 줄에 수량 2 이상(추가 발주 「N개 × 단가」) = 단가 칸은 1개 단가(금액 ÷ 수량) ·
+                       저장 = 단가와 금액(단가 × 수량) 함께. 예전엔 이 칸이 금액(총액)이었고 서버가 단가 = 금액으로 덮었다(T-260827-8 등 4건). #}
+                    {% set _pu118 = (not _is_semi) and (not _is_parts) and u.qty and (u.qty|float) > 1 %}
+                    {% set _amt_edit_v = ((u.amount / (u.qty|float)) if (_pu118 and u.amount) else ((u.unit_price or u.amount or 0) if (_is_semi or _pu118) else (u.amount or u.unit_price or 0))) %}
+                    <span class="display-val price">{% if can_sales_amt %}{% if (u.qty and (u.qty|float) > 1 and u.unit_price) %}{{ money(u.unit_price, _u_ccy) }} <span style="color:var(--mute);font-size:10px;font-weight:600;">×{{ (u.qty|float)|int }}</span>{% if (not _is_parts) and u.amount and ((u.unit_price|float) * (u.qty|float) - (u.amount|float))|abs > 0.5 %} <span class="knk-flag-badge" title="단가 {{ money(u.unit_price, _u_ccy) }} × 수량 {{ (u.qty|float)|int }} 이 금액 {{ money(u.amount, _u_ccy) }} 과 다릅니다 — [✏️ 수정]에서 1개 단가를 확인해 주세요(z1191z118)">⚠ 단가×수량≠금액</span>{% endif %}{% else %}{{ money(u.amount or u.unit_price or 0, _u_ccy) }}{% endif %}{% else %}🔒{% endif %}</span>
+                    {% if _editable %}<span class="ccy-pre">{{ _u_ccy|ccysym }}</span><input type="text" class="unit-edit amt knk-money"{% if _pu118 %} data-perunit118="{{ u.qty|float }}" title="1개 단가 — 저장하면 금액 = 단가 × {{ (u.qty|float)|int }}"{% endif %} data-orig="{{ ('%.2f'|format(_amt_edit_v)) if (_u_ccy != 'KRW') else ('%.0f'|format(_amt_edit_v)) }}" value="{{ '{:,.2f}'.format(_amt_edit_v) if (_u_ccy != 'KRW') else '{:,.0f}'.format(_amt_edit_v) }}">{% endif %}
                   </td>
                   {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 · z829: can_sales_amt #}
                   {# v5H226z1076: span+data-ccysym — 제품(SEMI) 편집 중 단가×수량 라이브 표시용 #}
@@ -1603,6 +1606,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   body.set('unit_price', String(_semiUnit));
                   body.set('amount', String(Math.round(_semiUnit * _semiQty * 100) / 100));
                 }
+                if (r.amtInp && r.amtInp.dataset.perunit118 && _dzN(r.amtInp)) {   // z1191z118: 완제품 한 줄 수량 N — 1개 단가 칸
+                  var _pq118 = parseFloat(r.amtInp.dataset.perunit118) || 1;
+                  var _pu118 = parseFloat((r.amtInp.value || '0').replace(/,/g,'')) || 0;
+                  body.set('unit_price', String(_pu118));
+                  body.set('amount', String(Math.round(_pu118 * _pq118 * 100) / 100));
+                }
                 try {
                   const resp = await fetch('/sales/orders/items/' + r.uid + '/edit',
                                            { method:'POST', body });
@@ -1970,6 +1979,14 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 };
                 amtInp.addEventListener('input', _semiLive);
                 qtyInpR.addEventListener('input', _semiLive);
+              }
+              if (amtInp && amtInp.dataset.perunit118 && equipAmtDispR) {   // z1191z118: 1개 단가 × 수량 → 금액 칸 바로 보임
+                const _q118 = parseFloat(amtInp.dataset.perunit118) || 1;
+                amtInp.addEventListener('input', () => {
+                  const _a = Math.round((parseFloat((amtInp.value || '0').replace(/,/g, '')) || 0) * _q118 * 100) / 100;
+                  const _sym = equipAmtDispR.dataset.ccysym || '', _dec = (_sym === '₩') ? 0 : 2;
+                  equipAmtDispR.textContent = _sym + _a.toLocaleString('en-US', { minimumFractionDigits: _dec, maximumFractionDigits: _dec });
+                });
               }
               if (delBtn) {
                 delBtn.addEventListener('click', () => {
