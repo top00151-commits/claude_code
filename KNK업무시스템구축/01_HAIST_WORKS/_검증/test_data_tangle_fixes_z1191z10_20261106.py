@@ -193,7 +193,7 @@ q(cl.post, "/sales/orders/items/%d/edit" % IH["id"], data={"note": "부품 비�
 I3 = items_of(OH["id"])[0]
 check(abs(float(I3["unit_price"]) - 755.5625) < 1e-9 and abs(float(I3["amount"]) - 6044.5) < 1e-9, "부품식(단가≠금액) 줄도 비고만 고치면 단가 755.5625·금액 그대로")
 pdh = io.open(os.path.join(ROOT, "app", "templates", "project_detail.html"), encoding="utf-8").read()
-check("if (_dzN(r.amtInp)) body.set('amount'" in pdh and "if (_dz(r.noteInp)) body.set('note'" in pdh and "if (_dz(r.costInp)) {" in pdh, "화면: 줄 안에서 바뀐 칸만 보냄(원문)")
+check("if (_dzN(r.amtInp)) body.set('amount'" in pdh and "if (_dz(r.noteInp)) body.set('note'" in pdh and "if (_dz(r.costInp) || (_dz(r.fxInp)" in pdh, "화면: 줄 안에서 바뀐 칸만 보냄(원문 · z1191z118 환율 바뀌면 매입도)")
 
 print("§5 소모품 자재 연결 — 남의 품목 409")
 with D.db_session() as c:

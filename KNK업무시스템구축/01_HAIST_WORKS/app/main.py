@@ -20629,7 +20629,7 @@ async def sales_order_item_edit(req: Request, iid: int):
         return JSONResponse({"error": "권한 없음"}, 403)
     form = await req.form()
     for _k56 in ("amount", "unit_price", "cost_price", "margin_pct", "qty", "invoice_unit_price_usd", "invoice_amount_usd",
-                 "duty_krw", "duty_usd", "final_amount_usd", "cost_krw", "sell_krw", "weight_kg", "duty_rate", "vat_rate"):
+                 "duty_krw", "duty_usd", "final_amount_usd", "cost_krw", "sell_krw", "weight_kg", "duty_rate", "vat_rate", "fx_rate"):
         if _k56 in form and _logi.num_swap_hint(form.get(_k56)) is not None:   # z1191z56: 점·쉼표 바꿔 친 숫자
             return JSONResponse({"ok": False, "message": _logi.num_swap_msg(form.get(_k56))}, 400)
     label = (form.get("label") or "").strip()
@@ -20701,6 +20701,10 @@ async def sales_order_item_edit(req: Request, iid: int):
     #   이게 없으면 cost_price(USD)만 바뀌고 cost_krw 는 옛 값으로 남아, 화면(원본)과 인보이스(USD)가 영구히 어긋난다.
     u_cost_krw, _ = _opt_float("cost_krw")
     u_sell_krw, _ = _opt_float("sell_krw")
+    # z1191z118: 상품 줄 환율 — 화면 [수정]에서 고침(빈칸·0 이하는 그대로 둠)
+    u_fx118, _ = _opt_float("fx_rate")
+    if u_fx118 is None or (u_fx118 != "__SKIP__" and float(u_fx118) <= 0):
+        u_fx118 = "__SKIP__"
     try:
         amt = float(raw_a) if raw_a else 0
     except ValueError:
@@ -20771,6 +20775,7 @@ async def sales_order_item_edit(req: Request, iid: int):
         _old_up117 = _r117.get("unit_price")
         _old_inv117 = _r117.get("invoice_unit_price_usd")
         _old_sell117 = _r117.get("sell_krw")
+        _old_fx118 = _r117.get("fx_rate")
         # v5H177: order_items 에 override 컬럼이 있을 때만 같이 업데이트 (백워드 호환)
         try:
             _oicols = {r2[1] for r2 in c.execute("PRAGMA table_info(order_items)").fetchall()}
@@ -20862,6 +20867,8 @@ async def sales_order_item_edit(req: Request, iid: int):
                 cols_set.append("cost_krw=?"); vals_set.append(u_cost_krw)
             if u_sell_krw != "__SKIP__" and "sell_krw" in _oicols:
                 cols_set.append("sell_krw=?"); vals_set.append(u_sell_krw)
+            if u_fx118 != "__SKIP__" and "fx_rate" in _oicols:   # z1191z118
+                cols_set.append("fx_rate=?"); vals_set.append(float(u_fx118))
             # v5H226z6: 통관 메타 인라인 편집
             if u_hs_code is not None and "hs_code" in _oicols:
                 cols_set.append("hs_code=?"); vals_set.append((u_hs_code or "").strip() or None)
@@ -20931,6 +20938,8 @@ async def sales_order_item_edit(req: Request, iid: int):
                 change_msgs.append(f"단가 {float(_old_up117):,.4g} → {float(_up_for_save or 0):,.4g}")
             if u_sell_krw != "__SKIP__" and u_sell_krw is not None and float(u_sell_krw) != float(_old_sell117 or 0):
                 change_msgs.append(f"판매가(원) {float(_old_sell117 or 0):,.0f} → {float(u_sell_krw):,.0f}")
+            if u_fx118 != "__SKIP__" and abs(float(u_fx118) - float(_old_fx118 or 0)) > 1e-9:   # z1191z118
+                change_msgs.append(f"환율 {float(_old_fx118 or 0):,.2f} → {float(u_fx118):,.2f}")
             old_note_v = it["old_note"] or ""
             if old_note_v != (note or ""):
                 change_msgs.append(f"비고 변경")
@@ -20982,6 +20991,8 @@ async def sales_order_item_edit(req: Request, iid: int):
                     _detail_changes.append(f"단가 {float(_old_up117):,.4g} → {float(_up_for_save or 0):,.4g} {_ccy}")
                 if u_sell_krw != "__SKIP__" and u_sell_krw is not None and float(u_sell_krw) != float(_old_sell117 or 0):
                     _detail_changes.append(f"판매가(원) {float(_old_sell117 or 0):,.0f} → {float(u_sell_krw):,.0f}")
+                if u_fx118 != "__SKIP__" and abs(float(u_fx118) - float(_old_fx118 or 0)) > 1e-9:   # z1191z118
+                    _detail_changes.append(f"환율 {float(_old_fx118 or 0):,.2f} → {float(u_fx118):,.2f}")
                 if _closed117 and _detail_changes:
                     _detail_changes.insert(0, "입금 완료·계산서 발행 수주 정정(확인함)")
                 # v5H189: 호기별 통화 변경 감지
@@ -21274,7 +21285,7 @@ async def sales_orders_add_unit(req: Request, oid: int):
         return JSONResponse({"error": "권한 없음"}, 403)
     form = await req.form()
     for _k56 in ("amount", "unit_price", "cost_price", "margin_pct", "qty", "invoice_unit_price_usd", "invoice_amount_usd",
-                 "duty_krw", "duty_usd", "final_amount_usd", "cost_krw", "sell_krw", "weight_kg", "duty_rate", "vat_rate"):
+                 "duty_krw", "duty_usd", "final_amount_usd", "cost_krw", "sell_krw", "weight_kg", "duty_rate", "vat_rate", "fx_rate"):
         if _k56 in form and _logi.num_swap_hint(form.get(_k56)) is not None:   # z1191z56: 점·쉼표 바꿔 친 숫자
             return JSONResponse({"ok": False, "message": _logi.num_swap_msg(form.get(_k56))}, 400)
     label = (form.get("label") or "").strip()
@@ -21751,6 +21762,56 @@ _UPD117_FIELDS = [   # (엑셀 줄 키, DB 칸, 화면 이름, 숫자?)
 ]
 
 
+def _ow_link_z118(l, r, fx):
+    """z1191z118 (대표 11-23 「앞쪽 비율을 조정해 원화가 바뀌었는데 연결된 USD 그대로인 건 오류」):
+    엑셀 「값만 고치기」 줄을 화면 [수정]과 같은 규칙으로 서로 따라가게 한다 — 받은 양식은 값만 있고(수식 없음)
+    예전엔 마진만 바꿔 올리면 판매가(원)·인보이스·금액이 옛 값 그대로 저장됐다.
+      · 매입·마진이 바뀌고 판매가는 그대로 → 판매가 = 매입 × (1+마진) (소수점 버림 · _sell_from_cost)
+      · (외화) 판매가·환율이 바뀌고 인보이스는 그대로 → 인보이스 = 판매가 ÷ 환율(2자리)
+      · (외화) 인보이스만 바뀜 → 판매가 = 인보이스 × 환율 · 마진 다시 계산
+      · 둘 다 직접 바꾼 칸은 손대지 않음(「확인할 줄」이 알림)
+    반환 = (고친 줄, 자동 계산 설명)"""
+    l = dict(l); auto = []
+    f = _f117
+    dif = lambda a, b, t: (a is None) != (b is None) or (a is not None and abs(a - b) > t)
+    c0, m0, s0, f0 = f(r.get("cost_krw")), f(r.get("margin_pct")), f(r.get("sell_krw")), f(r.get("fx_rate"))
+    c1, m1, s1, f1 = f(l.get("cost_krw")), f(l.get("margin_pct")), f(l.get("sell_krw")), f(l.get("fx_rate"))
+    q = f(l.get("qty")) or 1.0
+    cm_chg = (c1 is not None and dif(c1, c0, 0.5)) or (m1 is not None and dif(m1, m0, 1e-6))
+    s_chg = s1 is not None and dif(s1, s0, 0.5)
+    s_auto = False
+    if cm_chg and not s_chg and c1 and m1 is not None:
+        sn = float(_sell_from_cost(c1, m1))
+        if s1 is None or abs(sn - s1) > 0.5:
+            s1 = sn; l["sell_krw"] = sn; s_auto = True
+            auto.append("판매가(원) = 매입 × (1+마진)")
+    if fx:
+        i0 = f(r.get("invoice_unit_price_usd"))
+        if i0 is None:
+            i0 = f(r.get("unit_price"))
+        i1 = f(l.get("invoice_usd"))
+        f_chg = f1 is not None and dif(f1, f0, 0.0051)
+        i_chg = i1 is not None and (i0 is None or abs(round(i1, 2) - round(i0, 2)) > 0.0051)
+        linked = False
+        if (s_chg or s_auto or f_chg) and not i_chg and s1 and f1:
+            i1 = round(s1 / f1, 2); linked = True
+            auto.append("인보이스 = 판매가 ÷ 환율")
+        elif i_chg and not (s_chg or s_auto) and f1 and i1:
+            s1 = float(round(i1 * f1)); l["sell_krw"] = s1; linked = True
+            auto.append("판매가(원) = 인보이스 × 환율")
+            if c1:
+                l["margin_pct"] = round((s1 / c1 - 1) * 1000) / 10.0
+                auto.append("마진 다시 계산")
+        if linked or f_chg:
+            if i1 is not None:
+                l["invoice_usd"] = i1; l["unit_price"] = i1; l["amount"] = round(q * i1, 2)
+            if c1 and f1:
+                l["cost_price"] = round(c1 / f1, 4)
+    elif s_auto:
+        l["unit_price"] = s1; l["amount"] = round(q * s1, 2)
+    return l, " · ".join(auto)
+
+
 def _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry):
     """z1191z117 ③: 상품 양식 「값만 고치기」 — 같은 순서·같은 품명 줄에 값만 바꾼다(줄·세금계산서 그대로)."""
     st = str(c.execute("SELECT status FROM orders WHERE id=?", (oid,)).fetchone()[0] or "").upper()
@@ -21772,6 +21833,8 @@ def _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry):
             "품명 순서가 저장된 줄과 다릅니다(%d곳) — 받은 양식의 줄 순서·품명은 그대로 두고 값만 고쳐 주세요.\n" % len(bad)
             + "\n".join("· %d번째 줄: 저장 「%s」 ↔ 엑셀 「%s」" % b for b in bad[:8]) + ("\n…" if len(bad) > 8 else ""))}, 200)
     fx = ccy != "KRW"
+    _lk118 = [_ow_link_z118(l, r, fx) for l, r in zip(lines, db)]   # z1191z118: 서로 따라가기
+    lines = [a for a, _ in _lk118]; _auto118 = [b for _, b in _lk118]
     diffs, upd = [], []
     for i, (l, r) in enumerate(zip(lines, db)):
         new = dict(l)
@@ -21807,7 +21870,8 @@ def _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry):
             if issued and "amount" in sets and abs(issued - float(sets["amount"] or 0)) > (0.011 if fx else 1.0):
                 w = "세금계산서 발행분 %s ≠ 새 금액 %s" % (("{:,.2f}" if fx else "{:,.0f}").format(issued), ("{:,.2f}" if fx else "{:,.0f}").format(float(sets["amount"] or 0)))
             diffs.append({"no": i + 1, "id": r["id"], "name": r.get("unit_label") or "",
-                          "changes": [{"f": nm, "old": ov, "new": nv} for nm, ov, nv in ch], "warn": w})
+                          "changes": [{"f": nm, "old": ov, "new": nv} for nm, ov, nv in ch], "warn": w,
+                          "auto": _auto118[i]})   # z1191z118
             upd.append((r["id"], sets))
     # ④ 고친 뒤 모습으로 점검(엑셀 값 기준)
     after = []
@@ -44385,10 +44449,11 @@ async def projects_quick_edit_form(request: Request, pid: int):
         with db_session() as c2:
             sos = _pwf.get_project_orders(c2, pid)
             if sos:
-                so_sum = sum(float(o.get("total_amount") or 0) for o in sos)
+                # z1191z118: 예전엔 원화+달러를 그냥 더해(수주액 옛 SUM) 열기만 해도 수주액이 틀린 값으로 바뀌었다(상세를 열면 다시 정정 → 이력 「자가치유」가 번갈아 쌓임)
+                so_sum = _recalc_project_amount(c2, pid)
                 dues = [o.get("due_date") for o in sos if o.get("due_date")]
                 ords = [o.get("order_date") for o in sos if o.get("order_date")]
-                _heal = [("order_amount", so_sum)]
+                _heal = [("order_amount", so_sum)] if so_sum is not None else []
                 if dues:
                     _heal.append(("due_date", max(dues)))
                 if ords:
@@ -44442,6 +44507,13 @@ async def projects_quick_edit_form(request: Request, pid: int):
                     _tso117 = {"no": _so_no, "order_date": str(_o.get("order_date") or "")[:10], "due_date": str(_o.get("due_date") or "")[:10],
                                "qty": _so_qty_z89(_o), "unit": _so_qty_unit_z89(_o), "amount": float(_o.get("total_amount") or 0),
                                "ccy": (_o.get("currency") or p.get("currency") or "KRW")}
+                    # z1191z118 (안지연 프로 11-23 사진): 수량·단가·금액 칸 = 고른 수주 값 · 단가 미정 체크 상태
+                    try:
+                        _q118 = float(_tso117["qty"] or 0) or 1.0
+                    except (TypeError, ValueError):
+                        _q118 = 1.0
+                    _tso117["unit_price"] = round(_tso117["amount"] / _q118, 2)
+                    _tso117["tbd"] = 1 if int(_o.get("price_tbd") or 0) else 0
     except Exception as _e117k:
         print(f"[z1191z117k quick-edit so] {_e117k}")
     return ctx(request, "project_quick_form.html", so_cnt117=_so_cnt117, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
@@ -48280,12 +48352,24 @@ async def projects_edit_submit(request: Request, pid: int):
                 (int(pid),)).fetchone()
         if _sorow1081 and int(_sorow1081[0] or 0) > 0:
             amt = float(_sorow1081[1] or 0)
+            try:   # z1191z118: 통화가 섞이면 원화+달러를 그냥 더했다 → 상세 화면과 같은 통화별 환산(못 정하면 옛 값)
+                with db_session() as _sac118:
+                    _v118 = _recalc_project_amount(_sac118, int(pid))
+                if _v118 is not None:
+                    amt = float(_v118)
+            except Exception as _e118:
+                print(f"[z1191z118 amt] {_e118}")
     except Exception:
         pass
     # v5H226z976 (대표 지시): 형태=상품 — [정보 수정]에서도 '완제품 몇 대분'(parts_units→unit_qty) 교정.
     #   등록 오입력은 이 폼에서 고치는 게 정석. 상품은 수량·금액 섹션이 숨겨져 unit_qty가 1로 밀리던 부작용도 함께 해소.
     _sf976 = (form.get("shipment_form") or "").strip().upper()
-    if _sf976 == "PARTS":
+    if _sf976 == "PARTS" and "parts_units" not in form and _old10.get("unit_qty"):   # z1191z118
+        try:
+            unit_qty = max(1, min(100, int(float(_old10.get("unit_qty") or 1))))
+        except (TypeError, ValueError):
+            pass
+    if _sf976 == "PARTS" and "parts_units" in form:
         try:
             _pu976 = int(float(str(form.get("parts_units") or "").replace(",", "").strip() or "1"))
         except (ValueError, TypeError):
@@ -48373,7 +48457,7 @@ async def projects_edit_submit(request: Request, pid: int):
     # v5H226z976 (대표 지시): 형태=상품 — '완제품 몇 대분'을 단일 상품 SO(orders.unit_qty)에도 동기화.
     #   작업일정표 상품 줄 수량의 소스가 orders.unit_qty 이므로 여기까지 맞춰야 화면이 일치.
     #   상품 SO가 여러 건이면 건드리지 않음(수주별 대수는 작업일정표에서). CANCELLED 제외.
-    if _sf976 == "PARTS":
+    if _sf976 == "PARTS" and "parts_units" in form:   # z1191z118: 칸이 있을 때만 수주 대수 맞춤
         try:
             with db_session() as _sc976:
                 _sos976 = _sc976.execute(
@@ -48452,6 +48536,22 @@ async def projects_edit_submit(request: Request, pid: int):
                                 pass
         except Exception as _de117:
             print(f"[z1191z117k so dates] {_de117}")
+    if _is_quick_edit and str(form.get("price_tbd_seen") or "") == "1":   # z1191z118: 수정 화면 ☐ 단가 미정 → 고른 수주
+        try:
+            with db_session() as _sc118:
+                if _price_tbd_col_z117(_sc118):
+                    _tid118 = _quick_target_so_z117(_sc118, pid, form.get("target_so"))
+                    _o118 = _sc118.execute("SELECT order_no, COALESCE(price_tbd,0) AS t FROM orders WHERE id=?", (_tid118 or -1,)).fetchone()
+                    _on118 = 1 if str(form.get("price_tbd") or "").strip() == "1" else 0
+                    if _o118 and int(_o118["t"] or 0) != _on118:
+                        _sc118.execute("UPDATE orders SET price_tbd=? WHERE id=?", (_on118, _tid118))
+                        try:
+                            _logi.log_project_change(_sc118, pid, _u.get("id") if isinstance(_u, dict) else None,
+                                                     "단가 미정", ("켬" if not _on118 else "끔"), ("켬" if _on118 else "끔"), note=f"SO {_o118['order_no']} · 수정 화면")
+                        except Exception:
+                            pass
+        except Exception as _te118:
+            print(f"[z1191z118 price_tbd edit] {_te118}")
     # v5H87: 수정 후 status 가 won 인데 SO 가 아직 없으면 자동 발행
     # v5H132: 수량 N → N개 호기 라인
     # v5H142: NEW_EQUIP 만 자동 SO 발행
@@ -48482,7 +48582,9 @@ async def projects_edit_submit(request: Request, pid: int):
             pass
     # v5H226r: 수정 후 status 변경분 SO/호기 cascade
     try:
-        with db_session() as c:
+        # z1191z118: 상태를 바꿨을 때만 — 예전엔 다른 칸만 고쳐 저장해도 프로젝트 상태(예 출하)를 추가 수주(수주확정)에까지 덮었다
+        if status_val != (_old10.get("status") or ""):
+          with db_session() as c:
             _pwf.cascade_project_status_to_so(c, int(pid), status_val, _u.get("id"))
     except Exception as _csc_err:
         print(f"[v5H226r] edit-submit cascade err: {_csc_err}")

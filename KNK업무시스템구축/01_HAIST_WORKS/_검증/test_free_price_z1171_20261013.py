@@ -350,10 +350,9 @@ with sync_playwright() as p:
     def i1(pg):
         navs, _ = open_edit(pg, EDIT_IDS[1])
         r = submit(pg, "/edit"); r["navs"] = navs[:4]; return r
-    def i2(pg):
+    def i2(pg):   # z1191z118: 수주 있는 정보 수정 — 단가·금액 칸 = 그 수주 값(보기 · 잠금)
         open_edit(pg, EDIT_IDS[1])
-        pg.fill("#qUnitPrice", "0")
-        return submit(pg, "/edit")
+        return pg.evaluate("()=>{var u=document.getElementById('qUnitPrice'),a=document.getElementById('qAmount');return {up:u.value, amt:a.value, ro:[u.readOnly,a.readOnly], named:[u.hasAttribute('name'),a.hasAttribute('name')]}}")
     if MODE == "main":
         todo = (("A1", a1), ("A2", a2), ("B", b), ("C", c), ("C2", c2), ("D", d), ("D2", d2),
                 ("E1", e1), ("E2", e2), ("F", f), ("G", g))
@@ -478,10 +477,10 @@ h_ = case("H")
 check("H 무상 제품 「정보 수정」 → 항목 칸 없음 · 그대로 저장이 서버로 감(금액 0 이라고 막히지 않음)",
       h_.get("items") is False and h_.get("posts") == 1, h_)
 i1_ = case("I1")
-check("I1 무상 완제품 「정보 수정」·단가 칸 빈 채 → 막힘 · 「단가를 입력하세요 (무상이면 0).」(깜빡함 잡기 그대로)",
-      i1_.get("posts") == 0 and (i1_.get("err") or {}).get("text") == "단가를 입력하세요 (무상이면 0).", i1_)
+check("I1 무상 완제품(수주 있음) 「정보 수정」 → 단가 칸 = 수주 값 0(보기) · 그대로 저장이 서버로 감 (z1191z118: 예전엔 프로젝트 단가 빈칸이 보여 막혔다)",
+      i1_.get("posts") == 1, i1_)
 i2_ = case("I2")
-check("I2 같은 화면에 0 을 적으면 → 저장이 서버로 감", i2_.get("posts") == 1, i2_)
+check("I2 같은 화면 단가·금액 칸 = 수주 값 0 · 잠금 · 이름 없음(서버로는 원래 프로젝트 값)", i2_.get("up") == "0" and i2_.get("amt") == "0" and i2_.get("ro") == [True, True] and i2_.get("named") == [False, False], i2_)
 check("화면 스크립트 오류 0 (pageerror)", not page_errors, page_errors[:3])
 srv.should_exit = True
 

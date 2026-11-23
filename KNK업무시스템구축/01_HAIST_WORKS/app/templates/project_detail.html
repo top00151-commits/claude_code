@@ -1071,8 +1071,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {# v5H226z945 (대표 지시): 환율 칸 = 부품 행별 실제 환율(u.fx_rate) 우선 — 없으면 SO 대표값(_pfx) 폴백.
                      발주시점 다른 부품(환율 다름)이 섞여도 '판매KRW ÷ 환율 = 인보이스'가 화면에서 딱 맞게 표시됨. #}
                   {% set _row_fx = u.fx_rate or _pfx %}
-                  <td class="num" style="font-size:11.5px;color:var(--mute);">{{ '{:,.2f}'.format(_row_fx) if _row_fx else '—' }}</td>
-                  <td class="num money-cell" style="font-size:11.5px;background:#eef6ff;font-weight:600;color:#1d4ed8;"><div class="mc-wrap"><span>{% if u.unit_price %}{{ money(u.unit_price, _so_ccy) }}{% else %}—{% endif %}</span></div></td>
+                  {# z1191z118 (대표 11-23 「[수정]을 누르면 모든 항목 수정 가능하게」): 환율·인보이스 칸도 고침 —
+                     매입·마진 → 판매가(원) → 인보이스 = 판매가 ÷ 환율 → 금액 = 수량 × 인보이스 가 화면에서 바로 따라간다(저장 규칙과 같음). #}
+                  <td class="num" style="font-size:11.5px;color:var(--mute);"><span class="display-val">{{ '{:,.2f}'.format(_row_fx) if _row_fx else '—' }}</span>{% if _editable %}<input type="text" class="unit-edit fx-inp" inputmode="decimal" data-orig="{{ _row_fx if _row_fx else '' }}" value="{{ _row_fx if _row_fx else '' }}" placeholder="환율" title="환율을 고치면 인보이스 = 판매가(원) ÷ 환율 로 다시 계산됩니다" style="width:64px;font-size:11.5px;text-align:right;">{% endif %}</td>
+                  <td class="num money-cell" style="font-size:11.5px;background:#eef6ff;font-weight:600;color:#1d4ed8;"><div class="mc-wrap"><span class="display-val">{% if u.unit_price %}{{ money(u.unit_price, _so_ccy) }}{% else %}—{% endif %}</span>{% if _editable %}<span class="ccy-pre">{{ _so_ccy|ccysym }}</span><input type="text" class="unit-edit inv-up-usd-inp knk-money" data-orig="{{ '%.2f'|format(u.unit_price) if u.unit_price else '' }}" value="{{ '{:,.2f}'.format(u.unit_price) if u.unit_price else '' }}" placeholder="인보이스" title="인보이스를 고치면 판매가(원) = 인보이스 × 환율 · 마진도 다시 계산됩니다" style="width:74px;font-size:11.5px;text-align:right;color:#1d4ed8;font-weight:600;">{% endif %}</div></td>
                   {% endif %}
                   {% endif %}
                   {# v5H226z6: 금액 — 수량 × 판매단가. _pfx면 KRW환산·_is_fx_view면 USD 2자리·그외 KRW. #}
@@ -1428,7 +1430,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         window._knkSame117 = function(inp){
           if(!inp) return true;
           var a = (inp.value || ''), b = (inp.dataset.orig || '');
-          if(inp.classList.contains('knk-money') || inp.classList.contains('qty-inp') || inp.classList.contains('margin-inp')){
+          if(inp.classList.contains('knk-money') || inp.classList.contains('qty-inp') || inp.classList.contains('margin-inp') || inp.classList.contains('fx-inp')){
             var x = a.replace(/,/g,'').trim(), y = b.replace(/,/g,'').trim();
             if(x === y) return true;
             var fx = parseFloat(x), fy = parseFloat(y);
@@ -1480,6 +1482,8 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 const dutyRateInp = row.querySelector('.duty-rate-inp');
                 const vatRateInp  = row.querySelector('.vat-rate-inp');
                 const invUpUsdInp = row.querySelector('.inv-up-usd-inp');
+                const fxInp       = row.querySelector('.fx-inp');      // z1191z118
+                const matnoInp    = row.querySelector('.matno-inp');   // z1191z118: 자재번호 — 전엔 모으지 않아 고쳐도 저장 안 됨
                 const invAmtUsdInp= row.querySelector('.inv-amt-usd-inp');
                 const dutyKrwInp  = row.querySelector('.duty-krw-inp');
                 const dutyUsdInp  = row.querySelector('.duty-usd-inp');
@@ -1495,7 +1499,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                                      qtyInp, unitInp, arrivalInp, costInp, marginInp, priceInp,
                                      hsInp, dutyRateInp,
                                      vatRateInp, invUpUsdInp, invAmtUsdInp, dutyKrwInp,
-                                     dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp];
+                                     dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp, fxInp, matnoInp];
                 const partsDirty = partsInputs.some(dirtyInp);
                 const dirty =
                      (lblInp && lblInp.value !== lblInp.dataset.orig)
@@ -1514,7 +1518,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   specInp, makerInp, supplierInp, originInp, boxInp, qtyInp, unitInp, arrivalInp,
                   costInp, marginInp, priceInp,
                   hsInp, dutyRateInp, vatRateInp, invUpUsdInp, invAmtUsdInp,
-                  dutyKrwInp, dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp
+                  dutyKrwInp, dutyUsdInp, finalUsdInp, descInp, palletInp, weightInp, fxInp, matnoInp
                 });
               });
               return out;
@@ -1562,7 +1566,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 // v5H226z601: 매입/판매를 KRW로 입력받는 외화 부품(data-fx)은 저장 시 환율로 USD 환산(÷fx).
                 // v5H226z1024: 외화 건 입력칸은 'KRW 원본' → USD 로 환산해 저장하되, KRW 원본도 함께 보존.
                 //   (원본을 안 남기면 다음 화면이 USD×환율 로 역산해 몇 원씩 어긋난다 — 대표 지적 건)
-                if (_dz(r.costInp)) {
+                if (_dz(r.costInp) || (_dz(r.fxInp) && r.costInp && r.costInp.dataset.fx)) {   // z1191z118: 환율만 바꿔도 매입(USD) = 매입(원) ÷ 새 환율
                   var _cvKrw = (r.costInp.value || '').replace(/,/g,'');
                   var _cv = _cvKrw;
                   var _cfx = parseFloat(r.costInp.dataset.fx || '0');
@@ -1586,6 +1590,8 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 if (_dz(r.dutyUsdInp))  body.set('duty_usd',       r.dutyUsdInp.value || '');
                 if (_dz(r.finalUsdInp)) body.set('final_amount_usd', r.finalUsdInp.value || '');
                 if (_dz(r.descInp))     body.set('description',    r.descInp.value || '');
+                if (_dz(r.fxInp))       body.set('fx_rate',        (r.fxInp.value || '').replace(/,/g,''));   // z1191z118
+                if (_dz(r.matnoInp))    body.set('material_no',    r.matnoInp.value || '');                  // z1191z118
                 if (_dz(r.palletInp))   body.set('pallet_size',    r.palletInp.value || '');
                 if (_dz(r.weightInp))   body.set('weight_kg',      r.weightInp.value || '');
                 // v5H226z1076 (안지연 프로 신고): 제품(SEMI) 행 — 단가 입력(.amt)=1대 단가.
@@ -1885,14 +1891,29 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               const priceInpR = row.querySelector('.price-inp');
               const qtyInpR = row.querySelector('.qty-inp');
               const pamtDispR = row.querySelector('.pamt-disp');
-              if (window.knkAttachMoney) { if (costInpR) knkAttachMoney(costInpR); if (priceInpR) knkAttachMoney(priceInpR); }
+              // z1191z118: 환율·인보이스 칸 — 판매가(원)가 있는 외화 줄(data-fx)은 인보이스 = 판매가 ÷ 환율 · 아니면 인보이스 = 판매가
+              const fxInpR = row.querySelector('.fx-inp');
+              const invInpR = row.querySelector('.inv-up-usd-inp');
+              const _krwPriceR = !!(priceInpR && priceInpR.dataset.fx);
+              const _priceIsKrwR = !!(priceInpR && priceInpR.previousElementSibling && priceInpR.previousElementSibling.classList.contains('ccy-pre') && priceInpR.previousElementSibling.textContent.trim() === '₩');
+              if (window.knkAttachMoney) { if (costInpR) knkAttachMoney(costInpR); if (priceInpR) knkAttachMoney(priceInpR); if (invInpR) knkAttachMoney(invInpR); }
               if (costInpR || priceInpR) {
                 const _pn = el => el ? (parseFloat((el.value||'0').replace(/,/g,''))||0) : 0;
+                const _f2 = v => v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+                const _fxNow = () => { const f = fxInpR ? _pn(fxInpR) : 0; return f > 0 ? f : (parseFloat((priceInpR && priceInpR.dataset.fx) || '0') || 0); };
+                const _syncInv = () => {   // 판매가 → 인보이스
+                  if (!invInpR || !priceInpR) return;
+                  const s = _pn(priceInpR), f = _fxNow();
+                  if (!s) { invInpR.value = ''; return; }
+                  if (_krwPriceR) { if (f > 0) invInpR.value = _f2(Math.round(s / f * 100) / 100); }
+                  else invInpR.value = _f2(Math.round(s * 100) / 100);
+                };
                 const _recalcAmt = () => {
                   const q = _pn(qtyInpR) || 0, pr = _pn(priceInpR);
-                  const amt = Math.round(q * pr);
-                  const s = amt ? amt.toLocaleString('en-US') : '0';
-                  if (amtInp) amtInp.value = s;
+                  const amt = _priceIsKrwR ? Math.round(q * pr) : Math.round(q * pr * 100) / 100;
+                  const s = amt ? (_priceIsKrwR ? amt.toLocaleString('en-US') : _f2(amt)) : '0';
+                  // z1191z118: 외화 줄의 금액 칸(.amt)은 외화 — 예전엔 원화 금액(수량×판매가 원)을 외화 칸에 넣었다
+                  if (amtInp) amtInp.value = (invInpR && _krwPriceR) ? _f2(Math.round(q * _pn(invInpR) * 100) / 100) : s;
                   // z103: 보이는 글자에만 기호 — 판매단가 칸 앞 기호(서버 _krw_col_ccy|ccysym)와 같은 통화
                   if (pamtDispR) {
                     const _pre = priceInpR && priceInpR.previousElementSibling && priceInpR.previousElementSibling.classList.contains('ccy-pre') ? priceInpR.previousElementSibling.textContent.trim() : '';
@@ -1903,18 +1924,37 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   // v5H226z1026 (안지연 프로 확인·대표 확정): 판매단가는 소수점 이하 **버림**(기존 반올림).
                   //   서버 _sell_from_cost 와 같은 규칙 — 부동소수 오차는 6자리에서 정리 후 버림.
                   const c = _pn(costInpR), mRaw = marginInpR ? (marginInpR.value||'').trim() : '';
-                  if (priceInpR && c > 0 && mRaw !== '')
-                    priceInpR.value = Math.floor(Math.round(c*(1+(parseFloat(mRaw.replace(/,/g,''))||0)/100)*1e6)/1e6).toLocaleString('en-US');
-                  _recalcAmt();
+                  //   z1191z118: 판매가가 외화(달러) 칸이면 버리지 않고 둘째 자리 반올림(예전엔 $1.64 → $1 로 잘림)
+                  if (priceInpR && c > 0 && mRaw !== '') {
+                    const _sv = c*(1+(parseFloat(mRaw.replace(/,/g,''))||0)/100);
+                    priceInpR.value = _priceIsKrwR ? Math.floor(Math.round(_sv*1e6)/1e6).toLocaleString('en-US') : _f2(Math.round(_sv*100)/100);
+                  }
+                  _syncInv(); _recalcAmt();
                 };
-                const _fromPrice = () => {        // 판매 직접수정 → 마진% 역산(매입가 있을 때만)
+                const _backMargin = () => {       // 판매가 → 마진% 역산(매입가 있을 때만)
                   const c = _pn(costInpR);
                   if (marginInpR && c > 0) marginInpR.value = Math.round((_pn(priceInpR)/c - 1)*1000)/10;
-                  _recalcAmt();
+                };
+                const _fromPrice = () => {        // 판매 직접수정 → 마진% 역산 · 인보이스
+                  _backMargin(); _syncInv(); _recalcAmt();
+                };
+                const _fromFx = () => {           // z1191z118: 환율 → 인보이스 = 판매가(원) ÷ 새 환율 (판매가·마진은 그대로)
+                  const f = _pn(fxInpR);
+                  if (f > 0 && _krwPriceR) { priceInpR.dataset.fx = String(f); if (costInpR && costInpR.dataset.fx) costInpR.dataset.fx = String(f); }
+                  _syncInv(); _recalcAmt();
+                };
+                const _fromInv = () => {          // z1191z118: 인보이스 → 판매가(원) = 인보이스 × 환율 → 마진 역산
+                  if (!priceInpR) return;
+                  const v = _pn(invInpR), f = _fxNow();
+                  if (_krwPriceR) { if (f > 0) priceInpR.value = v ? Math.round(v * f).toLocaleString('en-US') : ''; }
+                  else priceInpR.value = v ? _f2(v) : '';
+                  _backMargin(); _recalcAmt();
                 };
                 if (costInpR) costInpR.addEventListener('input', _fromCostMargin);
                 if (marginInpR) marginInpR.addEventListener('input', _fromCostMargin);
                 if (priceInpR) priceInpR.addEventListener('input', _fromPrice);
+                if (fxInpR) fxInpR.addEventListener('input', _fromFx);
+                if (invInpR) invInpR.addEventListener('input', _fromInv);
                 if (qtyInpR) qtyInpR.addEventListener('input', _recalcAmt);
               }
               // v5H226z1076 (안지연 프로 신고): 제품(SEMI) — 단가(.amt)×수량(.qty-inp)을 금액 칸에 라이브 표시.
@@ -3103,6 +3143,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       return '<tr><td style="padding:4px 6px;border-top:1px solid #eee;white-space:nowrap;font-weight:700;">' + d.no + '</td>'
         + '<td style="padding:4px 6px;border-top:1px solid #eee;">' + _e117(d.name) + '</td>'
         + '<td style="padding:4px 6px;border-top:1px solid #eee;">' + d.changes.map(function(x){ return '<b>' + _e117(x.f) + '</b> ' + _e117(_v117(x.old)) + ' → <span style="color:#047857;font-weight:700;">' + _e117(_v117(x.new)) + '</span>'; }).join('<br>')
+        + (d.auto ? '<div style="color:#1d4ed8;">↻ 자동 계산: ' + _e117(d.auto) + '</div>' : '')   // z1191z118
         + (d.warn ? '<div style="color:#b45309;">⚠ ' + _e117(d.warn) + '</div>' : '') + '</td></tr>';
     }).join('');
     var chks = (j.checks || []).map(function(c){ return '<div style="padding:2px 0;"><b>' + c.no + '번 ' + _e117(c.name) + '</b> — ' + _e117(c.msgs.join(' · ')) + '</div>'; }).join('');
