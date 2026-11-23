@@ -248,6 +248,7 @@
   <a class="mt-nav" href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">🗑</span><span class="t">휴지통</span></a>
   <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
+  {% if mail_tools_view is defined and mail_tools_view %}{{ mail_tools_view }}{% endif %}
   <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
   <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 모든 칸 한 단계(가장 작게 80%) · 내 계정에 기억" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsPanel(event)" title="글자 크기 — 양옆 −·＋ = 모든 칸 함께(80%~145%) · 가운데를 누르면 칸별로(폴더·목록·읽기 칸) · 내 계정에 기억(새로고침·업데이트해도 그대로)"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 모든 칸 한 단계(가장 크게 145%) · 내 계정에 기억" aria-label="글자 크게">＋</button></span>
   <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
@@ -274,7 +275,7 @@
   · 메일 위에서 <b>오른쪽 클릭</b> = 답장·전달·중요·보관·폴더로·삭제 메뉴<br>
   · 메일을 <b>끌어서</b> 왼쪽 폴더나 위 ⭐ 중요 · 📦 보관함 · 🗑 휴지통에 놓으면 옮겨짐(아래 안내에서 ↺ 되돌리기)<br>
   · 네모(☐)로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
-  · 목록 위 「🗔 보기」 = 읽기 칸 오른쪽·아래·끄기<br>
+  · 위 「🗔 읽기창보기」 = 읽기 칸 오른쪽·아래·끄기<br>
   · 맨 위 「🔃 보내기/받기」(또는 <kbd>F9</kbd>) = 새 메일을 지금 바로 받기(가만히 두어도 몇 분마다 저절로 받음)<br>
   <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요 · <kbd>N</kbd> 새 메일
   <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb"><b>📱 휴대폰에서</b> 메일을 누르면 크게 열림 · 열린 메일 위 단추로 답장·전달·삭제·보관 · 「🚩 기한·알림」 · 도구 줄은 옆으로 밀면 더 있음(스팸함·설정·도움말)</div>

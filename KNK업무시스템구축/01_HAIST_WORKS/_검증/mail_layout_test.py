@@ -167,7 +167,11 @@ check("거르기: 전체 · 안 읽음 · 첨부 · 광고 빼기 · 대화로 �
 check("종류 셋 → 「🏷 종류 ▾」 하나(링크 셋 그대로 안에)", 'id="mbxKindDd"' in ch and "mbxKindToggle(event)" in ch and ch.count("mbx-chip kind") == 3
       and all(("cat=" + x) in ch.replace("&amp;", "&") for x in ("견적", "발주", "세금계산서")))
 check("좁은 화면은 예전 칩 셋(종류 ▾ 단추 숨김 · 상자 = display:contents)", ".mbx-kinddd{display:contents}" in h and ".mbx-kindbtn{display:none}" in h)
-check("🗔 보기 = 거르기 줄 끝 · 펼침 상자는 화면 기준 자리(목록 칸에 안 잘림)", 'id="mbxViewDd"' in ch and "mbxPopAt(" in h and ".mbx-chips .mbx-viewmenu,.mbx-kindmenu.pop{position:fixed" in h)
+tb = seg(h, 'id="mailTools"', '</nav>')
+check("🗔 읽기창보기(11-23 대표 「보기를 테마 옆으로 · 이름 읽기창보기」) = 도구 줄 테마 바로 앞 · 거르기 줄엔 없음 · 펼침 상자는 화면 기준 자리",
+      'id="mbxViewDd"' not in ch and tb.find('<span class="sp"></span>') < tb.find('id="mbxViewDd"') < tb.find('id="mtThemeBtn"')
+      and '<span class="t">읽기창보기</span>' in tb and "mbxPopAt(" in h and "#mailTools .mbx-viewmenu{position:fixed" in h
+      and "@media(max-width:900px){ #mailTools .mbx-viewdd{display:none} }" in h and h.count('id="mbxViewDd"') == 1)
 check("목록 칸이 좁으면 긴 칩은 그림만(글자는 남김 · data-ic)", '@container mbxlc (max-width:560px)' in h and 'data-ic="💬"' in ch and 'data-ic="🔕"' in ch)
 check("날짜 머리 얇게 · 거르기 줄 바로 아래 붙음", ".mbx-list>.mbx-day{display:block;margin:0;padding:0 12px" in h and "--mbx-day-top" in h)
 
