@@ -27,17 +27,20 @@ _CACHE_MAX = 64
 
 def ensure(c):
     try:
-        k = c.execute("PRAGMA database_list").fetchone()[2] or ("mem:%x" % id(c))
+        k = c.execute("PRAGMA database_list").fetchone()[2] or ""
     except Exception:
-        k = "?"
-    if k in _COLS_OK:
+        k = ""
+    if k and k in _COLS_OK:
         return
-    for ddl in ("ALTER TABLE mail_messages ADD COLUMN html_sha TEXT DEFAULT ''",
-                "ALTER TABLE mail_messages ADD COLUMN sent_at TEXT DEFAULT ''"):
-        try:
-            c.execute(ddl)
-        except Exception:
-            pass
+    have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
+    for col, ddl in (("html_sha", "ALTER TABLE mail_messages ADD COLUMN html_sha TEXT DEFAULT ''"),
+                     ("sent_at", "ALTER TABLE mail_messages ADD COLUMN sent_at TEXT DEFAULT ''")):
+        if col not in have:
+            try:
+                c.execute(ddl)
+                have.add(col)
+            except Exception as e:
+                print("[MAIL-BODY-PACK] 칸 만들기 실패(%s): %s — 다음에 다시" % (col, str(e)[:120]), flush=True)
     c.execute("""CREATE TABLE IF NOT EXISTS mail_body_store (
         sha TEXT PRIMARY KEY, z BLOB NOT NULL, raw_len INTEGER, z_len INTEGER,
         created_at TEXT DEFAULT (datetime('now','localtime')))""")
@@ -49,7 +52,15 @@ def ensure(c):
         c.execute("CREATE INDEX IF NOT EXISTS idx_mailmsg_html_sha ON mail_messages(html_sha)")
     except Exception:
         pass
-    _COLS_OK.add(k)
+    if k and {"html_sha", "sent_at"} <= have:   # ⭐칸이 실제로 있을 때만 「끝남」(메모리 DB 는 기억 안 함)
+        _COLS_OK.add(k)
+
+
+def has_sent_at(c) -> bool:
+    try:
+        return "sent_at" in {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
+    except Exception:
+        return False
 
 
 def unpack_html(c, sha):

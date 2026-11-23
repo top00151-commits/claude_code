@@ -568,22 +568,31 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
         except Exception:
             pass
     # 11-23 원래 보낸 날짜(Date 머리) — 「지난 메일 가져오기」로 들어온 옛 메일도 6개월·12개월 규칙이 맞게(받은 시각은 그대로 둠)
+    #   ⭐칸을 못 만들었으면(잠김 등) 날짜 없이 저장 — 메일 받기는 절대 멈추지 않게
+    _with_sent = False
     try:
-        from .mail_body_pack import ensure as _pack_ensure
+        from .mail_body_pack import ensure as _pack_ensure, has_sent_at as _has_sent
         _pack_ensure(c)
+        _with_sent = _has_sent(c)
     except Exception:
-        pass
-    cur = c.execute(
-        """INSERT INTO mail_messages
-           (user_id, direction, from_email, from_name, to_email, cc,
-            subject, body_text, body_html, category, lang, summary, raw_size,
-            dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all, sent_at)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
-         _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
-         category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote, (to_all or "").strip()[:4000],
-         (sent_at or "").strip()[:19]),
-    )
+        _with_sent = False
+    _vals = (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
+             _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
+             category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote, (to_all or "").strip()[:4000])
+    if _with_sent:
+        cur = c.execute(
+            """INSERT INTO mail_messages
+               (user_id, direction, from_email, from_name, to_email, cc,
+                subject, body_text, body_html, category, lang, summary, raw_size,
+                dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all, sent_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", _vals + ((sent_at or "").strip()[:19],))
+    else:
+        cur = c.execute(
+            """INSERT INTO mail_messages
+               (user_id, direction, from_email, from_name, to_email, cc,
+                subject, body_text, body_html, category, lang, summary, raw_size,
+                dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", _vals)
     mail_id = cur.lastrowid
     if attachments:
         _save_attachments(c, mail_id, attachments)
