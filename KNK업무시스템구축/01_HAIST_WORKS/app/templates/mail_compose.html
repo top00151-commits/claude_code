@@ -502,8 +502,9 @@ function abPut(target){
     var sg=document.getElementById('cSigHtml');
     if(ED && sg && sg.value.trim()){
       var sig=document.createElement('div'); sig.className='knk-sig'; var v=sg.value;
-      if(/<[a-z][\s\S]*>/i.test(v)) sig.innerHTML='--<br>'+v;   // HTML 서명
-      else sig.innerText='--\n'+v;                              // 텍스트 서명(줄바꿈 보존)
+      // 11-23 대표 「서명 위 -- 줄 삭제」 — 구분은 서명 칸(.knk-sig)으로 함(AI로 정리도 이 칸 앞만 정리)
+      if(/<[a-z][\s\S]*>/i.test(v)) sig.innerHTML=v;   // HTML 서명
+      else sig.innerText=v;                              // 텍스트 서명(줄바꿈 보존)
       var blank=document.createElement('div'); blank.innerHTML='<br>';
       ED.insertBefore(sig, ED.firstChild);
       ED.insertBefore(blank, sig);
@@ -515,7 +516,7 @@ function abPut(target){
     if(v==='none'){ if(cur) cur.remove(); return; }
     var g=(window.CMP_SIGS||[]).filter(function(x){ return String(x.slot)===String(v); })[0]; if(!g) return;
     var el=document.createElement('div'); el.className='knk-sig'; var b=g.body||'';
-    if(/<[a-z][\s\S]*>/i.test(b)) el.innerHTML='--<br>'+b; else el.innerText='--\n'+b;
+    if(/<[a-z][\s\S]*>/i.test(b)) el.innerHTML=b; else el.innerText=b;   // 11-23 -- 줄 없음
     if(cur) cur.replaceWith(el); else { var blank=document.createElement('div'); blank.innerHTML='<br>'; ED.insertBefore(el, ED.firstChild); ED.insertBefore(blank, el); }
     window._cDirty=true;
   };
@@ -773,10 +774,15 @@ function abPut(target){
   window.aiUndo=function(){ if(AI_PREV!=null){ document.getElementById('cBody').innerHTML=AI_PREV; AI_PREV=null; cmsg('되돌렸습니다',''); } };
   window.aiCompose=async function(){
     var ed=document.getElementById('cBody'); var full=ed.innerText;
-    // 서명/원본인용 구분선 앞부분만 AI 정리(서명·인용 보존)
+    // 서명/원본인용 앞부분만 AI 정리(서명·인용 보존)
+    // 11-23 서명 칸(.knk-sig)이 있으면 그 앞 줄들만 정리하고 서명·인용은 모양 그대로 둠(예전엔 결과를 글자로만 넣어 로고·QR 서명이 풀렸음)
+    var sigEl=ed.querySelector('.knk-sig'), headNodes=null, top=sigEl;
+    while(top && top.parentNode!==ed) top=top.parentNode;
+    if(top){ headNodes=[]; for(var nd=ed.firstChild; nd && nd!==top; nd=nd.nextSibling) headNodes.push(nd); }
     var lines=full.split('\n'); var cut=-1;
-    for(var i=0;i<lines.length;i++){ var t=lines[i].trim(); if(t==='--'||t.indexOf('────')>=0){ cut=i; break; } }
-    var content=(cut>=0? lines.slice(0,cut).join('\n'):full).trim();
+    if(!headNodes) for(var i=0;i<lines.length;i++){ var t=lines[i].trim(); if(t==='--'||t.indexOf('────')>=0){ cut=i; break; } }
+    var content=headNodes ? headNodes.map(function(x){ return x.nodeType===1 ? x.innerText : x.textContent; }).join('\n').trim()
+                          : (cut>=0? lines.slice(0,cut).join('\n'):full).trim();
     var tail=(cut>=0? lines.slice(cut).join('\n'):'');
     if(!content){ cmsg('먼저 본문에 요점을 적어주세요','red'); return; }
     var btn=document.getElementById('cAiBtn'); if(btn)btn.disabled=true; cmsg('✨ AI가 정리하는 중...','');
@@ -785,8 +791,15 @@ function abPut(target){
       var r=await fetch('/api/mail/ai-compose',{method:'POST',body:fd}); var j=await r.json();
       if(j.ok){
         AI_PREV=ed.innerHTML;
-        var nt=(j.body||'').replace(/\s+$/,''); if(tail) nt+='\n\n'+tail.replace(/^\s+/,'');
-        ed.innerText=nt;
+        var nt=(j.body||'').replace(/\s+$/,'');
+        if(headNodes && top && top.parentNode===ed){
+          headNodes.forEach(function(x){ if(x.parentNode===ed) ed.removeChild(x); });
+          var nb=document.createElement('div'); nb.innerText=nt; var gap=document.createElement('div'); gap.innerHTML='<br>';
+          ed.insertBefore(nb, top); ed.insertBefore(gap, top);
+        } else {
+          if(tail) nt+='\n\n'+tail.replace(/^\s+/,'');
+          ed.innerText=nt;
+        }
         var subj=document.getElementById('cSubj'); if(j.subject && !subj.value.trim()) subj.value=j.subject;
         cmsg('✨ AI가 정리했습니다. ','green');
         var m=document.getElementById('cMsg');

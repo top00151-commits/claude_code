@@ -342,7 +342,7 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
     if corp == "vn":
         comp, addr, tel, fax = (VN_COMPANY_VI if lang == "vi" else VN_COMPANY), VN_ADDRESS, "", ""
     elif lang == "ko":
-        comp, addr = co.get("company_name_ko", ""), (co.get("company_address", "") or "").strip() or HQ_ADDRESS
+        comp, addr = short_corp_ko(co.get("company_name_ko", "")), (co.get("company_address", "") or "").strip() or HQ_ADDRESS
         tel, fax = (co.get("company_tel", "") or "").strip() or HQ_TEL, (co.get("company_fax", "") or "").strip() or HQ_FAX
     else:
         comp, addr = co.get("company_name_en", ""), (co.get("company_address_en", "") or "").strip() or HQ_ADDRESS_EN
@@ -354,6 +354,15 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
             "name_ko": v["name"], "rank_ko": v["rank"], "name_vi": v["name_vi"] or v["name"],
             "_corp": corp, "_vi_person": is_vi_person(p, corp)}
 
+
+
+def short_corp_ko(name: str) -> str:
+    """11-23 대표 「서명에 '주식회사 케이엔케이'가 아니고 '(주)케이엔케이'로」 — 메일 서명에서만 줄여 씀
+    (웍스 「회사 정보」 값은 그대로 — 견적서·성적서 인쇄는 원래 이름)."""
+    s = (name or "").strip()
+    s = re.sub(r"^주식회사\s*", "(주)", s)
+    s = re.sub(r"\s*주식회사$", "(주)", s)
+    return s
 
 
 def is_vi_person(p: dict, corp: str) -> bool:
