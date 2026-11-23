@@ -159,6 +159,34 @@ def bulk_senders(c, uid) -> set:
         return set()
 
 
+def bulk_map(c, uid) -> dict:
+    """11-23 광고·알림 = {보낸 주소: 그때 받은 메일부터('' = 지난 메일도 모두)} — 자동 판단 + 내가 표시(날짜부터 포함)."""
+    res = {a: "" for a in bulk_senders(c, uid)}
+    try:
+        from . import mail_ui_prefs as _mup
+        _on, _off, _since = _mup.get_ad_marks3(c, uid)
+        for a in _off:
+            res.pop(a, None)
+        for a in _on:
+            res[a] = ""
+        for a, s in _since.items():
+            res[a] = s
+    except Exception as e:
+        print("[MAIL-FIND bulk_map ERR] %s: %s" % (type(e).__name__, e))
+    return res
+
+
+def is_ad(m, bmap) -> bool:
+    """이 받은 메일이 광고·알림인가(보낸 주소 + 그때부터)."""
+    if (m.get("direction") or "in") != "in":
+        return False
+    a = (m.get("from_email") or "").strip().lower()
+    if a not in bmap:
+        return False
+    s = bmap.get(a) or ""
+    return (not s) or str(m.get("received_at") or "") >= s
+
+
 # ─── 「참조」로 받은 메일 ───────────────────────────────────────────
 _RE_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 

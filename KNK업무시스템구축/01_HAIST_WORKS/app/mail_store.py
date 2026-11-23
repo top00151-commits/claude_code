@@ -785,7 +785,7 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
                has_att=None, cust: str = "", limit: int = 200, offset: int = 0, only_ids=None,
                senders=None, qf: str = "all", with_sent: bool = False, who: str = "", dom: str = "",
                q_senders=None, noad=None, count_only: bool = False, arc: bool = False, fd_keys=None,
-               flagged: bool = False, snoozed: bool = False, kind_words=None):
+               flagged: bool = False, snoozed: bool = False, kind_words=None, ad_only=None):
     """받은편지함 목록.
     (11-23) kind_words = 「🏷 내 종류」 낱말 — 제목·보낸 사람(이름·주소)에 하나라도 들어간 메일.
     (11-18 대표 「쉽게 찾기」) q = 띄어 쓴 낱말 **모두** 들어간 메일(낱말마다 보낸 사람·받는 사람·참조·제목·본문·첨부 파일 이름 중 한 곳) ·
@@ -898,13 +898,20 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
         c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
         where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
     # 광고·알림 빼고 보기(11-18) — 「보낸 곳별 정리」가 광고·알림으로 본 주소(받은 메일만 해당)
-    if noad:
-        _na = sorted({(x or "").strip().lower() for x in noad if x})
-        if _na:
-            c.execute("CREATE TEMP TABLE IF NOT EXISTS _mf_noad(e TEXT PRIMARY KEY)")
-            c.execute("DELETE FROM _mf_noad")
-            c.executemany("INSERT OR IGNORE INTO _mf_noad(e) VALUES(?)", [(x,) for x in _na])
-            where += " AND NOT (direction='in' AND lower(from_email) IN (SELECT e FROM _mf_noad))"
+    #   11-23 {주소: 그때부터} 도 받음(내가 「날짜부터 광고·알림」으로 표시) · 📢 광고·알림 칸 = ad_only(같은 기준 · 그 메일만)
+    for _flag, _src in (("noad", noad), ("ad", ad_only)):
+        if not _src:
+            continue
+        _pairs = sorted({((x or "").strip().lower(), (_src.get(x) or "") if isinstance(_src, dict) else "") for x in _src if x})
+        _tb = "_mf_ad_" + _flag
+        c.execute("CREATE TEMP TABLE IF NOT EXISTS " + _tb + "(e TEXT PRIMARY KEY, s TEXT NOT NULL DEFAULT '')")
+        c.execute("DELETE FROM " + _tb)
+        c.executemany("INSERT OR REPLACE INTO " + _tb + "(e, s) VALUES(?,?)", _pairs)
+        _ex = ("(direction='in' AND EXISTS(SELECT 1 FROM " + _tb + " t WHERE t.e=lower(mail_messages.from_email) "
+               "AND COALESCE(mail_messages.received_at,'') >= t.s))")
+        where += (" AND NOT " + _ex) if _flag == "noad" else (" AND " + _ex)
+    if ad_only is not None and not ad_only:
+        where += " AND 0"
     terms = search_terms(q)
     if terms:
         qf = qf if qf in ("all", "from", "subj", "att") else "all"

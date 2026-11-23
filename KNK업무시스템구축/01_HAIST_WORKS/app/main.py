@@ -24124,7 +24124,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
                           reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
                           who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = "",
-                          arc: int = 0, flag: int = 0, snz: int = 0, boss: int = 0, kd: str = ""):
+                          arc: int = 0, flag: int = 0, snz: int = 0, boss: int = 0, kd: str = "", ad: int = 0):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -24174,7 +24174,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _boss_ids = _mail_boss_ids(c, u["id"], reply_map, _mpst, _mpme)
         except Exception as _e:
             print("[MAIL-PEOPLE] 받은편지함 윗분 표시 실패(목록은 그대로): %s" % str(_e)[:160], flush=True)
-        _bulk = _mail_find.bulk_senders(c, u["id"])
+        _bulk = _mail_find.bulk_map(c, u["id"])   # 11-23 {주소: 그때부터} — 내가 날짜부터 표시한 것까지
         _qs = _mail_find.q_senders(mf, _terms) if (_terms and mf and not fd) else None
         # 11-19 2단계 — 시간이 된 「⏰ 다시 알림」 메일은 안 읽음으로 돌아옴 · 🚩 기한 날짜 = 보는 사람 소속 날짜
         try:
@@ -24191,9 +24191,15 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                    q_senders=_qs, noad=(_bulk if noad else None),
                    arc=bool(arc), fd_keys=(sorted((mf or {}).get("keys_of", {}).get(fd, set())) if fd else None),
                    flagged=bool(flag), snoozed=bool(snz and not flag),
-                   kind_words=(_kd_item["w"] if _kd_item else None))
+                   kind_words=(_kd_item["w"] if _kd_item else None), ad_only=(_bulk if ad else None))
         mails = _mailbox.list_inbox(c, u["id"], limit=_PAGE, offset=off, **_kw)
         total_n = _mailbox.list_inbox(c, u["id"], count_only=True, **_kw) or 0
+        # 11-23 왼쪽 「📢 광고·알림」 숫자 — 받은편지함(보관 뺌)에서 광고·알림 통수
+        try:
+            _ad_n = int(_mailbox.list_inbox(c, u["id"], count_only=True, ad_only=_bulk) or 0)
+        except Exception as _e:
+            print("[MAIL ad_n ERR] %s: %s" % (type(_e).__name__, _e))
+            _ad_n = 0
         _kinds = _mail_find.folder_kinds(mf) if mf else {}
         _mine = _mail_find.my_addresses(c, u["id"])
         for _m in mails:
@@ -24201,7 +24207,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
             _m["tlabel"] = _mail_find.time_label(_m.get("received_at"))
             _m["day"] = _mail_find.day_label(_m.get("received_at"))
             _inb = (_m.get("direction") or "in") == "in"
-            _m["ad"] = bool(_inb and (_m.get("from_email") or "").strip().lower() in _bulk)
+            _m["ad"] = bool(_inb and _mail_find.is_ad(_m, _bulk))
             _m["ccme"] = _mail_find.is_cc(_m, _mine)
             _sp = _mpeople.sender(_mpst, _mpme, _m.get("from_email")) if _inb else {}
             _m["staff"], _m["boss"] = _sp.get("disp", ""), _sp.get("boss", "")
@@ -24292,6 +24298,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                      prev_day=(prev or "")[:40], page_off=off,
                      base_q=_ue(_base_q), base_nc=_ue(_base_nc), cur_flag=bool(flag), cur_snz=bool(snz and not flag),
                      my_kinds=[x for x in _my_kinds if x.get("on")], cur_kd=kd, cur_kd_name=(_kd_item["n"] if _kd_item else ""),
+                     cur_ad=bool(ad), ad_n=_ad_n,
                      search_on=bool(_terms or who or dom or per or df or dt),
                      terms=_terms, cur_qf=qf, cur_where=where, cur_per=per, cur_who=who, cur_dom=dom,
                      cur_noad=bool(noad), periods=_mail_find.PERIOD_NAMES,
@@ -25719,24 +25726,81 @@ async def mail_contact_draft(req: Request, mail_id: int):
 
 
 # ─── 메일 자동분류 규칙 (Phase2) — 보낸사람/제목 키워드 → 카테고리 강제 ───
+def _mail_ad_senders_of(c, uid, ids):
+    """고른 메일들의 보낸 사람(받은 메일 · 회사 밖 주소만) — [{addr, name, first(고른 것 중 가장 이른 받은 때)}]."""
+    ids = [int(x) for x in ids if str(x).strip().isdigit()][:500]
+    if not ids:
+        return []
+    rows = c.execute("SELECT lower(COALESCE(from_email,'')) AS a, MAX(COALESCE(from_name,'')) AS nm, MIN(received_at) AS f FROM mail_messages "
+                     "WHERE user_id=? AND direction='in' AND id IN (" + ",".join("?" * len(ids)) + ") GROUP BY lower(COALESCE(from_email,''))",
+                     (uid, *ids)).fetchall()
+    return [{"addr": r["a"], "name": r["nm"] or r["a"], "first": r["f"] or ""} for r in rows
+            if r["a"] and "@" in r["a"] and not r["a"].endswith("@knknara.co.kr")]
+
+
 @app.post("/mail/ad-mark")
 async def mail_ad_mark(req: Request):
     """11-23 대표 「광고·알림은 내가 지정할 수 있어?」 — 보낸 사람(주소)을 광고·알림으로 / 아님으로 / 자동 판단으로(나에게만).
-    form: addr · mode(on|off|'') """
+    form: addr 또는 ids(고른 메일 → 그 보낸 사람들) · mode(on|off|'') · since(on 일 때 그때 받은 메일부터 · 없으면 지난 메일도 모두)
+          dry=1 = 묻는 창에 보일 숫자만(보낸 사람별 지금 통수 · 고른 메일 날짜부터 통수)"""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     form = await req.form()
     from . import mail_ui_prefs as _mup
-    addr = (form.get("addr") or "").strip()
-    if addr.lower().endswith("@knknara.co.kr"):
+    addr = (form.get("addr") or "").strip().lower()
+    ids = [x for x in (form.get("ids") or "").split(",") if x.strip()]
+    mode = (form.get("mode") or "").strip()
+    since = (form.get("since") or "").strip()
+    if addr.endswith("@knknara.co.kr"):
         return JSONResponse({"ok": False, "message": "회사 안 주소는 광고·알림으로 정할 수 없습니다"})
     with db_session() as c:
-        mode = _mup.set_ad_mark(c, u["id"], addr, (form.get("mode") or "").strip())
-    if mode is None:
+        snd = _mail_ad_senders_of(c, u["id"], ids) if ids else ([{"addr": addr, "name": addr, "first": ""}] if addr else [])
+        if not snd:
+            return JSONResponse({"ok": False, "message": "회사 밖에서 받은 메일이 아니어서 광고·알림으로 정할 수 없습니다" if ids else "보낸 사람 주소가 없습니다"})
+        first = min([x["first"] for x in snd if x["first"]] or [""])
+        if (form.get("dry") or "") == "1":
+            q = ("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_blocked,0)=0 "
+                 "AND lower(from_email) IN (" + ",".join("?" * len(snd)) + ")")
+            a = [x["addr"] for x in snd]
+            n_all = c.execute(q, (u["id"], *a)).fetchone()[0]
+            n_first = c.execute(q + " AND received_at >= ?", (u["id"], *a, first)).fetchone()[0] if first else n_all
+            return JSONResponse({"ok": True, "senders": snd[:20], "n_send": len(snd), "first": first, "n_all": n_all, "n_first": n_first})
+        out = None
+        for x in snd:
+            out = _mup.set_ad_mark(c, u["id"], x["addr"], mode, since if mode == "on" else "")
+    if out is None:
         return JSONResponse({"ok": False, "message": "보낸 사람 주소가 없습니다"})
     _mail_find._BULK.pop(u["id"], None)   # 받은편지함 광고·알림 표시를 바로 다시 셈
-    return JSONResponse({"ok": True, "mode": mode})
+    return JSONResponse({"ok": True, "mode": out, "n_send": len(snd), "since": _mup._since(since) if mode == "on" else ""})
+
+
+@app.post("/mail/ad/trash")
+async def mail_ad_trash(req: Request):
+    """11-23 대표 「광고·알림에 모아 놓은 건 필요하면 한꺼번에 삭제」 — 📢 광고·알림 칸 메일 모두 휴지통으로(지우지 않음 · 되돌리기).
+    form: dry=1 = 통수만 · undo=번호들 = 방금 휴지통으로 보낸 것 되살리기."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    with db_session() as c:
+        undo = (form.get("undo") or "").strip()
+        if undo:
+            _u = [int(x) for x in undo.split(",") if x.strip().isdigit()]
+            n = sum(_mailbox.bulk_apply(c, u["id"], _u[i:i + 500], "restore") for i in range(0, len(_u), 500))
+            return JSONResponse({"ok": True, "n": n})
+        bm = _mail_find.bulk_map(c, u["id"])
+        if (form.get("dry") or "") == "1":
+            return JSONResponse({"ok": True, "n": int(_mailbox.list_inbox(c, u["id"], count_only=True, ad_only=bm) or 0)})
+        ids = []
+        while True:
+            part = [m["id"] for m in _mailbox.list_inbox(c, u["id"], ad_only=bm, limit=500, offset=len(ids))]
+            ids += part
+            if len(part) < 500 or len(ids) >= 20000:
+                break
+        n = sum(_mailbox.bulk_apply(c, u["id"], ids[i:i + 500], "delete") for i in range(0, len(ids), 500))
+    _mail_folders._CACHE.pop(u["id"], None)
+    return JSONResponse({"ok": True, "n": n, "ids": ",".join(str(i) for i in ids)})
 
 
 @app.get("/mail/kinds", response_class=HTMLResponse)

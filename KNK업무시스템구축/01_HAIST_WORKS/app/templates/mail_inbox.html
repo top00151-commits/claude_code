@@ -436,6 +436,8 @@
   #mailTools .mbx-rad.on,#mailTools .mbx-rad:has(input:checked){background:var(--ink);color:#fff;border-color:var(--ink);font-weight:400}
   /* 종류 ▾ — 넓은 화면은 단추 하나로 접고, 좁은 화면은 예전처럼 칩 셋 */
   .mbx-kinddd{display:contents}
+  .mf-cur .mbx-adtrash{border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:8px;padding:3px 10px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .mf-cur .mbx-adtrash:hover{background:#fef2f2}
   .mbx-chip .mbx-chip-n{font-weight:700;font-size:11px;opacity:.75;margin-left:2px}
   /* 11-23 🏷 종류 펼침 상자 맨 아래 「✏ 종류 고치기」 — 위 목록과 점선으로 나눔 */
   .mbx-kindmenu .mbx-kedit{border-style:dashed;color:#1d4ed8;background:transparent}
@@ -589,7 +591,7 @@
   {% set box = box|default('in') %}
   {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
   {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
-  {% set _all_on = (box=='in' and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false) and not cur_arc|default(false) and not cur_reply|default(false) and not cur_flag|default(false) and not cur_snz|default(false)) %}
+  {% set _all_on = (box=='in' and not cur_ad|default(false) and not cur_cust|default('') and not cur_fd|default('') and not cur_cat|default('') and not cur_star|default(false) and not cur_unread|default(false) and not cur_arc|default(false) and not cur_reply|default(false) and not cur_flag|default(false) and not cur_snz|default(false)) %}
 
   {# ── 상단 컴팩트 메뉴: 검색 + 액션 (메뉴 최대한 상단) ── #}
   <div class="mbx-topbar"{% if _mbx_inline_top %} data-wide="off"{% endif %}>
@@ -673,6 +675,8 @@
       <a href="/mail/drafts" class="mbx-fold {{ 'on' if box=='draft' else '' }}" title="쓰다가 저장한 메일(임시 저장)"><span class="fname">📝 임시보관함</span>{% if drafts_n|default(0) %}<span class="cnt">{{ drafts_n }}</span>{% endif %}</a>
       <a href="/mail/files" class="mbx-fold" title="받은·보낸 메일의 첨부만 모아 보기 — 종류(PDF·엑셀·도면·사진)·기간·거래처·파일 이름으로 찾기"><span class="fname">📎 첨부 모아 보기</span></a>
       <a href="/mail/trash" class="mbx-fold {{ 'on' if box=='trash' else '' }}"{% if box=='in' %} data-drop="delete" data-dname="휴지통"{% endif %}><span class="fname">🗑 휴지통</span></a>
+      {# 11-23 대표 「광고·알림으로 분류한 메일이 스팸함 위 「광고·알림」에 모이게 · 끌어 넣으면 앞으로 그 기준(지난 메일까지 할지는 꼭 묻기)」 #}
+      <a href="/mail/inbox?ad=1" class="mbx-fold {{ 'on' if cur_ad|default(false) else '' }}"{% if box=='in' %} data-drop="ad" data-dname="광고·알림"{% endif %} title="📢 광고·알림 — 자동(제목 (광고)·수신거부 안내·답장 안 받는 자동 주소) + 내가 표시한 보낸 곳 · 메일을 끌어 여기에 놓으면 그 보낸 사람을 광고·알림으로(지난 메일까지 할지 물어봄) · 지우지 않음"><span class="fname">📢 광고·알림</span>{% if ad_n|default(0) %}<span class="cnt">{{ '{:,}'.format(ad_n) }}</span>{% endif %}</a>
       <a href="/mail/blocked" class="mbx-fold {{ 'on' if box=='blocked' else '' }}" title="스팸·피싱으로 보이는 메일이 저절로 모이는 곳(지우지 않음) — 아는 사람(주소록·거래처·내가 메일 보낸 사람)은 옮기지 않음 · 「✓ 스팸 아님」 한 번이면 그 사람은 다시 안 옮김"><span class="fname">🚫 스팸함</span>{% if spam_n|default(0) %}<span class="cnt">{{ '{:,}'.format(spam_n) }}</span>{% endif %}</a>
       </div>
       <script>
@@ -801,6 +805,12 @@
     <div class="mf-cur">🚩 <b>기한</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 기한 순 · 지난 것은 빨강 · 메일을 열어 「🚩 기한·알림」에서 바꾸거나 풀기</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
     {% elif cur_snz|default(false) %}
     <div class="mf-cur">⏰ <b>다시 알림</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 위 = 기다리는 메일(그때까지 받은편지함에서 숨김) · 아래 = 최근 3일 안에 돌아온 메일</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
+    {% endif %}
+    {% if cur_ad|default(false) %}
+    {# 11-23 📢 광고·알림 칸 — 모두 휴지통으로(지우지 않음 · ↺ 되돌리기) #}
+    <div class="mf-cur" style="background:#fffbeb;border-color:#fde68a">📢 <b>광고·알림</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 자동 판단 + 내가 표시한 보낸 곳 · 아닌 메일은 오른쪽 클릭 「📢 광고·알림 아님」</span>
+      {% if total_n|default(0) %}<button type="button" class="mbx-adtrash" onclick="mbxAdTrash()" title="이 칸의 메일 {{ total_n }}통을 모두 휴지통으로(지우지 않음 · 휴지통에서 되살림 · 바로 뒤 「↺ 되돌리기」)">🗑 모두 휴지통으로</button>{% endif %}
+      <a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
     {% endif %}
     {% if cur_arc|default(false) %}
     <div class="mf-cur">📦 <b>보관함</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 받은편지함에서만 빠진 메일(지우지 않음) · 「📥 받은편지함으로」로 되돌림</span>
@@ -1297,6 +1307,15 @@ async function mbxSideRefresh(){
 /* ── 11-22 대표 「읽지 않은 메일을 한 번에 읽음」·「회신 필요도 일괄 처리 — 0이 되게」 ──
    먼저 셈(확인 창에 몇 통인지 · 👔 윗분 지시 몇 통 포함) → 하기 → 화면을 새로 고친 뒤 아래 「↺ 되돌리기」(방금 바꾼 것만) */
 function mbxUndoSave(o){ try{ sessionStorage.setItem('mbxUndo', JSON.stringify(o)); }catch(e){} }
+/* 11-23 대표 「광고·알림에 모아 놓은 건 필요하면 한꺼번에 삭제」 — 몇 통인지 묻고 → 휴지통으로(지우지 않음) → 「↺ 되돌리기」 */
+async function mbxAdTrash(){
+  var j=await mbxForm('/mail/ad/trash',{dry:'1'}); if(!j) return;
+  if(!j.n){ mbxToast('📢 광고·알림 칸에 메일이 없어요'); return; }
+  if(!confirm('📢 광고·알림 메일 '+j.n.toLocaleString()+'통을 모두 휴지통으로 보낼까요?\n(지우지 않습니다 · 휴지통에서 되살릴 수 있고 바로 뒤 「↺ 되돌리기」도 됩니다)')) return;
+  var k=await mbxForm('/mail/ad/trash',{dry:'0'}); if(!k) return;
+  mbxUndoSave({k:'adtrash', ids:k.ids||'', msg:'🗑 광고·알림 메일 '+(k.n||0).toLocaleString()+'통을 휴지통으로 보냈어요'});
+  location.reload();
+}
 /* 11-23 대표 「보관함 메일도 3·6·12개월 받은편지함으로 되돌리기」 — 먼저 몇 통인지 묻고 → 되돌림 → 「↺ 되돌리기」(다시 보관) */
 async function mbxUnarc(m){
   var j=await mbxForm('/mail/archive/recent',{months:m, dry:'1'}); if(!j) return;
@@ -1338,7 +1357,7 @@ window.mbxReplyPicked=function(){ var ids=mbxPicked(); if(ids.length) mbxReplyAl
   var o=null; try{ o=JSON.parse(sessionStorage.getItem('mbxUndo')||'null'); sessionStorage.removeItem('mbxUndo'); }catch(e){}
   if(!o || !o.msg) return;
   function go(){ mbxToast(o.msg, o.k ? [['↺ 되돌리기', async function(){
-    var j = o.k==='read' ? await mbxForm('/mail/read-all/undo',{ids:o.ids||''}) : (o.k==='move' ? await mbxForm('/mail/move/undo',{}) : (o.k==='unarc' ? await mbxForm('/mail/archive/recent',{undo:o.ids||''}) : await mbxForm('/mail/reply/done-all/undo',{undo:o.undo||''})));
+    var j = o.k==='read' ? await mbxForm('/mail/read-all/undo',{ids:o.ids||''}) : (o.k==='move' ? await mbxForm('/mail/move/undo',{}) : (o.k==='unarc' ? await mbxForm('/mail/archive/recent',{undo:o.ids||''}) : o.k==='adtrash' ? await mbxForm('/mail/ad/trash',{undo:o.ids||''}) : await mbxForm('/mail/reply/done-all/undo',{undo:o.undo||''})));
     if(j){ mbxUndoSave({k:'', msg:(o.k==='move' ? '↺ 방금 옮긴 것을 되돌렸어요(폴더·앞으로 올 메일 모두 예전대로)' : '↺ '+(j.n||0).toLocaleString()+'통 되돌렸어요')}); location.reload(); } }]] : null);
     if(o.k){ clearTimeout(window._mbxToastT); window._mbxToastT=setTimeout(function(){ var t=document.getElementById('mbxToast'); if(t) t.hidden=true; }, 30000); } }   // 한꺼번에 바꾼 뒤라 되돌리기는 30초
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go); else go();
@@ -1354,6 +1373,11 @@ async function mbxDropDo(tg, ids){
     // 11-22 대표 「내가 옮기면 옮긴 위치가 기준 · 관련 메일도 따라 · 옮길 때 지금부터만/지난 메일도 꼭 묻기」 → 묻는 창
     var jm=await mailMoveAsk({ids:inb, key:tg.dataset.fkey, name:name});
     if(jm){ mbxUndoSave({k:'move', msg:jm.text}); location.reload(); }
+    return;
+  }
+  if(op==='ad'){   // 11-23 📢 광고·알림 칸에 놓기 → 그 보낸 사람을 광고·알림으로(지난 메일까지 할지·날짜부터 꼭 묻기)
+    if(!inb.length){ mbxToast('📤 보낸 메일은 광고·알림으로 정할 수 없어요', null, true); return; }
+    var ja=await mailAdAsk({ids:inb}); if(ja){ mbxUndoSave({k:'', msg:ja.text}); location.reload(); }
     return;
   }
   if(op==='star' && ids.every(function(i){ return prev[i] && prev[i].star; })){ mbxToast('이미 ⭐ 중요로 표시한 메일이에요'); return; }
@@ -1725,8 +1749,9 @@ async function mbxDropDo(tg, ids){
       item('🔍 이 사람 메일 모두 보기', function(){ location.href='/mail/inbox?who='+encodeURIComponent(from); });
       // 11-23 대표 「광고·알림은 내가 지정할 수 있어?」 — 이 보낸 사람을 광고·알림으로 / 아님으로(나에게만 · 그 사람 메일 모두)
       if(!/@knknara\.co\.kr$/i.test(from)){ var _isAd=r.classList.contains('robot');
-        item(_isAd ? '📢 광고·알림 아님(이 사람)' : '📢 광고·알림으로 표시(이 사람)', async function(){
-          try{ var fd=new FormData(); fd.append('addr', from); fd.append('mode', _isAd ? 'off' : 'on');
+        item(_isAd ? '📢 광고·알림 아님(이 사람)' : '📢 광고·알림으로 표시(이 사람) ▸', async function(){
+          if(!_isAd){ var ja=await mailAdAsk({ids:ids}); if(ja){ mbxUndoSave({k:'', msg:ja.text}); location.reload(); } return; }
+          try{ var fd=new FormData(); fd.append('addr', from); fd.append('mode', 'off');
             var rr=await fetch('/mail/ad-mark',{method:'POST', body:fd}); var j=await rr.json();
             if(j.ok){ if(window.mbxNoKeep) try{ mbxNoKeep(); }catch(_){} location.reload(); } else alert('⚠ '+(j.message||'하지 못했습니다')); }catch(_){ alert('네트워크 오류'); } }); }
       if(!/@knknara\.co\.kr$/i.test(from)) item('🔕 다시 안 받기(나만 · 스팸함으로)', async function(){

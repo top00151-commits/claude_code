@@ -206,20 +206,42 @@ def _addr(a):
     return a if ("@" in a and len(a) <= 200 and " " not in a) else ""
 
 
+def _since(v):
+    """'YYYY-MM-DD' 또는 'YYYY-MM-DD HH:MM:SS' 만 · 그 밖 = ''."""
+    import re as _re
+    v = str(v or "").strip()
+    if _re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+        return v + " 00:00:00"
+    return v if _re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", v) else ""
+
+
 def get_ad_marks(c, user_id):
-    """(광고·알림으로 표시한 주소, 광고·알림 아님으로 표시한 주소)."""
+    """(광고·알림으로 표시한 주소, 광고·알림 아님으로 표시한 주소). 날짜부터 표시한 주소도 「표시」에 듦."""
+    on, off, since = get_ad_marks3(c, user_id)
+    return on | set(since), off
+
+
+def get_ad_marks3(c, user_id):
+    """(지난 메일도 모두 광고·알림, 아님, {주소: 그때 받은 메일부터 광고·알림})."""
     if not user_id:
-        return set(), set()
+        return set(), set(), {}
     d = _load(c, user_id).get("ad") or {}
     if not isinstance(d, dict):
-        return set(), set()
-    on = {x for x in (_addr(a) for a in (d.get("on") or [])) if x}
+        return set(), set(), {}
     off = {x for x in (_addr(a) for a in (d.get("off") or [])) if x}
-    return on - off, off
+    on = {x for x in (_addr(a) for a in (d.get("on") or [])) if x} - off
+    sm = d.get("since") if isinstance(d.get("since"), dict) else {}
+    since = {}
+    for k, v in sm.items():
+        a, s = _addr(k), _since(v)
+        if a and s and a not in off and a not in on:
+            since[a] = s
+    return on, off, since
 
 
-def set_ad_mark(c, user_id, addr, mode):
-    """mode: 'on' = 광고·알림으로 · 'off' = 광고·알림 아님 · '' = 자동 판단으로 되돌림. 반환 지금 표시('on'|'off'|'')."""
+def set_ad_mark(c, user_id, addr, mode, since=""):
+    """mode: 'on' = 광고·알림으로(since 가 있으면 그때 받은 메일부터 · 없으면 지난 메일도 모두) · 'off' = 아님 · '' = 자동 판단으로.
+    반환 지금 표시('on'|'off'|'') · 주소가 이상하면 None."""
     a = _addr(addr)
     if not a:
         return None
@@ -227,11 +249,17 @@ def set_ad_mark(c, user_id, addr, mode):
     m = d.get("ad") if isinstance(d.get("ad"), dict) else {}
     on = [x for x in (m.get("on") or []) if _addr(x) and _addr(x) != a]
     off = [x for x in (m.get("off") or []) if _addr(x) and _addr(x) != a]
-    if mode == "on":
+    sm = {k: v for k, v in (m.get("since") or {}).items() if _addr(k) and _addr(k) != a} if isinstance(m.get("since"), dict) else {}
+    s = _since(since)
+    if mode == "on" and s:
+        sm[a] = s
+    elif mode == "on":
         on.append(a)
     elif mode == "off":
         off.append(a)
-    d["ad"] = {"on": on[-AD_MAX:], "off": off[-AD_MAX:]}
+    if len(sm) > AD_MAX:
+        sm = dict(list(sm.items())[-AD_MAX:])
+    d["ad"] = {"on": on[-AD_MAX:], "off": off[-AD_MAX:], "since": sm}
     c.execute("INSERT INTO mail_ui_prefs(user_id, prefs, updated_at) VALUES(?,?,datetime('now','localtime')) "
               "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
               (int(user_id), json.dumps(d, ensure_ascii=False)))

@@ -117,6 +117,53 @@
       var first=bg.querySelector('.go button'); if(first) first.focus();
     });
   };
+  // 11-23 대표 「끌어서 광고·알림에 넣으면 앞으로 그 기준 · 단 이전 것도 그렇게 할지는 꼭 확인 · 특정 일자 이후부터만도」
+  //   window.mailAdAsk({ids:[…]}) → 정했으면 {ok, text} · 닫으면 null · 언제부터는 미리 골라 두지 않음(단추를 눌러야 정함)
+  window.mailAdAsk=function(o){
+    return new Promise(async function(resolve){
+      var ids=(o.ids||[]).filter(Boolean); if(!ids.length){ resolve(null); return; }
+      async function ad(obj){ var fd=new FormData(); Object.keys(obj).forEach(function(k){ fd.append(k, obj[k]); });
+        var r=await fetch('/mail/ad-mark',{method:'POST',body:fd,credentials:'same-origin'}); return await r.json(); }
+      var info; try{ info=await ad({ids:ids.join(','), mode:'on', dry:'1'}); }catch(e){ alert('네트워크 오류'); resolve(null); return; }
+      if(!info || !info.ok){ alert('⚠ '+((info&&info.message)||'정할 수 없습니다')); resolve(null); return; }
+      var who=info.senders.map(function(x){ return esc(x.name&&x.name!==x.addr ? (x.name+' <'+x.addr+'>') : x.addr); });
+      var fd0=(info.first||'').slice(0,10), today=new Date(), td=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+      var bg=document.createElement('div'); bg.className='mmv-bg';
+      bg.innerHTML='<div class="mmv" role="dialog" aria-modal="true" aria-label="광고·알림으로 정하기">'+
+        '<button type="button" class="x" title="닫기(정하지 않음)" aria-label="닫기">✕</button>'+
+        '<h3>📢 광고·알림으로 정하기</h3>'+
+        '<div class="sub">보낸 사람 '+n(info.n_send)+'곳 · 나에게만 적용 · 메일은 지우지 않음(「📢 광고·알림」 칸에 모임)</div>'+
+        '<div class="scope">'+who.slice(0,5).map(function(w){ return '<div>👤 <b>'+w+'</b></div>'; }).join('')+(who.length>5?'<div><small>외 '+(who.length-5)+'곳</small></div>':'')+
+        '<div><small>지금 이 보낸 사람에게서 받은 메일 '+n(info.n_all)+'통</small></div></div>'+
+        '<div class="q">언제 받은 메일부터 광고·알림으로 할까요?</div>'+
+        '<div class="go">'+
+          '<button type="button" data-when="first"><b>⏩ 고른 메일부터</b><span>'+esc(fd0)+' 받은 고른 메일과 그 뒤로 오는 메일 <i>'+n(info.n_first)+'</i>통 · 그 전 메일은 그대로</span></button>'+
+          '<button type="button" data-when="all"><b>⏪ 지난 메일도 모두</b><span>이미 받은 메일 <i>'+n(info.n_all)+'</i>통과 앞으로 받는 메일 모두</span></button>'+
+        '</div>'+
+        '<div class="one" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">📅 또는 <input type="date" class="mad-d" max="'+td+'" value="'+esc(fd0)+'" style="font:inherit;border:1px solid var(--line,#cbd5e1);border-radius:7px;padding:3px 6px"> '+
+          '<a data-when="date">이 날짜 이후 받은 메일부터</a></div>'+
+        '<div class="msg"></div></div>';
+      document.body.appendChild(bg);
+      var box=bg.querySelector('.mmv'), msg=bg.querySelector('.msg');
+      function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
+      function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(null); } }
+      document.addEventListener('keydown', onKey, true);
+      bg.addEventListener('mousedown', function(e){ if(e.target===bg) close(null); });
+      box.querySelector('.x').onclick=function(){ close(null); };
+      bg.querySelectorAll('[data-when]').forEach(function(b){ b.addEventListener('click', async function(){
+        var when=b.getAttribute('data-when'), since='';
+        if(when==='first') since=info.first||'';
+        else if(when==='date'){ since=(bg.querySelector('.mad-d').value||''); if(!/^\d{4}-\d{2}-\d{2}$/.test(since)){ msg.textContent='⚠ 날짜를 골라 주세요'; return; } }
+        bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,#64748b)'; msg.textContent='정하는 중…';
+        try{ var j=await ad({ids:ids.join(','), mode:'on', since:since});
+          if(!j.ok){ msg.style.color='#b91c1c'; msg.textContent='⚠ '+(j.message||'정하지 못했습니다'); bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); return; }
+          j.text='📢 보낸 사람 '+n(j.n_send)+'곳을 광고·알림으로 — '+(j.since ? (j.since.slice(0,10)+' 받은 메일부터 · 그 전 메일은 그대로') : '지난 메일도 모두')+' · 되돌리려면 메일 위 오른쪽 클릭 「📢 광고·알림 아님」';
+          close(j);
+        }catch(e){ msg.style.color='#b91c1c'; msg.textContent='⚠ 네트워크 오류'; bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); }
+      }); });
+      var first=bg.querySelector('.go button'); if(first) first.focus();
+    });
+  };
   window.mailMoveText=function(j){
     var nm='「'+(j.name||'')+'」';
     if(j.when==='one') return '📁 고른 메일 '+n(j.n_sel)+'통만 '+nm+'(으)로 옮겼어요';

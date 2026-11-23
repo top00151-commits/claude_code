@@ -201,16 +201,18 @@ def sender_groups(c, user_id, scan_limit: int = SCAN_LIMIT) -> dict:
     # 11-23 대표 「광고·알림은 내가 지정할 수 있어?」 — 내가 보낸 사람마다 덮어쓴 표시가 자동 판단보다 먼저
     try:
         from . import mail_ui_prefs as _mup
-        _ad_on, _ad_off = _mup.get_ad_marks(c, user_id)
+        _ad_on, _ad_off, _ad_since = _mup.get_ad_marks3(c, user_id)
     except Exception as e:
         print("[MAIL-CLEANUP ad-mark ERR] %s: %s" % (type(e).__name__, e))
-        _ad_on, _ad_off = set(), set()
+        _ad_on, _ad_off, _ad_since = set(), set(), {}
     for a, d in g.items():
         kind, reasons = judge(a, d["n"], d["ad_n"], d["unsub_n"], a in contacts, a in replied) if a else ("normal", [])
         if a and a in _ad_off:
             kind, reasons = "normal", ["내가 「광고·알림 아님」으로 표시"]
         elif a and a in _ad_on:
             kind, reasons = "bulk", ["내가 「광고·알림」으로 표시"]
+        elif a and a in _ad_since:
+            kind, reasons = "bulk", ["내가 「광고·알림」으로 표시(%s 받은 메일부터)" % _ad_since[a][:10]]
         d["kind"], d["reasons"] = kind, reasons
         out.append(d)
     order = {"bulk": 0, "normal": 1, "partner": 2}
