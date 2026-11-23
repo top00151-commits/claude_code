@@ -1894,6 +1894,28 @@ def make_demo_mail(c, user_id: int, lang: str = "vi"):
 
 
 # ─── 받은 메일 원문(MIME) 파싱 — Cloudflare Email Worker 가 보내는 raw 처리 ──
+def decode_guess(b) -> str:
+    """글자 방식을 모르는 바이트 → UTF-8 → 한국어(cp949) → UTF-8(깨진 글자 대체) 순으로 짐작해 풂.
+    HTML 이면 안의 <meta charset> 를 먼저 봄. (11-23 대표 「빈 화면 메일」)"""
+    if not b:
+        return ""
+    if isinstance(b, str):
+        return b
+    b = bytes(b)
+    try:
+        m = re.search(rb"""charset\s*=\s*["']?\s*([A-Za-z0-9_.:\-]+)""", b[:4096])
+        if m:
+            return b.decode(m.group(1).decode("ascii", "ignore"), errors="replace")
+    except Exception:
+        pass
+    for cs in ("utf-8", "cp949"):
+        try:
+            return b.decode(cs)
+        except Exception:
+            pass
+    return b.decode("utf-8", errors="replace")
+
+
 def _decode_part(part) -> str:
     """MIME 파트 본문을 charset 고려해 문자열로."""
     try:
@@ -1901,7 +1923,11 @@ def _decode_part(part) -> str:
         if payload is None:
             return ""
         charset = part.get_content_charset() or "utf-8"
-        return payload.decode(charset, errors="replace")
+        try:
+            return payload.decode(charset, errors="replace")
+        except LookupError:
+            # 11-23 모르는 글자 방식(x-unknown 등) — 예전엔 아래 except 로 빠져 풀지 않은 원문(base64 글자)이 본문이 됐음
+            return decode_guess(payload)
     except Exception:
         try:
             return part.get_payload() or ""
@@ -1983,6 +2009,12 @@ def parse_raw_email(raw) -> dict:
             # 첨부/인라인 판정: 파일명 있음 · disposition attachment/inline · 이미지+Content-ID
             is_att = bool(fname) or ("attachment" in disp) or ("inline" in disp) \
                 or (cid and ctype.startswith("image/"))
+            # 11-23 대표 「애플 영수증이 이음메일에서 빈 화면」 — 자동 발송 메일 중 본문(글·HTML) 부분에
+            #   'Content-Disposition: inline'(때로 파일 이름까지)을 붙이는 곳이 꽤 있음 → 예전엔 본문을 인라인 첨부로 보내
+            #   글·HTML 이 모두 비었다. 'attachment' 가 아닌 글/HTML 부분은 아직 그 종류 본문이 없으면 본문으로.
+            if is_att and ctype in ("text/plain", "text/html") and "attachment" not in disp \
+                    and ((ctype == "text/html" and not html) or (ctype == "text/plain" and not text)):
+                is_att = False
             if is_att:
                 fn = _recover8(fname) if fname else ""
                 if fn:
@@ -1999,7 +2031,9 @@ def parse_raw_email(raw) -> dict:
                     "mime": ctype or "application/octet-stream",
                     "size": len(data),
                     "content_id": cid,
-                    "inline": 1 if (("inline" in disp) or (cid and not fn)
+                    # 11-23 'inline' 표시는 그림만 숨김(본문 속 그림) — 맥·아이폰 메일이 PDF·엑셀도 inline 으로 보내
+                    #   첨부 목록에서 사라지던 것. 그림이 아닌 파일은 첨부로 보임.
+                    "inline": 1 if ((("inline" in disp) and ctype.startswith("image/")) or (cid and not fn)
                                     or (cid and ctype.startswith("image/"))) else 0,
                     "data": data,
                 })
@@ -2260,6 +2294,71 @@ def strip_remote_refs(html: str) -> str:
     return s
 
 
+def html_has_content(h: str) -> bool:
+    """정리한 HTML 에 화면에 보일 것(글자·그림)이 있나 — 없으면 글 본문으로 보여 줌(빈 칸 대신)."""
+    if not (h or "").strip():
+        return False
+    if re.search(r"(?is)<img\b", h):
+        return True
+    t = re.sub(r"(?is)<(style|title|head)\b.*?</\1>", " ", h)
+    t = re.sub(r"(?s)<[^>]+>|&nbsp;|&#160;|\s", "", t)
+    return bool(t)
+
+
+_ATT_NOTE_RE = re.compile(r"\s*\[첨부 \d+개:[^\]]*\]\s*$")
+
+
+def inline_is_file(a) -> bool:
+    """예전에 받은 메일의 '인라인' 첨부 중 실은 파일(그림·본문 글이 아닌 것 — PDF·엑셀 등)인가. 보기 때 첨부 목록에 보임."""
+    mime = (a.get("mime") or "").lower()
+    return bool(a.get("is_inline")) and not mime.startswith("image/") and mime not in ("text/html", "text/plain")
+
+
+def view_body_fallback(c, m, all_atts):
+    """11-23 대표 「애플 영수증이 빈 화면」 — 예전(고치기 전)에 받은 메일 중 본문이 '인라인 첨부'로 잘못 저장된 것은
+    서버에 그 부분(text/html · text/plain)이 그대로 있다 → 보기 때 그것을 본문으로 꺼내 보여 줌(DB 는 바꾸지 않음).
+    반환 (html, text, 본문으로 쓴 첨부 번호들). 쓸 것이 없으면 번호 목록은 비어 있음."""
+    html = (m.get("body_html") or "") if m else ""
+    text = (m.get("body_text") or "") if m else ""
+    used = []
+
+    def _read(aid):
+        try:
+            r = c.execute("SELECT data, path FROM mail_attachments WHERE id=?", (aid,)).fetchone()
+        except Exception:
+            return b""
+        if not r:
+            return b""
+        if r["path"]:
+            try:
+                with open(r["path"], "rb") as f:
+                    return f.read()
+            except Exception:
+                pass
+        return r["data"] or b""
+
+    inl = [a for a in (all_atts or []) if a.get("is_inline")]
+    if not html.strip():
+        ha = next((a for a in inl if (a.get("mime") or "").lower() == "text/html"), None)
+        if ha:
+            b = _read(ha["id"])
+            if b:
+                html = decode_guess(b)
+                used.append(ha["id"])
+    if not _ATT_NOTE_RE.sub("", text).strip():
+        ta = next((a for a in inl if (a.get("mime") or "").lower() == "text/plain"), None)
+        if ta:
+            b = _read(ta["id"])
+            if b:
+                note = _ATT_NOTE_RE.search(text)
+                text = decode_guess(b).strip() + (("\n\n" + note.group(0).strip()) if note else "")
+                used.append(ta["id"])
+        elif html.strip() and used:
+            note = _ATT_NOTE_RE.search(text)
+            text = _html_to_text(html) + (("\n\n" + note.group(0).strip()) if note else "")
+    return html, text, used
+
+
 def sanitize_html_for_view(html: str, mail_id: int, inline_atts, defang: bool = False) -> str:
     """받은 메일 HTML 을 '격리 iframe' 안에서 보여줄 안전 HTML 로 정리.
     - 스크립트/폼/임베드 등 위험 태그 제거, on* 이벤트·javascript: 스킴 제거.
@@ -2271,7 +2370,11 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts, defang: bool = 
     s = html
     # 진짜 위험 요소만 제거(스크립트·폼·임베드 등). 서식·<style>·인라인 style 은 보존 →
     # 아웃룩 서명의 MsoNormal 여백 규칙이 살아 원본 간격이 유지됨. iframe 격리라 안전.
-    s = re.sub(r"(?is)<\s*(script|noscript|iframe|object|embed|applet|form|svg|math)\b.*?<\s*/\s*\1\s*>", " ", s)
+    # 11-23 대표 「빈 화면 메일」: 예전엔 <form>…</form>·<noscript>…</noscript> 를 내용째 지워, 본문 전체를 <form> 으로
+    #   감싼 영수증(단추 있는 메일)이 통째로 사라졌다 → 이 둘은 아래에서 태그만 뗀다(스크립트는 이미 지움 · 단추·입력칸도 지움).
+    #   스스로 닫는 <svg/>·<math/> 는 먼저 지움(안 그러면 뒤쪽 </svg> 까지 본문을 함께 지웠음) · <embed> 는 닫는 태그가 없는 태그.
+    s = re.sub(r"(?is)<\s*(svg|math)\b[^>]*/\s*>", " ", s)
+    s = re.sub(r"(?is)<\s*(script|iframe|object|applet|svg|math)\b.*?<\s*/\s*\1\s*>", " ", s)
     s = re.sub(r"(?is)<\s*/?\s*(script|noscript|iframe|object|embed|applet|form|svg|math|meta|base|input|button|textarea|select)\b[^>]*>", " ", s)
 
     # <style> 내용은 보존하되 위험(@import 원격로드·expression·javascript:)만 제거

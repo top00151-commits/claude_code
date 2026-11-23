@@ -24111,8 +24111,13 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
             return RedirectResponse("/mail/inbox", 303)
         _mailbox.mark_read(c, mail_id, u["id"])
         all_atts = _mailbox.list_attachments(c, mail_id)
-        inline_atts = [a for a in all_atts if a.get("is_inline")]
-        file_atts = [a for a in all_atts if not a.get("is_inline")]
+        # 11-23 대표 「애플 영수증 빈 화면」 — 예전에 본문이 인라인 첨부로 잘못 저장된 메일은 그 부분을 본문으로(보기 때만 · DB 그대로)
+        _bh, _bt, _bused = _mailbox.view_body_fallback(c, m, all_atts)
+        if _bused:
+            m = dict(m, body_html=_bh, body_text=_bt)
+            all_atts = [a for a in all_atts if a["id"] not in _bused]
+        inline_atts = [a for a in all_atts if a.get("is_inline") and not _mailbox.inline_is_file(a)]
+        file_atts = [a for a in all_atts if not a.get("is_inline") or _mailbox.inline_is_file(a)]   # 11-23 inline 표시 붙은 파일도 첨부로
         safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts,
                                                     defang=int(m.get("risk_level") or 0) >= 2)
         # (11-18 「쉽게 보기」) 이전 대화(인용)는 접어 두고 새로 쓴 내용만 먼저 — 서식 메일·글 메일 모두
@@ -24156,7 +24161,7 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
         lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
     return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
-               safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
+               safe_html=safe_html, file_atts=file_atts, has_html=_mailbox.html_has_content(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
                nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg, pp=pp)
@@ -24175,8 +24180,13 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
             return HTMLResponse("<div style='padding:24px;color:#b91c1c'>메일을 찾을 수 없습니다.</div>", status_code=404)
         _mailbox.mark_read(c, mail_id, u["id"])
         all_atts = _mailbox.list_attachments(c, mail_id)
-        inline_atts = [a for a in all_atts if a.get("is_inline")]
-        file_atts = [a for a in all_atts if not a.get("is_inline")]
+        # 11-23 대표 「애플 영수증 빈 화면」 — 예전에 본문이 인라인 첨부로 잘못 저장된 메일은 그 부분을 본문으로(보기 때만 · DB 그대로)
+        _bh, _bt, _bused = _mailbox.view_body_fallback(c, m, all_atts)
+        if _bused:
+            m = dict(m, body_html=_bh, body_text=_bt)
+            all_atts = [a for a in all_atts if a["id"] not in _bused]
+        inline_atts = [a for a in all_atts if a.get("is_inline") and not _mailbox.inline_is_file(a)]
+        file_atts = [a for a in all_atts if not a.get("is_inline") or _mailbox.inline_is_file(a)]   # 11-23 inline 표시 붙은 파일도 첨부로
         safe_html = _mailbox.sanitize_html_for_view(m.get("body_html") or "", mail_id, inline_atts,
                                                     defang=int(m.get("risk_level") or 0) >= 2)
         # (11-18 「쉽게 보기」) 이전 대화(인용)는 접어 두고 새로 쓴 내용만 먼저 — 서식 메일·글 메일 모두
@@ -24218,7 +24228,7 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
         lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
-               safe_html=safe_html, file_atts=file_atts, has_html=bool(safe_html),
+               safe_html=safe_html, file_atts=file_atts, has_html=_mailbox.html_has_content(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
                who_info=who_info, body_own=body_own, body_quote=body_quote, quote_css=_mail_find.QUOTE_CSS,
                nav=nav, img_off=img_off, fu=fu, dl=dl, lgf=lgf, cpg=cpg, pp=pp)
