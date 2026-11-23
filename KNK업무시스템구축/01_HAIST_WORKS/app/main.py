@@ -2042,8 +2042,83 @@ def _maybe_vacuum_mail_db():
         print(f"[MAIL-FETCH-AUTO VACUUM ERR] {e}")
 
 
-def _mailfetch_run_owner(owner_id):
-    """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드에서 호출).
+# 11-23 대표 「아웃룩처럼 '보내기/받기' — 눌러서 바로」: 한 사람 메일을 동시에 두 번 받지 않게 잠금
+#   (자동 타이머 · 일꾼 둘 · 「보내기/받기」 단추가 겹쳐도 하이웍스에 한 번씩만 붙음)
+#   같은 프로세스 = 스레드 잠금 · 일꾼끼리 = 데이터 폴더의 잠금 파일(리눅스 flock · 윈도 시험 PC 는 스레드 잠금만)
+import threading as _mf_thr
+_MF_LOCKS = {}
+_MF_LOCKS_G = _mf_thr.Lock()
+
+
+class _MailFetchLock:
+    def __init__(self, owner_id, wait=0):
+        self.oid = int(owner_id)
+        self.wait = max(0.0, float(wait or 0))
+        self.got = False
+        self._f = None
+        self._tl = None
+
+    def __enter__(self):
+        import time as _t
+        with _MF_LOCKS_G:
+            self._tl = _MF_LOCKS.setdefault(self.oid, _mf_thr.Lock())
+        t_end = _t.time() + self.wait
+        if not (self._tl.acquire(timeout=self.wait) if self.wait > 0 else self._tl.acquire(False)):
+            return self
+        try:
+            import fcntl as _fc
+        except ImportError:
+            _fc = None
+        if _fc is not None:
+            try:
+                from .database import DB_PATH as _dbp
+                self._f = open(os.path.join(os.path.dirname(_dbp), ".mail_fetch_%d.lock" % self.oid), "a")
+            except Exception as e:
+                print("[MAIL-FETCH] 잠금 파일 못 엶(스레드 잠금만): %s" % str(e)[:120], flush=True)
+                self._f = None
+            if self._f is not None:
+                while True:
+                    try:
+                        _fc.flock(self._f.fileno(), _fc.LOCK_EX | _fc.LOCK_NB)
+                        break
+                    except OSError:
+                        if _t.time() >= t_end:
+                            self._f.close()
+                            self._f = None
+                            self._tl.release()
+                            return self
+                        _t.sleep(0.5)
+        self.got = True
+        return self
+
+    def __exit__(self, *a):
+        if self._f is not None:
+            try:
+                import fcntl as _fc
+                _fc.flock(self._f.fileno(), _fc.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                self._f.close()
+            except Exception:
+                pass
+            self._f = None
+        if self.got:
+            self.got = False
+            self._tl.release()
+        return False
+
+
+def _mailfetch_run_owner(owner_id, wait=0, label="자동 가져오기"):
+    """잠금을 잡고 한 계정 받기. 다른 곳에서 받는 중이면 wait 초까지 기다리고, 그래도 안 되면 (False, 0, "busy")."""
+    with _MailFetchLock(owner_id, wait) as lk:
+        if not lk.got:
+            return (False, 0, "busy")
+        return _mailfetch_run_owner_locked(owner_id, label)
+
+
+def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
+    """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드·「보내기/받기」 단추(스레드풀)에서 호출).
     /admin/mail-fetch/run 과 동일 수집·적재 로직의 '자동판'. 반환 (ok, stored, msg)."""
     from . import mail_fetch as _mailfetch
     with db_session() as c:
@@ -2069,7 +2144,7 @@ def _mailfetch_run_owner(owner_id):
             _mailfetch.after_collect(db_session, acct, owner_id, res)
     if not res.get("ok"):
         with db_session() as c:
-            _mailfetch.set_status(c, owner_id, status="자동 실패: " + (res.get("error", "") or "")[:200])
+            _mailfetch.set_status(c, owner_id, status=("자동 실패: " if label == "자동 가져오기" else label + " 실패: ") + (res.get("error", "") or "")[:200])
         return (False, 0, res.get("error", ""))
     # 소유자 사용자 dict → AI 분류 가능 여부 판정(수동 run 과 동일)
     with db_session() as c:
@@ -2106,10 +2181,10 @@ def _mailfetch_run_owner(owner_id):
                 pass
         if protocol == "imap":
             _mailfetch.set_status(c, owner_id, last_uid=res.get("max_uid", acct.get("last_uid") or 0),
-                                  status="자동 가져오기 %d건" % stored, count=stored)
+                                  status="%s %d건" % (label, stored), count=stored)
         else:
             _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
-            _mailfetch.set_status(c, owner_id, status="자동 가져오기 %d건" % stored, count=stored)
+            _mailfetch.set_status(c, owner_id, status="%s %d건" % (label, stored), count=stored)
         # [z521 핫픽스] 자동 중복정리 비활성화 — 가져오기 트랜잭션(db_session) 안에서 받은편지함
         # 전체 백필+대량삭제를 돌리면 긴 쓰기 락이 걸려, 그 사이 로그인(sso_land→upsert_user)이
         # 'database is locked' 로 실패함. 잠금 안 걸리는 방식(busy_timeout·소량 배치·짧은 전용
@@ -27291,6 +27366,59 @@ async def mail_unblock_one(req: Request, mail_id: int):
     with db_session() as c:
         _mailbox.set_blocked(c, u["id"], mail_id, False)
     return JSONResponse({"ok": True})
+
+
+# 11-23 대표 「메일 메인 위에 아웃룩처럼 '보내기/받기' — 눌러 바로바로 · 지금은 새 메일이 저절로 들어올 때까지 기다려야 해 답답」
+#   누르면: 내 하이웍스 받기 계정에서 새 메일을 지금 바로 받아 옴(자동 받기와 같은 길 · 같은 잠금) → 화면 숫자·목록을 새로.
+#   「보내기」 쪽: KNK 메일은 「보내기」를 누를 때 곧바로 나가서 쌓여 기다리는 메일이 없음 → 못 보낸 예약 메일만 알려 줌(저절로 다시 보내지 않음).
+#   하이웍스에 너무 자주 붙지 않게 한 사람당 10초에 한 번만 실제로 받음(그 안에 또 누르면 화면만 새로).
+_MAIL_SYNC_LAST = {}
+_MAIL_SYNC_MIN_SEC = 10
+
+
+@app.post("/api/mail/sync-now")
+async def mail_sync_now_api(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, 401)
+    import time as _t
+    from starlette.concurrency import run_in_threadpool
+    from . import mail_fetch as _mailfetch
+    with db_session() as c:
+        _mailfetch._ensure_table(c)
+        acct = _mailfetch.get_account(c, u["id"]) or {}
+    fetch_on = bool(acct.get("enabled") and (acct.get("host") or "").strip()
+                    and (acct.get("username") or "").strip() and (acct.get("password_enc") or ""))
+    out = {"ok": True, "fetch": fetch_on, "stored": 0}
+    if fetch_on:
+        now = _t.time()
+        if now - _MAIL_SYNC_LAST.get(u["id"], 0) < _MAIL_SYNC_MIN_SEC:
+            out["recent"] = True   # 방금 받았음 — 화면만 새로
+        else:
+            _MAIL_SYNC_LAST[u["id"]] = now
+            # ⭐DB 를 쥔 채 하이웍스를 기다리지 않음 — 받기 함수가 스스로 짧게 열고 닫음(스레드풀)
+            ok, stored, msg = await run_in_threadpool(_mailfetch_run_owner, u["id"], 45, "바로 받기")
+            out["stored"] = int(stored or 0)
+            if not ok:
+                if msg == "busy":
+                    out["busy"] = True
+                else:
+                    out["ok"] = False
+                    out["message"] = "하이웍스에서 받지 못했습니다 — 잠시 뒤 다시 눌러 주세요(저절로 받기는 그대로 돎) · 까닭: " + (msg or "")[:160]
+    with db_session() as c:
+        try:
+            out["unread"] = int(_mailbox.count_unread(c, u["id"]) or 0)
+        except Exception:
+            pass
+        try:
+            out["sched_fail"] = int((_mailbox.count_scheduled(c, u["id"]) or {}).get("fail") or 0)
+        except Exception:
+            pass
+        try:
+            out["at"] = _mail_now_local(_mail_off(c, u)).strftime("%H:%M")
+        except Exception:
+            pass
+    return JSONResponse(out)
 
 
 @app.get("/api/mail/counts")

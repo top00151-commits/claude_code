@@ -53,7 +53,15 @@
   .mail-help-act button:hover, .mail-help-act a:hover { background:var(--mt-hover,#f1f3f5); }
   .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid var(--mt-line,#d1d5db); border-bottom-width:2px; border-radius:5px; padding:0 5px;
                 font-family:inherit; font-size:11.5px; background:var(--mt-panel,#f9fafb); }
-  @media(max-width:1180px){ .mail-tools .t { display:none; } .mail-tools .new .t { display:inline; } }
+  @media(max-width:1180px){ .mail-tools .t { display:none; } .mail-tools .new .t, .mail-tools .mt-sync .t { display:inline; } }
+  /* 11-23 대표 「아웃룩처럼 보내기/받기」 — 새 메일 바로 받기 단추 · 받는 동안 그림이 돎 · 결과는 오른쪽 위 작은 알림 */
+  .mail-tools .mt-sync { font-weight:700; color:var(--knk-red,#b91c1c); border:1px solid var(--mt-line,#e5e7eb) !important; margin-right:4px; flex:none; }
+  .mail-tools .mt-sync:disabled { opacity:.75; cursor:progress; }
+  .mail-tools .mt-sync.spin .ic { display:inline-flex; animation:mailReloadSpin .9s linear infinite; }
+  .mail-sync-msg { position:fixed; top:calc(var(--mail-fixed-h,90px) + 8px); right:16px; z-index:75; max-width:min(440px,calc(100vw - 32px));
+    background:#1f2937; color:#fff; font-size:13px; line-height:1.45; padding:9px 14px; border-radius:9px; box-shadow:0 6px 18px rgba(0,0,0,.18); }
+  .mail-sync-msg.warn { background:#9a3412; }
+  .mail-sync-msg[hidden] { display:none; }
   /* 「새 메일」은 위 도구 줄 한 곳만(목록 위 명령 줄·왼쪽 「메일 쓰기」 큰 단추는 앱 화면에서 숨김 — 같은 단추 셋은 헷갈림) */
   .mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }
   /* 고정된 위(머리+도구 줄) 바로 아래에 붙는 줄 — 메일 쓰기 「📤 보내기」 단추줄(z1168 「끝까지 안 내려가도 보내기」)이 가려지지 않게 */
@@ -165,6 +173,7 @@
 {% set _mt_in = (mail_tools_inbox is defined and mail_tools_inbox) %}
 <nav class="mail-tools{{ ' mt-inbox' if _mt_in else '' }}" id="mailTools" aria-label="메일 도구">
   <a class="new" href="/mail/compose" onclick="return mailNewWin(event)" title="새 메일 쓰기 — 새 창으로 (N)"><span class="ic">✏️</span><span class="t">새 메일</span></a>
+  <button type="button" class="mt-sync" id="mtSync" onclick="mailSyncNow()" title="보내기/받기 (F9) — 새 메일을 지금 바로 받아 옵니다 · 가만히 두어도 몇 분마다 저절로 받습니다"><span class="ic">🔃</span><span class="t">보내기/받기</span></button>
   {# 11-21 대표 「메뉴가 중복 · 공간만 차지」 — 받은편지함(넓은 화면)은 찾기 칸·오늘 챙길 숫자를 이 줄에(받은편지함이 넘겨 줌 · mail_inbox.html) #}
   {% if _mt_in %}{{ mail_tools_inbox }}{% endif %}
   <a class="mt-nav" href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
@@ -185,6 +194,7 @@
   <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
 </nav>
 </div>
+<div class="mail-sync-msg" id="mailSyncMsg" hidden role="status" aria-live="polite"></div>
 <div class="mail-theme-pop" id="mailThemePop" hidden role="dialog" aria-label="화면 테마 고르기">
   <h4>🎨 화면 테마</h4>
   <div class="sub">누르면 바로 바뀝니다 · 이 컴퓨터에 기억 · 메일 본문은 보낸 사람 모양(흰 종이) 그대로 · 「부드럽게」만 살짝 낮춤</div>
@@ -197,6 +207,7 @@
   · 메일을 <b>끌어서</b> 왼쪽 폴더나 위 ⭐ 중요 · 📦 보관함 · 🗑 휴지통에 놓으면 옮겨짐(아래 안내에서 ↺ 되돌리기)<br>
   · 네모(☐)로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
   · 목록 위 「🗔 보기」 = 읽기 칸 오른쪽·아래·끄기<br>
+  · 맨 위 「🔃 보내기/받기」(또는 <kbd>F9</kbd>) = 새 메일을 지금 바로 받기(가만히 두어도 몇 분마다 저절로 받음)<br>
   <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요 · <kbd>N</kbd> 새 메일
   <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb"><b>📱 휴대폰에서</b> 메일을 누르면 크게 열림 · 열린 메일 위 단추로 답장·전달·삭제·보관 · 「🚩 기한·알림」 · 도구 줄은 옆으로 밀면 더 있음(스팸함·설정·도움말)</div>
   {# 11-20 3단계 ⑨ — 처음 안내 다시 보기 · 인쇄용 설명서 #}
@@ -244,6 +255,45 @@ setTimeout(window.mailCountsRefresh, 200);
     if(vis || (on && Date.now()-last>=290000)){ last=Date.now(); mailCountsRefresh(true); } }, 60000);
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ last=Date.now(); mailCountsRefresh(true); } });
 })();
+/* 11-23 대표 「아웃룩처럼 보내기/받기」 — 누르면(또는 F9) 새 메일을 지금 바로 받아 오고 숫자·목록을 새로
+   받은편지함 목록이면 새 메일이 바로 보이게 화면을 새로(보던 자리·열어 둔 메일 그대로 = mail_keep_pos) · 메일을 골라(☐) 둔 중이면 파란 띠만 */
+window.mailSyncMsg=function(msg, warn){
+  var t=document.getElementById('mailSyncMsg'); if(!t) return;
+  t.textContent=msg; t.classList.toggle('warn', !!warn); t.hidden=false;
+  clearTimeout(window._mailSyncT); window._mailSyncT=setTimeout(function(){ t.hidden=true; }, warn ? 9000 : 4500);
+};
+window.mailSyncNow=async function(){
+  var b=document.getElementById('mtSync'); if(b && b.disabled) return;
+  if(b){ b.disabled=true; b.classList.add('spin'); }
+  mailSyncMsg('🔃 새 메일 받는 중…');
+  var j=null;
+  try{ var r=await fetch('/api/mail/sync-now',{method:'POST',headers:{'X-Requested-With':'fetch'}}); j=await r.json(); }
+  catch(e){ j={ok:false, message:'네트워크가 끊겼습니다 — 잠시 뒤 다시 눌러 주세요'}; }
+  if(b){ b.disabled=false; b.classList.remove('spin'); }
+  j=j||{};
+  var msg, warn=!j.ok;
+  if(!j.ok) msg='⚠ '+(j.message||'받지 못했습니다');
+  else if(j.busy) msg='⏳ 다른 곳에서 받는 중입니다 — 잠시 뒤 다시 눌러 주세요';
+  else if(j.stored>0) msg='📥 새 메일 '+j.stored+'통을 받았습니다';
+  else msg='✓ 새 메일이 없습니다';
+  if(j.ok && j.at) msg+=' ('+j.at+' 확인)';
+  if(j.sched_fail){ msg+=' · ⚠ 보내지 못한 예약 메일 '+j.sched_fail+'통 — 받은편지함 위 예약 칸에서 확인'; warn=true; }
+  try{ await mailCountsRefresh(); }catch(_){}
+  var nb=document.getElementById('mbxNew');
+  var isList=/^\/mail\/(inbox|blocked)/.test(location.pathname) && document.querySelector('.mbx-list');
+  if(j.ok && isList && (j.stored>0 || (nb && !nb.hidden))){
+    if(document.querySelector('.mbx-list input[type=checkbox]:checked')){ msg+=' · 고른 메일이 있어 목록은 그대로 — 위 파란 띠를 누르면 보입니다'; if(nb) nb.hidden=false; }
+    else{ try{ sessionStorage.setItem('mailSyncMsg', JSON.stringify({t:Date.now(), m:msg, w:warn})); }catch(_){} location.reload(); return; }
+  }
+  mailSyncMsg(msg, warn);
+};
+(function(){   // 새로 그린 뒤 결과 알림 한 번 더
+  try{ var o=JSON.parse(sessionStorage.getItem('mailSyncMsg')||'null'); sessionStorage.removeItem('mailSyncMsg');
+    if(o && Date.now()-(o.t||0)<15000) setTimeout(function(){ mailSyncMsg(o.m, o.w); }, 300); }catch(_){}
+})();
+document.addEventListener('keydown', function(e){
+  if(e.key==='F9' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && document.getElementById('mtSync')){ e.preventDefault(); mailSyncNow(); }
+});
 /* 새 메일 바탕화면 알림 — ⚙ 설정·정리에서 켠 사람만(이 컴퓨터) · 창이 안 보일 때만 · 같은 메일은 한 번만(창이 여러 개여도) */
 window.mailNotifyNew=function(j){
   var lt=j && j.latest; if(!lt || !lt.id) return;
