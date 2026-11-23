@@ -14,6 +14,7 @@ import imaplib
 import poplib
 
 RUN_LIMIT = 100  # 한 번에 가져오는 최대 통수(폭주 방지). 더 있으면 다시 누르면 이어서.
+IMPORT_LIMIT = 200  # 11-23 첫 연결 때 「지난 메일도 가져오기」를 고른 사람 — 한 번에 이만큼씩(최근 것부터) · AI 요약 없이
 poplib._MAXLINE = 1 << 20  # 긴 헤더 라인 대응
 
 
@@ -42,6 +43,12 @@ def _ensure_table(c):
         c.execute("ALTER TABLE mail_fetch_accounts ADD COLUMN protocol TEXT DEFAULT 'pop3'")
     except Exception:
         pass
+    # 11-23 첫 연결 때 고른 것 — old_import 1 = 지난 메일을 가져오는 중(다 들어오면 0) · setup_choice = 'old' | 'new'
+    for _col in ("old_import INTEGER DEFAULT 0", "setup_choice TEXT DEFAULT ''", "setup_at TEXT DEFAULT ''"):
+        try:
+            c.execute("ALTER TABLE mail_fetch_accounts ADD COLUMN " + _col)
+        except Exception:
+            pass
     c.execute(
         """CREATE TABLE IF NOT EXISTS mail_fetch_seen (
             account_id  INTEGER,
@@ -103,6 +110,18 @@ def set_enabled(c, owner_id, enabled):
     _ensure_table(c)
     c.execute("UPDATE mail_fetch_accounts SET enabled=? WHERE owner_user_id=?",
               (1 if enabled else 0, owner_id))
+
+
+def set_setup(c, owner_id, choice):
+    """11-23 첫 연결 — 지난 메일을 가져올지(old) · 새 메일만(new). 고른 때도 적음."""
+    _ensure_table(c)
+    c.execute("UPDATE mail_fetch_accounts SET setup_choice=?, setup_at=datetime('now','localtime'), old_import=? "
+              "WHERE owner_user_id=?", (choice, 1 if choice == "old" else 0, owner_id))
+
+
+def end_import(c, owner_id):
+    _ensure_table(c)
+    c.execute("UPDATE mail_fetch_accounts SET old_import=0 WHERE owner_user_id=?", (owner_id,))
 
 
 def get_seen(c, account_id) -> set:
@@ -253,7 +272,7 @@ def _msg_date(hl):
     return None
 
 
-def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT, hold_before=None):
+def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT, hold_before=None, flood=None):
     """seen(이미 본 uidl 집합)에 없는 새 메일만 수집(원본 삭제 안 함). 반환 messages:[(uidl, raw_bytes)].
     hold_before(UTC datetime) 또는 한꺼번에 FLOOD 통 넘게 보이면 → 그보다 옛 날짜 메일은 받지 않고 skipped 로 돌려줌."""
     out = {"ok": False, "messages": [], "error": "", "skipped": [], "flood": 0}
@@ -270,7 +289,8 @@ def pop3_collect(host, port, use_ssl, username, password, seen, limit=RUN_LIMIT,
             new = [(num, uidl) for (num, uidl) in pairs if uidl not in seen]
             new.sort(key=lambda x: x[0])
             guard = hold_before
-            if len(new) > FLOOD:
+            _fl = FLOOD if flood is None else flood   # 11-23 지난 메일 가져오기를 고른 사람 = 0(대량 막기 안 함)
+            if _fl and len(new) > _fl:
                 from datetime import datetime, timedelta, timezone
                 out["flood"] = len(new)
                 g2 = datetime.now(timezone.utc) - timedelta(days=1)

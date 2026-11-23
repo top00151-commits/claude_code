@@ -62,6 +62,14 @@
     background:#1f2937; color:#fff; font-size:13px; line-height:1.45; padding:9px 14px; border-radius:9px; box-shadow:0 6px 18px rgba(0,0,0,.18); }
   .mail-sync-msg.warn { background:#9a3412; }
   .mail-sync-msg[hidden] { display:none; }
+  /* 11-23 전 직원 — 하이웍스 받기를 아직 안 켠 사람 · 지난 메일 가져오는 중 */
+  .mail-link-band { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 16px; font-size:13px; line-height:1.5;
+    background:#fff7ed; color:#9a3412; border-bottom:1px solid #fed7aa; }
+  .mail-link-band a { color:#fff; background:var(--knk-red,#b91c1c); padding:4px 12px; border-radius:7px; font-weight:700; text-decoration:none; white-space:nowrap; }
+  .mail-link-band.imp { background:#eff6ff; color:#1e3a8a; border-bottom-color:#bfdbfe; }
+  .mail-link-band[hidden] { display:none; }
+  html[data-mt="dark"] .mail-link-band { background:#3b2410; color:#fed7aa; border-bottom-color:#9a3412; }
+  html[data-mt="dark"] .mail-link-band.imp { background:#1e293b; color:#bfdbfe; border-bottom-color:#334155; }
   /* 「새 메일」은 위 도구 줄 한 곳만(목록 위 명령 줄·왼쪽 「메일 쓰기」 큰 단추는 앱 화면에서 숨김 — 같은 단추 셋은 헷갈림) */
   .mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }
   /* 고정된 위(머리+도구 줄) 바로 아래에 붙는 줄 — 메일 쓰기 「📤 보내기」 단추줄(z1168 「끝까지 안 내려가도 보내기」)이 가려지지 않게 */
@@ -193,6 +201,7 @@
   <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
   <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
 </nav>
+<div class="mail-link-band" id="mailLinkBand" hidden></div>
 </div>
 <div class="mail-sync-msg" id="mailSyncMsg" hidden role="status" aria-live="polite"></div>
 <div class="mail-theme-pop" id="mailThemePop" hidden role="dialog" aria-label="화면 테마 고르기">
@@ -233,6 +242,7 @@
 })();
 (function(){   // 고정된 위 높이를 CSS 값으로(메일 쓰기 단추줄이 그 아래에 붙게)
   function setH(){ var f=document.querySelector('.mail-app-fixed'); if(f) document.documentElement.style.setProperty('--mail-fixed-h', f.getBoundingClientRect().height+'px'); }
+  window.mailFixedH=setH;
   setH(); window.addEventListener('resize', setH); window.addEventListener('load', setH);
 })();
 (function(){ var t=document.getElementById('mailTools'); if(!t) return;
@@ -245,6 +255,7 @@ window.mailCountsRefresh=async function(lite){
     // 11-19 2단계 — 창 제목에 안 읽은 숫자 · 새 메일이면 받은편지함에 띠 · (켜 둔 사람만) 바탕화면 알림
     try{ var t=document.title.replace(/^\(\d+\+?\)\s*/,''); document.title=(j.unread? '('+(j.unread>999?'999+':j.unread)+') ' : '')+t; }catch(_){}
     try{ document.dispatchEvent(new CustomEvent('knkmail:counts',{detail:j})); }catch(_){}
+    try{ mailLinkBand(j); }catch(_){}
     try{ mailNotifyNew(j); }catch(_){}
   }catch(e){}
 };
@@ -255,6 +266,17 @@ setTimeout(window.mailCountsRefresh, 200);
     if(vis || (on && Date.now()-last>=290000)){ last=Date.now(); mailCountsRefresh(true); } }, 60000);
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible'){ last=Date.now(); mailCountsRefresh(true); } });
 })();
+/* 11-23 전 직원 — 하이웍스 받기를 아직 안 켠 사람에게 「연결하기」 띠 · 지난 메일 가져오는 중이면 알림 띠(계정 화면·쓰기 새 창은 빼고) */
+window.mailLinkBand=function(j){
+  var b=document.getElementById('mailLinkBand'); if(!b || !j || j.linked===undefined) return;
+  var skip=location.pathname.indexOf('/mail/account')===0 || document.documentElement.classList.contains('cmp-win');
+  var html='', imp=false;
+  if(!skip && j.linked===false) html='📮 <b>하이웍스 메일을 아직 연결하지 않았습니다</b> — 연결하면 내 회사 메일을 여기서 받고 내 주소로 보낼 수 있습니다(처음 한 번 · 2분) <a href="/mail/account">연결하기 →</a>';
+  else if(!skip && j.importing){ html='⏳ <b>지난 메일을 가져오는 중</b>입니다 — 최근 것부터 차례로 들어옵니다(몇 분마다 · 메일이 많으면 몇 시간)'; imp=true; }
+  var was=!b.hidden;
+  b.innerHTML=html; b.classList.toggle('imp', imp); b.hidden=!html;
+  if(was!==!b.hidden){ try{ mailFixedH(); window.dispatchEvent(new Event('resize')); }catch(_){} }
+};
 /* 11-23 대표 「아웃룩처럼 보내기/받기」 — 누르면(또는 F9) 새 메일을 지금 바로 받아 오고 숫자·목록을 새로
    받은편지함 목록이면 새 메일이 바로 보이게 화면을 새로(보던 자리·열어 둔 메일 그대로 = mail_keep_pos) · 메일을 골라(☐) 둔 중이면 파란 띠만 */
 window.mailSyncMsg=function(msg, warn){

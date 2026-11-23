@@ -2139,9 +2139,16 @@ def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
         with db_session() as c:
             seen = _mailfetch.get_seen(c, acct["id"])
             _hold = _mailfetch.get_hold(c, owner_id)   # 11-22 옛 메일 다시 받기 막기
-        res = _mailfetch.pop3_collect(host, port, ssl, user, pw, seen, hold_before=_hold)
+        # 11-23 첫 연결 때 「지난 메일도 가져오기」를 고른 사람 — 대량 막기 없이 한 번에 IMPORT_LIMIT 통씩(최근 것부터)
+        _imp = bool(acct.get("old_import"))
+        _lim = _mailfetch.IMPORT_LIMIT if _imp else _mailfetch.RUN_LIMIT
+        res = _mailfetch.pop3_collect(host, port, ssl, user, pw, seen, limit=_lim, hold_before=_hold,
+                                      flood=(0 if _imp else None))
         if res.get("ok"):
             _mailfetch.after_collect(db_session, acct, owner_id, res)
+            if _imp and len(res.get("messages") or []) < _lim:
+                with db_session() as c:
+                    _mailfetch.end_import(c, owner_id)   # 남은 지난 메일 없음 → 다음부터 보통 받기
     if not res.get("ok"):
         with db_session() as c:
             _mailfetch.set_status(c, owner_id, status=("자동 실패: " if label == "자동 가져오기" else label + " 실패: ") + (res.get("error", "") or "")[:200])
@@ -2154,6 +2161,9 @@ def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
         ai_on = mail_ai_enabled_for(owner_user)
     except Exception:
         ai_on = False
+    _old_imp = bool(acct.get("old_import"))
+    if _old_imp:
+        ai_on = False   # 11-23 지난 메일을 한꺼번에 가져오는 동안은 AI 요약 안 함(느림·비용)
     stored = 0
     _ar_cand = []   # 11-19 2단계-나 — 새로 들어온 메일(번호 · 자동 발송 표시) → 🏖 부재중 자동 응답
     with db_session() as c:
@@ -2189,6 +2199,8 @@ def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
         # 전체 백필+대량삭제를 돌리면 긴 쓰기 락이 걸려, 그 사이 로그인(sso_land→upsert_user)이
         # 'database is locked' 로 실패함. 잠금 안 걸리는 방식(busy_timeout·소량 배치·짧은 전용
         # 트랜잭션)으로 재설계 후 재도입 예정. 신규 1통저장(store_inbound)·수동 🔁·수동 압축은 유지.
+    if _old_imp:
+        _ar_cand = []   # 11-23 지난 메일에 부재중 자동 응답을 보내지 않음
     try:
         _mail_autoreply_run(owner_user, _ar_cand)   # 11-19 받아 온 저장을 끝낸 뒤(쓰기 잠금 풀린 뒤) 🏖 자동 응답
     except Exception as _e:
@@ -25634,6 +25646,9 @@ async def mail_account_page(req: Request):
                addr=((acct or {}).get("username") or ""),
                has_pass=bool((acct or {}).get("password_enc")),
                fetch_on=bool((acct or {}).get("enabled")),
+               import_on=bool((acct or {}).get("old_import")),
+               setup_choice=((acct or {}).get("setup_choice") or ""),
+               last_run=((acct or {}).get("last_run") or ""), last_status=((acct or {}).get("last_status") or ""),
                allowed=allowed, st=st, my_from=my_from,
                mail_key=_mail.mail_available())
 
@@ -25650,21 +25665,50 @@ async def mail_account_save(req: Request):
     pw = (form.get("password") or "").strip()
     if not _mail.is_valid_email(addr):
         return JSONResponse({"ok": False, "message": "메일주소가 올바르지 않습니다."}, 400)
+    # 11-23 대표 「전 직원 — 받기 자동 · 첫 연결 때 지난 메일을 가져올지 고르고 안내를 확인해야 넘어가게」
+    choice = (form.get("choice") or "").strip()
+    agree = (form.get("agree") or "") == "1"
     from . import mail_fetch as _mailfetch
+    from starlette.concurrency import run_in_threadpool
     with db_session() as c:
         _mailfetch._ensure_table(c)
         exist = _mailfetch.get_account(c, u["id"])
-        if not exist and not pw:
-            return JSONResponse({"ok": False, "message": "처음 연결할 때는 비밀번호를 넣어야 합니다."}, 400)
+    if not exist and not pw:
+        return JSONResponse({"ok": False, "message": "처음 연결할 때는 비밀번호를 넣어야 합니다."}, 400)
+    first = not (exist and exist.get("enabled"))   # 아직 받기를 시작하지 않은 사람 = 첫 연결
+    if first and (choice not in ("old", "new") or not agree):
+        return JSONResponse({"ok": False, "message": "아래 ②에서 지난 메일을 어떻게 할지 고르고, 「확인했습니다」에 표시해 주세요."}, 400)
+    if first:
+        # ⭐DB 를 쥐지 않은 채 하이웍스에 접속해 봄 — 안 되면 저장만 하고 받기는 켜지 않음(잘못된 비밀번호로 계속 두드리지 않게)
+        _pw = pw or _mail.decrypt((exist or {}).get("password_enc") or "")
+        res = await run_in_threadpool(_mailfetch.pop3_uidls, _MAIL_LINK_HOST, _MAIL_LINK_PORT, True, addr, _pw)
+        if not res.get("ok"):
+            return JSONResponse({"ok": False, "message": "하이웍스에 접속하지 못했습니다 — ① POP3/SMTP 「사용 함」 · 메일 전용 비밀번호를 확인해 주세요. "
+                                                        "(까닭: " + (res.get("message") or "")[:120] + ")"}, 400)
+    with db_session() as c:
         _mailfetch.save_account(
             c, u["id"], protocol="pop3", host=_MAIL_LINK_HOST, port=_MAIL_LINK_PORT,
             use_ssl=1, username=addr,
             password_enc=(_mail.encrypt(pw) if pw else None),
             label=(u.get("name") or ""))
-        if not exist:
-            # ⭐보내기 전용 — 새로 연결한 사람의 메일은 가져오지 않는다.
-            _mailfetch.set_enabled(c, u["id"], False)
-    return JSONResponse({"ok": True, "message": "연결했습니다."})
+        if not first:
+            return JSONResponse({"ok": True, "message": "저장했습니다."})
+        acct = _mailfetch.get_account(c, u["id"])
+        n_now = len(res.get("items") or [])
+        if choice == "new":
+            # 지금 하이웍스에 있는 메일 = 받아 본 것으로(가져오지 않음) → 이제부터 오는 새 메일만
+            _mailfetch.add_seen(c, acct["id"], [uidl for (_n, uidl) in (res.get("items") or [])])
+        _mailfetch.set_setup(c, u["id"], choice)
+        _mailfetch.set_enabled(c, u["id"], True)
+        _mailfetch.set_status(c, u["id"], status=("받기 시작 — 지난 메일도 가져오기(하이웍스에 %d통 보임)" if choice == "old"
+                                                  else "받기 시작 — 새 메일만(지금 있는 %d통은 가져오지 않음)") % n_now)
+    print("[MAIL-LINK] user=%s 받기 시작 · %s · 하이웍스 %d통" % (u["id"], choice, n_now), flush=True)
+    # 첫 받기를 바로 한 번(뒤에서) — 5분 기다리지 않게
+    import threading as _th
+    _th.Thread(target=lambda: _mailfetch_run_owner(u["id"], 30, "첫 받기"), daemon=True).start()
+    msg = ("연결했습니다. 지난 메일을 최근 것부터 차례로 가져옵니다(%d통 · 많으면 몇 시간 걸릴 수 있음)." % n_now if choice == "old"
+           else "연결했습니다. 지금부터 오는 새 메일을 받습니다.")
+    return JSONResponse({"ok": True, "message": msg})
 
 
 @app.post("/mail/account/test")
@@ -27509,6 +27553,13 @@ async def mail_counts_api(req: Request):
                 out["wait"], out["wait_due"] = wc["all"], wc["due"]
             except Exception:
                 pass
+        try:   # 11-23 전 직원 — 하이웍스 받기를 아직 안 켠 사람이면 메일 화면 위에 「연결하기」 띠
+            from . import mail_fetch as _mfl
+            _ac = _mfl.get_account(c, u["id"]) or {}
+            out["linked"] = bool(_ac.get("enabled"))
+            out["importing"] = bool(_ac.get("old_import"))
+        except Exception:
+            pass
         try:
             lt = _mailbox.latest_inbox(c, u["id"])   # 새 메일 알아보기(번호 · 보낸 사람 · 제목) — 내 메일만 · 이 창에만 보임
             if lt:
