@@ -494,7 +494,7 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
                   size=0, owner_id=None, run_ai: bool = True, attachments=None,
                   message_id: str = "", auth=None, reply_to: str = "", to_all: str = "",
-                  raw_headers: str = ""):
+                  raw_headers: str = "", sent_at: str = ""):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
     raw_headers: 원문 머리글(11-22 대표 「보낸 사람 주소를 알 수 없는 건 치명적」) — 서버 안에 남겨 언제든 다시 읽게(save_raw_headers).
     to_all: 원문 「받는 사람」 머리 그대로(여러 명) — 전체 답장 명단용(11-19).
@@ -567,15 +567,22 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
                 _rnote = ("스팸함으로 옮김 / " + (_rnote or ""))[:600]
         except Exception:
             pass
+    # 11-23 원래 보낸 날짜(Date 머리) — 「지난 메일 가져오기」로 들어온 옛 메일도 6개월·12개월 규칙이 맞게(받은 시각은 그대로 둠)
+    try:
+        from .mail_body_pack import ensure as _pack_ensure
+        _pack_ensure(c)
+    except Exception:
+        pass
     cur = c.execute(
         """INSERT INTO mail_messages
            (user_id, direction, from_email, from_name, to_email, cc,
             subject, body_text, body_html, category, lang, summary, raw_size,
-            dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all, sent_at)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
          _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
-         category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote, (to_all or "").strip()[:4000]),
+         category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote, (to_all or "").strip()[:4000],
+         (sent_at or "").strip()[:19]),
     )
     mail_id = cur.lastrowid
     if attachments:
@@ -1690,6 +1697,12 @@ def get_mail(c, mail_id: int, user_id: int):
     if not r:
         return None
     d = dict(r)
+    # 11-23 본문 정리 — 압축해 「본문 보관함」으로 옮긴 HTML 은 여기서 풀어 채움(화면·답장·전달·번역이 그대로 돎)
+    try:
+        from .mail_body_pack import fill as _pack_fill
+        _pack_fill(c, d)
+    except Exception:
+        pass
     # 11-22 예전 방식이 주소 없는 보낸 사람 머리에서 **이름을 주소 칸에** 넣은 메일(예: 「<임태훈>」) — 화면·답장에서는 이름으로 · 주소는 빈칸
     fe = (d.get("from_email") or "").strip()
     if fe and "@" not in fe:
@@ -1935,6 +1948,20 @@ def _decode_part(part) -> str:
             return ""
 
 
+def _sent_at(v) -> str:
+    """메일 Date 머리 → 서버 시각(받은 시각과 같은 기준) 'YYYY-MM-DD HH:MM:SS'. 못 읽으면 ''. (11-23)"""
+    from email.utils import parsedate_to_datetime
+    try:
+        d = parsedate_to_datetime(str(v or "").strip())
+        if d is None:
+            return ""
+        if d.tzinfo is not None:
+            d = d.astimezone().replace(tzinfo=None)   # 서버 시간대로(SQLite localtime 과 같은 기준)
+        return d.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return ""
+
+
 def parse_raw_email(raw) -> dict:
     """raw MIME(문자열/바이트) → {from_email, from_name, to_email, subject, text, html, cc, attachments}.
     파이썬 email 모듈로 안전 파싱(멀티파트·인코딩 헤더 대응). 실패 시 {}.
@@ -2059,6 +2086,7 @@ def parse_raw_email(raw) -> dict:
         "subject": subject, "text": body, "html": html, "cc": cc, "attachments": atts,
         "message_id": message_id, "auth": _auth, "reply_to": reply_to, "auto_hdr": auto_hdr,
         "raw_headers": header_block(raw_bytes),
+        "sent_at": _sent_at(msg.get("Date")),
     }
 
 

@@ -564,11 +564,17 @@ def _sig_of(c, sender, mail_id, from_name):
     comp = dept = ""
     try:
         from . import mail_signature as _ms
+        from .mail_body_pack import ensure as _pk_ensure
+        _pk_ensure(c)   # 11-23 html_sha 칸이 아직 없을 수 있음
         r = c.execute("SELECT substr(COALESCE(body_text,''),1,20000) AS t, "
-                      "substr(COALESCE(body_html,''),1,60000) AS h FROM mail_messages WHERE id=?",
+                      "substr(COALESCE(body_html,''),1,60000) AS h, COALESCE(html_sha,'') AS hs FROM mail_messages WHERE id=?",
                       (mail_id,)).fetchone()
         if r:
-            text = _ms.html_to_lines(r["h"] or "") if (r["h"] or "").strip() else ""
+            _h = r["h"] or ""
+            if not _h.strip() and r["hs"]:   # 11-23 본문 정리로 압축된 HTML
+                from .mail_body_pack import unpack_html as _unp
+                _h = _unp(c, r["hs"])[:60000]
+            text = _ms.html_to_lines(_h) if _h.strip() else ""
             d = _ms.draft_from_text(text, from_name or "", sender) if text.strip() else None
             if d is None or not d.get("sig_text"):
                 d = _ms.draft_from_text(r["t"] or "", from_name or "", sender)

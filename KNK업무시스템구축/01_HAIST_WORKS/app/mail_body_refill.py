@@ -32,7 +32,7 @@ def ensure(c):
 _CAND_SQL = (
     "SELECT m.id, m.body_text, m.body_html FROM mail_messages m "
     "WHERE m.user_id=? AND m.direction='in' AND m.is_deleted=0 AND ("
-    " (COALESCE(m.body_html,'')='' AND EXISTS(SELECT 1 FROM mail_attachments a WHERE a.mail_id=m.id AND a.is_inline=1 "
+    " (COALESCE(m.body_html,'')='' AND COALESCE(m.html_sha,'')='' AND EXISTS(SELECT 1 FROM mail_attachments a WHERE a.mail_id=m.id AND a.is_inline=1 "
     "   AND lower(COALESCE(a.mime,'')) IN ('text/html','text/plain')))"
     " OR EXISTS(SELECT 1 FROM mail_attachments a WHERE a.mail_id=m.id AND a.is_inline=1 "
     "   AND lower(COALESCE(a.mime,'')) NOT LIKE 'image/%' AND lower(COALESCE(a.mime,'')) NOT IN ('text/html','text/plain'))"
@@ -41,6 +41,8 @@ _CAND_SQL = (
 
 def _plan(c, user_id):
     """[(mail_id, old_text, old_html, new_text, new_html, body_changed, [파일로 보일 첨부 번호])]"""
+    from .mail_body_pack import ensure as _pk_ensure
+    _pk_ensure(c)   # 11-23 html_sha 칸(본문 정리)이 아직 없을 수 있음
     out = []
     for r in c.execute(_CAND_SQL, (int(user_id),)).fetchall():
         m = {"id": r["id"], "body_text": r["body_text"] or "", "body_html": r["body_html"] or ""}

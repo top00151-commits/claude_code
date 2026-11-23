@@ -2209,7 +2209,7 @@ def _mailfetch_run_owner(owner_id):
                     owner_id=acct["owner_user_id"], run_ai=ai_on,
                     attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
                     auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
-                    raw_headers=parsed.get("raw_headers", ""))   # 11-22 원문 머리글 보관
+                    raw_headers=parsed.get("raw_headers", ""), sent_at=parsed.get("sent_at", ""))   # 11-22 원문 머리글 보관 · 11-23 원래 날짜
                 if mid:
                     stored += 1
                     if mid > _ar_max:
@@ -2258,6 +2258,7 @@ def _mail_fetch_tick():
                 print(f"[MAIL-FETCH-AUTO ERR owner={oid}] {e}")
         if owners:
             print(f"[MAIL-FETCH-AUTO] {len(owners)}계정 점검 / 새 메일 {total}건 적재")
+        _mail_body_pack_nightly()   # 11-23 대표 「1번 2번 진행해」 — 6개월 지난 본문 압축 · 같은 본문 하나로
         # [z521 핫픽스] 자동 VACUUM 비활성화 — VACUUM 은 DB 전체를 잠가 로그인과 충돌. 압축은 수동 버튼만.
     except Exception as e:
         print(f"[MAIL-FETCH-AUTO tick ERR] {e}")
@@ -2265,6 +2266,29 @@ def _mail_fetch_tick():
         t = _th.Timer(_MAIL_FETCH_INTERVAL_SEC, _mail_fetch_tick)
         t.daemon = True
         t.start()
+
+
+def _mail_body_pack_nightly():
+    """하루 한 번 22시 이후 본문 정리(6개월 지난 본문 압축 · 같은 본문 하나로). 일꾼이 둘이어도 날짜 표시 파일을
+    먼저 만든 쪽만 돎(O_EXCL). 실패해도 받기는 그대로."""
+    try:
+        from datetime import datetime as _dt
+        now = _dt.now()
+        if now.hour < 22:
+            return
+        from .database import DB_PATH as _dbp
+        mark = os.path.join(os.path.dirname(_dbp), ".mail_body_pack_auto_%s" % now.strftime("%Y%m%d"))
+        try:
+            fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+        except FileExistsError:
+            return
+        from . import mail_body_pack as _mbp
+        out = _mbp.apply(db_session)
+        print("[MAIL-BODY-PACK] 밤 자동 정리 — %d통 · 원래 %.1fMB · 묶음 %s · 건너뜀 %d · 보관함 정리 %d"
+              % (out["packed"], out["raw"] / 1048576.0, out["batch"] or "-", out["skipped"], out["gc"]), flush=True)
+    except Exception as e:
+        print("[MAIL-BODY-PACK] 밤 자동 정리 실패: %s" % str(e)[:200], flush=True)
 
 
 def _start_mail_fetch_scheduler():
@@ -23843,6 +23867,7 @@ async def mail_inbound(req: Request):
     _atts = None
     _auth, _reply_to = None, ""
     _raw_hdr = ""
+    _sent_at = ""
     if raw:
         parsed = _mailbox.parse_raw_email(raw)
         if parsed:
@@ -23855,6 +23880,7 @@ async def mail_inbound(req: Request):
             _atts = parsed.get("attachments")
             _auth, _reply_to = parsed.get("auth"), parsed.get("reply_to", "")
             _raw_hdr = parsed.get("raw_headers", "")
+            _sent_at = parsed.get("sent_at", "")
 
     if not f["to_email"]:
         return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
@@ -23865,6 +23891,7 @@ async def mail_inbound(req: Request):
             html=f["html"], cc=f["cc"], size=f["size"], run_ai=None,   # 11-18: 받는 사람의 메일 AI 허용(OpenAI)일 때만
             attachments=_atts, message_id=f.get("message_id", ""),
             auth=_auth, reply_to=_reply_to, raw_headers=_raw_hdr,   # 11-22 원문 머리글 보관
+            sent_at=_sent_at,                                        # 11-23 원래 날짜
         )
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
@@ -24810,6 +24837,49 @@ async def mail_storage_status(req: Request):
         return JSONResponse({"ok": False, "message": "관리자만 쓸 수 있습니다."}, 403)
     from . import mail_storage as _mst
     return JSONResponse(dict(_mst.status(u["id"]), ok=True))
+
+
+@app.get("/mail/storage/pack")
+async def mail_storage_pack_plan(req: Request):
+    """11-23 본문 정리 — 숫자만(정리하면 몇 통 · 얼마나) · 지금 상태 · 지난 묶음(관리자)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 쓸 수 있습니다."}, 403)
+    from . import mail_body_pack as _mbp
+    from . import mail_storage as _mst
+    from starlette.concurrency import run_in_threadpool
+    out = await run_in_threadpool(_mbp.plan, db_session)
+    with db_session() as c:
+        out["batches"] = _mbp.batches(c)
+    out["job"] = _mst.job_status("pack")
+    return JSONResponse(dict(out, ok=True))
+
+
+@app.post("/mail/storage/pack")
+async def mail_storage_pack_run(req: Request):
+    """정리 실행(뒤에서) — 먼저 DB 사본(backups/knk.db.bak_mailpack_…) · undo=1 = 마지막 묶음 되돌리기."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 쓸 수 있습니다."}, 403)
+    from . import mail_body_pack as _mbp
+    from . import mail_storage as _mst
+    form = await req.form()
+    undo = (form.get("undo") or "") == "1"
+
+    def _work(prog):
+        if undo:
+            n = _mbp.undo(db_session)
+            return {"undone": n}
+        # ⭐바꾸기 전 직전 상태 저장(대표 규칙) — DB 사본 · 이 기능 사본은 최근 2개만
+        from .database import DB_PATH as _dbp, backup_db_file as _bk, prune_db_backups
+        import datetime as _dtm
+        bdir = os.path.join(os.path.dirname(_dbp), "backups")
+        os.makedirs(bdir, exist_ok=True)
+        _bk(os.path.join(bdir, f"knk.db.bak_mailpack_{_dtm.datetime.now().strftime('%Y%m%d_%H%M%S')}"))
+        prune_db_backups(bdir, "knk.db.bak_mailpack_", keep=2)
+        return _mbp.apply(db_session, prog)
+    st = _mst.job_start("pack", _work)
+    return JSONResponse(dict(st, ok=True))
 
 
 @app.get("/mail/from-guess")
@@ -27710,7 +27780,7 @@ async def admin_mail_fetch_run(req: Request):
                     html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
                     owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
                     auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
-                    raw_headers=parsed.get("raw_headers", ""))   # 11-22 원문 머리글 보관
+                    raw_headers=parsed.get("raw_headers", ""), sent_at=parsed.get("sent_at", ""))   # 11-22 원문 머리글 보관 · 11-23 원래 날짜
                 if mid:
                     stored += 1
             except Exception:

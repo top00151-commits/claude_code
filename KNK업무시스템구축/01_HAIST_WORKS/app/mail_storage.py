@@ -236,6 +236,15 @@ def _whole(db_session):
             else:
                 seen[h] = 1
     out.update({"mail_rows": rows, "body_total": total, "body_dup": dup, "users": len(users)})
+    try:   # 11-23 본문 정리로 압축해 보관함에 옮긴 것
+        with db_session() as c:
+            from .mail_body_pack import ensure as _pe
+            _pe(c)
+            r = c.execute("SELECT COUNT(*), COALESCE(SUM(raw_len),0), COALESCE(SUM(z_len),0) FROM mail_body_store").fetchone()
+            out["store_n"], out["store_raw"], out["store_z"] = r[0], r[1], r[2]
+            out["packed_mails"] = c.execute("SELECT COUNT(*) FROM mail_messages WHERE COALESCE(html_sha,'')<>''").fetchone()[0]
+    except Exception:
+        pass
     return out
 
 
@@ -295,4 +304,58 @@ def status(user_id):
     j = _job_read(user_id) or {"state": "none"}
     if j.get("state") == "running" and time.time() - float(j.get("beat") or 0) > 300:
         j = {"state": "error", "error": "재는 중에 멈췄습니다(서버 다시 시작 등) — 다시 눌러 주세요"}
+    return j
+
+
+# ── 11-23 본문 정리 같은 「오래 걸리는 관리 일」 — 뒤에서 돌리고 진행·결과는 데이터 폴더 파일(일꾼 둘) ──
+def _named_path(name):
+    from .database import DB_PATH
+    return os.path.join(os.path.dirname(DB_PATH), ".mail_job_%s.json" % re.sub(r"[^a-z0-9_]", "", name))
+
+
+def job_status(name):
+    import json
+    try:
+        with open(_named_path(name), encoding="utf-8") as f:
+            j = json.load(f)
+    except Exception:
+        return {"state": "none"}
+    if j.get("state") == "running" and time.time() - float(j.get("beat") or 0) > 600:
+        j = {"state": "error", "error": "도는 중에 멈췄습니다(서버 다시 시작 등) — 다시 눌러 주세요"}
+    return j
+
+
+def job_start(name, fn):
+    """fn(prog) → 결과 dict. 이미 도는 중(10분 안에 소식 있음)이면 새로 시작하지 않음."""
+    import json
+
+    def _w(d):
+        p = _named_path(name)
+        tmp = p + ".tmp%d" % os.getpid()
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False)
+            os.replace(tmp, p)
+        except Exception as e:
+            print("[MAIL-JOB] 상태 파일 못 씀: %s" % str(e)[:120], flush=True)
+    with _LOCK:
+        cur = job_status(name)
+        if cur.get("state") == "running":
+            return cur
+        j = {"state": "running", "done": 0, "total": 0, "beat": time.time()}
+        _w(j)
+
+    def prog(d, t):
+        j.update(done=d, total=t, beat=time.time())
+        _w(j)
+
+    def work():
+        try:
+            res = fn(prog)
+            _w({"state": "done", "beat": time.time(), "result": res, "at": time.strftime("%Y-%m-%d %H:%M")})
+        except Exception as e:
+            err = "%s: %s" % (type(e).__name__, str(e)[:200])
+            _w({"state": "error", "error": err, "beat": time.time()})
+            print("[MAIL-JOB] %s 실패: %s" % (name, err), flush=True)
+    threading.Thread(target=work, daemon=True).start()
     return j
