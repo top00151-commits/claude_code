@@ -268,12 +268,16 @@ f = fn("mail_account_save")
 if f:
     cs = calls(f)
     check("저장은 본인 것만 — set_enabled 를 쓴다", "set_enabled" in cs)
-    guarded = False
+    # 11-23 대표 「받기 켜기 — 전 직원 자동」: 첫 연결(받기를 아직 안 켠 사람)일 때만 set_enabled ·
+    #   이미 받기가 켜진 사람(대표)은 비밀번호만 바꿔 저장해도 그 전에 돌아감 → 받기 보존
+    guard_line = None
     for n in ast.walk(f):
-        if isinstance(n, ast.If) and "exist" in ast.dump(n.test):
-            if any("set_enabled" in calls(b) for b in n.body):
-                guarded = True
-    check("⭐set_enabled 는 '새 연결일 때만' 안에 있다 (대표 받기 보존)", guarded)
+        if isinstance(n, ast.If) and "first" in ast.dump(n.test) and isinstance(n.test, ast.UnaryOp) \
+                and any(isinstance(b, ast.Return) for b in n.body):
+            guard_line = n.lineno if guard_line is None else min(guard_line, n.lineno)
+    se_lines = [n.lineno for n in ast.walk(f) if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "set_enabled"]
+    check("⭐set_enabled 는 '첫 연결일 때만'(받기 켜진 사람은 그 전에 돌아감 · 대표 받기 보존)",
+          guard_line is not None and se_lines and all(x > guard_line for x in se_lines), (guard_line, se_lines))
 
 print("\n§8 네트워크를 기다리는 동안 DB 세션을 쥐고 있지 않다")
 f = fn("mail_account_test")
@@ -389,7 +393,7 @@ if h:
     check("렌더 성공 (내 계정 · 연결됨·대상)", True)
     check("· 보내는 주소가 보인다", A_AJY in h)
     check("· '지금 바로 쓸 수 있습니다' 표시", "지금 바로 쓸 수 있습니다" in h)
-    check("· '보내기 전용' 안내가 있다", "보내기 전용" in h)
+    check("· 첫 연결 안내(하이웍스 수신 대상 · 지난 메일 고르기 · 확인했습니다)", "수신 대상" in h and "지난 메일도 가져오기" in h and "확인했습니다" in h)
     check("· 연결 시험·연결 풀기 단추가 있다", "연결 시험" in h and "연결 풀기" in h)
     check("⭐비밀번호가 화면에 없다", FAKE_PW not in h and "gAAAAA" not in h)
 
@@ -397,14 +401,14 @@ h = render("mail_account.html", _case="연결됨·대상아님", addr=A_AJY, has
            fetch_on=False, allowed=False, st=ST_OK, my_from="test@knk-mailtest.com", mail_key=True)
 if h:
     check("렌더 성공 (내 계정 · 연결됐지만 명단 밖)", True)
-    check("· 명단에 넣어 달라고 안내한다", "명단에 넣어" in h)
+    check("· 아직 내 주소로 보내기 대상이 아니라고 알려 준다", "내 주소로 보내기 대상" in h)
     check("· 지금 나가는 주소를 알려 준다", "test@knk-mailtest.com" in h)
 
 h = render("mail_account.html", _case="미연결", addr="", has_pass=False,
            fetch_on=False, allowed=True, st=ST_NO, my_from="test@knk-mailtest.com", mail_key=True)
 if h:
     check("렌더 성공 (내 계정 · 아직 연결 안 함)", True)
-    check("· 이유가 보인다", "아직 못 씁니다" in h)
+    check("· 아직 연결 전이라고 보인다", "아직 연결 전입니다" in h)
     check("· 연결 풀기 단추는 숨어 있다", "연결 풀기" not in h)
     check("· 「메일 전용 비밀번호」 받는 법이 적혀 있다", "메일 전용 비밀번호" in h)
 

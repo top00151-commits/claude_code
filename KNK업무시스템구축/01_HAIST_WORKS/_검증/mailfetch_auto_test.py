@@ -57,7 +57,7 @@ def main():
         ("UIDL-A", make_raw("auto-A", "자동 테스트 견적", "본문 A")),
         ("UIDL-B", make_raw("auto-B", "자동 테스트 발주", "본문 B")),
     ]
-    _mf.pop3_collect = lambda host, port, ssl, user, pw, seen, limit=100, hold_before=None: {
+    _mf.pop3_collect = lambda host, port, ssl, user, pw, seen, limit=100, hold_before=None, flood=None: {
         "ok": True, "messages": [(k, r) for (k, r) in fake if k not in seen]}
 
     # 4) _mailfetch_run_owner — 2통 적재
