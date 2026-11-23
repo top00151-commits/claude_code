@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>메일 용량 재기 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 11-23 대표 「중복 메일도 용량을 차지하는지 · 오래된 메일은 최대한 줄여 보관 · 160명이면 서버 부담」 — 숫자만 재는 화면 */
+  .st-wrap{padding:0 var(--content-pad,32px) 40px;box-sizing:border-box}
+  .st-wrap .page-head{padding-left:0;padding-right:0}
+  .st-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin:0 0 14px}
+  .st-note{font-size:12.5px;color:var(--mute);line-height:1.75}
+  .st-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:4px 0 6px}
+  @media(max-width:900px){.st-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){.st-tiles{grid-template-columns:1fr}.st-wrap{padding:0 12px 32px}}
+  .st-tile{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--mt-panel,#fafbfc)}
+  .st-tile .t{font-size:12.5px;color:var(--mute);font-weight:700}
+  .st-tile .v{font-size:22px;font-weight:800;margin-top:4px;color:var(--ink)}
+  .st-tile .d{font-size:12px;color:var(--mute);margin-top:2px;line-height:1.5}
+  .st-tile.good .v{color:#15803d}
+  .st-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .st-tbl th,.st-tbl td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;white-space:nowrap}
+  .st-tbl th:first-child,.st-tbl td:first-child{text-align:left;white-space:normal}
+  .st-tbl thead th{background:var(--mt-panel,#fafbfc);font-weight:700;color:var(--mt-text2,#374151)}
+  .st-tbl tr.sum td{font-weight:800;background:var(--mt-panel,#fafbfc)}
+  .st-scroll{overflow-x:auto}
+  .st-bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}
+  .st-bar i{display:block;height:100%;background:var(--knk-red,#b91c1c);width:0}
+  .st-sim{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;margin:8px 0}
+  .st-sim input{width:80px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:13px}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+<div class="st-wrap">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 메일 용량 재기</div>
+    <h1 class="page-title">📦 메일 <em>용량 재기</em></h1>
+  </div></div>
+
+  <div class="st-card">
+    <div style="font-size:13.5px;line-height:1.75">내 메일이 서버에서 차지하는 크기를 <b>기간·종류별</b>로 재고, <b>오래된 메일을 압축하면 얼마로 줄어드는지</b> 실제로 압축해 봅니다.</div>
+    <div class="st-note">🔒 숫자만 잽니다 — 메일을 바꾸거나 지우거나 바깥으로 보내지 않습니다 · 제목·내용은 이 화면에 나오지 않습니다 · 메일이 많으면 몇 분 걸립니다(그동안 다른 일 하셔도 됩니다).</div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-primary" id="stGo" onclick="stStart()">📏 지금 재기</button>
+      <span id="stMsg" style="font-size:12.5px"></span>
+    </div>
+    <div class="st-bar" id="stBar" hidden><i id="stBarI"></i></div>
+  </div>
+
+  <div id="stOut" hidden>
+    <div class="st-card">
+      <h2 style="margin:0 0 8px;font-size:15px">한눈에</h2>
+      <div class="st-tiles" id="stTiles"></div>
+      <div class="st-note" id="stTileNote"></div>
+    </div>
+    <div class="st-card">
+      <h2 style="margin:0 0 8px;font-size:15px">기간·종류별(내 메일)</h2>
+      <div class="st-scroll"><table class="st-tbl" id="stTbl"></table></div>
+      <div class="st-note" style="margin-top:6px">· 본문 = 글+서식(HTML) · 「한 통씩 압축」 = 6개월 넘은 메일에 쓸 방식(열면 바로 풀림) · 첨부 「실제」 = 같은 파일은 한 번만 센 크기(지금도 같은 파일은 하나만 저장)<br>
+        · 종류는 자동으로 짐작한 것입니다(스팸함 · 제목의 (광고)·수신거부 안내·자동 발송 주소 · 사내 주소 + 제작요청·발주·구매·가공·진행 등 낱말)</div>
+    </div>
+    <div class="st-card">
+      <h2 style="margin:0 0 8px;font-size:15px">160명이 쓰면(추정)</h2>
+      <div class="st-sim">직원 <input type="number" id="stPeople" value="160" min="1" oninput="stSim()"> 명 · 한 사람이 1년에 받는 양 = <b>대표님 메일함 최근 1년과 같다고 보고</b> 셈</div>
+      <div class="st-tiles" id="stSimTiles"></div>
+      <div class="st-note">· 직원마다 메일 양이 다르므로 <b>대략</b>입니다 — 몇 분이 연결해 쓰신 뒤 다시 재면 더 정확해집니다.<br>
+        · 첨부는 여러 명이 같은 파일을 받아도 하나만 저장되므로 실제로는 이보다 적게 늡니다.</div>
+    </div>
+    <div class="st-card" id="stServer" hidden>
+      <h2 style="margin:0 0 8px;font-size:15px">서버 전체(관리자)</h2>
+      <div class="st-tiles" id="stSrvTiles"></div>
+    </div>
+  </div>
+</div>
+</main></div>
+<script>
+(function(){
+  var J=null, T=null;
+  function mb(b){ b=b||0; if(b>=1073741824) return (b/1073741824).toFixed(2)+' GB'; if(b>=1048576) return (b/1048576).toFixed(1)+' MB'; return Math.round(b/1024)+' KB'; }
+  function pct(a,b){ return b? Math.round(100-a*100/b)+'% 줄어듦' : '-'; }
+  function tile(box, t, v, d, good){ var e=document.createElement('div'); e.className='st-tile'+(good?' good':''); e.innerHTML='<div class="t"></div><div class="v"></div><div class="d"></div>';
+    e.children[0].textContent=t; e.children[1].textContent=v; e.children[2].textContent=d||''; box.appendChild(e); }
+  function say(t, c){ var m=document.getElementById('stMsg'); m.textContent=t; m.style.color=c||''; }
+  window.stStart=async function(){
+    document.getElementById('stGo').disabled=true; say('재는 중…');
+    try{ var r=await fetch('/mail/storage/start',{method:'POST',headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ say('⚠ '+(j.message||'시작하지 못했습니다'),'#b91c1c'); document.getElementById('stGo').disabled=false; return; } }
+    catch(e){ say('⚠ 네트워크 오류','#b91c1c'); document.getElementById('stGo').disabled=false; return; }
+    poll();
+  };
+  async function poll(){
+    clearTimeout(T);
+    try{ var r=await fetch('/mail/storage/status',{headers:{'X-Requested-With':'fetch'}}); var j=await r.json();
+      if(j.state==='running'){ var b=document.getElementById('stBar'); b.hidden=false; var p=j.total? Math.min(100, Math.round(j.done*100/j.total)) : 0;
+        document.getElementById('stBarI').style.width=p+'%'; say('재는 중… '+(j.done||0)+' / '+(j.total||'?')+'통'); T=setTimeout(poll, 1500); return; }
+      document.getElementById('stGo').disabled=false; document.getElementById('stBar').hidden=true;
+      if(j.state==='done'){ J=j.result; draw(); say('✓ '+J.at+' 잼 · '+J.secs+'초 걸림','#047857'); }
+      else if(j.state==='error'){ say('⚠ 재지 못했습니다 — '+(j.error||''),'#b91c1c'); }
+    }catch(e){ T=setTimeout(poll, 3000); }
+  }
+  function sumCells(filter){ var o={n:0,body:0,body_z:0,att_logical:0,att_physical:0}; Object.keys(J.cells).forEach(function(k){ var a=k.split('|'); if(filter(a[0],a[1])){ var c=J.cells[k]; Object.keys(o).forEach(function(x){ o[x]+=c[x]||0; }); } }); return o; }
+  function draw(){
+    document.getElementById('stOut').hidden=false;
+    var all=sumCells(function(){ return true; }), old=sumCells(function(a){ return a!=='a6'; });
+    var mbz=J.month_bundle||{}, at=J.att||{};
+    var ratioMonth = mbz.raw? mbz.xz/mbz.raw : 0;
+    var attRatio = at.sample_raw? at.sample_xz/at.sample_raw : 1;
+    var tl=document.getElementById('stTiles'); tl.innerHTML='';
+    tile(tl,'지금 내 메일', all.n.toLocaleString()+'통', '본문 '+mb(all.body)+' · 첨부 '+mb(at.unique_bytes)+'(같은 파일 하나로)');
+    tile(tl,'6개월 넘은 본문', mb(old.body), old.n.toLocaleString()+'통');
+    tile(tl,'→ 한 통씩 압축하면', mb(old.body_z), pct(old.body_z, old.body), true);
+    tile(tl,'→ 월별 묶음 압축하면', mb(mbz.xz), pct(mbz.xz, mbz.raw)+' (실제로 압축해 봄)', true);
+    var attComp = at.compressible_bytes||0, attSave = attComp*(1-attRatio);
+    tile(tl,'첨부 — 이미 압축된 형식', mb(at.packed_bytes), 'JPG·PNG·PDF·ZIP·새 오피스 파일 등 · 다시 압축해도 거의 안 줄어듦');
+    tile(tl,'첨부 — 압축되는 형식', mb(attComp), at.sample_n? ('압축해 본 '+at.sample_n+'개: '+pct(at.sample_xz, at.sample_raw)) : '압축해 볼 파일 없음', attComp>0);
+    tile(tl,'원문 머리글', mb(J.hdr_bytes), '보낸 사람 주소 확인용(작음)');
+    tile(tl,'같은 메일 두 번 받음', '저장 안 함', '같은 고유번호 메일은 지금도 한 통만 남김', true);
+    document.getElementById('stTileNote').textContent='· 「월별 묶음」은 한 사람의 한 달 치를 하나로 묶어 강하게 압축하는 방식입니다(12개월 넘은 메일 · 광고·스팸·내부 업무 알림은 6개월부터) — 열 때 몇 초 걸립니다.';
+    // 표
+    var tb=document.getElementById('stTbl'); var h='<thead><tr><th>기간 · 종류</th><th>통수</th><th>본문</th><th>한 통씩 압축</th><th>첨부(실제)</th></tr></thead><tbody>';
+    J.ages.forEach(function(a){ var s=sumCells(function(x){ return x===a[0]; });
+      h+='<tr class="sum"><td>'+a[1]+'</td><td>'+s.n.toLocaleString()+'</td><td>'+mb(s.body)+'</td><td>'+mb(s.body_z)+'</td><td>'+mb(s.att_physical)+'</td></tr>';
+      J.kinds.forEach(function(k){ var c=J.cells[a[0]+'|'+k[0]]; if(!c || !c.n) return;
+        h+='<tr><td>&nbsp;&nbsp;· '+k[1]+'</td><td>'+c.n.toLocaleString()+'</td><td>'+mb(c.body)+'</td><td>'+mb(c.body_z)+'</td><td>'+mb(c.att_physical)+'</td></tr>'; }); });
+    tb.innerHTML=h+'</tbody>';
+    stSim();
+    if(J.server){ var s=J.server, b=document.getElementById('stSrvTiles'); b.innerHTML=''; document.getElementById('stServer').hidden=false;
+      tile(b,'DB 파일', mb(s.db_file), (s.db_wal? '임시 기록 '+mb(s.db_wal)+' 별도' : ''));
+      tile(b,'첨부 폴더', mb(s.att_dir), (s.att_files||0).toLocaleString()+'개 파일(같은 파일은 하나)');
+      tile(b,'모든 사람 본문', mb(s.body_total), (s.mail_rows||0).toLocaleString()+'통 · '+(s.users||0)+'명');
+      tile(b,'그중 같은 내용이 겹친 본문', mb(s.body_dup), '「같은 본문은 하나만」으로 바꾸면 줄일 수 있는 크기', s.body_dup>0); }
+  }
+  window.stSim=function(){
+    if(!J) return; var n=Math.max(1, parseInt(document.getElementById('stPeople').value,10)||160);
+    var yr=sumCells(function(a){ return a!=='old'; });          // 최근 1년(6개월 안 + 6~12개월)
+    var a6=sumCells(function(a){ return a==='a6'; });
+    var older=sumCells(function(a){ return a==='a12'; });
+    var mbz=J.month_bundle||{}, rm = mbz.raw? mbz.xz/mbz.raw : 0.2, rz = older.body? older.body_z/older.body : 0.3;
+    var attYr=yr.att_physical;
+    var b=document.getElementById('stSimTiles'); b.innerHTML='';
+    tile(b,'1년에 늘어나는 본문(압축 없음)', mb(yr.body*n), n+'명 × '+mb(yr.body));
+    tile(b,'→ 6개월 지난 것 압축하면', mb((a6.body + older.body*rz)*n), '6개월 안은 그대로 · 6~12개월은 한 통씩 압축', true);
+    tile(b,'2년째부터 12개월 넘은 것', mb(yr.body*n*rm), '월별 묶음 압축 뒤 1년 치', true);
+    tile(b,'1년에 늘어나는 첨부(많아야)', mb(attYr*n), '같은 파일을 여러 명이 받으면 이보다 적음');
+  };
+  poll();   // 앞서 잰 것이 있으면 바로 보임
+})();
+</script>
+</body></html>

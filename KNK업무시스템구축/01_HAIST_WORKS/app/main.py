@@ -24783,6 +24783,35 @@ async def mail_body_refill_apply(req: Request):
     return JSONResponse(dict(out, ok=True))
 
 
+@app.get("/mail/storage", response_class=HTMLResponse)
+async def mail_storage_page(req: Request):
+    """11-23 대표 「중복 메일도 용량을 차지하는지 · 오래된 메일은 최대한 줄여 보관 · 160명이면 서버 부담」 — 용량 재기(숫자만 · 관리자)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse("/mail/tools" if _au else "/login", 303)
+    return ctx(req, "mail_storage.html", user=u, active="mail")
+
+
+@app.post("/mail/storage/start")
+async def mail_storage_start(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 쓸 수 있습니다."}, 403)
+    from . import mail_storage as _mst
+    st = _mst.start(db_session, u["id"], whole=True)
+    return JSONResponse(dict(st, ok=True))
+
+
+@app.get("/mail/storage/status")
+async def mail_storage_status(req: Request):
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만 쓸 수 있습니다."}, 403)
+    from . import mail_storage as _mst
+    return JSONResponse(dict(_mst.status(u["id"]), ok=True))
+
+
 @app.get("/mail/from-guess")
 async def mail_from_guess_count(req: Request):
     """11-22 대표 「④랑 ③ 숫자 세기부터 진행해」 — 보낸 사람 주소를 모르는 내 메일을 우리 자료(원문 머리글·같은 이름·직원·주소록·
