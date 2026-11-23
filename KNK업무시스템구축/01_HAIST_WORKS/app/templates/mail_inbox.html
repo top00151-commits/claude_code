@@ -197,6 +197,13 @@
   .mf-cur{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:13px;color:#1e3a8a}
   .mf-cur span{color:var(--mt-mute,#64748b);font-size:12px}
   .mf-cur a{margin-left:auto;font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:600}
+  /* 11-23 보관함 → 최근 3·6·12개월 받은편지함으로 */
+  .mf-cur{flex-wrap:wrap}
+  .mf-cur .mbx-unarc{margin-left:auto;display:inline-flex;align-items:center;gap:4px;color:#1e3a8a;font-size:12.5px;font-weight:600}
+  .mf-cur .mbx-unarc button{border:1px solid #93c5fd;background:#fff;color:#1d4ed8;border-radius:999px;padding:2px 10px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+  .mf-cur .mbx-unarc button:hover{background:#dbeafe}
+  .mf-cur .mbx-unarc + a{margin-left:10px}
+  html[data-mt="dark"] .mf-cur .mbx-unarc{color:#bfdbfe} html[data-mt="dark"] .mf-cur .mbx-unarc button{background:#1e293b;border-color:#334155;color:#bfdbfe}
   .mf-cur a.mf-cur-go{background:#1d4ed8;color:#fff;border-radius:999px;padding:3px 11px}
   .mf-cur a.mf-cur-go + a{margin-left:0}
   /* 메일 목록 행 — 제목 우선(굵게·한 줄 전체), 보낸사람·요약은 아래 작게 (대표 지시: 리스트 잘 보이게) */
@@ -749,7 +756,11 @@
     <div class="mf-cur">⏰ <b>다시 알림</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 위 = 기다리는 메일(그때까지 받은편지함에서 숨김) · 아래 = 최근 3일 안에 돌아온 메일</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
     {% endif %}
     {% if cur_arc|default(false) %}
-    <div class="mf-cur">📦 <b>보관함</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 받은편지함에서만 빠진 메일(지우지 않음) · 「📥 받은편지함으로」로 되돌림</span><a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
+    <div class="mf-cur">📦 <b>보관함</b> <span>{{ '{:,}'.format(total_n|default(0)) }}통 · 받은편지함에서만 빠진 메일(지우지 않음) · 「📥 받은편지함으로」로 되돌림</span>
+      {# 11-23 대표 「3개월·6개월·12개월 받은편지함으로 되돌리기 — 기간을 잘못해서 보관함에 넣었을 때 쉽게」 #}
+      <span class="mbx-unarc" title="받은 지 그 기간 안의 보관 메일을 한 번에 받은편지함으로(먼저 몇 통인지 묻고 · 되돌린 뒤 「↺ 되돌리기」 가능)">📥 최근
+        <button type="button" onclick="mbxUnarc(3)">3개월</button><button type="button" onclick="mbxUnarc(6)">6개월</button><button type="button" onclick="mbxUnarc(12)">12개월</button> 받은편지함으로</span>
+      <a href="/mail/inbox" title="받은편지함 보기">✕ 받은편지함</a></div>
     {% endif %}
     <div class="mbx-sel" id="mbxSel" hidden>
       <b id="mbxSelN">0통</b> 선택
@@ -1233,6 +1244,15 @@ async function mbxSideRefresh(){
 /* ── 11-22 대표 「읽지 않은 메일을 한 번에 읽음」·「회신 필요도 일괄 처리 — 0이 되게」 ──
    먼저 셈(확인 창에 몇 통인지 · 👔 윗분 지시 몇 통 포함) → 하기 → 화면을 새로 고친 뒤 아래 「↺ 되돌리기」(방금 바꾼 것만) */
 function mbxUndoSave(o){ try{ sessionStorage.setItem('mbxUndo', JSON.stringify(o)); }catch(e){} }
+/* 11-23 대표 「보관함 메일도 3·6·12개월 받은편지함으로 되돌리기」 — 먼저 몇 통인지 묻고 → 되돌림 → 「↺ 되돌리기」(다시 보관) */
+async function mbxUnarc(m){
+  var j=await mbxForm('/mail/archive/recent',{months:m, dry:'1'}); if(!j) return;
+  if(!j.n){ mbxToast('최근 '+m+'개월('+j.since+' 이후 받은) 보관 메일이 없어요'); return; }
+  if(!confirm('보관함에서 최근 '+m+'개월('+j.since+' 이후 받은) 메일 '+j.n.toLocaleString()+'통을 받은편지함으로 되돌릴까요?\n(지우지 않습니다 · 되돌린 뒤 「↺ 되돌리기」로 다시 보관할 수 있어요)')) return;
+  var k=await mbxForm('/mail/archive/recent',{months:m, dry:'0'}); if(!k) return;
+  mbxUndoSave({k:'unarc', ids:k.ids||'', msg:'📥 최근 '+m+'개월 보관 메일 '+(k.n||0).toLocaleString()+'통을 받은편지함으로 되돌렸어요'});
+  location.reload();
+}
 async function mbxForm(url, obj){
   var fd=new FormData(); Object.keys(obj||{}).forEach(function(k){ fd.append(k, obj[k]); });
   fd.append('_', '1');   // 빈 FormData 를 보내면 서버가 읽지 못함(「모두 처리」 = 칸 없음) — 늘 한 칸은 보냄
@@ -1265,7 +1285,7 @@ window.mbxReplyPicked=function(){ var ids=mbxPicked(); if(ids.length) mbxReplyAl
   var o=null; try{ o=JSON.parse(sessionStorage.getItem('mbxUndo')||'null'); sessionStorage.removeItem('mbxUndo'); }catch(e){}
   if(!o || !o.msg) return;
   function go(){ mbxToast(o.msg, o.k ? [['↺ 되돌리기', async function(){
-    var j = o.k==='read' ? await mbxForm('/mail/read-all/undo',{ids:o.ids||''}) : (o.k==='move' ? await mbxForm('/mail/move/undo',{}) : await mbxForm('/mail/reply/done-all/undo',{undo:o.undo||''}));
+    var j = o.k==='read' ? await mbxForm('/mail/read-all/undo',{ids:o.ids||''}) : (o.k==='move' ? await mbxForm('/mail/move/undo',{}) : (o.k==='unarc' ? await mbxForm('/mail/archive/recent',{undo:o.ids||''}) : await mbxForm('/mail/reply/done-all/undo',{undo:o.undo||''})));
     if(j){ mbxUndoSave({k:'', msg:(o.k==='move' ? '↺ 방금 옮긴 것을 되돌렸어요(폴더·앞으로 올 메일 모두 예전대로)' : '↺ '+(j.n||0).toLocaleString()+'통 되돌렸어요')}); location.reload(); } }]] : null);
     if(o.k){ clearTimeout(window._mbxToastT); window._mbxToastT=setTimeout(function(){ var t=document.getElementById('mbxToast'); if(t) t.hidden=true; }, 30000); } }   // 한꺼번에 바꾼 뒤라 되돌리기는 30초
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', go); else go();

@@ -121,7 +121,10 @@
   html[data-md="v2"] .mail-app-top a.brand { color:var(--mt-text); }
   html[data-md="v2"] .mail-app-top .mt-quick a.on { background:var(--mt-hover); color:var(--mt-text); }
   html[data-md="v2"] .mail-app-top .navbtn.mt-hist { font-size:14px; font-weight:700; }
-  @media(max-width:1380px){ .mail-app-top .mt-quick .t { display:none; } .mail-app-top .mt-quick a { padding:5px 7px; } }
+  @media(max-width:1439px){ .mail-app-top .mt-quick .t { display:none; } .mail-app-top .mt-quick a { padding:5px 7px; } }
+  /* 좁은 창에서 한 줄을 넘지 않게(11-23 실측: 메뉴 그림만 + 뒤로·앞으로 120px = 약 888px) — 930px 아래 화살표만 · 780px 아래 메뉴 숨김(도구 줄에 같은 메뉴) */
+  @media(max-width:930px){ .mail-app-top .navbtn.mt-hist { min-width:56px; padding:0 10px; font-size:18px; } .mail-app-top .navbtn.mt-hist .t { display:none; } }
+  @media(max-width:780px){ .mail-app-top .mt-quick { display:none; } }
   @media(max-width:640px){ .mail-app-top .mt-quick { display:none; } .mail-app-top .navbtn.mt-hist { min-width:0; padding:0 9px; font-size:13px; } .mail-app-top .navbtn.mt-hist .t { display:none; } }
   /* ── 폰(≤640px): 상단 메일바를 한 줄 가로스크롤로(여러 줄로 안 깨지게) (대표 지시 2026-06-14 모바일) ── */
   @media(max-width:640px){

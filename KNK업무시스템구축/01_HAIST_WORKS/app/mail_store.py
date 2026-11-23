@@ -1057,6 +1057,35 @@ def archive_old(c, user_id, months=3, dry=True) -> int:
     return c.execute("UPDATE mail_messages SET is_archived=1 WHERE " + where, (user_id, cut)).rowcount
 
 
+def unarchive_recent(c, user_id, months=3, dry=True):
+    """11-23 📦 보관함 → 📥 받은편지함 — 받은 지 N개월 안(최근 3·6·12개월)의 보관 메일을 한 번에 되돌림.
+    「오래된 메일 한 번에 보관」(archive_old · 받은 날짜 기준)을 기간을 잘못 골라 했을 때 쉽게 바로잡게. 내 받은 메일만.
+    dry=True 면 (통수, 기준 날짜) · 아니면 (되돌린 메일 번호 목록, 기준 날짜)."""
+    _ensure_security_cols(c)
+    months = int(months) if str(months).isdigit() and int(months) in (3, 6, 12) else 3
+    cut = c.execute("SELECT datetime('now','localtime', ?)", ("-%d months" % months,)).fetchone()[0]
+    where = ("user_id=? AND direction='in' AND is_deleted=0 AND COALESCE(is_archived,0)=1 AND received_at >= ?")
+    if dry:
+        return int(c.execute("SELECT COUNT(*) FROM mail_messages WHERE " + where, (user_id, cut)).fetchone()[0] or 0), cut
+    ids = [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE " + where, (user_id, cut)).fetchall()]
+    for i in range(0, len(ids), 500):
+        part = ids[i:i + 500]
+        c.execute("UPDATE mail_messages SET is_archived=0 WHERE user_id=? AND id IN (" + ",".join("?" * len(part)) + ")",
+                  (user_id, *part))
+    return ids, cut
+
+
+def rearchive_ids(c, user_id, ids) -> int:
+    """「↺ 되돌리기」 — 방금 받은편지함으로 꺼낸 메일을 다시 보관함으로(내 메일만)."""
+    n = 0
+    ids = [int(x) for x in ids if str(x).isdigit()]
+    for i in range(0, len(ids), 500):
+        part = ids[i:i + 500]
+        n += c.execute("UPDATE mail_messages SET is_archived=1 WHERE user_id=? AND direction='in' AND id IN ("
+                       + ",".join("?" * len(part)) + ")", (user_id, *part)).rowcount
+    return n
+
+
 def bulk_apply(c, user_id, ids, op) -> int:
     """여러 통 한 번에 — read · unread · star · unstar · archive · unarchive · delete(휴지통) · restore(휴지통에서 되살림). 내 메일만."""
     if op == "archive":

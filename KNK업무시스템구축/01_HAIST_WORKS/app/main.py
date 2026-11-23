@@ -25094,6 +25094,28 @@ async def mail_archive_old(req: Request):
     return JSONResponse({"ok": True, "n": n, "dry": dry})
 
 
+@app.post("/mail/archive/recent")
+async def mail_archive_recent(req: Request):
+    """11-23 대표 「보관함 메일도 3·6·12개월 받은편지함으로 되돌리기」 — months(3·6·12) · dry=1 셈만 ·
+    undo=번호들 = 방금 꺼낸 메일을 다시 보관함으로. 내 받은 메일만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    undo = (form.get("undo") or "").strip()
+    with db_session() as c:
+        if undo:
+            n = _mailbox.rearchive_ids(c, u["id"], undo.split(","))
+            return JSONResponse({"ok": True, "n": n})
+        months = (form.get("months") or "3").strip()
+        if (form.get("dry") or "1") != "0":
+            n, cut = _mailbox.unarchive_recent(c, u["id"], months, dry=True)
+            return JSONResponse({"ok": True, "n": n, "since": (cut or "")[:10], "dry": True})
+        ids, cut = _mailbox.unarchive_recent(c, u["id"], months, dry=False)
+    _mail_folders._CACHE.pop(u["id"], None)
+    return JSONResponse({"ok": True, "n": len(ids), "since": (cut or "")[:10], "ids": ",".join(str(i) for i in ids)})
+
+
 @app.post("/mail/{mail_id:int}/folder")
 async def mail_set_folder(req: Request, mail_id: int):
     """「📁 이 폴더로」 — 이 메일 보낸 곳(회사 주소 @ 뒤, 개인 메일은 그 주소)을 그 폴더로 기억. 지난·앞으로 메일 모두."""
