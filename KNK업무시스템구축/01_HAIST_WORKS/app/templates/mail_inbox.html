@@ -840,7 +840,8 @@
       <a href="{{ _b }}{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if not cur_unread|default(false) and not cur_att|default(false) else '' }}">전체</a>
       <a href="{{ _b }}&unread=1{{ _thr }}{{ _na }}" class="mbx-chip {{ 'on' if cur_unread|default(false) else '' }}">● 안 읽음</a>
       <a href="{{ _b }}&att=1{{ _thr }}{{ _na }}" class="mbx-chip ic-n {{ 'on' if cur_att|default(false) else '' }}" data-ic="📎" title="📎 첨부 — 첨부파일이 있는 메일만">📎 첨부</a>
-      <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ '' if cur_noad|default(false) else '&noad=1' }}" class="mbx-chip ic-n {{ 'on' if cur_noad|default(false) else '' }}" data-ic="🔕" title="🔕 광고·알림 빼기 — 은행·쇼핑몰·소식지처럼 사람이 아닌 곳에서 온 메일을 빼고 보기(지우지 않음) — 누를 때마다 켜고 끔">🔕 광고·알림 빼기</a>
+      {# 11-23 받은편지함 그냥 목록은 광고·알림을 늘 뺌(📢 칸에만) → 이 칩은 폴더·찾기 등에서만 #}
+      {% if not ad_hidden|default(false) %}<a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ '' if cur_noad|default(false) else '&noad=1' }}" class="mbx-chip ic-n {{ 'on' if cur_noad|default(false) else '' }}" data-ic="🔕" title="🔕 광고·알림 빼기 — 은행·쇼핑몰·소식지처럼 사람이 아닌 곳에서 온 메일을 빼고 보기(지우지 않음) — 누를 때마다 켜고 끔">🔕 광고·알림 빼기</a>{% endif %}
       <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}{{ _na }}" class="mbx-chip ic-n {{ 'on' if thread_on|default(true) else '' }}" data-ic="💬" title="💬 대화로 묶기 — 같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
       {% set _bn = '/mail/inbox?' ~ (base_nc|default('')) %}
       {# 11-23 대표 「전체·안 읽음·첨부·광고 빼기·대화로 묶기·종류 줄에 분류규칙 없는 메일 보기도」 — = 📁 「일반」(어느 폴더 규칙에도 안 걸린 받은 메일) · 다시 누르면 풂 #}

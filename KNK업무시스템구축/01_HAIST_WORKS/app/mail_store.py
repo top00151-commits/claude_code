@@ -1130,7 +1130,7 @@ def bulk_apply(c, user_id, ids, op) -> int:
     return c.execute("UPDATE mail_messages SET " + sets + " WHERE user_id=? AND id IN (" + q + ")", (user_id, *own)).rowcount
 
 
-def unread_ids(c, user_id, senders=None, fd_keys=None) -> list:
+def unread_ids(c, user_id, senders=None, fd_keys=None, noad=None) -> list:
     """11-22 대표 「✓ 모두 읽음」 — 안 읽은 받은 메일 번호.
     senders=None → 받은편지함 전체(왼쪽 「받은편지함」 안 읽음 숫자와 같은 조건 · 누르면 그 숫자가 0) ·
     senders(+fd_keys) → 그 폴더(왼쪽 폴더 숫자와 같은 조건: 스팸 빼고 · 보관·다시 알림 포함)."""
@@ -1155,6 +1155,8 @@ def unread_ids(c, user_id, senders=None, fd_keys=None) -> list:
         c.execute("DELETE FROM _mf_senders")
         c.executemany("INSERT OR IGNORE INTO _mf_senders(e) VALUES(?)", [(x,) for x in _ss])
         where += " AND lower(from_email) IN (SELECT e FROM _mf_senders)"
+    if noad and senders is None and fd_keys is None:   # 11-23 받은편지함 「✓ 모두 읽음」 = 보이는 메일만(광고·알림은 📢 칸에서)
+        where += _noad_where(c, noad)
     return [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE " + where + " ORDER BY id", args).fetchall()]
 
 
@@ -1346,10 +1348,23 @@ def customer_folder_counts(c, user_id: int) -> dict:
     }
 
 
-def count_unread(c, user_id: int) -> int:
+def _noad_where(c, admap, tb="_mf_ad_cnt"):
+    """11-23 광고·알림 빼기 조건(보낸 주소 + 그때부터) — list_inbox 와 같은 식. admap 이 비면 ''."""
+    if not admap:
+        return ""
+    pairs = sorted({((x or "").strip().lower(), (admap.get(x) or "") if isinstance(admap, dict) else "") for x in admap if x})
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS " + tb + "(e TEXT PRIMARY KEY, s TEXT NOT NULL DEFAULT '')")
+    c.execute("DELETE FROM " + tb)
+    c.executemany("INSERT OR REPLACE INTO " + tb + "(e, s) VALUES(?,?)", pairs)
+    return (" AND NOT EXISTS(SELECT 1 FROM " + tb + " t WHERE t.e=lower(mail_messages.from_email) "
+            "AND COALESCE(mail_messages.received_at,'') >= t.s)")
+
+
+def count_unread(c, user_id: int, noad=None) -> int:
+    """받은편지함 안 읽음 숫자. 11-23 noad = 광고·알림 표({주소: 그때부터}) — 주면 그 메일은 빼고 셈(📢 광고·알림 칸에만 보이므로)."""
     r = c.execute(
         "SELECT COUNT(*) AS n FROM mail_messages "
-        "WHERE user_id=? AND direction='in' AND is_deleted=0 AND is_read=0",
+        "WHERE user_id=? AND direction='in' AND is_deleted=0 AND is_read=0" + _noad_where(c, noad),
         (user_id,),
     ).fetchone()
     return (r["n"] if r else 0) or 0

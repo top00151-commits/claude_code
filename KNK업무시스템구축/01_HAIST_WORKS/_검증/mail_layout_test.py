@@ -163,7 +163,11 @@ check("보관함에서는 선택 막대 「📥 받은편지함으로」", 'data
 
 print("== ④ 거르기 줄 · 날짜 머리 ==")
 ch = seg(h, '<div class="mbx-chips">', '<div class="mbx-newbar"')
-check("거르기: 전체 · 안 읽음 · 첨부 · 광고 빼기 · 대화로 묶기 그대로", all(x in ch for x in (">전체</a>", "● 안 읽음", "📎 첨부", "🔕 광고·알림 빼기", "💬 대화로 묶기")))
+check("거르기: 전체 · 안 읽음 · 첨부 · 대화로 묶기 그대로 · 「광고·알림 빼기」는 받은편지함 그냥 목록에선 숨김(11-23 늘 빠지므로)",
+      all(x in ch for x in (">전체</a>", "● 안 읽음", "📎 첨부", "💬 대화로 묶기")) and "🔕 광고·알림 빼기" not in ch)
+_hq = T(km.get("/mail/inbox?q=" + "가짜"))
+_chq = seg(_hq, '<div class="mbx-chips">', '<div class="mbx-newbar"')
+check("찾기 등 다른 보기에서는 「🔕 광고·알림 빼기」 그대로(data-ic)", "🔕 광고·알림 빼기" in _chq and 'data-ic="🔕"' in _chq)
 check("종류 셋 → 「🏷 종류 ▾」 하나(링크 셋 그대로 안에)", 'id="mbxKindDd"' in ch and "mbxKindToggle(event)" in ch and ch.count("mbx-chip kind") == 3
       and all(("cat=" + x) in ch.replace("&amp;", "&") for x in ("견적", "발주", "세금계산서")))
 check("좁은 화면은 예전 칩 셋(종류 ▾ 단추 숨김 · 상자 = display:contents)", ".mbx-kinddd{display:contents}" in h and ".mbx-kindbtn{display:none}" in h)
@@ -172,7 +176,7 @@ check("🗔 읽기창보기(11-23 대표 「보기를 테마 옆으로 · 이름
       'id="mbxViewDd"' not in ch and tb.find('<span class="sp"></span>') < tb.find('id="mbxViewDd"') < tb.find('id="mtThemeBtn"')
       and '<span class="t">읽기창보기</span>' in tb and "mbxPopAt(" in h and "#mailTools .mbx-viewmenu{position:fixed" in h
       and "@media(max-width:900px){ #mailTools .mbx-viewdd{display:none} }" in h and h.count('id="mbxViewDd"') == 1)
-check("목록 칸이 좁으면 긴 칩은 그림만(글자는 남김 · data-ic)", '@container mbxlc (max-width:560px)' in h and 'data-ic="💬"' in ch and 'data-ic="🔕"' in ch)
+check("목록 칸이 좁으면 긴 칩은 그림만(글자는 남김 · data-ic)", '@container mbxlc (max-width:560px)' in h and 'data-ic="💬"' in ch and 'data-ic="📎"' in ch)
 check("날짜 머리 얇게 · 거르기 줄 바로 아래 붙음", ".mbx-list>.mbx-day{display:block;margin:0;padding:0 12px" in h and "--mbx-day-top" in h)
 
 print("== ⑤ 목록 줄 촘촘하게 / 보통 ==")

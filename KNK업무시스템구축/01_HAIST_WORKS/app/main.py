@@ -24175,6 +24175,9 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
         except Exception as _e:
             print("[MAIL-PEOPLE] 받은편지함 윗분 표시 실패(목록은 그대로): %s" % str(_e)[:160], flush=True)
         _bulk = _mail_find.bulk_map(c, u["id"])   # 11-23 {주소: 그때부터} — 내가 날짜부터 표시한 것까지
+        # 11-23 대표 「광고·알림 칸에만 보이게」 — 받은편지함 그냥 목록(안 읽음·첨부·종류 거르기 포함)에서는 광고·알림을 뺌
+        #   폴더·찾기·이 사람/회사·중요·회신 필요·기한·다시 알림·보관함·거래처·📢 칸 에서는 그대로 보임(찾을 때 안 사라지게)
+        _hide_ad = not (ad or fd or _terms or who or dom or star or reply or flag or snz or arc or (cust or "").strip())
         _qs = _mail_find.q_senders(mf, _terms) if (_terms and mf and not fd) else None
         # 11-19 2단계 — 시간이 된 「⏰ 다시 알림」 메일은 안 읽음으로 돌아옴 · 🚩 기한 날짜 = 보는 사람 소속 날짜
         try:
@@ -24188,7 +24191,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                    only_ids=((sorted(_boss_ids) if boss else list(reply_map.keys())) if reply else None),
                    senders=(_mail_folders.senders_in(mf, fd) if fd else None),
                    qf=qf, with_sent=bool((_terms or who or dom) and where != "in"), who=who, dom=dom,
-                   q_senders=_qs, noad=(_bulk if noad else None),
+                   q_senders=_qs, noad=(_bulk if (noad or _hide_ad) else None),
                    arc=bool(arc), fd_keys=(sorted((mf or {}).get("keys_of", {}).get(fd, set())) if fd else None),
                    flagged=bool(flag), snoozed=bool(snz and not flag),
                    kind_words=(_kd_item["w"] if _kd_item else None), ad_only=(_bulk if ad else None))
@@ -24231,7 +24234,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                         _m["fdkind"] = _kinds.get(_f.get("key"), "")
                 except Exception:
                     pass
-        unread_n = _mailbox.count_unread(c, u["id"])
+        unread_n = _mail_unread(c, u["id"])
         cat_counts = _mailbox.category_counts(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
         # C1 거래처 폴더 — 보낸사람→연락처→거래처 매핑 집계(전체·거래처별·미분류). 매핑은 이메일 정확일치만.
@@ -24298,7 +24301,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
                      prev_day=(prev or "")[:40], page_off=off,
                      base_q=_ue(_base_q), base_nc=_ue(_base_nc), cur_flag=bool(flag), cur_snz=bool(snz and not flag),
                      my_kinds=[x for x in _my_kinds if x.get("on")], cur_kd=kd, cur_kd_name=(_kd_item["n"] if _kd_item else ""),
-                     cur_ad=bool(ad), ad_n=_ad_n,
+                     cur_ad=bool(ad), ad_n=_ad_n, ad_hidden=_hide_ad,
                      search_on=bool(_terms or who or dom or per or df or dt),
                      terms=_terms, cur_qf=qf, cur_where=where, cur_per=per, cur_who=who, cur_dom=dom,
                      cur_noad=bool(noad), periods=_mail_find.PERIOD_NAMES,
@@ -24902,7 +24905,7 @@ async def mail_read_all(req: Request):
             ids = _mailbox.unread_ids(c, u["id"], senders=_mail_folders.senders_in(mf, fd),
                                       fd_keys=sorted(mf["keys_of"].get(fd, set())))
         else:
-            ids = _mailbox.unread_ids(c, u["id"])
+            ids = _mailbox.unread_ids(c, u["id"], noad=_mail_find.bulk_map(c, u["id"]))
         if dry or not ids:
             return JSONResponse({"ok": True, "n": len(ids), "name": name, "dry": True})
         n = _mailbox.set_read_many(c, u["id"], ids, True)
@@ -25726,6 +25729,15 @@ async def mail_contact_draft(req: Request, mail_id: int):
 
 
 # ─── 메일 자동분류 규칙 (Phase2) — 보낸사람/제목 키워드 → 카테고리 강제 ───
+def _mail_unread(c, uid):
+    """11-23 대표 「광고·알림 칸에만 보이게」 — 받은편지함 안 읽음 숫자(광고·알림 뺌 · 📢 칸에만 보이므로). 실패하면 예전 숫자."""
+    try:
+        return int(_mailbox.count_unread(c, uid, noad=_mail_find.bulk_map(c, uid)) or 0)
+    except Exception as e:
+        print("[MAIL unread-noad ERR] %s: %s" % (type(e).__name__, e))
+        return int(_mailbox.count_unread(c, uid) or 0)
+
+
 def _mail_ad_senders_of(c, uid, ids):
     """고른 메일들의 보낸 사람(받은 메일 · 회사 밖 주소만) — [{addr, name, first(고른 것 중 가장 이른 받은 때)}]."""
     ids = [int(x) for x in ids if str(x).strip().isdigit()][:500]
@@ -26072,7 +26084,7 @@ async def mail_drafts_page(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         mails = _mailbox.list_drafts(c, u["id"])
-        unread = _mailbox.count_unread(c, u["id"])
+        unread = _mail_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
@@ -27819,7 +27831,7 @@ async def mail_sent_page(req: Request, q: str = ""):
     with db_session() as c:
         mails = _mailbox.list_sent(c, u["id"], q=q)
         sent_n = _mailbox.count_sent(c, u["id"])
-        unread = _mailbox.count_unread(c, u["id"])
+        unread = _mail_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
         # 11-19 2단계-나 ⏱ 보낼 예정(내 것만 · 보는 사람 소속 시각)
         try:
@@ -28133,7 +28145,7 @@ async def mail_trash_page(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         mails = _mailbox.list_trash(c, u["id"])
-        unread = _mailbox.count_unread(c, u["id"])
+        unread = _mail_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
@@ -28179,7 +28191,7 @@ async def mail_blocked_page(req: Request):
         return RedirectResponse("/login", 303)
     with db_session() as c:
         mails = _mailbox.list_blocked(c, u["id"])
-        unread = _mailbox.count_unread(c, u["id"])
+        unread = _mail_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
         spam_n = _mailbox.count_blocked(c, u["id"])   # 11-19 3단계: 목록(300통 한도) 길이가 아니라 실제 통수
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
@@ -28248,7 +28260,7 @@ async def mail_sync_now_api(req: Request):
                     out["message"] = "하이웍스에서 받지 못했습니다 — 잠시 뒤 다시 눌러 주세요(저절로 받기는 그대로 돎) · 까닭: " + (msg or "")[:160]
     with db_session() as c:
         try:
-            out["unread"] = int(_mailbox.count_unread(c, u["id"]) or 0)
+            out["unread"] = _mail_unread(c, u["id"])
         except Exception:
             pass
         try:
@@ -28293,7 +28305,7 @@ async def mail_counts_api(req: Request):
         except Exception:
             pass
         _off = _mail_off(c, u)
-        fns = [("unread", lambda: _mailbox.count_unread(c, u["id"])), ("drafts", lambda: _mailbox.count_drafts(c, u["id"])),
+        fns = [("unread", lambda: _mail_unread(c, u["id"])), ("drafts", lambda: _mailbox.count_drafts(c, u["id"])),
                ("spam", lambda: _mailbox.count_blocked(c, u["id"])), ("arc", lambda: _mailbox.count_archived(c, u["id"])),
                ("snz", lambda: _mailbox.count_snoozed(c, u["id"]))]
         if not lite:

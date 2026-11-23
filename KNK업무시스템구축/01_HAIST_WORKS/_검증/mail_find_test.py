@@ -189,10 +189,14 @@ try:
 
     print("== D · F · G · B · E · H ==")
     h = k.get("/mail/inbox?thread=0").text
-    ad_row = re.search(r'<a [^>]*data-mail-id="%d"[^>]*>.*?</a>' % ids["ad0"], h, re.S)
-    check("광고·알림: 흐리게(robot) + 꼬리표", ad_row and "robot" in ad_row.group(0)[:200] and "광고·알림</span>" in ad_row.group(0))
+    # 11-23 대표 「광고·알림 칸에만 보이게」 — 받은편지함 그냥 목록엔 광고 메일이 없고 📢 칸·이 사람 보기·찾기에서는 보임
+    hw = k.get("/mail/inbox?thread=0&who=newsletter@weekly.example").text
+    ad_row = re.search(r'<a [^>]*data-mail-id="%d"[^>]*>.*?</a>' % ids["ad0"], hw, re.S)
+    check("광고·알림: 흐리게(robot) + 꼬리표(이 사람 보기)", ad_row and "robot" in ad_row.group(0)[:200] and "광고·알림</span>" in ad_row.group(0))
     hn = k.get("/mail/inbox?thread=0&noad=1").text
-    check("「광고·알림 빼기」 → 광고 메일 빠짐 · 다른 메일은 그대로", not has(hn, ids["ad0"]) and has(hn, ids["semco"]) and chips_n(hn) == tot - 3, (chips_n(hn), tot))
+    ha = k.get("/mail/inbox?thread=0&ad=1").text
+    check("받은편지함 = 광고 메일 빠짐(📢 칸에만 3통) · 다른 메일은 그대로 · 「광고·알림 빼기」 와 같은 통수",
+          not has(h, ids["ad0"]) and has(h, ids["semco"]) and has(ha, ids["ad0"]) and chips_n(ha) == 3 and chips_n(hn) == tot, (chips_n(hn), chips_n(ha), tot))
     from app import mail_cleanup as _cl
     with _db.db_session() as c:
         _bk = mfd.bulk_senders(c, OWN)

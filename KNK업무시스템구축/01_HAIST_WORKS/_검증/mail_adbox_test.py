@@ -103,10 +103,28 @@ check("📢 칸 위 띠: 3통 · 「🗑 모두 휴지통으로」 · 받은편�
       and '<a href="/mail/inbox" class="mbx-fold on"' not in h)
 hn = T(k.get("/mail/inbox?app=1&noad=1"))
 check("「광고·알림 빼기」도 같은 기준(10월 소식·견적·사내 남음)", NM(hn) == {IDS["[가짜] 10월 소식"], IDS["[가짜] 견적 부탁"], IDS["[가짜] 사내 공지"]}, NM(hn))
-hi = T(k.get("/mail/inbox?app=1"))
+hi = T(k.get("/mail/inbox?app=1&who=minsu@shop-demo.example"))   # 이 사람 메일 보기 = 광고·알림도 보임(꼬리표 확인용)
 row10 = hi[hi.find('data-mail-id="%d"' % IDS["[가짜] 10월 소식"]) - 300:hi.find('data-mail-id="%d"' % IDS["[가짜] 10월 소식"])]
 row11 = hi[hi.find('data-mail-id="%d"' % IDS["[가짜] 11월 특가"]) - 300:hi.find('data-mail-id="%d"' % IDS["[가짜] 11월 특가"])]
 check("목록 꼬리표도 날짜 기준(11월 특가 = robot · 10월 소식 = 아님)", " robot" in row11 and " robot" not in row10, (row10[-120:], row11[-120:]))
+
+print("②-2 받은편지함에서는 빼고 📢 칸에만(대표 11-23 「광고·알림 칸에만 보이게」)")
+with _db.db_session() as c:
+    c.execute("UPDATE mail_messages SET is_read=0 WHERE user_id=?", (U,))
+hp = T(k.get("/mail/inbox?app=1"))
+check("받은편지함 그냥 목록 = 광고·알림 빠짐(10월 소식·견적·사내만)", NM(hp) == {IDS["[가짜] 10월 소식"], IDS["[가짜] 견적 부탁"], IDS["[가짜] 사내 공지"]}, NM(hp))
+check("「● 안 읽음」 거르기도 같음", NM(T(k.get("/mail/inbox?app=1&unread=1"))) == NM(hp))
+check("그냥 목록엔 「🔕 광고·알림 빼기」 칩 안 보임(늘 빠지므로)", "🔕 광고·알림 빼기" not in hp[hp.find('<div class="mbx-chips">'):hp.find('<div class="mbx-newbar"')])
+hq = T(k.get("/mail/inbox?app=1&q=" + "특가"))
+check("찾기에서는 광고·알림도 나옴(안 사라지게)", IDS["[가짜] 11월 특가"] in NM(hq), NM(hq))
+check("이 사람 메일 보기에서도 나옴", IDS["[가짜] 11월 특가"] in NM(T(k.get("/mail/inbox?app=1&who=minsu@shop-demo.example"))))
+cj = k.get("/api/mail/counts").json()
+check("안 읽음 숫자 = 광고·알림 뺀 3(전체 안 읽음 6)", cj.get("unread") == 3, cj)
+check("왼쪽 받은편지함 안 읽음 숫자도 3", 'id="mtcUnread"' in hp and re.search(r'class="mbx-fold on"[^>]*>.*?<span class="(?:mf-u|cnt|fbadge)">3<', hp, re.S) is not None or ">3</span>" in hp[hp.find('<div class="mbx-sec" data-sec="fav">'):hp.find('<div class="mbx-sec" data-sec="box">')], hp[hp.find('<div class="mbx-sec" data-sec="fav">'):][:600])
+r = k.post("/mail/read-all", data={"dry": "1"})
+check("「✓ 모두 읽음」 = 보이는 3통만(광고·알림은 📢 칸에서)", r.status_code == 200 and r.json().get("n") == 3, r.text[:200])
+with _db.db_session() as c:
+    c.execute("UPDATE mail_messages SET is_read=1 WHERE user_id=?", (U,))
 
 print("③ 날짜 고르기 · 지난 메일도 모두 · 아님")
 r = k.post("/mail/ad-mark", data={"ids": "%d" % IDS["[가짜] 11월 특가"], "mode": "on", "since": "2026-11-15"})
