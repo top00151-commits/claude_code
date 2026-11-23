@@ -1494,6 +1494,20 @@ function qfShowRestoredBar(d){
   f.addEventListener('submit', function(e){ if(!e.defaultPrevented) qfClear(); });
   try{ qfRestore(); }catch(e){ try{ console.warn('[간편폼 임시본 복원 실패]', e); }catch(_){} }
 })();
+// z1191z116 ③ (실무자 시뮬레이션에서 발견): 입력 칸에서 Enter 를 누르면 「＋ 등록」을 안 눌러도 바로 저장됐다(브라우저 기본 동작 —
+//   다른 필수 칸이 다 차 있으면 고객사 목록을 ↓ Enter 로 고르는 순간 등록 · 번호 발급 · 제작요청 통보). 저장은 단추로만.
+//   Enter 는 그 칸의 값 확정(change)만 — 한글 조합 중 Enter 와 여러 줄 칸(textarea)은 그대로.
+(function(){
+  var f=document.getElementById('quickForm'); if(!f) return;
+  f.addEventListener('keydown', function(e){
+    if(e.key!=='Enter' || e.isComposing || e.keyCode===229) return;
+    var t=e.target;
+    if(!t || t.tagName!=='INPUT') return;
+    if(/^(submit|button|image|reset)$/i.test(t.type||'')) return;
+    e.preventDefault();
+    try{ t.dispatchEvent(new Event('change',{bubbles:true})); }catch(_){}
+  });
+})();
 // z1186 (이새롬 프로 신고 · 대표 「발주처 따라 채움 + 고른 대로 저장」 2026-10-16): 추가 발주(PO유형이 신규가 아님)에서
 //   발주처를 고르면 거래구분을 미리 채운다 — 관리번호 프로젝트와 **같은 고객**이면 그 프로젝트 값,
 //   **다른 고객**이면 그 고객 나라(해외=수출 · 국내=내수 · 판정은 서버 /api/customers/options 의 foreign 한 곳).

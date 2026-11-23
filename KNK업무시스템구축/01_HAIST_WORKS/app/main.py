@@ -43983,6 +43983,7 @@ async def projects_new_submit(request: Request):
             #   물려받았다(011T2607 KNK VINA·수출 프로젝트의 드림텍(국내) 추가 발주 T-261013-3 가 '수출'). 상품(PARTS)은 원래 남겼다.
             _fu_iex_raw = (form.get("is_export") or "").strip()
             _fu_iex = int(_fu_iex_raw) if _fu_iex_raw in ("0", "1") else None
+            _po_oid = None; _fu_res88 = None   # z1191z116: 새 수주 id(상품 = _po_oid · 그 밖 = _fu_res88["order_id"]) — 다음 화면에서 그 수주를 펼친다
             if _fu_sf == "PARTS":
                 _fu_parts = []
                 _pn = form.getlist("pk_name[]"); _pm = form.getlist("pk_model[]")
@@ -44159,6 +44160,19 @@ async def projects_new_submit(request: Request):
                                          ((form.get("etc_unit") or "").strip(), _fu_oidz4d))
             # v5H226z384 (대표 지시): 추가 발주도 제작요청 발행(전부서 통보) — 신규처럼. 같은 관리번호의 기존 프로젝트로 통보.
             _fu_url = f"/project/{_existing['id']}?followup=1"
+            if biz_div in ("T", "M", "L", "E"):   # z1191z116 ②: 성공했으니 다음 화면이 등록 화면 임시본을 지운다(다시 열면 앞 값이 되살아나던 문제)
+                _fu_url += "&qf_done=" + biz_div
+            # z1191z116 (이새롬 프로 신고): 다음 화면 = 방금 등록한 수주를 메인 카드로(?so=수주번호 · 예전엔 최초 수주 1호기가 보였다)
+            try:
+                _fu_new_oid = _po_oid if _fu_sf == "PARTS" else ((_fu_res88 or {}).get("order_id") if isinstance(_fu_res88, dict) else None)
+                if _fu_new_oid:
+                    with db_session() as _c116:
+                        _r116 = _c116.execute("SELECT order_no FROM orders WHERE id=?", (int(_fu_new_oid),)).fetchone()
+                    if _r116 and _r116[0]:
+                        import urllib.parse as _up116
+                        _fu_url += "&so=" + _up116.quote(str(_r116[0]))
+            except Exception as _e116:
+                print(f"[z1191z116] 새 수주번호 찾기 실패(상세는 그대로 열림): {_e116!r}")
             if _fu_sf == "PARTS":   # v5H226z436: 상품 추가발주는 상세 PACKING LIST 로 유도
                 _fu_url += "&focus=packing"
             if (form.get("prod_notify") or "").strip() in ("1", "on", "true", "yes"):
@@ -44514,6 +44528,8 @@ async def projects_new_submit(request: Request):
                     _qs.append("prod_err=1")
             except Exception:
                 _qs.append("prod_err=1")
+        if biz_div in ("T", "M", "L", "E") and not _warn:   # z1191z116 ②: 성공 → 다음 화면이 등록 화면 임시본을 지운다
+            _qs.append("qf_done=" + biz_div)
         _url = f"/project/{_pid}" + ("?" + "&".join(_qs) if _qs else "")
         return RedirectResponse(_url, status_code=303)
 

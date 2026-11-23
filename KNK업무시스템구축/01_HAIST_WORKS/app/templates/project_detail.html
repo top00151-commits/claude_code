@@ -2,6 +2,20 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>{{ p.name }} · 프로젝트</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/knk_datepicker.html" %}
+{# z1191z116 ②: 등록(간편 등록)을 마치고 온 화면이면 그 등록 화면의 임시본을 지운다 — 다시 열면 방금 등록한 값이 되살아나던 문제.
+   서버가 성공했을 때만 qf_done=<사업부> 를 붙인다(거절되면 임시본은 그대로 남아 입력값을 되살린다). #}
+<script>
+(function () {
+  try {
+    var q = new URLSearchParams(location.search), b = q.get('qf_done');
+    if (!b || !/^[TMLE]$/.test(b)) return;
+    localStorage.removeItem('knk.qf.draft.' + b);
+    q.delete('qf_done');
+    var s = q.toString();
+    history.replaceState(history.state, '', location.pathname + (s ? '?' + s : '') + location.hash);
+  } catch (e) {}
+})();
+</script>
 {# z1095: 금액칸 소수점 보존 공용 함수(knkFmtAmtTyping 등) — 세금계산서/인보이스 금액 팝업에서 쓴다 #}
 {% include "_v5_partials/knk_amt.html" %}
 {# z1136: 세금계산서 「같은 날 함께 발행」 보기(공용) #}
