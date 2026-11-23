@@ -778,13 +778,15 @@
     </div>
     {% endif %}
     <div class="mbx-listcol">
-    {% if box=='in' and cur_fd|default('') %}
+    {# 11-23 대표 「분류 안 됨을 눌렀을 때 위 띠는 안 나오게」 — 일반(fd=gen)은 띠 없음(🧹 일반 정리하기 = 왼쪽 「일반」 오른쪽 클릭) #}
+    {% if box=='in' and cur_fd|default('') and cur_fd != 'gen' %}
     {# 지금 보고 있는 폴더(11-17) — 왼쪽 목록이 길어 위로 밀려도 어느 폴더인지 보이게 #}
     {# 11-23 대표 「분류 안 됨을 누르면 위에 「일반 2,315통」 줄이 왜 나와?」 — 일반 = 분류 안 됨(같은 메일) → 띠도 같은 이름·뜻으로 #}
     {% if cur_fd == 'gen' %}<div class="mf-cur">📂 <b>분류 안 됨</b> <span>{{ '{:,}'.format(total_n|default(mails|length)) }}통 · 어느 폴더 규칙에도 안 걸린 받은 메일(왼쪽 📁 「일반」과 같음)</span>{% else %}<div class="mf-cur">📁 <b>{{ cur_fd_name }}</b> <span>{{ '{:,}'.format(total_n|default(mails|length)) }}통</span>{% endif %}{% if cur_fd == 'gen' %}<a href="/mail/folders/general" class="mf-cur-go" title="일반에 남은 메일을 보낸 곳별로 묶어 한 번에 폴더로">🧹 일반 정리하기</a>{% endif %}<a href="/mail/inbox" title="모든 받은 메일 보기">✕ 전체 보기</a></div>
     {% endif %}
     {% if box=='in' %}
-    {% set _b = '/mail/inbox?' ~ (base_q|default('')) %}
+    {# 11-23 거르기 줄 단추 주소엔 cs=1 — 누른 상태를 내 계정에 기억(내가 풀 때까지 · 폴더를 옮겨 다녀도) #}
+    {% set _b = '/mail/inbox?cs=1&' ~ (base_q|default('')) %}
     {% set _thr = '' if thread_on|default(true) else '&thread=0' %}
     {% set _na = '&noad=1' if cur_noad|default(false) else '' %}
     {% if search_on|default(false) %}
@@ -844,9 +846,9 @@
       {# 11-23 받은편지함 그냥 목록은 광고·알림을 늘 뺌(📢 칸에만) → 이 칩은 폴더·찾기 등에서만 #}
       {% if not ad_hidden|default(false) %}<a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}{{ _thr }}{{ '' if cur_noad|default(false) else '&noad=1' }}" class="mbx-chip ic-n {{ 'on' if cur_noad|default(false) else '' }}" data-ic="🔕" title="🔕 광고·알림 빼기 — 은행·쇼핑몰·소식지처럼 사람이 아닌 곳에서 온 메일을 빼고 보기(지우지 않음) — 누를 때마다 켜고 끔">🔕 광고·알림 빼기</a>{% endif %}
       <a href="{{ _b }}{{ '&unread=1' if cur_unread|default(false) else '' }}{{ '&att=1' if cur_att|default(false) else '' }}&thread={{ 0 if thread_on|default(true) else 1 }}{{ _na }}" class="mbx-chip ic-n {{ 'on' if thread_on|default(true) else '' }}" data-ic="💬" title="💬 대화로 묶기 — 같은 제목(RE:) 메일을 한 대화로 묶기 — 누를 때마다 켜고 끔">💬 대화로 묶기</a>
-      {% set _bn = '/mail/inbox?' ~ (base_nc|default('')) %}
+      {% set _bn = '/mail/inbox?cs=1&' ~ (base_nc|default('')) %}
       {# 11-23 대표 「전체·안 읽음·첨부·광고 빼기·대화로 묶기·종류 줄에 분류규칙 없는 메일 보기도」 — = 📁 「일반」(어느 폴더 규칙에도 안 걸린 받은 메일) · 다시 누르면 풂 #}
-      {% if mf %}<a href="{{ '/mail/inbox' if cur_fd|default('') == 'gen' else '/mail/inbox?fd=gen' }}" class="mbx-chip ic-n {{ 'on' if cur_fd|default('') == 'gen' else '' }}" data-ic="📂" title="📂 분류 안 된 메일 — 어느 폴더 규칙에도 안 걸린 받은 메일(왼쪽 📁 「일반」과 같음){{ ' · 다시 누르면 풂' if cur_fd|default('') == 'gen' else '' }} · 「🧹 일반 정리하기」로 한 번에 폴더로">📂 분류 안 됨{% if mf.gen.n %} <b class="mbx-chip-n">{{ '{:,}'.format(mf.gen.n) }}</b>{% endif %}{{ ' ✕' if cur_fd|default('') == 'gen' else '' }}</a>{% endif %}
+      {% if mf %}<a href="{{ '/mail/inbox' if cur_fd|default('') == 'gen' else '/mail/inbox?fd=gen' }}" class="mbx-chip ic-n {{ 'on' if cur_fd|default('') == 'gen' else '' }}" data-ic="📂" title="📂 분류안됨 {{ '{:,}'.format(mf.gen.n) }}통 — 어느 폴더 규칙에도 안 걸린 받은 메일(왼쪽 📁 「일반」과 같음){{ ' · 다시 누르면 풂' if cur_fd|default('') == 'gen' else '' }} · 「🧹 일반 정리하기」로 한 번에 폴더로">📂 분류안됨{{ ' ✕' if cur_fd|default('') == 'gen' else '' }}</a>{# 11-23 대표 「"분류 안 됨 2,315" 를 "분류안됨" 으로」 — 숫자 뺌(통수는 마우스를 올리면) #}{% endif %}
       {# 11-23 대표 「보고 싶은 걸 내가 지정 · 고치는 메뉴를 팝업에서 바로」 — 목록 = 내 종류(/mail/kinds · 기본 견적·발주·세금계산서) · 맨 아래 ✏ 종류 고치기 #}
       {% set _kon = (cur_cat|default('') in ('견적', '발주', '세금계산서')) or cur_kd|default('') %}
       {% set _kl = my_kinds if my_kinds is defined else [{'id':'b:견적','b':'견적','i':'💲'},{'id':'b:발주','b':'발주','i':'🛒'},{'id':'b:세금계산서','b':'세금계산서','i':'🧾'}] %}

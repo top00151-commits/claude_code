@@ -158,6 +158,23 @@ m.get_user = lambda req: None
 check("로그인 안 하면 거절(표시·휴지통)", k.post("/mail/ad/trash", data={"dry": "1"}).status_code == 401 and k.post("/mail/ad-mark", data={"addr": "x@y.example"}).status_code == 401)
 m.get_user = lambda req: ME
 
+print("④-2 거르기 줄 기억(대표 11-23 「선택한 건 내가 풀 때까지」)")
+hc = T(k.get("/mail/inbox?app=1&cs=1&unread=1&att=1"))
+chs = hc[hc.find('<div class="mbx-chips">'):hc.find('<div class="mbx-newbar"')]
+check("거르기 줄 단추 주소에 cs=1(누르면 기억)", "/mail/inbox?cs=1&" in chs, chs[:300])
+with _db.db_session() as c:
+    ch = mup.get_chips(c, U)
+check("cs=1 로 연 상태 = 내 계정에 기억(안 읽음·첨부)", ch and ch["unread"] == 1 and ch["att"] == 1 and ch["thread"] == 1, ch)
+hf2 = T(k.get("/mail/inbox?app=1&fd=gen"))
+c2 = hf2[hf2.find('<div class="mbx-chips">'):hf2.find('<div class="mbx-newbar"')]
+check("왼쪽 폴더·메뉴로 옮겨 가도(주소에 없음) 안 읽음·첨부 켜진 채", 'class="mbx-chip on">● 안 읽음' in c2 and 'mbx-chip ic-n on" data-ic="📎"' in c2, c2[:500])
+check("주소에 직접 적힌 값이 먼저(unread=0)", 'class="mbx-chip on">● 안 읽음' not in T(k.get("/mail/inbox?app=1&unread=0")))
+hz = T(k.get("/mail/inbox?app=1&cs=1"))
+with _db.db_session() as c:
+    ch2 = mup.get_chips(c, U)
+check("「전체」(cs=1 · 안 읽음·첨부 없음) = 풀림 기억", ch2["unread"] == 0 and ch2["att"] == 0 and 'class="mbx-chip on">전체' in hz, ch2)
+check("이상한 값은 걸러 냄", mup.clean_chips({"unread": "x", "cat": "<b>", "kd": "u12", "thread": 0}) == {"unread": 0, "att": 0, "noad": 0, "thread": 0, "cat": "", "kd": "u12"})
+
 print("⑤ 화면 글·스크립트")
 mv = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_move_ask.html"), encoding="utf-8").read()
 check("묻는 창 = 「⏩ 고른 메일부터」·「⏪ 지난 메일도 모두」·「📅 이 날짜 이후」 · 미리 골라 두지 않음", "window.mailAdAsk=" in mv and "⏩ 고른 메일부터" in mv

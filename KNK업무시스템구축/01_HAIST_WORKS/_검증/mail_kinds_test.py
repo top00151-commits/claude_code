@@ -130,7 +130,7 @@ print("④-2 거르기 줄 「📂 분류 안 됨」 · 화살표 크게(11-23)"
 src = open(os.path.join(ROOT, "app", "templates", "mail_inbox.html"), encoding="utf-8").read()
 cs = src[src.find('<div class="mbx-chips">'):src.find('id="mbxKindDd"')]
 check("「📂 분류 안 됨」 = 대화로 묶기 다음·종류 앞 · fd=gen(폴더 쓰는 사람만 · 시험 사람은 폴더 없음 → 시연 서버에서 확인)",
-      cs.find("💬 대화로 묶기") < cs.find("📂 분류 안 됨") and "'/mail/inbox?fd=gen'" in cs and "{% if mf %}" in cs)
+      cs.find("💬 대화로 묶기") < cs.find("📂 분류안됨") and "'/mail/inbox?fd=gen'" in cs and "{% if mf %}" in cs)
 check("고른 뒤 = 켜짐 · ✕ · 다시 누르면 전체(/mail/inbox) · 통수", "'/mail/inbox' if cur_fd|default('') == 'gen'" in cs and "{{ ' ✕' if cur_fd|default('') == 'gen' else '' }}" in cs and "mf.gen.n" in cs)
 check("화살표: 폴더 칸 ▾ 15px · 칸 18px · 대화 묶음 ▸ 16px", ".mbx-side .mf-tg{width:18px;font-size:15px !important" in h and 'html[data-md="v2"] .mbx-side .mf-tg{font-size:15px !important' in h and ".mbx-twist{font-size:16px" in h)
 

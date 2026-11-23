@@ -24133,6 +24133,20 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
     from . import mail_ui_prefs as _mup
     with db_session() as c:
         _my_kinds = _mup.get_kinds(c, u["id"])
+        # 11-23 대표 「거르기 줄에서 선택한 건 내가 풀 때까지」 — cs=1(거르기 줄 단추로 바꾼 주소) = 그 상태를 내 계정에 기억 ·
+        #   그 밖(왼쪽 폴더·위 메뉴·옮긴 뒤 다시 열기·더 보기) = 기억한 것으로 채움(주소에 직접 적힌 값이 먼저)
+        _qk = set(req.query_params.keys())
+        if req.query_params.get("cs") == "1":
+            _mup.save_chips(c, u["id"], {"unread": unread, "att": att, "noad": noad, "thread": thread, "cat": cat, "kd": kd})
+        else:
+            _chips = _mup.get_chips(c, u["id"])
+            if _chips:
+                unread = unread if "unread" in _qk else _chips["unread"]
+                att = att if "att" in _qk else _chips["att"]
+                noad = noad if "noad" in _qk else _chips["noad"]
+                thread = thread if "thread" in _qk else _chips["thread"]
+                if "cat" not in _qk and "kd" not in _qk:
+                    cat, kd = _chips["cat"], _chips["kd"]
     kd = (kd or "").strip()[:12]
     _kd_item = next((x for x in _my_kinds if x.get("id") == kd and x.get("w")), None) if kd else None
     if not _kd_item:
@@ -24247,7 +24261,7 @@ async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 
     _keep_q = [(k, v) for k, v in req.query_params.multi_items() if k not in ("off", "frag", "prev")]
     more_href = ("/mail/inbox?" + _ue(_keep_q + [("off", str(off + _PAGE)), ("frag", "1")])) if (off + len(mails) < total_n and len(mails) >= _PAGE) else ""
     _base_q = [(k, v) for k, v in req.query_params.multi_items()
-               if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app")]
+               if k not in ("off", "frag", "prev", "unread", "att", "thread", "noad", "app", "cs")]
     _base_nc = [(k, v) for k, v in _base_q if k not in ("cat", "kd")]   # 11-19 종류 단추는 cat(기본 셋)·kd(11-23 내 종류)만 바꿔 끼움
     with db_session() as c:
         _arc_n = _mailbox.count_archived(c, u["id"])

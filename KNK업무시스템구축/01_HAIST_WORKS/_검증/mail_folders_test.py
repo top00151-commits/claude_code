@@ -192,7 +192,8 @@ try:
     check("묶음(1.고객사)을 누르면 아래 폴더 메일 모두", "삼성발주건" in g_h and "외주 견적" not in g_h)
     check("엉뚱한 fd 는 무시(전체 받은편지함)", k.get("/mail/inbox?fd=f999999").status_code == 200)
     check("선택한 폴더는 검색해도 유지(숨은 칸)", 'name="fd" value="gen"' in gen_h)
-    check("목록 위에 지금 폴더 띠 「📁 일반 · ✕ 전체 보기」", 'class="mf-cur"' in gen_h and "✕ 전체 보기" in gen_h)
+    check("일반(분류안됨) 보기는 위 띠 없음(대표 11-23 「안 나오게」) · 다른 폴더는 띠 그대로", 'class="mf-cur"' not in gen_h
+          and 'class="mf-cur"' in g_h and "✕ 전체 보기" in g_h)
     check("폴더를 안 고르면 띠 없음", 'class="mf-cur"' not in k.get("/mail/inbox").text)
 
     print("== 4. 「📁 이 폴더로」 ==")

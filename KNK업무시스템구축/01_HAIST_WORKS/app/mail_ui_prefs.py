@@ -264,3 +264,46 @@ def set_ad_mark(c, user_id, addr, mode, since=""):
               "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
               (int(user_id), json.dumps(d, ensure_ascii=False)))
     return mode if mode in ("on", "off") else ""
+
+
+# ── 11-23 대표 「전체·안 읽음·첨부 … 줄에서 선택해 놓은 게 분류하면서 옮기다 보면 자꾸 풀려 — 내가 풀 때까지 선택돼 있게」 ──
+#   거르기 줄 상태를 내 계정에 기억 — 받은편지함 주소에 직접 적힌 값이 먼저 · 없으면 이 값으로 채움
+CHIP_DEFAULT = {"unread": 0, "att": 0, "noad": 0, "thread": 1, "cat": "", "kd": ""}
+
+
+def clean_chips(d):
+    import re as _re
+    d = d if isinstance(d, dict) else {}
+    out = dict(CHIP_DEFAULT)
+    for k in ("unread", "att", "noad", "thread"):
+        try:
+            out[k] = 1 if int(d.get(k, CHIP_DEFAULT[k]) or 0) else 0
+        except Exception:
+            pass
+    cat = str(d.get("cat") or "")
+    out["cat"] = cat if cat in dict(BUILTIN_KINDS) else ""
+    kd = str(d.get("kd") or "")
+    out["kd"] = kd if _re.fullmatch(r"u\d{1,6}", kd) else ""
+    if out["kd"]:
+        out["cat"] = ""
+    return out
+
+
+def get_chips(c, user_id):
+    """기억한 거르기 줄 상태 — 한 번도 안 바꿨으면 None."""
+    if not user_id:
+        return None
+    v = _load(c, user_id).get("chips")
+    return clean_chips(v) if isinstance(v, dict) else None
+
+
+def save_chips(c, user_id, d):
+    new = clean_chips(d)
+    cur = _load(c, user_id)
+    if cur.get("chips") == new:
+        return new
+    cur["chips"] = new
+    c.execute("INSERT INTO mail_ui_prefs(user_id, prefs, updated_at) VALUES(?,?,datetime('now','localtime')) "
+              "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
+              (int(user_id), json.dumps(cur, ensure_ascii=False)))
+    return new
