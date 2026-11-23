@@ -271,6 +271,24 @@ tpl.env.globals["cust_label"] = _cust_pick_label
 tpl.env.globals["mail_design_preview"] = True
 
 
+def _mail_fs_prefs_tpl(request=None):
+    """11-23 대표 「조정한 글자 크기 꼭 기억 · 새로고침·업데이트해도 가장 최근 값」 — 서버에 기억한 글자 크기를 화면에 바로 실어 보냄
+    (mail_fs.html 이 이 컴퓨터 값과 바꾼 시각을 견줘 더 최근 것을 씀). 실패해도 화면은 그대로(None)."""
+    try:
+        u = get_user(request) if request is not None else None
+        if not u:
+            return None
+        from . import mail_ui_prefs as _mup
+        with db_session() as c:
+            return _mup.get_fs(c, u["id"])
+    except Exception as e:   # 화면을 막지 않되 흔적은 남김
+        print("[mail_fs_prefs] " + repr(e)[:200])
+        return None
+
+
+tpl.env.globals["mail_fs_prefs"] = _mail_fs_prefs_tpl
+
+
 # =====================================================
 # v5H226z144 (2026-06-01): 직원 이름 공통 표기 함수 (대표 지시)
 #   베트남 직원은 기본 표기를 "베트남어 (한국발음)" 으로.
@@ -28097,6 +28115,23 @@ async def mail_sync_now_api(req: Request):
         except Exception:
             pass
     return JSONResponse(out)
+
+
+@app.post("/api/mail/ui-prefs")
+async def mail_ui_prefs_save(req: Request):
+    """11-23 메일 글자 크기(칸별·읽기 칸 자리별)를 내 계정에 기억 — 브라우저 저장이 지워져도·다른 컴퓨터에서도 가장 최근 값.
+    본문 JSON {fs:{열쇠:값, t:바꾼 시각 ms}} · 서버 값이 더 최근이면 저장 안 하고 서버 값을 돌려줌."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False}, 401)
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    from . import mail_ui_prefs as _mup
+    with db_session() as c:
+        saved, fs = _mup.save_fs(c, u["id"], (body or {}).get("fs") if isinstance(body, dict) else {})
+    return JSONResponse({"ok": True, "saved": saved, "fs": fs})
 
 
 @app.get("/api/mail/counts")

@@ -249,7 +249,7 @@
   <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
   <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
-  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 한 단계(가장 작게 80%) · 이 컴퓨터에만" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsPanel(event)" title="글자 크기 — 양옆 −·＋ = 모든 칸 함께(80%~145%) · 가운데를 누르면 칸별로(폴더·목록·읽기 칸) · 이 컴퓨터에만"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 한 단계(가장 크게 145%) · 이 컴퓨터에만" aria-label="글자 크게">＋</button></span>
+  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 모든 칸 한 단계(가장 작게 80%) · 내 계정에 기억" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsPanel(event)" title="글자 크기 — 양옆 −·＋ = 모든 칸 함께(80%~145%) · 가운데를 누르면 칸별로(폴더·목록·읽기 칸) · 내 계정에 기억(새로고침·업데이트해도 그대로)"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 모든 칸 한 단계(가장 크게 145%) · 내 계정에 기억" aria-label="글자 크게">＋</button></span>
   <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
   <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
   <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
@@ -259,7 +259,7 @@
 <div class="mail-sync-msg" id="mailSyncMsg" hidden role="status" aria-live="polite"></div>
 <div class="mail-fs-pop" id="mailFsPop" hidden role="dialog" aria-label="칸별 글자 크기">
   <h4>🔠 칸별 글자 크기</h4>
-  <div class="sub">칸마다 따로 키우고 줄입니다(80%~145%) · 읽기 칸은 <b>보기 자리마다 따로</b> 기억(오른쪽·아래·크게·따로 연 메일) · 이 컴퓨터에만</div>
+  <div class="sub">칸마다 따로 키우고 줄입니다(80%~145%) · 읽기 칸은 <b>보기 자리마다 따로</b> 기억(오른쪽·아래·크게·따로 연 메일) · <b>내 계정에 기억</b>(새로고침·업데이트해도 마지막 값)</div>
   <div id="mailFsRows"></div>
   <div class="ft"><button type="button" onclick="mailFsSet(0)" title="모든 칸·모든 보기 자리를 100%로">↺ 모두 보통(100%)</button><button type="button" onclick="mailFsPanel()">닫기</button></div>
 </div>

@@ -88,6 +88,8 @@ check("받은편지함·메일 보기는 본문 안에도 크기 조각(화면 �
 print("② 단계 — node 로 실제 실행")
 fs = io.open("app/templates/_v5_partials/mail_fs.html", encoding="utf-8").read()
 js = re.search(r"<script>(.*?)</script>", fs, re.S).group(1)
+check("화면에 서버 기억 값이 실려 옴(MAIL_FS_SRV)", "window.MAIL_FS_SRV={{ _fsp|tojson }};" in js)
+js = js.replace("{{ _fsp|tojson }}", "SRV_INIT")
 node = shutil.which("node")
 if node:
     harness = r"""
@@ -99,8 +101,9 @@ var document = {readyState:'complete', querySelector:function(q){ return (q==='.
   addEventListener:function(){}, documentElement:{classList:{toggle:function(c,on){ cls[c]=!!on; }},
   setAttribute:function(a,v){ attr[a]=v; }, removeAttribute:function(a){ delete attr[a]; },
   style:{setProperty:function(p,v){ prop[p]=v; }, removeProperty:function(p){ delete prop[p]; }}}};
-var window = globalThis;
-function run(){ window._mfsObs=false; %s }
+var window = globalThis; var SRV_INIT = null; var posts = [];
+function fetch(u, o){ posts.push({u:u, b:JSON.parse(o.body), keep:!!o.keepalive}); return Promise.resolve({json:function(){ return {ok:true, saved:true}; }}); }
+function run(){ window._mfsObs=false; window._mfsSynced=false; %s }
 function pc(k){ return mailFsPct(mailFsPane(k)); }
 function snap(){ return {L:mailFsLevel(), pct:mailFsPct(mailFsLevel()), side:pc('side'), list:pc('list'), read:pc('read'),
   big:!!cls['mfb-read'], bigl:!!cls['mfb-list'], z:prop['--mfz-read']||'', zl:prop['--mfz-list']||'', zs:prop['--mfz-side']||'',
@@ -124,7 +127,15 @@ HAS_SPLIT=false; mailFsApply(); out.p6 = snap(); HAS_SPLIT=true;  // 따로 연 
 mailFsStep(1); out.p7 = snap();                                   // 모두 한 단계: 오른쪽 130·목록 100·폴더 110
 VIEW='bottom'; mailFsApply(); out.p8 = snap();                    // 아래 87→93
 VIEW='weird'; mailFsApply(); out.p9 = snap();                     // 모르는 보기 = 오른쪽
-mailFsSet(0); VIEW='bottom'; mailFsApply(); out.p10 = snap(); out.keys = Object.keys(store).sort();
+mailFsSet(0); VIEW='bottom'; mailFsApply(); out.p10 = snap(); out.keys = Object.keys(store).filter(function(k){ return k!=='knkmail.fs.t'; }).sort();
+// 11-23 「꼭 기억 · 새로고침·업데이트해도 가장 최근 값」
+store = {}; posts = []; VIEW='right'; SRV_INIT=null; run(); out.k0 = posts.length;                  // 아무것도 없음 = 안 보냄
+mailFsPaneStep('read', 2); out.k1 = {n:posts.length, last:posts[posts.length-1], t:store['knkmail.fs.t']};   // 바꾸면 바로 계정에 저장
+store = {}; posts = []; SRV_INIT = {'knkmail.fs.read.right':2, 'knkmail.fs.list':-1, t:5000}; run(); out.k2 = snap(); out.k2n = posts.length;   // 브라우저 저장이 지워짐 → 서버 값
+store = {'knkmail.fs.read.right':'4', 'knkmail.fs.t':'9000'}; posts = []; SRV_INIT = {'knkmail.fs.read.right':2, t:5000}; run(); out.k3 = snap(); out.k3n = posts.length;   // 이 컴퓨터가 더 최근 → 그 값 · 계정에 올림
+store = {'knkmail.fs.read.right':'4', 'knkmail.fs.t':'1000'}; posts = []; SRV_INIT = {'knkmail.fs.read.right':2, t:5000}; run(); out.k4 = snap(); out.k4n = posts.length;   // 다른 컴퓨터가 더 최근 → 서버 값
+store = {'knkmail.fs':'2'}; posts = []; SRV_INIT = null; run(); out.k5 = {n:posts.length, b:posts[0] && posts[0].b, read:pc('read')};   // 예전에 맞춘 값(시각 없음) → 계정에 올림
+store = {}; posts = []; SRV_INIT = null; run(); mailFsStep(1); mailFsSet(0); out.k6 = posts.length;   // 양옆 ±·모두 보통도 저장
 console.log(JSON.stringify(out));
 """ % js
     fd, p = tempfile.mkstemp(suffix=".js")
@@ -160,6 +171,16 @@ console.log(JSON.stringify(out));
         check("…아래 읽기 칸도 함께 87→93", o["p8"]["read"] == 93, o["p8"])
         check("모르는 보기 값 = 오른쪽 값으로", o["p9"]["read"] == 130, o["p9"])
         check("모두 보통 → 모든 칸·모든 자리 100 · 칸별 저장값 지움", q("p10") == (100, 100, 100) and o["keys"] == ["knkmail.fs"], (o["p10"], o["keys"]))
+        print("  ── 11-23 꼭 기억(내 계정 · 가장 최근 값)")
+        check("처음(아무 값 없음) = 계정에 안 보냄", o["k0"] == 0, o["k0"])
+        k1 = o["k1"]
+        check("바꾸면 바로 계정에 저장(keepalive · 바꾼 시각 함께)", k1["n"] == 1 and k1["last"]["u"] == "/api/mail/ui-prefs" and k1["last"]["keep"]
+              and k1["last"]["b"]["fs"].get("knkmail.fs.read.right") == "2" and int(k1["t"]) > 1000000000000, k1)
+        check("브라우저 저장이 지워져도(새로고침·업데이트·캐시 비움) 계정 값으로 되살림", q("k2") == (100, 93, 120) and o["k2n"] == 0, (o["k2"], o["k2n"]))
+        check("이 컴퓨터 값이 더 최근 → 그 값(145%) 쓰고 계정에 올림", o["k3"]["read"] == 145 and o["k3n"] == 1, (o["k3"], o["k3n"]))
+        check("다른 컴퓨터에서 더 최근에 바꿈 → 계정 값(120%)", o["k4"]["read"] == 120 and o["k4n"] == 0, (o["k4"], o["k4n"]))
+        check("예전에 맞춘 값(시각 없음)도 계정에 올림 · 화면은 그대로 120%", o["k5"]["n"] == 1 and o["k5"]["b"]["fs"].get("knkmail.fs") == "2" and o["k5"]["read"] == 120, o["k5"])
+        check("양옆 ±·모두 보통도 저장", o["k6"] == 2, o["k6"])
 else:
     print("  (node 없음 — 단계 실행 시험 건너뜀)")
 
@@ -189,6 +210,25 @@ if node:
                 print(r.stderr[:300])
             os.remove(p)
     check("스크립트 문법(node) — 받은편지함·메일 보기·설정", bad == 0, bad)
+
+print("④ 내 계정에 기억(서버) — 가짜 사람만")
+r = k.post("/api/mail/ui-prefs", json={"fs": {"knkmail.fs.read.right": "3", "knkmail.fs.list": -1, "t": 7000}})
+check("저장", r.status_code == 200 and r.json().get("saved") is True, r.text[:200])
+r = k.post("/api/mail/ui-prefs", json={"fs": {"knkmail.fs.read.right": "0", "t": 6000}})
+check("더 오래된 값은 덮어쓰지 않고 지금 계정 값을 돌려줌", r.json().get("saved") is False and r.json()["fs"].get("knkmail.fs.read.right") == 3, r.text[:200])
+r = k.post("/api/mail/ui-prefs", json={"fs": {"knkmail.fs.read.right": "99", "evil": "<script>", "knkmail.fs.side": "x", "knkmail.fs": 1, "t": 8000}})
+j = r.json()["fs"]
+check("정해진 열쇠·−3~4 만 받음(이상한 값·열쇠 버림)", j == {"knkmail.fs": 1, "t": 8000}, j)
+r = k.post("/api/mail/ui-prefs", json={"fs": {"knkmail.fs.read.bottom": 2, "t": 9000}})
+h2 = k.get("/mail/inbox?app=1").text
+check("다시 열면 화면에 계정 값이 실려 옴", 'window.MAIL_FS_SRV={"knkmail.fs.read.bottom": 2, "t": 9000};' in h2, re.findall(r"window.MAIL_FS_SRV=[^;]*;", h2)[:1])
+h3 = k.get("/mail/%d?app=1" % MID).text
+check("따로 연 메일 화면에도", 'window.MAIL_FS_SRV={"knkmail.fs.read.bottom": 2, "t": 9000};' in h3)
+_me = dict(ME)
+m.get_user = lambda req: None
+r = k.post("/api/mail/ui-prefs", json={"fs": {"knkmail.fs": 1, "t": 1}})
+check("로그인 안 하면 저장 안 됨", r.status_code == 401, r.status_code)
+m.get_user = lambda req: _me
 
 print("\n결과: %d 통과 · %d 실패" % (P, F))
 sys.exit(1 if F else 0)
