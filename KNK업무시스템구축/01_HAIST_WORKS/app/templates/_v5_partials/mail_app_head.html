@@ -42,6 +42,27 @@
   .mail-tools .mt-fs .fs-b { min-width:26px; padding:0 6px; font-size:17px; font-weight:800; color:var(--mt-text2,#374151); justify-content:center; }
   .mail-tools .mt-fs .fs-b:disabled { opacity:.3; cursor:default; background:none; }
   .mail-tools .mt-fs .fs-pct { font-weight:700; font-size:12px; }   /* 몇 % 인지는 좁은 화면에서도 늘 보임 */
+  /* 11-23 대표 「글자 크기를 칸별로 · 읽기 칸 자리(보기)마다 따로」 — 가운데 🔠 를 누르면 뜨는 작은 창 */
+  .mail-fs-pop { position:fixed; z-index:80; width:min(340px,calc(100vw - 24px)); background:var(--mt-surface,#fff); color:var(--mt-text,#111827);
+    border:1px solid var(--mt-line,#e5e7eb); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.22); padding:14px 14px 12px; font-size:13px; }
+  .mail-fs-pop[hidden] { display:none; }
+  .mail-fs-pop h4 { margin:0 0 2px; font-size:14px; }
+  .mail-fs-pop .sub { color:var(--mt-mute,#6b7280); font-size:11.5px; margin-bottom:8px; line-height:1.5; }
+  .mail-fs-pop .fr { display:flex; align-items:center; gap:6px; padding:6px 4px; border-radius:8px; }
+  .mail-fs-pop .fr:hover { background:var(--mt-hover,#f1f3f5); }
+  .mail-fs-pop .fr .nm { flex:1; min-width:0; font-weight:600; }
+  .mail-fs-pop .fr .nm small { display:block; font-weight:400; color:var(--mt-mute,#6b7280); font-size:11px; }
+  .mail-fs-pop .fr button { width:30px; height:28px; border:1px solid var(--mt-line,#e5e7eb); border-radius:7px; background:var(--mt-surface,#fff); color:inherit;
+    font-size:16px; font-weight:800; cursor:pointer; line-height:1; padding:0; }
+  .mail-fs-pop .fr button:hover:not(:disabled) { background:var(--mt-hover,#f1f3f5); }
+  .mail-fs-pop .fr button:disabled { opacity:.3; cursor:default; }
+  .mail-fs-pop .fr b { min-width:44px; text-align:center; font-size:13px; }
+  .mail-fs-pop .fr b.chg { color:#1d4ed8; }
+  .mail-fs-pop .ft { display:flex; gap:6px; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed var(--mt-line,#e5e7eb); }
+  .mail-fs-pop .ft button { border:1px solid var(--mt-line,#e5e7eb); background:var(--mt-surface,#fff); color:inherit; border-radius:8px; padding:5px 11px; cursor:pointer; font:inherit; font-size:12.5px; }
+  .mail-fs-pop .ft button:hover { background:var(--mt-hover,#f1f3f5); }
+  /* 창 줄에 마우스를 올리면 그 칸을 파란 테로 알려 줌 */
+  html.mfs-hl-side .mbx-side, html.mfs-hl-list .mbx-listcol, html.mfs-hl-read #readPane, html.mfs-hl-read .mv-zoom { outline:3px solid #3b82f6; outline-offset:-3px; }
   .mail-tools a.drop-on, .mail-tools .drop-on { background:#dbeafe !important; box-shadow:inset 0 0 0 2px #2563eb; }
   .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:var(--mt-surface,#fff); border:1px solid var(--mt-line,#e5e7eb); border-radius:12px;
                 box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:var(--mt-text,#1f2937); }
@@ -228,7 +249,7 @@
   <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
   <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
-  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 한 단계(가장 작게 80%) · 이 컴퓨터에만" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsSet(0)" title="글자 크기 — 양옆 −·＋로 80%~145%(8단계) · 가운데를 누르면 보통(100%) · 이 컴퓨터에만"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 한 단계(가장 크게 145%) · 이 컴퓨터에만" aria-label="글자 크게">＋</button></span>
+  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 한 단계(가장 작게 80%) · 이 컴퓨터에만" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsPanel(event)" title="글자 크기 — 양옆 −·＋ = 모든 칸 함께(80%~145%) · 가운데를 누르면 칸별로(폴더·목록·읽기 칸) · 이 컴퓨터에만"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 한 단계(가장 크게 145%) · 이 컴퓨터에만" aria-label="글자 크게">＋</button></span>
   <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
   <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
   <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
@@ -236,6 +257,12 @@
 <div class="mail-link-band" id="mailLinkBand" hidden></div>
 </div>
 <div class="mail-sync-msg" id="mailSyncMsg" hidden role="status" aria-live="polite"></div>
+<div class="mail-fs-pop" id="mailFsPop" hidden role="dialog" aria-label="칸별 글자 크기">
+  <h4>🔠 칸별 글자 크기</h4>
+  <div class="sub">칸마다 따로 키우고 줄입니다(80%~145%) · 읽기 칸은 <b>보기 자리마다 따로</b> 기억(오른쪽·아래·크게·따로 연 메일) · 이 컴퓨터에만</div>
+  <div id="mailFsRows"></div>
+  <div class="ft"><button type="button" onclick="mailFsSet(0)" title="모든 칸·모든 보기 자리를 100%로">↺ 모두 보통(100%)</button><button type="button" onclick="mailFsPanel()">닫기</button></div>
+</div>
 <div class="mail-theme-pop" id="mailThemePop" hidden role="dialog" aria-label="화면 테마 고르기">
   <h4>🎨 화면 테마</h4>
   <div class="sub">누르면 바로 바뀝니다 · 이 컴퓨터에 기억 · 메일 본문은 보낸 사람 모양(흰 종이) 그대로 · 「부드럽게」만 살짝 낮춤</div>
@@ -363,9 +390,37 @@ window.mailNotifyNew=function(j){
   try{ var n=new Notification('📥 새 메일 — '+(lt.from||''), {body: lt.subj||'', tag:'knkmail-new'}); n.onclick=function(){ try{ window.focus(); }catch(_){} location.href='/mail/inbox'; n.close(); }; }catch(_){}
 };
 /* 11-22 글자 크기 8단계(80%~145%) — 계산·저장은 본문 안 mail_fs.html(화면 전환 때도 돎) · 여기는 단추 표시만 */
-window.mailFsShow=function(){ if(!window.mailFsLevel) return; var L=mailFsLevel(), p=document.getElementById('mtFsPct');
-  if(p) p.textContent=mailFsPct(L)+'%'; var b=document.getElementById('mtBigTop'); if(b) b.classList.toggle('on', L!==0);
-  var dn=document.getElementById('mtFsDn'), up=document.getElementById('mtFsUp'); if(dn) dn.disabled=(L<=-3); if(up) up.disabled=(L>=4); };
+/* 11-23 칸별 — 도구 줄 가운데 = 모든 칸이 같으면 그 %, 다르면 「칸별」 · 양옆 −·＋ = 모든 칸 함께(모든 칸이 끝이면 흐리게) */
+window.MAIL_FS_NAMES={side:['📁 폴더 칸','왼쪽 메일함·폴더 목록'], list:['📋 메일 목록','보낸 사람·제목 줄'], read:['📖 읽기 칸','메일 내용']};
+window.MAIL_FS_LAY={right:'오른쪽에 둘 때', bottom:'아래에 둘 때', list:'읽기 칸 끄고 크게 볼 때', page:'따로 연 메일 화면'};
+window.mailFsPanes=function(){ return document.querySelector('.mbx-split') ? ['side','list','read'] : ['read']; };
+window.mailFsShow=function(){ if(!window.mailFsPane) return; var ps=mailFsPanes(), lv=ps.map(function(k){ return mailFsPane(k); }),
+    same=lv.every(function(x){ return x===lv[0]; }), p=document.getElementById('mtFsPct');
+  if(p) p.textContent= same ? mailFsPct(lv[0])+'%' : '칸별';
+  var b=document.getElementById('mtBigTop'); if(b) b.classList.toggle('on', !same || lv[0]!==0);
+  var dn=document.getElementById('mtFsDn'), up=document.getElementById('mtFsUp');
+  if(dn) dn.disabled=lv.every(function(x){ return x<=-3; }); if(up) up.disabled=lv.every(function(x){ return x>=4; });
+  var box=document.getElementById('mailFsRows'); if(box && !document.getElementById('mailFsPop').hidden) mailFsRows(); };
+window.mailFsRows=function(){ var box=document.getElementById('mailFsRows'); if(!box) return; var lay=mailFsLayout(), h='';
+  mailFsPanes().forEach(function(k){ var L=mailFsPane(k), nm=MAIL_FS_NAMES[k], sub = k==='read' ? '지금: '+MAIL_FS_LAY[lay] : nm[1];
+    h+='<div class="fr" data-p="'+k+'"><span class="nm">'+nm[0]+'<small>'+sub+'</small></span>'
+      +'<button type="button" data-d="-1" title="이 칸만 작게"'+(L<=-3?' disabled':'')+'>−</button>'
+      +'<b class="'+(L!==0?'chg':'')+'">'+mailFsPct(L)+'%</b>'
+      +'<button type="button" data-d="1" title="이 칸만 크게"'+(L>=4?' disabled':'')+'>＋</button></div>'; });
+  box.innerHTML=h; };
+window.mailFsPanel=function(ev){ if(ev) ev.stopPropagation(); var p=document.getElementById('mailFsPop'); if(!p) return; p.hidden=!p.hidden;
+  if(p.hidden){ mailFsHl(''); return; }
+  mailFsRows(); var b=document.getElementById('mtBigTop'), r=b ? b.getBoundingClientRect() : {left:16, bottom:96};
+  var w=p.offsetWidth||340; p.style.left=Math.max(8, Math.min(r.left, innerWidth-w-8))+'px'; p.style.top=(r.bottom+6)+'px'; };
+window.mailFsHl=function(k){ var d=document.documentElement; ['side','list','read'].forEach(function(x){ d.classList.toggle('mfs-hl-'+x, x===k); }); };
+(function(){ var p=document.getElementById('mailFsPop'); if(!p) return;
+  p.addEventListener('click', function(e){ e.stopPropagation(); var b=e.target.closest('button[data-d]'); if(!b) return; var row=b.closest('.fr');
+    mailFsPaneStep(row.getAttribute('data-p'), parseInt(b.getAttribute('data-d'),10)); mailFsRows(); mailFsHl(row.getAttribute('data-p')); });
+  p.addEventListener('mouseover', function(e){ var row=e.target.closest('.fr'); mailFsHl(row ? row.getAttribute('data-p') : ''); });
+  p.addEventListener('mouseleave', function(){ mailFsHl(''); });
+  document.addEventListener('click', function(e){ if(!p.hidden && !e.target.closest('#mailFsPop') && !e.target.closest('#mtBigTop')){ p.hidden=true; mailFsHl(''); } });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !p.hidden){ p.hidden=true; mailFsHl(''); } });
+})();
 window.mailBigShowTop=window.mailFsShow;
 window.mailBigToggle=function(){ if(window.mailFsSet) mailFsSet(mailFsLevel()>=1 ? 0 : 1); };   // 예전 이름(다른 곳에서 부를 수 있음)
 mailFsShow();

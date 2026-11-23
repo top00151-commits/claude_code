@@ -1,18 +1,56 @@
-{# 11-22 대표 「글자 크게 양옆에 −·＋ · 양쪽 다 3단계 더」 — 8단계 80%~145% · 이 기기에만(localStorage knkmail.fs)
+{# 11-22 대표 「글자 크게 양옆에 −·＋ · 양쪽 다 3단계 더」 — 8단계 80%~145% · 이 기기에만(localStorage)
    0 = 보통(100%) · 1 = 예전 「글자 크게」(110% · knkmail.big=1 이던 기기는 1로 시작) · −1~−3 작게 · 2~4 더 크게
-   크기는 메일 목록·왼쪽 폴더·읽기 칸(본문 포함) 안쪽만 키운다(줄 높이도 함께 · 칸 크기는 그대로) — 본문 안에 두어야 화면 전환 때도 돈다 #}
+   크기는 메일 목록·왼쪽 폴더·읽기 칸(본문 포함) 안쪽만 키운다(줄 높이도 함께 · 칸 크기는 그대로) — 본문 안에 두어야 화면 전환 때도 돈다
+   11-23 대표 「글자 크기를 구분된 칸별로 · 보기에 따라 읽기 칸 위치가 바뀌는데 그것도 따라서」
+     칸 = side(왼쪽 폴더) · list(메일 목록) · read(읽기 칸) — 읽기 칸은 보기마다 따로 기억:
+       right(오른쪽) · bottom(아래) · list(읽기 칸 끄기 → 목록 자리에서 크게) · page(따로 연 메일 화면·새 창)
+     저장: knkmail.fs = 기본값(모든 칸) · knkmail.fs.side · knkmail.fs.list · knkmail.fs.read.<보기> = 칸별(없으면 기본값)
+     도구 줄 양옆 −·＋ = 모든 칸 함께 한 단계 · 가운데 🔠 = 칸별 고르기 창 #}
 <script>
 window.MAIL_FS=[[-3,.8,80],[-2,.87,87],[-1,.93,93],[0,1,100],[1,1,110],[2,1.1,120],[3,1.2,130],[4,1.33,145]];
-window.mailFsLevel=function(){ var L=0; try{ var v=localStorage.getItem('knkmail.fs');
-    if(v===null || v===''){ L=(localStorage.getItem('knkmail.big')==='1') ? 1 : 0; } else { L=parseInt(v,10)||0; } }catch(e){}
-  return Math.max(-3, Math.min(4, L)); };
+window.MAIL_FS_READ=['right','bottom','list','page'];
+window._mfsGet=function(k){ try{ var v=localStorage.getItem(k); return (v===null || v==='') ? null : v; }catch(e){ return null; } };
+window._mfsClamp=function(L){ L=parseInt(L,10); if(isNaN(L)) L=0; return Math.max(-3, Math.min(4, L)); };
+window.mailFsBase=function(){ var v=_mfsGet('knkmail.fs'); if(v===null) return (_mfsGet('knkmail.big')==='1') ? 1 : 0; return _mfsClamp(v); };
+// 지금 읽기 칸 자리 — 받은편지함 세 칸 화면이면 「🗔 보기」 값(오른쪽·아래·끄기) · 그 밖(따로 연 메일·새 창 등) = page
+window.mailFsLayout=function(){ var s=document.querySelector('.mbx-split'); if(!s) return 'page';
+  var v=s.getAttribute('data-view')||'right'; return MAIL_FS_READ.indexOf(v)>=0 ? v : 'right'; };
+window._mfsKey=function(p, lay){ return p==='read' ? 'knkmail.fs.read.'+(lay||mailFsLayout()) : 'knkmail.fs.'+p; };
+window.mailFsPane=function(p, lay){ var v=_mfsGet(_mfsKey(p, lay)); return v===null ? mailFsBase() : _mfsClamp(v); };
+// 예전 이름 — 한 값만 아는 곳(⚙ 설정·정리 스위치 등)은 지금 읽기 칸 값을 대표로
+window.mailFsLevel=function(){ return mailFsPane('read'); };
 window.mailFsPct=function(L){ var p=100; MAIL_FS.forEach(function(x){ if(x[0]===L) p=x[2]; }); return p; };
-window.mailFsApply=function(){ var L=mailFsLevel(), d=document.documentElement, z=1; MAIL_FS.forEach(function(x){ if(x[0]===L) z=x[1]; });
-  d.classList.toggle('mbx-big', L>=1);
-  if(z!==1){ d.setAttribute('data-mfz', String(L)); d.style.setProperty('--mfz', String(z)); } else { d.removeAttribute('data-mfz'); d.style.removeProperty('--mfz'); }
+window._mfsZ=function(L){ var z=1; MAIL_FS.forEach(function(x){ if(x[0]===L) z=x[1]; }); return z; };
+window.mailFsApply=function(){ var d=document.documentElement, any=false, lv={};
+  ['side','list','read'].forEach(function(p){ var L=mailFsPane(p), z=_mfsZ(L); lv[p]=L;
+    d.classList.toggle('mfb-'+p, L>=1);            // 110% 이상 = 예전 큰 글씨 규칙(그 칸만)
+    if(z!==1){ any=true; d.style.setProperty('--mfz-'+p, String(z)); } else d.style.removeProperty('--mfz-'+p); });
+  d.classList.toggle('mbx-big', lv.read>=1);
+  if(any) d.setAttribute('data-mfz', '1'); else d.removeAttribute('data-mfz');
   if(window.mailFsShow) try{ mailFsShow(); }catch(e){}
-  return L; };
-window.mailFsSet=function(L){ L=Math.max(-3, Math.min(4, L|0)); try{ localStorage.setItem('knkmail.fs', String(L)); localStorage.removeItem('knkmail.big'); }catch(e){} return mailFsApply(); };
-window.mailFsStep=function(d){ return mailFsSet(mailFsLevel()+d); };
+  return lv.read; };
+// 모든 칸을 같은 값으로(가운데 「모두 보통」 · ⚙ 설정 스위치)
+window.mailFsSet=function(L){ L=_mfsClamp(L|0);
+  try{ localStorage.setItem('knkmail.fs', String(L)); localStorage.removeItem('knkmail.big');
+       localStorage.removeItem('knkmail.fs.side'); localStorage.removeItem('knkmail.fs.list');
+       MAIL_FS_READ.forEach(function(v){ localStorage.removeItem('knkmail.fs.read.'+v); }); }catch(e){}
+  return mailFsApply(); };
+// 양옆 −·＋ = 모든 칸 함께 한 단계(칸마다 다르게 맞춰 둔 차이는 그대로)
+window.mailFsStep=function(dl){
+  try{ var keys=['knkmail.fs.side','knkmail.fs.list'].concat(MAIL_FS_READ.map(function(v){ return 'knkmail.fs.read.'+v; }));
+    keys.forEach(function(k){ var v=_mfsGet(k); if(v!==null) localStorage.setItem(k, String(_mfsClamp(_mfsClamp(v)+dl))); });
+    localStorage.setItem('knkmail.fs', String(_mfsClamp(mailFsBase()+dl))); localStorage.removeItem('knkmail.big'); }catch(e){}
+  return mailFsApply(); };
+// 한 칸만 한 단계(읽기 칸은 지금 보기 자리 것만)
+window.mailFsPaneStep=function(p, dl){ var L=_mfsClamp(mailFsPane(p)+dl);
+  try{ localStorage.setItem(_mfsKey(p), String(L)); }catch(e){} mailFsApply(); return L; };
+window.mailFsPaneSet=function(p, L){ try{ localStorage.setItem(_mfsKey(p), String(_mfsClamp(L))); }catch(e){} mailFsApply(); };
 try{ mailFsApply(); }catch(e){}
+// 「🗔 보기」로 읽기 칸 자리를 바꾸면 그 자리에 기억한 크기로 바로
+(function(){ if(window._mfsObs) return; window._mfsObs=true;
+  function hook(){ var s=document.querySelector('.mbx-split'); if(!s) return;
+    try{ new MutationObserver(function(){ mailFsApply(); }).observe(s, {attributes:true, attributeFilter:['data-view']}); }catch(e){}
+    mailFsApply(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', hook); else hook();
+})();
 </script>

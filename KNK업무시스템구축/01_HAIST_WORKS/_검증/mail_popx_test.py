@@ -90,7 +90,7 @@ targets = {"🗔 보기": "['.mbx-viewmenu', closeDetails]", "🏷 종류": "['.
 for nm, s in targets.items():
     check("대상: " + nm, s in src, s)
 check("✕ = 오른쪽 위 · 「닫기」 이름표", ".mpx{position:absolute;top:4px;right:6px;" in src and "b.title='닫기'; b.setAttribute('aria-label','닫기');" in src)
-check("✕ 자리(위 띠) 미리 비움 — 글자와 안 겹침", ".mbx-viewmenu,.mbx-kindmenu.pop,.mbx-adv,.mbx-ctx,#mailThemePop,#mailHelp,.mv-more-box,#mvWhoPop,#cAttachMenu,#cTplPop,#scBox,.crop-box{padding-top:30px !important}" in src)
+check("✕ 자리(위 띠) 미리 비움 — 글자와 안 겹침", ".mbx-viewmenu,.mbx-kindmenu.pop,.mbx-adv,.mbx-ctx,#mailThemePop,#mailHelp,#mailFsPop,.mv-more-box,#mvWhoPop,#cAttachMenu,#cTplPop,#scBox,.crop-box{padding-top:30px !important}" in src)
 check("굴러가는 상자 = ✕ 위에 붙음(sticky)", ".mpx.stk{position:sticky;" in src and "el.matches('#cTplPop,#scBox,.mbx-ctx,.mv-more-box')" in src)
 check("종류 칩이 줄 안에 있을 땐(휴대폰) ✕ 숨김 · 폴더 칸은 펼쳤을 때만", ".mbx-kindmenu:not(.pop)>.mpx{display:none}" in src and ".mbx-split:not(.fold-pop) .mbx-side-top>.mpx{display:none}" in src)
 check("✕ 누르면 다른 클릭 처리로 안 번짐", "e.preventDefault(); e.stopPropagation(); fn(el);" in src)

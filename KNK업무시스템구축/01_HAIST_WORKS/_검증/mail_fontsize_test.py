@@ -78,7 +78,9 @@ h = H["받은편지함"]
 tools = h[h.find('id="mailTools"'):h.find('</nav>', h.find('id="mailTools"'))]
 check("순서: − → 🔠 글자 → ＋ (테마와 설정·정리 사이)",
       tools.find('id="mtThemeBtn"') < tools.find('id="mtFsDn"') < tools.find('id="mtBigTop"') < tools.find('id="mtFsUp"') < tools.find('href="/mail/tools"'))
-check("가운데 = 보통(100%)으로 · 양옆 = 한 단계씩", 'onclick="mailFsSet(0)"' in tools and 'onclick="mailFsStep(-1)"' in tools and 'onclick="mailFsStep(1)"' in tools)
+check("가운데 = 칸별 고르기 창 · 양옆 = 모든 칸 한 단계씩", 'onclick="mailFsPanel(event)"' in tools and 'onclick="mailFsStep(-1)"' in tools and 'onclick="mailFsStep(1)"' in tools)
+check("칸별 창(11-23): 폴더·목록·읽기 칸 줄 · 「모두 보통」 · ✕ 목록에 등록", 'id="mailFsPop"' in h and 'id="mailFsRows"' in h and "mailFsSet(0)" in h
+      and "['#mailFsPop'," in h and "window.mailFsRows=" in h)
 check("몇 % 인지는 좁은 화면에서도 보임(글자 「글자」만 숨김)", '<span class="t">글자</span><b class="fs-pct" id="mtFsPct">' in tools)
 check("받은편지함·메일 보기는 본문 안에도 크기 조각(화면 전환 때도 돎)",
       h.rfind("window.mailFsSet=") > h.find('<main class="main"') > 0 and H["메일 보기"].rfind("window.mailFsSet=") > H["메일 보기"].find('<main class="main"') > 0)
@@ -89,15 +91,20 @@ js = re.search(r"<script>(.*?)</script>", fs, re.S).group(1)
 node = shutil.which("node")
 if node:
     harness = r"""
-var store = {}; var cls = {}; var attr = {}; var prop = {};
+var store = {}; var cls = {}; var attr = {}; var prop = {}; var VIEW = 'right'; var HAS_SPLIT = true;
 var localStorage = {getItem:function(k){ return Object.prototype.hasOwnProperty.call(store,k) ? store[k] : null; },
   setItem:function(k,v){ store[k]=String(v); }, removeItem:function(k){ delete store[k]; }};
-var document = {documentElement:{classList:{toggle:function(c,on){ cls[c]=!!on; }},
+var split = {getAttribute:function(a){ return a==='data-view' ? VIEW : null; }};
+var document = {readyState:'complete', querySelector:function(q){ return (q==='.mbx-split' && HAS_SPLIT) ? split : null; },
+  addEventListener:function(){}, documentElement:{classList:{toggle:function(c,on){ cls[c]=!!on; }},
   setAttribute:function(a,v){ attr[a]=v; }, removeAttribute:function(a){ delete attr[a]; },
   style:{setProperty:function(p,v){ prop[p]=v; }, removeProperty:function(p){ delete prop[p]; }}}};
 var window = globalThis;
-function run(){ %s }
-function snap(){ return {L:mailFsLevel(), pct:mailFsPct(mailFsLevel()), big:!!cls['mbx-big'], z:prop['--mfz']||'', mfz:attr['data-mfz']||'', fs:store['knkmail.fs'], old:store['knkmail.big']}; }
+function run(){ window._mfsObs=false; %s }
+function pc(k){ return mailFsPct(mailFsPane(k)); }
+function snap(){ return {L:mailFsLevel(), pct:mailFsPct(mailFsLevel()), side:pc('side'), list:pc('list'), read:pc('read'),
+  big:!!cls['mfb-read'], bigl:!!cls['mfb-list'], z:prop['--mfz-read']||'', zl:prop['--mfz-list']||'', zs:prop['--mfz-side']||'',
+  mfz:attr['data-mfz']||'', fs:store['knkmail.fs'], old:store['knkmail.big']}; }
 var out = {};
 run(); out.fresh = snap();
 store = {'knkmail.big':'1'}; cls={}; attr={}; prop={}; run(); out.legacy = snap();
@@ -106,6 +113,18 @@ var dns = []; for (var i=0;i<9;i++){ mailFsStep(-1); dns.push(snap()); } out.dns
 mailFsSet(0); out.reset = snap();
 mailFsSet(99); out.clamp = snap();
 store['knkmail.fs']='abc'; mailFsApply(); out.junk = snap();
+// 11-23 칸별 · 읽기 칸은 보기 자리마다
+store = {}; cls={}; attr={}; prop={}; VIEW='right'; run();
+mailFsPaneStep('read', 2); out.p1 = snap();                       // 오른쪽 읽기 칸만 120
+mailFsPaneStep('list', -1); out.p2 = snap();                      // 목록만 93
+VIEW='bottom'; mailFsApply(); out.p3 = snap();                    // 아래 = 기본(100)
+mailFsPaneStep('read', -2); out.p4 = snap();                      // 아래 읽기 칸 87
+VIEW='right'; mailFsApply(); out.p5 = snap();                     // 오른쪽으로 돌아오면 120 그대로
+HAS_SPLIT=false; mailFsApply(); out.p6 = snap(); HAS_SPLIT=true;  // 따로 연 메일 = page(기본 100)
+mailFsStep(1); out.p7 = snap();                                   // 모두 한 단계: 오른쪽 130·목록 100·폴더 110
+VIEW='bottom'; mailFsApply(); out.p8 = snap();                    // 아래 87→93
+VIEW='weird'; mailFsApply(); out.p9 = snap();                     // 모르는 보기 = 오른쪽
+mailFsSet(0); VIEW='bottom'; mailFsApply(); out.p10 = snap(); out.keys = Object.keys(store).sort();
 console.log(JSON.stringify(out));
 """ % js
     fd, p = tempfile.mkstemp(suffix=".js")
@@ -120,21 +139,38 @@ console.log(JSON.stringify(out));
         check("node 실행", False, r.stderr[:400])
     if o:
         check("처음 기기 = 100% · 배율 없음 · 큰 글씨 규칙 꺼짐", o["fresh"]["pct"] == 100 and not o["fresh"]["big"] and not o["fresh"]["z"], o["fresh"])
-        check("예전 「글자 크게」 켠 기기 = 110%(큰 글씨 규칙 그대로)", o["legacy"]["pct"] == 110 and o["legacy"]["big"] and not o["legacy"]["z"], o["legacy"])
+        check("예전 「글자 크게」 켠 기기 = 110%(큰 글씨 규칙 그대로)", o["legacy"]["pct"] == 110 and o["legacy"]["big"] and o["legacy"]["bigl"] and not o["legacy"]["z"], o["legacy"])
         check("＋ : 120 → 130 → 145 → 145(끝에서 멈춤)", [x["pct"] for x in o["ups"]] == [120, 130, 145, 145, 145], [x["pct"] for x in o["ups"]])
-        check("110% 넘으면 큰 글씨 규칙 + 배율(1.1·1.2·1.33)", [x["z"] for x in o["ups"][:3]] == ["1.1", "1.2", "1.33"] and all(x["big"] for x in o["ups"]), o["ups"][:3])
+        check("110% 넘으면 큰 글씨 규칙 + 배율(1.1·1.2·1.33) · 세 칸 함께", [x["z"] for x in o["ups"][:3]] == ["1.1", "1.2", "1.33"]
+              and [x["zl"] for x in o["ups"][:3]] == ["1.1", "1.2", "1.33"] and [x["zs"] for x in o["ups"][:3]] == ["1.1", "1.2", "1.33"] and all(x["big"] for x in o["ups"]), o["ups"][:3])
         check("저장 = knkmail.fs · 옛 knkmail.big 은 지움", o["ups"][0]["fs"] == "2" and o["ups"][0].get("old") is None, o["ups"][0])
         check("− : 130·120·110·100·93·87·80·80·80(끝에서 멈춤)", [x["pct"] for x in o["dns"]] == [130, 120, 110, 100, 93, 87, 80, 80, 80], [x["pct"] for x in o["dns"]])
         check("100% 아래 = 큰 글씨 규칙 꺼짐 · 배율 0.93·0.87·0.8", [x["z"] for x in o["dns"][4:7]] == ["0.93", "0.87", "0.8"] and not any(x["big"] for x in o["dns"][4:]), o["dns"][4:7])
-        check("가운데 = 100% · 배율 지움", o["reset"]["pct"] == 100 and not o["reset"]["z"] and not o["reset"]["mfz"], o["reset"])
+        check("가운데(모두 보통) = 100% · 배율 지움", o["reset"]["pct"] == 100 and not o["reset"]["z"] and not o["reset"]["mfz"], o["reset"])
         check("이상한 값 = 145% 로 막음 · 글자 저장값 = 100%", o["clamp"]["pct"] == 145 and o["junk"]["pct"] == 100, (o["clamp"], o["junk"]))
+        print("  ── 11-23 칸별 · 읽기 칸 보기 자리마다")
+        q = lambda k: (o[k]["side"], o[k]["list"], o[k]["read"])
+        check("읽기 칸만 ＋2 → 폴더 100·목록 100·읽기 120 · 읽기 칸에만 배율", q("p1") == (100, 100, 120) and o["p1"]["z"] == "1.1" and not o["p1"]["zl"] and not o["p1"]["zs"], o["p1"])
+        check("목록만 −1 → 93 (읽기 칸 120 그대로)", q("p2") == (100, 93, 120) and o["p2"]["zl"] == "0.93", o["p2"])
+        check("보기를 「아래」로 → 읽기 칸 = 그 자리 값(처음은 기본 100) · 목록 93 그대로", q("p3") == (100, 93, 100), o["p3"])
+        check("아래 읽기 칸 −2 → 87", q("p4") == (100, 93, 87), o["p4"])
+        check("다시 「오른쪽」 → 읽기 칸 120 되살아남", q("p5") == (100, 93, 120), o["p5"])
+        check("따로 연 메일 화면(page) = 그 자리 값(기본 100)", o["p6"]["read"] == 100, o["p6"])
+        check("양옆 ＋(모든 칸) → 폴더 110·목록 100·오른쪽 읽기 130(차이 유지)", q("p7") == (110, 100, 130), o["p7"])
+        check("…아래 읽기 칸도 함께 87→93", o["p8"]["read"] == 93, o["p8"])
+        check("모르는 보기 값 = 오른쪽 값으로", o["p9"]["read"] == 130, o["p9"])
+        check("모두 보통 → 모든 칸·모든 자리 100 · 칸별 저장값 지움", q("p10") == (100, 100, 100) and o["keys"] == ["knkmail.fs"], (o["p10"], o["keys"]))
 else:
     print("  (node 없음 — 단계 실행 시험 건너뜀)")
 
 print("③ 배율 범위 · 설정 화면")
 vs = io.open("app/templates/_v5_partials/mail_view_styles.html", encoding="utf-8").read()
-check("배율은 칸 안쪽만(폴더 줄·목록 줄·읽기 칸·단독 메일)",
-      "html[data-mfz] .mbx-side > *, html[data-mfz] .mbx-list > *, html[data-mfz] #readPane > *, html[data-mfz] .mv-zoom > *{zoom:var(--mfz,1)}" in vs)
+check("배율은 칸 안쪽만 · 칸마다 따로(폴더·목록·읽기 칸=단독 메일 포함)",
+      "html[data-mfz] .mbx-side > *{zoom:var(--mfz-side,1)}" in vs and "html[data-mfz] .mbx-list > *{zoom:var(--mfz-list,1)}" in vs
+      and "html[data-mfz] #readPane > *, html[data-mfz] .mv-zoom > *{zoom:var(--mfz-read,1)}" in vs)
+ib = io.open("app/templates/mail_inbox.html", encoding="utf-8").read()
+check("큰 글씨 규칙도 칸별(mfb-list·mfb-side·mfb-read) · 예전 전체 규칙 안 남음",
+      "html.mfb-list .mbx-subj" in ib and "html.mfb-side .mbx-fold" in ib and "html.mfb-read .mv-body" in vs and "html.mbx-big ." not in ib + vs)
 check("단독 메일 화면·새 창에 감싸는 칸", 'class="mv-zoom"' in H["메일 보기"] and 'class="mv-zoom"' in io.open("app/templates/mail_view_win.html", encoding="utf-8").read())
 t = H["설정·정리"]
 check("⚙ 설정·정리 「글자 크게 보기」 = 같은 단계(켬 110% · 도구 줄 80%~145% 안내)", "mtBigToggle()" in t and "80%~145%" in t and "mailFsSet(mailFsLevel()>=1 ? 0 : 1)" in t)

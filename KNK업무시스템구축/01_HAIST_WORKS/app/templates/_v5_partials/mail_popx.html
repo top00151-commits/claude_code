@@ -8,7 +8,7 @@
        border:0;border-radius:6px;background:transparent;color:var(--mt-mute,#64748b);font-size:15px;font-weight:700;line-height:1;cursor:pointer;padding:0;font-family:inherit}
   .mpx:hover{background:var(--mt-hover,#f1f3f5);color:var(--ink,#111827)}
   /* ✕ 자리(위 띠)를 미리 비워 둠 — 글자와 겹치지 않게 · 크기를 재서 자리 잡는 메뉴도 처음부터 맞게 */
-  .mbx-viewmenu,.mbx-kindmenu.pop,.mbx-adv,.mbx-ctx,#mailThemePop,#mailHelp,.mv-more-box,#mvWhoPop,#cAttachMenu,#cTplPop,#scBox,.crop-box{padding-top:30px !important}
+  .mbx-viewmenu,.mbx-kindmenu.pop,.mbx-adv,.mbx-ctx,#mailThemePop,#mailHelp,#mailFsPop,.mv-more-box,#mvWhoPop,#cAttachMenu,#cTplPop,#scBox,.crop-box{padding-top:30px !important}
   #scBox,.crop-box{position:relative}
   /* 안에서 굴러가는 상자(양식·보내기 전 확인·오른쪽 클릭·읽기 칸 메뉴) = ✕ 를 위에 붙여 둠(굴려도 안 사라짐) */
   .mpx.stk{position:sticky;top:-26px;float:right;margin:-26px -2px 0 0}
@@ -29,7 +29,7 @@
     ['.mbx-kindmenu', function(){ var k=document.getElementById('mbxKindDd'); if(k && k.classList.contains('open') && window.mbxKindToggle) mbxKindToggle(); }],
     ['.mbx-adv', closeDetails],
     ['.mbx-ctx', function(el){ el.hidden=true; el.innerHTML=''; }],
-    ['#mailThemePop', hide], ['#mailHelp', hide],
+    ['#mailThemePop', hide], ['#mailHelp', hide], ['#mailFsPop', function(el){ el.hidden=true; if(window.mailFsHl) mailFsHl(''); }],
     ['.mv-more-box', closeDetails], ['#mvWhoPop', hide],
     ['#cAttachMenu', function(el){ el.style.display='none'; }], ['#cTplPop', hide],
     ['#scBox', function(){ if(window.scClose) scClose(); }],
