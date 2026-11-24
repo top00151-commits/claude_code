@@ -41,6 +41,10 @@ def is_birthday(birth_md, birth_lunar_md, today):
     return bool(bmd) and bmd == today.strftime("%m-%d")
 
 
+# z1191z137 (대표 11-24 「멘트 부분이 너무 길어서 정신없는데」): 큰 제목 = 인사 + 호칭 · 그 뒤 말은 SEP 뒤 작은 한 줄(home.html 이 나눠 보임)
+SEP = "\n"
+
+
 def build(name, rank, entity, birth_md, now_kst, hol_kr=None, hol_vn=None, birth_lunar_md=None):
     """(인사말, 구분) — 구분은 화면 위 작은 글자(MORNING 등)."""
     who = title_of(name, rank)
@@ -50,36 +54,36 @@ def build(name, rank, entity, birth_md, now_kst, hol_kr=None, hol_vn=None, birth
     hol = (hol_vn if ent == "VN" else hol_kr) or {}
     if is_birthday(birth_md, birth_lunar_md, t.date()):
         if h < 12:
-            tail = "행복한 하루 보내세요 🎂"
+            tail = "행복한 하루 보내세요"
         elif h < 13:
-            tail = "오늘 하루 특별하게 보내세요 🎂"
+            tail = "오늘 하루 특별하게 보내세요"
         elif h < 14:
-            tail = "맛있는 점심 드시고 즐거운 하루 되세요 🎂"
+            tail = "맛있는 점심 드시고 즐거운 하루 되세요"
         elif h < 18:
-            tail = "기분 좋은 오후 보내세요 🎂"
+            tail = "기분 좋은 오후 보내세요"
         else:
-            tail = "생일인데 오늘도 수고 많으셨어요. 좋은 저녁 보내세요 🎂"
-        return "생일 축하드립니다, %s! %s" % (who, tail), "birthday"
+            tail = "오늘도 수고 많으셨어요. 좋은 저녁 보내세요"
+        return "생일 축하드립니다, %s! 🎂%s%s" % (who, SEP, tail), "birthday"
     fmd, fname = FOUNDING[ent]
     if md == fmd:
-        return "오늘은 %s입니다 🎉 함께해 주셔서 고맙습니다, %s" % (fname, who), "anniversary"
+        return "오늘은 %s입니다 🎉%s함께해 주셔서 고맙습니다, %s" % (fname, SEP, who), "anniversary"
     if t.weekday() >= 5 or ymd in hol:
         why = hol.get(ymd) if ymd in hol else ("주말" if t.weekday() >= 5 else "")
-        return "%s에도 나오셨네요, %s. 고생 많으십니다" % (why or "쉬는 날", who), "holiday"
+        return "%s에도 나오셨네요, %s%s고생 많으십니다" % (why or "쉬는 날", who, SEP), "holiday"
     if h < 6:
-        return "늦은 시간까지 애쓰시네요, %s. 너무 늦지 않게 쉬세요" % who, "night"
+        return "늦은 시간까지 애쓰시네요, %s%s너무 늦지 않게 쉬세요" % (who, SEP), "night"
     if h < 9:
-        return "좋은 아침입니다, %s ☀️ 오늘 하루도 잘 부탁드립니다" % who, "morning"
+        return "좋은 아침입니다, %s ☀️%s오늘 하루도 잘 부탁드립니다" % (who, SEP), "morning"
     if h < 12:
         return "오전 업무 힘내세요, %s 🌱" % who, "morning"
     if h < 13:
-        return "오전 업무 막바지예요, 조금만 더 힘내세요, %s" % who, "morning"
+        return "오전 업무 막바지예요, %s%s조금만 더 힘내세요" % (who, SEP), "morning"
     if h < 14:
-        return "점심시간이에요, %s. 맛있게 드시고 잠깐 쉬어 가세요 🍚" % who, "lunch"
+        return "점심시간이에요, %s 🍚%s맛있게 드시고 잠깐 쉬어 가세요" % (who, SEP), "lunch"
     if h < 17:
         return "오후도 힘내세요, %s 🌿" % who, "afternoon"
     if h < 18:
         return "남은 오후 업무도 힘내세요, %s" % who, "afternoon"
     if h < 21:
         return "오늘도 수고 많으셨습니다, %s" % who, "evening"
-    return "늦은 시간까지 애쓰시네요, %s. 너무 늦지 않게 들어가세요" % who, "night"
+    return "늦은 시간까지 애쓰시네요, %s%s너무 늦지 않게 들어가세요" % (who, SEP), "night"

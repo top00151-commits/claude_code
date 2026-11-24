@@ -67,6 +67,7 @@ button { font-family: inherit; cursor: pointer; }
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: var(--space-5); }
 .page-meta { font-size: 11px; color: var(--qv-ink-3); letter-spacing: 0.14em; text-transform: uppercase; }
 .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--qv-ink); margin-top: 4px; }
+.page-sub137 { font-size: 15px; font-weight: 500; color: var(--qv-ink-2, var(--qv-ink-3)); margin-top: 4px; }
 .page-title em { font-style: normal; background: var(--qv-ink); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .page-date-nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--qv-ink-3); }
 .page-date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
@@ -199,7 +200,10 @@ button { font-family: inherit; cursor: pointer; }
     <div class="page-head" data-dn="home-pagehead">
       <div>
         <div class="page-meta">{{ sel_date }} · {{ greeting_bucket|upper|default('TODAY') }}</div>
-        <h1 class="page-title">{{ greeting|default('안녕하세요, ' ~ user.name ~ '님') }}</h1>
+        {# z1191z137: 인사말 = 큰 제목(인사 + 호칭) + 작은 한 줄(시간대 말) — app/greeting.py SEP 로 나눔 #}
+        {% set _g137 = (greeting|default('안녕하세요, ' ~ user.name ~ '님')).split('\n', 1) %}
+        <h1 class="page-title">{{ _g137[0] }}</h1>
+        {% if _g137|length > 1 %}<div class="page-sub137">{{ _g137[1] }}</div>{% endif %}
         <div class="page-date-nav">
           <a href="/home/{{ prev_date }}">‹</a>
           <span>{{ sel_date }}</span>
@@ -211,7 +215,7 @@ button { font-family: inherit; cursor: pointer; }
       {% if greeting_bucket in ('birthday', 'anniversary') and sel_date == today %}
       {# z1191z137 (대표 11-24 그림 지정): 생일 = 케이크·폭죽 그림 · 창립기념일 = 기존 불꽃 #}
       {% if greeting_bucket == 'birthday' %}
-      <div class="fw136 fw137" aria-hidden="true"><img src="/static/img/birthday_z137.webp?v=137" alt=""></div>
+      <div class="fw136 fw137" aria-hidden="true"><img src="/static/img/birthday_z137.webp?v=137b" alt=""></div>
       {% else %}
       <div class="fw136" aria-hidden="true">
         {% for b in range(5) %}<span class="fw136-b fw136-b{{ b }}">{% for p in range(12) %}<i style="--a:{{ p * 30 }}deg"></i>{% endfor %}</span>{% endfor %}
@@ -242,10 +246,10 @@ button { font-family: inherit; cursor: pointer; }
         .fw136-b i { animation:none; opacity:.85; transform:rotate(var(--a)) translateY(-44px); }
         .fw136-e { animation:none; }
       }
-      /* z137: 글자 칸(왼쪽 60%)과 그림 칸(오른쪽)을 나눠 겹치지 않게 · 좁은 창(1000px 미만)은 그림 숨김 */
+      /* z137: 글자 칸(왼쪽 60%)과 그림 칸(오른쪽)을 나눠 겹치지 않게 · 좁은 창(900px 미만)은 그림 숨김 */
       [data-dn="home-pagehead"]:has(.fw137) > div:first-child { flex-basis:100%; max-width:none; padding-right:40%; box-sizing:border-box; }
       .fw137 { left:61%; display:flex; align-items:center; justify-content:center; overflow:visible; }
-      @media (max-width: 999px) { [data-dn="home-pagehead"]:has(.fw137) > div:first-child { padding-right:0; } .fw137 { display:none; } }
+      @media (max-width: 899px) { [data-dn="home-pagehead"]:has(.fw137) > div:first-child { padding-right:0; } .fw137 { display:none; } }
       .fw137 img { height:100%; max-height:150px; min-height:90px; width:auto; max-width:100%; object-fit:contain;
                    animation:fw137in .9s ease-out both, fw137glow 3s ease-in-out .9s infinite; }
       @keyframes fw137in { 0% { opacity:0; transform:scale(.7) translateY(8px); } 70% { opacity:1; transform:scale(1.05); } 100% { opacity:1; transform:scale(1); } }

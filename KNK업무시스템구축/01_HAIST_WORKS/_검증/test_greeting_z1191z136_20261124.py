@@ -30,7 +30,7 @@ check("밤 = 너무 늦지 않게", "너무 늦지 않게" in t[22][0] and "너�
 check("모든 문구에 「김정락 대표이사님」", all("김정락 대표이사님" in v[0] for v in t.values()))
 # 베트남 = 한국 −2시간 · 베트남 공휴일
 v = b(14, 30, ent="VN", name="Nguyen", rank="")
-check("베트남 직원 한국 14:30 = 베트남 12:30 → 오전 막바지", "막바지" in v[0] and v[0].endswith("Nguyen님"), v)
+check("베트남 직원 한국 14:30 = 베트남 12:30 → 오전 막바지", "막바지" in v[0] and v[0].split(G.SEP)[0].endswith("Nguyen님"), v)
 check("베트남 공휴일(9/2)은 베트남 직원만 쉬는 날 문구", "국경일에도 나오셨네요" in b(10, d="2026-09-02", ent="VN")[0] and "오전 업무" in b(10, d="2026-09-02")[0])
 # 주말·한국 공휴일
 check("토요일 = 주말에도 나오셨네요", "주말에도 나오셨네요" in b(10, d="2026-11-28")[0], b(10, d="2026-11-28"))
@@ -72,5 +72,10 @@ S._save_birth_md_z136(c, 1, {"birth_md": "1981-06-20"})
 check("태어난 해 붙은 값은 받지 않음(그대로)", c.execute("SELECT birth_md FROM users WHERE id=1").fetchone()[0] == "06-20")
 S._save_birth_md_z136(c, 1, {"birth_md": ""})
 check("빈 글자 = 지움", c.execute("SELECT birth_md FROM users WHERE id=1").fetchone()[0] is None)
+# z1191z137 짧은 제목(대표 「멘트가 너무 길어 정신없다」)
+_all = [b(h) for h in range(24)] + [b(10, d="2026-11-28"), b(10, d="2026-06-01"), b(19, d="2026-06-20", bmd="06-20")]
+_heads = [x[0].split(G.SEP)[0] for x in _all]
+check("큰 제목은 모두 짧게(30자 이하)", all(len(h) <= 30 for h in _heads), [h for h in _heads if len(h) > 30])
+check("호칭은 큰 제목에(창립기념일 빼고)", all("김정락 대표이사님" in x[0].split(G.SEP)[0] for x in _all if x[1] != "anniversary"))
 print("\n결과: %d 통과 / %d 실패" % (sum(R), len(R) - sum(R)))
 sys.exit(0 if all(R) else 1)
