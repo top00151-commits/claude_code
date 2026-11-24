@@ -12,7 +12,7 @@
   <button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>
   <div class="mbx-main">
     <div class="mbx-r1">
-      <span class="mbx-from">{% if _out %}→ {{ m.to_email or '(받는사람 없음)' }}{% else %}{{ m.staff or m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</span>
+      <span class="mbx-from">{% if _out %}→ {{ m.to_email or '(받는사람 없음)' }}{% else %}{{ m.staff or m.from_name or m.from_email or '보낸 사람 알 수 없음(원본에 없음)' }}{% endif %}</span>
       <span class="mbx-time" title="{{ m.received_at }}">{{ m.tlabel or (m.received_at[5:16] if m.received_at else '') }}</span>
     </div>
     <div class="mbx-rs">
@@ -38,7 +38,7 @@
           <button type="button" class="mbx-star {{ 'on' if L.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ L.id }})">★</button>
           <div class="mbx-main">
             <div class="mbx-r1">
-              <span class="mbx-from">{% if _lout %}→ {{ L.to_email or '' }}{% else %}{{ L.staff or L.from_name or L.from_email or '(보낸사람 없음)' }}{% endif %}</span>
+              <span class="mbx-from">{% if _lout %}→ {{ L.to_email or '' }}{% else %}{{ L.staff or L.from_name or L.from_email or '보낸 사람 알 수 없음(원본에 없음)' }}{% endif %}</span>
               <span class="mbx-tcount{% if t['unread_count'] %} has-unread{% endif %}" title="이 대화 {{ t['count'] }}통{% if t['unread_count'] %} · 안읽음 {{ t['unread_count'] }}통{% endif %}">💬 {{ t['count'] }}</span>
               <span class="mbx-time" title="{{ L.received_at }}">{{ L.tlabel or (L.received_at[5:16] if L.received_at else '') }}</span>
             </div>

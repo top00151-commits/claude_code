@@ -63,7 +63,7 @@ def thread_of(c, uid, m, res=None) -> dict:
         else:
             k = r["pin"] if (r["pin"] and r["pin"] in valid) else (r["k"] or "gen")
             fl = labels.get(k, "일반" if k == "gen" else "받은 메일")
-            who = r["nm"] or r["e"] or "(보낸 사람 모름)"
+            who = r["nm"] or r["e"] or "보낸 사람 알 수 없음(원본에 없음)"
         by[fl] = by.get(fl, 0) + 1
         items.append({"id": r["id"], "at": (r["at"] or "")[5:16], "who": who[:40], "sj": (r["sj"] or "")[:90],
                       "folder": fl, "cur": r["id"] == m.get("id"), "out": r["direction"] == "out"})

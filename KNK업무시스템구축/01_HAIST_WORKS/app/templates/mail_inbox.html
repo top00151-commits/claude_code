@@ -909,7 +909,7 @@
               <span class="mbx-time">🗑 {{ m.deleted_at[5:16] if m.deleted_at else (m.received_at[5:16] if m.received_at else '') }}</span>
             </div>
             <div class="mbx-r2">
-              <span class="mbx-from">{% if m.direction=='out' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '(보낸사람 없음)' }}{% endif %}</span>
+              <span class="mbx-from">{% if m.direction=='out' %}→ {{ m.to_email or '(받는사람 미정)' }}{% else %}{{ m.from_name or m.from_email or '보낸 사람 알 수 없음(원본에 없음)' }}{% endif %}</span>
               {% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}
             </div>
           </div>
@@ -925,7 +925,7 @@
         <div class="mbx-row" data-mail-id="{{ m.id }}" style="align-items:center">
           <div class="mbx-main">
             <div class="mbx-r1"><span class="mbx-subj">{% if m.risk_level and m.risk_level>=2 %}<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> {% endif %}{% if m.reply %}<span class="mbx-reply lv{{ m.reply.lv }}" title="회신 필요(추정){{ ' · 중요' if m.reply.lv >= 2 else '' }} — {{ m.reply.why }}">↩ 회신</span> {% endif %}{% if m.dup_count and m.dup_count > 1 %}<span class="mbx-dup" style="font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:1px 6px;vertical-align:middle" title="여러 주소(그룹 메일)로 같은 메일이 {{ m.dup_count }}통 와서 한 통으로 합쳤습니다">×{{ m.dup_count }}</span> {% endif %}{{ m.subject or '(제목 없음)' }}</span><span class="mbx-time">{{ m.received_at[5:16] if m.received_at else '' }}</span></div>
-            <div class="mbx-r2"><span class="mbx-from">{{ m.from_name or m.from_email or '(보낸사람 없음)' }}</span>{% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}</div>
+            <div class="mbx-r2"><span class="mbx-from">{{ m.from_name or m.from_email or '보낸 사람 알 수 없음(원본에 없음)' }}</span>{% if m.summary_short %}<span class="mbx-sum">— {{ m.summary_short }}</span>{% endif %}</div>
           </div>
           <a href="/mail/{{ m.id }}" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" title="내용 보기(주의해서)">열기</a>
           <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:#15803d;white-space:nowrap" onclick="notSpam(event,{{ m.id }})" title="받은편지함으로 되돌리고 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만)">✓ 스팸 아님</button>

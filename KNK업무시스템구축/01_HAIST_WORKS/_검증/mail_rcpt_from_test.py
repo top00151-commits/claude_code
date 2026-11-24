@@ -120,7 +120,7 @@ v = k.get("/mail/%d?app=1" % MID).text
 check("그룹 = 그 칩 자리에서 「👥 이름(N명 ▾)」 · 칩이 있으면 따로 띠 안 만듦", "chip.classList.add('grp')" in v and "var chip=h.querySelector('.mv-rc-p[data-addr=\"'+ad.toLowerCase()+'\"]');" in v)
 check("「외 N명」 펼치기·접기", "window.mvRcMore=function(b)" in v)
 nv = k.get("/mail/%d?app=1" % NOF).text
-check("보낸 사람 주소 못 읽은 메일 = ⚠ 알림(「? <>」 아님)", "⚠ 보낸 사람 주소를 읽지 못한 메일" in nv and "&lt;&gt;" not in nv[nv.find('class="mv-hname"'):nv.find('class="mv-hname"') + 600])
+check("보낸 사람 주소 못 읽은 메일 = ⚠ 알림(「? <>」 아님 · 11-25 「원본에 보낸 사람 정보가 없는 메일」)", "⚠ 원본에 보낸 사람 정보가 없는 메일" in nv and "&lt;&gt;" not in nv[nv.find('class="mv-hname"'):nv.find('class="mv-hname"') + 600])
 print("⑤ 받는 사람·참조에 내 주소가 없을 때(대표 11-22 「🙈 띠가 괜히 한 줄 차지」)")
 import json as _json
 from app import mail_work as _MW
