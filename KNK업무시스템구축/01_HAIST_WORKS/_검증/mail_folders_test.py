@@ -133,11 +133,32 @@ try:
     with _db.db_session() as c:
         check("두 번 열어도 두 번 만들지 않음", len(mf.folders(c, OWN)) == len(fl))
 
+    # 11-24 대표 「초기값은 회사 부서를 내 메일 기준으로 잡고 나머지는 기준을 잡지마」 — 직원 = 「케이엔케이」 하나 + 대표 부서 폴더 설정 그대로
+    with _db.db_session() as c:
+        mf.set_team_pref(c, OWN, "tv", name="베트남")
+        c.execute("UPDATE mail_folders SET name='3.케이엔케이' WHERE user_id=? AND name='6.케이엔케이'", (OWN,))
     _UID["v"] = OTHER
     h2 = k.get("/mail/inbox").text
     with _db.db_session() as c:
-        check("다른 사람: 폴더 자동 생성 안 함 · 예전 거래처 폴더 그대로", not mf.folders(c, OTHER) and "📁 거래처 폴더" in h2 and "📁 폴더" not in h2)
+        _of = mf.folders(c, OTHER)
+        _otp = mf.team_prefs(c, OTHER)
+    check("다른 사람: 처음 열면 「케이엔케이」 묶음 하나만(고객사·외주·칩 업체 없음 · 대표 이름 앞 번호 뗌)",
+          [(f["name"], f["kind"]) for f in _of] == [("케이엔케이", "staff")], _of)
+    check("다른 사람: 부서 폴더 설정은 대표 것 그대로(베트남 이름)", (_otp.get("tv") or {}).get("name") == "베트남", _otp)
+    check("다른 사람 왼쪽: 「📁 폴더」 + 케이엔케이 + 부서 · 대표 고객사 이름 없음",
+          "📁 폴더" in h2 and "케이엔케이" in h2 and "시험영업팀" in h2 and "1.고객사" not in h2 and "탑엔지니어링" not in h2, h2[:300])
+    with _db.db_session() as c:
+        c.execute("DELETE FROM mail_folders WHERE user_id=?", (OTHER,))
+    k.get("/mail/inbox")
+    with _db.db_session() as c:
+        check("다른 사람: 지운 뒤에는 저절로 다시 안 만듦(한 번만)", not mf.folders(c, OTHER))
+    hf = k.get("/mail/folders").text
+    check("다른 사람 관리 화면 단추 = 「케이엔케이 — 본사·베트남 부서」(고객사 목록 아님)",
+          "본사·베트남 부서" in hf and "PIN BLOCK" not in hf, hf[:200])
     _UID["v"] = OWN
+    with _db.db_session() as c:
+        mf.del_team_pref(c, OWN, "tv")
+        c.execute("UPDATE mail_folders SET name='6.케이엔케이' WHERE user_id=? AND name='3.케이엔케이'", (OWN,))
 
     print("== 2. 나누기 ==")
     with _db.db_session() as c:
@@ -333,7 +354,9 @@ try:
         c.execute("DELETE FROM mail_folders WHERE user_id=?", (OTHER,))
     k.post("/mail/folders/op", data={"op": "seed"})
     with _db.db_session() as c:
-        check("다른 사람은 관리 화면 단추로 직접 만들 수 있음", len([f for f in mf.folders(c, OTHER) if not f["parent_id"]]) == 6)
+        _of2 = mf.folders(c, OTHER)
+        check("다른 사람은 관리 화면 단추로 직접 만들 수 있음 = 「케이엔케이」 하나(11-24)",
+              [f["name"] for f in _of2 if not f["parent_id"]] == ["케이엔케이"] and len(_of2) == 1, _of2)
     _UID["v"] = OWN
 
     print("== 6. kmail 주소 · 보낸편지함 ==")

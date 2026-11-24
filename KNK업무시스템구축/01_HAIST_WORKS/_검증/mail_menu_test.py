@@ -224,9 +224,9 @@ try:
     _U["v"] = {"id": OTHER, "role": "member", "name": "시험이", "team_id": None, "team_name": ""}
     th2 = k.get("/mail/tools").text
     check("직원: 관리자 칸·차단 목록 관리 안 보임", "/admin/mail-" not in th2 and "/mail/blocklist" not in th2 and 'href="/mail/cleanup"' in th2)
-    check("직원(폴더 없음): 일반 정리하기 안 보임", "/mail/folders/general" not in th2)
+    check("직원도 처음부터 「케이엔케이」 부서 폴더(11-24) → 일반 정리하기 보임", "/mail/folders/general" in th2)
     h2 = k.get("/mail/inbox").text
-    check("직원 받은편지함 200 · 예전 거래처 폴더 그대로 · 분류 칸 없음", "📁 거래처 폴더" in side(h2) and "?cat=" not in side(h2))
+    check("직원 받은편지함 200 · 「📁 폴더」(케이엔케이 부서) · 대표 고객사 폴더 없음 · 분류 칸 없음(11-24)", "📁 폴더" in side(h2) and "1.고객사" not in side(h2) and "?cat=" not in side(h2))
     _U["v"] = {"id": OWN, "role": "ceo", "name": "시험대표", "team_id": None, "team_name": ""}
 
     print("== 7. 다른 메일함 ==")

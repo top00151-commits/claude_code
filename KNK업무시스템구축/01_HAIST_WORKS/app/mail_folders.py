@@ -250,14 +250,52 @@ def seed(c, uid) -> bool:
     return True
 
 
-def seed_if_owner(c, uid) -> bool:
-    """대표 계정(메일 기본 주인)만 처음 열 때 자동으로 — 다른 사람은 관리 화면의 단추로."""
+def _owner_id(c):
     try:
         from .mail_store import default_owner
-        if default_owner(c) != uid:
-            return False
+        return default_owner(c)
     except Exception:
+        return None
+
+
+STAFF_GROUP_NAME = "케이엔케이"
+
+
+def seed_staff(c, uid) -> bool:
+    """직원 기본 폴더 = 회사 부서만(대표 11-24 「초기값은 회사 부서를 내 메일 기준으로 잡고 나머지는 기준을 잡지마」).
+    「케이엔케이」 묶음 하나 → 그 아래 본사(00_총괄~)·베트남(VN00_~)은 회사 부서표에서 자동 ·
+    대표 메일의 부서 폴더 설정(이름·위치·합치기·묶음 = mail_team_prefs)을 그대로 옮겨 적는다.
+    고객사·외주·칩 업체 같은 대표 개인 폴더는 만들지 않는다. 폴더가 하나라도 있으면 손대지 않음."""
+    ensure(c)
+    if has_tree(c, uid):
         return False
+    own = _owner_id(c)
+    gname = STAFF_GROUP_NAME
+    if own and own != uid:
+        r = c.execute("SELECT name FROM mail_folders WHERE user_id=? AND parent_id IS NULL AND kind='staff' "
+                      "ORDER BY sort, id LIMIT 1", (own,)).fetchone()
+        if r and (r["name"] or "").strip():
+            gname = re.sub(r"^\s*\d+\s*[.)_\-]\s*", "", r["name"]).strip() or STAFF_GROUP_NAME
+        c.execute("DELETE FROM mail_team_prefs WHERE user_id=?", (uid,))
+        c.execute("INSERT INTO mail_team_prefs(user_id, key, name, parent, merge) "
+                  "SELECT ?, key, name, parent, merge FROM mail_team_prefs WHERE user_id=?", (uid, own))
+    c.execute("INSERT INTO mail_folders(user_id, parent_id, name, sort, kind) VALUES(?,?,?,?,'staff')",
+              (uid, None, gname, 10))
+    _set_flag(c, uid, "seed_v2", "1")      # 삼성그룹 묶기(대표 고객사 전용)는 직원에게 안 함
+    _set_flag(c, uid, "seed_staff", "1")   # 한 번만 — 나중에 지워도 저절로 다시 안 만듦
+    _CACHE.pop(uid, None)
+    return True
+
+
+def seed_if_owner(c, uid) -> bool:
+    """처음 열 때 자동으로 — 대표(메일 기본 주인) = 아웃룩 폴더 전체 · 다른 직원 = 회사 부서 폴더만(seed_staff · 한 번만)."""
+    own = _owner_id(c)
+    if not own:
+        return False
+    if own != uid:
+        if _flag(c, uid, "seed_staff"):
+            return False
+        return seed_staff(c, uid)
     made = seed(c, uid)
     apply_seed_aliases(c, uid)
     try:

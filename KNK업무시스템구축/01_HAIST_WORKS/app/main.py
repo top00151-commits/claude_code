@@ -25086,6 +25086,41 @@ async def mail_body_refill_apply(req: Request):
     return JSONResponse(dict(out, ok=True))
 
 
+@app.get("/mail/recv-fix")
+async def mail_recv_fix_count(req: Request):
+    """11-24 대표 「받은 날짜가 가져온 날짜로 기록 · 꼭 실제 도착한 날짜·시간으로」 — 고칠 메일 수(숫자만 · 관리자 · 자료 안 바꿈)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    from . import mail_recv_fix as _mrf
+    from starlette.concurrency import run_in_threadpool
+
+    def _cnt():
+        with db_session() as c:
+            return _mrf.count(c)
+    return JSONResponse(dict(await run_in_threadpool(_cnt), ok=True))
+
+
+@app.post("/mail/recv-fix")
+async def mail_recv_fix_apply(req: Request):
+    """받은 시각을 원래 도착 시각으로(되돌림 표 mail_recv_fix_bak) · undo=1 = 마지막 묶음 되돌림 · 돌려주는 값 = 통수만."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    from . import mail_recv_fix as _mrf
+    from starlette.concurrency import run_in_threadpool
+    form = await req.form()
+    undo = (form.get("undo") or "") == "1"
+
+    def _run():
+        with db_session() as c:
+            return {"undone": _mrf.undo(c)} if undo else _mrf.apply(c)
+    out = await run_in_threadpool(_run)
+    _mail_folders._CACHE.clear()   # 폴더 숫자 다시 셈
+    print("[MAIL-RECV-FIX] by=%s %s" % (u["id"], out), flush=True)
+    return JSONResponse(dict(out, ok=True))
+
+
 @app.get("/mail/storage", response_class=HTMLResponse)
 async def mail_storage_page(req: Request):
     """11-23 대표 「중복 메일도 용량을 차지하는지 · 오래된 메일은 최대한 줄여 보관 · 160명이면 서버 부담」 — 용량 재기(숫자만 · 관리자)."""
@@ -25439,10 +25474,18 @@ async def mail_folders_page(req: Request, msg: str = ""):
     except Exception as _e:
         print("[MAIL-FOLDERS] 들어온 까닭 셈 실패(화면은 그대로): %s" % str(_e)[:160], flush=True)
         _why = {}
+    _seed_full = True
+    if not groups:   # 11-24 대표: 직원 기본 폴더 = 회사 부서만(대표 고객사 목록은 대표만)
+        try:
+            with db_session() as _c2:
+                _seed_full = (_mail_folders._owner_id(_c2) == u["id"])
+        except Exception:
+            _seed_full = False
     return ctx(req, "mail_folders.html", user=u, groups=groups, rules=rl, res=res, msg=msg, cnt=cnt, why=_why,
                gen=((res or {}).get("gen") or {"n": 0, "u": 0}),
                team_labels=[_mail_folders.team_label(t) for t in tl],
-               staff_tree=staff_tree, staff_gone=staff_gone, staff_parents=staff_parents, staff_into=staff_into)
+               staff_tree=staff_tree, staff_gone=staff_gone, staff_parents=staff_parents, staff_into=staff_into,
+               seed_full=_seed_full)
 
 
 @app.post("/mail/folders/team")
@@ -25640,7 +25683,10 @@ async def mail_folders_op(req: Request):
     with db_session() as c:
         uid = u["id"]
         if op == "seed":
-            msg = "아웃룩 폴더를 만들었습니다." if _mail_folders.seed(c, uid) else "이미 폴더가 있어 그대로 두었습니다."
+            _own_seed = (_mail_folders._owner_id(c) == uid)
+            _made = _mail_folders.seed(c, uid) if _own_seed else _mail_folders.seed_staff(c, uid)
+            msg = (("아웃룩 폴더를 만들었습니다." if _own_seed else "회사 부서 폴더(케이엔케이)를 만들었습니다.")
+                   if _made else "이미 폴더가 있어 그대로 두었습니다.")
         elif op == "add":
             pid = _i("parent_id") or None
             msg = "폴더를 더했습니다." if _mail_folders.add_folder(c, uid, form.get("name"), pid,

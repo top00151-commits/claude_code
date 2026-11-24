@@ -140,7 +140,7 @@
   <div class="mf-box"><div class="mf-empty">
     아직 폴더가 없습니다.<br><br>
     <form method="post" action="/mail/folders/op" style="display:inline"><input type="hidden" name="op" value="seed">
-      <button class="mf-btn go" type="submit">📁 기본 폴더 만들기(고객사·기타 고객사·외주·PIN BLOCK·CHIP·케이엔케이)</button></form>
+      {% if seed_full|default(false) %}<button class="mf-btn go" type="submit">📁 기본 폴더 만들기(고객사·기타 고객사·외주·PIN BLOCK·CHIP·케이엔케이)</button>{% else %}<button class="mf-btn go" type="submit" title="회사 부서 폴더 — 본사 00_총괄~ · 베트남 VN00_~ (고객사·업체 폴더는 직접 더하세요)">📁 기본 폴더 만들기(케이엔케이 — 본사·베트남 부서)</button>{% endif %}</form>
   </div></div>
   {% else %}
   <div class="mf-box">

@@ -576,6 +576,12 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
         _with_sent = _has_sent(c)
     except Exception:
         _with_sent = False
+    # 11-24 받은 시각 = 메일 서버에 도착한 시각(맨 위 Received · 없으면 Date) — 예전엔 저장 시각(가져온 때)이 들어감
+    _arr = ""
+    try:
+        _arr = arrival_at(raw_headers, sent_at)
+    except Exception:
+        _arr = ""
     _vals = (owner, "in", _norm_addr(from_email), (from_name or "").strip(),
              _norm_addr(to_email), (cc or "").strip(), subject, body, html or "",
              category, lang, summary, sz, _dh, 1, _blocked, _rlevel, _rnote, (to_all or "").strip()[:4000])
@@ -594,6 +600,11 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
                 dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all)
                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", _vals)
     mail_id = cur.lastrowid
+    if _arr:
+        try:
+            c.execute("UPDATE mail_messages SET received_at=? WHERE id=?", (_arr, mail_id))
+        except Exception as _e:
+            print("[MAIL-RECV] 도착 시각 적기 실패(저장 시각 그대로): %s" % str(_e)[:120], flush=True)
     if attachments:
         _save_attachments(c, mail_id, attachments)
     if raw_headers:
@@ -2027,6 +2038,43 @@ def _sent_at(v) -> str:
         return d.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return ""
+
+
+def arrival_at(hdr: str, sent_at: str = "") -> str:
+    """메일이 우리 메일 서버(하이웍스·가비아)에 **도착한 시각** — 11-24 대표 「받은 날짜가 가져온 날짜로 기록 · 아주 중요」.
+    맨 위 Received 머리(마지막으로 받은 서버가 적은 줄)의 ; 뒤 날짜 → 서버 시각 'YYYY-MM-DD HH:MM:SS'.
+    없거나 못 읽으면 Date 머리(sent_at) · 그것도 없으면 '' (그때는 저장 시각).
+    이상한 값(2000년 전·지금보다 10분 넘게 뒤)은 쓰지 않는다."""
+    import datetime as _dt
+    v = ""
+    try:
+        cur, lines = None, []
+        for ln in (hdr or "").replace("\r\n", "\n").split("\n"):
+            if ln[:1] in (" ", "\t") and cur is not None:
+                cur += " " + ln.strip()
+                continue
+            if cur is not None:
+                lines.append(cur)
+            cur = ln
+        if cur is not None:
+            lines.append(cur)
+        for ln in lines:
+            if ln.split(":", 1)[0].strip().lower() == "received" and ";" in ln:
+                v = _sent_at(ln.rsplit(";", 1)[1])
+                break
+    except Exception:
+        v = ""
+    now = _dt.datetime.now()
+    for cand in (v, (sent_at or "").strip()[:19]):
+        if not cand:
+            continue
+        try:
+            t = _dt.datetime.strptime(cand, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            continue
+        if t.year >= 2000 and t <= now + _dt.timedelta(minutes=10):
+            return cand
+    return ""
 
 
 def parse_raw_email(raw) -> dict:
