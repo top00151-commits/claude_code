@@ -287,6 +287,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           {# v5H226z445(대표 지시): 모델명·장비명을 자재 목록 '위쪽 줄'로 이동 #}
           <div class="qf-f c6"><label>모델명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="model_name" title="모델명 — 입력 기준 보기·고치기">ⓘ</button></label><input name="model" placeholder="모델명" value="{{ (project.model_name or '') if ed else '' }}"></div>
           <div class="qf-f c6"><label>장비명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="equip_name" title="장비명 — 입력 기준 보기·고치기">ⓘ</button></label><input name="equip_name" placeholder="장비명(기기명)" value="{{ (project.equip_name or '') if ed else '' }}"></div>
+          {% if not ed and z62_can_upload(user) %}{# z1191z141 (대표 11-24 「진행」): 고객사·모델을 고르면 「이 고객사의 비슷한 지난 최종 견적」 최대 3건 — 새 견적 전에 참고 #}
+          <div class="qf-f c12 z141-sim" id="z141Sim" hidden><div class="z141-sim-ttl">📋 비슷한 지난 최종 견적 <span>— 같은 고객사 먼저 · 모델·장비명이 겹치는 것 · 누르면 견적서 내용</span></div><div id="z141SimList"></div></div>
+          {% endif %}
           {# z1191z5 (안지연 프로 신고 ② · 대표 2026-11-06): 수정 모드 안내 — 이 칸은 프로젝트 대표값(첫 등록). 추가·개조 수주의 값은 상세 수주 카드에서 #}
           {% if ed %}<div class="qf-f c12" style="margin-top:-6px;font-size:11.5px;color:var(--qv-ink-3);">ⓘ 여기 모델명·장비명은 <b>프로젝트 대표값</b>(첫 등록)입니다. 추가·개조 수주마다 다르면 <b>상세 화면 [수주 내역] 카드의 📦 모델/장비</b>(✏️ 수정)에서 그 수주만 고칩니다.</div>{% endif %}
           {# v5H226z1088 (대표 지시 08-19): 형태=제품(SEMI) — '수량·금액' 구획을 없애고 여기로:
@@ -1758,6 +1761,40 @@ function qIexApply(){
 .z58-wi.other .d.od { color:#b45309; font-weight:700; }
 </style>
 <script>
+/* z1191z141 등록 화면 — 고객사·모델·장비명을 고르면 비슷한 지난 최종 견적(최대 3건) · 화면 바꿈(spa)으로 열어도 바로 돎 */
+(function(){
+  var f=document.getElementById('quickForm'), box=document.getElementById('z141Sim'); if(!f || !box) return;
+  if(box.__z141) return; box.__z141=1;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function v(n){ return ((f.querySelector('[name='+n+']')||{}).value||'').trim(); }
+  var _t=null, _last=null, _iv=null;
+  function load(){
+    if(!document.body.contains(box)){ if(_iv) clearInterval(_iv); return; }
+    var cid=v('customer_id'), cn=v('customer_name'), md=v('model'), eq=v('equip_name');
+    var key=[cid,cn,md,eq].join('|'); if(key===_last) return; _last=key;
+    if(!cid && !cn && !md && !eq){ box.hidden=true; return; }
+    fetch('/api/quotes-z141/similar?customer_id='+encodeURIComponent(cid)+'&customer_name='+encodeURIComponent(cn)+'&model='+encodeURIComponent(md)+'&equip='+encodeURIComponent(eq), {credentials:'same-origin'})
+      .then(function(r){ return r.json(); }).then(function(j){
+        var its=(j&&j.items)||[], list=document.getElementById('z141SimList');
+        if(!its.length){ box.hidden=true; list.innerHTML=''; return; }
+        list.innerHTML=its.map(function(x){
+          return '<a class="z141-si" href="/quotes/'+x.fid+'" target="_blank" rel="noopener" title="'+esc(x.file)+' — 새 창에서 견적서 내용 보기">'
+            +'<b>'+esc(x.mgmt)+'</b> <span class="sl">'+esc(x.slot)+'</span>'
+            +(x.same_cu?' <span class="tg cu">같은 고객사</span>':' <span class="tg">'+esc(x.customer)+'</span>')
+            +(x.hit&&x.hit.length?' <span class="tg md">'+esc(x.hit.join(' · '))+'</span>':'')
+            +'<span class="d">'+esc(x.item||x.name)+'</span><span class="d">'+esc(x.date)+'</span>'
+            +(x.amount_txt?'<span class="am">'+esc(x.amount_txt)+'</span>':'')
+            +'<span class="od'+(x.orders?' ok':'')+'">'+(x.orders?('수주됨 '+x.orders+'건'+(x.order_nos&&x.order_nos.length?' ('+esc(x.order_nos.join(', '))+')':'')):'수주 전')+'</span></a>';
+        }).join('');
+        box.hidden=false;
+      }).catch(function(){});
+  }
+  function deb(){ if(_t) clearTimeout(_t); _t=setTimeout(load, 450); }
+  f.addEventListener('change', function(e){ var n=(e.target&&e.target.name)||''; if(n==='customer_id'||n==='customer_name'||n==='model'||n==='equip_name') deb(); });
+  f.addEventListener('input', function(e){ var n=(e.target&&e.target.name)||''; if(n==='customer_name'||n==='model'||n==='equip_name') deb(); });
+  _iv=setInterval(load, 4000);   // 고객사 고르기 칸·견적서로 채우기는 change 를 안 낼 수 있어 가볍게 다시 봄(바뀐 때만 묻는다)
+  load();
+})();
 /* z1191z58 등록 화면 — 지금 발행 / 묶어서 발행(기다림) / 발행 안 함 */
 (function(){
   var f=document.getElementById('quickForm'); if(!f || !document.getElementById('z58Waits')) return;
@@ -1795,6 +1832,18 @@ function qIexApply(){
 })();
 </script>
 <style>
+/* z1191z141 비슷한 지난 최종 견적 */
+.z141-sim { padding:8px 10px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:10px; }
+.z141-sim[hidden] { display:none; }
+.z141-sim-ttl { font-size:12.5px; font-weight:800; color:#075985; margin-bottom:4px; }
+.z141-sim-ttl span { font-weight:400; color:#64748b; font-size:11.5px; }
+.z141-si { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 8px; margin-top:4px; border:1px solid #e0f2fe; background:#fff; border-radius:8px; text-decoration:none; color:#0f172a; font-size:12px; }
+.z141-si:hover { border-color:#38bdf8; }
+.z141-si .sl { color:#475569; } .z141-si .d { color:#64748b; } .z141-si .am { font-weight:800; margin-left:auto; }
+.z141-si .tg { padding:0 6px; border-radius:999px; background:#f1f5f9; color:#475569; font-size:11px; }
+.z141-si .tg.cu { background:#dcfce7; color:#166534; } .z141-si .tg.md { background:#e0e7ff; color:#3730a3; }
+.z141-si .od { padding:0 7px; border-radius:999px; background:#f1f5f9; color:#64748b; font-size:11px; font-weight:700; }
+.z141-si .od.ok { background:#dcfce7; color:#166534; }
 /* z1191z57 (대표 11-18): 등록 화면 한 번에 한 사람 · 다음 번호 · 입력 기준 ⓘ */
 #quickForm { position:relative; }
 .z57-cover { position:absolute; inset:-6px; z-index:60; background:rgba(248,250,252,.86); backdrop-filter:blur(2px); border-radius:12px; }

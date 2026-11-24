@@ -119,7 +119,7 @@ check("판정 함수", [M._z107_biz(b, c) for b, c in (("T", "x"), ("", "001M261
 print("§2 책갈피 고르면 그 사업부만")
 h = cl.get("/sales/quotations?period=all&mine=0&biz=M").text
 check("자동화: 963M·967M 만", "963M2611" in h and "967M2611" in h and "961T2611" not in h and "964L2611" not in h)
-check("요약 칸 = 자동화 안에서만(수주 2건)", '수주번호 견적서 있음</div><div class="n">0 <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ 2건' in h)
+check("요약 칸 = 자동화 안에서만(수주 2건)", '견적 있음</div><div class="n">0 <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ 2건' in h)
 check("요약 칸·거르기 주소에 책갈피 유지(biz=M)", 'href="?biz=M&period=all&mine=0&only=none"' in h and 'href="?biz=M&period=2y' in h, None)
 check("검색 칸에도 책갈피 유지", '<input type="hidden" name="biz" value="M">' in h)
 check("다른 책갈피 숫자는 그대로 보임", tab_n(h, "🔬 검사기") == 2 and tab_n(h, "📦 소모품") == 2)

@@ -44847,8 +44847,13 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
                 fd = {}
             x["amt"] = _z105_num(fd.get("amount"))
             x["cur"] = (fd.get("currency") or "").upper()
+            x["price"] = _ql141.q_price(fd)   # z1191z141: 단가·합계·통화
             files[(x["project_id"], x["order_id"])] = x   # 자리마다 1장(혹시 둘이면 나중 것)
-    rows, cnt = [], {"so": 0, "so_with": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "mine": 0, "done_hidden": 0}
+        prices141 = {}
+        for r in c.execute("SELECT order_id, unit_price FROM order_items ORDER BY order_id, id").fetchall():
+            prices141.setdefault(r[0], []).append(r[1])
+        acks141 = _z141_acks(c)
+    rows, cnt = [], {"so": 0, "so_with": 0, "so_own": 0, "so_link": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "mine": 0, "done_hidden": 0}
     bcnt = {k or "all": 0 for k, _l in _Z107_BIZ_TABS}   # z1191z107: 책갈피마다 관리번호 수(다른 거르기는 그대로 적용한 뒤)
     for p in projs:
         if since and (p["d0"] or "") < since:
@@ -44874,20 +44879,26 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
             if ql not in hay:
                 continue
         pf = files.get((p["id"], None))
+        # z1191z141: 수주마다 🟢 이 수주 견적 / 🔗 따라가는 견적 / ⚠ 금액 다름 / 없음 — 입금 끝난 앞 수주 견적도 따라갈 후보(sos_all)
+        res141 = _ql141.resolve(
+            [{"id": o["id"], "order_no": o["order_no"], "price": _ql141.o_price(o["total_amount"], o["currency"], prices141.get(o["id"]))}
+             for o in sos_all],
+            {o["id"]: files[(p["id"], o["id"])] for o in sos_all if (p["id"], o["id"]) in files}, pf, acks141)
         so_rows = []
         for o in sos:
-            f = files.get((p["id"], o["id"]))
-            st = "none"
-            if f:
-                same = _z105_amt_same(f["amt"], f["cur"], o["total_amount"], o["currency"])
-                st = "diff" if (same is False and not f.get("amt_ack_at")) else "ok"
-            so_rows.append({"o": o, "f": f, "st": st, "units": _z105_units_txt(labels.get(o["id"], []))})
+            rs = res141.get(o["id"]) or {"st": "none", "f": None, "via": "", "via_so": "", "acked": False}
+            so_rows.append({"o": o, "f": rs["f"], "st": rs["st"], "via": rs["via"], "via_so": rs["via_so"], "acked": rs["acked"],
+                            "units": _z105_units_txt(labels.get(o["id"], []))})
         if on_tab:   # 요약 칸 = 지금 고른 책갈피 안에서만
             for s in so_rows:
                 cnt["so"] += 1
-                cnt["so_with" if s["f"] else "so_none"] += 1
-                if s["st"] == "diff":
+                if s["st"] in ("ok", "link"):
+                    cnt["so_with"] += 1
+                    cnt["so_own" if s["via"] == "own" else "so_link"] += 1
+                elif s["st"] == "diff":
                     cnt["diff"] += 1
+                else:
+                    cnt["so_none"] += 1
             if not sos:
                 cnt["pre"] += 1
                 if pf:
@@ -45111,6 +45122,151 @@ def _z105_so_quotes(pid):
 
 
 tpl.env.globals["z105_so_quotes"] = _z105_so_quotes
+
+
+# ═══ z1191z141 (대표 11-24 「진행」 — 앞 제안 「수주 호기는 따로 올린 견적서가 없으면 관리번호 견적서를 따라가고, 금액이 다르면 알려 준다」):
+#   🟢 이 수주 견적 · 🔗 관리번호(또는 앞 수주) 견적 사용 · ⚠ 견적 금액 다름(막지 않음 · 「확인했음」 한 번 = 수주마다 quote_so_ack)
+#   판정 규칙 = app/quote_link.py 한 곳(견적 관리 _z105_board · 프로젝트 상세 수주 카드 같은 함수)
+from . import quote_link as _ql141
+
+
+def _z141_table(c):
+    c.execute("CREATE TABLE IF NOT EXISTS quote_so_ack(order_id INTEGER PRIMARY KEY, fid INTEGER, by_id INTEGER, by_name TEXT, at TEXT)")
+
+
+def _z141_acks(c):
+    _z141_table(c)
+    return {r[0]: r[1] for r in c.execute("SELECT order_id, fid FROM quote_so_ack").fetchall()}
+
+
+def _z141_project(c, pid):
+    """한 관리번호 → {수주 id: 상태} (취소 수주 뺌)."""
+    _z61_table(c)
+    files, pf = {}, None
+    for r in c.execute("SELECT id, order_id, orig_name, by_name, created_at, read_json, amt_ack_name, amt_ack_at FROM project_quote_files "
+                       "WHERE project_id=? AND removed_at IS NULL ORDER BY id", (int(pid),)).fetchall():
+        x = dict(r)
+        try:
+            fd = (_qr61.json.loads(x.pop("read_json") or "{}").get("fields") or {})
+        except Exception:
+            fd = {}
+        x["price"] = _ql141.q_price(fd)
+        x["amt"], x["cur"] = x["price"][1], x["price"][2]
+        if x["order_id"]:
+            files[x["order_id"]] = x
+        else:
+            pf = x   # 관리번호 견적서(여럿이면 나중 것)
+    orders = []
+    for o in c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                       "ORDER BY COALESCE(order_date,''), id", (int(pid),)).fetchall():
+        ps = [r[0] for r in c.execute("SELECT unit_price FROM order_items WHERE order_id=? ORDER BY id", (o["id"],)).fetchall()]
+        orders.append({"id": o["id"], "order_no": o["order_no"], "price": _ql141.o_price(o["total_amount"], o["currency"], ps)})
+    return _ql141.resolve(orders, files, pf, _z141_acks(c))
+
+
+def _z141_so_status(pid):
+    """프로젝트 상세 수주 카드용 — {수주 id: 상태}."""
+    try:
+        with db_session() as c:
+            return _z141_project(c, pid)
+    except Exception as _e:
+        print(f"[z1191z141] 수주 견적 상태 실패 pid={pid}: {_e}")
+        return {}
+
+
+tpl.env.globals["z141_so_status"] = _z141_so_status
+
+
+@app.post("/api/quote-so-ack/{oid}")
+async def api_quote_so_ack_z141(req: Request, oid: int):
+    """따라가는 견적서 금액 ≠ 이 수주 금액 — 「확인했음」 한 번(막지 않고 알림 · 누가·언제 · 그 견적서가 바뀌면 다시 알림)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        o = c.execute("SELECT id, project_id, order_no FROM orders WHERE id=? AND COALESCE(status,'')<>'CANCELLED'", (oid,)).fetchone()
+        if not o:
+            return JSONResponse({"ok": False, "message": "그 수주를 찾지 못했습니다."}, 404)
+        rs = _z141_project(c, o["project_id"]).get(oid)
+        if not rs or rs["st"] != "diff" or rs["via"] == "own" or not rs["f"]:
+            return JSONResponse({"ok": False, "message": "확인할 금액 차이가 없습니다 — 화면을 새로 고쳐 보세요."}, 400)
+        c.execute("INSERT INTO quote_so_ack(order_id, fid, by_id, by_name, at) VALUES(?,?,?,?,?) "
+                  "ON CONFLICT(order_id) DO UPDATE SET fid=excluded.fid, by_id=excluded.by_id, by_name=excluded.by_name, at=excluded.at",
+                  (oid, rs["f"]["id"], u.get("id"), who, _z61_now()))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (o["project_id"], u.get("id"), "견적서 금액 확인", "", rs["f"]["orig_name"],
+                   f"z1191z141 {o['order_no']} 따라가는 견적 금액 ≠ 수주 금액 「확인했음」 · {who}"))
+    return JSONResponse({"ok": True})
+
+
+def _z141_words(*xs):
+    """비슷함 비교용 낱말(2글자 이상 · 영문 대문자) — 모델·장비·품명."""
+    out = set()
+    for x in xs:
+        for w in _re105.split(r"[\s,/()\[\]·\-_+]+", str(x or "").upper()):
+            if len(w) >= 2:
+                out.add(w)
+    return out
+
+
+def _z141_similar(c, cid, cname, model, equip, limit=3):
+    """등록 화면 「비슷한 지난 최종 견적」 — 같은 고객사 먼저 · 모델·장비명 낱말이 겹칠수록 위 · 최대 limit 건.
+    견적서마다 관리번호·수주번호·날짜·최종 금액·수주 여부(취소 뺀 수주 건수). 원가 글은 쓰지 않음(앞장 머리 값만)."""
+    _z61_table(c)
+    cn = _re105.sub(r"\s+", "", (cname or "")).upper()
+    want = _z141_words(model, equip)
+    rows = c.execute(
+        "SELECT f.id, f.project_id, f.order_id, f.orig_name, f.created_at, f.read_json, p.mgmt_code, p.name, p.customer_id, "
+        "p.customer_name, p.model_name, p.equip_name, o.order_no AS so_no, o.status AS so_st FROM project_quote_files f "
+        "JOIN projects p ON p.id=f.project_id LEFT JOIN orders o ON o.id=f.order_id "
+        "WHERE f.removed_at IS NULL AND f.project_id IS NOT NULL AND COALESCE(p.is_archived,0)=0 ORDER BY f.id DESC LIMIT 2000").fetchall()
+    out = []
+    for r in rows:
+        try:
+            fd = (_qr61.json.loads(r["read_json"] or "{}").get("fields") or {})
+        except Exception:
+            fd = {}
+        same_cu = bool((cid and r["customer_id"] and str(r["customer_id"]) == str(cid)) or
+                       (cn and _re105.sub(r"\s+", "", (r["customer_name"] or "")).upper() == cn))
+        have = _z141_words(r["model_name"], r["equip_name"], fd.get("model_code"), fd.get("item_name"))
+        hit = sorted(want & have)
+        if not same_cu and not hit:
+            continue
+        sos = [dict(x) for x in c.execute("SELECT order_no, status FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                                           "ORDER BY COALESCE(order_date,''), id", (r["project_id"],)).fetchall()]
+        up, amt, cur = _ql141.q_price(fd)
+        out.append({"fid": r["id"], "score": (100 if same_cu else 0) + 10 * len(hit), "same_cu": same_cu, "hit": hit[:4],
+                    "mgmt": r["mgmt_code"] or "", "name": r["name"] or "", "customer": r["customer_name"] or "",
+                    "so": r["so_no"] or "", "slot": ("수주 " + r["so_no"]) if r["so_no"] else "관리번호 견적서",
+                    "date": str(fd.get("quote_date") or (r["created_at"] or "")[:10]),
+                    "item": str(fd.get("item_name") or r["model_name"] or ""),
+                    "amount": amt, "cur": cur or "KRW", "amount_txt": (_fmt_money(amt, cur or "KRW") if amt is not None else ""),
+                    "orders": len(sos), "order_nos": [x["order_no"] for x in sos][:3], "file": r["orig_name"] or ""})
+    out.sort(key=lambda x: (x["score"], x["date"]), reverse=True)
+    return out[:limit]
+
+
+@app.get("/api/quotes-z141/similar")
+async def api_quotes_similar_z141(req: Request):
+    """z1191z141 (대표 11-24 「진행」): 등록 화면에서 고객사·모델을 고르면 「이 고객사의 비슷한 지난 최종 견적」 최대 3건."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    qp = req.query_params
+    cid = (qp.get("customer_id") or "").strip()[:20]
+    cname = (qp.get("customer_name") or "").strip()[:80]
+    model = (qp.get("model") or "").strip()[:80]
+    equip = (qp.get("equip") or "").strip()[:80]
+    if not (cid or cname or model or equip):
+        return JSONResponse({"ok": True, "items": []})
+    with db_session() as c:
+        items = _z141_similar(c, cid, cname, model, equip)
+    return JSONResponse({"ok": True, "items": items})
 
 
 # z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 … 우선 만들고 실무자들이 선택해서 저장할수있게」):

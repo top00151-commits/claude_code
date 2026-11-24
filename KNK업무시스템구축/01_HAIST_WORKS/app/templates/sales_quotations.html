@@ -14,6 +14,7 @@ body {
 .qm-k:hover { border-color:#93c5fd; }
 .qm-k .l { font-size:12px; color:var(--qv-ink-3); }
 .qm-k .n { font-size:22px; font-weight:800; color:var(--qv-ink); }
+.qm-k .qm-sub { font-size:11px; color:var(--qv-ink-3); margin-top:2px; }   /* z1191z141 */
 .qm-k.bad .n { color:#b91c1c; } .qm-k.warn .n { color:#b45309; }
 .qm-k.on { border-color:#2563eb; box-shadow:0 0 0 2px #dbeafe; }
 .qm-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
@@ -32,6 +33,7 @@ body {
 .qm-pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
 .qm-pill.ok { background:#dcfce7; color:#166534; } .qm-pill.no { background:#fee2e2; color:#b91c1c; }
 .qm-pill.wn { background:#fef3c7; color:#92400e; } .qm-pill.rep { background:#e0e7ff; color:#3730a3; } .qm-pill.mute { background:#f1f5f9; color:#64748b; }
+.qm-pill.link { background:#e0f2fe; color:#075985; }   /* z1191z141 🔗 따라가는 견적 */
 .qm-f { color:#1d4ed8; font-weight:700; text-decoration:none; word-break:break-all; }
 .qm-meta { font-size:11px; color:#94a3b8; }
 .qm-btn { padding:3px 10px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
@@ -60,7 +62,7 @@ body {
     <div>
       <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · 🎯 수주 전 · <b>견적서</b></nav>
       <h1 class="knk-page-title">📋 견적 관리</h1>
-      <p class="knk-page-meta">최종 견적서는 <b>엑셀</b>로 만들어 올립니다 · 관리번호마다 <b>대표 견적</b> 1장 · 수주번호(호기)마다 <b>최종 견적</b> 1장 · 새로 올리면 그 자리의 예전 파일은 지워집니다</p>
+      <p class="knk-page-meta">최종 견적서는 <b>엑셀</b>로 만들어 올립니다 · 관리번호마다 <b>관리번호 견적서</b> 1장(모든 수주가 따라감) · 금액이 다른 수주만 <b>이 수주 견적</b> · 새로 올리면 그 자리의 예전 파일은 지워집니다</p>
     </div>
     <div class="knk-page-actions">
       <a class="knk-btn knk-btn--ghost" href="/sales/quotations/export.xlsx?{{ request.url.query }}" title="지금 보이는 목록을 엑셀로">📊 엑셀</a>
@@ -83,10 +85,10 @@ body {
     {% endif %}
     {% if qb.biz != 'C' or qb.rows %}
     <div class="qm-kpis">
-      <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l"{{ ct('quotes.has') }}>수주번호 견적서 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div></a>
-      <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l"{{ ct('quotes.none') }}>견적서 없음</div><div class="n">{{ c.so_none }}건</div></a>
-      <a class="qm-k warn{% if qb.only == 'diff' %} on{% endif %}" href="{{ qs(only='diff') }}"><div class="l"{{ ct('quotes.mismatch') }}>견적 금액 ≠ 수주 금액</div><div class="n">{{ c.diff }}건</div></a>
-      <div class="qm-k"><div class="l">수주 전(관리번호만)</div><div class="n">{{ c.pre }}건 <span style="font-size:12px;color:var(--qv-ink-3);font-weight:600;">· 대표 견적 {{ c.pre_with }}</span></div></div>
+      <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l"{{ ct('quotes.has') }}>견적 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div><div class="qm-sub">🟢 이 수주 {{ c.so_own }} · 🔗 관리번호 견적 사용 {{ c.so_link }}</div></a>
+      <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l"{{ ct('quotes.none') }}>정말 없음</div><div class="n">{{ c.so_none }}건</div></a>
+      <a class="qm-k warn{% if qb.only == 'diff' %} on{% endif %}" href="{{ qs(only='diff') }}"><div class="l"{{ ct('quotes.mismatch') }}>⚠ 금액 다름(확인 필요)</div><div class="n">{{ c.diff }}건</div></a>
+      <div class="qm-k"><div class="l">수주 전(관리번호만)</div><div class="n">{{ c.pre }}건 <span style="font-size:12px;color:var(--qv-ink-3);font-weight:600;">· 관리번호 견적서 {{ c.pre_with }}</span></div></div>
     </div>
     {% endif %}
     <form class="qm-bar" method="get" action="/sales/quotations">
@@ -114,7 +116,7 @@ body {
         <a class="qm-f" href="/quotes/{{ h.id }}">👁 {{ h.meta.title or h.name }}</a>
         <span class="qm-meta">{{ h.meta.customer or '업체명 없음' }} · {{ h.meta.qdate or '' }}{% if h.meta.contact %} · {{ h.meta.contact }}{% endif %}</span>
         · <a href="/project/{{ h.pid }}{% if h.order_no %}?so={{ h.order_no|urlencode }}{% endif %}" style="color:inherit;">{{ h.mgmt }} {{ h.pname or '' }}</a>
-        {% if h.order_no %}<span class="qm-pill ok">{{ h.order_no }}{% if h.status %} · {{ {'CONFIRMED':'수주','IN_PROGRESS':'진행','SHIPPED':'출하','INVOICED':'계산서','PAID':'입금 완료'}.get(h.status, h.status) }}{% endif %}</span>{% else %}<span class="qm-pill rep">관리번호 대표 견적</span>{% endif %}
+        {% if h.order_no %}<span class="qm-pill ok">{{ h.order_no }}{% if h.status %} · {{ {'CONFIRMED':'수주','IN_PROGRESS':'진행','SHIPPED':'출하','INVOICED':'계산서','PAID':'입금 완료'}.get(h.status, h.status) }}{% endif %}</span>{% else %}<span class="qm-pill rep">관리번호 관리번호 견적서</span>{% endif %}
         {% for ln in h.lines %}<div class="qm-meta" style="margin:3px 0 0 18px;color:#475569;"><b>{{ ln.sheet }}</b> · {{ ln.text }}</div>{% endfor %}
         {% if h.n > 3 %}<div class="qm-meta" style="margin-left:18px;">… 맞은 줄 {{ h.n - 3 }}개 더</div>{% endif %}
       </div>
@@ -144,26 +146,32 @@ body {
       <thead><tr><th>관리번호 · 수주번호</th><th>고객사 · 호기</th><th class="num"{{ ct('so.total') }}>수주 금액</th><th>최종 견적서(엑셀)</th><th></th></tr></thead>
       <tbody>
       {% for r in qb.rows %}{% set p = r.p %}{% set pf = r.pf %}
-        <tr class="pj qm-slot" data-pid="{{ p.id }}" data-oid="" data-label="{{ p.mgmt_code }} · 관리번호 대표 견적 · {{ p.name }}" data-has="{{ pf.orig_name if pf else '' }}">
+        <tr class="pj qm-slot" data-pid="{{ p.id }}" data-oid="" data-label="{{ p.mgmt_code }} · 관리번호 견적서 · {{ p.name }}" data-has="{{ pf.orig_name if pf else '' }}">
           <td><a href="/project/{{ p.id }}" style="font-weight:800;color:var(--qv-ink);text-decoration:none;"><span class="mgmt-pill sm">{{ p.mgmt_code }}</span> {{ p.name }}</a>{% if r.mine %} <span class="qm-meta">👤</span>{% endif %}</td>
           <td>{{ p.customer_name or '—' }}<div class="qm-meta">{{ p.sales_name or '' }}{% if p.stage %} · {{ p.stage }}{% endif %}</div></td>
           <td class="num qm-meta">{% if not r.sos %}수주 전{% else %}수주 {{ r.sos|length }}건{% endif %}</td>
-          <td>{% if pf %}<span class="qm-pill rep">대표 견적</span> {% if cm %}<a class="qm-f" href="/quotes/{{ pf.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>
-              {% elif not r.sos %}<span class="qm-pill no">없음</span>{% else %}<span class="qm-meta">대표 견적 없음(수주번호별로 올림)</span>{% endif %}</td>
+          <td>{% if pf %}<span class="qm-pill rep" title="z1191z141: 따로 올린 견적서가 없는 수주는 이 견적서를 따라갑니다(금액이 다르면 ⚠)">관리번호 견적서</span> {% if cm %}<a class="qm-f" href="/quotes/{{ pf.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>
+              {% elif not r.sos %}<span class="qm-pill no">없음</span>{% else %}<span class="qm-meta">관리번호 견적서 없음 — 올리면 모든 수주가 따라갑니다(금액 다른 수주만 따로)</span>{% endif %}</td>
           <td>{% if can_up %}<button type="button" class="qm-btn{% if not pf %} up{% endif %} qm-pick">{% if pf %}바꾸기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
         </tr>
         {% for s in r.sos %}{% set o = s.o %}{% set f = s.f %}
-        <tr class="so qm-slot" data-pid="{{ p.id }}" data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ f.orig_name if f else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
+        <tr class="so qm-slot" data-pid="{{ p.id }}" data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ f.orig_name if (f and s.via == 'own') else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
           <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a></td>
           <td>{{ s.units or '—' }}<div class="qm-meta">{% if o.due_date %}납기 {{ o.due_date }}{% endif %}</div></td>
           <td class="num">{% if cm %}{{ money(o.total_amount or 0, o.currency or 'KRW') }}{% else %}🔒{% endif %}</td>
-          <td>{% if f %}
-              {% if s.st == 'diff' %}<span class="qm-pill wn" title="엑셀에서 읽은 금액이 수주 금액과 다릅니다 — 맞는지 보고 「확인했음」">견적 {{ money(f.amt, f.cur or o.currency or 'KRW') if cm else '🔒' }} · 다름</span>
-              {% else %}<span class="qm-pill ok">최종</span>{% endif %}
+          <td>{% if f and s.via == 'own' %}
+              {% if s.st == 'diff' %}<span class="qm-pill wn" title="엑셀에서 읽은 금액이 수주 금액과 다릅니다 — 맞는지 보고 「확인했음」">⚠ 견적 {{ money(f.amt, f.cur or o.currency or 'KRW') if cm else '🔒' }} · 다름</span>
+              {% else %}<span class="qm-pill ok" title="이 수주에 따로 올린 최종 견적서">🟢 이 수주 견적</span>{% endif %}
               {% if cm %}<a class="qm-f" href="/quotes/{{ f.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ f.orig_name }}</a>{% else %}🔒{% endif %}
               <span class="qm-meta">{{ (f.created_at or '')[:10] }} {{ f.by_name or '' }}{% if f.amt_ack_at %} · 금액 다름 확인 {{ f.amt_ack_name }}{% endif %}</span>
+            {% elif f %}{# z1191z141: 따로 올린 것 없음 → 관리번호(또는 앞 수주) 견적서를 따라감 #}
+              {% set _via = (s.via_so ~ ' 견적') if s.via == 'so' else '관리번호 견적' %}
+              {% if s.st == 'diff' %}<span class="qm-pill wn" title="따라갈 견적서의 단가·합계가 이 수주와 다릅니다 — 이 수주 견적서를 올리거나, 맞으면 「확인했음」">⚠ {{ _via }} 금액 다름</span>
+              {% else %}<span class="qm-pill link" title="이 수주에 따로 올린 견적서가 없어 {{ _via }}서를 따라갑니다{% if s.acked %} · 금액 다름 확인함{% endif %}">🔗 {{ _via }} 사용</span>{% endif %}
+              {% if cm %}<a class="qm-f" href="/quotes/{{ f.id }}" title="따라가는 견적서 내용 보기">👁 {{ f.orig_name }}</a>{% else %}🔒{% endif %}
+              {% if s.acked %}<span class="qm-meta"> · 금액 다름 확인함</span>{% endif %}
             {% else %}<span class="qm-pill no">없음</span>{% endif %}</td>
-          <td>{% if can_up %}{% if s.st == 'diff' %}<button type="button" class="qm-btn qm-ack" data-fid="{{ f.id }}">확인했음</button> {% endif %}<button type="button" class="qm-btn{% if not f %} up{% endif %} qm-pick">{% if f %}바꾸기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
+          <td>{% if can_up %}{% if s.st == 'diff' and s.via == 'own' %}<button type="button" class="qm-btn qm-ack" data-fid="{{ f.id }}">확인했음</button> {% elif s.st == 'diff' %}<button type="button" class="qm-btn qm-ack141" data-oid="{{ o.id }}">확인했음</button> {% endif %}<button type="button" class="qm-btn{% if not (f and s.via == 'own') %} up{% endif %} qm-pick">{% if f and s.via == 'own' %}바꾸기{% elif f %}＋ 이 수주 견적{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
         </tr>
         {% endfor %}
       {% endfor %}
@@ -304,6 +312,13 @@ body {
       if (!confirm('엑셀 견적서 금액과 수주 금액이 다른 것을 확인했습니까?\n(맞는 견적서라면 「확인」 — 누가 확인했는지 남습니다)')) return;
       a.disabled = true;
       post('/api/project-quote/ack/' + a.getAttribute('data-fid'), new FormData()).then(function(j){ if (j && j.ok) location.reload(); else { a.disabled = false; alert((j && j.message) || '저장하지 못했습니다.'); } });
+    }
+    var a2 = e.target.closest && e.target.closest('.qm-ack141');   /* z1191z141: 따라가는 견적 금액 다름 「확인했음」 */
+    if (a2) {
+      if (!confirm('따라가는 견적서의 금액이 이 수주 금액과 다른 것을 확인했습니까?
+(이 견적서가 맞으면 「확인」 — 누가 확인했는지 남습니다 · 다른 견적이면 「＋ 이 수주 견적」으로 올리세요)')) return;
+      a2.disabled = true;
+      post('/api/quote-so-ack/' + a2.getAttribute('data-oid'), new FormData()).then(function(j){ if (j && j.ok) location.reload(); else { a2.disabled = false; alert((j && j.message) || '저장하지 못했습니다.'); } });
     }
   });
   rowFile.addEventListener('change', function(){ var f = rowFile.files && rowFile.files[0]; rowFile.value = ''; start(f, target); });

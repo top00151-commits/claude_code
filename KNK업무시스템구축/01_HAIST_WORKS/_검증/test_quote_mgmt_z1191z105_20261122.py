@@ -125,7 +125,7 @@ check("열림 200", r.status_code == 200, r.status_code)
 check("관리번호 줄 + 수주번호 줄 3개", h.count('class="so qm-slot"') == 3 and "951M2611" in h and "Z-261101-2" in h)
 check("호기 표시(1호기·2호기·3호기)", all(x in h for x in ("1호기", "2호기", "3호기")))
 check("수주 금액 $15,000.00", "$15,000.00" in h)
-check("요약: 견적서 없음 3건", re.search(r"견적서 없음</div><div class=\"n\">3건", h) is not None)
+check("요약: 견적서 없음 3건", re.search(r"정말 없음</div><div class=\"n\">3건", h) is not None)
 check("요약: 수주 전 1건", re.search(r"수주 전\(관리번호만\)</div><div class=\"n\">1건", h) is not None)
 check("올리기 칸(끌어다 놓기) 보임", 'id="qmTopDrop"' in h)
 
@@ -160,11 +160,11 @@ with D.db_session() as cc:
                (json.dumps({"fields": {"amount": 14500, "currency": "USD"}}), O2))
 h = cl.get("/sales/quotations?period=all").text
 check("2호기: 견적 $14,500.00 · 다름 알림", "견적 $14,500.00 · 다름" in h)
-check("요약: 금액 다름 1건", re.search(r"견적 금액 ≠ 수주 금액</div><div class=\"n\">1건", h) is not None)
+check("요약: 금액 다름 1건", re.search(r"⚠ 금액 다름\(확인 필요\)</div><div class=\"n\">1건", h) is not None)
 fid2 = [f for f in files_of(PA) if f["order_id"] == O2][0]["id"]
 a = cl.post("/api/project-quote/ack/%d" % fid2).json()
 h = cl.get("/sales/quotations?period=all").text
-check("확인했음 → 금액 다름 0건 · 누가 확인했는지 보임", a.get("ok") and re.search(r"견적 금액 ≠ 수주 금액</div><div class=\"n\">0건", h)
+check("확인했음 → 금액 다름 0건 · 누가 확인했는지 보임", a.get("ok") and re.search(r"⚠ 금액 다름\(확인 필요\)</div><div class=\"n\">0건", h)
       and "금액 다름 확인 " in h)
 old = [f for f in files_of(PA) if f["order_id"] == O1][0]
 old_fp = os.path.join(M._z61_dir(), old["stored"])
@@ -203,10 +203,10 @@ check("상세 「＋ 견적서 엑셀 올리기」 = 대표 견적 자리 1장(�
 check("프로젝트 견적서 칸 = 대표 견적만(수주번호 견적은 빠짐)", [x["orig_name"] for x in M._z61_quote_files(PA)] == ["대표견적_v2.xlsx"])
 h = cl.get("/project/%d" % PA).text
 check("상세: 「＋ 견적서 엑셀 올리기」 단추 그대로", "＋ 견적서 엑셀 올리기" in h)
-check("상세 수주 카드: 📋 견적서 줄 · 1호기 파일 받기", "📋 견적서" in h and "⬇ 1호기_최종_v2.xlsx" in h)
+check("상세 수주 카드: 📋 견적서 줄 · 1호기 파일 받기", "📋 견적서" in h and "🟢 1호기_최종_v2.xlsx" in h)   # z1191z121 👁 → z1191z141 🟢 이 수주 견적
 h = cl.get("/sales/quotations?period=all").text
-check("견적 관리: 대표 견적 표시", "대표 견적</span>" in h and "대표견적_v2.xlsx" in h)
-check("요약: 견적서 있음 3 / 3건 · 없음 0건", "3 <span" in h and re.search(r"견적서 없음</div><div class=\"n\">0건", h) is not None)
+check("견적 관리: 대표 견적 표시", "관리번호 견적서</span>" in h and "대표견적_v2.xlsx" in h)   # z1191z141 이름
+check("요약: 견적서 있음 3 / 3건 · 없음 0건", "3 <span" in h and re.search(r"정말 없음</div><div class=\"n\">0건", h) is not None)
 
 print("§5b 입금 끝난 수주는 기본으로 숨김 · 부품 줄은 「품목 N줄」")
 with D.db_session() as cc:
