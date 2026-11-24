@@ -54130,29 +54130,7 @@ def _sales_monthly_series(c, months: int = 12):
     return out
 
 
-def _sales_forecast(series, horizon: int = 3):
-    """선형회귀 → 다음 N개월 예측. _linear_regression 재사용 (numpy 0).
-    반환: {points:[{ym,total,is_pred}], slope, intercept, r2, horizon, end_ym}."""
-    if not series or len(series) < 2:
-        return None
-    xs = list(range(len(series)))
-    ys = [float(s["total"]) for s in series]
-    slope, intercept, r2 = _linear_regression(xs, ys)
-    pts = [{"ym": s["ym"], "total": s["total"], "is_pred": False} for s in series]
-    last_ym = series[-1]["ym"]
-    ly, lm = int(last_ym[:4]), int(last_ym[5:7])
-    for k in range(1, horizon + 1):
-        lm += 1
-        if lm > 12:
-            lm -= 12
-            ly += 1
-        x = len(series) - 1 + k
-        pred = max(0.0, slope * x + intercept)
-        pts.append({"ym": f"{ly:04d}-{lm:02d}", "total": pred, "is_pred": True})
-    return {"points": pts, "slope": slope, "intercept": intercept,
-            "r_squared": r2, "horizon": horizon, "end_ym": pts[-1]["ym"],
-            "end_total": pts[-1]["total"], "sample_n": len(series)}
-
+# z1191z140 (대표 11-24 「매출 예측 옛 화면 → 삭제」): _sales_forecast(선형회귀 예측) 지움 — /sales/forecast 는 매출 홈으로 넘김
 
 def _sales_dashboard_ctx(c):
     """대시보드 + 예측 공통 컨텍스트 (KPI 8 + 차트 데이터 + 파이프라인).
@@ -54394,40 +54372,11 @@ async def sales_dashboard_v3(req: Request):
 
 @app.get("/sales/forecast", response_class=HTMLResponse)
 async def sales_forecast_page(req: Request):
-    """Top3-S1-3차 매출 예측 — 최근 12개월 → 향후 3개월 (선형회귀, R²)."""
+    """z1191z140 (대표 11-24 「삭제」): 옛 매출 예측 화면(숫자가 늘 0 · 메뉴 길 없음)을 지움 — 옛 즐겨찾기는 매출 홈으로."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
-    with db_session() as c:
-        series = _sales_monthly_series(c, 12)
-    fc_row = None  # 매출 전용 저장 테이블은 다음 사이클 (read-only)
-    forecast = _sales_forecast(series, horizon=3)
-    chart_max = max(
-        max((s["total"] for s in series), default=1),
-        max((p["total"] for p in (forecast["points"] if forecast else [])), default=1),
-    ) or 1
-    return ctx(req, "sales_forecast.html", user=u, active="sales",
-               tab="forecast", series=series, forecast=forecast,
-               chart_max=chart_max, saved_forecast=fc_row)
-
-
-@app.post("/sales/forecast/refresh")
-async def sales_forecast_refresh(req: Request):
-    """Top3-S1-3차 예측 재계산 트리거 — JSON {ok, end_ym, end_total, r2, sample_n}."""
-    u = _s1_guard(req)
-    if not u:
-        return JSONResponse({"error": "권한 없음"}, 401)
-    with db_session() as c:
-        series = _sales_monthly_series(c, 12)
-    fc = _sales_forecast(series, horizon=3)
-    if not fc:
-        return JSONResponse({"error": "insufficient_data",
-                              "sample_n": len(series)}, status_code=400)
-    return JSONResponse({
-        "ok": True, "end_ym": fc["end_ym"],
-        "end_total": fc["end_total"], "r_squared": fc["r_squared"],
-        "slope": fc["slope"], "sample_n": fc["sample_n"],
-    })
+    return RedirectResponse("/sales", 303)
 
 
 # =====================================================
