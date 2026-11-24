@@ -14,13 +14,22 @@ from datetime import datetime, timedelta
 FOUNDING = {"KOR": ("06-01", "KNK 창립기념일"), "VN": ("10-15", "KNK VINA 창립기념일")}
 
 
+SHORT_TITLE = {"대표이사": "대표", "전무이사": "전무", "상무이사": "상무"}
+EXEC_WORDS = ("이사", "상무", "전무", "부사장", "사장", "대표", "법인장")
+
+
 def title_of(name, rank):
     """「김정락 대표이사님」 · 「허동준 매니저님」 · 「매니저(팀장)」 → 「○○○ 팀장님」 · 직급 없으면 「○○○님」."""
     n = (name or "").strip()
     r = (rank or "").strip()
     if "(" in r and ")" in r:
+        # z1191z139 (대표 11-24 「매니저는 팀장으로 · 임원직급은 임원직급으로 불러줘」):
+        #   괄호 앞이 임원 직급(이사·상무·전무·부사장·사장·대표·법인장)이면 그 직급 · 아니면 괄호 안 직책(팀장)
+        base = r[:r.index("(")].strip()
         inner = r[r.index("(") + 1:r.index(")")].strip()
-        r = inner or r[:r.index("(")].strip()
+        r = base if (base and any(k in base for k in EXEC_WORDS)) else (inner or base)
+    # z1191z139 (대표 11-24 「대표이사·전무이사·상무이사 => 대표님·전무님·상무님」)
+    r = SHORT_TITLE.get(r, r)
     return ("%s %s님" % (n, r)) if (n and r) else ("%s님" % n if n else "")
 
 

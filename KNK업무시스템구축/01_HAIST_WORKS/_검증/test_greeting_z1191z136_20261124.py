@@ -13,9 +13,12 @@ VN = {"2026-09-02": "국경일"}
 def b(h, m=0, d="2026-11-24", name="김정락", rank="대표이사", ent="KOR", bmd=None):
     return G.build(name, rank, ent, bmd, datetime.strptime("%s %02d:%02d" % (d, h, m), "%Y-%m-%d %H:%M"), KR, VN)
 # 호칭
-check("대표이사 → 「김정락 대표이사님」", G.title_of("김정락", "대표이사") == "김정락 대표이사님")
+check("대표이사 → 「김정락 대표님」(z139)", G.title_of("김정락", "대표이사") == "김정락 대표님")
 check("매니저 → 「허동준 매니저님」", G.title_of("허동준", "매니저") == "허동준 매니저님")
 check("괄호 직책 → 「팀장님」", G.title_of("홍길동", "매니저(팀장)") == "홍길동 팀장님")
+check("z139 임원 괄호 = 임원 직급(이사(팀장) → 이사님)", G.title_of("홍길동", "이사(팀장)") == "홍길동 이사님")
+check("z139 과장(팀장)·차장(팀장) = 팀장님", G.title_of("홍길동", "과장(팀장)") == "홍길동 팀장님" and G.title_of("홍길동", "차장(팀장)") == "홍길동 팀장님")
+check("z139 괄호 없는 직급 그대로(상무이사·전무이사·매니저·프로)", [G.title_of("가", x) for x in ("상무이사", "전무이사", "매니저", "프로")] == ["가 상무님", "가 전무님", "가 매니저님", "가 프로님"])
 check("직급 없으면 「이름님」", G.title_of("홍길동", "") == "홍길동님" and G.title_of("홍길동", None) == "홍길동님")
 # 시간대(화요일 11-24 · 본사)
 t = {h: b(h) for h in (5, 8, 10, 12, 13, 15, 17, 19, 22)}
@@ -27,7 +30,7 @@ check("14~17 = 오후도 힘내세요", "오후도 힘내세요" in t[15][0], t[
 check("17시대 = 퇴근·마무리 말 없음", "남은 오후" in t[17][0] and "마무리" not in t[17][0] and "퇴근" not in t[17][0], t[17])
 check("18시 이후 = 수고 많으셨습니다", "수고 많으셨습니다" in t[19][0] and t[19][1] == "evening", t[19])
 check("밤 = 너무 늦지 않게", "너무 늦지 않게" in t[22][0] and "너무 늦지 않게" in t[5][0], (t[22], t[5]))
-check("모든 문구에 「김정락 대표이사님」", all("김정락 대표이사님" in v[0] for v in t.values()))
+check("모든 문구에 「김정락 대표님」", all("김정락 대표님" in v[0] for v in t.values()))
 # 베트남 = 한국 −2시간 · 베트남 공휴일
 v = b(14, 30, ent="VN", name="Nguyen", rank="")
 check("베트남 직원 한국 14:30 = 베트남 12:30 → 오전 막바지", "막바지" in v[0] and v[0].split(G.SEP)[0].endswith("Nguyen님"), v)
@@ -40,7 +43,7 @@ check("본사 6/1 = KNK 창립기념일(본사 직원)", "KNK 창립기념일" i
 check("베트남 10/15 = KNK VINA 창립기념일(베트남 직원만)", "KNK VINA 창립기념일" in b(10, d="2026-10-15", ent="VN")[0] and "창립" not in b(10, d="2026-10-15")[0])
 # 생일(하루 종일 · 시간대별)
 bd = {h: b(h, d="2026-06-20", bmd="06-20") for h in (8, 12, 13, 15, 19)}
-check("생일 = 하루 종일 생일 축하", all(x[0].startswith("생일 축하드립니다, 김정락 대표이사님!") and x[1] == "birthday" for x in bd.values()), bd)
+check("생일 = 하루 종일 생일 축하", all(x[0].startswith("생일 축하드립니다, 김정락 대표님!") and x[1] == "birthday" for x in bd.values()), bd)
 check("생일 12시 = 점심 말 없음 · 13시 = 점심 · 저녁 = 수고", "점심" not in bd[12][0] and "점심" in bd[13][0] and "수고" in bd[19][0], bd)
 check("생일이 주말·창립기념일보다 먼저", b(10, d="2026-06-01", bmd="06-01")[1] == "birthday")
 check("생일 아닌 날은 평소 문구", b(10, bmd="06-20")[1] == "morning")
@@ -57,7 +60,7 @@ for _d, _n in _kr.items():
 check("음력 계산 = 공휴일 표 39건 모두 같음(2033년 윤11월 포함)", not _bad, _bad)
 check("음력 2월 9일 = 2026-03-27 · 2027-03-16", str(L.lunar_to_solar(2026, 2, 9)) == "2026-03-27" and str(L.lunar_to_solar(2027, 2, 9)) == "2027-03-16")
 lb = G.build("김정락", "대표이사", "KOR", "06-20", datetime(2026, 3, 27, 10, 0), KR, VN, birth_lunar_md="02-09")
-check("음력 생일날(2026-03-27) = 생일 축하", lb[1] == "birthday" and "김정락 대표이사님" in lb[0], lb)
+check("음력 생일날(2026-03-27) = 생일 축하", lb[1] == "birthday" and "김정락 대표님" in lb[0], lb)
 lb2 = G.build("김정락", "대표이사", "KOR", "06-20", datetime(2026, 6, 20, 10, 0), KR, VN, birth_lunar_md="02-09")
 check("음력 생일이 있으면 이음 양력 생일(06-20)은 안 씀", lb2[1] != "birthday", lb2)
 # 이음 birth_md 저장(월·일만)
@@ -76,6 +79,6 @@ check("빈 글자 = 지움", c.execute("SELECT birth_md FROM users WHERE id=1").
 _all = [b(h) for h in range(24)] + [b(10, d="2026-11-28"), b(10, d="2026-06-01"), b(19, d="2026-06-20", bmd="06-20")]
 _heads = [x[0].split(G.SEP)[0] for x in _all]
 check("큰 제목은 모두 짧게(30자 이하)", all(len(h) <= 30 for h in _heads), [h for h in _heads if len(h) > 30])
-check("호칭은 큰 제목에(창립기념일 빼고)", all("김정락 대표이사님" in x[0].split(G.SEP)[0] for x in _all if x[1] != "anniversary"))
+check("호칭은 큰 제목에(창립기념일 빼고)", all("김정락 대표님" in x[0].split(G.SEP)[0] for x in _all if x[1] != "anniversary"))
 print("\n결과: %d 통과 / %d 실패" % (sum(R), len(R) - sum(R)))
 sys.exit(0 if all(R) else 1)
