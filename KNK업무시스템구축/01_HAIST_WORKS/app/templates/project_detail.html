@@ -610,7 +610,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         {% endif %}
         
         <div class="list-scroll">
-        {% set _sq105 = z141_so_status(p.id) if can_money else {} %}{# z1191z105: 수주번호별 최종 견적서 · z1191z141: 🟢 이 수주 / 🔗 따라감 / ⚠ 금액 다름 #}
+        {% set _sq105 = z141_so_status(p.id) if can_money else {} %}{% set _po143so = z143_po(p.id) if can_money else {'proj': {}, 'so': {}} %}{# z1191z143 수주별 고객 발주서 #}{# z1191z105: 수주번호별 최종 견적서 · z1191z141: 🟢 이 수주 / 🔗 따라감 / ⚠ 금액 다름 #}
         {% for so in _ord %}
           {% set _closed117 = ((so.status or '')|upper in ('INVOICED','PAID')) %}{# z1191z117 ①: 입금 완료·계산서 발행 = [✏️ 수정]에서 한 번 확인 후 고침 #}
           {% set _editable = can_sales and (so.status or '')|upper != 'CANCELLED' %}{# z1191z117 ①②(대표 11-23 「수정할수있게」 · 안지연 프로 요청): 입금 완료·계산서 발행 수주와 같은 관리번호의 참고(추가) 수주도 이 화면에서 고친다(옛 z650 「참고 수주 읽기전용」·v5H226v 「INVOICED/PAID 잠금」 대체) #}{# v5H226v: SHIPPED 도 편집 허용(수금 전 정정 가능) / v5H226z650(대표 지시): 참고(추가) 수주는 읽기전용 — 최초(메인) 수주만 이 화면에서 편집, 추가 수주는 수주번호 클릭으로 해당 화면 이동 #}
@@ -657,6 +657,11 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% if _qf105 and _qs141.via == 'own' %}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 따로 올린 최종 견적서 — 내용 바로 보기" style="font-weight:700;color:#166534;text-decoration:none;">🟢 {{ _qf105.orig_name }}</a>{% if _qs141.st == 'diff' %} <a href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" title="견적서 금액이 이 수주 금액과 다릅니다 — 견적 관리에서 확인" style="color:#b45309;font-weight:700;text-decoration:none;">⚠ 금액 다름</a>{% endif %}
                   {% elif _qf105 %}{% set _via141 = (_qs141.via_so ~ ' 견적') if _qs141.via == 'so' else '관리번호 견적' %}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 따로 올린 견적서가 없어 {{ _via141 }}서({{ _qf105.orig_name }})를 따라갑니다 — 누르면 그 견적서 내용" style="font-weight:700;color:#075985;text-decoration:none;">🔗 {{ _via141 }} 사용</a>{% if _qs141.st == 'diff' %} <a href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" title="따라가는 견적서의 금액이 이 수주와 다릅니다 — 이 수주 견적서를 올리거나 「확인했음」" style="color:#b45309;font-weight:700;text-decoration:none;">⚠ 금액 다름 · 확인 →</a>{% endif %}
                   {% else %}<a class="v" href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" style="color:#b45309;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
+                </span>{% endif %}
+                {% if can_money %}{% set _ps143 = _po143so.so.get(so.id) %}{# z1191z143 (대표 11-24 「등록한 발주서는 … 수주번호 상세보기에서 견적서처럼」): 이 수주의 고객 발주서(최종) · 올리기·이전 발주서 = 수주 상세 #}
+                <span class="item" title="z1191z143: 이 수주번호의 고객 발주서 — 올리기·수정 발주서·이전 발주서는 수주 상세(수주번호 누르기) 또는 견적 관리"><span class="k">📄 발주서</span>
+                  {% if _ps143 and _ps143.final %}<a class="v" href="/customer-po/{{ _ps143.final.id }}" title="고객 발주서 바로 보기" style="font-weight:700;color:#166534;text-decoration:none;">{{ _ps143.final.orig_name }}</a>{% if _ps143.prev %} <span style="font-size:11px;color:#64748b;">· 이전 {{ _ps143.prev|length }}장</span>{% endif %}{% if _ps143.st == 'diff' %} <a href="/sales/orders/{{ so.id }}#po143" title="발주서 엑셀 금액이 이 수주 금액과 다릅니다 — 수주 상세에서 확인" style="color:#b45309;font-weight:700;text-decoration:none;">⚠ 금액 다름 · 확인 →</a>{% endif %}
+                  {% else %}<a class="v" href="/sales/orders/{{ so.id }}#po143" style="color:#64748b;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
                 </span>{% endif %}
                 {# v5H226z1034 (안지연 프로 신고·대표 지시): **수주(SO)별 PO유형** — 이 화면은 PO유형을
                    프로젝트 한 줄로만 보여주고 **고칠 자리가 없었다**. 그래서 직원이 [프로젝트 정보 수정]으로
@@ -2315,6 +2320,9 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
   {% endif %}
   {% endif %}
 </dd>
+          {% if can_money %}{# z1191z143 (대표 11-24): 관리번호 자리 고객 발주서 — 최종 + 이전 발주서 · 올리기(PDF·사진·엑셀) · 수주별 발주서는 수주 카드 「📄 발주서」 #}
+          <dt class="fullw" title="z1191z143: 고객사에서 받은 발주서(관리번호 전체) — 수주번호별 발주서는 아래 수주 카드·수주 상세">고객 발주서</dt><dd class="fullw" id="po143">{% set po_pid = p.id %}{% set po_oid = None %}{% set po_s = z143_po(p.id).proj %}{% set po_otxt = '' %}{% include "_v5_partials/po_rows.html" %}</dd>
+          {% endif %}
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
           {% if _hso %}{% set _hend16 = _hso.end_customer or ((p.secondary_customer or '') if ((not _hso.customer_id) or _hso.customer_id == p.customer_id) else '') %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span> <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>🌐 {{ _hend16 or '—' }}</dd>{% elif p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}
           {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:inherit;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}

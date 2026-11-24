@@ -55,6 +55,18 @@ body {
     <div class="kpi-card"><div class="kpi-label" tabindex="0" data-fx-tip="세금계산서(부가세 포함)에서 받은 돈을 뺀 금액 · 💰 입금 확인 화면과 같은 계산 · 입금 완료·취소 수주는 0">미수금 <span style="font-weight:500;">(부가세 포함)</span> ⓘ</div><div class="kpi-num" {% if outstanding and outstanding > 0 %}style="color:var(--knk-red);"{% endif %}>{% if can_sales_amt %}{% if outstanding is none %}—{% else %}{{ money(outstanding, _kcur) }}{% endif %}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
   </div>
 
+  {# z1191z143 (대표 11-24 「등록한 발주서는 관리번호 또는 수주번호 상세보기에서 견적서 처럼 볼수있게」): 이 수주의 고객 발주서 — 최종 + 이전 발주서 · 올리기 #}
+  {% if order.project_id and z143_can_view(user) %}{% set _po143 = z143_po(order.project_id) %}
+  <div class="section" id="po143" data-dn="order-po" style="margin-top:14px;">
+    <h2>📄 고객 발주서 <span style="font-size:12px;font-weight:500;color:var(--qv-ink-3);">고객사에서 받은 발주서 · PDF·사진·엑셀 · 다시 올리면 예전 것은 「이전 발주서」로 남음</span></h2>
+    {% set po_pid = order.project_id %}{% set po_oid = order.id %}{% set po_s = _po143.so.get(order.id) %}{% set po_otxt = money(order.total_amount or 0, order.currency or 'KRW') %}
+    {% include "_v5_partials/po_rows.html" %}
+    {% set _pp143 = _po143.proj %}{% if _pp143 and _pp143.final %}
+    <div style="margin-top:8px;font-size:12px;color:#475569;">관리번호 {{ order.mgmt_code }} 전체 발주서: <a href="/customer-po/{{ _pp143.final.id }}" style="font-weight:700;color:#166534;text-decoration:none;">📄 {{ _pp143.final.orig_name }}</a>{% if _pp143.prev %} · 이전 {{ _pp143.prev|length }}장{% endif %} <a href="/project/{{ order.project_id }}#po143" style="font-size:11.5px;">프로젝트에서 보기 →</a></div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {# v5H128: 납품 OVER 자가치유 경고 — shipments 누계 > 수주 수량 #}
   {% if ship_over_warn %}
   <div class="section" style="margin-top:14px;">

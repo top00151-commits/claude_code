@@ -615,6 +615,17 @@ def _save_birth_md_z136(c, uid, payload: dict) -> None:
         if "birth_md" not in {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}:
             c.execute("ALTER TABLE users ADD COLUMN birth_md TEXT")
         c.execute("UPDATE users SET birth_md=? WHERE id=?", (v or None, uid))
+        # z1191z143 (세션 10 알림 · 이음 v1029 11-24): 음력 생일인 사람은 birth_md = 「올해 양력 날짜」로 해마다 바뀜 + 새 칸 birth_lunar.
+        #   받은 해(한국 시각)·음력 여부를 함께 적어 두고, 홈 인사말은 음력인 사람의 값이 올해 받은 것일 때만 쓴다(1년 넘게 로그인 안 하면 작년 날짜로 축하하지 않게).
+        import datetime as _dt143
+        _cols143 = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+        for _cn143 in ("birth_md_year", "birth_lunar"):
+            if _cn143 not in _cols143:
+                c.execute(f"ALTER TABLE users ADD COLUMN {_cn143} INTEGER")
+        _lun143 = payload.get("birth_lunar") if "birth_lunar" in payload else None
+        _lv143 = None if _lun143 is None else (1 if (_lun143 is True or str(_lun143).strip().lower() in ("1", "true", "y", "yes")) else 0)
+        _yr143 = (_dt143.datetime.utcnow() + _dt143.timedelta(hours=9)).year
+        c.execute("UPDATE users SET birth_md_year=?, birth_lunar=COALESCE(?, birth_lunar) WHERE id=?", ((_yr143 if v else None), _lv143, uid))
     except Exception as e:
         print(f"[SSO] birth_md 저장 실패(uid={uid}): {e}")
 

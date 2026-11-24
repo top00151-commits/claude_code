@@ -4175,7 +4175,11 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
     greeting_bucket = "default"
     try:
         from . import greeting as _gr136
-        greeting, greeting_bucket = _gr136.build(u.get("name", ""), u.get("rank"), u.get("entity"), u.get("birth_md"),
+        _bmd143 = u.get("birth_md")
+        # z1191z143 (이음 v1029): 음력 생일인 사람의 birth_md = 그해 양력 날짜 → 올해 받은 값일 때만(작년 값이면 생일 문구 안 씀)
+        if u.get("birth_lunar") and str(u.get("birth_md_year") or "") != str(datetime.now().year):
+            _bmd143 = None
+        greeting, greeting_bucket = _gr136.build(u.get("name", ""), u.get("rank"), u.get("entity"), _bmd143,
                                                  datetime.now(), HOLIDAYS_KR, HOLIDAYS_VN,
                                                  birth_lunar_md=u.get("birth_lunar_md"))   # 음력 생일(있으면 이것만)
     except Exception as _e136:
@@ -44891,7 +44895,9 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
         for r in c.execute("SELECT order_id, unit_price FROM order_items ORDER BY order_id, id").fetchall():
             prices141.setdefault(r[0], []).append(r[1])
         acks141 = _z141_acks(c)
-    rows, cnt = [], {"so": 0, "so_with": 0, "so_own": 0, "so_link": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "mine": 0, "done_hidden": 0}
+        po143 = _z143_rows(c)   # z1191z143: 고객 발주서(관리번호·수주번호 자리마다 · 최종 + 이전)
+    rows, cnt = [], {"so": 0, "so_with": 0, "so_own": 0, "so_link": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "mine": 0, "done_hidden": 0,
+           "po_so": 0, "po_diff": 0}   # z1191z143 고객 발주서 있는 수주 · 엑셀 발주서 금액 다름
     bcnt = {k or "all": 0 for k, _l in _Z107_BIZ_TABS}   # z1191z107: 책갈피마다 관리번호 수(다른 거르기는 그대로 적용한 뒤)
     for p in projs:
         if since and (p["d0"] or "") < since:
@@ -44926,10 +44932,15 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
         for o in sos:
             rs = res141.get(o["id"]) or {"st": "none", "f": None, "via": "", "via_so": "", "acked": False}
             so_rows.append({"o": o, "f": rs["f"], "st": rs["st"], "via": rs["via"], "via_so": rs["via_so"], "acked": rs["acked"],
-                            "units": _z105_units_txt(labels.get(o["id"], []))})
+                            "units": _z105_units_txt(labels.get(o["id"], [])),
+                            "po": _po143.slot_status(po143.get((p["id"], o["id"]), []), o["total_amount"], o["currency"])})   # z1191z143
         if on_tab:   # 요약 칸 = 지금 고른 책갈피 안에서만
             for s in so_rows:
                 cnt["so"] += 1
+                if s["po"]["final"]:   # z1191z143
+                    cnt["po_so"] += 1
+                    if s["po"]["st"] == "diff":
+                        cnt["po_diff"] += 1
                 if s["st"] in ("ok", "link"):
                     cnt["so_with"] += 1
                     cnt["so_own" if s["via"] == "own" else "so_link"] += 1
@@ -44948,7 +44959,8 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
         bcnt["all"] += 1
         bcnt[pbiz] += 1
         if on_tab:
-            rows.append({"p": p, "pf": pf, "sos": so_rows, "mine": is_mine})
+            rows.append({"p": p, "pf": pf, "sos": so_rows, "mine": is_mine,
+                         "po": _po143.slot_status(po143.get((p["id"], None), []))})   # z1191z143 관리번호 발주서
     # 소모품 주문 = 보기만(대표 「소모품은 보기만」) — 「견적서 없음·금액 다름」 거르기는 견적서 자리가 없으므로 적용 안 함
     cons, cons_hidden = _z107_cons(u, ql, mine, since, done)
     bcnt["C"] += len(cons)
@@ -45113,7 +45125,7 @@ async def api_project_quote_place(req: Request):
         olds = [dict(x) for x in _z105_slot_rows(c, pid, oid)]
     if olds and not _z105_can_replace(u, olds):
         return JSONResponse({"ok": False, "message": _Z105_NO_REPLACE}, 403)
-    slot = (so["order_no"] if so else ((p["mgmt_code"] or "") + " 대표 견적"))
+    slot = (so["order_no"] if so else ((p["mgmt_code"] or "") + " 관리번호 견적서"))   # z1191z143: 화면 이름과 같게(z141)
     with db_session() as c:
         c.execute("UPDATE project_quote_files SET project_id=?, order_id=?, attached_at=? WHERE id=? AND project_id IS NULL",
                   (pid, oid, _z61_now(), r["id"]))
@@ -45305,6 +45317,411 @@ async def api_quotes_similar_z141(req: Request):
     with db_session() as c:
         items = _z141_similar(c, cid, cname, model, equip)
     return JSONResponse({"ok": True, "items": items})
+
+
+
+# ═══ z1191z143 (대표 11-24 「견적 관리 화면에 고객사에서 받은 발주서도 등록할수있게」 → 「등록한 발주서는 관리번호 또는
+#     수주번호 상세보기에서 견적서 처럼 볼수있게」 → 빅터 안(PDF·사진·엑셀 · 수정 발주서는 예전 것도 「이전 발주서」로 남김) → 「진행」)
+#   규칙·읽기 = app/customer_po.py · 표 = project_po_files(견적서 표와 따로 — 견적 숫자·판정에 섞이지 않게)
+#   올리기 = 견적서와 같은 사람(can_use_sales + can_view_sales) · 빼기 = 올린 사람·기술영업팀(z63 규칙) · 보기·내려받기 = can_view_sales
+from . import customer_po as _po143
+
+
+def _z143_dir():
+    from . import database as _db143
+    return os.path.join(os.path.dirname(os.path.abspath(_db143.DB_PATH)), "customer_po")
+
+
+def _z143_drop_file(stored):
+    try:
+        fp = os.path.join(_z143_dir(), stored or "")
+        if stored and os.path.isfile(fp):
+            os.remove(fp)
+    except Exception as _e:
+        print(f"[z1191z143] 발주서 파일 지우기 실패 {stored}: {_e}")
+
+
+def _z143_cleanup(c):
+    """자리에 안 붙이고 3일 지난 파일 지우기(줄+파일)."""
+    from datetime import datetime as _d143, timedelta as _td143
+    cut = (_d143.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td143(days=3)).strftime("%Y-%m-%d %H:%M")
+    for r in c.execute("SELECT id, stored FROM project_po_files WHERE project_id IS NULL AND created_at < ?", (cut,)).fetchall():
+        _z143_drop_file(r["stored"])
+        c.execute("DELETE FROM project_po_files WHERE id=?", (r["id"],))
+
+
+def _z143_read_xl(raw, name):
+    """엑셀 발주서 → (book, 금액, 통화, 머리 글, 오류 글) — 비밀번호 파일·.xls 는 내용을 읽지 않음(원본은 그대로 보관)."""
+    ext = _po143.ext_of(name)
+    if ext == ".xls":
+        return None, None, "", "", "옛 엑셀 형식(.xls)이라 내용 보기는 안 됩니다 — 원본을 내려받아 보세요"
+    try:
+        if _qr61.office_locked(raw, ext):
+            return None, None, "", "", "비밀번호가 걸린 엑셀이라 내용을 읽지 않았습니다 — 원본을 내려받아 보세요"
+        b = _qs121.read_book(raw)
+    except Exception as _e:
+        print(f"[z1191z143] 엑셀 발주서 읽기 실패 {name}: {_e}")
+        return None, None, "", "", "엑셀을 읽지 못했습니다 — 원본을 내려받아 보세요"
+    if not b.get("ok"):
+        return None, None, "", "", b.get("message") or "엑셀을 읽지 못했습니다"
+    amt, ccy, lab = _po143.read_amount(b)
+    return b, amt, ccy, lab, ""
+
+
+def _z143_text(raw, name):
+    """자리 찾기용 글(PDF·엑셀 안 글자 · AI 없음) — 실패하면 빈 글."""
+    ext = _po143.ext_of(name)
+    if ext not in (".pdf", ".xlsx", ".xlsm", ".xls"):
+        return ""
+    try:
+        return (_qr61.file_text(raw, ext) or "")[:20000]
+    except Exception as _e:
+        print(f"[z1191z143] 발주서 글 뽑기 실패 {name}: {_e}")
+        return ""
+
+
+def _z143_rows(c, pid=None):
+    """{(관리번호 id, 수주 id 또는 None): [발주서 줄(id 오름차순)]} — 자리에 붙은 것만."""
+    _po143.table(c)
+    sql = ("SELECT id, project_id, order_id, orig_name, kind, size, by_id, by_name, created_at, amount, currency, amount_label, "
+           "book_err, amt_ack_name, amt_ack_at FROM project_po_files WHERE project_id IS NOT NULL")
+    args = ()
+    if pid:
+        sql += " AND project_id=?"
+        args = (int(pid),)
+    out = {}
+    for r in c.execute(sql + " ORDER BY id", args).fetchall():
+        out.setdefault((r["project_id"], r["order_id"]), []).append(dict(r))
+    return out
+
+
+def _z143_po(pid):
+    """화면용(프로젝트 상세·수주 상세) — {"proj": 관리번호 자리 상태, "so": {수주 id: 상태}} · 상태 = customer_po.slot_status."""
+    try:
+        with db_session() as c:
+            m = _z143_rows(c, pid)
+            sos = {o["id"]: o for o in c.execute("SELECT id, total_amount, currency FROM orders WHERE project_id=?", (int(pid),)).fetchall()}
+        res = {"proj": _po143.slot_status(m.get((int(pid), None), [])), "so": {}}
+        for (p_, oid), fs in m.items():
+            if oid is None:
+                continue
+            o = sos.get(oid)
+            res["so"][oid] = _po143.slot_status(fs, (o["total_amount"] if o else None), (o["currency"] if o else None))
+        return res
+    except Exception as _e:
+        print(f"[z1191z143] 발주서 상태 실패 pid={pid}: {_e}")
+        return {"proj": _po143.slot_status([]), "so": {}}
+
+
+tpl.env.globals["z143_po"] = _z143_po
+tpl.env.globals["z143_can_view"] = lambda u: bool(u) and can_view_sales(u)
+tpl.env.globals["z143_accept"] = _po143.ACCEPT
+
+
+def _z143_slot_label(code, order_no, pname, amt, ccy):
+    s = (order_no + " · " + (code or "")) if order_no else ((code or "") + " · 관리번호 발주서")
+    if order_no and amt is not None:
+        s += " · " + _fmt_money(amt, ccy or "KRW")
+    return s + (" · " + pname if pname else "")
+
+
+def _z143_has(c):
+    return {(r[0], r[1]): r[2] for r in c.execute(
+        "SELECT project_id, order_id, COUNT(*) FROM project_po_files WHERE project_id IS NOT NULL GROUP BY project_id, order_id")}
+
+
+def _z143_cands(c, text):
+    """파일 이름·안 글 → 붙일 자리 후보(수주번호 먼저 · 없으면 관리번호 + 그 수주들) · 딱 하나면 미리 고름(데이터 연결성 규칙)."""
+    has = _z143_has(c)
+    out, why = [], ""
+    sos = sorted({m.upper() for m in _Z105_SO_RE.findall(text or "")})[:10]
+    if sos:
+        for o in c.execute(
+                "SELECT o.id, o.project_id, o.order_no, o.currency, o.total_amount, p.mgmt_code, p.name FROM orders o "
+                "JOIN projects p ON p.id=o.project_id WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+                "AND UPPER(o.order_no) IN (%s) ORDER BY o.id" % ",".join("?" * len(sos)), sos).fetchall():
+            out.append({"pid": o["project_id"], "oid": o["id"], "has": has.get((o["project_id"], o["id"]), 0),
+                        "label": _z143_slot_label(o["mgmt_code"], o["order_no"], o["name"], o["total_amount"], o["currency"])})
+        if out:
+            why = "파일 이름·내용에 적힌 수주번호"
+    if not out:
+        for code in sorted({m.upper() for m in _Z105_MGMT_RE.findall(text or "")})[:5]:
+            p = c.execute("SELECT id, mgmt_code, name FROM projects WHERE UPPER(mgmt_code)=? AND COALESCE(is_archived,0)=0", (code,)).fetchone()
+            if not p:
+                continue
+            out.append({"pid": p["id"], "oid": None, "has": has.get((p["id"], None), 0),
+                        "label": _z143_slot_label(p["mgmt_code"], "", p["name"], None, "")})
+            for o in c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                               "ORDER BY COALESCE(order_date,''), id", (p["id"],)).fetchall():
+                out.append({"pid": p["id"], "oid": o["id"], "has": has.get((p["id"], o["id"]), 0),
+                            "label": "　└ " + _z143_slot_label(p["mgmt_code"], o["order_no"], "", o["total_amount"], o["currency"])})
+        if out:
+            why = "파일 이름·내용에 적힌 관리번호"
+    return out[:30], (0 if len(out) == 1 else None), why
+
+
+def _z143_where(c, pid, oid):
+    """자리 확인 → (관리번호 줄, 수주 줄 또는 None, 오류 글)."""
+    p = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=? AND COALESCE(is_archived,0)=0", (int(pid),)).fetchone()
+    if not p:
+        return None, None, "그 관리번호를 찾지 못했습니다."
+    so = None
+    if oid:
+        so = c.execute("SELECT id, order_no, total_amount, currency FROM orders WHERE id=? AND project_id=? AND COALESCE(status,'')<>'CANCELLED'",
+                       (int(oid), int(pid))).fetchone()
+        if not so:
+            return p, None, "그 수주번호는 이 관리번호에 없습니다(취소된 수주일 수 있습니다)."
+    return p, so, ""
+
+
+def _z143_ids(form):
+    try:
+        return (int(form.get("pid") or 0) or None), (int(form.get("order_id") or 0) or None)
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _z143_slot_name(p, so):
+    return so["order_no"] if so else ((p["mgmt_code"] or "") + " 관리번호 발주서")
+
+
+def _z143_nprev(c, pid, oid, not_id=None):
+    sql = "SELECT COUNT(*) FROM project_po_files WHERE project_id=? AND " + ("order_id=?" if oid else "order_id IS NULL")
+    args = [pid] + ([oid] if oid else [])
+    if not_id:
+        sql += " AND id<>?"
+        args.append(not_id)
+    return c.execute(sql, args).fetchone()[0]
+
+
+@app.post("/api/customer-po/upload")
+async def api_customer_po_upload_z143(req: Request, file: UploadFile = File(...)):
+    """고객 발주서 올리기 — pid(·order_id) 가 있으면 그 자리에 바로 붙임 · 없으면 읽어서 붙일 자리 후보를 돌려줌."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "고객 발주서를 올릴 권한이 없습니다."}, 403)
+    form = await req.form()
+    pid, oid = _z143_ids(form)
+    name = _qr61._nfc(file.filename or "발주서")[:200]
+    ext = _po143.ext_of(name)
+    if ext not in _po143.EXTS:
+        return JSONResponse({"ok": False, "message": _po143.MSG_EXT})
+    raw = await file.read(_qr61.MAX_BYTES + 1)
+    if not raw:
+        return JSONResponse({"ok": False, "message": "빈 파일입니다."})
+    if len(raw) > _qr61.MAX_BYTES:
+        return JSONResponse({"ok": False, "message": "20MB 보다 큰 파일은 올릴 수 없습니다."})
+    kind = _po143.kind_of(name, raw)
+    if not kind:
+        return JSONResponse({"ok": False, "message": "파일 내용이 이름과 다릅니다(이름만 .pdf·.xlsx 로 바꾼 파일 등) — " + _po143.MSG_EXT})
+    if pid:
+        with db_session() as c:
+            _p143, _so143, err = _z143_where(c, pid, oid)
+        if err:
+            return JSONResponse({"ok": False, "message": err}, 400)
+    from starlette.concurrency import run_in_threadpool as _rit143
+    book, amt, ccy, lab, berr = (None, None, "", "", "")
+    if kind == "xl":
+        book, amt, ccy, lab, berr = await _rit143(_z143_read_xl, raw, name)   # 읽기는 DB 를 잡기 전에
+    text = "" if pid else (name + " " + await _rit143(_z143_text, raw, name))
+    import secrets as _sc143, hashlib as _hl143
+    tok = _sc143.token_hex(12)
+    sub = _z61_now()[:7].replace("-", "")
+    stored = f"{sub}/{tok}{ext}"   # 저장 이름 = 임의 글자(올린 파일 이름은 경로에 쓰지 않음)
+    try:
+        os.makedirs(os.path.join(_z143_dir(), sub), exist_ok=True)
+        with open(os.path.join(_z143_dir(), stored), "wb") as _f143:
+            _f143.write(raw)
+    except Exception as _e:
+        print(f"[z1191z143] 발주서 파일 저장 실패: {_e}")
+        return JSONResponse({"ok": False, "message": "파일을 서버에 저장하지 못했습니다 — 다시 올려 주세요."})
+    gz = _gz121.compress(_js121.dumps(book, ensure_ascii=False, default=str).encode("utf-8")) if book else None
+    who = vname_full(u) or u.get("name") or ""
+    amount_txt = (_fmt_money(amt, ccy or "KRW") if amt is not None else "")
+    with db_session() as c:
+        _po143.table(c)
+        try:
+            _z143_cleanup(c)
+        except Exception as _e:
+            print(f"[z1191z143] 정리 실패: {_e}")
+        c.execute("INSERT INTO project_po_files(tok, project_id, order_id, orig_name, stored, size, sha256, kind, by_id, by_name, created_at, "
+                  "attached_at, amount, currency, amount_label, book_gz, book_err) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (tok, pid, (oid if pid else None), name, stored, len(raw), _hl143.sha256(raw).hexdigest(), kind, u.get("id"), who,
+                   _z61_now(), (_z61_now() if pid else None), amt, ccy, lab, gz, berr))
+        fid = c.execute("SELECT id FROM project_po_files WHERE tok=?", (tok,)).fetchone()[0]
+        if pid:
+            p, so, _e143 = _z143_where(c, pid, oid)
+            slot = _z143_slot_name(p, so)
+            n_prev = _z143_nprev(c, pid, oid, fid)
+            c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                      (pid, u.get("id"), "고객 발주서", "", name,
+                       f"z1191z143 고객 발주서 올리기 · {slot}" + (f" · 이전 발주서 {n_prev}장 남김" if n_prev else "") + f" · {who}"))
+            return JSONResponse({"ok": True, "placed": True, "fid": fid, "slot": slot, "prev": n_prev, "kind": kind, "amount_txt": amount_txt})
+        cands, pick, why = _z143_cands(c, text)
+    return JSONResponse({"ok": True, "placed": False, "tok": tok, "fid": fid, "name": name, "kind": kind, "amount_txt": amount_txt,
+                         "amount_label": lab, "cands": cands, "pick": pick, "why": why})
+
+
+@app.get("/api/customer-po/search")
+async def api_customer_po_search_z143(req: Request):
+    """붙일 자리 찾기(관리번호·수주번호·프로젝트명·고객사)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    q = (req.query_params.get("q") or "").strip()[:60]
+    if len(q) < 2:
+        return JSONResponse({"ok": True, "items": []})
+    like = "%" + q + "%"
+    out = []
+    with db_session() as c:
+        _po143.table(c)
+        has = _z143_has(c)
+        for p in c.execute("SELECT id, mgmt_code, name, customer_name FROM projects WHERE COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
+                           "AND (mgmt_code LIKE ? OR name LIKE ? OR customer_name LIKE ? OR id IN (SELECT project_id FROM orders WHERE order_no LIKE ?)) "
+                           "ORDER BY id DESC LIMIT 8", (like, like, like, like)).fetchall():
+            out.append({"pid": p["id"], "oid": None, "has": has.get((p["id"], None), 0),
+                        "label": _z143_slot_label(p["mgmt_code"], "", p["name"], None, "") + (" · " + p["customer_name"] if p["customer_name"] else "")})
+            for o in c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                               "ORDER BY COALESCE(order_date,''), id", (p["id"],)).fetchall():
+                out.append({"pid": p["id"], "oid": o["id"], "has": has.get((p["id"], o["id"]), 0),
+                            "label": "　└ " + _z143_slot_label(p["mgmt_code"], o["order_no"], "", o["total_amount"], o["currency"])})
+    return JSONResponse({"ok": True, "items": out[:40]})
+
+
+@app.post("/api/customer-po/place")
+async def api_customer_po_place_z143(req: Request):
+    """올린(아직 안 붙인) 발주서를 자리에 붙임 — 그 자리에 있던 발주서는 지우지 않고 「이전 발주서」로 남음."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "고객 발주서를 올릴 권한이 없습니다."}, 403)
+    form = await req.form()
+    tok = (form.get("tok") or "").strip()[:40]
+    pid, oid = _z143_ids(form)
+    if not pid:
+        return JSONResponse({"ok": False, "message": "붙일 자리를 골라 주세요."}, 400)
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        _po143.table(c)
+        r = c.execute("SELECT id, orig_name, by_id, project_id FROM project_po_files WHERE tok=?", (tok,)).fetchone()
+        if not r or r["by_id"] != u.get("id") or r["project_id"] is not None:
+            return JSONResponse({"ok": False, "message": "그 발주서를 찾지 못했습니다 — 다시 올려 주세요."})
+        p, so, err = _z143_where(c, pid, oid)
+        if err:
+            return JSONResponse({"ok": False, "message": err}, 400)
+        n_prev = _z143_nprev(c, pid, oid)
+        c.execute("UPDATE project_po_files SET project_id=?, order_id=?, attached_at=? WHERE id=? AND project_id IS NULL",
+                  (pid, oid, _z61_now(), r["id"]))
+        slot = _z143_slot_name(p, so)
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (pid, u.get("id"), "고객 발주서", "", r["orig_name"],
+                   f"z1191z143 견적 관리 「발주서 올리기」 · {slot}" + (f" · 이전 발주서 {n_prev}장 남김" if n_prev else "") + f" · {who}"))
+    return JSONResponse({"ok": True, "slot": slot, "prev": n_prev, "fid": r["id"]})
+
+
+@app.post("/api/customer-po/remove/{fid}")
+async def api_customer_po_remove_z143(req: Request, fid: int):
+    """발주서 빼기 — 올린 사람·기술영업팀(견적서 z63 규칙) · 파일·줄 바로 지움 · 변경 이력에 누가 · 최종을 빼면 바로 앞 것이 최종."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    with db_session() as c:
+        _po143.table(c)
+        r = c.execute("SELECT id, project_id, order_id, orig_name, stored, by_id FROM project_po_files WHERE id=?", (fid,)).fetchone()
+        if not r or r["project_id"] is None:
+            return JSONResponse({"ok": False, "message": "그 발주서를 찾지 못했습니다(이미 뺐을 수 있습니다)."}, 404)
+        if not _z63_can_remove(u, dict(r)):
+            return JSONResponse({"ok": False, "message": "발주서는 올린 사람과 기술영업팀만 뺄 수 있습니다."}, 403)
+        who = vname_full(u) or u.get("name") or ""
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (r["project_id"], u.get("id"), "고객 발주서", r["orig_name"], "", f"z1191z143 고객 발주서 빼기 · {who}"))
+        c.execute("DELETE FROM project_po_files WHERE id=?", (fid,))
+        _z143_drop_file(r["stored"])
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/customer-po/ack/{fid}")
+async def api_customer_po_ack_z143(req: Request, fid: int):
+    """엑셀 발주서 금액 ≠ 수주 금액 — 「확인했음」 한 번(막지 않음 · 누가·언제 · 변경 이력)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not (can_use_sales(u) and can_view_sales(u)):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        _po143.table(c)
+        r = c.execute("SELECT project_id, orig_name FROM project_po_files WHERE id=? AND project_id IS NOT NULL", (fid,)).fetchone()
+        if not r:
+            return JSONResponse({"ok": False, "message": "그 발주서를 찾지 못했습니다."}, 404)
+        c.execute("UPDATE project_po_files SET amt_ack_by=?, amt_ack_name=?, amt_ack_at=? WHERE id=?", (u.get("id"), who, _z61_now(), fid))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (r["project_id"], u.get("id"), "고객 발주서 금액 확인", "", r["orig_name"], f"z1191z143 발주서 금액 ≠ 수주 금액 「확인했음」 · {who}"))
+    return JSONResponse({"ok": True})
+
+
+def _z143_file_row(c, fid):
+    _po143.table(c)
+    r = c.execute("SELECT f.*, p.mgmt_code, p.name AS pname, p.customer_name AS pcust, o.order_no, o.total_amount AS o_amt, o.currency AS o_ccy "
+                  "FROM project_po_files f LEFT JOIN projects p ON p.id=f.project_id LEFT JOIN orders o ON o.id=f.order_id "
+                  "WHERE f.id=? AND f.project_id IS NOT NULL", (fid,)).fetchone()
+    return dict(r) if r else None
+
+
+@app.get("/customer-po/{fid}", response_class=HTMLResponse)
+async def customer_po_view_z143(req: Request, fid: int):
+    """발주서 보기 — PDF·사진 = 화면 안 그대로 · 엑셀 = 견적서처럼 시트 표 · 같은 자리의 최종·이전 발주서 목록."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return PlainTextResponse("고객 발주서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
+    with db_session() as c:
+        f = _z143_file_row(c, fid)
+        if not f:
+            return PlainTextResponse("발주서를 찾지 못했습니다(뺐을 수 있습니다).", status_code=404)
+        sib = [dict(r) for r in c.execute(
+            "SELECT id, orig_name, kind, by_name, created_at, amount, currency, amt_ack_at FROM project_po_files WHERE project_id=? AND "
+            + ("order_id=?" if f["order_id"] else "order_id IS NULL") + " ORDER BY id",
+            ((f["project_id"], f["order_id"]) if f["order_id"] else (f["project_id"],))).fetchall()]
+    book = None
+    if f.get("book_gz"):
+        try:
+            book = _js121.loads(_gz121.decompress(f["book_gz"]).decode("utf-8"))
+        except Exception as _e:
+            print(f"[z1191z143] 읽어 둔 발주서 풀기 실패 {fid}: {_e}")
+    f.pop("book_gz", None)
+    view = _qs121.view_of(book, True) if book else None   # 고객 발주서 = 회사 안 원가 칸 없음 → 그대로
+    st = _po143.slot_status(sib, f.get("o_amt") if f["order_id"] else None, f.get("o_ccy") if f["order_id"] else None)
+    is_final = bool(st["final"]) and st["final"]["id"] == f["id"]
+    return ctx(req, "customer_po_view.html", user=u, active="sales", f=f, view=view, st=st, is_final=is_final,
+               can_rm=bool(_z63_can_remove(u, f)), can_up=bool(can_use_sales(u) and can_view_sales(u)))
+
+
+@app.get("/customer-po/{fid}/file")
+async def customer_po_file_z143(req: Request, fid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return PlainTextResponse("고객 발주서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
+    with db_session() as c:
+        _po143.table(c)
+        r = c.execute("SELECT orig_name, stored FROM project_po_files WHERE id=? AND project_id IS NOT NULL", (fid,)).fetchone()
+    fp = os.path.join(_z143_dir(), (r["stored"] if r else "") or "")
+    if not r or not r["stored"] or not os.path.isfile(fp):
+        return PlainTextResponse("발주서 파일을 찾지 못했습니다.", status_code=404)
+    from urllib.parse import quote as _uq143
+    ext = _po143.ext_of(r["orig_name"] or r["stored"])
+    inline = ext in (".pdf", ".png", ".jpg", ".jpeg") and (req.query_params.get("dl") or "") != "1"
+    return FileResponse(fp, media_type=_po143.MIME.get(ext, "application/octet-stream"), headers={
+        "Content-Disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{_uq143(r['orig_name'] or ('po' + ext))}",
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 # z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 … 우선 만들고 실무자들이 선택해서 저장할수있게」):

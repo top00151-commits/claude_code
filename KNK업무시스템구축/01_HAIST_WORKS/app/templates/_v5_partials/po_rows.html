@@ -1,0 +1,52 @@
+{# z1191z143 (대표 11-24 「견적 관리 화면에 고객사에서 받은 발주서도 등록 · 등록한 발주서는 관리번호 또는 수주번호 상세보기에서 견적서처럼 볼수있게」):
+   한 자리(관리번호 또는 수주번호)의 고객 발주서 — 최종 1장 + 「이전 발주서」(다시 올리면 예전 것은 지우지 않고 남김) · 👁 보기 · ⬇ 내려받기 · 🗑 빼기 · ＋ 올리기
+   변수: po_pid · po_oid(없으면 관리번호 자리) · po_s(customer_po.slot_status) · po_otxt(수주 금액 글 · 금액 비교 알림용 · 없어도 됨)
+   쓰는 곳: 프로젝트 상세 「고객 발주서」 칸 · 수주 상세 「📄 고객 발주서」 #}
+{% set _pf = po_s.final if po_s else None %}
+<div class="z143-box" data-pid="{{ po_pid }}" data-oid="{{ po_oid or '' }}" style="margin-top:4px;">
+  {% if _pf %}
+  <div class="z143-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 9px;border:1px solid #bbf7d0;background:#f6fef9;border-radius:8px;">
+    <a href="/customer-po/{{ _pf.id }}" style="font-size:12px;color:#166534;font-weight:700;text-decoration:none;word-break:break-all;" title="웍스 안에서 바로 보기">📄 {{ _pf.orig_name }}</a>
+    <span style="padding:0 7px;border-radius:999px;background:#dcfce7;color:#166534;font-size:11px;font-weight:800;" title="이 자리에서 가장 나중에 올린 발주서">최종</span>
+    <span style="font-size:11px;color:#64748b;">{{ {'pdf':'PDF','img':'사진','xl':'엑셀'}.get(_pf.kind, '') }}{% if _pf.kind == 'xl' and _pf.amount is not none %} · 읽은 금액 <b style="color:#0f172a;">{{ money(_pf.amount|float, _pf.currency or 'KRW') }}</b>{% endif %} · {{ _pf.by_name or '' }} · {{ (_pf.created_at or '')[:16] }}</span>
+    <span style="margin-left:auto;display:inline-flex;gap:6px;">
+      <a href="/customer-po/{{ _pf.id }}" class="z143-b">👁 보기</a>
+      <a href="/customer-po/{{ _pf.id }}/file?dl=1" class="z143-b g">⬇ 내려받기</a>
+      {% if z63_can_remove(user, _pf) %}<button type="button" class="z143-b r z143-rm" data-fid="{{ _pf.id }}" data-name="{{ _pf.orig_name }}">🗑 빼기</button>{% endif %}
+    </span>
+  </div>
+  {% if po_s.st == 'diff' %}
+  <div class="z143-warn" style="margin-top:4px;padding:5px 9px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e;">
+    ⚠ 발주서 엑셀에서 읽은 금액 <b>{{ money(_pf.amount|float, _pf.currency or 'KRW') }}</b>이 수주 금액{% if po_otxt %} <b>{{ po_otxt }}</b>{% endif %}과 다릅니다 — 고객 발주서와 수주 금액을 확인해 주세요.
+    {% if z62_can_upload(user) %}<button type="button" class="z143-b z143-ack" data-fid="{{ _pf.id }}" style="margin-left:6px;">확인했음</button>{% endif %}
+  </div>
+  {% elif _pf.amt_ack_at %}<div style="margin-top:3px;font-size:11px;color:#64748b;">금액 다름 확인함 · {{ _pf.amt_ack_name or '' }} {{ (_pf.amt_ack_at or '')[:16] }}</div>{% endif %}
+  {% if po_s.prev %}
+  <details class="z143-prev" style="margin-top:4px;">
+    <summary style="font-size:11.5px;color:#475569;cursor:pointer;">이전 발주서 {{ po_s.prev|length }}장 (수정 전 · 지우지 않고 남겨 둠)</summary>
+    {% for x in po_s.prev %}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;padding:4px 9px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc;">
+      <a href="/customer-po/{{ x.id }}" style="font-size:11.5px;color:#475569;text-decoration:none;word-break:break-all;">📄 {{ x.orig_name }}</a>
+      <span style="font-size:11px;color:#94a3b8;">이전 · {{ x.by_name or '' }} · {{ (x.created_at or '')[:16] }}</span>
+      <span style="margin-left:auto;display:inline-flex;gap:6px;"><a href="/customer-po/{{ x.id }}/file?dl=1" class="z143-b g">⬇</a>{% if z63_can_remove(user, x) %}<button type="button" class="z143-b r z143-rm" data-fid="{{ x.id }}" data-name="{{ x.orig_name }}">🗑</button>{% endif %}</span>
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
+  {% else %}
+  <div style="font-size:12px;color:#64748b;">등록된 고객 발주서가 없습니다.</div>
+  {% endif %}
+  {% if z62_can_upload(user) %}
+  <span class="z143-upw" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+    <button type="button" class="z143-b u z143-up" title="PDF · 사진(jpg·png) · 엑셀 — 여기에 끌어다 놓아도 됩니다">＋ {% if _pf %}수정 발주서 올리기{% else %}발주서 올리기{% endif %}</button>
+    <input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;">
+    <span class="z143-msg" style="font-size:11.5px;color:#475569;">{% if _pf %}다시 올리면 지금 것은 「이전 발주서」로 남습니다{% else %}PDF·사진·엑셀 · 끌어다 놓기{% endif %}</span>
+  </span>
+  {% endif %}
+</div>
+<style>
+.z143-b { padding:2px 10px; border:1px solid #93c5fd; background:#fff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-decoration:none; white-space:nowrap; }
+.z143-b.g { border-color:#cbd5e1; color:#334155; } .z143-b.r { border-color:#fecaca; color:#b91c1c; } .z143-b.u { background:#eff6ff; }
+.z143-box.over { outline:2px dashed #2563eb; outline-offset:2px; border-radius:8px; }
+</style>
+{% include "_v5_partials/po_script.html" %}

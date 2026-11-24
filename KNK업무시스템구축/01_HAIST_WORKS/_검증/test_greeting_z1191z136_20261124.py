@@ -80,5 +80,27 @@ _all = [b(h) for h in range(24)] + [b(10, d="2026-11-28"), b(10, d="2026-06-01")
 _heads = [x[0].split(G.SEP)[0] for x in _all]
 check("큰 제목은 모두 짧게(30자 이하)", all(len(h) <= 30 for h in _heads), [h for h in _heads if len(h) > 30])
 check("호칭은 큰 제목에(창립기념일 빼고)", all("김정락 대표님" in x[0].split(G.SEP)[0] for x in _all if x[1] != "anniversary"))
+# z1191z143 이음 v1029 — 음력 생일 사람 birth_md = 그해 양력 · birth_lunar · 받은 해 저장 · 홈은 올해 값만
+import datetime as _dt143
+_yr = (_dt143.datetime.utcnow() + _dt143.timedelta(hours=9)).year
+S._save_birth_md_z136(c, 1, {"birth_md": "03-27", "birth_lunar": True})
+_r = c.execute("SELECT birth_md, birth_lunar, birth_md_year FROM users WHERE id=1").fetchone()
+check("z143 음력 사람 저장 = 03-27 · 음력 1 · 받은 해 올해", tuple(_r) == ("03-27", 1, _yr), _r)
+S._save_birth_md_z136(c, 1, {"birth_md": "03-27"})
+check("z143 birth_lunar 안 보내면 음력 표시 그대로", c.execute("SELECT birth_lunar FROM users WHERE id=1").fetchone()[0] == 1)
+S._save_birth_md_z136(c, 1, {"birth_md": "06-20", "birth_lunar": False})
+check("z143 양력 사람 = 음력 0", c.execute("SELECT birth_lunar FROM users WHERE id=1").fetchone()[0] == 0)
+_src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
+check("z143 홈 인사말 = 음력 사람은 올해 받은 값만(작년 값이면 생일 문구 안 씀)",
+      'if u.get("birth_lunar") and str(u.get("birth_md_year") or "") != str(datetime.now().year):' in _src and "_bmd143 = None" in _src)
+def _home_bmd(u, year):
+    b = u.get("birth_md")
+    if u.get("birth_lunar") and str(u.get("birth_md_year") or "") != str(year):
+        b = None
+    return b
+check("z143 같은 규칙 — 음력·작년 값 = 안 씀 · 음력·올해 = 씀 · 양력(옛 값 해 없음) = 씀",
+      _home_bmd({"birth_md": "03-16", "birth_lunar": 1, "birth_md_year": 2026}, 2027) is None
+      and _home_bmd({"birth_md": "03-16", "birth_lunar": 1, "birth_md_year": 2027}, 2027) == "03-16"
+      and _home_bmd({"birth_md": "06-20", "birth_lunar": None, "birth_md_year": None}, 2027) == "06-20")
 print("\n결과: %d 통과 / %d 실패" % (sum(R), len(R) - sum(R)))
 sys.exit(0 if all(R) else 1)

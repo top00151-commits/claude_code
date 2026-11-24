@@ -1,0 +1,55 @@
+{# z1191z143: 고객 발주서 — 올리기(단추·끌어다 놓기) · 빼기 · 「확인했음」 공용 스크립트(문서에 한 번 · 화면 바꿈으로 다시 들어와도 한 번) #}
+<script>(function(){
+  if (window.__z143po) return; window.__z143po = 1;
+  var OK_EXT = /\.(pdf|png|jpe?g|xlsx|xlsm|xls)$/i;
+  function msgOf(box){ return box && box.querySelector('.z143-msg'); }
+  function say(box, t, bad){ var m = msgOf(box); if (m) { m.style.color = bad ? '#b91c1c' : '#475569'; m.textContent = t; } else if (bad) { alert(t); } }
+  function post(url, fd){ return fetch(url, {method:'POST', body: fd || new FormData(), credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }); }
+  function upload(box, file){
+    if (!box || !file) return;
+    if (!OK_EXT.test(file.name || '')) { say(box, '고객 발주서는 PDF · 사진(jpg·png) · 엑셀(xlsx·xls) 파일만 올릴 수 있습니다.', true); return; }
+    if (file.size > 20*1024*1024) { say(box, '20MB 보다 큰 파일은 올릴 수 없습니다.', true); return; }
+    var fd = new FormData(); fd.append('file', file); fd.append('pid', box.getAttribute('data-pid') || ''); fd.append('order_id', box.getAttribute('data-oid') || '');
+    say(box, '⏳ 올리는 중…');
+    post('/api/customer-po/upload', fd).then(function(j){
+      if (!j || !j.ok) { say(box, (j && j.message) || '올리지 못했습니다 — 다시 해 보세요.', true); return; }
+      say(box, '✓ ' + (j.slot || '') + '에 올렸습니다' + (j.prev ? ' (예전 발주서 ' + j.prev + '장은 「이전 발주서」로 남김)' : '') + ' — 다시 불러옵니다…');
+      setTimeout(function(){ location.reload(); }, 700);
+    }).catch(function(){ say(box, '인터넷 연결이 끊겨 올리지 못했습니다.', true); });
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target.closest && e.target.closest('.z143-up');
+    if (t) { var box = t.closest('.z143-box'); var fi = box && box.querySelector('.z143-file'); if (fi) fi.click(); return; }
+    var rm = e.target.closest && e.target.closest('.z143-rm');
+    if (rm) {
+      if (!window.confirm('「' + rm.getAttribute('data-name') + '」 발주서를 뺄까요?\n빼면 파일이 바로 지워지고 되돌릴 수 없습니다(누가 뺐는지는 변경 이력에 남습니다).\n최종 발주서를 빼면 바로 앞 발주서가 다시 최종이 됩니다.')) return;
+      rm.disabled = true;
+      post('/api/customer-po/remove/' + rm.getAttribute('data-fid')).then(function(j){
+        if (j && j.ok) { var back = rm.getAttribute('data-back'); if (back) location.href = back; else location.reload(); } else { rm.disabled = false; alert((j && j.message) || '빼지 못했습니다 — 다시 해 보세요.'); }
+      }).catch(function(){ rm.disabled = false; alert('인터넷 연결이 끊겨 빼지 못했습니다.'); });
+      return;
+    }
+    var ak = e.target.closest && e.target.closest('.z143-ack');
+    if (ak) {
+      if (!window.confirm('발주서 금액과 수주 금액이 다른 것을 확인했습니까?\n(맞는 발주서라면 「확인」 — 누가 확인했는지 남습니다)')) return;
+      ak.disabled = true;
+      post('/api/customer-po/ack/' + ak.getAttribute('data-fid')).then(function(j){
+        if (j && j.ok) location.reload(); else { ak.disabled = false; alert((j && j.message) || '저장하지 못했습니다.'); }
+      });
+    }
+  });
+  document.addEventListener('change', function(e){
+    var fi = e.target;
+    if (!fi.classList || !fi.classList.contains('z143-file')) return;
+    var f = fi.files && fi.files[0]; fi.value = '';
+    upload(fi.closest('.z143-box'), f);
+  });
+  document.addEventListener('dragover', function(e){ var b = e.target.closest && e.target.closest('.z143-box'); if (b && b.querySelector('.z143-file')) { e.preventDefault(); b.classList.add('over'); } });
+  document.addEventListener('dragleave', function(e){ var b = e.target.closest && e.target.closest('.z143-box'); if (b) b.classList.remove('over'); });
+  document.addEventListener('drop', function(e){
+    var b = e.target.closest && e.target.closest('.z143-box');
+    if (!b || !b.querySelector('.z143-file')) return;
+    e.preventDefault(); e.stopPropagation(); b.classList.remove('over');
+    upload(b, e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+  }, true);
+})();</script>

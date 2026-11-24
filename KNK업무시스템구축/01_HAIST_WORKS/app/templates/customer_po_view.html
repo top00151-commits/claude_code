@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>고객 발주서 보기 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* z1191z143 (대표 11-24 「등록한 발주서는 관리번호 또는 수주번호 상세보기에서 견적서 처럼 볼수있게」): 고객 발주서를 웍스 안에서 바로 보기 */
+body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169); }
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--qv-line); padding-left: var(--content-pad); padding-right: var(--content-pad); }
+.pv-wrap { padding: 12px var(--content-pad) 28px; }
+.pv-note { margin:0 0 10px; padding:8px 12px; border:1px solid #fcd34d; border-radius:8px; background:#fffbeb; font-size:12.5px; color:#92400e; }
+.pv-note.info { border-color:#bfdbfe; background:#eff6ff; color:#1e3a8a; }
+.pv-sib { display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px; font-size:12.5px; }
+.pv-sib a { padding:4px 10px; border:1px solid var(--qv-line); border-radius:999px; background:#fff; color:var(--qv-ink-2); text-decoration:none; }
+.pv-sib a.on { border-color:#16a34a; background:#f0fdf4; color:#166534; font-weight:800; }
+.pv-frame { width:100%; height:calc(100vh - 260px); min-height:480px; border:1px solid var(--qv-line); border-radius:10px; background:#fff; }
+.pv-img { text-align:center; background:#f8fafc; border:1px solid var(--qv-line); border-radius:10px; padding:10px; overflow:auto; max-height:calc(100vh - 240px); }
+.pv-img img { max-width:100%; height:auto; }
+.qv-tabs { display:flex; gap:2px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid #16a34a; margin:2px 0 0; }
+.qv-tab { padding:7px 14px 6px; border:1px solid var(--qv-line); border-bottom:none; border-radius:9px 9px 0 0; background:#f1f5f9; color:var(--qv-ink-2); font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.qv-tab.on { background:#16a34a; border-color:#16a34a; color:#fff; }
+.qv-pane { display:none; background:#fff; border:1px solid var(--qv-line); border-top:none; border-radius:0 0 10px 10px; padding:10px; overflow:auto; max-height:calc(100vh - 320px); }
+.qv-pane.on { display:block; }
+.qv-g { border-collapse:collapse; font-size:12px; }
+.qv-g td { border:1px solid #eef1ee; padding:3px 6px; white-space:pre-wrap; max-width:340px; vertical-align:top; }
+.qv-g td.n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.qv-g tr.h td { background:#f1f5f9; font-weight:800; }
+.pv-btn { padding:4px 11px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; text-decoration:none; }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="green">
+{% macro num(v) %}{% if v is none %}{% elif v is number %}{{ ('{:,.2f}'.format(v) if (v != v|int) else '{:,}'.format(v|int)) }}{% else %}{{ v }}{% endif %}{% endmacro %}
+  <header class="knk-page-head" data-dn="page-head">
+    <div>
+      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <a href="/sales/quotations">견적서</a> · <b>고객 발주서 보기</b></nav>
+      <h1 class="knk-page-title">📄 {{ f.orig_name }}</h1>
+      <p class="knk-page-meta">
+        <a href="/project/{{ f.project_id }}#po143">{{ f.mgmt_code }}{% if f.pname %} {{ f.pname }}{% endif %}</a>
+        · {% if f.order_no %}수주번호 <a href="/sales/orders/{{ f.order_id }}#po143"><b>{{ f.order_no }}</b></a>의 고객 발주서{% else %}관리번호 전체 고객 발주서{% endif %}
+        · {% if is_final %}<b style="color:#166534;">최종</b>{% else %}<b style="color:#64748b;">이전 발주서(수정 전)</b>{% endif %}
+        · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }} 올림
+      </p>
+    </div>
+    <div class="knk-page-actions">
+      <a class="knk-btn knk-btn--ghost" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 파일 내려받기">⬇ 원본 내려받기</a>
+    </div>
+  </header>
+  <div class="pv-wrap">
+    {% set _all = [st.final] + st.prev if st.final else [] %}
+    {% if _all|length > 1 %}
+    <div class="pv-sib">같은 자리의 발주서:
+      {% for x in _all %}<a href="/customer-po/{{ x.id }}" class="{% if x.id == f.id %}on{% endif %}">{% if loop.first %}최종{% else %}이전 {{ loop.index0 }}{% endif %} · {{ (x.created_at or '')[:10] }} · {{ x.orig_name }}</a>{% endfor %}
+    </div>
+    {% endif %}
+    {% if not is_final %}<div class="pv-note info">이 발주서는 <b>이전 발주서</b>(나중에 수정 발주서가 올라옴)입니다 — 최종은 위 「최종」을 누르세요.</div>{% endif %}
+    {% if is_final and st.st == 'diff' %}
+    <div class="pv-note">⚠ 발주서 엑셀에서 읽은 금액 <b>{{ money(f.amount|float, f.currency or 'KRW') }}</b>{% if f.amount_label %}({{ f.amount_label }}){% endif %}이 수주 금액 <b>{{ money(f.o_amt or 0, f.o_ccy or 'KRW') }}</b>과 다릅니다 — 고객 발주서와 수주 금액을 확인해 주세요.
+      {% if can_up %}<button type="button" class="pv-btn z143-ack" data-fid="{{ f.id }}">확인했음</button>{% endif %}</div>
+    {% elif f.amt_ack_at %}<div class="pv-note info">금액 다름 확인함 · {{ f.amt_ack_name or '' }} {{ (f.amt_ack_at or '')[:16] }}</div>
+    {% elif f.kind == 'xl' and f.amount is not none %}<div class="pv-note info">엑셀에서 읽은 금액 <b>{{ money(f.amount|float, f.currency or 'KRW') }}</b>{% if f.amount_label %}({{ f.amount_label }}){% endif %}{% if f.order_no and st.cmp %} · 수주 금액과 같습니다{% endif %}</div>{% endif %}
+
+    {% if f.kind == 'pdf' %}
+    <iframe class="pv-frame" src="/customer-po/{{ f.id }}/file" title="고객 발주서 PDF"></iframe>
+    {% elif f.kind == 'img' %}
+    <div class="pv-img"><img src="/customer-po/{{ f.id }}/file" alt="고객 발주서 사진"></div>
+    {% elif view and view.sheets %}
+    <div class="qv-tabs" id="pvTabs">{% for s in view.sheets %}<span class="qv-tab{% if loop.first %} on{% endif %}" data-p="s{{ s.i }}">{{ s.title }}</span>{% endfor %}</div>
+    {% for s in view.sheets %}
+    <div class="qv-pane{% if loop.first %} on{% endif %}" data-p="s{{ s.i }}">
+      <table class="qv-g">
+        {% for r in s.rows %}<tr class="{% if loop.index0 == s.header_row %}h{% endif %}">{% for v in r %}<td class="{% if v is number %}n{% endif %}">{{ num(v) }}</td>{% endfor %}</tr>{% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="pv-note">{{ f.book_err or '이 엑셀은 내용을 읽지 못했습니다' }} — 「⬇ 원본 내려받기」로 내려받아 보세요.</div>
+    {% endif %}
+    {% if can_rm %}<div style="margin-top:12px;"><button type="button" class="pv-btn z143-rm" data-fid="{{ f.id }}" data-back="{% if f.order_id %}/sales/orders/{{ f.order_id }}{% else %}/project/{{ f.project_id }}{% endif %}#po143" data-name="{{ f.orig_name }}" style="border-color:#fecaca;color:#b91c1c;">🗑 이 발주서 빼기</button></div>{% endif %}
+  </div>
+</main></div>
+<script>
+(function(){
+  var tabs = document.querySelectorAll('#pvTabs .qv-tab');
+  tabs.forEach(function(t){ t.addEventListener('click', function(){
+    tabs.forEach(function(x){ x.classList.toggle('on', x === t); });
+    document.querySelectorAll('.qv-pane').forEach(function(p){ p.classList.toggle('on', p.dataset.p === t.dataset.p); });
+  }); });
+})();
+</script>
+{% include "_v5_partials/po_script.html" %}
+</body></html>
