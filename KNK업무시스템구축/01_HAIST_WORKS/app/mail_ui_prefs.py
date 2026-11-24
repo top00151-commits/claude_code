@@ -307,3 +307,17 @@ def save_chips(c, user_id, d):
               "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
               (int(user_id), json.dumps(cur, ensure_ascii=False)))
     return new
+
+
+# 11-24 대표 「처음에 메일을 다 받고 나서는 꼭 다시 "최근6개월메일"로 다시 선택하라고 안내」 — 「바꿨습니다」 누른 표시
+def get_rcv6_done(c, user_id):
+    return bool(_load(c, user_id).get("rcv6"))
+
+
+def set_rcv6_done(c, user_id, on=True):
+    cur = _load(c, user_id)
+    cur["rcv6"] = 1 if on else 0
+    c.execute("INSERT INTO mail_ui_prefs(user_id, prefs, updated_at) VALUES(?,?,datetime('now','localtime')) "
+              "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
+              (int(user_id), json.dumps(cur, ensure_ascii=False)))
+    return bool(on)

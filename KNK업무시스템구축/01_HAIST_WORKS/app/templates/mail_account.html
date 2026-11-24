@@ -61,11 +61,13 @@
     <div class="ac-step"><div class="ac-num">1</div><div>하이웍스에 로그인 → <b>메일</b> → <b>환경설정</b>(톱니바퀴)으로 들어갑니다.<br>
       <span class="ac-path"><b>메일 환경설정</b>›<b>기본 설정</b> 탭 ›<b>POP3/SMTP</b></span></div></div>
     <div class="ac-step"><div class="ac-num">2</div><div><b>POP3/SMTP 설정</b> = <b>「사용 함」</b>을 고릅니다.</div></div>
-    <div class="ac-step"><div class="ac-num">3</div><div><b>수신 대상</b> — 아래 ②에서 「지난 메일도 가져오기」를 고를 때 <b>얼마나 옛날 것까지</b> 가져올지 정하는 칸입니다.
-      <div class="ac-opt">🟢 <em>최근 6개월 메일</em>(처음 값 · 권함) — 최근 6개월 치 메일만 가져옵니다. 대부분 이것이면 충분합니다.</div>
-      <div class="ac-opt">🟠 <em>전체 메일</em> — 6개월보다 <b>오래된 메일까지</b> 모두 가져오고 싶을 때만 고르세요.
-        하이웍스가 <b>일주일 뒤 저절로 「최근 6개월 메일」로 되돌립니다</b> — 그 안에 다 들어옵니다(메일이 많으면 몇 시간~하루).</div>
-      <div class="ac-note">②에서 「지금부터 새 메일만」을 고르실 거면 둘 중 무엇이든 괜찮습니다.</div></div></div>
+    <div class="ac-step ac-must"><div class="ac-num">3</div><div><b>수신 대상</b> = 🔴 <b>꼭 「전체 메일」을 고르세요.</b>
+      <div class="ac-opt">✅ <em>전체 메일</em> — 하이웍스에 있는 메일을 <b>옛날 것까지 모두</b> 가져옵니다. 보낸 사람·받은 날짜가 원본 그대로 정확히 들어옵니다.
+        메일이 많으면 다 들어오기까지 몇 시간~하루 걸립니다.</div>
+      <div class="ac-opt">🔁 <b>지난 메일을 다 받은 뒤에는 꼭 다시 「최근 6개월 메일」로 바꾸고 저장하세요.</b>
+        다 들어오면 메일 화면 위에 「✅ 지난 메일을 모두 받았습니다」 띠로 알려 드립니다(하이웍스도 일주일 뒤 저절로 되돌리지만, 다 받았으면 바로 되돌리는 것이 안전합니다).</div>
+      <div class="ac-opt">❌ <em>최근 6개월 메일</em>(하이웍스 처음 값) — 고르지 마세요. 6개월보다 옛 메일은 KNK 메일로 들어오지 않습니다.</div>
+      <div class="ac-note">하이웍스 화면 문구 「'전체 메일'은 이미 받아간 메일을 다시 받아야 할 경우에만 사용」은 신경 쓰지 않으셔도 됩니다 — KNK 메일은 같은 메일을 두 번 넣지 않습니다.</div></div></div>
     <div class="ac-step"><div class="ac-num">4</div><div><b>허용 국가</b>는 그대로 두셔도 됩니다(KNK 메일 서버는 한국에 있습니다).</div></div>
     <div class="ac-step"><div class="ac-num">5</div><div><b>읽음 표시</b>
       <div class="ac-opt"><em>POP3로 가져간 메일 읽음 표시</em> — KNK 메일로 가져간 메일이 하이웍스에서는 <b>읽은 메일</b>로 보입니다(하이웍스를 더 안 보실 거면 이것).</div>
@@ -79,7 +81,7 @@
     <h2 class="ac-h2">② 지난 메일을 어떻게 할까요?</h2>
     <div class="ac-pick" role="radiogroup" aria-label="지난 메일">
       <label><input type="radio" name="acChoice" value="old" onchange="acGate()"><span><b>📥 지난 메일도 가져오기</b><br>
-        하이웍스 「수신 대상」 범위(최근 6개월 또는 전체)의 메일을 <b>최근 것부터 차례로</b> 가져옵니다.
+        하이웍스 「수신 대상 = 전체 메일」(위 ①-3)이면 <b>옛날 메일까지 모두</b>, <b>최근 것부터 차례로</b> 가져옵니다.
         메일이 많으면 다 들어오기까지 <b>몇 시간</b> 걸릴 수 있습니다(그동안 새 메일도 같이 들어옴).</span></label>
       <label><input type="radio" name="acChoice" value="new" onchange="acGate()"><span><b>🆕 지금부터 오는 새 메일만</b><br>
         지금 하이웍스에 있는 메일은 <b>가져오지 않습니다</b>(하이웍스에서 그대로 보실 수 있습니다).
@@ -92,7 +94,8 @@
   <div class="ac-card">
     <div class="ac-box ac-ok">
       📥 <b>받기가 켜져 있습니다</b> — 하이웍스에 온 메일이 몇 분마다 저절로 들어옵니다(바로 받기 = 메일 화면 위 「🔃 보내기/받기」 · <kbd>F9</kbd>).<br>
-      {% if import_on %}⏳ <b>지난 메일을 가져오는 중</b>입니다 — 최근 것부터 차례로 들어옵니다.<br>{% endif %}
+      {% if import_on %}⏳ <b>지난 메일을 가져오는 중</b>입니다 — 최근 것부터 차례로 들어옵니다. 다 들어오면 하이웍스 「수신 대상」을 <b>「최근 6개월 메일」</b>로 되돌려 주세요.<br>{% endif %}
+      {% if import_done %}✅ <b>지난 메일을 모두 받았습니다</b> — 하이웍스 <b>메일 › 환경설정 › POP3/SMTP</b>의 「수신 대상」을 <b>「최근 6개월 메일」</b>로 다시 고르고 저장해 주세요.<br>{% endif %}
       {% if last_run %}· 마지막으로 받은 때 = {{ last_run }}{% if last_status %} · {{ last_status }}{% endif %}{% endif %}
     </div>
   </div>

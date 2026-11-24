@@ -153,5 +153,24 @@ with _db.db_session() as c:
 check("다시 만들기 → 「케이엔케이」 하나만 · 되돌림 표 1줄 · 메일 그대로",
       [f["name"] for f in now_f] == ["케이엔케이"] and bak == 1 and mails >= 5, (j, now_f, bak, mails))
 
+print("== 5. 하이웍스 수신 대상 안내(대표 11-24) ==")
+from app import mail_fetch as mft  # noqa: E402
+_UID["role"] = "member"
+hacc = k.get("/mail/account").text
+check("첫 연결 안내 = 「꼭 「전체 메일」」 · 다 받은 뒤 「최근 6개월 메일」로 되돌리기",
+      "꼭 「전체 메일」을 고르세요" in hacc and "다시 「최근 6개월 메일」로 바꾸고 저장하세요" in hacc, hacc[:200])
+with _db.db_session() as c:
+    mft.save_account(c, U, host="pop3s.fake.example", port=995, use_ssl=1, username="t9301@knknara.co.kr", password_enc="x")
+    mft.set_enabled(c, U, True)
+    mft.set_setup(c, U, "old")
+jc = k.get("/api/mail/counts").json()
+check("가져오는 중 = 「다 받은 띠」 아직 없음", jc.get("importing") and not jc.get("rcv6"), jc)
+with _db.db_session() as c:
+    mft.end_import(c, U)
+jc = k.get("/api/mail/counts").json()
+check("다 받음 → 「최근 6개월로 되돌리세요」 띠(rcv6)", jc.get("rcv6") is True, jc)
+check("계정 화면에도 「지난 메일을 모두 받았습니다」", "지난 메일을 모두 받았습니다" in k.get("/mail/account").text)
+check("「바꿨습니다」 누름 → 띠 사라짐", k.post("/mail/account/rcv6-done").json().get("ok") and not k.get("/api/mail/counts").json().get("rcv6"))
+
 print("결과: %d 통과 · %d 실패" % (P, F))
 sys.exit(1 if F else 0)
