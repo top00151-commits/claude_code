@@ -125,7 +125,7 @@ v, f = sigs("jo")
 lines = f["text"].split("\n")
 # 11-22 대표 「디자이너라면」 새 기본 틀: 「이름 직책 · 부서」 / 영문 / M·T·F / E·W / 회사 · 주소
 check("첫 줄 = 「이름 직책 · 부서」(웍스 직원 명단)", lines[0] == "조민혁 과장 · 시험품질팀", lines)
-check("본사 = 웍스 회사 정보(회사 이름·주소·전화) 먼저", "주식회사 시험회사 · 경기도 시험시 시험로 1" in lines and "M. 010-3333-4444 · T. 031-000-0000 · F. 031-267-0407" in lines, lines)
+check("본사 = 웍스 회사 정보(회사 이름·주소·전화) 먼저(11-23 주식회사 → (주))", "(주)시험회사 · 경기도 시험시 시험로 1" in lines and "M. 010-3333-4444 · T. 031-000-0000 · F. 031-267-0407" in lines, lines)
 check("웍스 회사 정보 팩스가 비면 대표 팩스(031-267-0407 · 대표 11-22)", "F. 031-267-0407" in f["text"], f["text"])
 check("토막 빼기 규칙: 값이 빈 토막만 뺌(전화는 남음)", mg.fill("T. {전화} · F. {팩스}", {"tel": "02-1", "fax": ""})["text"] == "T. 02-1")
 check("휴대폰·메일 = 직원 명단 · 홈페이지", "M. 010-3333-4444" in f["text"] and "E. t1102@knknara.co.kr · W. www.knknara.com" in lines, lines)
@@ -140,7 +140,12 @@ check("웍스 회사 정보가 모두 비어도 본사 = 대표 전화 031-8009-
       _vh["tel"] == "031-8009-0407" and _vh["fax"] == "031-267-0407" and _vh["address"] == "경기도 화성시 병점구 기산로 87번길 2(기산동)", _vh)
 check("베트남 법인 서명엔 본사 대표번호·팩스 안 들어감", _vv["tel"] == "" and _vv["fax"] == "" and _vv["address"] == mg.VN_ADDRESS, _vv)
 check("영어 서명: 전화·팩스 = 대표번호 · 영문 주소 = 대표가 준 본사 영문 주소(우편번호 18387)", _ven["tel"] == "031-8009-0407"
-      and _ven["address"] == "2, Gisan-ro 87beon-gil, Byeongjeom-gu, Hwaseong-si, Gyeonggi-do 18387, Republic of Korea", _ven)
+      and _ven["address"] == "2, Gisan-ro 87beon-gil, Byeongjeom-gu, Hwaseong-si, Gyeonggi-do, Republic of Korea (18387)", _ven)
+with _db.db_session() as _c9:
+    _en_def = mg.values_for(_c9, U["jo"]["id"], "en", {"company_name_en": "KNK Co., Ltd."}, m.rank_label, "")["company"]
+    _en_own = mg.values_for(_c9, U["jo"]["id"], "en", {"company_name_en": "KNK Test Inc."}, m.rank_label, "")["company"]
+check("영어 서명 회사 이름 = 「KNK CO.,LTD」(대표 11-24) · 회사 정보에 다른 영문 이름을 넣으면 그 값",
+      _ven["company"] == "KNK CO.,LTD" and _en_def == "KNK CO.,LTD" and _en_own == "KNK Test Inc.", (_ven, _en_def, _en_own))
 check("첫 줄 굵게 · 줄바꿈 <br>", f["html"].startswith("<b>조민혁 과장 · 시험품질팀</b><br>"), f["html"][:80])
 
 v, f = sigs("vn")
@@ -184,7 +189,7 @@ try:
 except ImportError:
     print("  (QR 읽기 도구 없음 — 그림 읽기 확인은 건너뜀)")
 check("첫 줄 = 굵게 15px · 마지막 줄(회사·주소) = 회색", "font-size:15px;font-weight:bold;color:#111827;line-height:1.5\">조민혁 과장 · 시험품질팀<" in h
-      and "color:#6b7280;line-height:1.6\">주식회사 시험회사 · 경기도 시험시 시험로 1<" in h, h[-1600:-1200])
+      and "color:#6b7280;line-height:1.6\">(주)시험회사 · 경기도 시험시 시험로 1<" in h, h[-1600:-1200])
 nko, nen = h.find("이 메일(첨부 파일 포함)은"), h.find("This email, including any attachments")
 check("본사 한국어 서명 = 보안 문구 한국어 먼저 · 영어 다음", 0 < nko < nen, (nko, nen))
 check("보안 문구 고친 점: 법률 정식 이름 · 첨부 포함 · 손으로 끊은 줄 없음",
@@ -382,7 +387,7 @@ check("틀은 글자만 — 꺾쇠(태그) 지움 · 회사가 정한 틀로 표
 as_("jo")
 cs2 = json.loads(re.search(r"window\.CMP_SIGS = (\[.*?\]);", k.get("/mail/compose").text).group(1))
 ko2 = [x for x in cs2 if x.get("slot") == "co-ko"]
-check("틀을 바꾸면 직원 쓰기 화면 회사 서명도 바뀜", ko2 and "x주식회사 시험회사 | 조민혁 과장" in ko2[0]["body"] and "☎ 031-000-0000" in ko2[0]["body"], ko2)
+check("틀을 바꾸면 직원 쓰기 화면 회사 서명도 바뀜", ko2 and "x(주)시험회사 | 조민혁 과장" in ko2[0]["body"] and "☎ 031-000-0000" in ko2[0]["body"], ko2)
 as_("adm")
 check("빈 틀 저장 → 400(끄기는 따로)", k.post("/mail/signature/company", data={"lang": "en", "body": "  ", "mode": "save"}).status_code == 400)
 check("영어 「이 말은 쓰지 않기」", k.post("/mail/signature/company", data={"lang": "en", "mode": "off"}).json().get("ok"))

@@ -57,7 +57,9 @@ HQ_TEL = "031-8009-0407"
 HQ_FAX = "031-267-0407"
 HQ_ADDRESS = "경기도 화성시 병점구 기산로 87번길 2(기산동)"
 # 11-22 대표 「본사 영문 주소」(영문 주소 검색 화면 사진 · 도로명 · 우편번호 18387) — 해외 거래처용이라 우편번호를 도 다음에
-HQ_ADDRESS_EN = "2, Gisan-ro 87beon-gil, Byeongjeom-gu, Hwaseong-si, Gyeonggi-do 18387, Republic of Korea"
+# 11-24 대표 바꿈: 「KNK CO.,LTD · 2, Gisan-ro 87beon-gil, Byeongjeom-gu, Hwaseong-si, Gyeonggi-do, Republic of Korea (18387)」 — 우편번호는 맨 끝 괄호
+HQ_ADDRESS_EN = "2, Gisan-ro 87beon-gil, Byeongjeom-gu, Hwaseong-si, Gyeonggi-do, Republic of Korea (18387)"
+HQ_COMPANY_EN = "KNK CO.,LTD"   # 메일 서명 영문 회사 이름(웍스 「회사 정보」 영문 이름이 비었거나 기본값 「KNK Co., Ltd.」일 때)
 WEB = "www.knknara.com"
 WEB_URL = "https://www.knknara.com"   # 11-22 대표 「QR 도 만들어 배치 · www.knknara.com 이 연결되도록」 — 로고·QR 을 누르면 이 주소
 MAX_TPL = 1200
@@ -345,7 +347,10 @@ def values_for(c, uid, lang: str, company: dict, rank_fn=None, from_addr: str = 
         comp, addr = short_corp_ko(co.get("company_name_ko", "")), (co.get("company_address", "") or "").strip() or HQ_ADDRESS
         tel, fax = (co.get("company_tel", "") or "").strip() or HQ_TEL, (co.get("company_fax", "") or "").strip() or HQ_FAX
     else:
-        comp, addr = co.get("company_name_en", ""), (co.get("company_address_en", "") or "").strip() or HQ_ADDRESS_EN
+        comp = (co.get("company_name_en", "") or "").strip()
+        if not comp or comp == "KNK Co., Ltd.":   # 웍스 기본값(수출 서류 등 다른 문서는 그대로) → 서명은 대표 11-24 표기
+            comp = HQ_COMPANY_EN
+        addr = (co.get("company_address_en", "") or "").strip() or HQ_ADDRESS_EN
         tel, fax = (co.get("company_tel", "") or "").strip() or HQ_TEL, (co.get("company_fax", "") or "").strip() or HQ_FAX
     return {"name": nm, "rank": rank, "dept": v["dept"], "company": (comp or "").strip(),
             "address": (addr or "").strip(), "tel": (tel or "").strip(), "fax": (fax or "").strip(),
