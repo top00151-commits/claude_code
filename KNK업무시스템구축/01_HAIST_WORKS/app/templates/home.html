@@ -209,10 +209,15 @@ button { font-family: inherit; cursor: pointer; }
       </div>
       {# z1191z136 (대표 11-24 「생일날에는 멘트 옆 공간에 폭죽 터지는 이미지」): 생일 · 창립기념일에만 인사말 옆 빈 곳에 폭죽(움직임 줄이기 설정이면 멈춘 그림) #}
       {% if greeting_bucket in ('birthday', 'anniversary') and sel_date == today %}
+      {# z1191z137 (대표 11-24 그림 지정): 생일 = 케이크·폭죽 그림 · 창립기념일 = 기존 불꽃 #}
+      {% if greeting_bucket == 'birthday' %}
+      <div class="fw136 fw137" aria-hidden="true"><img src="/static/img/birthday_z137.webp?v=137" alt=""></div>
+      {% else %}
       <div class="fw136" aria-hidden="true">
         {% for b in range(5) %}<span class="fw136-b fw136-b{{ b }}">{% for p in range(12) %}<i style="--a:{{ p * 30 }}deg"></i>{% endfor %}</span>{% endfor %}
         <span class="fw136-e">{{ '🎂' if greeting_bucket == 'birthday' else '🎊' }}</span>
       </div>
+      {% endif %}
       <style>
       [data-dn="home-pagehead"] { position:relative; }
       .fw136 { position:absolute; top:0; bottom:0; left:55%; right:0; pointer-events:none; overflow:hidden; z-index:0; }
@@ -237,6 +242,15 @@ button { font-family: inherit; cursor: pointer; }
         .fw136-b i { animation:none; opacity:.85; transform:rotate(var(--a)) translateY(-44px); }
         .fw136-e { animation:none; }
       }
+      /* z137: 글자 칸(왼쪽 60%)과 그림 칸(오른쪽)을 나눠 겹치지 않게 · 좁은 창(1000px 미만)은 그림 숨김 */
+      [data-dn="home-pagehead"]:has(.fw137) > div:first-child { flex-basis:100%; max-width:none; padding-right:40%; box-sizing:border-box; }
+      .fw137 { left:61%; display:flex; align-items:center; justify-content:center; overflow:visible; }
+      @media (max-width: 999px) { [data-dn="home-pagehead"]:has(.fw137) > div:first-child { padding-right:0; } .fw137 { display:none; } }
+      .fw137 img { height:100%; max-height:150px; min-height:90px; width:auto; max-width:100%; object-fit:contain;
+                   animation:fw137in .9s ease-out both, fw137glow 3s ease-in-out .9s infinite; }
+      @keyframes fw137in { 0% { opacity:0; transform:scale(.7) translateY(8px); } 70% { opacity:1; transform:scale(1.05); } 100% { opacity:1; transform:scale(1); } }
+      @keyframes fw137glow { 0%,100% { transform:scale(1); filter:brightness(1); } 50% { transform:scale(1.03); filter:brightness(1.08); } }
+      @media (prefers-reduced-motion: reduce) { .fw137 img { animation:none; } }
       @media (max-width: 767px) { .fw136 { display:none; } }
       </style>
       {% endif %}
