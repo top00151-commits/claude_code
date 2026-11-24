@@ -128,5 +128,30 @@ with _db.db_session() as c:
     g = {r["id"]: r["received_at"] for r in c.execute("SELECT id, received_at FROM mail_messages WHERE id IN (?,?)", (m1, m2))}
 check("되돌리기 → 고치기 전 값 그대로", j.get("undone") == 2 and g[m1] == "2026-11-24 10:00:00" and g[m2] == "2026-11-24 10:00:00", (j, g))
 
+print("== 3. 직원 폴더 다시 만들기(관리자) ==")
+from app import mail_folders as mf  # noqa: E402
+with _db.db_session() as c:
+    c.execute("INSERT INTO users(id, login_id, name, role, is_active, password) VALUES(9300,'kjr','가짜대표','ceo',1,'x')")
+    c.execute("UPDATE users SET login_id=login_id||'_x' WHERE login_id='kjr' AND id<>9300")
+    mf.seed(c, U)   # 예전 단추처럼 대표 목록으로 만들어진 직원
+    mf.add_folder(c, U, "내 폴더", None, "")
+    n_before = len(mf.folders(c, U))
+_UID["role"] = "member"
+check("직원은 다른 사람 폴더 다시 만들기 못 함", k.post("/mail/folders/reset-staff", data={"name": "가짜직원"}).status_code == 403)
+_UID["role"] = "ceo"
+j = k.post("/mail/folders/reset-staff", data={"name": "가짜직원", "dry": "1"}).json()
+with _db.db_session() as c:
+    same = len(mf.folders(c, U)) == n_before
+check("미리 세기 = 숫자만 · 자료 그대로", j.get("ok") and j.get("dry") and j.get("folders") == n_before and same, j)
+check("대표 메일함은 막음", k.post("/mail/folders/reset-staff", data={"name": "가짜대표"}).status_code == 400)
+check("없는 이름은 막음", k.post("/mail/folders/reset-staff", data={"name": "없는사람"}).status_code == 400)
+j = k.post("/mail/folders/reset-staff", data={"name": "가짜직원"}).json()
+with _db.db_session() as c:
+    now_f = mf.folders(c, U)
+    bak = c.execute("SELECT COUNT(*) FROM mail_folder_reset_bak WHERE user_id=?", (U,)).fetchone()[0]
+    mails = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=?", (U,)).fetchone()[0]
+check("다시 만들기 → 「케이엔케이」 하나만 · 되돌림 표 1줄 · 메일 그대로",
+      [f["name"] for f in now_f] == ["케이엔케이"] and bak == 1 and mails >= 5, (j, now_f, bak, mails))
+
 print("결과: %d 통과 · %d 실패" % (P, F))
 sys.exit(1 if F else 0)

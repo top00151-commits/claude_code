@@ -25086,6 +25086,28 @@ async def mail_body_refill_apply(req: Request):
     return JSONResponse(dict(out, ok=True))
 
 
+@app.post("/mail/folders/reset-staff")
+async def mail_folders_reset_staff(req: Request):
+    """11-24 대표 — 대표 목록으로 만들어진 직원 폴더를 「케이엔케이」 부서만으로 다시(관리자 · 이름 하나로 한 사람 · dry=1 = 숫자만).
+    메일은 지우지 않음 · 지우기 전 폴더·규칙은 되돌림 표(mail_folder_reset_bak)에."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    form = await req.form()
+    nm = (form.get("name") or "").strip()
+    dry = (form.get("dry") or "") == "1"
+    with db_session() as c:
+        rs = c.execute("SELECT id FROM users WHERE name=? AND is_active=1", (nm,)).fetchall() if nm else []
+        if len(rs) != 1:
+            return JSONResponse({"ok": False, "message": "그 이름의 직원이 한 명이 아닙니다(%d명)" % len(rs)}, 400)
+        tid = rs[0]["id"]
+        if _mail_folders._owner_id(c) == tid:
+            return JSONResponse({"ok": False, "message": "대표 메일함은 바꾸지 않습니다"}, 400)
+        out = _mail_folders.reset_to_staff(c, tid, dry=dry)
+    print("[MAIL-FOLDERS-RESET] by=%s user=%s dry=%s %s" % (u["id"], tid, dry, {k: v for k, v in out.items() if k != "now"}), flush=True)
+    return JSONResponse(dict(out, ok=True, user_id=tid, dry=dry))
+
+
 @app.get("/mail/recv-fix")
 async def mail_recv_fix_count(req: Request):
     """11-24 대표 「받은 날짜가 가져온 날짜로 기록 · 꼭 실제 도착한 날짜·시간으로」 — 고칠 메일 수(숫자만 · 관리자 · 자료 안 바꿈)."""

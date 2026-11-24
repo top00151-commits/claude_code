@@ -2037,3 +2037,37 @@ def delete_folder(c, uid, fid) -> int:
     n = c.execute("DELETE FROM mail_folders WHERE user_id=? AND id IN (%s)" % q, (uid, *ids)).rowcount
     _CACHE.pop(uid, None)
     return n
+
+
+# ─── 11-24 대표 「안지연 프로 폴더 = 대표 목록으로 만들어짐 → 케이엔케이 부서만으로 다시」(「괜찮아 그냥 진행해」) ───
+def reset_to_staff(c, uid, dry=True) -> dict:
+    """그 사람 폴더를 모두 지우고 직원 기본(「케이엔케이」 + 대표 부서 설정)으로 다시 만든다 · 메일은 지우지 않음.
+    지우기 전 폴더·옮기기 규칙·부서 폴더 설정·「이 메일만」 표시를 되돌림 표(mail_folder_reset_bak · JSON)에 남김."""
+    import json
+    import datetime as _dt
+    ensure(c)
+    fl = folders(c, uid)
+    rules_ = [dict(r) for r in c.execute("SELECT * FROM mail_move_rules WHERE user_id=?", (uid,)).fetchall()]
+    tp = [dict(r) for r in c.execute("SELECT key, name, parent, merge FROM mail_team_prefs WHERE user_id=?", (uid,)).fetchall()]
+    try:
+        pins = [dict(r) for r in c.execute("SELECT id, fd_pin FROM mail_messages WHERE user_id=? AND COALESCE(fd_pin,'')<>''",
+                                           (uid,)).fetchall()]
+    except Exception:
+        pins = []
+    out = {"folders": len(fl), "rules": len(rules_), "team_prefs": len(tp), "pinned": len(pins)}
+    if dry:
+        return out
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_folder_reset_bak(
+        batch TEXT NOT NULL, user_id INTEGER NOT NULL, data TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY(batch, user_id))""")
+    batch = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    c.execute("INSERT OR REPLACE INTO mail_folder_reset_bak(batch, user_id, data) VALUES(?,?,?)",
+              (batch, uid, json.dumps({"folders": fl, "rules": rules_, "team_prefs": tp, "pinned": pins}, ensure_ascii=False)))
+    for f in [f for f in fl if not f["parent_id"]]:
+        delete_folder(c, uid, f["id"])
+    c.execute("DELETE FROM mail_folders WHERE user_id=?", (uid,))
+    c.execute("DELETE FROM mail_team_prefs WHERE user_id=?", (uid,))
+    made = seed_staff(c, uid)
+    _CACHE.pop(uid, None)
+    out.update({"made": bool(made), "batch": batch, "now": [f["name"] for f in folders(c, uid)]})
+    return out
