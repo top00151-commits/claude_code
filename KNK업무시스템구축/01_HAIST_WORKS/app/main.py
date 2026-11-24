@@ -25124,18 +25124,6 @@ async def mail_folders_reset_staff(req: Request):
     return JSONResponse(dict(out, ok=True, user_id=tid, dry=dry))
 
 
-@app.post("/mail/account/rcv6-done")
-async def mail_account_rcv6_done(req: Request):
-    """하이웍스 「수신 대상」을 「최근 6개월 메일」로 되돌렸다고 누름 → 띠 안 보임(내 것만)."""
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    from . import mail_ui_prefs as _mup6
-    with db_session() as c:
-        _mup6.set_rcv6_done(c, u["id"], True)
-    return JSONResponse({"ok": True})
-
-
 @app.get("/mail/recv-fix")
 async def mail_recv_fix_count(req: Request):
     """11-24 대표 「받은 날짜가 가져온 날짜로 기록 · 꼭 실제 도착한 날짜·시간으로」 — 고칠 메일 수(숫자만 · 관리자 · 자료 안 바꿈)."""
@@ -26599,8 +26587,6 @@ async def mail_account_page(req: Request):
                has_pass=bool((acct or {}).get("password_enc")),
                fetch_on=bool((acct or {}).get("enabled")),
                import_on=bool((acct or {}).get("old_import")),
-               import_done=bool((acct or {}).get("enabled") and ((acct or {}).get("setup_choice") or "") == "old"
-                                and not (acct or {}).get("old_import")),
                setup_choice=((acct or {}).get("setup_choice") or ""),
                last_run=((acct or {}).get("last_run") or ""), last_status=((acct or {}).get("last_status") or ""),
                allowed=allowed, st=st, my_from=my_from,
@@ -28529,13 +28515,6 @@ async def mail_counts_api(req: Request):
             _ac = _mfl.get_account(c, u["id"]) or {}
             out["linked"] = bool(_ac.get("enabled"))
             out["importing"] = bool(_ac.get("old_import"))
-            # 11-24 대표 — 지난 메일을 다 받았으면 하이웍스 「수신 대상」을 「최근 6개월 메일」로 되돌리라는 띠(「바꿨습니다」 누를 때까지)
-            if _ac.get("enabled") and (_ac.get("setup_choice") or "") == "old" and not _ac.get("old_import"):
-                try:
-                    from . import mail_ui_prefs as _mup6
-                    out["rcv6"] = not _mup6.get_rcv6_done(c, u["id"])
-                except Exception:
-                    pass
         except Exception:
             pass
         try:
