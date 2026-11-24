@@ -45,7 +45,7 @@
     upload(fi.closest('.z143-box'), f);
   });
   document.addEventListener('dragover', function(e){ var b = e.target.closest && e.target.closest('.z143-box'); if (b && b.querySelector('.z143-file')) { e.preventDefault(); b.classList.add('over'); } });
-  document.addEventListener('dragleave', function(e){ var b = e.target.closest && e.target.closest('.z143-box'); if (b) b.classList.remove('over'); });
+  document.addEventListener('dragleave', function(e){ var b = e.target.closest && e.target.closest('.z143-box'); if (b && !(e.relatedTarget && b.contains(e.relatedTarget))) b.classList.remove('over'); });
   document.addEventListener('drop', function(e){
     var b = e.target.closest && e.target.closest('.z143-box');
     if (!b || !b.querySelector('.z143-file')) return;

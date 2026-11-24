@@ -2299,13 +2299,19 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
   <span class="z62-up" data-pid="{{ p.id }}" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;">
     <button type="button" class="z62-up-btn" title="엑셀 파일(xlsx·xls)만 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게" style="padding:3px 10px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">＋ 견적서 엑셀 올리기</button>
     <input type="file" class="z62-up-file" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
-    <span class="z62-up-msg" style="font-size:11.5px;color:#475569;"></span></span>
+    <span class="z62-up-msg" style="font-size:11.5px;color:#475569;">엑셀 · 끌어다 놓기</span></span>
   <script>(function(){
     var w=document.querySelector('.z62-up[data-pid="{{ p.id }}"]');
     if(!w || w.__z62) return; w.__z62=1;
     var b=w.querySelector('.z62-up-btn'), fi=w.querySelector('.z62-up-file'), m=w.querySelector('.z62-up-msg');
     b.addEventListener('click', function(){ fi.click(); });
-    fi.addEventListener('change', function(){ var x=fi.files&&fi.files[0]; fi.value=''; if(!x) return;
+    /* z1191z147 (대표 11-25 「견적서 올리기는 끌어다 놓기가 안 돼」): 관리번호 견적서 칸 전체에 끌어다 놓기 — 발주서 칸과 따로 */
+    var zone=w.closest('dd')||w;
+    zone.addEventListener('dragover', function(e){ if(e.target.closest&&e.target.closest('.z143-box')) return; e.preventDefault(); zone.classList.add('z62-over'); });
+    zone.addEventListener('dragleave', function(e){ if(!e.relatedTarget||!zone.contains(e.relatedTarget)) zone.classList.remove('z62-over'); });
+    zone.addEventListener('drop', function(e){ if(e.target.closest&&e.target.closest('.z143-box')) return; e.preventDefault(); e.stopPropagation(); zone.classList.remove('z62-over'); var x=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(x) send(x); });
+    fi.addEventListener('change', function(){ var x=fi.files&&fi.files[0]; fi.value=''; if(x) send(x); });
+    function send(x){
       if(!/\.(xlsx|xlsm|xls)$/i.test(x.name||'')){ m.style.color='#b91c1c'; m.textContent='견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.'; return; }   /* z1191z76 */
       if(x.size>20*1024*1024){ m.style.color='#b91c1c'; m.textContent='20MB 보다 큰 파일은 올릴 수 없습니다.'; return; }
       var fd=new FormData(); fd.append('file', x); b.disabled=true; m.style.color='#475569'; m.textContent='⏳ 올리는 중…';
@@ -2319,8 +2325,9 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             else { m.style.color='#166534'; m.textContent='✓ 보관했습니다 · 수주 금액과 맞습니다'; setTimeout(function(){ location.reload(); }, 1200); } }
           else { m.style.color='#b91c1c'; m.textContent=(j&&j.message)||'올리지 못했습니다 — 다시 해 보세요.'; } })
         .catch(function(){ b.disabled=false; m.style.color='#b91c1c'; m.textContent='인터넷 연결이 끊겨 올리지 못했습니다.'; });
-    });
+    }
   })();</script>
+  <style>.z62-over{ outline:2px dashed #2563eb; outline-offset:3px; background:#eff6ff; border-radius:8px; } .z62-over .z62-up-btn{ outline:2px solid #2563eb; } .z62-over .z62-up-btn::after{ content:'  ← 여기에 놓으면 견적서'; }</style>
   {% endif %}
   {% endif %}
 </dd>

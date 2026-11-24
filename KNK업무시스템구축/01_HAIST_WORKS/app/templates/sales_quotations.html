@@ -28,7 +28,13 @@ body {
 .qm-t td { padding:7px 10px; border-bottom:1px solid #eef1ee; vertical-align:middle; }
 .qm-t tr.pj td { background:#fafbfa; border-top:1px solid var(--qv-line); }
 .qm-t tr.so td:first-child { padding-left:28px; color:var(--qv-ink-2); }
-.qm-t tr.over { outline:2px dashed #2563eb; outline-offset:-2px; }
+/* z1191z147 (대표 11-25 「끌어다 놓으면 견적서·발주서가 한꺼번에 선택되는 것처럼 보임」): 놓을 자리를 칸별로 — 견적 칸(파랑) · 발주서 칸(초록) */
+.qm-t tr.over > td:not(.qm-po) { background:#dbeafe !important; }
+.qm-t tr.over .qm-pick { outline:2px solid #2563eb; outline-offset:1px; }
+.qm-t tr.over .qm-pick::after { content:'  ← 여기에 놓으면 견적서'; font-weight:800; color:#1d4ed8; }
+.qm-t td.qm-po .z143-box.over { outline:2px dashed #16a34a; outline-offset:2px; background:#dcfce7; border-radius:8px; }
+.qm-t td.qm-po .z143-box.over .z143-up { outline:2px solid #16a34a; outline-offset:1px; }
+.qm-t td.qm-po .z143-box.over .z143-up::after { content:'  ← 여기에 놓으면 발주서'; font-weight:800; color:#15803d; }
 .qm-t .num { text-align:right; white-space:nowrap; }
 .qm-pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
 .qm-pill.ok { background:#dcfce7; color:#166534; } .qm-pill.no { background:#fee2e2; color:#b91c1c; }
@@ -163,8 +169,8 @@ body {
             {% if _ps.final %}{% if cm %}<a class="qm-f" href="/customer-po/{{ _ps.final.id }}" title="고객 발주서 바로 보기 · {{ _ps.final.by_name or '' }} {{ (_ps.final.created_at or '')[:16] }}" style="color:#166534;">📄 {{ _ps.final.orig_name }}</a>{% else %}🔒{% endif %}{% if _ps.prev %}<span class="qm-meta"> · 이전 {{ _ps.prev|length }}장</span>{% endif %}
               {% if _ps.st == 'diff' %}<div><span class="qm-pill wn" title="발주서 엑셀에서 읽은 금액이 수주 금액과 다릅니다 — 맞는지 보고 「확인했음」">⚠ 발주서 {{ money(_ps.final.amount|float, _ps.final.currency or 'KRW') if cm else '🔒' }} · 다름</span>{% if can_up %} <button type="button" class="qm-btn z143-ack" data-fid="{{ _ps.final.id }}">확인했음</button>{% endif %}</div>
               {% elif _ps.final.amt_ack_at %}<span class="qm-meta"> · 금액 다름 확인 {{ _ps.final.amt_ack_name }}</span>{% endif %}
-            {% else %}<span class="qm-meta">—</span>{% endif %}
-            {% if can_up %}<div style="margin-top:3px;"><button type="button" class="qm-btn{% if not _ps.final %} up{% endif %} z143-up" title="PDF·사진·엑셀 · 이 칸에 끌어다 놓아도 됩니다">{% if _ps.final %}수정본 올리기{% else %}＋ 발주서{% endif %}</button><input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;"> <span class="z143-msg qm-meta"></span></div>{% endif %}
+            {% endif %}{# z1191z147 (대표 11-25): 없을 때 「—」 지움 #}
+            {% if can_up %}<div{% if _ps.final %} style="margin-top:3px;"{% endif %}><button type="button" class="qm-btn{% if not _ps.final %} up{% endif %} z143-up" title="PDF·사진·엑셀 · 이 칸에 끌어다 놓아도 됩니다">{% if _ps.final %}수정본 올리기{% else %}＋ 올리기{% endif %}</button><input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;"> <span class="z143-msg qm-meta"></span></div>{% endif %}
           </div></td>
         </tr>
         {% for s in r.sos %}{% set o = s.o %}{% set f = s.f %}
@@ -189,8 +195,8 @@ body {
             {% if _ps.final %}{% if cm %}<a class="qm-f" href="/customer-po/{{ _ps.final.id }}" title="고객 발주서 바로 보기 · {{ _ps.final.by_name or '' }} {{ (_ps.final.created_at or '')[:16] }}" style="color:#166534;">📄 {{ _ps.final.orig_name }}</a>{% else %}🔒{% endif %}{% if _ps.prev %}<span class="qm-meta"> · 이전 {{ _ps.prev|length }}장</span>{% endif %}
               {% if _ps.st == 'diff' %}<div><span class="qm-pill wn" title="발주서 엑셀에서 읽은 금액이 수주 금액과 다릅니다 — 맞는지 보고 「확인했음」">⚠ 발주서 {{ money(_ps.final.amount|float, _ps.final.currency or 'KRW') if cm else '🔒' }} · 다름</span>{% if can_up %} <button type="button" class="qm-btn z143-ack" data-fid="{{ _ps.final.id }}">확인했음</button>{% endif %}</div>
               {% elif _ps.final.amt_ack_at %}<span class="qm-meta"> · 금액 다름 확인 {{ _ps.final.amt_ack_name }}</span>{% endif %}
-            {% else %}<span class="qm-meta">—</span>{% endif %}
-            {% if can_up %}<div style="margin-top:3px;"><button type="button" class="qm-btn{% if not _ps.final %} up{% endif %} z143-up" title="PDF·사진·엑셀 · 이 칸에 끌어다 놓아도 됩니다">{% if _ps.final %}수정본 올리기{% else %}＋ 발주서{% endif %}</button><input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;"> <span class="z143-msg qm-meta"></span></div>{% endif %}
+            {% endif %}{# z1191z147 (대표 11-25): 없을 때 「—」 지움 #}
+            {% if can_up %}<div{% if _ps.final %} style="margin-top:3px;"{% endif %}><button type="button" class="qm-btn{% if not _ps.final %} up{% endif %} z143-up" title="PDF·사진·엑셀 · 이 칸에 끌어다 놓아도 됩니다">{% if _ps.final %}수정본 올리기{% else %}＋ 올리기{% endif %}</button><input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;"> <span class="z143-msg qm-meta"></span></div>{% endif %}
           </div></td>
         </tr>
         {% endfor %}
@@ -345,9 +351,11 @@ body {
 
   /* 끌어다 놓기 — 줄에 놓으면 그 자리 · 위 칸에 놓으면 찾아 줌 */
   function dz(el, slotFn){
-    el.addEventListener('dragover', function(e){ e.preventDefault(); el.classList.add(el.tagName === 'TR' ? 'over' : 'over'); });
-    el.addEventListener('dragleave', function(){ el.classList.remove('over'); });
-    el.addEventListener('drop', function(e){ e.preventDefault(); el.classList.remove('over'); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; start(f, slotFn()); });
+    el.addEventListener('dragover', function(e){
+      if (e.target.closest && e.target.closest('.qm-po')) { el.classList.remove('over'); return; }   /* z1191z147: 발주서 칸 위 = 발주서 자리(그쪽 스크립트가 받음) */
+      e.preventDefault(); el.classList.add('over'); });
+    el.addEventListener('dragleave', function(e){ if (!e.relatedTarget || !el.contains(e.relatedTarget)) el.classList.remove('over'); });
+    el.addEventListener('drop', function(e){ if (e.target.closest && e.target.closest('.qm-po')) return; e.preventDefault(); el.classList.remove('over'); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; start(f, slotFn()); });
   }
   var td = document.getElementById('qmTopDrop'); if (td) dz(td, function(){ return null; });
   Array.prototype.forEach.call(document.querySelectorAll('tr.qm-slot'), function(tr){ dz(tr, function(){ return slotOf(tr); }); });
