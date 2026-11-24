@@ -4170,21 +4170,16 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
             print(f"[REVENUE KPI ERROR] {e}")
 
     # 시간대별 인사말 (힐링 원칙서 §7-1)
+    # z1191z136 (대표 11-24): 회사 시간(출근 9 · 점심 13~14 · 퇴근 18) · 소속 나라 휴일 · 창립기념일(본사 6/1 · 베트남 10/15) ·
+    #   호칭 = 이름 + 직급 + 님 · 생일(이음이 넘겨주는 birth_md · 없으면 생일 문구만 안 나옴) — 규칙은 app/greeting.py 한 곳
     greeting_bucket = "default"
     try:
-        _h = datetime.now().hour
-        _n = u.get("name", "")
-        if 6 <= _h < 11:
-            greeting = f"좋은 아침입니다, {_n}님 ☀️"; greeting_bucket = "morning"
-        elif 11 <= _h < 14:
-            greeting = f"점심은 드셨나요, {_n}님? 잠깐 쉬어가요"; greeting_bucket = "lunch"
-        elif 14 <= _h < 18:
-            greeting = f"오후도 힘내세요, {_n}님 🌿"; greeting_bucket = "afternoon"
-        elif 18 <= _h < 22:
-            greeting = f"오늘도 수고하셨어요, {_n}님"; greeting_bucket = "evening"
-        else:
-            greeting = f"늦은 시간까지 애쓰시네요, {_n}님"; greeting_bucket = "night"
-    except Exception:
+        from . import greeting as _gr136
+        greeting, greeting_bucket = _gr136.build(u.get("name", ""), u.get("rank"), u.get("entity"), u.get("birth_md"),
+                                                 datetime.now(), HOLIDAYS_KR, HOLIDAYS_VN,
+                                                 birth_lunar_md=u.get("birth_lunar_md"))   # 음력 생일(있으면 이것만)
+    except Exception as _e136:
+        print(f"[z1191z136 greeting] {_e136}")
         greeting = f"오늘도 평안하세요, {u.get('name','')}님"
 
     # z108: 홈 진입점 워크플로우 업무카드 (오늘 처리할 업무)

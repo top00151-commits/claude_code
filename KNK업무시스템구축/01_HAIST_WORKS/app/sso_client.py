@@ -564,6 +564,7 @@ def upsert_user_from_payload(c, payload: dict, lang_changes: Optional[list] = No
         if _old_lang and _old_lang != lang:
             lang_changes.append({"id": row["id"], "employee_no": emp_no, "name": name_kr,
                                  "old": _old_lang, "new": lang})
+        _save_birth_md_z136(c, row["id"], payload)
         return row["id"]
     else:
         # ③ 신규 사용자 — 메신저에서 처음 보는 사번
@@ -593,10 +594,29 @@ def upsert_user_from_payload(c, payload: dict, lang_changes: Optional[list] = No
                     lang or ("vi" if entity == "VN" else "ko"),
                 ),
             )
+            _save_birth_md_z136(c, cur.lastrowid, payload)
             return cur.lastrowid
         except Exception as e:
             print(f"[SSO] upsert INSERT failed: {e}")
             return None
+
+
+def _save_birth_md_z136(c, uid, payload: dict) -> None:
+    """z1191z136 (대표 11-24 「생일날 생일 축하 멘트」): 이음이 넘겨주는 생일 **월·일**(birth_md "MM-DD")만 저장 — 태어난 해는 받지도 쓰지도 않는다.
+    이음이 이 칸을 안 보내면(키 없음) 아무것도 안 바꾼다 · 빈 글자로 보내면 지운다 · 모양이 이상하면 그대로 둔다."""
+    import re as _re136
+    if not uid or not isinstance(payload, dict) or "birth_md" not in payload:
+        return
+    v = str(payload.get("birth_md") or "").strip()
+    if v and not _re136.match(r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", v):
+        print(f"[SSO] birth_md 모양 이상 — 그대로 둠(uid={uid})")
+        return
+    try:
+        if "birth_md" not in {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}:
+            c.execute("ALTER TABLE users ADD COLUMN birth_md TEXT")
+        c.execute("UPDATE users SET birth_md=? WHERE id=?", (v or None, uid))
+    except Exception as e:
+        print(f"[SSO] birth_md 저장 실패(uid={uid}): {e}")
 
 
 # =====================================================

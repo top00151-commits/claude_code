@@ -207,6 +207,39 @@ button { font-family: inherit; cursor: pointer; }
           <a href="/home/{{ next_date }}">›</a>
         </div>
       </div>
+      {# z1191z136 (대표 11-24 「생일날에는 멘트 옆 공간에 폭죽 터지는 이미지」): 생일 · 창립기념일에만 인사말 옆 빈 곳에 폭죽(움직임 줄이기 설정이면 멈춘 그림) #}
+      {% if greeting_bucket in ('birthday', 'anniversary') and sel_date == today %}
+      <div class="fw136" aria-hidden="true">
+        {% for b in range(5) %}<span class="fw136-b fw136-b{{ b }}">{% for p in range(12) %}<i style="--a:{{ p * 30 }}deg"></i>{% endfor %}</span>{% endfor %}
+        <span class="fw136-e">{{ '🎂' if greeting_bucket == 'birthday' else '🎊' }}</span>
+      </div>
+      <style>
+      [data-dn="home-pagehead"] { position:relative; }
+      .fw136 { position:absolute; top:0; bottom:0; left:55%; right:0; pointer-events:none; overflow:hidden; z-index:0; }
+      [data-dn="home-pagehead"] > :not(.fw136):not(style) { position:relative; z-index:1; }
+      .fw136-e { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:52px; animation:fw136pop 2.4s ease-in-out infinite; }
+      .fw136-b { position:absolute; width:0; height:0; }
+      .fw136-b0 { left:20%; top:40%; --c:#f43f5e; }
+      .fw136-b1 { left:38%; top:22%; --c:#f59e0b; }
+      .fw136-b2 { left:62%; top:30%; --c:#22c55e; }
+      .fw136-b3 { left:82%; top:44%; --c:#3b82f6; }
+      .fw136-b4 { left:52%; top:78%; --c:#a855f7; }
+      .fw136-b i { position:absolute; left:-3px; top:-3px; width:8px; height:8px; border-radius:50%; background:var(--c);
+                   box-shadow:0 0 6px var(--c); opacity:0; transform:rotate(var(--a)) translateY(0);
+                   animation:fw136burst 2.4s ease-out infinite; }
+      .fw136-b1 i { animation-delay:.5s; } .fw136-b2 i { animation-delay:1s; } .fw136-b3 i { animation-delay:1.5s; } .fw136-b4 i { animation-delay:.25s; }
+      @keyframes fw136burst { 0% { opacity:0; transform:rotate(var(--a)) translateY(0) scale(.6); }
+                              10% { opacity:1; }
+                              70% { opacity:.95; transform:rotate(var(--a)) translateY(-56px) scale(1); }
+                              100% { opacity:0; transform:rotate(var(--a)) translateY(-66px) scale(.4); } }
+      @keyframes fw136pop { 0%,100% { transform:translate(-50%,-50%) scale(1); } 50% { transform:translate(-50%,-50%) scale(1.15) rotate(-6deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .fw136-b i { animation:none; opacity:.85; transform:rotate(var(--a)) translateY(-44px); }
+        .fw136-e { animation:none; }
+      }
+      @media (max-width: 767px) { .fw136 { display:none; } }
+      </style>
+      {% endif %}
       <div style="display:flex;align-items:center;gap:10px;">
         <a class="tb-icon" href="/notifications" title="알림">
           🔔
