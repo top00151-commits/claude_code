@@ -70,8 +70,8 @@
       </form>
 
       <div class="rp-kpi">
-        <div class="k"><div class="l">매출 합계 · {{ rep.basis_label }} · {{ rep.period_label }}</div><div class="v">{{ money(rep.total, 'KRW') }}</div><div class="l">수주 {{ '{:,}'.format(rep.so_n) }}건</div></div>
-        <div class="k"><div class="l">KNK VINA 매출</div><div class="v" style="color:#1d4ed8;">{{ money(rep.vina_total, 'KRW') }}</div><div class="l">수주 {{ '{:,}'.format(rep.vina_so_n) }}건 · 2차 고객사별은 아래</div></div>
+        <div class="k"><div class="l"{{ ct('report.total') }}>매출 합계 · {{ rep.basis_label }} · {{ rep.period_label }}</div><div class="v">{{ money(rep.total, 'KRW') }}</div><div class="l">수주 {{ '{:,}'.format(rep.so_n) }}건</div></div>
+        <div class="k"><div class="l"{{ ct('report.vina') }}>KNK VINA 매출</div><div class="v" style="color:#1d4ed8;">{{ money(rep.vina_total, 'KRW') }}</div><div class="l">수주 {{ '{:,}'.format(rep.vina_so_n) }}건 · 2차 고객사별은 아래</div></div>
         <div class="k" style="display:flex;flex-direction:column;justify-content:center;gap:6px;">
           {% if rep.checks_ok %}<span class="rp-ok">✅ 합계 맞춤 — 사업부·구분·고객사·프로젝트 합 = 총합(1원 아래)</span>
           {% else %}<span class="rp-bad">⚠ 합계가 맞지 않습니다 {{ rep.checks }}</span>{% endif %}
@@ -83,7 +83,7 @@
       <section class="rp-sec">
         <h3>사업부별 <span class="sub">— 소모품(소모품 화면 등록분)은 소모품(검사기)·소모품(자동화) 따로 · 프로젝트 안 수주는 그 수주 형태로 구분</span></h3>
         <table class="rp-t">
-          <thead><tr><th>사업부</th><th class="n">합계(원)</th>{% for ct in rep.cats %}<th class="n">{{ ct }}</th>{% endfor %}<th class="n" title="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
+          <thead><tr><th>사업부</th><th class="n"{{ ct('report.row_krw') }}>합계(원)</th>{% for ct in rep.cats %}<th class="n" data-calc="{{ calc_tip('report.cat') }}">{{ ct }}</th>{% endfor %}<th class="n" data-calc="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
           <tbody>{% for b in rep.biz_rows %}<tr><td>{{ b.label }}</td><td class="n"><b>{{ money(b.total, 'KRW') }}</b></td>{% for ct in rep.cats %}<td class="n">{{ money(b.cats[ct], 'KRW') if b.cats[ct] else '' }}</td>{% endfor %}<td class="n">{{ b.so_n }}</td></tr>{% endfor %}</tbody>
           <tfoot><tr><td>합계</td><td class="n">{{ money(rep.total, 'KRW') }}</td>{% for ct in rep.cats %}<td class="n">{{ money(rep.biz_rows|map(attribute='cats')|map(attribute=ct)|sum, 'KRW') }}</td>{% endfor %}<td class="n">{{ rep.so_n }}</td></tr></tfoot>
         </table>
@@ -93,7 +93,7 @@
         <section class="rp-sec">
           <h3>고객사별 <span class="sub">— 청구처 = 수주에 적힌 1차 발주처(없으면 프로젝트 고객) · 큰 순 · 매출 홈 TOP5 와 같은 기준</span></h3>
           <div class="rp-scroll"><table class="rp-t">
-            <thead><tr><th class="n rp-rk" title="합계(원) 큰 순서">#</th><th>고객사</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n" title="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
+            <thead><tr><th class="n rp-rk" title="합계(원) 큰 순서">#</th><th>고객사</th><th class="n"{{ ct('report.row_krw') }}>합계(원)</th><th class="n"{{ ct('report.row_fx') }}>합계(외화)</th><th class="n" data-calc="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
             <tbody>{% for a in rep.cust_rows %}{% set gi = loop.index %}<tr><td class="n rp-rk">{{ loop.index }}</td><td>{{ a.name }}{% if a.children %}<button type="button" class="z73-tg" data-z73="r{{ gi }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});"><span>▸ </span>{{ a.children|length }}곳</button>{% endif %}</td><td class="n">{{ money(a.total, 'KRW') }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.so_n }}</td></tr>{% for q in (a.children or []) %}<tr class="z73-ch z73p-r{{ gi }}" hidden><td class="n rp-rk"></td><td><span class="z73-br">└</span> {{ q.name }}</td><td class="n">{{ money(q.total, 'KRW') }}</td><td class="n rp-fx">{{ q.fx_txt }}</td><td class="n">{{ q.so_n }}</td></tr>{% endfor %}{% endfor %}</tbody>
             <tfoot><tr><td></td><td>합계 ({{ rep.cust_rows|length }}곳)</td><td class="n">{{ money(rep.total, 'KRW') }}</td><td class="n rp-fx">{{ rep.fx_total_txt }}</td><td class="n">{{ rep.so_n }}</td></tr></tfoot>
           </table></div>
@@ -101,7 +101,7 @@
         <section class="rp-sec">
           <h3>KNK VINA — 2차 고객사별 <span class="sub">— 드림텍 계열(DRT·DRT1·DRT2·DREAMTECH VINA·드림텍) = DRT · SEV·SEVT·SEMV 따로 · 2차 칸이 비어 있으면 1차 고객사(KNK VINA)로</span></h3>
           <div class="rp-scroll"><table class="rp-t">
-            <thead><tr><th class="n rp-rk" title="합계(원) 큰 순서">#</th><th>2차 고객사</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n" title="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건 · 한 수주를 2차 고객사 여럿에 나눈 경우 각 고객사에 1건씩(합계는 실제 수주 수)">건수</th></tr></thead>
+            <thead><tr><th class="n rp-rk" title="합계(원) 큰 순서">#</th><th>2차 고객사</th><th class="n"{{ ct('report.row_krw') }}>합계(원)</th><th class="n"{{ ct('report.row_fx') }}>합계(외화)</th><th class="n" data-calc="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건 · 한 수주를 2차 고객사 여럿에 나눈 경우 각 고객사에 1건씩(합계는 실제 수주 수)">건수</th></tr></thead>
             <tbody>{% for a in rep.vina_rows %}<tr><td class="n rp-rk">{{ loop.index }}</td><td>{{ a.name }}{% if a.multi %} <span class="sub rp-warn" title="2차가 여러 개 적혀 금액을 나눌 수 없습니다 — 고객사별로 다시 등록하면 나뉩니다">(여러 고객 · 다시 등록 대기)</span>{% endif %}</td><td class="n">{{ money(a.total, 'KRW') }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.so_n }}</td></tr>{% else %}<tr><td colspan="5" class="sub">이 기간 KNK VINA 매출 없음</td></tr>{% endfor %}</tbody>
             <tfoot><tr><td></td><td>KNK VINA 합계</td><td class="n">{{ money(rep.vina_total, 'KRW') }}</td><td class="n rp-fx">{{ rep.fx_vina_txt }}</td><td class="n">{{ rep.vina_so_n }}</td></tr></tfoot>
           </table></div>
@@ -111,7 +111,7 @@
       <section class="rp-sec">
         <h3>프로젝트별 <span class="sub">— 관리번호 · 큰 순 (소모품은 소모품 관리번호)</span></h3>
         <div class="rp-scroll"><table class="rp-t">
-          <thead><tr><th>관리번호</th><th>프로젝트명</th><th>고객사</th><th>수주번호</th><th class="n">합계(원)</th><th class="n">합계(외화)</th><th class="n" title="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
+          <thead><tr><th>관리번호</th><th>프로젝트명</th><th>고객사</th><th>수주번호</th><th class="n"{{ ct('report.row_krw') }}>합계(원)</th><th class="n"{{ ct('report.row_fx') }}>합계(외화)</th><th class="n" data-calc="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
           <tbody>{% for a in rep.proj_rows %}<tr><td>{% if a.pid %}<a href="/project/{{ a.pid }}">{{ a.code }}</a>{% else %}{{ a.code }}{% endif %}</td><td>{{ a.pname }}</td><td>{{ a.cust }}</td><td style="font-size:11.5px;color:#475569;">{{ a.sos }}</td><td class="n">{{ money(a.total, 'KRW') }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.so_n }}</td></tr>{% endfor %}</tbody>
           <tfoot><tr><td colspan="4">합계</td><td class="n">{{ money(rep.total, 'KRW') }}</td><td class="n rp-fx">{{ rep.fx_total_txt }}</td><td class="n">{{ rep.so_n }}</td></tr></tfoot>
         </table></div>
@@ -121,7 +121,7 @@
         <details>
           <summary style="cursor:pointer;font-weight:800;">상세 줄 {{ rep.cnt }}줄 보기 <span class="sub">— 어떤 호기·소모품을 더한 숫자인지 (엑셀 「상세」 시트와 같음)</span></summary>
           <div class="rp-scroll" style="margin-top:8px;"><table class="rp-t">
-            <thead><tr><th>날짜</th><th>차수</th><th>관리번호</th><th>수주번호</th><th>호기</th><th>모델명</th><th>구분</th><th>고객사</th><th>2차</th><th>통화</th><th class="n">금액</th><th class="n">원화</th></tr></thead>
+            <thead><tr><th>날짜</th><th>차수</th><th>관리번호</th><th>수주번호</th><th>호기</th><th>모델명</th><th>구분</th><th>고객사</th><th>2차</th><th>통화</th><th class="n"{{ ct('report.amount') }}>금액</th><th class="n"{{ ct('report.krw') }}>원화</th></tr></thead>
             <tbody>{% for x in rep.lines[:3000] %}<tr><td>{{ x.date }}</td><td>{{ x.nth }}</td><td>{{ x.code }}</td><td>{{ x.so }}</td><td>{{ x.label }}</td><td>{{ x.model }}</td><td>{{ x.cat }}</td><td>{{ x.cust_br or x.cust }}</td><td>{{ x.cust2 }}</td><td>{{ x.ccy }}</td><td class="n">{{ money(x.amt, x.ccy or 'KRW') }}</td><td class="n">{% if x.fxtip %}<span class="knk-fx-tipon" tabindex="0" data-fx-tip="{{ x.fxtip }}">{{ money(x.krw, 'KRW') }}</span>{% else %}{{ money(x.krw, 'KRW') }}{% endif %}</td></tr>{% endfor %}</tbody>
           </table>{% if rep.cnt > 3000 %}<div class="sub">앞 3,000줄만 보입니다 — 전체는 엑셀로</div>{% endif %}</div>
         </details>

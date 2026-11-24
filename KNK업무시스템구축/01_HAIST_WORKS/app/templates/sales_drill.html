@@ -98,9 +98,9 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
   </div>
 
   <div class="dr-kpi" data-dn="drill-kpi">
-    <div><div class="l c-o">💙 수주매출</div><div class="v c-o">{{ money(dr.tot.order, 'KRW') }}</div><div class="s">이 기간에 발주(수주)받은 금액</div></div>
-    <div><div class="l c-p">💚 진행매출</div><div class="v c-p">{{ money(dr.tot.prog, 'KRW') }}</div><div class="s">이 기간에 출하(납품)한 금액</div></div>
-    <div><div class="l c-f">🧡 최종매출</div><div class="v c-f">{{ money(dr.tot.final, 'KRW') }}</div><div class="s">이 기간에 세금계산서를 발행한 금액</div></div>
+    <div><div class="l c-o"{{ ct('sales.order_rev') }}>💙 수주매출</div><div class="v c-o">{{ money(dr.tot.order, 'KRW') }}</div><div class="s">이 기간에 발주(수주)받은 금액</div></div>
+    <div><div class="l c-p"{{ ct('sales.ship_rev') }}>💚 진행매출</div><div class="v c-p">{{ money(dr.tot.prog, 'KRW') }}</div><div class="s">이 기간에 출하(납품)한 금액</div></div>
+    <div><div class="l c-f"{{ ct('sales.final_rev') }}>🧡 최종매출</div><div class="v c-f">{{ money(dr.tot.final, 'KRW') }}</div><div class="s">이 기간에 세금계산서를 발행한 금액</div></div>
   </div>
 
   {% if dr.kind == 'cust' %}
@@ -118,8 +118,8 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     <table class="dr-tbl" id="drTbl">
       <thead><tr>
         <th class="r" data-sort="n">#</th><th data-sort="t">고객사</th>
-        <th class="r c-o" data-sort="n">수주매출</th><th class="r c-p" data-sort="n">진행매출</th><th class="r c-f" data-sort="n">최종매출</th>
-        <th class="r" data-sort="n" title="이 기간 매출이 있는 수주번호 + 소모품 발주 수">수주 건수</th>
+        <th class="r c-o" data-sort="n"{{ ct('sales.order_rev') }}>수주매출</th><th class="r c-p" data-sort="n"{{ ct('sales.ship_rev') }}>진행매출</th><th class="r c-f" data-sort="n"{{ ct('sales.final_rev') }}>최종매출</th>
+        <th class="r" data-sort="n"{{ ct('sales.so_count') }}>수주 건수</th>
       </tr></thead>
       <tbody>
       {% for r in dr.rows %}{% set gi = loop.index %}
@@ -166,7 +166,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
   {% if dr.biz_sub|length > 1 and not biz %}
   <div class="dr-wrap" style="margin-bottom:12px;">
     <table class="dr-tbl">
-      <thead><tr><th style="cursor:default">사업부별</th><th class="r c-o" style="cursor:default">수주매출</th><th class="r c-p" style="cursor:default">진행매출</th><th class="r c-f" style="cursor:default">최종매출</th></tr></thead>
+      <thead><tr><th style="cursor:default">사업부별</th><th class="r c-o"{{ ct('sales.order_rev') }}>수주매출</th><th class="r c-p"{{ ct('sales.ship_rev') }}>진행매출</th><th class="r c-f"{{ ct('sales.final_rev') }}>최종매출</th></tr></thead>
       <tbody>
       {% for s in dr.biz_sub %}
         <tr><td><a class="cu" href="/sales/drill?cust={{ cust|urlencode }}&amp;biz={{ s.biz }}&amp;{{ P }}">{{ s.label }} ›</a></td>
@@ -181,8 +181,8 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     <table class="dr-tbl" id="drTbl">
       <thead><tr>
         <th class="r" data-sort="n">#</th><th data-sort="t">사업부</th><th data-sort="t">관리번호</th><th data-sort="t">수주번호</th>
-        <th data-sort="t">모델명</th><th data-sort="t">설비명</th><th data-sort="t">프로젝트명</th><th data-sort="t">발주일</th>
-        <th class="r c-o" data-sort="n">수주매출</th><th class="r c-p" data-sort="n">진행매출</th><th class="r c-f" data-sort="n">최종매출</th>
+        <th data-sort="t">모델명</th><th data-sort="t">설비명</th><th data-sort="t">프로젝트명</th><th data-sort="t"{{ ct('sales.first_order') }}>발주일</th>
+        <th class="r c-o" data-sort="n"{{ ct('sales.order_rev') }}>수주매출</th><th class="r c-p" data-sort="n"{{ ct('sales.ship_rev') }}>진행매출</th><th class="r c-f" data-sort="n"{{ ct('sales.final_rev') }}>최종매출</th>
       </tr></thead>
       <tbody>
       {% for r in dr.rows %}

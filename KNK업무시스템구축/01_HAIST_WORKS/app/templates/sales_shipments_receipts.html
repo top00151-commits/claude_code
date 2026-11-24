@@ -118,8 +118,8 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
   {# z1191z98 (대표 11-22 「5·6 합치기」): 이 화면 = 마감(계산서 발행 대기). 받을 돈·입금 기록은 💰 입금 한 곳 — 미수 띠·입금 숫자·수금 입력 칸은 뺌 #}
   {# ── KPI ── #}
   <div class="sr-kpis">
-    <div class="sr-kpi warn"><div class="lbl">🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>
-    <div class="sr-kpi carry"><div class="lbl">🟠 마감이월(전부 미발행)</div><div class="val">{{ kpi.carryover_cnt }}건</div></div>
+    <div class="sr-kpi warn"><div class="lbl"{{ ct('bill.unbilled') }}>🔴 발행 대기(출하·미발행 잔액)</div><div class="val">{% if can_money %}{{ kpi.billing_sum }}{% else %}🔒{% endif %} <span style="font-size:12px;color:var(--mute);">· {{ kpi.billing_cnt }}건</span></div></div>
+    <div class="sr-kpi carry"><div class="lbl"{{ ct('bill.carry') }}>🟠 마감이월(전부 미발행)</div><div class="val">{{ kpi.carryover_cnt }}건</div></div>
     <a class="sr-kpi" href="/sales/receipts-check" style="text-decoration:none;" title="받을 돈·입금 예정일·입금 기록은 💰 입금 한 곳에서"><div class="lbl">받을 돈 · 입금 기록</div><div class="val" style="font-size:15px;color:#1e40af;">💰 입금에서 →</div></a>
   </div>
 

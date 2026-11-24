@@ -408,7 +408,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
     {% set _is_mixed = (currency_mix and currency_mix|length > 1) %}{# v5H226z696: 통화 혼합이면 확정매출 KPI도 통화별 분리(환산 없는 합산 표기 폐기) #}
     {# v5H226z823: 확정 매출 KPI — 매출금액 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
-    <div class="kpi-card"><div class="kpi-label">{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({% if _is_mixed %}혼합{% else %}{{ _kpi_ccy }}{% endif %})</span></div>{% if can_sales_amt %}{% if _is_mixed %}<div class="kpi-num" style="font-size:17px;line-height:1.35;">{% for r in currency_mix %}<div{% if not loop.first %} style="font-size:13px;color:var(--mute);font-weight:600;"{% endif %}>{{ money(r.total, r.currency) }}</div>{% endfor %}</div>{% else %}<div class="kpi-num">{% if _displayed_amt %}{{ money(_displayed_amt, _kpi_ccy) }}{% else %}—{% endif %}</div>{% endif %}{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="매출금액은 열람 권한자만">🔒</div>{% endif %}{% if can_sales_amt and not _is_mixed and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    <div class="kpi-card"><div class="kpi-label"{{ ct('proj.sales_total') }}>{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({% if _is_mixed %}혼합{% else %}{{ _kpi_ccy }}{% endif %})</span></div>{% if can_sales_amt %}{% if _is_mixed %}<div class="kpi-num" style="font-size:17px;line-height:1.35;">{% for r in currency_mix %}<div{% if not loop.first %} style="font-size:13px;color:var(--mute);font-weight:600;"{% endif %}>{{ money(r.total, r.currency) }}</div>{% endfor %}</div>{% else %}<div class="kpi-num">{% if _displayed_amt %}{{ money(_displayed_amt, _kpi_ccy) }}{% else %}—{% endif %}</div>{% endif %}{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="매출금액은 열람 권한자만">🔒</div>{% endif %}{% if can_sales_amt and not _is_mixed and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
     {# v5H226z646 (대표 지시): 예상 매출(수주 전) KPI 삭제 — 예상값 미입력 건은 항상 확정과 동일(+0)이라 의미 약함. 확정 매출 KPI만 유지. (expected_amount 데이터는 보존) #}
   </div>
 
@@ -899,24 +899,24 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                      v5H226z829(대표 지시·열별 분리): 매입단가·마진%=구매단가 정책(can_purchase_price) / 판매단가·환율·인보이스=매출금액 정책(can_sales_amt).
                      ⚠헤더 th 와 본문 td 는 반드시 같은 조건·같은 순서(칼럼 정렬). #}
                   {% if can_purchase_price %}
-                  <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic" title="매입단가(협력사가){% if _pfx or _so_has_krworig %} · KRW{% endif %}">매입단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
-                  <th class="num" style="width:56px;background:#fff7ed;" data-pgroup="basic" title="마진%(매입가에 가산)">마진%</th>
+                  <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic"{{ ct('parts.cost_krw') }}>매입단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
+                  <th class="num" style="width:56px;background:#fff7ed;" data-pgroup="basic"{{ ct('parts.margin_pct') }}>마진%</th>
                   {% endif %}
                   {% if can_sales_amt %}
-                  <th class="num" style="width:96px;" data-pgroup="basic" title="판매단가 = 매입 × (1+마진%) · 직접수정 시 마진 역산">판매단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
+                  <th class="num" style="width:96px;" data-pgroup="basic"{{ ct('parts.sell_krw') }}>판매단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
                   {% if _is_fx_view %}
-                  <th class="num" style="width:72px;" data-pgroup="basic" title="환율 (1 {{ _so_ccy }} = ? KRW)">환율</th>
-                  <th class="num" style="width:96px;background:#eef6ff;" data-pgroup="basic" title="인보이스 단가({{ _so_ccy }})">인보이스<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ _so_ccy }})</span></th>
+                  <th class="num" style="width:72px;" data-pgroup="basic"{{ ct('parts.fx_rate') }}>환율</th>
+                  <th class="num" style="width:96px;background:#eef6ff;" data-pgroup="basic"{{ ct('parts.invoice_unit') }}>인보이스<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ _so_ccy }})</span></th>
                   {% endif %}
                   {% endif %}
                   {# v5H226z440(대표 지시): 금액=기본 그룹. 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD)은 PACKING LIST 에서 제거→수출 문서 모듈에서 입력 #}
-                  <th class="num px-x" style="width:90px;background:#fef9e6;" data-pgroup="basic">금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(수량×판매)</span></th>
+                  <th class="num px-x" style="width:90px;background:#fef9e6;" data-pgroup="basic"{{ ct('parts.amount') }}>금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(수량×판매)</span></th>
                   <th class="px-x" style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
-                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ qtyu(1, sounit(so)) }})</span>{% endif %}</th>{# z1191z4c: 제품 = 1개 단가 · z1191z89: 수주 단위(일정표와 같은 규칙) #}
+                  <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}{{ ct('line.unit_price') }}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ qtyu(1, sounit(so)) }})</span>{% endif %}</th>{# z1191z4c: 제품 = 1개 단가 · z1191z89: 수주 단위(일정표와 같은 규칙) #}
                   {# v5H226z634 (대표 지시): 완제품 금액 칸(=호기 라인 금액) #}
-                  {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:#fef9e6;">금액</th>{% endif %}
+                  {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:#fef9e6;"{{ ct('line.amount') }}>금액</th>{% endif %}
                   <th class="px-x" style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
                   {# v5H226z84: 거래방식 컬럼 너비 88→70px #}
                   {% if not _is_parts %}<th style="width:70px;">거래방식</th>{% endif %}
@@ -1401,14 +1401,14 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         </script>
         <div class="so-grand-total">
           <div>
-            <div class="label">총 수주번호 {{ project_orders|length }}건{% set _gq89 = soqty_join(project_orders, p.po_type, True) %}{% if _gq89 %} · 총 수량 {{ _gq89 }}{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% endif %}{% if _gtotal.pm and _gtotal.pk %} · {% endif %}{% if _gtotal.pk %}{{ _gtotal.pk }}식{% endif %}{% if _gtotal.pmiss %} · <span style="color:#b91c1c;">⚠ 수량 미입력 {{ _gtotal.pmiss }}건</span>{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
+            <div class="label"{{ ct('proj.total_qty') }} data-calc-name="총 수량">총 수주번호 {{ project_orders|length }}건{% set _gq89 = soqty_join(project_orders, p.po_type, True) %}{% if _gq89 %} · 총 수량 {{ _gq89 }}{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% endif %}{% if _gtotal.pm and _gtotal.pk %} · {% endif %}{% if _gtotal.pk %}{{ _gtotal.pk }}식{% endif %}{% if _gtotal.pmiss %} · <span style="color:#b91c1c;">⚠ 수량 미입력 {{ _gtotal.pmiss }}건</span>{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
           </div>
           <div class="value">
             {% if can_sales_amt %}
             {# z1097: 통화가 섞이면 통화별로 나눠 적고 그 아래 월 기준환율 원화 합계.
                통화가 하나면 예전 그대로(프로젝트 환율 병기)를 유지한다. #}
             {{ _ccy.ccy_total(so_total_bd) }}
-            <span style="font-size:11px;color:var(--mute);font-weight:500;">(수주번호 합계)</span>
+            <span style="font-size:11px;color:var(--mute);font-weight:500;"{{ ct('proj.so_sum') }}>(수주번호 합계)</span>
             {# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(각 수주 발주 달 · z1191z115 대표 11-23 「발주달로 통일」) · 마우스 → 몇 월 기준환율·얼마.
                예전엔 프로젝트에 적은 환율(fx_rate)로 계산해 매출 홈 숫자와 달랐다. #}
             {% if so_total_bd and so_total_bd.by_ccy and not so_total_bd.mixed and so_total_bd.by_ccy[0].currency != 'KRW' %}
@@ -2120,7 +2120,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         <div class="tbl-wrap tbl-sticky"><table class="tbl" style="border:0;font-size:12.5px;">
           <thead><tr>
             <th>관리번호</th><th>유형</th><th>프로젝트명</th><th>상태</th>
-            <th>최근 SO</th><th>발주일</th><th class="num">합계</th>
+            <th>최근 SO</th><th>발주일</th><th class="num"{{ ct('proj.sub_total') }}>합계</th>
           </tr></thead>
           <tbody>
           {% for cp in child_projects %}

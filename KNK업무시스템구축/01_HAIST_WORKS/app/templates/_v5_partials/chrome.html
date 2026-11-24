@@ -985,7 +985,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 {% include "_v5_partials/knk_amt.html" %}
 {% include "_v5_partials/knk_tax_sameday.html" %}
 {% include "_v5_partials/knk_tax_multi.html" %}
-{% include "_v5_partials/knk_fx_tip.html" %}{% include "_v5_partials/knk_sticky_head.html" %}
+{% include "_v5_partials/knk_fx_tip.html" %}{% include "_v5_partials/knk_calc_tip.html" %}{% include "_v5_partials/knk_sticky_head.html" %}
 {% include "_v5_partials/knk_theme.html" %}{% include "_v5_partials/knk_fit_num.html" %}{# z1191z114: 큰 숫자 칸 맞춤 · 표 가로 넘김(대표 11-23) #}{# z1191z106: 페이지 제목 띠 고정(대표 11-22) #}{# z1191z104: 「≈ ₩」에 마우스 → 몇 월 기준환율·얼마(모든 화면 공용 · 중복 가드) #}
 
 {# v5H226z28 (2026-05-08): 디버그 오버레이 - URL ?debug=1 시 영역명·크기 표시 (전 페이지 공통) #}
@@ -1226,6 +1226,9 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 (function () {
   var LOADED = "{{ APP_VERSION }}";          // 이 화면이 로드된 시점의 버전
   if (!LOADED) return;
+  // z1191z126 (대표 11-24 「구매팀 웍스가 옛날 버전」 → 「만들어」): 창을 며칠씩 안 닫고 메뉴만 누르면 본문만 새 판 · 창(메뉴·스크립트)은 옛 판으로 남았다
+  //   → 화면 바꿈(spa_nav)이 새로 받은 화면의 판(#knkVer)과 이 창의 판을 비교해 다르면 창 전체를 새로 연다
+  if (!window.__knkLoadedVer) window.__knkLoadedVer = LOADED;
   var shown = false;
   var pending = false;   // 새 버전 감지됨
   var snoozed = false;   // 사용자가 '나중에'를 눌러 자동 새로고침 보류
@@ -1322,6 +1325,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 })();
 </script>
 
+{# z1191z126: 이 화면을 만든 서버 판(화면 바꿈이 새로 받은 화면과 비교 · 다르면 창 전체 새로 열기) #}
+<i id="knkVer" data-v="{{ APP_VERSION }}" hidden></i>
 {# v5H226z134: 부분 전환(SPA식) — 본문만 교체해 전환 깜빡임 제거 (전 페이지 공통) #}
 {% include "_v5_partials/spa_nav.html" ignore missing %}
 

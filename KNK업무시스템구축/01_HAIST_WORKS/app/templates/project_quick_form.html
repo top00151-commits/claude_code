@@ -302,6 +302,19 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="SET" {% if ed and (board_unit|default('')) == 'SET' %}selected{% endif %}>SET</option>
               <option value="대" {% if ed and (board_unit|default('')) == '대' %}selected{% endif %}>대</option>{# z1191z4d (대표 지시) #}
             </select></div>
+          {# z1191z127 (안지연 프로 11-24 「정보 수정에서 수량/단가 고치고 싶은데 단가 칸이 없음」): 제품 · 품목 한 줄 수주 = 1개 단가 칸
+             · 작업일정표 수량 × 1개 단가 = 금액(바로 계산) · 저장하면 그 줄 수량·단가·금액 + 수주 합계 · 품목 두 줄 이상 = 안내만 #}
+          {% set _sl127 = (tso117.semi_line if (ed and tso117 and tso117.semi_line) else None) %}
+          {% if _sl127 %}
+          <div class="qf-f c3" id="qSemiPriceCell" style="display:none;"><label>1개 단가 <span style="font-weight:400;color:var(--qv-ink-3);">({{ tso117.no }} 품목 줄)</span></label>
+            <input type="hidden" name="semi_price_seen" value="{{ 0 if _sl127.closed else 1 }}">
+            <input type="hidden" name="semi_iid" value="{{ _sl127.iid }}">
+            <input type="text" inputmode="decimal" name="semi_unit_price" id="qSemiPrice" data-orig="{{ _sl127.unit_price }}"
+                   value="{{ ('{:,.2f}'.format(_sl127.unit_price)).rstrip('0').rstrip('.') }}" {% if _sl127.closed %}readonly style="background:var(--qv-surface-3);" title="입금 완료·계산서 발행 수주 — 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 한 번 확인하고 고칩니다"{% endif %}></div>
+          {% elif ed and tso117 and (tso117.semi_lines|default(0)) > 1 %}
+          <div class="qf-f c3" id="qSemiPriceCell" style="display:none;"><label>1개 단가</label>
+            <div style="min-height:38px;display:flex;align-items:center;font-size:12px;color:#9a3412;">품목 {{ tso117.semi_lines }}줄 — 줄별 단가는 프로젝트 상세 수주 카드 [✏️ 수정]</div></div>
+          {% endif %}
           <div class="qf-f c4" id="qSemiAmtCell" style="display:none;"><label>금액 <span style="font-weight:400;color:var(--qv-ink-3);">({% if ed %}수주 금액{% else %}항목 합계 · 자동{% endif %})</span></label>
             <div id="qSemiAmt" style="min-height:38px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px;background:var(--qv-surface-3);border:1px solid var(--qv-line);border-radius:8px;font-weight:700;">₩0 <span id="qSemiAmtCur" style="display:none;font-weight:400;font-size:11px;color:var(--qv-ink-3);">KRW</span></div></div>
           {% endif %}
@@ -341,17 +354,17 @@ html,body{background:#fff!important;overflow:auto!important;}
                     <th style="width:84px;">공급사</th>
                     <th style="width:58px;">수량</th>
                     {% if can_money %}
-                    <th style="width:94px;">매입단가<small>(KRW)</small></th>
-                    <th style="width:56px;">마진%</th>
-                    <th style="width:106px;">판매단가<small>(자동·KRW)</small></th>
-                    <th style="width:68px;">환율</th>
-                    <th style="width:106px;">인보이스단가<small>(USD)</small></th>
+                    <th style="width:94px;"{{ ct('parts.cost_krw') }}>매입단가<small>(KRW)</small></th>
+                    <th style="width:56px;"{{ ct('parts.margin_pct') }}>마진%</th>
+                    <th style="width:106px;"{{ ct('parts.sell_krw') }}>판매단가<small>(자동·KRW)</small></th>
+                    <th style="width:68px;"{{ ct('parts.fx_rate') }}>환율</th>
+                    <th style="width:106px;"{{ ct('parts.invoice_unit') }}>인보이스단가<small>(USD)</small></th>
                     {% else %}
                     <th style="width:106px;">단가</th>
                     {% endif %}
                     {# v5H226z729(대표 지시): 엑셀 양식과 동일 — 인보이스단가 다음에 '상태' 컬럼(드롭다운) #}
                     <th style="width:78px;">상태</th>
-                    <th style="width:100px;">금액<small>(KRW)</small></th>
+                    <th style="width:100px;"{{ ct('parts.amount_qf') }}>금액<small>(KRW)</small></th>
                     <th style="width:140px;">납기</th>
                     <th style="width:104px;">비고</th>
                     <th style="width:38px;"></th>
@@ -667,7 +680,7 @@ function qSemiLayout(){
   if(typeof qCanMoney!=='undefined' && !qCanMoney) return;   /* 금액 권한 없으면 기존 화면 유지(항목 입력 자체가 없음) */
   var v=((document.getElementById('qFormType')||{}).value)||'ASSEMBLY';
   var on=(v==='SEMI');
-  ['qBoardQtyCell','qBoardUnitCell','qSemiAmtCell'].forEach(function(id){
+  ['qBoardQtyCell','qBoardUnitCell','qSemiPriceCell','qSemiAmtCell'].forEach(function(id){   /* z1191z127: 1개 단가 칸 */
     var e=document.getElementById(id); if(e) e.style.display=on?'':'none';
   });
   var grp=document.getElementById('qQtyAmtGroup');
@@ -707,6 +720,15 @@ function qTbdPlace118(){
 document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ try{ qTbdPlace118(); }catch(_e){} }, 0); });
 function qSemiAmtSync(){
   var box=document.getElementById('qSemiAmt'); if(!box) return;
+  /* z1191z127: 정보 수정 · 제품 한 줄 = 금액 = 작업일정표 수량 × 1개 단가(바로 계산) */
+  var sp=document.getElementById('qSemiPrice');
+  if(sp && !sp.readOnly){
+    var bq=qItemNum((document.getElementById('qBoardQty')||{}).value), pr=qItemNum(sp.value);
+    var cc0=box.querySelector('#qSemiAmtCur');
+    box.textContent=qMoney103(Math.round((bq>0?bq:1)*pr*100)/100, qCur103())+' ';
+    if(cc0) box.appendChild(cc0);
+    return;
+  }
   var am=document.getElementById('qAmount');
   var cc=box.querySelector('#qSemiAmtCur');
   box.textContent=qMoney103(qItemNum(am&&am.value), qCur103())+' ';   /* z103: 화폐 기호 앞 · 통화 코드 꼬리는 숨김 */
@@ -840,6 +862,19 @@ document.addEventListener('submit', function(e){
   document.querySelectorAll('#qUnitPrice, #qAmount, #qUnitRows .qf-unit-amt, #qItemRows .qi-price').forEach(function(el){
     if(String(el.value||'').replace(/,/g,'').trim()==='') el.value='0';
   });
+}, true);
+/* z1191z127: 1개 단가·작업일정표 수량을 고치면 금액 = 수량 × 단가 바로 다시 보임 · 저장 전 「수량 × 단가 = 금액」 확인 */
+document.addEventListener('input', function(e){
+  var t = e.target; if(!t || (t.id !== 'qSemiPrice' && t.id !== 'qBoardQty')) return;
+  if(document.getElementById('qSemiPrice') && typeof qSemiAmtSync === 'function') try{ qSemiAmtSync(); }catch(_e){}
+});
+document.addEventListener('DOMContentLoaded', function(){ if(document.getElementById('qSemiPrice') && typeof qSemiAmtSync === 'function') try{ qSemiAmtSync(); }catch(_e){} });
+document.addEventListener('submit', function(e){
+  var f = e.target; if(!f || f.id !== 'quickForm') return;
+  var sp = document.getElementById('qSemiPrice'); if(!sp || sp.readOnly) return;
+  var raw = String(sp.value || '').replace(/,/g, '').trim();
+  if(raw === '' || isNaN(Number(raw)) || Number(raw) < 0){ e.preventDefault(); e.stopImmediatePropagation(); alert('1개 단가를 숫자로 적어 주세요(무상이면 0).'); try{ sp.focus(); }catch(_e){} return; }
+  sp.value = raw;
 }, true);
 /* z1191z123 (대표 11-24 「③ (나)」 · 운영 M-260728-1·M-261028-1: 품목 줄 수량 2·9 인데 작업일정표 수량 칸에 1 → 일정표엔 1식):
    제품 형태에서 품목이 **한 줄**인데 「작업일정표 수량」과 그 줄 수량이 다르면 저장 전에 한 번 묻는다(막지 않음 · 입력 실수 알림 원칙).

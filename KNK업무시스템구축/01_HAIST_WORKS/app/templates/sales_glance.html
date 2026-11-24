@@ -142,7 +142,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
       {% for g in G %}
       <button type="button" class="z75-k" data-v="{{ g.key }}" style="--kc:{{ g.color }};" aria-pressed="{{ 'true' if g.key == view else 'false' }}"
               title="{{ g.label }} {{ money(g.total, 'KRW') }}">
-        <div class="l">{{ g.label }}<small>· {{ g.basis }}</small></div>
+        <div class="l"{{ ct({'order':'sales.order_rev','prog':'sales.ship_rev','final':'sales.final_rev'}.get(g.key, '')) }}>{{ g.label }}<small>· {{ g.basis }}</small></div>
         <div class="v">{{ g.txt }}</div>
         <div class="d">{{ s3.period_label }}에 {{ g.desc }}{% if g.so or g.co %} · {% if g.so %}수주 {{ '{:,}'.format(g.so) }}건{% endif %}{% if g.so and g.co %} · {% endif %}{% if g.co %}소모품 {{ g.co }}건{% endif %}{% endif %}</div>
       </button>

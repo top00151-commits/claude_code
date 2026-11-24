@@ -124,7 +124,7 @@
       <b style="font-weight:800;color:var(--qv-ink-2,#475569);">달력 표시:</b>
       <span><i style="background:#2563eb;"></i>납품</span>
       <span><i style="background:#16a34a;"></i>출하</span>
-      <span><i style="background:#b91c1c;"></i>지연</span>
+      <span{{ ct('board.delay') }}><i style="background:#b91c1c;"></i>지연</span>
       <span><i style="background:#9ca3af;"></i>취소·보류</span>
     </span>
     {# v5H226z673 (대표 지시): 세금계산서 1/2/3차 칸 '색상' 의미 범례 — 영업·관리만(세금계산서 칸 자체가 can_sales_amt). 색 기준=refreshTaxStatus(z469): 1·2·3차 발행금액 합계 vs 수주금액. #}
@@ -266,8 +266,8 @@
           <th class="c-info cw-note" data-col="note"><div class="th-wrap">기타사항<span class="col-resizer" data-col="note"></span></div></th>
           <th class="c-info cw-qty" data-col="qty"><div class="th-wrap">수량<span class="col-resizer" data-col="qty"></span></div></th>
           {% if can_sales_amt %}
-          <th class="c-info cw-price" data-col="price"><div class="th-wrap">단가<span class="col-resizer" data-col="price"></span></div></th>
-          <th class="c-info cw-amount" data-col="amount"><div class="th-wrap">금액<span class="col-resizer" data-col="amount"></span></div></th>
+          <th class="c-info cw-price" data-col="price"{{ ct('board.price') }}><div class="th-wrap">단가<span class="col-resizer" data-col="price"></span></div></th>
+          <th class="c-info cw-amount" data-col="amount"{{ ct('board.amount') }}><div class="th-wrap">금액<span class="col-resizer" data-col="amount"></span></div></th>
           {% endif %}
           <th class="c-info cw-trade" data-col="trade"><div class="th-wrap">거래구분<span class="col-resizer" data-col="trade"></span></div></th>
           <th class="c-info cw-po" data-col="po"><div class="th-wrap">PO유형<span class="col-resizer" data-col="po"></span></div></th>
@@ -300,7 +300,7 @@
         {# v5H226z489 (대표 지시): 세금계산서 묶음은 차수(1/2/3) 단위 — 차수 칸마다 (행서명|차수)로 묶음 조회 #}
         {% set _ti1 = (ti_map.get(r.row_sig ~ '|1') if (can_sales_amt and ti_map is defined and ti_map and r.row_sig) else None) %}
         <tr class="{% if r.is_delay %}row-delay{% endif %}"
-            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}" data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}{% if r.is_parts %} data-parts="1"{% endif %}{% if r.so_oid %} data-soid="{{ r.so_oid }}"{% endif %}{% set _fz12 = ((r.note_blob or '') ~ ' ' ~ (r.parts_blob or '') ~ ' ' ~ (r.ti_memo_blob or ''))|trim %}{% if _fz12 and _fz12 != (r.note or '') %} data-find="{{ _fz12 }}"{% endif %}>
+            data-kind="{{ r.kind }}" data-ref="{{ r.ref_id }}" data-sono="{{ r.so_no or '' }}"{% if r.delayed_revise and r.delay_iids %} data-delay-iids="{{ r.delay_iids }}" data-delay-orig="{{ r.delay_orig }}" data-delay-reason="{{ r.delay_reason }}" data-due="{{ r.due_date or '' }}"{% endif %} data-memo="{{ r.memo }}" data-cur="{{ r.currency or 'KRW' }}" data-dday="{{ r.dday or '' }}" data-ts="{{ r.updated_at or '' }}" data-rowamt="{{ r.amount or 0 }}" data-qty="{{ r.qty or 1 }}" data-ulabel="{{ r.unit_label or '' }}"{% if can_sales_amt %} data-amt1="{{ r.tax_invoice_amt1 or '' }}" data-amt2="{{ r.tax_invoice_amt2 or '' }}" data-amt3="{{ r.tax_invoice_amt3 or '' }}" data-tino1="{{ _ti1.no if _ti1 else '' }}" data-tino2="{{ _ti2.no if _ti2 else '' }}" data-tino3="{{ _ti3.no if _ti3 else '' }}"{% endif %}{% if r.is_unit and r.unit_iids %} data-uids="{{ r.unit_iids|join(',') }}"{% endif %}{% if r.is_parts %} data-parts="1"{% endif %}{% if r.so_oid %} data-soid="{{ r.so_oid }}"{% endif %}{% set _fz12 = ((r.note_blob or '') ~ ' ' ~ (r.parts_blob or '') ~ ' ' ~ (r.ti_memo_blob or ''))|trim %}{% if _fz12 and _fz12 != (r.note or '') %} data-find="{{ _fz12 }}"{% endif %}>
           <td class="c-info c1" data-col="code"><input type="checkbox" class="row-sel" onclick="schedRowSel(this)" title="일괄수정 대상 선택" />{% if r.kind == 'consumable' %}<a href="/consumables/{{ r.ref_id }}" title="소모품 상세">{{ r.code }}</a>{% else %}<a href="/project/{{ r.ref_id }}{% if r.so_no %}?so={{ r.so_no|urlencode }}{% endif %}" title="프로젝트 상세">{{ r.code }}</a>{# v5H226z695 (대표 지시): 누른 행의 수주번호를 상세로 전달 → 그 수주가 메인 카드로 #}{# v5H226z565 (대표 지시): 관리번호 뒤 호기 라벨(N호기) 표시 삭제 — 호기는 '+' 펼침으로 확인 #}{% endif %}{# v5H226z632 (대표 지시): 관리번호 옆 '+' 펼치기 제거 — 장비 호기·소모품 품목보기 모두. (편집은 프로젝트/소모품 상세에서) #}</td>
           {# v5H226z650e (대표 지시): 수주번호 옆 '참고 N' 칩 제거 — 추가 수주는 프로젝트 상세의 참고 영역에서 확인(z638 칩 폐기). #}
           <td class="c-info c2" data-col="so_no">{{ r.so_no or '—' }}</td>
@@ -356,7 +356,7 @@
           {%- set _dmemo = (day_memos.get((r.kind, r.ref_id, _ymd)) if day_memos else None) or (r.memo if (is_del and r.memo) else '') -%}
           {#- v5H226z663 (대표 지시): 납기 점 색 = 출하 기준 — 출하(초록 shipped) / 지연(빨강 delay) / 취소·보류(회색 held) / 그외 진행중·예정(파랑 deliver) -#}
           {#- v5H226z834 (대표 지시): 납기 점(●) → 세로 2열 텍스트. 지연=지연·출하=출하·그외=납품. 취소/보류는 '납품'(파랑) 유지 + 회색 세로 라벨 나란히(held 미부여). -#}
-          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if _dmemo %} has-memo{% endif %}" data-day="{{ d }}" data-daymemo="{{ _dmemo }}"{% if _dmemo %} title="{{ _dmemo }}"{% elif is_del_orig %} title="원래 계획 납기 (이 건은 이후로 연기됨)"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}<span class="cal-t {% if r.status == '출하' %}m-ship{% elif r.delayed_revise %}m-deliver{% elif r.is_delay %}m-delay{% else %}m-deliver{% endif %}{% if r.status in ('취소','보류') %} cal-t-sup{% endif %}">{% if r.status == '출하' %}출하{% elif r.delayed_revise %}납품{% elif r.is_delay %}지연{% else %}납품{% endif %}</span>{% if r.status in ('취소','보류') %}<span class="cal-sub" title="{{ r.status }}{% if r.status_date %} · {{ r.status_date }}{% endif %}">{{ r.status }}</span>{% endif %}{% elif is_del_orig %}<span class="cal-t m-delay">연기</span>{% elif is_stat %}<span class="stat-ico">{{ '출하' if r.status == '출하' else ('취소' if r.status == '취소' else '보류') }}</span>{% endif %}</td>
+          <td class="day{% if d == today_day %} today{% endif %}{% if is_del %} deliver{% if r.is_delay %} delay{% endif %}{% elif in_bar %} bar{% if r.is_delay %} delay{% endif %}{% endif %}{% if is_stat %} stat-mark stat-{{ 'ship' if r.status == '출하' else ('cancel' if r.status == '취소' else 'hold') }}{% endif %}{% if _dmemo %} has-memo{% endif %}" data-day="{{ d }}" data-daymemo="{{ _dmemo }}"{% if _dmemo %} title="{{ _dmemo }}"{% elif is_del_orig %} title="원래 계획 납기 (이 건은 이후로 연기됨){% if r.delay_reason %} · 사유: {{ r.delay_reason }}{% endif %} — 누르면 사유·고치기·지우기"{% elif is_stat %} title="{{ r.status }} · {{ r.status_date }}"{% endif %}>{% if is_del %}<span class="cal-t {% if r.status == '출하' %}m-ship{% elif r.delayed_revise %}m-deliver{% elif r.is_delay %}m-delay{% else %}m-deliver{% endif %}{% if r.status in ('취소','보류') %} cal-t-sup{% endif %}">{% if r.status == '출하' %}출하{% elif r.delayed_revise %}납품{% elif r.is_delay %}지연{% else %}납품{% endif %}</span>{% if r.status in ('취소','보류') %}<span class="cal-sub" title="{{ r.status }}{% if r.status_date %} · {{ r.status_date }}{% endif %}">{{ r.status }}</span>{% endif %}{% elif is_del_orig %}<span class="cal-t m-delay delay-mark{% if r.delay_reason %} has-rsn{% endif %}" role="button" tabindex="0">연기</span>{% elif is_stat %}<span class="stat-ico">{{ '출하' if r.status == '출하' else ('취소' if r.status == '취소' else '보류') }}</span>{% endif %}</td>
           {%- endfor %}
           <td class="c-info cw-sales{% if r.kind != 'consumable' %} editable{% if r.sales_owner %} filled{% endif %}{% endif %}" data-col="sales_owner"{% if r.kind != 'consumable' %} data-edit="sales_owner"{% endif %} title="{{ r.sales_owner }}">{{ r.sales_owner or ('＋' if r.kind != 'consumable' else '') }}</td>
         </tr>
@@ -526,6 +526,27 @@
   };
 })();
 </script>
+<style>
+/* z1191z128: 연기 창 · 사유 있는 연기는 밑줄 */
+.delay-mark { cursor:pointer; }
+.delay-mark.has-rsn { text-decoration:underline dotted; text-underline-offset:2px; }
+#dl128 { position:fixed; inset:0; z-index:9000; background:rgba(15,23,42,.35); display:flex; align-items:center; justify-content:center; }
+#dl128 .dl128-box { background:#fff; color:#0f172a; width:min(440px, calc(100vw - 24px)); border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,.3); padding:14px 16px; font-size:13px; }
+#dl128 .dl128-h { font-weight:800; font-size:15px; display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+#dl128 .dl128-h span { font-weight:600; font-size:12px; color:#64748b; flex:1; }
+#dl128 .dl128-x { border:0; background:none; font-size:16px; cursor:pointer; color:#64748b; }
+#dl128 .dl128-row { display:flex; align-items:center; gap:10px; margin:6px 0; }
+#dl128 .dl128-row label { width:84px; color:#475569; font-weight:600; }
+#dl128 .dl128-col { flex-direction:column; align-items:stretch; gap:4px; }
+#dl128 .dl128-col label { width:auto; }
+#dl128 .dl128-col small { font-weight:400; color:#94a3b8; }
+#dl128 textarea, #dl128 input[type=date] { border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; font:inherit; }
+#dl128 .dl128-btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+#dl128 .dl128-b { border:1px solid #cbd5e1; background:#f8fafc; border-radius:8px; padding:7px 10px; font-weight:700; cursor:pointer; }
+#dl128 .dl128-b.ok { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+#dl128 .dl128-b.del { background:#fff1f2; color:#b91c1c; border-color:#fecdd3; margin-left:auto; }
+#dl128 .dl128-foot { margin-top:8px; font-size:11.5px; color:#64748b; }
+</style>
 <script>
 (function(){
 // v5H226z271: SPA 재실행 안전 — 전체를 IIFE로 감싸 const 재선언 오류 방지 + document 리스너 정리.
@@ -1075,6 +1096,7 @@ if(_tbody){
     const tb=e.target.closest('td.taxinv-bundle'); if(tb){ openTiView(tb.dataset.tiid); return; }   // v5H226z488: 묶음 세금계산서 구성 보기
     const td=e.target.closest('td.editable'); if(td){ startEdit(td); return; }
     // v5H226z711 (대표 지시): 달력 칸(진행구간·납기 점·발생일 표식) 클릭 → 상태/메모 통합 팝업(클릭한 날짜 전달)
+    const dm=e.target.closest('.delay-mark'); if(dm){ e.stopPropagation(); openDelay128(dm.closest('tr')); return; }   // z1191z128: 연기 → 사유·고치기·지우기
     const dc=e.target.closest('td.day'); if(dc && (dc.classList.contains('bar')||dc.classList.contains('deliver')||dc.classList.contains('stat-mark')||dc.classList.contains('has-memo'))){ openMemo(dc.closest('tr'), parseInt(dc.dataset.day,10)||0, dc); }
   });
   // v5H226z481/z483/z484: 펼친 호기 줄 인라인 수정 — data-field 통합 위임(상태·납기·단가·통화·거래방식·발주일·납품처·비고·거래명세서·세금계산서)
@@ -1736,6 +1758,53 @@ let _memoTr=null, _memoCell=null, _memoDay=0;
 var _BOARD_YM="{{ ym }}";   // v5H226z711: 현재 보기 연-월(YYYY-MM)
 function _pad2(n){ return (n<10?'0':'')+n; }
 function _memoYmd(day){ return (day && _BOARD_YM && /^\d{4}-\d{2}$/.test(_BOARD_YM)) ? (_BOARD_YM + '-' + _pad2(day)) : ''; }
+/* z1191z128 (안지연 프로 11-24 「연기 수정·삭제 가능하게 · 항상 사유 · 지운 연기도 관리번호 이력에 · 어떤 이유로 지웠는지」):
+   「연기」 글자 → 창: 처음 납기 · 지금 납기 · 사유(언제든) · [사유 저장] [처음 납기 고치기] [연기 표시 지우기(사유 필수)] · 모두 관리번호 이력 */
+function openDelay128(tr){
+  if(!tr) return;
+  var iids = tr.dataset.delayIids || '', ref = tr.dataset.ref || '';
+  if(!iids || !ref){ toast('연기 정보를 찾지 못했습니다 — 화면을 새로 열어 주세요'); return; }
+  var old = document.getElementById('dl128'); if(old) old.remove();
+  var code = ((tr.querySelector('td[data-col="code"] a')||{}).textContent || '').trim();
+  var so = tr.dataset.sono || '';
+  var w = document.createElement('div'); w.id = 'dl128';
+  w.innerHTML =
+    '<div class="dl128-box" role="dialog" aria-modal="true" aria-label="납기 연기">'
+    + '<div class="dl128-h">⏳ 납기 연기 <span>' + esc(code) + (so ? ' · ' + esc(so) : '') + '</span><button type="button" class="dl128-x" aria-label="닫기">✕</button></div>'
+    + '<div class="dl128-row"><label>처음 납기</label><input type="date" id="dl128Orig" value="' + esc(tr.dataset.delayOrig || '') + '"></div>'
+    + '<div class="dl128-row"><label>지금 납기</label><b>' + esc(tr.dataset.due || '—') + '</b></div>'
+    + '<div class="dl128-row dl128-col"><label>연기 사유 <small>(언제든 적고 고칠 수 있음 · 지울 때는 꼭)</small></label>'
+    + '<textarea id="dl128Rsn" rows="3" maxlength="500" placeholder="예: 고객사 요청으로 납기 변경 / 부품 입고 지연">' + esc(tr.dataset.delayReason || '') + '</textarea></div>'
+    + '<div class="dl128-btns"><button type="button" class="dl128-b ok" data-a="reason">💾 사유 저장</button>'
+    + '<button type="button" class="dl128-b" data-a="orig">📅 처음 납기 고치기</button>'
+    + '<button type="button" class="dl128-b del" data-a="clear">🗑 연기 표시 지우기</button></div>'
+    + '<div class="dl128-foot">고치거나 지운 것은 모두 이 관리번호 이력에 남습니다(누가·언제·날짜·사유).</div>'
+    + '</div>';
+  document.body.appendChild(w);
+  var close = function(){ var x = document.getElementById('dl128'); if(x) x.remove(); };
+  w.addEventListener('click', function(e){ if(e.target === w || e.target.closest('.dl128-x')) close(); });
+  w.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
+  try{ document.getElementById('dl128Rsn').focus(); }catch(_e){}
+  w.querySelectorAll('.dl128-b').forEach(function(btn){
+    btn.addEventListener('click', async function(){
+      var a = btn.dataset.a, rsn = document.getElementById('dl128Rsn').value.trim(), orig = document.getElementById('dl128Orig').value;
+      if(a === 'clear'){
+        if(!rsn){ alert('연기 표시를 지우는 사유를 적어 주세요.'); document.getElementById('dl128Rsn').focus(); return; }
+        if(!confirm('연기 표시를 지울까요?\n(처음 납기를 지금 납기로 맞춥니다 · 지운 기록과 사유는 관리번호 이력에 남습니다)')) return;
+      }
+      if(a === 'orig' && !orig){ alert('처음 납기 날짜를 골라 주세요.'); return; }
+      btn.disabled = true;
+      try{
+        var r = await fetch('/sales/schedule/due-delay', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({action:a, ref:ref, iids:iids, reason:rsn, orig:orig})});
+        var j = await r.json().catch(function(){ return {}; });
+        if(!r.ok || !j.ok){ alert(j.message || '저장하지 못했습니다'); btn.disabled = false; return; }
+        close(); toast(j.message || '저장했습니다');
+        setTimeout(function(){ window.knkLeaveOk = true; location.reload(); }, 600);
+      }catch(_e){ alert('저장하지 못했습니다(연결)'); btn.disabled = false; }
+    });
+  });
+}
 function openMemo(tr, day, cell){
   _memoTr=tr; _memoCell=cell||null; _memoDay=day||0;
   // v5H226z712 (대표 지시): 메모는 '클릭한 그 날짜'의 메모만 불러옴(행 전체 아님)
@@ -2316,7 +2385,7 @@ function _tiOpenModal(lines, force){
   if(custKeys.length>1){ h+='<div class="ti-warn">⛔ 고객사가 서로 다릅니다: <b>'+custKeys.map(esc).join(', ')+'</b><br>다른 고객사끼리는 한 장으로 묶을 수 없습니다. <b>고객사별로 따로</b> 선택해 발행하세요.</div>'; }
   h+='<div class="ti-row-flex"><label>발행일 <input type="date" id="tiIssueDate" value="'+_tiToday()+'" /></label>';
   h+='<label>고객사 <b>'+(custKeys.length===1?esc(custKeys[0]):(custKeys.length===0?'(미지정)':custKeys.length+'곳'))+'</b></label></div>';
-  h+='<table><thead><tr><th>관리번호</th><th>호기</th><th>고객사</th><th class="num">금액('+_tiSym+')</th></tr></thead><tbody id="tiBody"></tbody>';
+  h+='<table><thead><tr><th>관리번호</th><th>호기</th><th>고객사</th><th class="num" data-calc="'+{{ calc_tip('board.ti_amt')|tojson }}+'">금액('+_tiSym+')</th></tr></thead><tbody id="tiBody"></tbody>';
   h+='<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">합계</td><td class="num ti-total" id="tiTotal">'+_tiSym+'0</td></tr></tfoot></table>';
   h+='<div class="ti-row-flex" style="margin-top:10px;"><label style="flex:1;">메모 <input type="text" id="tiMemo" style="width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:4px 7px;font:inherit;" placeholder="(선택) 세금계산서 메모" /></label></div>';
   h+='</div><div class="ti-foot"><button type="button" class="ti-btn" onclick="_tiCloseModal()">취소</button>';

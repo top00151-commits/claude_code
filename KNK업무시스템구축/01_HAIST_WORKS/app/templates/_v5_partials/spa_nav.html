@@ -104,6 +104,18 @@
   function apply(html, url, push){
     var doc;
     try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch(e){ return fullNav(url); }
+    // z1191z126 (대표 11-24 「구매팀 웍스가 옛날 버전」): 새로 받은 화면의 서버 판이 이 창의 판과 다르면(그사이 배포됨)
+    //   본문만 갈아 끼우지 않고 창 전체를 새로 연다 → 메뉴·공용 스크립트까지 새 판 · 「나중에」를 눌렀어도 직접 옮기는 순간엔 적용
+    //   입력 중인 화면이면 그 화면의 「떠나시겠어요?」 확인이 그대로 뜬다(창 전체 이동이라) · 입력 칸 임시 저장(knkDraft)도 먼저
+    try {
+      var _nv126 = doc.getElementById('knkVer'), _lv126 = window.__knkLoadedVer;
+      var _v126 = _nv126 ? (_nv126.getAttribute('data-v') || '') : '';
+      if (_v126 && _lv126 && _v126 !== _lv126) {
+        try { if (window.knkDraft) window.knkDraft.save(); } catch(e){}
+        if (push) return fullNav(url);
+        window.location.replace(url); return;
+      }
+    } catch(e){}
     var newMain = doc.querySelector('.main');
     var curMain = document.querySelector('.main');
     if (!newMain || !curMain) return fullNav(url);

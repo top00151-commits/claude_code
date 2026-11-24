@@ -40639,16 +40639,23 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
     # v5H226z836 (대표 지시): 원 납기 vs 현 납기 — 납기를 뒤로 미뤘으면 원 날짜에 '납품' 유지·바뀐 날짜에 '지연'(제작지연 가시화).
     #   호기(order_items) due_date_orig 로 판정. 분할줄=그 줄 호기(unit_iids) 최소 원납기 · 비분할 프로젝트=그 프로젝트 호기 최소 원납기.
     _oi_orig_iid, _proj_orig = {}, {}
+    _oi_due128, _oi_rsn128, _proj_iids128 = {}, {}, {}   # z1191z128: 연기 창(대상 호기 · 사유)
     try:
         with db_session() as _oc2:
-            if "due_date_orig" in {r[1] for r in _oc2.execute("PRAGMA table_info(order_items)").fetchall()}:
+            _oic128 = {r[1] for r in _oc2.execute("PRAGMA table_info(order_items)").fetchall()}
+            if "due_date_orig" in _oic128:
+                _rsn_sel128 = "COALESCE(oi.due_delay_reason,'')" if "due_delay_reason" in _oic128 else "''"
                 for _r in _oc2.execute(
-                        "SELECT oi.id, oi.due_date_orig, o.project_id FROM order_items oi "
+                        "SELECT oi.id, oi.due_date_orig, o.project_id, COALESCE(NULLIF(oi.due_date,''), o.due_date, ''), " + _rsn_sel128 + " FROM order_items oi "
                         "JOIN orders o ON o.id=oi.order_id "
                         "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(oi.due_date_orig,'')<>''"
                         + _board_in_frag("o.project_id", _vis_pids)):   # v5H226z864: 보이는 행만
                     _iid, _do, _pid = _r[0], str(_r[1])[:10], _r[2]
                     _oi_orig_iid[_iid] = _do
+                    _oi_due128[_iid] = str(_r[3] or "")[:10]
+                    if _r[4]:
+                        _oi_rsn128[_iid] = _r[4]
+                    _proj_iids128.setdefault(_pid, []).append(_iid)
                     if _pid and (_pid not in _proj_orig or _do < _proj_orig[_pid]):
                         _proj_orig[_pid] = _do
     except Exception:
@@ -40660,12 +40667,20 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
             continue
         if (_row.get("status") or "") in ("출하", "취소", "보류"):
             continue   # 종결(출하/취소/보류) 건은 지연 분리 안 함 — 제작지연은 진행중 건만
-        _origs = [_oi_orig_iid[i] for i in (_row.get("unit_iids") or []) if i in _oi_orig_iid]
-        _orig = min(_origs) if _origs else _proj_orig.get(_row.get("ref_id"))
+        # z1191z128 (안지연 프로 11-24 사진 006T2610·018T2610): 예전엔 「관리번호 호기 중 가장 이른 처음 납기 < 이 줄 납기」면 연기 →
+        #   출하 끝난 11-03 호기 + 나중에 더한 12-04 호기만 있어도 「연기」(실제로 미룬 호기 없음 · 시험 사본 11월 4건 모두 이것).
+        #   → **호기마다 자기 처음 납기 < 자기 지금 납기**(실제로 미룬 호기)가 있을 때만 연기 · 처음 납기 = 그 호기들 중 가장 이른 날.
+        _scope128 = [i for i in (_row.get("unit_iids") or []) if i in _oi_orig_iid] or list(_proj_iids128.get(_row.get("ref_id")) or [])
+        _dl128 = [i for i in _scope128 if _oi_orig_iid.get(i) and _oi_due128.get(i) and _oi_orig_iid[i] < _oi_due128[i]]
+        _orig = min(_oi_orig_iid[i] for i in _dl128) if _dl128 else None
         _dcur, _dorig = _pd(_row.get("due_date")), _pd(_orig)
         if _dorig and _dcur and _dorig < _dcur:   # 납기를 뒤로 미룸 = 제작지연
             _row["delayed_revise"] = True
             _row["dday_orig"] = _dorig.day if (mstart <= _dorig <= mend) else None
+            # z1191z128: 연기 창 — 이 줄의 실제로 미룬 호기 · 처음 납기 · 사유
+            _row["delay_iids"] = ",".join(str(i) for i in _dl128)
+            _row["delay_orig"] = str(_orig or "")[:10]
+            _row["delay_reason"] = " / ".join(sorted({_oi_rsn128[i] for i in _dl128 if i in _oi_rsn128}))
     # 정렬: 월 보기=납품일(일자) 우선 / 기간 보기=실제 날짜(여러 달이므로 전체 날짜) 순
     if range_mode:
         rows.sort(key=lambda r: (r.get("due_date") or "9999-99-99", r.get("order_date") or "9999-99-99", r["code"]))
@@ -40970,6 +40985,78 @@ def _rows_add_so_custs_z1191(c, rows):
     for r in rows:
         d = by.get(int(r["id"]), {"c": [], "e": []})
         r["so_custs"], r["so_ends"] = d["c"][:8], d["e"][:8]
+
+
+# z1191z128 (안지연 프로 11-24 사진 「연기 수정 삭제 가능하게 · 항상 사유를 적을 수 있어야 · 삭제한 연기도 관리번호 이력에 · 어떤 이유로 삭제했는지」):
+#   작업일정표 「연기」 = 호기 처음 납기(due_date_orig) < 지금 납기 → 그 글자를 누르면 창: 사유 저장 · 처음 납기 고치기 · 연기 표시 지우기(사유 필수)
+#   모두 관리번호 이력(project_history)에 남는다(누가·언제·어느 날짜에서 어느 날짜로·사유). 지우기 = 처음 납기를 지금 납기로(다음에 또 미루면 다시 연기).
+def _z128_cols(c):
+    if "due_delay_reason" not in {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}:
+        c.execute("ALTER TABLE order_items ADD COLUMN due_delay_reason TEXT")
+
+
+@app.post("/sales/schedule/due-delay")
+async def sales_schedule_due_delay_z128(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다"}, 403)
+    try:
+        b = await req.json()
+    except Exception:
+        b = {}
+    act = str(b.get("action") or "").strip()
+    reason = str(b.get("reason") or "").strip()[:500]
+    try:
+        pid = int(b.get("ref") or 0)
+        iids = sorted({int(x) for x in str(b.get("iids") or "").split(",") if str(x).strip()})
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "message": "잘못된 요청입니다"}, 400)
+    if act not in ("reason", "orig", "clear") or pid <= 0 or not iids:
+        return JSONResponse({"ok": False, "message": "잘못된 요청입니다"}, 400)
+    if act == "clear" and not reason:
+        return JSONResponse({"ok": False, "message": "연기 표시를 지우는 사유를 적어 주세요"}, 400)
+    new_orig = str(b.get("orig") or "").strip()[:10]
+    if act == "orig":
+        try:
+            datetime.strptime(new_orig, "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse({"ok": False, "message": "처음 납기 날짜를 골라 주세요"}, 400)
+    uid = u.get("id") if isinstance(u, dict) else None
+    with db_session() as c:
+        _z128_cols(c)
+        q = ("SELECT oi.id, o.order_no, COALESCE(oi.due_date_orig,''), COALESCE(NULLIF(oi.due_date,''), o.due_date, ''), "
+             "COALESCE(oi.due_delay_reason,''), COALESCE(oi.unit_label, oi.spec, '') FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+             "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' AND oi.id IN (%s)" % ",".join("?" * len(iids)))
+        rows = c.execute(q, [pid] + iids).fetchall()
+        if len(rows) != len(iids):
+            return JSONResponse({"ok": False, "message": "이 관리번호의 호기가 아닙니다 — 화면을 새로 열어 주세요"}, 400)
+        sos = ", ".join(sorted({r[1] for r in rows if r[1]}))
+        olds = sorted({str(r[2])[:10] for r in rows if r[2]})
+        curs = sorted({str(r[3])[:10] for r in rows if r[3]})
+        old_rsn = " / ".join(sorted({r[4] for r in rows if r[4]}))
+        span = "처음 납기 %s → 지금 납기 %s" % (", ".join(olds) or "—", ", ".join(curs) or "—")
+        tag = " · SO %s · 호기 %d개 · 작업일정표 (z1191z128)" % (sos or "—", len(rows))
+        if act == "reason":
+            c.execute("UPDATE order_items SET due_delay_reason=? WHERE id IN (%s)" % ",".join("?" * len(iids)), [reason or None] + iids)
+            _logi.log_project_change(c, pid, uid, "납기 연기 사유", old_rsn, reason, note=span + tag)
+            msg = "연기 사유를 저장했습니다"
+        elif act == "orig":
+            for r in rows:
+                c.execute("UPDATE order_items SET due_date_orig=? WHERE id=?", (new_orig, r[0]))
+            if reason:
+                c.execute("UPDATE order_items SET due_delay_reason=? WHERE id IN (%s)" % ",".join("?" * len(iids)), [reason] + iids)
+            _logi.log_project_change(c, pid, uid, "납기 연기 · 처음 납기 고침", ", ".join(olds), new_orig,
+                                     note=("사유: %s · " % reason if reason else "") + "지금 납기 %s" % (", ".join(curs) or "—") + tag)
+            msg = "처음 납기를 %s 로 고쳤습니다" % new_orig
+        else:
+            for r in rows:
+                c.execute("UPDATE order_items SET due_date_orig=?, due_delay_reason=NULL WHERE id=?", (str(r[3])[:10] or None, r[0]))
+            _logi.log_project_change(c, pid, uid, "납기 연기 지움", span + (" · 연기 사유: %s" % old_rsn if old_rsn else ""),
+                                     "연기 표시 없음", note="지운 사유: %s%s" % (reason, tag))
+            msg = "연기 표시를 지웠습니다(이력에 남음)"
+    return JSONResponse({"ok": True, "message": msg})
 
 
 @app.post("/sales/schedule/cell")
@@ -44071,6 +44158,12 @@ def _z61_quote_files(pid):
 
 tpl.env.globals["z61_quote_files"] = _z61_quote_files
 
+# z1191z125 (대표 11-24 「계산 칸 제목에 마우스 올리면 설명 · 96개 모두 진행」): 글은 app/calc_tips.py 한 곳 ·
+#   제목 칸에 {{ ct('키') }} → data-calc="설명" · 풍선 = _v5_partials/knk_calc_tip.html(chrome.html 공용)
+from . import calc_tips as _calc_tips125
+tpl.env.globals["calc_tip"] = _calc_tips125.tip
+tpl.env.globals["ct"] = _calc_tips125.attr
+
 
 # ═══ z1191z121 (대표 11-23 「견적서를 등록하는 이유는 향후에 고객사에서 비슷한걸 요구했을때 최종이 어떤거였는지 확인 …
 #     견적서내 상세항목들도 확인이 필요」): 올린 견적서 엑셀을 칸 그대로 읽어 둔다(AI 없음) → 웍스 안에서 바로 보기 · 찾기
@@ -45002,6 +45095,17 @@ async def projects_quick_edit_form(request: Request, pid: int):
                         _q118 = 1.0
                     _tso117["unit_price"] = round(_tso117["amount"] / _q118, 2)
                     _tso117["tbd"] = 1 if int(_o.get("price_tbd") or 0) else 0
+                    # z1191z127 (안지연 프로 11-24): 제품 · 품목 한 줄이면 그 줄 수량·단가·금액 → 정보 수정 「1개 단가」 칸
+                    try:
+                        _ln127 = c5.execute("SELECT id, COALESCE(qty,0), COALESCE(unit_price,0), COALESCE(amount,0) FROM order_items "
+                                            "WHERE order_id=? AND COALESCE(unit_status,'')<>'취소' ORDER BY id", (_o.get("id"),)).fetchall()
+                        _tso117["semi_lines"] = len(_ln127)
+                        if len(_ln127) == 1:
+                            _tso117["semi_line"] = {"iid": _ln127[0][0], "qty": float(_ln127[0][1] or 0),
+                                                    "unit_price": float(_ln127[0][2] or 0), "amount": float(_ln127[0][3] or 0),
+                                                    "closed": 1 if str(_o.get("status") or "").upper() in ("INVOICED", "PAID") else 0}
+                    except Exception as _e127g:
+                        print(f"[z1191z127 semi line] {_e127g}")
     except Exception as _e117k:
         print(f"[z1191z117k quick-edit so] {_e117k}")
     return ctx(request, "project_quick_form.html", so_cnt117=_so_cnt117, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
@@ -49096,6 +49200,58 @@ async def projects_edit_submit(request: Request, pid: int):
                 _z1191_cascade_first_so(c, int(pid), _old1191[0], _old1191[1])
         except Exception as _e1191:
             print(f"[z1191] 정보수정 → 첫 수주 맞추기 실패: {_e1191}")
+    # z1191z127 (안지연 프로 11-24 「정보 수정에서 수량/단가를 고치고 싶은데 단가 칸이 없음 · 9SET × 28,860,000」):
+    #   제품(SEMI) · 품목 한 줄 수주 = 정보 수정의 「1개 단가」 칸 → 그 줄 수량(= 작업일정표 수량) · 단가 · 금액(수량 × 단가) ·
+    #   수주 합계 · 프로젝트 수주액 다시 계산 · 이력. 입금 완료·계산서 수주는 화면에서 칸을 잠가 여기 안 옴(와도 안 바꿈).
+    if _sf976 == "SEMI" and _is_quick_edit and str(form.get("semi_price_seen") or "") == "1":
+        try:
+            _raw127 = (form.get("semi_unit_price") or "").strip().replace(",", "")
+            _iid127 = int(float(form.get("semi_iid") or 0))
+            if _raw127 != "" and _iid127 > 0:
+                _p127 = float(_raw127)
+                _bq127_raw = (form.get("board_qty") or "").strip().replace(",", "")
+                try:
+                    _bq127 = int(float(_bq127_raw)) if _bq127_raw else 0
+                except (ValueError, TypeError):
+                    _bq127 = 0
+                with db_session() as _c127:
+                    _tid127 = _quick_target_so_z117(_c127, pid, form.get("target_so"))
+                    _r127 = _c127.execute(
+                        "SELECT oi.id, oi.order_id, COALESCE(oi.qty,0), COALESCE(oi.unit_price,0), COALESCE(oi.amount,0), "
+                        "UPPER(COALESCE(o.status,'')), UPPER(COALESCE(o.currency,'KRW')), o.order_no "
+                        "FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.id=? AND oi.order_id=?",
+                        (_iid127, _tid127 or -1)).fetchone()
+                    _n127 = _c127.execute("SELECT COUNT(*) FROM order_items WHERE order_id=? AND COALESCE(unit_status,'')<>'취소'",
+                                          (_tid127 or -1,)).fetchone()[0] if _tid127 else 0
+                    if _r127 and _n127 == 1 and _r127[5] not in ("INVOICED", "PAID", "CANCELLED") and _p127 >= 0:
+                        _q127 = float(_bq127) if _bq127 > 0 else float(_r127[2] or 0)
+                        if _q127 > 0:
+                            _a127 = round(_q127 * _p127, 2)
+                            if (abs(_q127 - float(_r127[2])) > 1e-9 or abs(_p127 - float(_r127[3])) > 1e-9
+                                    or abs(_a127 - float(_r127[4])) > 0.005):
+                                _c127.execute("UPDATE order_items SET qty=?, unit_price=?, amount=? WHERE id=?",
+                                              (_q127, _p127, _a127, _iid127))
+                                _c127.execute("UPDATE orders SET total_amount=(SELECT COALESCE(SUM(amount),0) FROM order_items "
+                                              "WHERE order_id=? AND COALESCE(unit_status,'')<>'취소') WHERE id=?", (_tid127, _tid127))
+                                _f127 = lambda v: "{:,.2f}".format(v).rstrip("0").rstrip(".")
+                                _note127 = ("정보 수정 · 수량 %s → %s · 단가 %s → %s · 금액 %s → %s (z1191z127)"
+                                            % (_f127(_r127[2]), _f127(_q127), _f127(_r127[3]), _f127(_p127), _f127(_r127[4]), _f127(_a127)))
+                                _st127 = _r127[5] or "CONFIRMED"
+                                _c127.execute("INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) "
+                                              "VALUES(?,?,?,?,?)", (_tid127, _st127, _st127,
+                                                                    _u.get("id") if isinstance(_u, dict) else None, _note127))
+                                try:
+                                    _logi.log_project_change(_c127, pid, _u.get("id") if isinstance(_u, dict) else None,
+                                                             "수량·단가", "%s × %s" % (_f127(_r127[2]), _f127(_r127[3])),
+                                                             "%s × %s" % (_f127(_q127), _f127(_p127)), note="SO %s · 정보 수정" % _r127[7])
+                                except Exception:
+                                    pass
+                                try:
+                                    _recalc_project_amount(_c127, pid)
+                                except Exception as _ra127:
+                                    print(f"[z1191z127 recalc] {_ra127}")
+        except Exception as _e127:
+            print(f"[z1191z127 semi price] {_e127}")
     _z61_attach(pid, form.get("quote_tok"), _u, note="z1191z62 수정 화면 「견적서로 채우기」")   # z1191z62: [저장] 때 견적서 보관
     return RedirectResponse(f"/project/{pid}", status_code=303)
 
@@ -52557,6 +52713,56 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
         elif st == "INVOICED":
             kpi["wait_payment"] += 1
             kpi["outstanding"] += amt
+    # z1191z125 (계산 칸 설명 조사에서 찾음): 「이번주·이번달 납기」 = 위 목록(최근 200건)만 세고 달러 금액을 원화처럼 더해 ₩ 로 보였다
+    #   → 이 탭의 수주 전체에서 다시 센다 · 금액은 통화별로 따로(환산 안 함) · 취소 제외 · 실패하면 위 값 그대로
+    try:
+        _lo125, _hi125 = min(_week_start, _month_start), max(_week_end, _month_end)
+        with db_session() as _c125:
+            if biz == "C":
+                _rows125 = _c125.execute(
+                    "SELECT substr(due_date,1,10), UPPER(COALESCE(NULLIF(TRIM(currency),''),'KRW')), COALESCE(total_amount,0) "
+                    "FROM consumable_orders WHERE COALESCE(status,'')<>'CANCELLED' AND substr(due_date,1,10) BETWEEN ? AND ?",
+                    (_lo125, _hi125)).fetchall()
+            else:
+                _ccy125 = "UPPER(COALESCE(NULLIF(TRIM(o.currency),''),'KRW'))" if "currency" in ocols else "'KRW'"
+                _q125 = ("SELECT substr(o.due_date,1,10), " + _ccy125 + ", COALESCE(o.total_amount,0) FROM orders o "
+                         "LEFT JOIN projects p ON p.id=o.project_id "
+                         "WHERE UPPER(COALESCE(o.status,''))<>'CANCELLED' AND substr(o.due_date,1,10) BETWEEN ? AND ?")
+                _p125 = [_lo125, _hi125]
+                if biz in ("T", "M", "K"):
+                    _q125 += " AND COALESCE(p.biz_div,'')=?"
+                    _p125.append(biz)
+                _rows125 = _c125.execute(_q125, _p125).fetchall()
+                # 납품대기(확정)·송장대기(납품)·수금대기(송장) 건수와 확정 중 납기 지난 건수도 이 탭 전체에서
+                _qs125 = ("SELECT UPPER(COALESCE(o.status,'')), COUNT(*), "
+                          "SUM(CASE WHEN COALESCE(o.due_date,'')<>'' AND substr(o.due_date,1,10) < ? THEN 1 ELSE 0 END) "
+                          "FROM orders o LEFT JOIN projects p ON p.id=o.project_id WHERE 1=1")
+                _ps125 = [_today_iso]
+                if biz in ("T", "M", "K"):
+                    _qs125 += " AND COALESCE(p.biz_div,'')=?"
+                    _ps125.append(biz)
+                _st125 = {r[0]: (r[1], r[2]) for r in _c125.execute(_qs125 + " GROUP BY 1", _ps125).fetchall()}
+                kpi["wait_ship"] = _st125.get("CONFIRMED", (0, 0))[0]
+                kpi["overdue_count"] = _st125.get("CONFIRMED", (0, 0))[1] or 0
+                kpi["wait_invoice"] = _st125.get("SHIPPED", (0, 0))[0]
+                kpi["wait_payment"] = _st125.get("INVOICED", (0, 0))[0]
+        _wk125, _mo125, _wn125, _mn125 = {}, {}, 0, 0
+        for _dd125, _cc125, _am125 in _rows125:
+            try:
+                _am125 = float(_am125 or 0)
+            except (TypeError, ValueError):
+                _am125 = 0.0
+            if _week_start <= _dd125 <= _week_end:
+                _wn125 += 1
+                _wk125[_cc125] = _wk125.get(_cc125, 0.0) + _am125
+            if _month_start <= _dd125 <= _month_end:
+                _mn125 += 1
+                _mo125[_cc125] = _mo125.get(_cc125, 0.0) + _am125
+        kpi["week_count"], kpi["month_count"] = _wn125, _mn125
+        kpi["week_ccy"] = {k: v for k, v in _wk125.items() if v}
+        kpi["month_ccy"] = {k: v for k, v in _mo125.items() if v}
+    except Exception as _e125:
+        print("[z1191z125] 이번주·이번달 납기 다시 세기 실패:", repr(_e125))
     # z1191z98 (대표 11-22 「5·6 합치기」 · 같은 돈은 같은 숫자): 위 「outstanding」은 확정+납품+송장 수주 금액 합이라 받을 돈이 아니다
     #   → 화면 칸은 💰 입금 확인과 같은 계산(세금계산서 · 부가세 포함 · 받은 돈 뺌)의 원화 합으로 보인다.
     try:

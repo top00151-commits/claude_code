@@ -70,10 +70,10 @@
     </form>
     {% set k = s_real %}
     <div class="fg-kpis">
-      <div class="fg-kpi"><div class="l">외화 입금(실제 기록)</div><div class="v">{{ k.n }}건</div><div class="s">{{ k.ccy_txt or '—' }}</div></div>
-      <div class="fg-kpi g"><div class="l">환차익 합계</div><div class="v">+₩{{ '{:,}'.format(k.gain) }}</div></div>
-      <div class="fg-kpi r"><div class="l">환차손 합계</div><div class="v">−₩{{ '{:,}'.format(-k.loss) }}</div></div>
-      <div class="fg-kpi {{ 'g' if k.net > 0 else ('r' if k.net < 0 else '') }}"><div class="l">순 환차(익 − 손)</div><div class="v">{{ '+' if k.net > 0 else ('−' if k.net < 0 else '') }}₩{{ '{:,}'.format(k.net|abs) }}</div>{% if k.n_bad %}<div class="s">⚠ 계산 못 한 줄 {{ k.n_bad }}건(발주일·환율 없음)</div>{% endif %}</div>
+      <div class="fg-kpi"><div class="l"{{ ct('fx.real') }}>외화 입금(실제 기록)</div><div class="v">{{ k.n }}건</div><div class="s">{{ k.ccy_txt or '—' }}</div></div>
+      <div class="fg-kpi g"><div class="l"{{ ct('fx.gain_sum') }}>환차익 합계</div><div class="v">+₩{{ '{:,}'.format(k.gain) }}</div></div>
+      <div class="fg-kpi r"><div class="l"{{ ct('fx.loss_sum') }}>환차손 합계</div><div class="v">−₩{{ '{:,}'.format(-k.loss) }}</div></div>
+      <div class="fg-kpi {{ 'g' if k.net > 0 else ('r' if k.net < 0 else '') }}"><div class="l"{{ ct('fx.net') }}>순 환차(익 − 손)</div><div class="v">{{ '+' if k.net > 0 else ('−' if k.net < 0 else '') }}₩{{ '{:,}'.format(k.net|abs) }}</div>{% if k.n_bad %}<div class="s">⚠ 계산 못 한 줄 {{ k.n_bad }}건(발주일·환율 없음)</div>{% endif %}</div>
     </div>
     {% if show_base and n_base %}
     <p class="fg-lead" style="margin-top:-4px;">ⓘ 기초 정리(일괄) {{ n_base }}줄(참고만 · 위 합계에 안 넣음): 환차익 +₩{{ '{:,}'.format(s_base.gain) }} · 환차손 −₩{{ '{:,}'.format(-s_base.loss) }} · 순 {{ '+' if s_base.net > 0 else ('−' if s_base.net < 0 else '') }}₩{{ '{:,}'.format(s_base.net|abs) }} — 입금일이 「발행 후 90일」로 적힌 줄이라 실제 환차와 다릅니다.</p>
@@ -83,7 +83,7 @@
       <table class="fg-t">
         <thead><tr>
           <th class="l">입금일</th><th class="l">고객사 · 수주</th><th>입금 금액</th>
-          <th>원화 · 발주 달 환율</th><th>원화 · 입금 달 환율</th><th>환차</th>
+          <th{{ ct('fx.krw_order') }}>원화 · 발주 달 환율</th><th{{ ct('fx.krw_receipt') }}>원화 · 입금 달 환율</th><th{{ ct('fx.diff') }}>환차</th>
         </tr></thead>
         <tbody>
         {% for d in rows %}{% set f = d.fx %}

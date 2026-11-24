@@ -42,8 +42,8 @@
     </p>
     {% set k = kpi or {} %}
     <div class="ar-kpis">
-      <div class="ar-kpi"><div class="l">받을 돈(부가세 포함)</div><div class="v">{% if can_money %}{{ (k.total or ['₩0'])|join(' · ') }}{% else %}🔒{% endif %}</div></div>
-      <div class="ar-kpi red"><div class="l">🔴 예정일 지난 돈</div><div class="v">{% if can_money %}{{ (k.over or ['₩0'])|join(' · ') }}{% else %}🔒{% endif %}</div></div>
+      <div class="ar-kpi"><div class="l"{{ ct('rc.balance_ccy') }}>받을 돈(부가세 포함)</div><div class="v">{% if can_money %}{{ (k.total or ['₩0'])|join(' · ') }}{% else %}🔒{% endif %}</div></div>
+      <div class="ar-kpi red"><div class="l"{{ ct('rc.overdue') }}>🔴 예정일 지난 돈</div><div class="v">{% if can_money %}{{ (k.over or ['₩0'])|join(' · ') }}{% else %}🔒{% endif %}</div></div>
       <div class="ar-kpi"><div class="l">고객사</div><div class="v">{{ k.n_cust or 0 }}곳 <span style="font-size:12px;color:#b91c1c;">· 지남 {{ k.n_over_cust or 0 }}곳</span></div></div>
       <div class="ar-kpi red"><div class="l">가장 오래 지남</div><div class="v">{{ k.max_over or 0 }}일</div></div>
     </div>
@@ -51,7 +51,7 @@
       {% if custs %}
       <table class="ar-t">
         <thead><tr>
-          <th class="l">고객사 · 결제 조건</th><th>받을 돈</th><th>예정일 전</th><th>1~30일 지남</th><th>31~60일</th><th>61~90일</th><th>90일 넘음</th><th class="hide-m">가장 오래</th><th class="hide-m">계산서</th><th class="l"></th>
+          <th class="l">고객사 · 결제 조건</th><th{{ ct('rc.balance_ccy') }}>받을 돈</th><th{{ ct('rc.bucket') }}>예정일 전</th><th>1~30일 지남</th><th>31~60일</th><th>61~90일</th><th>90일 넘음</th><th class="hide-m"{{ ct('rc.oldest') }}>가장 오래</th><th class="hide-m"{{ ct('rc.sheets') }}>계산서</th><th class="l"></th>
         </tr></thead>
         <tbody>
         {% for g in custs %}

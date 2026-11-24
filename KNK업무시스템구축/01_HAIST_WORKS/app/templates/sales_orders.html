@@ -218,18 +218,18 @@ body {
   {# KPI 슬림바 #}
   {% set _k = kpi|default({}) %}
   <div class="kpi-slim" data-dn="kpi-bar" data-dn-tone="green">
-    <div class="c k1" data-dn="kpi-week"><div class="top"><span class="lbl">📅 이번주 납기</span><span class="val">{{ _k.get('week_count', 0) }}<span class="u">건</span></span></div>
-      <div class="sub">{% if _k.get('week_amount') %}{{ money(_k.get('week_amount', 0), 'KRW') }}{% else %}—{% endif %}</div></div>
-    <div class="c k2" data-dn="kpi-month"><div class="top"><span class="lbl">📅 이번달 납기</span><span class="val">{{ _k.get('month_count', 0) }}<span class="u">건</span></span></div>
-      <div class="sub">{% if _k.get('month_amount') %}{{ money(_k.get('month_amount', 0), 'KRW') }}{% else %}—{% endif %}</div></div>
-    <div class="c k3" data-dn="kpi-ship"><div class="top"><span class="lbl">🟡 납품대기</span><span class="val">{{ _k.get('wait_ship', 0) }}<span class="u">건</span></span></div>
+    <div class="c k1" data-dn="kpi-week"><div class="top"><span class="lbl"{{ ct('orders.week') }}>📅 이번주 납기</span><span class="val">{{ _k.get('week_count', 0) }}<span class="u">건</span></span></div>
+      <div class="sub">{% set _w125 = _k.get('week_ccy') or {} %}{% if _w125 %}{% for _cc, _a in _w125|dictsort %}{{ money(_a, _cc) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}—{% endif %}</div></div>
+    <div class="c k2" data-dn="kpi-month"><div class="top"><span class="lbl"{{ ct('orders.month') }}>📅 이번달 납기</span><span class="val">{{ _k.get('month_count', 0) }}<span class="u">건</span></span></div>
+      <div class="sub">{% set _m125 = _k.get('month_ccy') or {} %}{% if _m125 %}{% for _cc, _a in _m125|dictsort %}{{ money(_a, _cc) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}—{% endif %}</div></div>
+    <div class="c k3" data-dn="kpi-ship"><div class="top"><span class="lbl"{{ ct('orders.wait_ship') }}>🟡 납품대기</span><span class="val">{{ _k.get('wait_ship', 0) }}<span class="u">건</span></span></div>
       <div class="sub {% if _k.get('overdue_count', 0) > 0 %}danger{% endif %}">{% if _k.get('overdue_count', 0) > 0 %}⚠ 오버듀 {{ _k.get('overdue_count') }}건{% else %}CONFIRMED{% endif %}</div></div>
-    <div class="c k4" data-dn="kpi-invoice"><div class="top"><span class="lbl">🔵 송장대기</span><span class="val">{{ _k.get('wait_invoice', 0) }}<span class="u">건</span></span></div>
+    <div class="c k4" data-dn="kpi-invoice"><div class="top"><span class="lbl"{{ ct('orders.wait_invoice') }}>🔵 송장대기</span><span class="val">{{ _k.get('wait_invoice', 0) }}<span class="u">건</span></span></div>
       <div class="sub">SHIPPED</div></div>
-    <div class="c k5" data-dn="kpi-payment"><div class="top"><span class="lbl">🟣 수금대기</span><span class="val">{{ _k.get('wait_payment', 0) }}<span class="u">건</span></span></div>
+    <div class="c k5" data-dn="kpi-payment"><div class="top"><span class="lbl"{{ ct('orders.wait_pay') }}>🟣 수금대기</span><span class="val">{{ _k.get('wait_payment', 0) }}<span class="u">건</span></span></div>
       <div class="sub">INVOICED</div></div>
     {# z1191z98: 옛 「💰 미수금 = 확정+납품+송장 수주 금액 합」 → 💰 입금 확인과 같은 받을 돈(같은 돈은 같은 숫자) #}
-    <a class="c k6" data-dn="kpi-outstanding" href="/sales/receipts-check" style="text-decoration:none;color:inherit;" title="세금계산서 기준 · 부가세 포함 · 받은 돈 뺀 금액(원화) — 💰 입금 → 입금 확인과 같은 계산"><div class="top"><span class="lbl">💰 받을 돈</span><span class="val">{{ _k.get('ar_rc_n_z98') or 0 }}<span class="u">장</span></span></div>
+    <a class="c k6" data-dn="kpi-outstanding" href="/sales/receipts-check" style="text-decoration:none;color:inherit;"><div class="top"><span class="lbl"{{ ct('rc.balance_krw') }}>💰 받을 돈</span><span class="val">{{ _k.get('ar_rc_n_z98') or 0 }}<span class="u">장</span></span></div>
       <div class="sub">{% if _k.get('ar_rc_z98') is not none %}{{ money(_k.get('ar_rc_z98') or 0, 'KRW') }}{% else %}—{% endif %} · 💰 입금 →</div></a>
   </div>
 
@@ -334,7 +334,7 @@ body {
           <th>고객사</th>
           <th class="center">수량</th>
           <th>납품처</th>
-          <th class="num">금액</th>
+          <th class="num"{{ ct('so.total') }}>금액</th>
           <th class="center">상태</th>
           <th class="center">수주일</th>
           <th class="center">납기</th>

@@ -335,9 +335,9 @@ a.z45-all:hover { text-decoration:underline; }
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">사업부</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
+              <th{{ ct('sales.order_rev') }} style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
+              <th{{ ct('sales.ship_rev') }} style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
+              <th{{ ct('sales.final_rev') }} style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
             <tbody>
               {% for b in s3.biz_rows %}
@@ -366,9 +366,9 @@ a.z45-all:hover { text-decoration:underline; }
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">연도</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
-              <th style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
+              <th{{ ct('sales.order_rev') }} style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
+              <th{{ ct('sales.ship_rev') }} style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
+              <th{{ ct('sales.final_rev') }} style="text-align:right;padding:7px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
             <tbody>
               {% for y in s3.years %}
@@ -434,9 +434,9 @@ a.z45-all:hover { text-decoration:underline; }
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
             <thead><tr>
               <th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#475569;">고객사</th>
-              <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
-              <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
-              <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
+              <th{{ ct('sales.order_rev') }} style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#2563eb;">수주매출</th>
+              <th{{ ct('sales.ship_rev') }} style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
+              <th{{ ct('sales.final_rev') }} style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
             <tbody id="z88Bill">
 {{ z88rows(s3.top_customers, 't', False) }}

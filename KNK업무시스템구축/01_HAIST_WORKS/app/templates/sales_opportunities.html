@@ -96,7 +96,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
       {% if zs.prop.n %}<div class="zr-sub">제안서를 낸 {{ zs.prop.n }}건만 보면: 수주 {{ zs.prop.won }} · 실주 {{ zs.prop.lost }} · 취소 {{ zs.prop.cancel }} · 아직 진행 {{ zs.prop.active + zs.prop.hold }}{% if zs.prop.fin %} → 끝난 {{ zs.prop.fin }}건 중 수주 <b>{{ zs.prop.rate }}%</b>{% endif %}</div>{% endif %}
       {% macro ztab(cap, rows, key, first) %}
       <div><div class="zr-cap">{{ cap }}</div>
-        <table class="zr-t"><thead><tr><th>{{ first }}</th><th>기회</th><th>수주</th><th>실주</th><th>취소</th><th>수주율</th></tr></thead><tbody>
+        <table class="zr-t"><thead><tr><th>{{ first }}</th><th>기회</th><th>수주</th><th>실주</th><th>취소</th><th{{ ct('opp.win_rate') }}>수주율</th></tr></thead><tbody>
         {% for d in rows %}<tr><td><a href="{{ zq(key, d.key) }}">{{ d.label }}</a></td><td><a href="{{ zq(key, d.key) }}">{{ d.n }}</a></td><td>{{ d.won }}</td><td>{{ d.lost }}</td><td>{{ d.cancel }}</td><td class="rt">{{ (d.rate ~ '%') if d.rate is not none else '—' }}</td></tr>{% else %}<tr><td colspan="6" class="op-muted">—</td></tr>{% endfor %}
         </tbody></table></div>
       {% endmacro %}
@@ -105,7 +105,7 @@ table.op tbody tr:hover td{background:#fcfaf3;cursor:pointer;}
         {{ ztab('사업부별', zs.bizs, 'biz', '사업부') }}
         {{ ztab('참여 부서별 (미팅·제안서 참여 · 부서 요청)', zs.teams, 'team', '참여 부서') }}
         <div><div class="zr-cap">실주·취소 이유</div>
-          <table class="zr-t"><thead><tr><th>이유</th><th>실주</th><th>취소</th><th>합계</th></tr></thead><tbody>
+          <table class="zr-t"><thead><tr><th>이유</th><th>실주</th><th>취소</th><th{{ ct('opp.reason_total') }}>합계</th></tr></thead><tbody>
           {% for d in zs.reasons %}<tr><td><a href="{{ zq('reason', d.key) }}">{{ d.label }}</a></td><td>{{ d.lost }}</td><td>{{ d.cancel }}</td><td><a href="{{ zq('reason', d.key) }}">{{ d.n }}</a></td></tr>{% else %}<tr><td colspan="4" class="op-muted">실주·취소 건이 없습니다</td></tr>{% endfor %}
           </tbody></table></div>
       </div>

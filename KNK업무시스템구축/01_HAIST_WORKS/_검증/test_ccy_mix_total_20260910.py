@@ -196,6 +196,7 @@ env.globals.update({"url_for": lambda *a, **k: "#",
                     "vname": lambda *a, **k: "", "vname_full": lambda *a, **k: ""})
 CCY_NS = env.get_template("_v5_partials/knk_ccy_total.html").module
 env.globals["won_short_z104"] = lambda v: "₩%s" % "{:,.0f}".format(float(v or 0))   # z1191z104
+from app import calc_tips as _CT125; env.globals.update({"ct": _CT125.attr, "calc_tip": _CT125.tip})   # z1191z125 계산 칸 설명
 FX_NS = env.get_template("_v5_partials/knk_fx_amt.html").module   # z1191z104: 「≈ ₩」 묶음
 
 SRC_PD = io.open(os.path.join(TPL_DIR, "project_detail.html"), encoding="utf-8").read()
@@ -241,7 +242,7 @@ SO_KRW1 = [{"order_no": "A", "currency": "KRW", "total_amount": 5000000.0,
             "due_date": "2026-04-01", "form_key": "", "unit_qty": 1}]
 html2 = render_total(SO_KRW1, {"currency": "KRW", "fx_rate": None})
 chk(20, "통화 하나(KRW): 예전 그대로 ₩5,000,000 · 환산줄 없음",
-     "₩5,000,000" in html2 and "월 기준환율" not in html2, html2[:400])
+     "₩5,000,000" in html2 and "월 기준환율" not in __import__("re").sub(r' data-calc="[^"]*"', "", html2), html2[:400])   # z1191z125: 제목 설명 글은 빼고 본다
 
 html3 = render_total(SO_BIM, P_BIM, can_amt=False)
 chk(21, "금액 권한 없으면 잠김 표시만(금액 노출 없음)",

@@ -1,0 +1,52 @@
+{#═══════════════════════════════════════════════════════════════════════════
+  계산 칸 설명 풍선 — 제목에 마우스를 올리면 「어떻게 계산했는지」가 뜬다   ·   z1191z125 (대표 2026-11-24 「96개 모두 진행」)
+
+  쓰는 법: 제목 칸에 {{ ct('키') }} 만 붙인다 →  <th{{ ct('sales.order_rev') }}>수주매출</th>
+           (글은 app/calc_tips.py 한 곳 · 같은 말은 어느 화면에서나 같은 설명)
+           JS 로 그리는 제목은 data-calc="{{ calc_tip('키') }}" 글을 JS 문자열에 넣는다(|tojson).
+  · 제목 뒤에 작은 ⓘ 표시 · 마우스/키보드(Tab)로 보이고 벗어나면 사라짐 · 스크롤하면 사라짐
+  · 휴대폰·태블릿: 제목을 누르면 보이고, 다른 곳을 누르면 사라짐(정렬 등 원래 누름 동작은 그대로)
+  · 풍선은 화면 맨 위 층(position:fixed) — 스크롤 칸 안에서도 안 잘림 · 두 번 들어와도 한 번만 돈다(가드)
+═══════════════════════════════════════════════════════════════════════════#}
+<style>
+[data-calc] { cursor:help; }
+[data-calc]::after { content:"ⓘ"; font-size:.78em; font-weight:600; opacity:.5; margin-left:3px; vertical-align:super; line-height:0; }
+[data-calc]:hover::after, [data-calc]:focus::after { opacity:.95; color:#1e3a8a; }
+[data-calc].no-calc-i::after { content:none; }
+#knkCalcTip { position:fixed; z-index:2147483001; display:none; max-width:min(360px, calc(100vw - 16px));
+  background:#0f172a; color:#f8fafc; font-size:12.5px; line-height:1.6; font-weight:500; text-align:left;
+  padding:8px 11px; border-radius:8px; box-shadow:0 8px 24px rgba(15,23,42,.28); white-space:pre-line;
+  pointer-events:none; letter-spacing:0; text-transform:none; }
+#knkCalcTip b { color:#fde68a; font-weight:700; }
+</style>
+<script>
+(function(){
+  if (window.__knkCalcTipZ125) return; window.__knkCalcTipZ125 = 1;
+  var box = null, cur = null, touch = false;
+  function el(){ if (!box){ box = document.createElement('div'); box.id = 'knkCalcTip'; box.setAttribute('role','tooltip'); document.body.appendChild(box); } return box; }
+  function show(t){
+    var s = t.getAttribute('data-calc'); if (!s) return;
+    cur = t; var d = el();
+    var lab = (t.getAttribute('data-calc-name') || t.textContent || '').replace(/\s+/g, ' ').trim();
+    d.textContent = '';
+    if (lab && lab.length <= 30){ var b = document.createElement('b'); b.textContent = lab; d.appendChild(b); d.appendChild(document.createTextNode('\u000a')); }
+    d.appendChild(document.createTextNode(s));
+    d.style.display = 'block';
+    var r = t.getBoundingClientRect(), w = d.offsetWidth, h = d.offsetHeight,
+        vw = window.innerWidth, vh = window.innerHeight;
+    var x = Math.min(Math.max(8, r.left), vw - w - 8), y = r.bottom + 6;
+    if (y + h > vh - 8) y = Math.max(8, r.top - h - 6);
+    d.style.left = x + 'px'; d.style.top = y + 'px';
+  }
+  function hide(){ cur = null; if (box) box.style.display = 'none'; }
+  function tipOf(n){ return (n && n.closest) ? n.closest('[data-calc]') : null; }
+  document.addEventListener('touchstart', function(){ touch = true; }, {capture:true, passive:true});
+  document.addEventListener('mouseover', function(e){ if (touch) return; var t = tipOf(e.target); if (t){ if (t !== cur) show(t); } else if (cur) hide(); }, true);
+  document.addEventListener('mouseout', function(e){ if (touch) return; if (cur && !tipOf(e.relatedTarget)) hide(); }, true);
+  document.addEventListener('click', function(e){ if (!touch) return; var t = tipOf(e.target); if (t){ if (t === cur) hide(); else show(t); } else if (cur) hide(); }, true);
+  document.addEventListener('focusin', function(e){ var t = tipOf(e.target); if (t) show(t); }, true);
+  document.addEventListener('focusout', function(e){ if (tipOf(e.target) === cur) hide(); }, true);
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('blur', hide);
+})();
+</script>

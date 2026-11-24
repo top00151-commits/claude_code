@@ -47,10 +47,10 @@ body {
     {# v5H226z823: 매출금액 KPI — 열람 권한자(can_sales_amt: 임원·매출금액 허용팀)만. 그 외 🔒. #}
     {# z103: 금액 앞 통화 기호 — KPI 넷 모두 수주 통화(서버: 수금은 수주 통화 일치분만 합산 · 송장은 수주 금액 기준) #}
     {% set _kcur = order.currency or 'KRW' %}
-    <div class="kpi-card"><div class="kpi-label">수주 금액</div><div class="kpi-num">{% if can_sales_amt %}{{ money(order.total_amount or 0, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
+    <div class="kpi-card"><div class="kpi-label"{{ ct('so.total') }}>수주 금액</div><div class="kpi-num">{% if can_sales_amt %}{{ money(order.total_amount or 0, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
     {# z1191z114: 발행 = 호기 세금계산서 차수 발행액(공급가) · 아래 작은 글 = 부가세 포함 #}
-    <div class="kpi-card"><div class="kpi-label">세금계산서 발행 <span style="font-weight:500;">(공급가)</span></div><div class="kpi-num">{% if can_sales_amt %}{{ money(total_invoiced, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div>{% if can_sales_amt and total_invoiced %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">부가세 포함 {{ money(invoiced_incl, _kcur) }}{% if not vat_rate_z114 %} · 부가세 0%(수출·외화){% endif %}</div>{% endif %}</div>
-    <div class="kpi-card"><div class="kpi-label">수금 누계</div><div class="kpi-num" style="color:var(--success);">{% if can_sales_amt %}{{ money(total_received, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
+    <div class="kpi-card"><div class="kpi-label"{{ ct('so.invoiced') }}>세금계산서 발행 <span style="font-weight:500;">(공급가)</span></div><div class="kpi-num">{% if can_sales_amt %}{{ money(total_invoiced, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div>{% if can_sales_amt and total_invoiced %}<div style="font-size:11px;color:var(--qv-ink-3);margin-top:2px;">부가세 포함 {{ money(invoiced_incl, _kcur) }}{% if not vat_rate_z114 %} · 부가세 0%(수출·외화){% endif %}</div>{% endif %}</div>
+    <div class="kpi-card"><div class="kpi-label"{{ ct('so.received') }}>수금 누계</div><div class="kpi-num" style="color:var(--success);">{% if can_sales_amt %}{{ money(total_received, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
     {# z1191z114: 미수금 = 💰 입금 확인과 같은 계산(부가세 포함 · 계산서 기준 − 받은 돈 · 입금 완료/취소 = 0) #}
     <div class="kpi-card"><div class="kpi-label" tabindex="0" data-fx-tip="세금계산서(부가세 포함)에서 받은 돈을 뺀 금액 · 💰 입금 확인 화면과 같은 계산 · 입금 완료·취소 수주는 0">미수금 <span style="font-weight:500;">(부가세 포함)</span> ⓘ</div><div class="kpi-num" {% if outstanding and outstanding > 0 %}style="color:var(--knk-red);"{% endif %}>{% if can_sales_amt %}{% if outstanding is none %}—{% else %}{{ money(outstanding, _kcur) }}{% endif %}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</div></div>
   </div>
@@ -80,7 +80,7 @@ body {
     <h2>📦 수주 라인 ({{ items|length }})</h2>
     <div class="tbl-wrap tbl-sticky">
       <table class="tbl">
-        <thead><tr><th>호기 / 품번</th><th>품명 / 사양</th><th class="num">수량</th><th class="num">단가 ({{ _cur }})</th><th class="num">금액 ({{ _cur }})</th><th>비고</th></tr></thead>
+        <thead><tr><th>호기 / 품번</th><th>품명 / 사양</th><th class="num">수량</th><th class="num">단가 ({{ _cur }})</th><th class="num"{{ ct('so.line_amount') }}>금액 ({{ _cur }})</th><th>비고</th></tr></thead>
         <tbody>
         {% for it in items %}
           <tr>
@@ -112,7 +112,7 @@ body {
         {% if ti_groups %}
         <div class="tbl-wrap tbl-sticky">
           <table class="tbl">
-            <thead><tr><th>발행일</th><th class="center">차수</th><th>호기·품목</th><th class="num">공급가</th></tr></thead>
+            <thead><tr><th>발행일</th><th class="center">차수</th><th>호기·품목</th><th class="num"{{ ct('so.inv_sheet') }}>공급가</th></tr></thead>
             <tbody>
             {% for g in ti_groups %}
             <tr><td>{{ g.date }}</td><td class="center">{{ g.tier }}차</td><td>{% if g.n == 1 %}{{ g.units[0] if g.units else '' }}{% elif g.units|length <= 3 %}{{ g.units|join(' · ') }}{% else %}{{ g.units[:2]|join(' · ') }} 외 {{ g.n - 2 }}개{% endif %}{% if g.memos %} <span style="font-size:11px;color:var(--qv-ink-3);">· {{ g.memos|join(' · ') }}</span>{% endif %}</td><td class="num">{% if can_sales_amt %}{{ money(g.amt, _kcur) }}{% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</td></tr>

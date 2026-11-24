@@ -83,9 +83,9 @@ body {
     {% endif %}
     {% if qb.biz != 'C' or qb.rows %}
     <div class="qm-kpis">
-      <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l">수주번호 견적서 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div></a>
-      <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l">견적서 없음</div><div class="n">{{ c.so_none }}건</div></a>
-      <a class="qm-k warn{% if qb.only == 'diff' %} on{% endif %}" href="{{ qs(only='diff') }}" title="엑셀에서 읽은 금액이 수주 금액과 다른 곳(「확인했음」 누르면 빠짐)"><div class="l">견적 금액 ≠ 수주 금액</div><div class="n">{{ c.diff }}건</div></a>
+      <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l"{{ ct('quotes.has') }}>수주번호 견적서 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div></a>
+      <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l"{{ ct('quotes.none') }}>견적서 없음</div><div class="n">{{ c.so_none }}건</div></a>
+      <a class="qm-k warn{% if qb.only == 'diff' %} on{% endif %}" href="{{ qs(only='diff') }}"><div class="l"{{ ct('quotes.mismatch') }}>견적 금액 ≠ 수주 금액</div><div class="n">{{ c.diff }}건</div></a>
       <div class="qm-k"><div class="l">수주 전(관리번호만)</div><div class="n">{{ c.pre }}건 <span style="font-size:12px;color:var(--qv-ink-3);font-weight:600;">· 대표 견적 {{ c.pre_with }}</span></div></div>
     </div>
     {% endif %}
@@ -124,7 +124,7 @@ body {
     {% if qb.cons %}
     <table class="qm-t qm-cons">
       <colgroup><col style="width:20%"><col style="width:22%"><col style="width:12%"><col style="width:28%"><col style="width:18%"></colgroup>
-      <thead><tr><th>관리번호 · 주문번호</th><th>고객사 · 품목</th><th class="num">주문 금액</th><th>상태 · 날짜</th><th>영업담당</th></tr></thead>
+      <thead><tr><th>관리번호 · 주문번호</th><th>고객사 · 품목</th><th class="num"{{ ct('quotes.co_total') }}>주문 금액</th><th>상태 · 날짜</th><th>영업담당</th></tr></thead>
       <tbody>
       {% for co in qb.cons %}
         <tr class="pj">
@@ -141,7 +141,7 @@ body {
     {% if qb.rows %}
     <table class="qm-t">
       <colgroup><col style="width:20%"><col style="width:17%"><col style="width:12%"><col style="width:33%"><col style="width:18%"></colgroup>
-      <thead><tr><th>관리번호 · 수주번호</th><th>고객사 · 호기</th><th class="num">수주 금액</th><th>최종 견적서(엑셀)</th><th></th></tr></thead>
+      <thead><tr><th>관리번호 · 수주번호</th><th>고객사 · 호기</th><th class="num"{{ ct('so.total') }}>수주 금액</th><th>최종 견적서(엑셀)</th><th></th></tr></thead>
       <tbody>
       {% for r in qb.rows %}{% set p = r.p %}{% set pf = r.pf %}
         <tr class="pj qm-slot" data-pid="{{ p.id }}" data-oid="" data-label="{{ p.mgmt_code }} · 관리번호 대표 견적 · {{ p.name }}" data-has="{{ pf.orig_name if pf else '' }}">

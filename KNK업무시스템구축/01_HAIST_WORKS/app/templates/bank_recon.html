@@ -50,7 +50,7 @@
           <span><b>메모</b>={% if result.col_map.memo is not none %}{{ result.headers[result.col_map.memo] }}{% else %}—{% endif %}</span>
         </div>
         {% if result.warning %}<div class="br-note" style="margin-top:8px;">{{ result.warning }}</div>{% endif %}
-        <p style="margin:12px 0 6px;font-weight:800;">입금 {{ result.dep_cnt }}건 · 합계 ₩{{ result.dep_total_fmt }}</p>
+        <p style="margin:12px 0 6px;font-weight:800;"{{ ct('bank.total') }}>입금 {{ result.dep_cnt }}건 · 합계 ₩{{ result.dep_total_fmt }}</p>
         <div style="overflow-x:auto;">
           <table class="br-tbl">
             <thead><tr><th>날짜</th><th>입금자</th><th class="num">입금액</th><th>메모</th></tr></thead>

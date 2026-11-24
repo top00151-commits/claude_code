@@ -80,7 +80,7 @@
       {% for b, lab in [('overdue','🔴 예정일 지남'),('week','🟠 7일 안'),('later','⚪ 그 뒤')] %}
       {% set kk = _k.get(b) or {} %}
       <button type="button" class="rc-kpi {{ b }}" data-b="{{ b }}" onclick="rcFilter('{{ b }}')">
-        <div class="l">{{ lab }}</div>
+        <div class="l"{{ ct('rc.due_group') }}>{{ lab }}</div>
         <div class="v">{{ kk.n_cust or 0 }}곳 · {{ kk.n_inv or 0 }}장</div>
         <div class="s">{% if can_money %}{{ (kk.sums or ['—'])|join(' · ') }}{% else %}🔒{% endif %}</div>
       </button>
@@ -115,7 +115,7 @@
         <span class="sum">{% if can_money %}{{ g.sum_fmt }}{% else %}🔒{% endif %}</span>
       </div>
       <table class="rc-t">
-        <thead><tr><th>관리번호</th><th class="hide-m">수주번호</th><th class="hide-m">영업담당</th><th>계산서 발행일</th><th class="num">계산서 금액</th><th class="num">남은 금액</th><th>입금 예정일</th><th></th></tr></thead>
+        <thead><tr><th>관리번호</th><th class="hide-m">수주번호</th><th class="hide-m">영업담당</th><th>계산서 발행일</th><th class="num"{{ ct('rc.incl') }}>계산서 금액</th><th class="num"{{ ct('rc.balance') }}>남은 금액</th><th{{ ct('rc.due') }}>입금 예정일</th><th></th></tr></thead>
         <tbody>
         {% for x in g.rows %}
           <tr data-oid="{{ x.oid }}" data-issue="{{ x.issue }}" data-due="{{ x.due }}" data-rem="{{ x.rem }}" data-incl="{{ x.incl }}" data-ccy="{{ x.ccy }}" data-remfmt="{{ x.rem_fmt }}" data-cname="{{ g.cname }}" data-mgmt="{{ x.mgmt }}">
