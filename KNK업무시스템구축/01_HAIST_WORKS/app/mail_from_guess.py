@@ -22,8 +22,24 @@ _RE_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 # 본문에서 인용(앞 메일)이 시작되는 표시 — 그 앞까지만 「이 사람의 서명」으로 본다
 _RE_QUOTE = re.compile(r"(?im)^\s*(?:-{2,}\s*(?:original message|원본 메시지|원본 메일|forwarded message)[^\n]*"
                        r"|>|from\s*:|보낸\s*사람\s*:|보낸사람\s*:|sent\s*:|on .{4,80} wrote:|.{0,60}님이 작성:)")
-SRC = ("원문", "이름", "직원", "주소록", "답장", "서명", "인용")
-REPLY_DAYS = 60
+SRC = ("원문", "이름", "직원", "주소록", "답장", "서명", "인용", "본문머리", "대화", "본문주소")
+# 11-25 대표 「본문 단서로 찾을 수 있으면 찾아봐」 — 약한 근거(혼자서는 채우지 않고, 다른 근거와 같을 때만 힘 보탬)
+WEAK = ("본문주소",)
+REPLY_DAYS = 120          # 11-25 60 → 120일(같은 제목에 늦게 답한 것까지)
+CONV_DAYS = 180           # 같은 대화(제목) 앞뒤 메일을 보는 기간
+CONV_MIN_SUBJ = 6         # 대화 근거 = 정리한 제목이 이 글자 수 이상일 때만(「견적」 같은 흔한 제목은 안 씀)
+# 서명 줄 표시 — 「E-mail: …」「Email : …」「메일: …」「E. …」「이메일 …」
+_RE_SIG_LABEL = re.compile(r"(?im)^[ \t]*(?:[|·•\-]\s*)?(?:e-?mail|email|mail|이메일|메일|e)\s*[.:：]?\s*[:：]?\s*"
+                           r"(?:<|\[|\()?\s*(?:mailto:)?\s*([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})")
+_RE_MAILTO = re.compile(r"mailto:\s*([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})", re.I)
+# 본문 첫머리 「보낸 사람: …」 한 줄(시스템 알림 등) — 이 메일 자신의 보낸 사람일 때만
+_RE_TOPHEAD = re.compile(r"^(?:보낸\s*사람|보낸이|from|발신자?|sender)\s*[:：]\s*(.+)$", re.I)
+_RE_FWRE = re.compile(r"^\s*(?:\[?\s*(?:re|fw|fwd|답장|회신|전달)\s*\]?\s*[:：\]])", re.I)
+# HTML 에서 인용(앞 메일)이 시작되는 곳 — 그 앞의 mailto 만 서명으로 본다
+_HTML_QUOTE_MARKS = ("<blockquote", "knk-quote", "gmail_quote", "divrplyfwdmsg", "original message", "원본 메시지",
+                     "forwarded message", "-----원본", "보낸 사람:", "from:")
+SIG_TAIL_LINES = 14       # 내가 쓴 부분 맨 아래 몇 줄을 「서명 자리」로 볼지
+_NOREPLY = ("noreply", "no-reply", "donotreply", "do-not-reply", "mailer-daemon", "postmaster")
 
 # ── 인용 머리(11-22 2차 · 하이웍스 「전체 메일함」이 348통뿐 = 옛 원본은 하이웍스에도 없음) ──────────────
 #   같은 제목의 뒤 메일(내 답장 · 다른 사람 회신 · 전달)에는 앞 메일이 인용되고, 인용 머리에
@@ -228,8 +244,46 @@ def build_index(c, uid, user=None) -> dict:
     by_subj = {}
     for sj, t, at in sent:
         by_subj.setdefault(sj, []).append((t, at))
-    return {"nm": nm, "nm_core": nm_core, "staff": st_nm, "contacts": ct_nm, "sent": by_subj,
+    # 11-25 대화 근거 — 같은 대화(정리한 제목)에서 다른 받은 메일의 보낸 사람(주소 있는 것)
+    recv = {}
+    try:
+        from .mail_store import _normalize_subject as _ns
+        for r in c.execute("SELECT subject, lower(COALESCE(from_email,'')) AS e, COALESCE(received_at, created_at) AS at "
+                           "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
+                           "AND instr(COALESCE(from_email,''),'@')>0", (int(uid),)).fetchall():
+            if r["e"] and r["e"] not in mine:
+                recv.setdefault(_ns(r["subject"] or ""), []).append((r["e"], r["at"] or ""))
+    except Exception:
+        pass
+    return {"nm": nm, "nm_core": nm_core, "staff": st_nm, "contacts": ct_nm, "sent": by_subj, "recv": recv,
             "mine": mine, "ours": tuple(OUR_DOMAINS)}
+
+
+def _conv_addrs(m: dict, ix: dict) -> set:
+    """대화 근거 — 같은 대화에서 ① 내가 보낸 메일의 받는 사람이 한 명이고 ② 그 사람이 대화의 다른 받은 메일 보낸이 → 그 주소.
+    둘 이상이면 모두 돌려줌(= 여러 후보 · 채우지 않음). 흔한 짧은 제목은 안 씀."""
+    from .mail_store import _normalize_subject
+    k = _normalize_subject(m.get("subject") or "")
+    if k == "(제목 없음)" or len(k.replace(" ", "")) < CONV_MIN_SUBJ:
+        return set()
+    rcv = _dt(m.get("received_at"))
+    win = timedelta(days=CONV_DAYS)
+
+    def _in(at):
+        d = _dt(at)
+        return not (rcv and d) or (rcv - win <= d <= rcv + win)
+    sent1 = set()
+    for t, at in (ix.get("sent") or {}).get(k, []):
+        if not _in(at):
+            continue
+        tos = [a.strip().lower() for a in (t or "").split(",") if "@" in a]
+        tos = [a for a in tos if a not in ix["mine"]]
+        if len(tos) == 1:
+            sent1.add(tos[0])
+    if not sent1:
+        return set()
+    others = {e for e, at in (ix.get("recv") or {}).get(k, []) if _in(at)}
+    return sent1 & others
 
 
 def _dt(s):
@@ -239,20 +293,113 @@ def _dt(s):
         return None
 
 
-def _sig_addrs(body: str, exclude: set, ours: tuple) -> set:
-    b = body or ""
+def _norm_at(b: str) -> str:
+    """전각 ＠ · 「 @ 」 띄어 쓴 꼴 → @ (11-25 서명 보강)."""
+    b = (b or "").replace("\uff20", "@").replace("\u2024", ".")
+    b = re.sub(r"\s+@\s+", "@", b)
+    b = re.sub(r"\s*[\[(]\s*at\s*[\])]\s*", "@", b, flags=re.I)
+    return b
+
+
+def own_part(body: str) -> str:
+    """본문 중 이 사람이 쓴 부분(인용 앞)."""
+    b = _norm_at(body)
     m = _RE_QUOTE.search(b)
-    if m:
-        b = b[:m.start()]
+    return b[:m.start()] if m else b
+
+
+def _bad(a: str, exclude: set) -> bool:
+    return (not a) or a in exclude or a.startswith(_NOREPLY)
+
+
+def _sig_addrs(body: str, exclude: set, ours: tuple) -> set:
+    """서명 근거 — 내가 쓴 부분(인용 앞)에서
+    ① 「E-mail: / Email : / 메일: / E. …」 표시가 붙은 주소(우리 회사 주소도 — 사내 직원 서명 · 11-25 보강)
+    ② 표시가 없으면 맨 아래 서명 자리(마지막 몇 줄)의 주소(우리 회사 주소는 뺌)."""
+    b = own_part(body)
     out = set()
-    for a in _RE_EMAIL.findall(b):
+    for m in _RE_SIG_LABEL.finditer(b):
+        a = m.group(1).lower().strip(".")
+        if not _bad(a, exclude):
+            out.add(a)
+    if out:
+        return out
+    lines = [ln for ln in b.splitlines() if ln.strip()]
+    tail = "\n".join(lines[-SIG_TAIL_LINES:])
+    for a in _RE_EMAIL.findall(tail):
         a = a.lower().strip(".")
-        if a in exclude or a.rsplit("@", 1)[-1] in ours:
-            continue
-        if a.startswith(("noreply", "no-reply", "mailer-daemon", "postmaster")):
+        if _bad(a, exclude) or a.rsplit("@", 1)[-1] in ours:
             continue
         out.add(a)
     return out
+
+
+def _body_addrs(body: str, exclude: set, ours: tuple) -> set:
+    """본문 주소(약한 근거) — 내가 쓴 부분의 주소 모두(우리 회사·받는 사람·나·무응답 주소 빼고)."""
+    out = set()
+    for a in _RE_EMAIL.findall(own_part(body)):
+        a = a.lower().strip(".")
+        if _bad(a, exclude) or a.rsplit("@", 1)[-1] in ours:
+            continue
+        out.add(a)
+    return out
+
+
+def _html_of(c, mid) -> str:
+    try:
+        r = c.execute("SELECT COALESCE(body_html,'') AS h, COALESCE(html_sha,'') AS s FROM mail_messages WHERE id=?",
+                      (int(mid),)).fetchone()
+    except Exception:
+        try:
+            r = c.execute("SELECT COALESCE(body_html,'') AS h, '' AS s FROM mail_messages WHERE id=?", (int(mid),)).fetchone()
+        except Exception:
+            return ""
+    if not r:
+        return ""
+    if r["h"]:
+        return r["h"]
+    if r["s"]:
+        try:
+            from .mail_body_pack import unpack_html
+            return unpack_html(c, r["s"]) or ""
+        except Exception:
+            return ""
+    return ""
+
+
+def _mailto_addrs(html: str, exclude: set, ours: tuple) -> set:
+    """HTML 서명의 mailto 링크(인용 앞) — 글자 없이 링크만 있는 서명(그림 서명 옆 등)."""
+    h = _norm_at(html or "")
+    low = h.lower()
+    cut = len(h)
+    for mk in _HTML_QUOTE_MARKS:
+        i = low.find(mk)
+        if i >= 0:
+            cut = min(cut, i)
+    out = set()
+    for a in _RE_MAILTO.findall(h[:cut]):
+        a = a.lower().strip(".")
+        if _bad(a, exclude) or a.rsplit("@", 1)[-1] in ours:
+            continue
+        out.add(a)
+    return out
+
+
+def top_head(body: str, subject: str, exclude: set) -> str:
+    """본문 첫 줄이 「보낸 사람: 이름 <주소>」 꼴(시스템 알림 등)이면 그 주소 — 이 메일 자신의 보낸 사람일 때만.
+    안 쓰는 경우(틀리게 채우지 않게): 제목이 RE·FW·답장·회신·전달 · 본문에 From 머리가 둘 이상(앞 메일 인용) ·
+    첫 줄이 아님(내가 쓴 글 아래 붙은 전달 머리) · 나·받는 사람 주소."""
+    if _RE_FWRE.match(subject or ""):
+        return ""
+    b = _norm_at(body)
+    if len(_RE_QFROM.findall(b)) != 1:
+        return ""
+    first = next((ln.strip() for ln in b.splitlines() if ln.strip()), "")
+    m = _RE_TOPHEAD.match(first)
+    if not m:
+        return ""
+    a = _addr_in(m.group(1))
+    return "" if _bad(a, exclude) else a
 
 
 def guess_one(c, m: dict, ix: dict) -> dict:
@@ -296,12 +443,27 @@ def guess_one(c, m: dict, ix: dict) -> dict:
     excl = set(ix["mine"])
     for _n, a in split_addrs((m.get("to_all") or "") + ", " + (m.get("cc") or "")):
         excl.add(a)
-    sg = _sig_addrs(m.get("body_text") or "", excl, ix["ours"])
+    body = m.get("body_text") or ""
+    sg = _sig_addrs(body, excl, ix["ours"])
+    if not sg:
+        try:
+            sg = _mailto_addrs(_html_of(c, m["id"]), excl, ix["ours"])
+        except Exception:
+            sg = set()
     if sg:
         src["서명"] = sg
     qa = _quote_addrs(m, ix)
     if qa:
         src["인용"] = qa
+    th = top_head(body, m.get("subject") or "", excl)
+    if th:
+        src["본문머리"] = {th}
+    cv = _conv_addrs(m, ix)
+    if cv:
+        src["대화"] = cv
+    ba = _body_addrs(body, excl, ix["ours"])
+    if len(ba) == 1 and not (ba & sg):   # 서명과 같은 글에서 나온 같은 주소는 두 번 세지 않음
+        src["본문주소"] = ba
     return src
 
 
@@ -309,16 +471,18 @@ def verdict(src: dict) -> tuple:
     """(판정, 하나로 모인 주소 또는 '') — 판정 = one|many|none."""
     if "원문" in src and len(src["원문"]) == 1:
         return "one", next(iter(src["원문"]))
-    single = {next(iter(v)) for v in src.values() if len(v) == 1}
+    strong = {k: v for k, v in src.items() if k not in WEAK}
+    single = {next(iter(v)) for v in strong.values() if len(v) == 1}
     if len(single) == 1:
         return "one", next(iter(single))
-    if single or any(len(v) > 1 for v in src.values()):
+    if single or any(len(v) > 1 for v in strong.values()):
         return "many", ""
-    return "none", ""
+    return "none", ""     # 약한 근거(본문 주소)만 있으면 = 못 찾음(채우지 않음)
 
 
 LABEL = {"원문": "원문 머리글", "이름": "같은 이름의 다른 메일", "직원": "직원 명단", "주소록": "주소록",
-         "답장": "내가 보낸 답장", "서명": "본문 서명", "인용": "뒤 메일의 인용 머리"}
+         "답장": "내가 보낸 답장", "서명": "본문 서명", "인용": "뒤 메일의 인용 머리",
+         "본문머리": "본문 첫머리 「보낸 사람」 줄", "대화": "같은 대화의 상대", "본문주소": "본문 속 주소"}
 
 
 def _ensure_mark(c):
@@ -409,7 +573,7 @@ def count(c, uid, user=None) -> dict:
     out = {"total": len(rows), "empty": 0, "name_only": 0, "no_name": 0,
            "one": 0, "one_2plus": 0, "many": 0, "none": 0,
            "by_src": {s: 0 for s in SRC}, "one_by_src": {s: 0 for s in SRC},
-           "by_year": {}, "recent7_missing": 0}
+           "by_year": {}, "recent7_missing": 0, "weak_only": 0}
     for m in rows:
         fe = (m.get("from_email") or "").strip()
         if not fe:
@@ -425,6 +589,8 @@ def count(c, uid, user=None) -> dict:
             out["by_src"][s] = out["by_src"].get(s, 0) + 1
         v, addr = verdict(src)
         out[v] += 1
+        if v == "none" and src and all(k in WEAK for k in src):
+            out["weak_only"] += 1
         if v == "one":
             agree = [s for s, a in src.items() if a == {addr}]
             if len(agree) >= 2:

@@ -310,5 +310,73 @@ with _db.db_session() as c:
 check("채우기 = 인용으로 찾은 것도 · 🔎 근거 「뒤 메일의 인용 머리」", g["from_email"] == "vina-hong@demo-v.example" and g.get("from_guess") == "뒤 메일의 인용 머리", (g["from_email"], g.get("from_guess")))
 k.post("/mail/from-guess", data={"undo": "1"})
 
+print("== 본문 단서(11-25 · 본문머리 · 대화 · 서명 보강 · 본문 주소) ==")
+LONG = "\n".join("내용 줄 %d" % i for i in range(20))
+ins(84001, "", "", subj="회의실 예약 알림", at="2026-08-01 09:00:00",
+    body="보낸 사람: 예약센터 <rsv@demo-n.example>\n받는 사람: boss" + D + "\n\n회의실이 예약되었습니다.")       # 본문머리 → 하나
+ins(84002, "", "", subj="FW: 회의실 예약 알림", at="2026-08-01 09:10:00",
+    body="보낸 사람: 예약센터 <rsv@demo-n.example>\n\n회의실이 예약되었습니다.")                                   # 전달 제목 → 안 씀
+ins(84003, "", "", subj="자료 보냅니다 건", at="2026-08-02 09:00:00",
+    body="자료 확인 부탁드립니다.\n\n보낸 사람: 앞사람 <prev@demo-n.example>\n제목: 자료")                        # 내가 쓴 글 아래 전달 머리 → 안 씀
+ins(84004, "", "", subj="두 겹 인용 알림", at="2026-08-03 09:00:00",
+    body="From: a <first@demo-n.example>\n본문\nFrom: b <second@demo-n.example>\n본문")                          # From 머리 둘 → 안 씀
+ins(84005, "", "", subj="도면 회신 드립니다", at="2026-08-04 09:00:00",
+    body="도면 확인 부탁드립니다.\n\n김설계 매니저 설계팀\nE. kimsg" + D + " · W. www.knknara.com")                # 사내 서명 「E.」 꼴 → 우리 회사 주소도
+ins(84006, "", "", subj="견적서 송부의 건", at="2026-08-05 09:00:00",
+    body="견적서 첨부합니다.\n\n박영업 과장\nEmail : park ＠ demo-p.example")                                         # 전각 ＠ · 「Email :」
+ins(84007, "", "", subj="그림 서명 메일", at="2026-08-06 09:00:00", body="안녕하세요. 확인 부탁드립니다.")
+ins(84008, "", "", subj="인용 뒤 링크만", at="2026-08-06 10:00:00", body="네 확인했습니다.")
+with _db.db_session() as c:
+    c.execute("UPDATE mail_messages SET body_html=? WHERE id=84007",
+              ('<p>안녕하세요.</p><table><tr><td><img src="x"></td><td><a href="mailto:hong@demo-q.example">홍길동</a></td></tr></table>',))
+    c.execute("UPDATE mail_messages SET body_html=? WHERE id=84008",
+              ('<p>네 확인했습니다.</p><blockquote><a href="mailto:quoted@demo-q.example">앞사람</a></blockquote>',))
+# 대화: 같은 대화에서 내가 한 명에게 보낸 메일 + 그 사람에게서 받은 다른 메일
+ins(84101, "boss" + D, "시험대표", subj="RE: 신규 라인 설치 일정 협의", direction="out", to="conv@demo-c2.example", at="2026-07-01 09:00:00")
+ins(84102, "conv@demo-c2.example", "상대", subj="RE: 신규 라인 설치 일정 협의", at="2026-07-02 09:00:00")
+ins(84103, "", "", subj="신규 라인 설치 일정 협의", at="2026-06-30 09:00:00")                      # 대화 → 하나
+ins(84111, "boss" + D, "시험대표", subj="RE: 견적", direction="out", to="short@demo-c2.example", at="2026-07-01 09:00:00")
+ins(84112, "short@demo-c2.example", "상대2", subj="RE: 견적", at="2026-07-02 09:00:00")
+ins(84113, "", "", subj="견적", at="2026-06-30 09:00:00")                                         # 흔한 짧은 제목 → 대화 안 씀
+# 본문 주소 단독(서명 자리 밖) → 약한 근거만 = 안 채움
+ins(84201, "", "", subj="자료 요청드립니다 건", at="2026-08-07 09:00:00",
+    body="자료는 data@demo-r.example 로 보내 주세요.\n" + LONG)
+# 근거 엇갈림: 대화 = conv2 · 서명 = other2 → 여러 후보
+ins(84301, "boss" + D, "시험대표", subj="RE: 장비 반입 일정 안내", direction="out", to="conv2@demo-c3.example", at="2026-07-01 09:00:00")
+ins(84302, "conv2@demo-c3.example", "상대3", subj="RE: 장비 반입 일정 안내", at="2026-07-02 09:00:00")
+ins(84303, "", "", subj="장비 반입 일정 안내", at="2026-06-30 09:00:00", body="일정 안내드립니다.\n\n이다른\nE-mail: other2@demo-c4.example")
+with _db.db_session() as c:
+    rows = mfg.targets(c, UID)
+    ix = mfg.build_index(c, UID, {"id": UID, "team_id": None, "role": "member"})
+    ix["quote"] = mfg.quote_index(c, UID, rows)
+    BS = {r["id"]: mfg.guess_one(c, r, ix) for r in rows if r["id"] >= 84001}
+BV = {i: mfg.verdict(v) for i, v in BS.items()}
+check("본문 첫머리 「보낸 사람: 이름 <주소>」(알림) → 본문머리 · 하나", BS[84001].get("본문머리") == {"rsv@demo-n.example"} and BV[84001] == ("one", "rsv@demo-n.example"), BS[84001])
+check("제목이 FW(전달)면 본문머리 안 씀", "본문머리" not in BS[84002], BS[84002])
+check("내가 쓴 글 아래 붙은 전달 머리는 안 씀(인용 아래 From)", "본문머리" not in BS[84003] and BV[84003][0] != "one", BS[84003])
+check("From 머리가 둘(앞 메일 인용) → 안 씀", "본문머리" not in BS[84004] and BV[84004][0] == "none", BS[84004])
+check("사내 서명 「E. 주소 · W. …」 → 서명(우리 회사 주소도)", BS[84005].get("서명") == {"kimsg" + D} and BV[84005] == ("one", "kimsg" + D), BS[84005])
+check("「Email :」 + 전각 ＠ 띄어 쓴 주소 → 서명", BS[84006].get("서명") == {"park@demo-p.example"}, BS[84006])
+check("글에는 주소 없고 HTML 서명 mailto 링크만 → 서명", BS[84007].get("서명") == {"hong@demo-q.example"}, BS[84007])
+check("인용(blockquote) 안의 mailto 는 안 씀", "서명" not in BS[84008] and BV[84008][0] == "none", BS[84008])
+check("같은 대화 — 내가 한 명에게 보낸 메일 + 그 사람에게서 온 메일 → 대화 · 하나", BS[84103].get("대화") == {"conv@demo-c2.example"} and BV[84103] == ("one", "conv@demo-c2.example"), BS[84103])
+check("흔한 짧은 제목(「견적」)은 대화 근거 안 씀", "대화" not in BS[84113], BS[84113])
+check("본문 주소 하나뿐(서명 자리 밖) = 약한 근거만 → 못 찾음(안 채움)", BS[84201].get("본문주소") == {"data@demo-r.example"} and BV[84201] == ("none", "") and "서명" not in BS[84201], BS[84201])
+check("근거 엇갈림(대화 ≠ 서명) → 여러 후보(안 채움)", BV[84303][0] == "many", BS[84303])
+r = k.get("/mail/from-guess")
+jb = r.json()
+check("숫자 세기에 새 근거별 숫자(본문머리·대화·서명·본문주소) · 약한 근거만 통수",
+      jb["by_src"].get("본문머리") == 1 and jb["by_src"].get("대화", 0) >= 2 and jb["by_src"].get("본문주소", 0) >= 1 and jb.get("weak_only", 0) >= 1, jb)
+check("응답은 숫자만(주소·이름·제목 글자 없음)", not re.search(r"@|예약센터|김설계|신규 라인|demo", r.text), r.text[:300])
+r = k.post("/mail/from-guess", data={})
+with _db.db_session() as c:
+    R5 = {i: dict(c.execute("SELECT from_email FROM mail_messages WHERE id=?", (i,)).fetchone()) for i in (84001, 84002, 84103, 84201, 84303)}
+    g5 = ms.get_mail(c, 84103, UID)
+check("채우기 = 본문머리·대화로 찾은 것만 · 약한 근거·엇갈림·전달은 그대로",
+      R5[84001]["from_email"] == "rsv@demo-n.example" and R5[84103]["from_email"] == "conv@demo-c2.example"
+      and R5[84201]["from_email"] == "" and R5[84303]["from_email"] == "" and R5[84002]["from_email"] == "", R5)
+check("🔎 근거 글에 「같은 대화의 상대」(답장 근거와 같은 주소면 함께)", "같은 대화의 상대" in (g5.get("from_guess") or ""), g5.get("from_guess"))
+k.post("/mail/from-guess", data={"undo": "1"})
+
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 sys.exit(1 if F else 0)
