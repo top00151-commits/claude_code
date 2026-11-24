@@ -37,7 +37,9 @@
       <a class="az-k" href="/admin/handover"><span class="n">맡겨 둔 것 {{ n_deleg }}건</span><b>🔁 권한 넘기기</b>
         <p>담당 교체(계속 넘김) · 기간 맡기기(휴가·출장 — 끝나면 저절로 원래대로)</p></a>
       <div class="az-k" style="cursor:default"><b>🏢 회사 설정</b>
-        <p><a href="/admin/fx-rates">💱 월 기준환율</a> · <a href="/admin/ai-settings">🤖 AI 모델 설정</a><br>
+        {# z1191z142 (대표 11-24 「관리에 회사 정보 화면이 있다는데 안 보임」): 회사 정보 길이 관리 첫 화면에 없었음(안내서·견적서 인쇄에서만) #}
+        <p><a href="/admin/company-info"><b>🏢 회사 정보</b></a> <span style="color:var(--qv-ink-3,#64748b);font-size:12px">회사명·사업자번호·주소·대표 — 견적·발주·세금계산서에 자동</span><br>
+           <a href="/admin/fx-rates">💱 월 기준환율</a> · <a href="/admin/ai-settings">🤖 AI 모델 설정</a><br>
            <a href="/admin/sync-employees">🔄 메신저 직원 동기화</a> · <a href="/admin/users/perms">🔑 여러 명 권한 한꺼번에</a></p></div>
     </div>
 
