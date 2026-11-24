@@ -2312,7 +2312,11 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       fetch('/api/project-quote/attach/'+w.getAttribute('data-pid'),{method:'POST',body:fd,credentials:'same-origin'})
         .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
         .then(function(j){ b.disabled=false;
-          if(j&&j.ok){ m.style.color='#166534'; m.textContent='✓ 보관했습니다'; setTimeout(function(){ location.reload(); }, 600); }
+          if(j&&j.ok){   /* z1191z146: 올린 순간 금액 다름 알림(막지 않음) */
+            var d=(j.diff_sos||[]).filter(function(x){return x;});
+            if(d.length){ m.style.color='#b45309'; m.textContent='⚠ 보관했습니다 — 견적 금액이 수주 금액과 다릅니다: '+d.join(', ')+' (수주 카드에서 「확인했음」 또는 그 수주 견적을 올리세요)'; setTimeout(function(){ location.reload(); }, 4500); }
+            else if(!j.amt_read){ m.style.color='#b45309'; m.textContent='✓ 보관했습니다 · '+(j.need_password?'비밀번호가 걸려 있어':'')+'견적 금액을 읽지 못해 수주 금액과 비교하지 못했습니다'; setTimeout(function(){ location.reload(); }, 4500); }
+            else { m.style.color='#166534'; m.textContent='✓ 보관했습니다 · 수주 금액과 맞습니다'; setTimeout(function(){ location.reload(); }, 1200); } }
           else { m.style.color='#b91c1c'; m.textContent=(j&&j.message)||'올리지 못했습니다 — 다시 해 보세요.'; } })
         .catch(function(){ b.disabled=false; m.style.color='#b91c1c'; m.textContent='인터넷 연결이 끊겨 올리지 못했습니다.'; });
     });

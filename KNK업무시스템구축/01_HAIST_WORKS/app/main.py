@@ -44267,7 +44267,8 @@ async def api_project_quote_reread(req: Request):
 
 @app.post("/api/project-quote/attach/{pid}")
 async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = File(...)):
-    """z1191z62 (대표 11-18 「상세 화면에도 둠」): 등록된 프로젝트에 견적서만 바로 보관(칸 채우기·AI 없음)."""
+    """z1191z62 (대표 11-18 「상세 화면에도 둠」): 등록된 프로젝트에 견적서만 바로 보관(칸 채우기 없음).
+    z1191z146 (대표 11-25 「고쳐주고」): 금액도 읽어 둠(견적 관리 올리기와 같은 read_quote) → 수주와 금액 다르면 수주 카드 ⚠ · 답에 알림."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -44302,18 +44303,39 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
     except Exception as _e:
         print(f"[z1191z62] 파일 저장 실패: {_e}")
         return JSONResponse({"ok": False, "message": "파일을 서버에 저장하지 못했습니다 — 다시 올려 주세요."})
+    # z1191z146: 금액 읽기(AI 기다림은 DB 를 잡기 전에) — 못 읽어도 보관은 그대로
+    try:
+        from starlette.concurrency import run_in_threadpool as _rit146
+        _rd146 = await _rit146(_qr61.read_quote, raw, name)
+    except Exception as _e146:
+        print(f"[z1191z146] 견적서 금액 읽기 실패: {_e146}")
+        _rd146 = {"ok": False}
     with db_session() as c:
         _z61_table(c)
-        c.execute("INSERT INTO project_quote_files(tok, project_id, orig_name, stored, size, sha256, by_id, by_name, created_at, attached_at) "
-                  "VALUES(?,?,?,?,?,?,?,?,?,?)",
+        c.execute("INSERT INTO project_quote_files(tok, project_id, orig_name, stored, size, sha256, by_id, by_name, created_at, attached_at, read_json) "
+                  "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                   (tok, int(pid), name, stored, len(raw), _hl62.sha256(raw).hexdigest(), u.get("id"),
-                   vname_full(u) or u.get("name"), _z61_now(), _z61_now()))
+                   vname_full(u) or u.get("name"), _z61_now(), _z61_now(), _qr61.dumps(_rd146)))
         c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                   (int(pid), u.get("id"), "견적서 파일", "", name, f"z1191z62 상세 화면 「＋ 견적서 올리기」 · {vname_full(u) or u.get('name') or ''}"))   # z1191z63: 누가
         _nid105 = c.execute("SELECT id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()[0]
         _z105_drop_slot(c, u, int(pid), _nid105, _old105, "상세 「＋ 견적서 엑셀 올리기」")   # z1191z105: 예전 것 지움
     await _z121_index_tok(tok, raw, name)   # z1191z121
-    return JSONResponse({"ok": True, "name": name, "replaced": len(_old105), "fid": _nid105})
+    # z1191z146: 올린 순간 알림(막지 않음) — 이 견적서를 따라가는 수주 중 금액 다른 것 · 금액을 못 읽었으면 그렇다고
+    _fd146 = (_rd146.get("fields") or {}) if isinstance(_rd146, dict) else {}
+    _amt146 = _ql141.q_price(_fd146)
+    _diff146, _cmp146 = [], (_amt146[0] is not None or _amt146[1] is not None)
+    try:
+        with db_session() as c:
+            _st146 = _z141_project(c, int(pid))
+            _nos146 = {r[0]: r[1] for r in c.execute("SELECT id, order_no FROM orders WHERE project_id=?", (int(pid),)).fetchall()}
+        _diff146 = [_nos146.get(oid) or "" for oid, s in _st146.items()
+                    if s.get("st") == "diff" and s.get("via") == "proj" and (s.get("f") or {}).get("id") == _nid105]
+    except Exception as _e146b:
+        print(f"[z1191z146] 금액 비교 실패 pid={pid}: {_e146b}")
+    return JSONResponse({"ok": True, "name": name, "replaced": len(_old105), "fid": _nid105,
+                         "amt_read": _cmp146, "need_password": bool(isinstance(_rd146, dict) and _rd146.get("need_password")),
+                         "diff_sos": _diff146})
 
 
 tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and can_view_sales(u)
