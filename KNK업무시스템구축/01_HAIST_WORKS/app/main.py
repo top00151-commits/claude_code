@@ -42540,6 +42540,63 @@ def _dept_sched_dept_of(u):
         return ""
 
 
+def _dsx_merge_same_so_z133(prow, mk, pd):
+    """z1191z133 (대표 11-24 「전사일정표에 관리번호·수주번호가 같은 걸 여러 줄로 나눠 보이는데 하나로 · 작업일정표는 건들지 말고 ·
+    금액이 빠져 있으니 수량을 합쳐 한 줄」): 작업일정표와 같은 줄 나누기(`_board_split_lines_map`)는 한 수주 안에서도 호기 단가가 다르면
+    줄을 나눈다(예: T-261116-3 1·2·3호기 4,750,000·4,650,000·4,550,000) — 전사일정표엔 금액이 없어 같은 줄이 여러 번 보였다.
+    → 같은 수주(so_oid) · 같은 수량 단위(board_unit·상품 여부·형태·표시수량)인 줄만 한 줄로: 수량 합 · 호기 목록 합 ·
+    발주일 = 가장 이른 날 · 납기 = 가장 늦은 날 · 한 호기라도 지연이면 지연. 수주번호 없는 줄·단위 다른 줄·수량이 숫자가 아닌 줄은 그대로.
+    기록 열쇠는 원래 「관리번호:수주」(같은 수주 줄은 같은 기록) — 합쳐도 기록은 그대로(겹쳐 보이던 것만 없어짐)."""
+    out, groups, order = [], {}, []
+    for r in prow:
+        oid = r.get("so_oid")
+        try:
+            _q = float(r.get("qty") or 0)
+            _num = True
+        except (TypeError, ValueError):
+            _q, _num = 0.0, False
+        if not oid or not _num:
+            order.append(("solo", len(order))); groups[("solo", len(order) - 1)] = [r]
+            continue
+        k = (oid, r.get("board_unit") or "", bool(r.get("is_parts")), r.get("qty_form") or "", bool(r.get("is_bqty")))
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(r)
+    for k in order:
+        g = groups[k]
+        if len(g) == 1:
+            r = g[0]
+        else:
+            r = dict(g[0])
+            tot = sum(float(x.get("qty") or 0) for x in g)
+            r["qty"] = int(tot) if abs(tot - int(tot)) < 1e-9 else round(tot, 2)
+            _u = []
+            for x in g:
+                for i in (x.get("uids") or []):
+                    if i not in _u:
+                        _u.append(i)
+            r["uids"] = _u
+            _labs = [x.get("unit_label") for x in g if x.get("unit_label")]
+            r["unit_label"] = " · ".join(dict.fromkeys(_labs))
+            _ods = sorted(x.get("order_date") for x in g if x.get("order_date"))
+            _dds = sorted(x.get("due_date") for x in g if x.get("due_date"))
+            r["order_date"] = _ods[0] if _ods else ""
+            r["due_date"] = _dds[-1] if _dds else ""
+            _dly = any(x.get("is_delay") for x in g)
+            r = mk(r, pd(r["order_date"]), pd(r["due_date"]), r.get("_st133") or "진행중", "project") or g[0]
+            r["is_delay"] = bool(r.get("is_delay") or _dly)
+            r["qty_missing"] = any(x.get("qty_missing") for x in g)
+            try:
+                r["multi"] = float(r.get("qty") or 0) >= 2
+            except (TypeError, ValueError):
+                r["multi"] = bool(r.get("multi"))
+            r["merged133"] = len(g)
+        r.pop("_st133", None)
+        out.append(r)
+    return out
+
+
 @app.get("/dept/schedule", response_class=HTMLResponse)
 # v5H226z867: async→def 전환(FastAPI 스레드풀 실행·이벤트루프 비블로킹) — 본문 await 0건 AST 확인. 이 함수에 await를 추가하려면 반드시 async def로 되돌릴 것.
 def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "", cbiz: str = ""):
@@ -42638,6 +42695,7 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "",
         }
         _ulines = _split_map.get(p.get("id"))
         if _ulines:
+            _prow133 = []   # z1191z133: 이 관리번호의 줄(아래에서 같은 수주 줄 합침)
             # v5H226z549: 호기 단가/납기 상이 → SO/호기 묶음별 1줄(각 줄 수량·납기·'+'펼침이 그 호기만 일치)
             for _ln in _ulines:
                 _iu = dict(info)
@@ -42685,7 +42743,9 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "",
                     continue
                 _ru = _mk(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru:
-                    rows.append(_ru)
+                    _ru["_st133"] = _eff_st
+                    _prow133.append(_ru)
+            rows.extend(_dsx_merge_same_so_z133(_prow133, _mk, _pd))
         else:
             try:
                 info["multi"] = int(p.get("unit_qty") or 0) >= 2   # v5H226z499: 호기 여러 대=완제품 → 호기별 기록 가능
