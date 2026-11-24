@@ -315,8 +315,7 @@ body {
     }
     var a2 = e.target.closest && e.target.closest('.qm-ack141');   /* z1191z141: 따라가는 견적 금액 다름 「확인했음」 */
     if (a2) {
-      if (!confirm('따라가는 견적서의 금액이 이 수주 금액과 다른 것을 확인했습니까?
-(이 견적서가 맞으면 「확인」 — 누가 확인했는지 남습니다 · 다른 견적이면 「＋ 이 수주 견적」으로 올리세요)')) return;
+      if (!confirm('따라가는 견적서의 금액이 이 수주 금액과 다른 것을 확인했습니까?\n(이 견적서가 맞으면 「확인」 — 누가 확인했는지 남습니다 · 다른 견적이면 「＋ 이 수주 견적」으로 올리세요)')) return;
       a2.disabled = true;
       post('/api/quote-so-ack/' + a2.getAttribute('data-oid'), new FormData()).then(function(j){ if (j && j.ok) location.reload(); else { a2.disabled = false; alert((j && j.message) || '저장하지 못했습니다.'); } });
     }
