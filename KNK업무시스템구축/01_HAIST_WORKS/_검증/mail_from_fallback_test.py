@@ -62,6 +62,30 @@ check("꺾쇠 없이 「이름 주소」 → 주소만 주소 칸 · 이름만 �
 check("이름에 쉼표(1차 고침 그대로)", parse(["From: " + Header("홍길동, KNK VINA", "utf-8").encode() + " <h@demo.example>"]) == ("홍길동, KNK VINA", "h@demo.example"),
       parse(["From: " + Header("홍길동, KNK VINA", "utf-8").encode() + " <h@demo.example>"]))
 
+print("== 1-2. 11-24 다른 직원 메일 — 남은 길 막기 ==")
+
+
+def parse_b(hb):
+    p = ms.parse_raw_email(hb + b"\r\nSubject: t\r\nMessage-ID: <y@demo>\r\n\r\nbody")
+    return (p.get("from_name") or ""), (p.get("from_email") or "")
+
+
+RCV = "Received: from out.demo.example (out [10.0.0.9]) (envelope-from <env@demo-env.example>) by mx.demo.example; Mon, 1 Jan 2026 00:00:00 +0900"
+check("From 없음 + Received envelope-from → 주소", parse([RCV])[1] == "env@demo-env.example", parse([RCV]))
+check("From 이름만 + Authentication-Results smtp.mailfrom → 주소",
+      parse(["From: " + NM, "Authentication-Results: mx.demo; spf=pass smtp.mailfrom=auth@demo-auth.example"]) == ("홍길동", "auth@demo-auth.example"))
+check("그룹 주소 「undisclosed-recipients:;」 + X-Envelope-From → 주소",
+      parse(["From: undisclosed-recipients:;", "X-Envelope-From: <xe@demo-xe.example>"])[1] == "xe@demo-xe.example")
+check("Resent-From 도 씀", parse(["From: " + NM, "Resent-From: rs@demo-rs.example"])[1] == "rs@demo-rs.example")
+check("반송 봉투(Return-Path <>) 는 건너뛰고 다음 머리", parse(["From: " + NM, "Return-Path: <>", RCV])[1] == "env@demo-env.example")
+check("봉투 주소가 mailer-daemon 이면 안 씀", parse(["From: " + NM, RCV.replace("env@demo-env.example", "MAILER-DAEMON@demo.example")])[1] == "")
+check("8비트 UTF-8 이름(인코딩 안 한 머리) → 이름 그대로 · 주소",
+      parse_b("From: 홍길동 <u8@demo.example>".encode("utf-8")) == ("홍길동", "u8@demo.example"), parse_b("From: 홍길동 <u8@demo.example>".encode("utf-8")))
+check("8비트 EUC-KR 이름만 + Sender → 이름 깨지지 않음 · 주소 = Sender",
+      parse_b("From: 홍길동".encode("cp949") + b"\r\nSender: s8@demo.example") == ("홍길동", "s8@demo.example"),
+      parse_b("From: 홍길동".encode("cp949") + b"\r\nSender: s8@demo.example"))
+check("From 에 주소가 있으면 봉투 주소보다 From", parse(["From: " + NM + " <f@demo.example>", RCV])[1] == "f@demo.example")
+
 print("== 2. 예전 메일 — 이름이 주소 칸에 든 것 ==")
 with _db.db_session() as c:
     c.execute("INSERT INTO users(id, login_id, name, role, is_active, password) VALUES(9301,'t9301','시험','member',1,'x')")

@@ -169,5 +169,65 @@ check("IMAP 원본은 읽기만(readonly · BODY.PEEK)", CALLS["imap_readonly"] 
 m._mailfetch_creds = _orig
 k.post("/mail/from-refill", data={"undo": "1"})
 
+print("④ 11-24 3차 — 숫자 점검 · 제목+시각 짝(Message-ID 없이 저장된 대상)")
+# 대상 새로: c형(Message-ID 없이 저장 → 판정값 = 보낸이+제목+본문) 세 가지
+#   E = 제목 하나·시각 맞는 원본 하나 → 채움 · G1·G2 = 같은 제목·같은 시각 둘 → 원본 하나와 둘 다 맞음 → 안 채움
+#   H = 같은 제목·시각 원본이 둘 → 안 채움 · I = 제목 같지만 시각 2시간 차이 → 안 채움
+T0 = "Tue, 4 Aug 2026 10:00:00 +0900"
+T0s = MS._sent_at(T0)
+with _db.db_session() as c:
+    def put2(subj, sent, frm=""):
+        i, _ = MS.store_inbound(c, to_email="me" + D, from_email=frm, from_name="", subject=subj, text="가짜 " + subj + str(time.time()),
+                                owner_id=UID, run_ai=False, message_id="", sent_at=sent)
+        c.execute("UPDATE mail_messages SET received_at=? WHERE id=?", ("2026-11-24 21:00:00", i))
+        return i
+    E = put2("가짜 견적 회신 E", T0s)
+    G1 = put2("가짜 같은제목 G", T0s)
+    G2 = put2("가짜 같은제목 G", T0s)
+    H = put2("가짜 두원본 H", T0s)
+    I = put2("가짜 시각다름 I", MS._sent_at("Tue, 4 Aug 2026 12:00:00 +0900"))
+
+
+def hdr2(subj, frm, date, mid):
+    return "From: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%s>\r\n" % (frm, b64(subj), date, mid)
+
+
+HDR.update({"e@src": hdr2("가짜 견적 회신 E", "%s <e-demo@example.com>" % b64("가짜이"), "Tue, 4 Aug 2026 10:03:00 +0900", "e@src"),
+            "g@src": hdr2("가짜 같은제목 G", "g-demo@example.com", "Tue, 4 Aug 2026 10:01:00 +0900", "g@src"),
+            "h1@src": hdr2("가짜 두원본 H", "h1-demo@example.com", "Tue, 4 Aug 2026 10:02:00 +0900", "h1@src"),
+            "h2@src": hdr2("가짜 두원본 H", "h2-demo@example.com", "Tue, 4 Aug 2026 09:58:00 +0900", "h2@src"),
+            "i@src": hdr2("가짜 시각다름 I", "i-demo@example.com", "Tue, 4 Aug 2026 10:00:00 +0900", "i@src")})
+ORDER[:] = ["e@src", "g@src", "h1@src", "h2@src", "i@src"] + ORDER
+k.post("/mail/from-refill", data={"dry": "1"})
+j = wait()
+dg = j.get("diag") or {}
+check("셈만: 원본 숫자(STAT 없음 = -1 · UIDL 9 · 가장 옛/새 달)", j.get("src_uidl") == 9 and j.get("src_oldest") == "2026-08" and j.get("src_newest") == "2026-08", j)
+check("셈만: 제목+시각 짝 1통(E만) · Message-ID 짝 2통(A·B)", j.get("found_subj") == 1 and j.get("found_mid") == 2 and j.get("found") == 3, j)
+check("숫자 점검: 대상 8 = mid형 3 · c형 5 · 달별 · 원래 날짜 있는 수 5 · 전체 받은 메일",
+      dg.get("targets") == 8 and dg.get("hash_kind") == {"mid": 3, "c": 5, "none": 0} and dg.get("sent_at_known") == 5
+      and sum((dg.get("targets_by_month") or {}).values()) == 8 and dg.get("all_in", 0) >= 9, dg)
+check("숫자 점검·진행 상황에 주소·제목·이름 글자 없음",
+      not any(x in str(j) for x in ("example.com", "가짜 견적", "같은제목", "두원본", "홍길동", "가짜이")), str(j)[:300])
+with _db.db_session() as c:
+    bk_before = c.execute("SELECT COUNT(*) FROM mail_from_refill_bak").fetchone()[0]
+k.post("/mail/from-refill", data={})
+j = wait()
+check("채우기: 3통(A·B = Message-ID · E = 제목+시각)", j.get("updated") == 3, j)
+check("E: 제목+시각 하나만 맞음 → 이름·주소", row(E) == ("e-demo@example.com", "가짜이"), row(E))
+check("G1·G2: 같은 제목·시각 대상 둘 → 안 채움", row(G1) == ("", "") and row(G2) == ("", ""), (row(G1), row(G2)))
+check("H: 맞는 원본 둘 → 안 채움 · I: 시각 2시간 차이 → 안 채움", row(H) == ("", "") and row(I) == ("", ""), (row(H), row(I)))
+j = k.post("/mail/from-refill", data={"undo": "1"}).json()
+check("↺ 되돌리기 = 3통 빈 값으로(E 포함)", j.get("undone") == 3 and row(E) == ("", ""), (j, row(E)))
+
+print("⑤ 전 직원 숫자 점검(관리자)")
+check("직원은 전 직원 점검 못 함", k.get("/mail/from-diag-all").status_code == 403)
+ME["role"] = "ceo"
+j = k.get("/mail/from-diag-all").json()
+ME["role"] = "member"
+_u = {r["user_id"]: r for r in j.get("users", [])}
+check("전 직원 점검: 사람별 빈 주소(나 8 · 남 1) · 최근 7일 · 머리글 남긴 수 · 숫자만",
+      j.get("ok") and _u.get(UID, {}).get("empty") == 8 and _u.get(UID, {}).get("empty_7d") == 8 and _u.get(OTHER, {}).get("empty") == 1
+      and "empty_hdr" in _u.get(UID, {}) and "example.com" not in str(j) and "가짜" not in str(j), j)
+
 print("\n결과: %d 통과 · %d 실패" % (P, F))
 sys.exit(1 if F else 0)

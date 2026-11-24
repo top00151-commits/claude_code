@@ -80,11 +80,32 @@ def split_from(raw: str, decoded: str = "") -> tuple:
 # 11-22 대표 「보낸 사람 메일 주소가 확인 안 되는 게 있어 — 근본적인 원인을 찾아 해결」
 #   보낸 사람 머리(From)에 주소가 없는 메일(상대 메일 시스템이 이름만 넣어 보냄)이 있음 → 같은 메일의 다른 머리에서 주소를 찾는다.
 #   순서 = 보낸 이(Sender) → 답장 주소(Reply-To) → 반송 주소(Return-Path) → X-Original-From · X-Sender
-FROM_FALLBACK_HEADERS = ("Sender", "Reply-To", "Return-Path", "X-Original-From", "X-Sender")
+FROM_FALLBACK_HEADERS = ("Sender", "Reply-To", "Return-Path", "X-Original-From", "X-Sender",
+                         "Resent-From", "X-Envelope-From", "Envelope-From")   # 11-24 대표 「다른 직원 메일은 정확하게 보낸 사람이」 — 셋 더함
+# 11-24 마지막 길: 메일 서버가 적은 봉투 주소 — Received 「(envelope-from <a@b>)」 · Authentication-Results 「smtp.mailfrom=a@b」
+_RE_ENV_FROM = re.compile(r"envelope-from\s*[=:]?\s*<?\s*([A-Za-z0-9._%+\-=]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})", re.I)
+_RE_SMTP_MAILFROM = re.compile(r"smtp\.mailfrom\s*=\s*<?\s*([A-Za-z0-9._%+\-=]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})", re.I)
+_SKIP_ENV = ("mailer-daemon@", "postmaster@")
 
 
-def parse_from_headers(get_raw, get_dec) -> tuple:
-    """(이름, 주소, 주소를 찾은 머리) — get_raw(머리 이름)=원문 · get_dec(머리 이름)=풀어 쓴 글."""
+def envelope_from(received=(), auth_results=()) -> str:
+    """봉투 주소(보낸 메일 서버가 알린 주소) — 맨 위 Received 부터 · 없으면 Authentication-Results smtp.mailfrom."""
+    for txt in list(received or ()):
+        m = _RE_ENV_FROM.search(str(txt or ""))
+        if m and not m.group(1).lower().startswith(_SKIP_ENV):
+            return m.group(1)
+    for txt in list(auth_results or ()):
+        for m in _RE_SMTP_MAILFROM.finditer(str(txt or "")):
+            a = m.group(1)
+            if a and not a.lower().startswith(_SKIP_ENV):
+                return a
+    return ""
+
+
+def parse_from_headers(get_raw, get_dec, received=(), auth_results=()) -> tuple:
+    """(이름, 주소, 주소를 찾은 머리) — get_raw(머리 이름)=원문 · get_dec(머리 이름)=풀어 쓴 글.
+    순서: From → Sender → Reply-To → Return-Path → X-Original-From → X-Sender → Resent-From → X-Envelope-From → Envelope-From
+          → Received 의 envelope-from → Authentication-Results 의 smtp.mailfrom (11-24)."""
     name, addr = split_from(get_raw("From"), get_dec("From"))
     if addr and "@" in addr:
         return name, addr, "From"
@@ -93,8 +114,14 @@ def parse_from_headers(get_raw, get_dec) -> tuple:
             a = split_from(get_raw(hd), get_dec(hd))[1]
         except Exception:
             a = ""
-        if a and "@" in a and not a.lower().startswith(("mailer-daemon@", "postmaster@")):
+        if a and "@" in a and not a.lower().startswith(_SKIP_ENV):
             return name, a, hd
+    try:
+        a = envelope_from(received, auth_results)
+    except Exception:
+        a = ""
+    if a:
+        return name, a, "Received"
     return name, "", ""
 
 
@@ -2108,8 +2135,35 @@ def parse_raw_email(raw) -> dict:
                 return v
         return v
 
-    def _h(name: str) -> str:
+    _hb = {"v": None}
+
+    def _raw_field(name: str) -> str:
+        """11-24 머리를 원문 바이트에서 직접(8비트 이름이 파이썬 쪽에서 \ufffd 로 깨진 경우) — UTF-8 → CP949(EUC-KR) 순."""
+        if _hb["v"] is None:
+            b = bytes(raw_bytes)
+            cut = [i for i in (b.find(b"\r\n\r\n"), b.find(b"\n\n")) if i >= 0]
+            _hb["v"] = b[:min(cut)] if cut else b[:65536]
+        m = re.search(rb"(?im)^" + re.escape(name.encode()) + rb"[ \t]*:[ \t]*(.*(?:\r?\n[ \t].*)*)", _hb["v"])
+        if not m:
+            return ""
+        val = re.sub(rb"\r?\n[ \t]+", b" ", m.group(1)).strip()
+        for enc in ("utf-8", "cp949"):
+            try:
+                return val.decode(enc)
+            except Exception:
+                pass
+        return val.decode("utf-8", "replace")
+
+    def _get8(name: str) -> str:
         v = _recover8(msg.get(name, "") or "")
+        if "\ufffd" in v:
+            r = _raw_field(name)
+            if r and "\ufffd" not in r:
+                return r
+        return v
+
+    def _h(name: str) -> str:
+        v = _get8(name)
         try:
             return str(make_header(decode_header(v)))
         except Exception:
@@ -2117,7 +2171,12 @@ def parse_raw_email(raw) -> dict:
 
     subject = _h("Subject")
     # 11-22 원문에서 주소 먼저 · (2차) From 에 주소가 없으면 Sender·Reply-To·Return-Path 에서
-    from_name, from_addr, _from_hd = parse_from_headers(lambda n: _recover8(msg.get(n, "") or ""), _h)
+    try:
+        _rcv = [str(x) for x in (msg.get_all("Received") or [])]
+        _aur = [str(x) for x in (msg.get_all("Authentication-Results") or [])]
+    except Exception:
+        _rcv, _aur = [], []
+    from_name, from_addr, _from_hd = parse_from_headers(_get8, _h, _rcv, _aur)
     to_addr = parseaddr(_h("To"))[1] or _h("To")
     cc = _h("Cc")
     message_id = str(msg.get("Message-ID") or msg.get("Message-Id") or "").strip().strip("<>").strip()

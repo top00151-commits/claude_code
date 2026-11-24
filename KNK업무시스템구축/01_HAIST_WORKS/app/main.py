@@ -25045,6 +25045,23 @@ async def mail_from_refill_status(req: Request):
     return JSONResponse(dict(_mfr.status(u["id"]), ok=True, hold=_h))
 
 
+@app.get("/mail/from-diag-all")
+async def mail_from_diag_all(req: Request):
+    """11-24 대표 「다른 직원들 메일은 정확하게 보낸 사람이 나올 수 있게」 — 모든 사람 보낸 사람 빈 메일 숫자(관리자 · 숫자·사람 번호만)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    from . import mail_from_refill as _mfr
+    from starlette.concurrency import run_in_threadpool
+
+    def _run():
+        with db_session() as c:
+            return _mfr.diag_all(c)
+    rows = await run_in_threadpool(_run)
+    return JSONResponse({"ok": True, "users": rows, "empty_total": sum(r["empty"] for r in rows),
+                         "empty_7d_total": sum(r["empty_7d"] for r in rows)})
+
+
 @app.get("/mail/body-refill")
 async def mail_body_refill_count(req: Request):
     """11-23 대표 「이미 받아 둔 메일 중 본문이 빈 것을 운영 DB 에 다시 채워」 — 숫자만(자료 안 바꿈 · 제목·내용 안 돌려줌 · 내 메일만)."""
