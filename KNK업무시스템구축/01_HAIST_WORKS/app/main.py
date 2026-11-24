@@ -25159,6 +25159,71 @@ async def mail_recv_fix_apply(req: Request):
     return JSONResponse(dict(out, ok=True))
 
 
+@app.get("/mail/from-outlook", response_class=HTMLResponse)
+async def mail_from_outlook_page(req: Request):
+    """11-25 대표 「예전 아웃룩에 남아있는데 어떻게 전달하지?」 — 아웃룩에서 뽑은 CSV(Message-ID·보낸 사람)로 빈 보낸 사람 채우기(관리자 · 내 메일만)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        _au = get_user(req)
+        return RedirectResponse("/mail/tools" if _au else "/login", 303)
+    from . import mail_from_refill as _mfr
+    with db_session() as c:
+        _mfr.ensure(c)
+        t = _mfr.targets(c, u["id"])
+    return ctx(req, "mail_from_outlook.html", user=u, active="mail", left=len(t["by_hash"]) + t["nohash"])
+
+
+@app.get("/mail/from-outlook/script")
+async def mail_from_outlook_script(req: Request):
+    """대표 PC 에서 돌릴 명령 파일(deploy/outlook_from_export.ps1 · 읽기만 · 4칸만 뽑음) 내려받기 — 관리자."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy", "outlook_from_export.ps1")
+    if not os.path.isfile(p):
+        return JSONResponse({"ok": False, "message": "명령 파일이 서버에 없습니다"}, 404)
+    return FileResponse(p, media_type="application/octet-stream", filename="outlook_from_export.ps1")
+
+
+@app.post("/mail/from-outlook")
+async def mail_from_outlook_post(req: Request):
+    """CSV 올리기 → dry=1 셈만 · 그 밖 = 채우기 · undo=1 = 마지막 outlook- 묶음 되돌림. 파일은 저장하지 않음 · 돌려주는 값 = 숫자만."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "관리자만"}, 403)
+    from . import mail_from_outlook as _mfo
+    form = await req.form()
+    if (form.get("undo") or "") == "1":
+        with db_session() as c:
+            n = _mfo.undo(c, u["id"])
+        _mail_folders._CACHE.pop(u["id"], None)
+        print("[MAIL-FROM-OUTLOOK] user=%s 되돌림 %s통" % (u["id"], n), flush=True)
+        return JSONResponse({"ok": True, "undone": n})
+    f = form.get("file")
+    if f is None or not hasattr(f, "read"):
+        return JSONResponse({"ok": False, "message": "파일을 골라 주세요"}, 400)
+    raw = await f.read(_mfo.MAX_BYTES + 1)
+    if len(raw) > _mfo.MAX_BYTES:
+        return JSONResponse({"ok": False, "message": "20MB 이하 파일만 올릴 수 있습니다"}, 400)
+    if not raw:
+        return JSONResponse({"ok": False, "message": "빈 파일입니다"}, 400)
+    dry = (form.get("dry") or "") == "1"
+    from starlette.concurrency import run_in_threadpool
+
+    def _run():
+        with db_session() as c:
+            return _mfo.run(c, u["id"], raw, dry=dry)
+    out = await run_in_threadpool(_run)
+    raw = b""   # 메모리에서도 버림
+    if out.get("bad_header"):
+        return JSONResponse({"ok": False, "message": "파일 첫 줄에 Message-ID 칸이 없습니다 — 안내의 명령으로 만든 파일을 올려 주세요"}, 400)
+    if not dry:
+        _mail_folders._CACHE.pop(u["id"], None)
+    print("[MAIL-FROM-OUTLOOK] user=%s dry=%s 줄 %s · ID %s · 맞음 %s · 채움 %s · 남음 %s" % (
+        u["id"], dry, out["rows"], out["with_mid"], out["matched"], out["filled"], out["left"]), flush=True)
+    return JSONResponse(dict(out, ok=True, dry=dry))
+
+
 @app.get("/mail/storage", response_class=HTMLResponse)
 async def mail_storage_page(req: Request):
     """11-23 대표 「중복 메일도 용량을 차지하는지 · 오래된 메일은 최대한 줄여 보관 · 160명이면 서버 부담」 — 용량 재기(숫자만 · 관리자)."""
