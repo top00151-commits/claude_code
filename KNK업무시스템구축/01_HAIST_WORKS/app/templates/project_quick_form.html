@@ -863,6 +863,25 @@ document.addEventListener('submit', function(e){
     if(String(el.value||'').replace(/,/g,'').trim()==='') el.value='0';
   });
 }, true);
+/* z1191z130 (대표 11-24 「1. 진행」): 수주 통화가 섞인 관리번호에서 통화 칸을 바꾸면 — 프로젝트 통화만 바뀌고 수주 통화는 그대로(서버 규칙) · 저장 전 한 번 알림 */
+{% if ed and (ccys130|default([]))|length > 1 %}
+(function(){
+  var MIX = {{ ccys130|tojson }};
+  var sel = document.getElementById('qCurrency'); if(!sel) return;
+  var orig = sel.value;
+  document.addEventListener('submit', function(e){
+    var f = e.target; if(!f || f.id !== 'quickForm' || f.dataset.ccy130ok === '1') return;
+    if(sel.value === orig) return;
+    if(!confirm('이 관리번호는 수주 통화가 섞여 있습니다(' + MIX.join(' · ') + ').' + String.fromCharCode(10) + String.fromCharCode(10)
+        + '· 통화 칸을 ' + orig + ' → ' + sel.value + ' 로 바꾸면 프로젝트 통화만 바뀌고, 수주 통화는 그대로입니다.' + String.fromCharCode(10)
+        + '· 수주 통화를 바꾸려면 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 고쳐 주세요.' + String.fromCharCode(10) + String.fromCharCode(10)
+        + '이대로 저장할까요?')){
+      e.preventDefault(); e.stopImmediatePropagation(); try{ sel.focus(); }catch(_e){} return;
+    }
+    f.dataset.ccy130ok = '1';
+  }, true);
+})();
+{% endif %}
 /* z1191z127: 1개 단가·작업일정표 수량을 고치면 금액 = 수량 × 단가 바로 다시 보임 · 저장 전 「수량 × 단가 = 금액」 확인 */
 document.addEventListener('input', function(e){
   var t = e.target; if(!t || (t.id !== 'qSemiPrice' && t.id !== 'qBoardQty')) return;

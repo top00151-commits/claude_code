@@ -486,7 +486,7 @@ select.prq-in { appearance:auto; }
             {# z1191z49 묶음: 각인은 품목마다(① ② …) #}
             <tr><td colspan="8">{% if z48.bitems|length > 1 %}{% set _z49_e = namespace(n=0) %}{% for it in z48.bitems %}{% if it.eng %}{% set _z49_e.n = _z49_e.n + 1 %}<div><span class="z48-sub">{{ loop.index }})</span> {{ it.eng|join(' / ') }}</div>{% endif %}{% endfor %}{% if not _z49_e.n %}—{% endif %}{% elif z48.eng %}{% for e in z48.eng %}{{ e }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}—{% endif %}</td></tr>
             <tr><td class="z48-h">No</td><td class="z48-hk">관리코드</td><td class="z48-h">수주번호</td><td class="z48-h">호기</td><td class="z48-h">모델명</td><td class="z48-h">품명</td><td class="z48-h">수량</td><td class="z48-h">일정</td></tr>
-            <tr><td>1</td><td class="z48-mgc">{{ z48.mg or '—' }}</td><td class="z48-so">{{ _z48_so }}</td><td class="z48-sub">{{ _z48_hogi if _z48_hogi|trim else '—' }}</td><td>{{ p.model_name or '—' }}</td><td>{{ p.equip_name or '—' }}</td><td>{{ p.unit_qty or 1 }}</td><td>{{ (p.due_date or '')[:10] or '—' }}{% if z48.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ z48.dday }}</span>{% endif %}</td></tr>
+            <tr><td>1</td><td class="z48-mgc">{{ z48.mg or '—' }}</td><td class="z48-so">{{ _z48_so }}</td><td class="z48-sub">{{ _z48_hogi if _z48_hogi|trim else '—' }}</td><td>{{ p.model_name or '—' }}</td><td>{{ p.equip_name or '—' }}</td><td>{{ p.unit_qty or 1 }}</td><td>{# z1191z132: 고른 수주 납기 먼저 #}{{ (z48.due or p.due_date or '')[:10] or '—' }}{% if z48.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ z48.dday }}</span>{% endif %}</td></tr>
             {# z1191z49 묶음: 함께 발행한 다른 관리번호 줄(타고 들어온 관리번호 = 노란 칠) #}
             {% for it in z48.bitems[1:] %}
             <tr class="z49-row{% if it.pid == z48.cur_pid %} z49-me{% endif %}"><td>{{ loop.index + 1 }}</td><td class="z48-mgc">{{ it.mg or '—' }}</td><td class="z48-so">{{ it.so_nos|join(', ') or '—' }}</td><td class="z48-sub">{{ it.hogi|join(', ') or '—' }}</td><td>{{ it.model or '—' }}</td><td>{{ it.equip or '—' }}</td><td>{{ it.qty }}</td><td>{{ it.due or '—' }}{% if it.dday %}<span class="z48-dd" title="납기까지 남은 날">{{ it.dday }}</span>{% endif %}</td></tr>
@@ -519,7 +519,7 @@ select.prq-in { appearance:auto; }
               <div class="z48-it">
                 <div class="l1"><b class="z48-mgc" style="font-size:15px;">{{ z48.mg or '—' }}</b><span class="z48-so" style="font-size:12.5px;text-align:right;">{{ _z48_so }}</span></div>
                 <div class="l2">{{ p.equip_name or '—' }}</div>
-                <div class="l3">{{ p.model_name or '—' }}{% if _z48_hogi|trim %} · {{ _z48_hogi|replace('<br>', ', ')|safe }}{% endif %} · 수량 <b>{{ p.unit_qty or 1 }}</b> · 일정 <b>{{ (p.due_date or '')[:10] or '—' }}</b>{% if z48.dday %}<span class="z48-dd">{{ z48.dday }}</span>{% endif %}</div>
+                <div class="l3">{{ p.model_name or '—' }}{% if _z48_hogi|trim %} · {{ _z48_hogi|replace('<br>', ', ')|safe }}{% endif %} · 수량 <b>{{ p.unit_qty or 1 }}</b> · 일정 <b>{# z1191z132 #}{{ (z48.due or p.due_date or '')[:10] or '—' }}</b>{% if z48.dday %}<span class="z48-dd">{{ z48.dday }}</span>{% endif %}</div>
               </div>
               {% for it in z48.bitems[1:] %}
               <div class="z48-it{% if it.pid == z48.cur_pid %} z49-me{% endif %}">

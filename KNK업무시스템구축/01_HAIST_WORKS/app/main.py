@@ -551,10 +551,14 @@ def _so_qty_z89(so) -> int:
 
 def _so_qty_lines_z89(so) -> int:
     """호기·품목 줄 수량 합(취소 줄 포함 · 예전 카드 숫자 _qq 와 같은 셈)."""
+    # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 「취소」 줄은 수량 합에서 뺀다 — _so_qty_note_z89 의 줄 수(_nl)와 같은 기준.
+    #   (부르는 곳 = _so_qty_note_z89 하나뿐 · 취소 줄이 없으면 합은 예전과 같다)
     so = so or {}
     _g = so.get if hasattr(so, "get") else (lambda k, d=None: getattr(so, k, d))
     _s = 0
     for _u in (_g("units") or []):
+        if str((_u.get("unit_status") if hasattr(_u, "get") else getattr(_u, "unit_status", "")) or "") == "취소":
+            continue
         try:
             _s += int(float((_u.get("qty") if hasattr(_u, "get") else getattr(_u, "qty", 0)) or 0))
         except (TypeError, ValueError):
@@ -12028,7 +12032,9 @@ async def project_detail(req: Request, pid: int):
                     if isinstance(p, dict):
                         p["order_amount"] = _so_sum
                 # 납기 자가치유 (MAX)
-                _due_dates = [o.get("due_date") for o in project_orders if o.get("due_date")]
+                # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 취소(CANCELLED) 수주의 납기·발주일은 빼고 맞춘다.
+                _due_dates = [o.get("due_date") for o in project_orders if o.get("due_date")
+                              and str(o.get("status") or "").upper() != "CANCELLED"]
                 if _due_dates:
                     _max_due = max(_due_dates)
                     _proj_due = (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or ""
@@ -12038,7 +12044,8 @@ async def project_detail(req: Request, pid: int):
                         if isinstance(p, dict):
                             p["due_date"] = _max_due
                 # 발주일 자가치유 (MIN)
-                _ord_dates = [o.get("order_date") for o in project_orders if o.get("order_date")]
+                _ord_dates = [o.get("order_date") for o in project_orders if o.get("order_date")
+                              and str(o.get("status") or "").upper() != "CANCELLED"]   # z1191z132: 취소 수주 제외
                 if _ord_dates:
                     _min_ord = min(_ord_dates)
                     _proj_ord = (p.get("order_date") if isinstance(p, dict) else p["order_date"]) or ""
@@ -12066,11 +12073,17 @@ async def project_detail(req: Request, pid: int):
         import re as _re_n
         _flat = []
         for _so in (project_orders or []):
+            # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 취소(CANCELLED) 수주의 호기는 수주액 상자(단가×N대의 N)에서 뺀다.
+            if str(_so.get("status") or "").upper() == "CANCELLED":
+                continue
             _so_ccy = _so.get("currency") or "KRW"   # v5H226z696: 호기 통화 폴백용 SO 통화
             _so_flabel = _so.get("form_label") or ""   # v5H226z701: 수주액 호기/품목 목록 좌측 형태 배지
             _so_fkey = _so.get("form_key") or ""
             _so_no = _so.get("order_no") or ""          # v5H226z702: 수주액 분해 줄 왼쪽 수주번호
             for _u in (_so.get("units") or []):
+                # z1191z132: 「취소」 호기도 뺀다(작업일정표·_so_qty_note_z89 와 같은 기준).
+                if str((_u.get("unit_status") if hasattr(_u, "get") else "") or "") == "취소":
+                    continue
                 _ud = dict(_u)
                 # v5H226z696 (대표 지시): 호기별 통화 = 호기 override → SO → KRW.
                 #   수주액 박스가 호기마다 실통화로 표기(통화 혼합: 1호기 KRW + 나머지 USD).
@@ -12097,6 +12110,9 @@ async def project_detail(req: Request, pid: int):
         ccy_amount = {}
         ccy_count = {}
         for _so in (project_orders or []):
+            # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 취소(CANCELLED) 수주는 통화 혼합 판정·통화별 합계에서 뺀다.
+            if str(_so.get("status") or "").upper() == "CANCELLED":
+                continue
             _c = (_so.get("currency") or "KRW")
             ccy_amount[_c] = ccy_amount.get(_c, 0) + float(_so.get("total_amount") or 0)
             ccy_count[_c] = ccy_count.get(_c, 0) + 1
@@ -12383,7 +12399,9 @@ def _z49_item(c, proj, stored_csv="", issued_at=""):
     return {"pid": proj["id"], "mgmt": proj.get("mgmt_code") or "", "mg": _z48_mg(proj.get("mgmt_code")), "qty_txt": _qt89,
             "so_nos": [o["order_no"] for o in sel], "hogi": [o["hogi"] for o in sel if o.get("hogi")],   # z1191z50: 호기만(z48e 규칙)
             "model": proj.get("model_name") or "", "equip": proj.get("equip_name") or "", "qty": proj.get("unit_qty") or 1,
-            "due": str(proj.get("due_date") or "")[:10], "dday": _z48_dday(proj.get("due_date")),
+            # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 묶음 줄 납기·D-n = 그 줄이 고른 수주들의 가장 늦은 납기(없으면 프로젝트 납기)
+            "due": _z132_req_due(c, _z48_ids(stored_csv), proj.get("due_date")),
+            "dday": _z48_dday(_z132_req_due(c, _z48_ids(stored_csv), proj.get("due_date"))),
             "eng": [x.strip() for x in str(proj.get("engraving") or "").replace("\r", "").split("\n") if x.strip()]}
 
 
@@ -12692,6 +12710,23 @@ def _z48_dday(due):
     return "" if n < 0 else ("D-day" if n == 0 else "D-%d" % n)
 
 
+def _z132_req_due(c, order_ids, proj_due):
+    """z1191z132 (대표 11-24 「같은 유형 미리 막기」): 제작요청서 납기 = 그 요청서가 고른 수주들의 납기 중 가장 늦은 것.
+    고른 수주가 없거나(취소 수주는 뺌) 납기가 모두 비면 예전처럼 프로젝트(관리번호) 납기. 돌려주는 값 = 'YYYY-MM-DD' 또는 ''."""
+    try:
+        ids = [int(x) for x in (order_ids or []) if str(x).strip().isdigit() and int(x) > 0]
+        if ids:
+            r = c.execute("SELECT MAX(SUBSTR(TRIM(due_date),1,10)) FROM orders WHERE id IN (%s) "
+                          "AND COALESCE(status,'')<>'CANCELLED' AND TRIM(COALESCE(due_date,''))<>''" % ",".join("?" * len(ids)),
+                          ids).fetchone()
+            d = str((r[0] if r else "") or "")[:10]
+            if d:
+                return d
+    except Exception as _e132:
+        print(f"[z1191z132] 제작요청서 수주 납기 읽기 실패: {_e132}")
+    return str(proj_due or "")[:10]
+
+
 def _z48_view_ctx(c, p, pr):
     """제작요청서 화면(보기·작성·수정)에 넘길 값."""
     orders = _z48_project_orders(c, p["id"])
@@ -12714,9 +12749,12 @@ def _z48_view_ctx(c, p, pr):
     except Exception as _e48:
         print(f"[z1191z48c] 필수 판정 실패: {_e48}")
         need = ""
+    # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 납기·D-n = 이 요청서가 고른 수주들의 가장 늦은 납기(없으면 프로젝트 납기).
+    #   새로 쓸 때(pr 없음)는 예전처럼 프로젝트 납기.
+    _due132 = _z132_req_due(c, _z48_ids(pr.get("order_ids") or ""), p.get("due_date")) if pr else str(p.get("due_date") or "")[:10]
     return {"orders": orders, "sel": sel, "sel_ids": [o["id"] for o in sel], "kind": kind, "kind_cls": kind_cls,
-            "need": need, "need_now": _Z48_NEED_MSG.get(need, ""),
-            "mg": _z48_mg(p.get("mgmt_code")), "dday": _z48_dday(p.get("due_date")), "rev": rev,
+            "need": need, "need_now": _Z48_NEED_MSG.get(need, ""), "due": _due132,
+            "mg": _z48_mg(p.get("mgmt_code")), "dday": _z48_dday(_due132), "rev": rev,
             "eng": [x.strip() for x in str(p.get("engraving") or "").replace("\r", "").split("\n") if x.strip()]}
 
 
@@ -12837,7 +12875,8 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             _mo = _z48_pick_orders(_z48_project_orders(c, _mpid), ",".join(str(x) for x in (_m.get("order_ids") or [])), _m.get("at") or _z48_at)
             if (not str(_mp.get("mgmt_code") or "").strip() or not _mo) and not cancel_reason:
                 return {"ok": False, "error": "need_mgmt_order", "need": "member", "who": (_mp.get("mgmt_code") or str(_mpid))}
-            _z49_members.append({"pid": _mpid, "p": _mp, "picked": _mo, "so_nos": [o["order_no"] for o in _mo]})
+            _z49_members.append({"pid": _mpid, "p": _mp, "picked": _mo, "so_nos": [o["order_no"] for o in _mo],
+                                 "oids132": [o["id"] for o in _mo]})   # z1191z132: 그 줄이 가리키는 수주(= 저장되는 order_ids · 납기용)
         _z49_n = len(_z49_members)
         _z49_all_so = list(so_nos) + [x for _m in _z49_members for x in _m["so_nos"]]
         # 통보 부서 — 아무 대상도 안 골랐을 때만 전부서(활성 인원 있는 팀 전체)
@@ -12865,7 +12904,16 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     model = p.get("model_name") or "—"
     pname = p.get("name") or "—"
     qty = p.get("unit_qty") or 1
-    due = (str(p.get("due_date") or "")[:10]) or "—"
+    # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 납기 = 이 요청서가 고른 수주들(order_ids)의 가장 늦은 납기 ·
+    #   고른 수주가 없거나 납기가 비면 예전처럼 프로젝트 납기.
+    try:
+        with db_session() as _c132:
+            due = _z132_req_due(_c132, _z48_ids(_z48_oid_csv), p.get("due_date")) or "—"   # = 저장되는 order_ids
+            for _m132 in _z49_members:
+                _m132["due132"] = _z132_req_due(_c132, _m132.get("oids132"), _m132["p"].get("due_date")) or "—"
+    except Exception as _e132:
+        print(f"[z1191z132] 제작요청 납기 실패: {_e132}")
+        due = (str(p.get("due_date") or "")[:10]) or "—"
     spath = p.get("server_path") or ""
     eng = p.get("engraving") or ""
     cc_nm = p.get("cc_name") or ""
@@ -12919,7 +12967,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         body += f"  1. {mgmt} · {(p.get('equip_name') or pname)} · 수량 {qty} · {due}" + (f" · 수주 {', '.join(so_nos)}" if so_nos else "") + "\n"
         for _i49, _m in enumerate(_z49_members, 2):
             _q49 = _m["p"].get("unit_qty") or 1
-            _d49 = (str(_m["p"].get("due_date") or "")[:10]) or "—"
+            _d49 = _m.get("due132") or (str(_m["p"].get("due_date") or "")[:10]) or "—"   # z1191z132: 고른 수주 납기 먼저
             body += (f"  {_i49}. {_m['p'].get('mgmt_code')} · {(_m['p'].get('equip_name') or _m['p'].get('name') or '—')} · 수량 {_q49} · {_d49}"
                      f" · 수주 {', '.join(_m['so_nos'])}\n")
     else:
@@ -31900,16 +31948,18 @@ def _z40_period_range(mode, sel, sel_q, sel_m):
 #   출하로 바꿨는데 덜 나간 것 8). 작업일정표 품목 상태(unit_status)를 그대로 본다.
 #   빼는 것: 보류 품목 · 취소 수주 · 폐기 프로젝트. 납기 = 품목 납기 → 수주 납기 → 프로젝트 납기.
 def _z40_open_projects(c):
+    # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 「출하 전 품목」에서 출하·보류에 더해 「취소」 호기도 뺀다
+    #   (n_open · 가장 이른 납기 · 수주번호 목록 셋 다 같은 기준 · 취소 호기가 없으면 결과는 예전과 같다).
     rows = [dict(r) for r in c.execute(
         "SELECT p.id AS pid, COALESCE(p.mgmt_code,'') AS code, COALESCE(p.name,'') AS pname, "
         "COALESCE(p.model_name,'') AS model, " + _Z72_CUST_P + " AS cust, "   # z1191z72: 시스템명
         "UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
         "COUNT(*) AS n_all, "
-        "SUM(CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류') THEN 1 ELSE 0 END) AS n_open, "
+        "SUM(CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류','취소') THEN 1 ELSE 0 END) AS n_open, "
         "SUM(CASE WHEN COALESCE(oi.unit_status,'') = '보류' THEN 1 ELSE 0 END) AS n_hold, "
-        "MIN(CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류') THEN "
+        "MIN(CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류','취소') THEN "
         "    COALESCE(NULLIF(TRIM(oi.due_date),''),NULLIF(TRIM(o.due_date),''),NULLIF(TRIM(p.due_date),'')) END) AS due, "
-        "GROUP_CONCAT(DISTINCT CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류') THEN NULLIF(TRIM(o.order_no),'') END) AS sos "
+        "GROUP_CONCAT(DISTINCT CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류','취소') THEN NULLIF(TRIM(o.order_no),'') END) AS sos "
         "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
         "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
         "GROUP BY p.id HAVING n_open > 0").fetchall()]
@@ -32055,7 +32105,9 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             ", 'S' AS z40k, COALESCE(p.mgmt_code,'') AS z40c, COALESCE(o.order_no,'') AS z40s "   # z1191z40
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
-            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+            # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 위 주석 「취소 제외」대로 「취소」 호기 금액도 뺀다
+            "AND COALESCE(oi.unit_status,'')<>'취소'").fetchall():
         d = dict(r)
         add("order", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d))   # z1191z40 · z1191z88
     for r in c.execute(
@@ -32099,9 +32151,10 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             ", 'S' AS z40k, COALESCE(p.mgmt_code,'') AS z40c, COALESCE(o.order_no,'') AS z40s "   # z1191z40
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
             "JOIN projects p ON p.id=o.project_id "
-            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+            "AND COALESCE(oi.unit_status,'')<>'취소'").fetchall():   # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 「취소」 호기 제외
         d = dict(r)
-        meta[d["iid"]] = (d["biz"], _z73(d), d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d), d["fxdd"])
+        meta[d["iid"]] =(d["biz"], _z73(d), d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d), d["fxdd"])
     for iid, tx in (oi_map or {}).items():
         mm = meta.get(iid)
         if not mm:
@@ -32810,6 +32863,10 @@ def _z17_lines(c, rates, oi_map, basis):
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
             "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0").fetchall():
         d = dict(r)
+        # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 매출 홈 _sales_3way 와 같은 기준 — 「취소」 호기는 매출 보고서에서도 뺀다
+        #   (z88 「매출 홈·보고서 같은 기준」 유지 · 출하 기준은 원래 「출하」만이라 그대로).
+        if str(d.get("us") or "") == "취소":
+            continue
         _lbl, _key = _pwf.so_form_label_key(so_form=d["so_form"], so_type=d["so_type"], shipment_form=d["o_sf"],
                                            hogi_n=hogi.get(d["oid"], 0), proj_ptype=(d["ptype"] or "NEW_EQUIP"))
         cid = d["ocid"] or d["pcid"]
@@ -37621,11 +37678,14 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
             _bqty_col = ("COALESCE(o.board_qty,0) AS o_bqty, COALESCE(o.board_unit,'') AS o_bunit"
                          if "board_qty" in _ord_cols else "0 AS o_bqty, '' AS o_bunit")
             _i_extra += (", oi.line_note AS i_note" if "line_note" in _oi_cols else ", '' AS i_note")
+            # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 합산 줄 납기에서 취소 품목을 빼려고 호기 상태도 읽는다(없는 옛 DB = 빈 글자)
+            _i_extra += (", oi.unit_status AS i_ust" if "unit_status" in _oi_cols else ", '' AS i_ust")
             # z1191z23: 상품 수주 기타사항 = 수주 메모(NULL = 안 적음 → 지금처럼 프로젝트 메모 · '' = 지움)
             _bqty_col += (", o.unit_note AS o_unote" if "unit_note" in _ord_cols else ", NULL AS o_unote")
             _bqty_col += (", COALESCE(o.price_tbd,0) AS o_tbd" if "price_tbd" in _ord_cols else ", 0 AS o_tbd")   # z1191z117 ⑤
             _sql = (
                 "SELECT o.id AS oid, o.project_id AS pid, o.order_no AS so_no, "
+                "COALESCE(o.status,'') AS o_st, "   # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 수주 상태(관리번호 수주 2개 이상 · 호기 0건 줄 상태용)
                 + _sotype_col + ", "
                 "COALESCE(o.total_amount,0) AS o_total, o.total_amount AS o_total_raw, COALESCE(o.unit_qty,1) AS o_qty, o.unit_qty AS o_qty_raw, "
                 "o.order_date AS o_ord, o.due_date AS o_due, o.ship_to AS o_ship, COALESCE(o.currency,'KRW') AS o_cur, "
@@ -37649,6 +37709,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                 if k not in _so_acc:
                     _so_acc[k] = {
                         "pid": pid, "oid": oid, "so_no": d.get("so_no") or "",
+                        "o_st": (d.get("o_st") or "").upper(),   # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 수주 상태
                         "so_type": (d.get("so_type") or "").upper(),
                         "o_total": float(d.get("o_total") or 0), "o_qty": int(d.get("o_qty") or 1),
                         "o_qty_raw": d.get("o_qty_raw"),   # z1191z16: 상품 수량 0·빈칸 = 미입력 구분
@@ -37720,11 +37781,19 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     return _fb
                 # v5H226z944 (대표 지시): 부품(PARTS_EXPORT) 수주는 작업일정표 합산줄 '납기'를 헤더 납기(SO)와 모든 부품 납기 중 최댓값으로.
                 #   기존엔 첫 부품 납기(예 2/6)만 잡아 헤더 납기(예 4/1)가 일정표 막대·납품마커에 안 나오던 것(대표 신고). 다른 SO 유형은 기존 _eff_c 유지.
+                # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 줄 납기 계산에서 「취소」 품목은 뺀다(모두 취소면 예전대로 전부)
+                _ditems131 = [_it for _it in _citems if str(_it.get("i_ust") or "").strip() != "취소"] or _citems
                 if _so.get("so_type") == "PARTS_EXPORT":
-                    _dcands944 = [_x for _x in ([str(_it.get("i_due") or "").strip()[:10] for _it in _citems] + [str(_so.get("o_due") or "").strip()[:10]]) if _x]
+                    _dcands944 = [_x for _x in ([str(_it.get("i_due") or "").strip()[:10] for _it in _ditems131] + [str(_so.get("o_due") or "").strip()[:10]]) if _x]
                     _due944 = (max(_dcands944) if _dcands944 else "")
                 else:
-                    _due944 = (_eff_c("i_due", _so["o_due"]) or "")[:10]
+                    _due944 = ""
+                    for _it in _ditems131:   # z1191z131: _eff_c("i_due") 와 같은 규칙(첫 값) — 취소 품목만 빼고
+                        _v131 = str(_it.get("i_due") or "").strip()
+                        if _v131:
+                            _due944 = _v131
+                            break
+                    _due944 = (_due944 or _so["o_due"] or "")[:10]
                 # v5H226z1063 (대표 지시): 합산줄 표시 수량 = 이 SO 호기(order_items) 수량합.
                 #   소모품(CONSUMABLE) SO를 일괄등록(z981 前)한 건은 orders.unit_qty=1 로 굳어, 화면이 실수량(order_items.qty)보다
                 #   적게(대개 1) 보였다(작업일정표 27줄 실측). 데이터(order_items·금액)는 정상 → 표시만 실수량 합으로 바로잡음.
@@ -37823,6 +37892,15 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                             _l["board_unit"] = _bu
                 return _ls
 
+            # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 줄마다 「관리번호의 (취소 아닌) 수주 수」·그 수주 상태·발주일·납기를 실어 보낸다
+            #   → 화면 쪽이 수주 2개 이상일 때 다른 수주·관리번호 값을 빌리지 않게 판단하는 재료(값만 더함 · 기존 칸 그대로)
+            def _z131_stamp(_ls, _so, _n):
+                for _l131 in (_ls or []):
+                    _l131["n_sos131"] = int(_n or 0)
+                    _l131["so_status131"] = _so.get("o_st") or ""
+                    _l131["so_ord131"] = str(_so.get("o_ord") or "")[:10]
+                    _l131["so_due131"] = str(_so.get("o_due") or "")[:10]
+
             # 프로젝트별로 SO 묶기 (oid 오름차순 = 최초 먼저).
             _proj_sos: dict = {}
             for (pid, oid), so in _so_acc.items():
@@ -37843,6 +37921,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                             for _l5 in _ls5:
                                 if _l5.get("so_note") is None:
                                     _l5["so_note"] = ""
+                        _z131_stamp(_ls5, _so, len(so_list))   # z1191z131 (대표 11-24 「같은 유형 미리 막기」)
                         all_lines.extend(_ls5)
                     # v5H226z666 (대표 지시·전면 통일): 호기(order_items)가 1건이라도 있으면 분할 경로로 보냄
                     #   → 그 행이 is_unit(호기 기반)이 되어 읽기·쓰기가 정규 소스(order_items/orders)로 통일됨
@@ -37855,6 +37934,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     _main = so_list[0][1]
                     _refs = [s for (_o, s) in so_list[1:]]
                     main_lines = _so_lines(_main)
+                    _z131_stamp(main_lines, _main, len(so_list))   # z1191z131 (대표 11-24 「같은 유형 미리 막기」)
                     ref_data = [{
                         "so_no": s["so_no"], "so_type": s["so_type"], "amount": s["o_total"],
                         "currency": s["o_cur"], "order_date": s["o_ord"], "due_date": s["o_due"],
@@ -37901,7 +37981,27 @@ def _board_agg_status(statuses):
         return "출하"
     if n_prog == 0 and n_hold > 0 and n_active == n_hold:
         return "보류"
+    # z1191z131 (대표 11-24 「같은 유형 미리 막기」 · 대표 결정 「빼」): 진행할 호기(진행중·빈칸) 없이 출하+보류만 남으면
+    #   「진행중」이 아니라 「보류」 → 납기 지나도 지연(빨강)·「지연 N」에 안 들어감(지연 판정은 상태 출하·취소·보류 제외)
+    if n_prog == 0 and n_hold > 0:
+        return "보류"
     return "진행중"
+
+
+def _z131_multi_so(_ln):
+    """z1191z131 (대표 11-24 「같은 유형 미리 막기」): 이 줄의 관리번호에 (취소 아닌) 수주가 2개 이상인가.
+    표시가 없으면(옛 경로) False = 예전 동작 그대로."""
+    try:
+        return int((_ln or {}).get("n_sos131") or 0) >= 2
+    except Exception:
+        return False
+
+
+def _z131_so_status_ko(st):
+    """z1191z131: 수주(orders.status) → 작업일정표 한국어 상태. 기존 변환표(_Z42_SO_ST) 사용 ·
+    출하·취소·보류 말고는 모두 「진행중」(작성중·견적도 일정표에선 진행중)."""
+    _ko = _Z42_SO_ST.get(str(st or "").strip().upper(), "")
+    return _ko if _ko in ("출하", "취소", "보류") else "진행중"
 
 
 def _board_unit_status_maps(pids=None):
@@ -38026,6 +38126,18 @@ def _inject_oi_tax_into_rows(rows, oi_map, proj_iids):
             iids = [int(x) for x in (_row.get("unit_iids") or [])]
         except Exception:
             iids = []
+        # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 호기 0건 줄인데 수주번호가 있고 관리번호 수주가 2개 이상이면
+        #   관리번호 전체 호기(다른 수주 세금계산서)로 대신하지 않는다 → 그 수주 호기만(=없음) → 빈칸. 수주 1개면 예전대로.
+        if not iids and _row.get("so_no") and _z131_multi_so(_row):
+            _row["statement_date"] = ""
+            for _n in range(1, _TI_MAX + 1):
+                _row[_ti_dcol(_n)] = ""
+                _row[_ti_acol(_n)] = ""
+                _row["_ti_a%d" % _n] = ""
+                if _n >= 2:
+                    _row["_ti_d%d" % _n] = ""
+                _row[_ti_mcol(_n)] = ""
+            continue
         if not iids:
             iids = list(proj_iids.get(pid) or [])
         if not iids:
@@ -38429,7 +38541,9 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 _iu["unit_iids"] = _ln.get("iids") or []   # v5H226z487: 이 줄이 가리키는 호기(order_items) — 직접수정 라우팅
                 _iu["ref_sos"] = _ln.get("ref_sos") or []   # v5H226z638: 같은 관리번호 추가 SO '참고 칩' 데이터(메인 첫 줄에만 있음)
                 _iu["unit_label"] = _ln["label"]
-                _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
+                # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 수주번호 빈 줄은 관리번호 (취소 아닌) 수주가 1개일 때만 최신 수주번호를 빌린다
+                _iu["n_sos131"] = _ln.get("n_sos131") or 0
+                _iu["so_no"] = _ln["so_no"] or ("" if _z131_multi_so(_ln) else info.get("so_no")) or ""
                 _iu["price"] = _ln["price"]
                 _iu["is_free"] = bool(_ln.get("is_free"))   # z1191z8: 무상 표기
                 _iu["is_tbd"] = bool(_ln.get("is_tbd"))   # z1191z117 ⑤: 미정 표기
@@ -38447,8 +38561,13 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 # z1191z34 (이새롬 프로 신고 · 대표 2026-11-16): 납품위치 = 줄(호기) → 그 수주 값까지만. 같은 관리번호 다른 수주 값을
                 #   빌려 보이지 않는다(국내 납품 수주에 「드림텍 베트남」이 보이고 지워도 다시 보이던 병) · 빈칸이면 빈칸
                 _iu["ship_to"] = _ln["ship_to"] or ""
-                _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
-                _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                if _z131_multi_so(_ln):
+                    # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 관리번호 수주 2개 이상 → 그 수주(orders) 발주일·납기 → 없으면 빈칸(관리번호 값 안 빌림)
+                    _iu["order_date"] = (_ln["order_date"] or _ln.get("so_ord131") or "")
+                    _iu["due_date"] = (_ln["due_date"] or _ln.get("so_due131") or "")
+                else:
+                    _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
+                    _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
                 _iu["status_date"] = _ln.get("status_date") or ""   # v5H226z711: 상태 발생일(호기) → 달력 표식
                 if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
                     _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
@@ -38488,7 +38607,10 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _iu["note_blob"] = _ln.get("find_note") or ""   # z1191z12: 찾기용 비고(부품 비고·잘린 비고 포함)
-                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or (
+                    # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 호기 0건 줄 — 관리번호 수주 2개 이상이고 줄에 수주번호가 있으면
+                    #   프로젝트 상태 대신 그 수주(orders.status) 상태 · 수주 1개면 예전대로 프로젝트 상태
+                    _z131_so_status_ko(_ln.get("so_status131")) if (_z131_multi_so(_ln) and _ln.get("so_no")) else p.get("status"))
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and _sched_cust_hit(_ti_memo_attach(_ru, _tmm29), cust):   # z1191z29
                     rows.append(_ru)
@@ -40476,7 +40598,9 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 _iu["unit_iids"] = _ln.get("iids") or []   # v5H226z487: 이 줄이 가리키는 호기(order_items) — 직접수정 라우팅
                 _iu["ref_sos"] = _ln.get("ref_sos") or []   # v5H226z638: 같은 관리번호 추가 SO '참고 칩' 데이터(메인 첫 줄에만 있음)
                 _iu["unit_label"] = _ln["label"]
-                _iu["so_no"] = _ln["so_no"] or info.get("so_no") or ""
+                # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 수주번호 빈 줄은 관리번호 (취소 아닌) 수주가 1개일 때만 최신 수주번호를 빌린다
+                _iu["n_sos131"] = _ln.get("n_sos131") or 0
+                _iu["so_no"] = _ln["so_no"] or ("" if _z131_multi_so(_ln) else info.get("so_no")) or ""
                 _iu["price"] = _ln["price"]
                 _iu["is_free"] = bool(_ln.get("is_free"))   # z1191z8: 무상 표기
                 _iu["is_tbd"] = bool(_ln.get("is_tbd"))   # z1191z117 ⑤: 미정 표기
@@ -40494,8 +40618,13 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 # z1191z34 (이새롬 프로 신고 · 대표 2026-11-16): 납품위치 = 줄(호기) → 그 수주 값까지만. 같은 관리번호 다른 수주 값을
                 #   빌려 보이지 않는다(국내 납품 수주에 「드림텍 베트남」이 보이고 지워도 다시 보이던 병) · 빈칸이면 빈칸
                 _iu["ship_to"] = _ln["ship_to"] or ""
-                _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
-                _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
+                if _z131_multi_so(_ln):
+                    # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 관리번호 수주 2개 이상 → 그 수주(orders) 발주일·납기 → 없으면 빈칸(관리번호 값 안 빌림)
+                    _iu["order_date"] = (_ln["order_date"] or _ln.get("so_ord131") or "")
+                    _iu["due_date"] = (_ln["due_date"] or _ln.get("so_due131") or "")
+                else:
+                    _iu["order_date"] = (_ln["order_date"] or info.get("order_date") or "")
+                    _iu["due_date"] = (_ln["due_date"] or info.get("due_date") or "")
                 _iu["status_date"] = _ln.get("status_date") or ""   # v5H226z711: 상태 발생일(호기) → 달력 표식
                 if _ln.get("is_export") is not None:   # v5H226z668: 호기 거래방식(수출/내수) 반영 — 수주내역과 일치
                     _iu["trade"] = "수출" if int(_ln.get("is_export") or 0) else "내수"
@@ -40535,7 +40664,10 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                 if _ln.get("so_note") is not None:   # v5H226z983: ''(지움)도 덮음 — 프로젝트 메모 부활 방지
                     _iu["note"] = _ln["so_note"]
                 _iu["note_blob"] = _ln.get("find_note") or ""   # z1191z12: 찾기용 비고(부품 비고·잘린 비고 포함)
-                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or (
+                    # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 호기 0건 줄 — 관리번호 수주 2개 이상이고 줄에 수주번호가 있으면
+                    #   프로젝트 상태 대신 그 수주(orders.status) 상태 · 수주 1개면 예전대로 프로젝트 상태
+                    _z131_so_status_ko(_ln.get("so_status131")) if (_z131_multi_so(_ln) and _ln.get("so_no")) else p.get("status"))
                 _ru = _mk_row(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
                 if _ru and _sched_cust_hit(_ti_memo_attach(_ru, _tmm29), cust):   # z1191z29
                     rows.append(_ru)
@@ -40657,7 +40789,8 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     if _r[4]:
                         _oi_rsn128[_iid] = _r[4]
                     _proj_iids128.setdefault(_pid, []).append(_iid)
-                    _so_iids129.setdefault(_r[5], []).append(_iid)   # z1191z129: 그 수주 호기만
+                    # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 열쇠 = (관리번호 id, 수주번호) — 다른 관리번호의 같은 수주번호가 섞이지 않게
+                    _so_iids129.setdefault((_pid, _r[5]), []).append(_iid)   # z1191z129: 그 수주 호기만
                     if _r[6] in ("출하", "취소", "보류"):
                         _done129.add(_iid)   # z1191z129: 끝난 호기는 연기 판정에서 뺌
                     if _pid and (_pid not in _proj_orig or _do < _proj_orig[_pid]):
@@ -40679,7 +40812,8 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
         #   출하·취소·보류 끝난 호기는 연기 판정에서 뺀다
         _scope128 = [i for i in (_row.get("unit_iids") or []) if i in _oi_orig_iid]
         if not _scope128:
-            _scope128 = list(_so_iids129.get(_row.get("so_no") or "") or []) if _row.get("so_no") else list(_proj_iids128.get(_row.get("ref_id")) or [])
+            # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 수주번호 표도 (관리번호 id, 수주번호) 로 찾는다
+            _scope128 = list(_so_iids129.get((_row.get("ref_id"), _row.get("so_no") or "")) or []) if _row.get("so_no") else list(_proj_iids128.get(_row.get("ref_id")) or [])
         _scope128 = [i for i in _scope128 if i not in _done129]
         _dl128 = [i for i in _scope128 if _oi_orig_iid.get(i) and _oi_due128.get(i) and _oi_orig_iid[i] < _oi_due128[i]]
         _orig = min(_oi_orig_iid[i] for i in _dl128) if _dl128 else None
@@ -42507,10 +42641,17 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "",
             # v5H226z549: 호기 단가/납기 상이 → SO/호기 묶음별 1줄(각 줄 수량·납기·'+'펼침이 그 호기만 일치)
             for _ln in _ulines:
                 _iu = dict(info)
-                _iu["so_no"] = _ln.get("so_no") or info.get("so_no") or ""
+                # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 관리번호 (취소 아닌) 수주 2개 이상이면 수주번호·발주일·납기를
+                #   관리번호(최신 수주·프로젝트) 값으로 대신하지 않는다 — 그 수주 값 → 없으면 빈칸. 수주 1개면 예전대로.
+                _m131 = _z131_multi_so(_ln)
+                _iu["so_no"] = _ln.get("so_no") or ("" if _m131 else info.get("so_no")) or ""
                 _iu["qty"] = _ln.get("qty", _ln.get("count", 1))   # z666: 라인 실수량
-                _iu["order_date"] = (_ln.get("order_date") or info.get("order_date") or "")
-                _iu["due_date"] = (_ln.get("due_date") or info.get("due_date") or "")
+                if _m131:
+                    _iu["order_date"] = (_ln.get("order_date") or _ln.get("so_ord131") or "")
+                    _iu["due_date"] = (_ln.get("due_date") or _ln.get("so_due131") or "")
+                else:
+                    _iu["order_date"] = (_ln.get("order_date") or info.get("order_date") or "")
+                    _iu["due_date"] = (_ln.get("due_date") or info.get("due_date") or "")
                 _iu["uids"] = _ln.get("iids") or []
                 _iu["unit_label"] = _ln.get("label") or ""
                 # z1191b (대표 「수주번호 기준」): 이 줄 = 그 수주 — 발주처·고객 담당자·PO유형·모델·장비도 그 수주 값(없으면 프로젝트 값)
@@ -42537,7 +42678,9 @@ def dept_schedule(request: Request, ym: str = "", biz: str = "", dept: str = "",
                     _iu["multi"] = int(_iu.get("qty") or 0) >= 2
                 except Exception:
                     _iu["multi"] = False
-                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or p.get("status")
+                _eff_st = _board_agg_status([_bus_iid.get(_i) for _i in (_ln.get("iids") or [])]) or (
+                    # z1191z131 (대표 11-24 「같은 유형 미리 막기」): 호기 0건 줄 — 수주 2개 이상 + 수주번호 있음 → 그 수주 상태
+                    _z131_so_status_ko(_ln.get("so_status131")) if (_m131 and _ln.get("so_no")) else p.get("status"))
                 if _dsx_hidden(_eff_st):   # v5H226z826: 출하/취소/보류 줄 제외(부분출하는 '진행중'이라 유지됨)
                     continue
                 _ru = _mk(_iu, _pd(_iu["order_date"]), _pd(_iu["due_date"]), _eff_st, "project")
@@ -45042,8 +45185,11 @@ async def projects_quick_edit_form(request: Request, pid: int):
             if sos:
                 # z1191z118: 예전엔 원화+달러를 그냥 더해(수주액 옛 SUM) 열기만 해도 수주액이 틀린 값으로 바뀌었다(상세를 열면 다시 정정 → 이력 「자가치유」가 번갈아 쌓임)
                 so_sum = _recalc_project_amount(c2, pid)
-                dues = [o.get("due_date") for o in sos if o.get("due_date")]
-                ords = [o.get("order_date") for o in sos if o.get("order_date")]
+                # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 납기(MAX)·발주일(MIN)은 취소(CANCELLED) 수주를 빼고 맞춘다.
+                dues = [o.get("due_date") for o in sos if o.get("due_date")
+                        and str(o.get("status") or "").upper() != "CANCELLED"]
+                ords = [o.get("order_date") for o in sos if o.get("order_date")
+                        and str(o.get("status") or "").upper() != "CANCELLED"]
                 _heal = [("order_amount", so_sum)] if so_sum is not None else []
                 if dues:
                     _heal.append(("due_date", max(dues)))
@@ -45084,8 +45230,12 @@ async def projects_quick_edit_form(request: Request, pid: int):
     try:   # z1191z117 ⑥: 수주 수(2건 이상이면 발주일·납기는 수주별로 고친다)
         with db_session() as c4:
             _so_cnt117 = int(c4.execute("SELECT COUNT(*) FROM orders WHERE project_id=? AND UPPER(COALESCE(status,''))<>'CANCELLED'", (pid,)).fetchone()[0] or 0)
+            # z1191z130: 수주 통화가 섞였으면 통화 칸을 바꿔도 수주 통화는 그대로(project_workflow) → 저장 전 한 번 알림
+            _ccys130 = sorted({(r[0] or "KRW").strip().upper() or "KRW" for r in c4.execute(
+                "SELECT currency FROM orders WHERE project_id=? AND UPPER(COALESCE(status,''))<>'CANCELLED'", (pid,)).fetchall()})
     except Exception:
         _so_cnt117 = 0
+        _ccys130 = []
     _focus117 = str(request.query_params.get("so") or "").strip()
     _sos117, _tso117 = [], {}
     try:   # z1191z117k: 수주 고르기 칩 + 고치는 수주의 날짜·수량(보기)
@@ -45118,7 +45268,7 @@ async def projects_quick_edit_form(request: Request, pid: int):
                         print(f"[z1191z127 semi line] {_e127g}")
     except Exception as _e117k:
         print(f"[z1191z117k quick-edit so] {_e117k}")
-    return ctx(request, "project_quick_form.html", so_cnt117=_so_cnt117, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
+    return ctx(request, "project_quick_form.html", so_cnt117=_so_cnt117, ccys130=_ccys130, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
                user=u, active="sales_projects", embed=_embed,
                preset_biz=(p.get("biz_div") or "T"),
                can_money=bool(can_view_sales(u)),

@@ -1205,17 +1205,35 @@ def compute_project_display_status(c, project_id: int, fallback_stage: str = "")
         oicols = set()
     if "unit_status" not in oicols:
         return project_status_from_counts({}, fallback_stage)
+    # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 취소(CANCELLED) 수주의 호기는 상태 판정·「n/전체 완료」에서 뺀다.
+    #   단, 모든 수주가 취소면 그 호기 수를 「취소」로 세어 예전처럼 「취소」로 보이게 한다(_z132_counts · 벌크와 같은 규칙).
+    #   취소 수주가 없으면 결과는 예전과 같다.
     try:
         rows = c.execute(
-            "SELECT COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n "
+            "SELECT COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n, "
+            "CASE WHEN UPPER(COALESCE(o.status,''))='CANCELLED' THEN 1 ELSE 0 END AS cx "
             "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
             "WHERE o.project_id = ? "
-            "GROUP BY COALESCE(oi.unit_status,'진행중')",
+            "GROUP BY COALESCE(oi.unit_status,'진행중'), cx",
             (project_id,)
         ).fetchall()
     except Exception:
         rows = []
-    return project_status_from_counts({r["st"]: r["n"] for r in rows}, fallback_stage)
+    return project_status_from_counts(_z132_counts([(r["st"], r["n"], r["cx"]) for r in rows]), fallback_stage)
+
+
+def _z132_counts(rows) -> dict:
+    """z1191z132: [(상태, 개수, 취소수주여부)] → {상태: 개수}. 취소 수주의 호기는 뺀다.
+    살아 있는 수주의 호기가 하나도 없고 취소 수주 호기만 있으면 {'취소': 그 수}(= 예전처럼 「취소」 표시)."""
+    live, n_cx = {}, 0
+    for st, n, cx in (rows or []):
+        if int(cx or 0):
+            n_cx += int(n or 0)
+            continue
+        live[st] = live.get(st, 0) + int(n or 0)
+    if not live and n_cx:
+        return {"취소": n_cx}
+    return live
 
 
 def compute_project_display_status_bulk(c, project_ids=None) -> dict:
@@ -1230,7 +1248,10 @@ def compute_project_display_status_bulk(c, project_ids=None) -> dict:
         oicols = set()
     if "unit_status" not in oicols:
         return out
-    sql = ("SELECT o.project_id AS pid, COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n "
+    # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 위 「취소 SO 미제외」를 단건 함수와 함께 바꿈 —
+    #   취소(CANCELLED) 수주의 호기는 빼고 센다(모든 수주가 취소면 {'취소': 그 수} · _z132_counts 한 곳).
+    sql = ("SELECT o.project_id AS pid, COALESCE(oi.unit_status,'진행중') AS st, COUNT(*) AS n, "
+           "CASE WHEN UPPER(COALESCE(o.status,''))='CANCELLED' THEN 1 ELSE 0 END AS cx "
            "FROM order_items oi JOIN orders o ON o.id = oi.order_id "
            "WHERE o.project_id IS NOT NULL")
     if project_ids is not None:
@@ -1238,10 +1259,13 @@ def compute_project_display_status_bulk(c, project_ids=None) -> dict:
         if not _ids:
             return out
         sql += " AND o.project_id IN (%s)" % ",".join(str(i) for i in _ids)
-    sql += " GROUP BY o.project_id, COALESCE(oi.unit_status,'진행중')"
+    sql += " GROUP BY o.project_id, COALESCE(oi.unit_status,'진행중'), cx"
     try:
+        _raw: dict = {}
         for r in c.execute(sql):
-            out.setdefault(r["pid"], {})[r["st"]] = r["n"]
+            _raw.setdefault(r["pid"], []).append((r["st"], r["n"], r["cx"]))
+        for _pid, _rows in _raw.items():
+            out[_pid] = _z132_counts(_rows)
     except Exception:
         return {}
     return out
@@ -1597,12 +1621,25 @@ def cascade_project_meta_to_so(c, project_id: int,
     old_ccy = old_meta.get("currency")
     if new_ccy and (new_ccy or "") != (old_ccy or ""):
         try:
+            # z1191z130 (대표 11-24 「1. 진행」 · 같은 유형 점검): 예전엔 입금 기록 없는 **모든 수주** 통화를 새 통화로 바꿨다(금액 숫자는 그대로)
+            #   → 일부러 다른 통화로 둔 수주(운영 통화 섞인 관리번호 43곳)가 $50,000 → ₩50,000 처럼 바뀔 수 있었다.
+            #   → ① 취소 아닌 수주 통화가 **섞여 있으면 수주 통화는 하나도 안 바꾼다**(각 수주 카드에서 고침 · 006M2511 같은 USD+KRW 관리번호에서
+            #        통화를 KRW 로 바꾸면 달러 수주가 원화가 되던 것) ② 모두 같을 때만 · 옛 프로젝트 통화와 같은 수주만 ·
+            #   계산서 발행·입금 완료·취소 수주와 입금 기록 있는 수주는 그대로.
+            _old130 = (old_ccy or "KRW").strip().upper() or "KRW"
+            _mix130 = c.execute("SELECT COUNT(DISTINCT UPPER(COALESCE(NULLIF(TRIM(currency),''),'KRW'))) FROM orders "
+                                "WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'", (project_id,)).fetchone()[0] or 0
+            if _mix130 > 1:
+                _old130 = "__MIXED__"   # 어떤 수주와도 같지 않게 → 수주 통화 그대로
+                summary.append("수주 통화가 섞여 있어 수주 통화는 그대로(각 수주 카드에서 고침)")
             r1 = c.execute(
-                """UPDATE orders SET currency=?
+                f"""UPDATE orders SET currency=?
                    WHERE project_id=?
+                     AND UPPER(COALESCE(NULLIF(TRIM(currency),''),'KRW')) = ?
                      AND COALESCE(currency,'KRW') != ?
+                     AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED))}, 'CANCELLED')
                      AND NOT EXISTS (SELECT 1 FROM receipts_payment rp WHERE rp.order_id = orders.id)""",
-                (new_ccy, project_id, new_ccy)
+                (new_ccy, project_id, _old130, new_ccy, *PROTECTED)
             )
             n_so = r1.rowcount or 0
             # z1191z124 (운영 11-24 11:49 006M2511 사고): 품목 줄은 **자기 수주의 통화를 따른다** — 위에서 통화가 바뀐(또는 이미 새 통화인)

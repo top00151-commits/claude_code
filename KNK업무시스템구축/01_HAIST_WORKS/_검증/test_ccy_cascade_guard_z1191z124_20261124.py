@@ -29,7 +29,8 @@ def ic(oid): return sorted({r[0] for r in c.execute("SELECT COALESCE(currency,''
 def oc(oid): return c.execute("SELECT currency FROM orders WHERE id=?", (oid,)).fetchone()[0]
 check("입금 완료·입금 기록 있는 달러 수주 10: 수주 USD · 품목 USD 그대로", oc(10) == "USD" and ic(10) == ["USD"], (oc(10), ic(10)))
 check("원화 수주 11: 품목도 KRW(자기 수주 통화)", oc(11) == "KRW" and ic(11) == ["KRW"], (oc(11), ic(11)))
-check("입금 기록 없는 달러 수주 12: 수주 KRW · 품목 KRW 함께(어긋남 없음)", oc(12) == "KRW" and ic(12) == ["KRW"], (oc(12), ic(12)))
+# z1191z130: 수주 통화가 섞인 관리번호(10·12 USD + 11 KRW)는 프로젝트 통화를 바꿔도 수주 통화를 안 바꾼다
+check("입금 기록 없는 달러 수주 12: 통화 섞인 관리번호라 수주 USD · 품목 USD 그대로(z130)", oc(12) == "USD" and ic(12) == ["USD"], (oc(12), ic(12)))
 bad = c.execute("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE COALESCE(oi.currency,'')<>'' AND oi.currency<>o.currency").fetchone()[0]
 check("수주 통화 ≠ 품목 통화 줄 0", bad == 0, bad)
 print("\n결과: %d 통과 / %d 실패" % (sum(R), len(R) - sum(R)))
