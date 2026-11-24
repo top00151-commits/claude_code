@@ -40640,13 +40640,14 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
     #   호기(order_items) due_date_orig 로 판정. 분할줄=그 줄 호기(unit_iids) 최소 원납기 · 비분할 프로젝트=그 프로젝트 호기 최소 원납기.
     _oi_orig_iid, _proj_orig = {}, {}
     _oi_due128, _oi_rsn128, _proj_iids128 = {}, {}, {}   # z1191z128: 연기 창(대상 호기 · 사유)
+    _so_iids129, _done129 = {}, set()   # z1191z129
     try:
         with db_session() as _oc2:
             _oic128 = {r[1] for r in _oc2.execute("PRAGMA table_info(order_items)").fetchall()}
             if "due_date_orig" in _oic128:
                 _rsn_sel128 = "COALESCE(oi.due_delay_reason,'')" if "due_delay_reason" in _oic128 else "''"
                 for _r in _oc2.execute(
-                        "SELECT oi.id, oi.due_date_orig, o.project_id, COALESCE(NULLIF(oi.due_date,''), o.due_date, ''), " + _rsn_sel128 + " FROM order_items oi "
+                        "SELECT oi.id, oi.due_date_orig, o.project_id, COALESCE(NULLIF(oi.due_date,''), o.due_date, ''), " + _rsn_sel128 + ", COALESCE(o.order_no,''), COALESCE(oi.unit_status,'') FROM order_items oi "
                         "JOIN orders o ON o.id=oi.order_id "
                         "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(oi.due_date_orig,'')<>''"
                         + _board_in_frag("o.project_id", _vis_pids)):   # v5H226z864: 보이는 행만
@@ -40656,6 +40657,9 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     if _r[4]:
                         _oi_rsn128[_iid] = _r[4]
                     _proj_iids128.setdefault(_pid, []).append(_iid)
+                    _so_iids129.setdefault(_r[5], []).append(_iid)   # z1191z129: 그 수주 호기만
+                    if _r[6] in ("출하", "취소", "보류"):
+                        _done129.add(_iid)   # z1191z129: 끝난 호기는 연기 판정에서 뺌
                     if _pid and (_pid not in _proj_orig or _do < _proj_orig[_pid]):
                         _proj_orig[_pid] = _do
     except Exception:
@@ -40670,7 +40674,13 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
         # z1191z128 (안지연 프로 11-24 사진 006T2610·018T2610): 예전엔 「관리번호 호기 중 가장 이른 처음 납기 < 이 줄 납기」면 연기 →
         #   출하 끝난 11-03 호기 + 나중에 더한 12-04 호기만 있어도 「연기」(실제로 미룬 호기 없음 · 시험 사본 11월 4건 모두 이것).
         #   → **호기마다 자기 처음 납기 < 자기 지금 납기**(실제로 미룬 호기)가 있을 때만 연기 · 처음 납기 = 그 호기들 중 가장 이른 날.
-        _scope128 = [i for i in (_row.get("unit_iids") or []) if i in _oi_orig_iid] or list(_proj_iids128.get(_row.get("ref_id")) or [])
+        # z1191z129 (대표 11-24 사진 003M2605 M-260902-2·M-261104-1 「이건 왜 연기?」): 호기 정보 없는 줄이 **관리번호 전체 호기**를 빌려 와
+        #   다른 수주(M-260703-1 · 출하 끝)의 「11-18 → 11-24」로 연기가 그려졌다 → 줄 호기 → 없으면 **그 줄 수주번호 호기만** → 수주번호도 없으면 관리번호 ·
+        #   출하·취소·보류 끝난 호기는 연기 판정에서 뺀다
+        _scope128 = [i for i in (_row.get("unit_iids") or []) if i in _oi_orig_iid]
+        if not _scope128:
+            _scope128 = list(_so_iids129.get(_row.get("so_no") or "") or []) if _row.get("so_no") else list(_proj_iids128.get(_row.get("ref_id")) or [])
+        _scope128 = [i for i in _scope128 if i not in _done129]
         _dl128 = [i for i in _scope128 if _oi_orig_iid.get(i) and _oi_due128.get(i) and _oi_orig_iid[i] < _oi_due128[i]]
         _orig = min(_oi_orig_iid[i] for i in _dl128) if _dl128 else None
         _dcur, _dorig = _pd(_row.get("due_date")), _pd(_orig)

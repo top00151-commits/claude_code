@@ -29,6 +29,9 @@ check("z127 서버: 저장 함수 맨 끝(다른 저장에 안 덮임)", m.index
 # ── z128
 check("z128 판정: 호기마다 자기 처음 납기 < 자기 지금 납기", "_dl128 = [i for i in _scope128 if _oi_orig_iid.get(i) and _oi_due128.get(i) and _oi_orig_iid[i] < _oi_due128[i]]" in m
       and "_orig = min(_oi_orig_iid[i] for i in _dl128) if _dl128 else None" in m)
+check("z129 판정: 호기 없는 줄 = 그 줄 수주번호 호기만(관리번호 전체 빌려 오지 않음)",
+      "list(_so_iids129.get(_row.get(\"so_no\") or \"\") or []) if _row.get(\"so_no\")" in m)
+check("z129 판정: 출하·취소·보류 끝난 호기는 연기 판정에서 뺌", "_scope128 = [i for i in _scope128 if i not in _done129]" in m and 'if _r[6] in ("출하", "취소", "보류"):' in m)
 check("z128 판정: 옛 「관리번호 가장 이른 처음 납기」 대체 안 씀", "_orig = min(_origs) if _origs else _proj_orig.get" not in m)
 e = m[m.index('@app.post("/sales/schedule/due-delay")'):]
 e = e[:e.index('@app.post("/sales/schedule/cell")')]
