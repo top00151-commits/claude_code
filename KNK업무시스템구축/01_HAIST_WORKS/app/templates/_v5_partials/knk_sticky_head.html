@@ -69,7 +69,9 @@
     /* 넓은 화면(1024px 이상): 본문(.main)이 스크롤 → 본문 위 여백(padding-top)만큼 위로 붙임(틈으로 내용이 비치지 않게).
        좁은 화면(1023px 이하 · v5_main.css): 화면 전체(몸통)가 스크롤 → 위 상단바(고정) 바로 아래에 붙임
        (그냥 top:0 이면 상단바 밑으로 파고듦 — v5H226z1023 때와 같은 모양 · 11-22 대표님 Chrome 892px 에서 실측). */
-    var mainScrolls = /(auto|scroll)/.test(getComputedStyle(m).overflowY);
+    /* z1191z134: overflow:hidden 도 본문이 스크롤 칸(sticky 기준)이다 — 예전엔 hidden 이면 「화면 전체가 스크롤」로 보고 상단바 높이(80px)만큼
+       내려 붙여, 넓은 창에서 제목 띠 위가 비고 아래 단추 줄을 가렸다(전사 일정표 → 메뉴 → 프로젝트). 좁은 창은 v5_main.css 가 visible 로 바꿔 그대로. */
+    var mainScrolls = /(auto|scroll|hidden)/.test(getComputedStyle(m).overflowY);
     var pt = 0, off = 0;
     if (mainScrolls) pt = parseFloat(getComputedStyle(m).paddingTop) || 0;
     else off = shellBottom();
