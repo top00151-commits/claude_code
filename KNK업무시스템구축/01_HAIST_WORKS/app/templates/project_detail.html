@@ -640,6 +640,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 {% endif %}
               </div>
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
+              {# z1191z122 (대표 11-24 「1번 진행」): 수주 상태 ↔ 호기 상태가 다르면 알림 — 작업일정표는 호기 상태를 보여 준다(입력 실수 알림 원칙 · 막지 않음) #}
+              {% set _ust122 = (so.units or [])|map(attribute='unit_status')|map('default', '진행중', true)|list %}{% set _sst122 = (so.status or '')|upper %}
+              {% if _ust122 and (_ust122|unique|list) == ['출하'] and _sst122 not in ['SHIPPED','INVOICED','PAID','CANCELLED'] %}<span class="so-st-diff122" title="이 수주의 호기(품목 줄)가 모두 「출하」인데 수주 상태는 출하 전입니다. 작업일정표에는 「출하」로 보입니다. 실제로 출하했으면 작업일정표 그 줄의 🚦 상태 변경으로 「출하」를 한 번 적용하면 수주 상태도 맞춰집니다. 아직이면 호기 상태를 「진행중」으로 바꿔 주세요." style="margin-left:6px;padding:1px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;white-space:nowrap;">⚠ 호기는 모두 출하</span>
+              {% elif _ust122 and (_ust122|unique|list) == ['진행중'] and _sst122 == 'SHIPPED' %}<span class="so-st-diff122" title="수주 상태는 「출하」인데 호기(품목 줄)는 모두 「진행중」입니다. 작업일정표에는 「진행」으로 보입니다." style="margin-left:6px;padding:1px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;white-space:nowrap;">⚠ 호기는 모두 진행중</span>{% endif %}
               {# v5H226z884 (대표 지시): SO 종류 pill(so_type=EQUIPMENT/CONSUMABLE/…) 제거 — 아래 '형태 배지'(form_label)가 단일 진실.
                  so_type 은 일괄등록이 '제품 1줄'을 호기오염 방지로 CONSUMABLE 로 강제저장한 내부 저장값(사용자 선택 아님·z873)이라,
                  실제 형태가 '제품'인 수주 옆에 'CONSUMABLE 소모품'이 같이 떠 오해를 유발했음(대표 지적). 데이터(so_type)는 불변·표시만 제거. #}
@@ -650,7 +654,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               <div class="so-meta">
                 {% if can_money %}{% set _qf105 = _sq105.get(so.id) %}
                 <span class="item" title="z1191z105: 이 수주번호의 최종 견적서(엑셀) — 올리기·바꾸기는 🎯 수주 전 → 📋 견적서(견적 관리)"><span class="k">📋 견적서</span>
-                  {% if _qf105 %}<a class="v" href="/projects/{{ p.id }}/quote-files/{{ _qf105.id }}" style="font-weight:700;color:#1d4ed8;text-decoration:none;">⬇ {{ _qf105.orig_name }}</a>
+                  {% if _qf105 %}<a class="v" href="/quotes/{{ _qf105.id }}" title="z1191z121: 견적서 내용 바로 보기" style="font-weight:700;color:#1d4ed8;text-decoration:none;">👁 {{ _qf105.orig_name }}</a>
                   {% else %}<a class="v" href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" style="color:#b45309;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
                 </span>{% endif %}
                 {# v5H226z1034 (안지연 프로 신고·대표 지시): **수주(SO)별 PO유형** — 이 화면은 PO유형을
@@ -1079,8 +1083,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% endif %}
                   {# v5H226z6: 금액 — 수량 × 판매단가. _pfx면 KRW환산·_is_fx_view면 USD 2자리·그외 KRW. #}
                   <td class="num px-x" style="font-size:11.5px;background:#fef9e6;">
-                    <span class="display-val pamt-disp" style="font-weight:600;">{% if can_sales_amt %}{{ money((u.amount or 0) * _pfx, 'KRW') if _pfx else (money(u.amount or 0, _so_ccy) if _is_fx_view else money(u.amount or 0, 'KRW')) }}{% else %}🔒{% endif %}</span>
-                  </td>
+                    <span class="display-val pamt-disp" style="font-weight:600;">{% if can_sales_amt %}{{ money((u.amount or 0) * _pfx, 'KRW') if _pfx else (money(u.amount or 0, _so_ccy) if _is_fx_view else money(u.amount or 0, 'KRW')) }}{% else %}🔒{% endif %}</span>                  </td>
                   {# v5H226z440(대표 지시): 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD) PACKING LIST 에서 제거 → 수출 문서 모듈에서 입력. DB 컬럼·데이터는 보존(저장 시 미전송→백엔드 보존). #}
                   {# 상세 내용 #}
                   <td class="px-x" style="font-size:11px;">
@@ -3134,8 +3137,14 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         var j;
         try { j = await r.json(); } catch(e){ alert('응답 오류(로그인 풀림 가능). F5 후 재시도'); return; }
         if(!j.ok){ alert('덮어쓰기 실패: ' + (j.message || '알 수 없음')); return; }
+        // z1191z122: 올린 줄 점검 — 수량×단가≠금액 · 판매가÷환율≠인보이스 · 매입가×마진≠판매가 등(막지 않음 · 상세에 빨간 「확인할 줄」로도 남음)
+        var _ck122 = (j.checks || []);
+        var _NL122 = String.fromCharCode(10);
+        var _ckm122 = _ck122.length ? (_NL122 + _NL122 + '⚠ 확인할 줄 ' + _ck122.length + '개 (엑셀 값 그대로 저장했습니다 — 맞는지 봐 주세요)' + _NL122
+              + _ck122.slice(0, 8).map(function(x){ return '· ' + x.no + '번 ' + (x.name || '') + ' — ' + (x.msgs || []).join(' · '); }).join(_NL122)
+              + (_ck122.length > 8 ? _NL122 + '… ' + (_ck122.length - 8) + '개 더(상세 화면 빨간 줄)' : '')) : '';
         alert('✅ ' + (_owMode==='add'?'부품 추가':'전체 교체') + ' 완료 — 수주번호 ' + (j.order_no || '') + ' · 이번 반영 ' + j.inserted + '건'
-              + (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(j.verify) : ''));
+              + (window.knkVerifyMsg1024 ? window.knkVerifyMsg1024(j.verify) : '') + _ckm122);
         (window.knkLeaveOk=true, location.reload());
       } catch(e){ alert('덮어쓰기 통신 실패: ' + e); }
     });

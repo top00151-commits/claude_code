@@ -96,7 +96,7 @@ body {
       <a class="chip{% if qb.period == 'all' %} on{% endif %}" href="{{ qs(period='all') }}">전체</a>
       <a class="chip{% if qb.done %} on{% endif %}" href="{{ qs(done=(not qb.done)) }}" title="입금까지 끝난 수주는 기본으로 숨깁니다">{% if qb.done %}입금 끝난 수주도 보는 중{% else %}입금 끝난 수주도 보기{% if c.done_hidden %} ({{ c.done_hidden }}개 관리번호 숨김){% endif %}{% endif %}</a>
       {% if qb.biz %}<input type="hidden" name="biz" value="{{ qb.biz }}">{% endif %}<input type="hidden" name="period" value="{{ qb.period }}"><input type="hidden" name="mine" value="{{ '1' if qb.mine else '0' }}">{% if qb.done %}<input type="hidden" name="done" value="1">{% endif %}{% if qb.only %}<input type="hidden" name="only" value="{{ qb.only }}">{% endif %}
-      <input type="search" name="q" value="{{ qb.q }}" placeholder="관리번호·수주번호·프로젝트·고객사·담당">
+      <input type="search" name="q" value="{{ qb.q }}" placeholder="관리번호·고객사 · 견적서 안 글(품명·부품·사양)" title="z1191z121: 견적서 엑셀 안의 품명·부품·사양·담당자 글도 찾습니다(낱말 여러 개 = 한 줄에 모두)">
       {% if can_up and qb.biz != 'C' %}
       <label class="qm-drop" id="qmTopDrop" title="엑셀을 여기에 끌어다 놓거나 눌러서 고르세요 — 읽어서 관리번호·수주번호를 찾아 드립니다">
         📎 <span><b>최종 견적서 엑셀 올리기</b><br><span style="font-size:11.5px;color:#334155;">끌어다 놓기 · 어디에 붙일지 찾아 드립니다</span></span>
@@ -105,6 +105,22 @@ body {
       {% endif %}
     </form>
     <div id="qmPanel" class="qm-panel" hidden></div>
+    {% if qhits %}{# z1191z121 (대표 11-23 「비슷한걸 요구했을때 최종이 어떤거였는지 · 상세항목」): 견적서 안 글 찾기 #}
+    <div class="qm-panel" style="border-color:#c7d2fe;">
+      <b>🔎 견적서 안에서 「{{ qhits.q }}」</b> — {% if qhits.files %}견적서 <b>{{ qhits.files|length }}장</b> · 맞은 줄 {{ qhits.n_lines }}개{% else %}못 찾았습니다{% endif %}
+      <span class="qm-meta"> · 품명·부품·사양·담당자 글까지 찾습니다{% if not qhits.can_cost %} · 원가 줄은 권한 있는 분만{% endif %}</span>
+      {% for h in qhits.files %}
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #eef1ee;">
+        <a class="qm-f" href="/quotes/{{ h.id }}">👁 {{ h.meta.title or h.name }}</a>
+        <span class="qm-meta">{{ h.meta.customer or '업체명 없음' }} · {{ h.meta.qdate or '' }}{% if h.meta.contact %} · {{ h.meta.contact }}{% endif %}</span>
+        · <a href="/project/{{ h.pid }}{% if h.order_no %}?so={{ h.order_no|urlencode }}{% endif %}" style="color:inherit;">{{ h.mgmt }} {{ h.pname or '' }}</a>
+        {% if h.order_no %}<span class="qm-pill ok">{{ h.order_no }}{% if h.status %} · {{ {'CONFIRMED':'수주','IN_PROGRESS':'진행','SHIPPED':'출하','INVOICED':'계산서','PAID':'입금 완료'}.get(h.status, h.status) }}{% endif %}</span>{% else %}<span class="qm-pill rep">관리번호 대표 견적</span>{% endif %}
+        {% for ln in h.lines %}<div class="qm-meta" style="margin:3px 0 0 18px;color:#475569;"><b>{{ ln.sheet }}</b> · {{ ln.text }}</div>{% endfor %}
+        {% if h.n > 3 %}<div class="qm-meta" style="margin-left:18px;">… 맞은 줄 {{ h.n - 3 }}개 더</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% if qb.cons %}
     <table class="qm-t qm-cons">
       <colgroup><col style="width:20%"><col style="width:22%"><col style="width:12%"><col style="width:28%"><col style="width:18%"></colgroup>
@@ -132,7 +148,7 @@ body {
           <td><a href="/project/{{ p.id }}" style="font-weight:800;color:var(--qv-ink);text-decoration:none;"><span class="mgmt-pill sm">{{ p.mgmt_code }}</span> {{ p.name }}</a>{% if r.mine %} <span class="qm-meta">👤</span>{% endif %}</td>
           <td>{{ p.customer_name or '—' }}<div class="qm-meta">{{ p.sales_name or '' }}{% if p.stage %} · {{ p.stage }}{% endif %}</div></td>
           <td class="num qm-meta">{% if not r.sos %}수주 전{% else %}수주 {{ r.sos|length }}건{% endif %}</td>
-          <td>{% if pf %}<span class="qm-pill rep">대표 견적</span> {% if cm %}<a class="qm-f" href="/projects/{{ p.id }}/quote-files/{{ pf.id }}">⬇ {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>
+          <td>{% if pf %}<span class="qm-pill rep">대표 견적</span> {% if cm %}<a class="qm-f" href="/quotes/{{ pf.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>
               {% elif not r.sos %}<span class="qm-pill no">없음</span>{% else %}<span class="qm-meta">대표 견적 없음(수주번호별로 올림)</span>{% endif %}</td>
           <td>{% if can_up %}<button type="button" class="qm-btn{% if not pf %} up{% endif %} qm-pick">{% if pf %}바꾸기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
         </tr>
@@ -144,7 +160,7 @@ body {
           <td>{% if f %}
               {% if s.st == 'diff' %}<span class="qm-pill wn" title="엑셀에서 읽은 금액이 수주 금액과 다릅니다 — 맞는지 보고 「확인했음」">견적 {{ money(f.amt, f.cur or o.currency or 'KRW') if cm else '🔒' }} · 다름</span>
               {% else %}<span class="qm-pill ok">최종</span>{% endif %}
-              {% if cm %}<a class="qm-f" href="/projects/{{ p.id }}/quote-files/{{ f.id }}">⬇ {{ f.orig_name }}</a>{% else %}🔒{% endif %}
+              {% if cm %}<a class="qm-f" href="/quotes/{{ f.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ f.orig_name }}</a>{% else %}🔒{% endif %}
               <span class="qm-meta">{{ (f.created_at or '')[:10] }} {{ f.by_name or '' }}{% if f.amt_ack_at %} · 금액 다름 확인 {{ f.amt_ack_name }}{% endif %}</span>
             {% else %}<span class="qm-pill no">없음</span>{% endif %}</td>
           <td>{% if can_up %}{% if s.st == 'diff' %}<button type="button" class="qm-btn qm-ack" data-fid="{{ f.id }}">확인했음</button> {% endif %}<button type="button" class="qm-btn{% if not f %} up{% endif %} qm-pick">{% if f %}바꾸기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
@@ -153,7 +169,7 @@ body {
       {% endfor %}
       </tbody>
     </table>
-    {% elif not qb.cons %}
+    {% elif not qb.cons and not (qhits and qhits.files) %}{# z1191z121: 견적서 안에서 찾았으면 「없습니다」 안 띄움 #}
     <div class="empty"><div class="ico">📋</div><div class="ttl">{% if qb.q or qb.only or qb.mine or qb.biz %}조건에 맞는 관리번호가 없습니다{% else %}이 기간에 관리번호가 없습니다{% endif %}</div><div style="margin-top:10px;font-size:12px;color:var(--mute);">기간을 「전체」로 바꾸거나 거르기를 풀어 보세요.</div></div>
     {% endif %}
   </div>

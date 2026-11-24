@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>견적서 보기 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* z1191z121 (대표 11-23 「최종이 어떤거였는지 확인 · 견적서내 상세항목들도 확인」): 견적서 엑셀을 웍스 안에서 바로 보기 */
+body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169); }
+.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--qv-line); padding-left: var(--content-pad); padding-right: var(--content-pad); }
+.qv-wrap { padding: 12px var(--content-pad) 28px; }
+.qv-meta { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.qv-meta { align-items:start; }
+.qv-m { background:#fff; line-height:1.35; border:1px solid var(--qv-line); border-radius:10px; padding:9px 13px; }
+.qv-m .l { font-size:11.5px; color:var(--qv-ink-3); } .qv-m .v { font-size:15px; font-weight:800; color:var(--qv-ink); word-break:break-all; }
+.qv-m .v.empty { color:#b45309; font-weight:700; font-size:13px; }
+.qv-note { margin:0 0 10px; padding:8px 12px; border:1px solid #fcd34d; border-radius:8px; background:#fffbeb; font-size:12.5px; color:#92400e; }
+.qv-note.info { border-color:#bfdbfe; background:#eff6ff; color:#1e3a8a; }
+.qv-tabs { display:flex; gap:2px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid #2563eb; margin:2px 0 0; }
+.qv-tab { padding:7px 14px 6px; border:1px solid var(--qv-line); border-bottom:none; border-radius:9px 9px 0 0; background:#f1f5f9; color:var(--qv-ink-2); font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.qv-tab.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+.qv-tab.cost { background:#fef2f2; color:#991b1b; } .qv-tab.cost.on { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+.qv-pane { display:none; background:#fff; border:1px solid var(--qv-line); border-top:none; border-radius:0 0 10px 10px; padding:10px; overflow:auto; max-height:calc(100vh - 330px); }
+.qv-pane.on { display:block; }
+.qv-it { width:100%; border-collapse:collapse; font-size:13px; }
+.qv-it th { text-align:left; font-size:12px; color:var(--qv-ink-3); padding:6px 8px; border-bottom:1px solid var(--qv-line); background:#f8faf8; position:sticky; top:0; }
+.qv-it td { padding:5px 8px; border-bottom:1px solid #eef1ee; vertical-align:top; white-space:pre-wrap; }
+.qv-it .num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.qv-it tr.sec td { background:#f8fafc; font-weight:800; color:var(--qv-ink); }
+.qv-it tr.grp td { background:#eef2ff; font-weight:800; color:#3730a3; font-size:12px; }
+.qv-bad { display:inline-block; margin-left:6px; padding:0 6px; border-radius:999px; background:#fef3c7; color:#92400e; font-size:11px; font-weight:800; }
+.qv-g { border-collapse:collapse; font-size:12px; }
+.qv-g td { border:1px solid #eef1ee; padding:3px 6px; white-space:pre-wrap; max-width:340px; vertical-align:top; }
+.qv-g td.n { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.qv-g tr.h td { background:#f1f5f9; font-weight:800; }
+.qv-g tr.ap td { background:#f0fdf4; }
+.qv-g td.cc { background:#fef2f2; color:#991b1b; }
+.qv-g tr.off { display:none; }
+.qv-tool { display:flex; gap:8px; align-items:center; margin:0 0 8px; font-size:12.5px; color:var(--qv-ink-2); flex-wrap:wrap; }
+.qv-btn { padding:4px 11px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; text-decoration:none; }
+.qv-btn.pri { border-color:#2563eb; background:#2563eb; color:#fff; }
+.qv-fr { display:flex; gap:10px; align-items:center; padding:6px 8px; border-bottom:1px solid #eef1ee; font-size:13px; }
+@media (max-width:900px){ .qv-meta { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+{% macro money(v) %}{% if v is none %}{% elif v is number %}{{ ('{:,.2f}'.format(v) if (v != v|int) else '{:,}'.format(v|int)) }}{% else %}{{ v }}{% endif %}{% endmacro %}
+{% set fr = (view.fronts[view.front] if (view and view.front is not none and view.fronts) else None) %}
+{% set mt = (fr.meta if fr else {}) %}
+  <header class="knk-page-head" data-dn="page-head">
+    <div>
+      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <a href="/sales/quotations">견적서</a> · <b>견적서 보기</b></nav>
+      <h1 class="knk-page-title">📋 {{ mt.title or f.orig_name }}</h1>
+      <p class="knk-page-meta">
+        <a href="/project/{{ f.project_id }}{% if f.order_no %}?so={{ f.order_no|urlencode }}{% endif %}">{{ f.mgmt_code }}{% if f.pname %} {{ f.pname }}{% endif %}</a>
+        · {% if f.order_no %}수주번호 <b>{{ f.order_no }}</b>의 최종 견적{% else %}관리번호 대표 견적{% endif %}
+        · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }} 올림
+      </p>
+    </div>
+    <div class="knk-page-actions">
+      <a class="knk-btn knk-btn--ghost" href="/projects/{{ f.project_id }}/quote-files/{{ f.id }}" title="원본 엑셀 내려받기">⬇ 원본 엑셀</a>
+    </div>
+  </header>
+  <div class="qv-wrap">
+  {% if not view %}
+    {% if err == 'locked' %}
+    <div class="qv-note info">🔒 비밀번호가 걸린 견적서입니다. 비밀번호를 넣으면 내용을 읽어 둡니다(비밀번호는 저장하지 않습니다).</div>
+    <form id="qvUnlock" class="qv-tool" onsubmit="return qvUnlock(event)">
+      <input type="password" id="qvPw" autocomplete="off" placeholder="비밀번호" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+      <button class="qv-btn pri" type="submit">내용 읽기</button> <span id="qvMsg" style="color:#b91c1c;"></span>
+    </form>
+    {% else %}
+    <div class="qv-note">{{ err or '이 견적서는 내용을 읽지 못했습니다' }} — 「⬇ 원본 엑셀」로 내려받아 보세요.</div>
+    {% endif %}
+  {% else %}
+    {% if view.front is none and view.fronts %}
+    <div class="qv-note">이 엑셀에 <b>견적서 앞장이 {{ view.fronts|length }}장</b> 있습니다 — 고객에게 보낸 최종 장을 골라 주세요.{% if not can_pick %} (고르기는 올린 분·기술영업팀){% endif %}</div>
+    {% for x in view.fronts %}
+    <div class="qv-fr"><b>{{ x.title }}</b> <span>{{ x.meta.customer or '업체명 없음' }} · {{ x.meta.qdate or '견적일 없음' }} · {{ x.meta.title or '' }}</span>
+      {% if can_pick %}<button class="qv-btn" type="button" onclick="qvPick({{ loop.index0 }})">이 장이 최종</button>{% endif %}</div>
+    {% endfor %}
+    {% endif %}
+    {% if fr %}
+    <div class="qv-meta">
+      <div class="qv-m"><div class="l">업체명</div><div class="v{% if not mt.customer %} empty{% endif %}">{{ mt.customer or '⚠ 비어 있음' }}</div></div>
+      <div class="qv-m"><div class="l">담당자</div><div class="v">{{ mt.contact or '—' }}</div></div>
+      <div class="qv-m"><div class="l">견적일</div><div class="v{% if not mt.qdate %} empty{% endif %}">{{ mt.qdate or '⚠ 비어 있음' }}</div></div>
+      <div class="qv-m"><div class="l">앞장(시트)</div><div class="v" style="font-size:13px;">{{ fr.title }}{% if view.fronts|length > 1 and can_pick %} <a href="#" onclick="document.getElementById('qvFrPick').style.display='block';return false;" style="font-size:11.5px;">바꾸기</a>{% endif %}</div></div>
+    </div>
+    {% if view.fronts|length > 1 and can_pick %}
+    <div id="qvFrPick" style="display:none;margin-bottom:10px;">{% for x in view.fronts %}<div class="qv-fr"><b>{{ x.title }}</b> <span>{{ x.meta.customer or '업체명 없음' }} · {{ x.meta.qdate or '견적일 없음' }}</span><button class="qv-btn" type="button" onclick="qvPick({{ loop.index0 }})">이 장이 최종</button></div>{% endfor %}</div>
+    {% endif %}
+    {% for w in fr.warn or [] %}<div class="qv-note">⚠ {{ w }} — 원본 엑셀을 확인해 주세요.</div>{% endfor %}
+    {% endif %}
+
+    <div class="qv-tabs" id="qvTabs">
+      {% if fr %}<span class="qv-tab on" data-p="items">📄 견적 항목</span>{% endif %}
+      {% for s in view.sheets %}<span class="qv-tab{% if s.internal %} cost{% endif %}{% if not fr and loop.first %} on{% endif %}" data-p="s{{ s.i }}">{% if s.internal %}🔒 {% endif %}{{ s.title }}</span>{% endfor %}
+    </div>
+    {% if fr %}
+    <div class="qv-pane on" data-p="items">
+      <table class="qv-it">
+        <thead><tr><th style="width:44px;">No.</th><th>품명</th><th>규격</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead>
+        <tbody>
+        {% set ns = namespace(g=1, bad=0) %}
+        {% for it in fr["items"] %}
+          {% if it.group != ns.g %}{% set ns.g = it.group %}<tr class="grp"><td colspan="6">구성별 금액(앞장 아래 표)</td></tr>{% endif %}
+          {% set calc_bad = (it.qty is number and it.unit_price is number and it.amount is number and ((it.qty * it.unit_price - it.amount)|abs) > ([1, (it.amount|abs) * 0.001]|max)) %}
+          <tr class="{% if it.no and it.qty is none and it.amount is none %}sec{% endif %}">
+            <td>{{ it.no or '' }}</td><td>{{ it.name or '' }}</td><td>{{ it.spec or '' }}</td>
+            <td class="num">{{ money(it.qty) }}{% if it.unit %} {{ it.unit }}{% endif %}</td>
+            <td class="num">{{ money(it.unit_price) }}</td>
+            <td class="num">{{ money(it.amount) }}{% if calc_bad %}<span class="qv-bad" title="수량 × 단가 = {{ money(it.qty * it.unit_price) }}">⚠ 수량×단가≠금액</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% for s in view.sheets %}
+    <div class="qv-pane{% if not fr and loop.first %} on{% endif %}" data-p="s{{ s.i }}">
+      {% set sel = s.select %}
+      <div class="qv-tool">
+        {% if s.internal %}<span style="color:#991b1b;font-weight:700;">🔒 회사 안 원가 정보 — 매입가 볼 권한이 있는 분만 보입니다</span>{% endif %}
+        {% if s.cost_cols %}<span style="color:#991b1b;">빨간 칸 = 원가·NEGO·숨긴 열(권한 있는 분만)</span>{% endif %}
+        {% if sel %}<label><input type="checkbox" class="qv-only" checked> 적용 항목만 보기(수량이 들어간 {{ s.applied|length }}줄 · 초록)</label>{% endif %}
+        <span>{{ s.rows|length }}줄</span>
+      </div>
+      <table class="qv-g"{% if sel %} data-sel="1"{% endif %}>
+        {% for r in s.rows %}{% set ri = loop.index0 %}
+        <tr class="{% if ri == s.header_row %}h{% elif sel and ri in s.applied %}ap{% elif sel and s.header_row is not none and ri > s.header_row %}off na{% endif %}">
+          {% for v in r %}<td class="{% if v is number %}n{% endif %}{% if loop.index0 in s.cost_cols %} cc{% endif %}">{{ money(v) }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+  {% endif %}
+  </div>
+</main></div>
+<script>
+(function(){
+  var tabs = document.querySelectorAll('#qvTabs .qv-tab');
+  tabs.forEach(function(t){ t.addEventListener('click', function(){
+    tabs.forEach(function(x){ x.classList.toggle('on', x === t); });
+    document.querySelectorAll('.qv-pane').forEach(function(p){ p.classList.toggle('on', p.dataset.p === t.dataset.p); });
+  }); });
+  document.querySelectorAll('.qv-only').forEach(function(cb){ cb.addEventListener('change', function(){
+    var tb = cb.closest('.qv-pane').querySelector('table.qv-g');
+    tb.querySelectorAll('tr.na').forEach(function(tr){ tr.classList.toggle('off', cb.checked); });
+  }); });
+})();
+async function qvPick(k){
+  var fd = new FormData(); fd.append('front', k);
+  var r = await fetch('/api/project-quote/{{ f.id }}/front', {method:'POST', body:fd, credentials:'same-origin'});
+  var j = {}; try { j = await r.json(); } catch(e){}
+  if(!j.ok){ alert(j.message || '저장하지 못했습니다'); return; }
+  location.reload();
+}
+async function qvUnlock(ev){
+  ev.preventDefault();
+  var pw = document.getElementById('qvPw'), m = document.getElementById('qvMsg');
+  var fd = new FormData(); fd.append('password', pw.value); pw.value = '';
+  m.textContent = '읽는 중…';
+  var r = await fetch('/api/project-quote/{{ f.id }}/unlock', {method:'POST', body:fd, credentials:'same-origin'});
+  var j = {}; try { j = await r.json(); } catch(e){}
+  if(!j.ok){ m.textContent = j.message || '읽지 못했습니다'; return false; }
+  location.reload(); return false;
+}
+</script>
+</body></html>

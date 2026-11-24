@@ -151,8 +151,9 @@ def main():
 
     h4 = cl.get("/project/%d?so=T-269989-4" % S["pid3"]).text
     check("등록 때 「작업일정표 수량 5 식」 → 카드 「품목 2 · 수량 5식」(전: 품목 합 6식)", "품목 <b>2</b> · 수량 <b>5식</b>" in h4 and "수량 <b>6식</b>" not in h4)
-    check("두 수가 다르면 옆에 「(품목 줄 합 6)」 — 숫자를 숨기지 않음", "(품목 줄 합 6)" in h4)
-    check("프로젝트 정보 수량(수주)도 5식", "</span></dt><dd>5식 " in h4, h4[h4.find("<dt>수량 <span"):h4.find("<dt>수량 <span") + 160] if "<dt>수량 <span" in h4 else "정보 수량 칸 없음")
+    # z1191z123(11-24 안지연·이새롬 답 ①): 품목 두 줄 이상(세트)은 일정표 수량 기준 · 품목 줄 합과 비교 안 함
+    check("세트(품목 2줄)는 「(품목 줄 합 6)」 안 띄움(z123 · 일정표 수량 기준)", "(품목 줄 합 6)" not in h4)
+    check("프로젝트 정보 수량(수주)도 5식", "</span></dt><dd>5식" in h4, h4[h4.find("<dt>수량 <span"):h4.find("<dt>수량 <span") + 160] if "<dt>수량 <span" in h4 else "정보 수량 칸 없음")
     check("같은 수를 일정표 함수도 씀(표시수량 먼저)", M._so_qty_z89({"board_qty": 5, "units": [{"qty": 3}, {"qty": 3}]}) == 5
           and M._so_qty_z89({"units": [{"qty": 3}, {"qty": 3}]}) == 6 and M._so_qty_z89({"unit_qty": 2}) == 2)
 

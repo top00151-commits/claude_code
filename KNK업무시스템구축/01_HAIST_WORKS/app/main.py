@@ -658,6 +658,15 @@ def _so_qty_note_z89(so) -> str:
     except (TypeError, ValueError):
         _b = 0
     _l = _so_qty_lines_z89(so)
+    # z1191z123 (대표·안지연·이새롬 11-24 답 「① 맞음」): 품목 줄이 **두 줄 이상**(소켓+PCB 세트 · 여러 품목 한 세트)이면
+    #   작업일정표 수량 = 세트 수가 기준 — 서로 다른 품목 수량을 더한 수와 비교하지 않는다(「(품목 줄 합 N)」·「↻ 맞추기」 안 띄움).
+    #   한 줄(추가 발주 「N개」)일 때만 다르면 알림 — ③ 처럼 두 칸에 다른 값을 넣은 실수를 잡는다.
+    try:
+        _nl = len([_u for _u in (_g("units") or []) if str((_u.get("unit_status") if hasattr(_u, "get") else getattr(_u, "unit_status", "")) or "") != "취소"])
+    except Exception:
+        _nl = 0
+    if _nl >= 2:
+        return ""
     return ("(품목 줄 합 {:,})".format(_l)) if (_b > 0 and _l and _l != _b) else ""
 
 
@@ -21133,7 +21142,8 @@ async def sales_order_item_status(req: Request, iid: int):
             pass
         # v5H226r: 호기 → 프로젝트 cascade (모든 호기 동일 terminal 상태일 때)
         try:
-            _pwf.cascade_unit_status_to_project(c, it["project_id"], u.get("id"))
+            _pwf.cascade_unit_status_to_project(c, it["project_id"], u.get("id"),
+                                                order_ids=[r[0] for r in c.execute("SELECT order_id FROM order_items WHERE id=?", (iid,)).fetchall()])   # z1191z122: 이 수주만
         except Exception as _csc_err:
             print(f"[v5H226r] item-status cascade err: {_csc_err}")
     return JSONResponse({"ok": True, "old": old_st, "new": new_status})
@@ -21195,7 +21205,7 @@ async def projects_units_bulk_status(req: Request, pid: int):
             pass
         # v5H226r: 일괄 변경 후도 프로젝트 cascade
         try:
-            _pwf.cascade_unit_status_to_project(c, pid, u.get("id"))
+            _pwf.cascade_unit_status_to_project(c, pid, u.get("id"), order_ids=([scope_oid_i] if scope_oid_i else None))   # z1191z122
         except Exception as _csc_err:
             print(f"[v5H226r] bulk-status cascade err: {_csc_err}")
     return JSONResponse({"ok": True, "changed": r.rowcount,
@@ -21932,6 +21942,10 @@ def _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry):
                   (oid, st, st, u.get("id"), f"부품 값만 고치기(엑셀) {len(diffs)}줄 · 합계 {total_old:,.2f} → {new_total:,.2f}"))
     except Exception as _e:
         print(f"[z1191z117 update history] {_e}")
+    try:   # z1191z122: 값만 고치기도 엑셀 「상태」 칸으로 호기 상태를 바꿀 수 있다 → 이 수주 상태를 호기에 맞춤(입금·계산서 잠금은 그대로)
+        _pwf.sync_so_status_from_units(c, pid, u.get("id"), order_ids=[oid])
+    except Exception as _e122:
+        print(f"[z1191z122] 값만 고치기 뒤 수주 상태 맞추기 실패 oid={oid}: {_e122}")
     return JSONResponse({"ok": True, "mode": "update", "order_no": so["order_no"], "updated": len(diffs), "inserted": 0,
                          "total": new_total, "total_old": total_old, "checks": checks[:400]})
 
@@ -22051,6 +22065,17 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 inserted += 1
             # v5H226z1024/z1025 (대표 지시): 저장 직후 '올린 엑셀 파일'을 직접 다시 읽어 저장값과 대조.
             _verify1024 = _prodbulk_verify_saved(c, _new_ids1024, _prodbulk_raw_rows(io.BytesIO(raw)))
+            # z1191z122 (대표 11-24 「4번」 · 운영 T-260728-2·3 PCB: 엑셀의 판매가·마진과 금액이 다른 계산이었는데 올릴 때 아무 말 없었다):
+            #   전체 교체·부품 추가 직후에도 「확인할 줄」 점검(값만 고치기·상품 등록과 같은 _parts_checks_z117) → 완료 창에 보여 줌(막지 않음)
+            _checks122 = []
+            try:
+                if _new_ids1024:
+                    _ph122 = ",".join("?" * len(_new_ids1024))
+                    _rs122 = [dict(r) for r in c.execute(f"SELECT * FROM order_items WHERE id IN ({_ph122}) ORDER BY id", _new_ids1024).fetchall()]
+                    _ck122 = _parts_checks_z117(_rs122, fx_line=lambda _x: ccy != "KRW")
+                    _checks122 = [{"no": i + 1, "name": _rs122[i].get("unit_label") or "", "msgs": m} for i, m in sorted(_ck122.items())]
+            except Exception as _e122:
+                print(f"[z1191z122] 전체 교체 뒤 확인할 줄 점검 실패 oid={oid}: {_e122}")
             # v5H226z943 (대표 지시): 부품 추가/교체 후 금액 합계는 '이 수주의 전체 부품' 기준 재계산(add=기존+신규·replace=신규).
             _sum943 = c.execute("SELECT COALESCE(SUM(amount),0), COALESCE(SUM(COALESCE(sell_krw,0)*COALESCE(qty,0)),0) FROM order_items WHERE order_id=?", (oid,)).fetchone()
             total = round(float((_sum943[0] if _sum943 else 0) or 0), 2)
@@ -22136,6 +22161,11 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                 c.execute(f"UPDATE projects SET {', '.join(_pset)} WHERE id=?", _pval)
             # 프로젝트 총액 = 전체 수주 합(추가발주 보존)
             _apply_project_amount(c, pid, exclude_cancelled=True)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
+            # z1191z122: 엑셀 줄마다 「상태」 칸이 들어오므로 수주 상태를 그 수주 호기에 맞춘다(전엔 안 맞춰 작업일정표=출하·수주 카드=수주)
+            try:
+                _pwf.sync_so_status_from_units(c, pid, u.get("id"), order_ids=[oid])
+            except Exception as _e122:
+                print(f"[z1191z122] 상품 엑셀 뒤 수주 상태 맞추기 실패 oid={oid}: {_e122}")
             # v5H226z971 (대표 지적): 부품 전체 교체/추가 업로드를 '프로젝트 변경 이력'에 기록(그동안 미기록이라 이력에 안 보였음).
             #   금액은 이력 마스킹 정책과 무관하게 개수 중심으로 기록. 실패해도 업로드 자체는 성공 처리(이력은 부가 기록).
             try:
@@ -22152,7 +22182,8 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
     except Exception as e:
         return JSONResponse({"ok": False, "message": f"덮어쓰기 오류: {str(e)[:200]}"}, 200)
     return JSONResponse({"ok": True, "order_no": order_no, "inserted": inserted, "total": total,
-                         "verify": _verify1024})   # v5H226z1024: 엑셀↔저장값 대조 결과
+                         "verify": _verify1024,   # v5H226z1024: 엑셀↔저장값 대조 결과
+                         "checks": locals().get("_checks122") or []})   # z1191z122: 확인할 줄
 
 
 def _note_sweep_targets978(c, val: str):
@@ -40073,6 +40104,10 @@ async def projects_import_product_confirm(request: Request):
                 else:
                     # 신규 프로젝트라 수주 1건뿐이지만, 규칙은 한 곳에서만 나오게 한다.
                     _apply_project_amount(c, int(new_pid))
+                try:   # z1191z122: 엑셀 줄 「상태」에 수주 상태를 맞춘다
+                    _pwf.sync_so_status_from_units(c, int(new_pid), u.get("id"), order_ids=[oid])
+                except Exception as _e122:
+                    print(f"[z1191z122] 상품 등록 뒤 수주 상태 맞추기 실패 pid={new_pid}: {_e122}")
                 # v5H226z735 (대표 지시): 추가발주(기존 관리번호)여도 프로젝트 모델/장비/발주일/납기가
                 #   '비어 있으면' 엑셀값으로 채움(신규는 projects_create_logi가 이미 채움·기존값은 안 덮어씀).
                 try:
@@ -41554,7 +41589,7 @@ async def schedule_board_unit_field(request: Request):
                 except Exception:
                     pass
                 try:
-                    _pwf.cascade_unit_status_to_project(c, pid, u.get("id"))
+                    _pwf.cascade_unit_status_to_project(c, pid, u.get("id"), order_ids=[it.get("order_id")])   # z1191z122: 이 수주만
                 except Exception:
                     pass
             elif field == "due_date":
@@ -41741,7 +41776,7 @@ async def schedule_board_row_status(request: Request):
                 f"SELECT DISTINCT o.project_id FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.id IN ({_ph2})", _apply).fetchall() if r[0]}
             for _pid in _pids:
                 try:
-                    _pwf.cascade_unit_status_to_project(c, _pid, u.get("id"))
+                    _pwf.cascade_unit_status_to_project(c, _pid, u.get("id"), order_ids=[r[0] for r in c.execute(f"SELECT DISTINCT order_id FROM order_items WHERE id IN ({_ph2})", _apply).fetchall()])   # z1191z122: 상태 바꾼 수주만
                 except Exception:
                     pass
                 try:
@@ -43794,7 +43829,9 @@ async def api_project_quote_read(req: Request, file: UploadFile = File(...)):
                   "VALUES(?,?,?,?,?,?,?,?,?)",
                   (tok, name, stored, len(raw), _hl61.sha256(raw).hexdigest(), u.get("id"),
                    vname_full(u) or u.get("name"), _z61_now(), _qr61.dumps(rd)))
-        return JSONResponse(_z61_reply(c, u, rd, tok, name, len(raw)))
+        _rep121 = _z61_reply(c, u, rd, tok, name, len(raw))
+    await _z121_index_tok(tok, raw, name)   # z1191z121: 견적서 내용(앞장·항목·시트) 읽어 두기
+    return JSONResponse(_rep121)
 
 
 def _z61_reply(c, u, rd, tok, name, size):
@@ -43836,6 +43873,8 @@ async def api_project_quote_reread(req: Request):
         return JSONResponse({"ok": False, "message": "그 견적서 파일을 찾지 못했습니다 — 다시 올려 주세요."})
     from starlette.concurrency import run_in_threadpool as _rit62
     rd = await _rit62(_qr61.read_quote, raw, r["orig_name"], pw)
+    if not rd.get("bad_password"):
+        await _z121_index_tok(tok, raw, r["orig_name"], pw)   # z1191z121: 같은 비밀번호로 내용도 읽어 둔다(저장 안 함)
     pw = None
     with db_session() as c:
         c.execute("UPDATE project_quote_files SET read_json=? WHERE tok=?", (_qr61.dumps(rd), tok))
@@ -43889,7 +43928,8 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
                   (int(pid), u.get("id"), "견적서 파일", "", name, f"z1191z62 상세 화면 「＋ 견적서 올리기」 · {vname_full(u) or u.get('name') or ''}"))   # z1191z63: 누가
         _nid105 = c.execute("SELECT id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()[0]
         _z105_drop_slot(c, u, int(pid), _nid105, _old105, "상세 「＋ 견적서 엑셀 올리기」")   # z1191z105: 예전 것 지움
-    return JSONResponse({"ok": True, "name": name, "replaced": len(_old105)})
+    await _z121_index_tok(tok, raw, name)   # z1191z121
+    return JSONResponse({"ok": True, "name": name, "replaced": len(_old105), "fid": _nid105})
 
 
 tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and can_view_sales(u)
@@ -44030,6 +44070,242 @@ def _z61_quote_files(pid):
 
 
 tpl.env.globals["z61_quote_files"] = _z61_quote_files
+
+
+# ═══ z1191z121 (대표 11-23 「견적서를 등록하는 이유는 향후에 고객사에서 비슷한걸 요구했을때 최종이 어떤거였는지 확인 …
+#     견적서내 상세항목들도 확인이 필요」): 올린 견적서 엑셀을 칸 그대로 읽어 둔다(AI 없음) → 웍스 안에서 바로 보기 · 찾기
+#   · 앞장(견적서 표지) 후보 중 업체명·견적일이 채워진 장 = 최종 · 여럿이면 보기 화면에서 고름 · 숨긴 시트는 앞장 아님
+#   · 원가·NEGO·마진 시트·칸·숨긴 열 = 매입가 볼 권한(purchase_price)이 있는 분만(화면·찾기 모두)
+#   · 비밀번호 걸린 파일 = 올릴 때 넣은 비밀번호로 읽어 둠(비밀번호는 저장하지 않음 · z1191z62 와 같음) · 안 넣었으면 보기 화면에서 넣기
+from . import quote_sheets as _qs121
+import gzip as _gz121, json as _js121
+
+
+def _z121_table(c):
+    _z61_table(c)
+    _cols = {r[1] for r in c.execute("PRAGMA table_info(project_quote_files)").fetchall()}
+    for _cn, _ct in (("book_gz", "BLOB"), ("book_err", "TEXT"), ("book_at", "TEXT"), ("front_pick", "INTEGER")):
+        if _cn not in _cols:
+            c.execute(f"ALTER TABLE project_quote_files ADD COLUMN {_cn} {_ct}")
+    c.execute("""CREATE TABLE IF NOT EXISTS project_quote_text (
+        file_id INTEGER, sheet INTEGER, row INTEGER, cost INTEGER DEFAULT 0, text TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_pqt_file ON project_quote_text(file_id)")
+
+
+def _z121_read_raw(raw, name, password=""):
+    """(book, 오류 글) — 비밀번호 파일이면 password 로 풀어서. 비밀번호는 돌려주지 않는다."""
+    ext = _qr61.ext_of(name or "")
+    if ext == ".xls":
+        return None, "옛 엑셀 형식(.xls)이라 내용 보기는 안 됩니다 — 원본을 내려받아 보세요"
+    if ext not in (".xlsx", ".xlsm"):
+        return None, "엑셀 파일만 내용을 볼 수 있습니다"
+    plain = raw
+    try:
+        if _qr61.office_locked(raw, ext):
+            if not password:
+                return None, "locked"
+            plain = _qr61.office_unlock(raw, password)
+            if plain == "nolib" or not plain:
+                return None, ("bad_password" if plain is None else "비밀번호 파일을 풀 도구가 서버에 없습니다")
+    except Exception as _e:
+        print(f"[z1191z121] 암호 판별 실패 {name}: {_e}")
+        return None, "파일을 열지 못했습니다"
+    try:
+        b = _qs121.read_book(plain)
+    except Exception as _e:
+        print(f"[z1191z121] 견적서 읽기 실패 {name}: {_e}")
+        return None, "견적서를 읽지 못했습니다"
+    if not b.get("ok"):
+        return None, b.get("message") or "견적서를 읽지 못했습니다"
+    return b, ""
+
+
+def _z121_store(c, fid, book, err):
+    _z121_table(c)
+    if book is None:
+        c.execute("UPDATE project_quote_files SET book_err=?, book_at=? WHERE id=?", (err or "", _z61_now(), fid))
+        return
+    gz = _gz121.compress(_js121.dumps(book, ensure_ascii=False, default=str).encode("utf-8"))
+    c.execute("UPDATE project_quote_files SET book_gz=?, book_err='', book_at=? WHERE id=?", (gz, _z61_now(), fid))
+    c.execute("DELETE FROM project_quote_text WHERE file_id=?", (fid,))
+    pub = {(s, r) for s, r, _t in _qs121.search_rows(book, False)}
+    rows = []
+    for s, r, t in _qs121.search_rows(book, True):
+        rows.append((fid, s, r, 0 if (s, r) in pub else 1, t))
+    c.executemany("INSERT INTO project_quote_text(file_id, sheet, row, cost, text) VALUES(?,?,?,?,?)", rows)
+
+
+def _z121_book(c, fid):
+    _z121_table(c)
+    r = c.execute("SELECT book_gz FROM project_quote_files WHERE id=?", (fid,)).fetchone()
+    if not r or not r["book_gz"]:
+        return None
+    try:
+        return _js121.loads(_gz121.decompress(r["book_gz"]).decode("utf-8"))
+    except Exception as _e:
+        print(f"[z1191z121] 읽어 둔 견적서 풀기 실패 {fid}: {_e}")
+        return None
+
+
+async def _z121_index_tok(tok, raw, name, password=""):
+    """올린 직후(read·reread·attach) — 칸 읽기는 DB 를 잡기 전에(쓰기 잠금 쥔 채 기다리지 않기)."""
+    from starlette.concurrency import run_in_threadpool as _rit121
+    try:
+        book, err = await _rit121(_z121_read_raw, raw, name, password)
+        with db_session() as c:
+            _z121_table(c)
+            r = c.execute("SELECT id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()
+            if r:
+                _z121_store(c, r["id"], book, err)
+    except Exception as _e:
+        print(f"[z1191z121] 견적서 내용 저장 실패 tok={tok}: {_e}")
+
+
+def _z121_can_cost(u):
+    try:
+        return bool(can_view_field(u, "purchase_price"))
+    except Exception as _e:
+        print(f"[z1191z121] 원가 권한 확인 실패: {_e}")
+        return False
+
+
+def _z121_file_ctx(c, fid):
+    r = c.execute("SELECT f.*, p.mgmt_code, p.name AS pname, p.customer_name AS pcust, o.order_no, o.total_amount AS o_amt, o.currency AS o_ccy "
+                  "FROM project_quote_files f LEFT JOIN projects p ON p.id=f.project_id LEFT JOIN orders o ON o.id=f.order_id "
+                  "WHERE f.id=? AND f.project_id IS NOT NULL AND f.removed_at IS NULL", (fid,)).fetchone()
+    return dict(r) if r else None
+
+
+@app.get("/quotes/{fid}", response_class=HTMLResponse)
+async def quote_view_z121(req: Request, fid: int):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return PlainTextResponse("견적서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
+    can_cost = _z121_can_cost(u)
+    with db_session() as c:
+        _z121_table(c)
+        f = _z121_file_ctx(c, fid)
+        if not f:
+            return PlainTextResponse("견적서를 찾지 못했습니다(빼거나 바꿨을 수 있습니다).", status_code=404)
+        book = _z121_book(c, fid)
+        if book is None and not f.get("book_at"):   # 이 기능 전에 올린 견적서 — 비밀번호 없는 파일이면 지금 읽어 둔다
+            try:
+                with open(os.path.join(_z61_dir(), f["stored"] or ""), "rb") as _f121:
+                    _raw121 = _f121.read()
+                book, err = _z121_read_raw(_raw121, f["orig_name"])
+                _z121_store(c, fid, book, err)
+                f["book_err"] = err
+            except Exception as _e:
+                print(f"[z1191z121] 예전 견적서 읽기 실패 {fid}: {_e}")
+                f["book_err"] = "파일을 찾지 못했습니다"
+    view = _qs121.view_of(book, can_cost) if book else None
+    if view is not None and f.get("front_pick") is not None and 0 <= f["front_pick"] < len(view["fronts"]):
+        view["front"] = f["front_pick"]
+    return ctx(req, "quote_view.html", user=u, active="sales", f=f, view=view, can_cost=can_cost,
+               can_pick=bool(_z63_can_remove(u, f)), err=f.get("book_err") or "")
+
+
+@app.post("/api/project-quote/{fid}/unlock")
+async def api_quote_unlock_z121(req: Request, fid: int):
+    """보기 화면에서 비밀번호 넣고 내용 읽기 — 비밀번호는 읽는 데만 쓰고 저장·기록하지 않는다."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_view_sales(u):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    form = await req.form()
+    pw = form.get("password") or ""
+    if not pw:
+        return JSONResponse({"ok": False, "message": "비밀번호를 넣어 주세요."})
+    with db_session() as c:
+        _z121_table(c)
+        f = _z121_file_ctx(c, fid)
+    if not f:
+        return JSONResponse({"ok": False, "message": "견적서를 찾지 못했습니다."}, 404)
+    try:
+        with open(os.path.join(_z61_dir(), f["stored"] or ""), "rb") as _f121:
+            raw = _f121.read()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "견적서 파일을 찾지 못했습니다."})
+    from starlette.concurrency import run_in_threadpool as _rit121
+    book, err = await _rit121(_z121_read_raw, raw, f["orig_name"], pw)
+    pw = None
+    if err == "bad_password":
+        return JSONResponse({"ok": False, "message": "비밀번호가 맞지 않습니다."})
+    with db_session() as c:
+        _z121_store(c, fid, book, err)
+    return JSONResponse({"ok": book is not None, "message": err or ""})
+
+
+@app.post("/api/project-quote/{fid}/front")
+async def api_quote_front_z121(req: Request, fid: int):
+    """앞장(견적서 표지)이 여러 장일 때 「이 장이 최종」 — 올린 사람·기술영업팀(빼기와 같은 사람)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    form = await req.form()
+    try:
+        k = int(form.get("front") or -1)
+    except ValueError:
+        k = -1
+    with db_session() as c:
+        _z121_table(c)
+        f = _z121_file_ctx(c, fid)
+        if not f:
+            return JSONResponse({"ok": False, "message": "견적서를 찾지 못했습니다."}, 404)
+        if not _z63_can_remove(u, f):
+            return JSONResponse({"ok": False, "message": "최종 앞장은 올린 사람과 기술영업팀만 고를 수 있습니다."}, 403)
+        book = _z121_book(c, fid)
+        if not book or not (0 <= k < len(book.get("fronts") or [])):
+            return JSONResponse({"ok": False, "message": "그 장을 찾지 못했습니다."})
+        c.execute("UPDATE project_quote_files SET front_pick=? WHERE id=?", (k, fid))
+        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                  (f["project_id"], u.get("id"), "견적서 최종 앞장", "", book["fronts"][k]["title"],
+                   f"z1191z121 {f['orig_name']} · {vname_full(u) or u.get('name') or ''}"))
+    return JSONResponse({"ok": True})
+
+
+def _z121_search(u, q, limit=40):
+    """견적서 안 글 찾기(z1191z121) — 낱말 여러 개면 한 줄에 모두 있는 것 · 원가 줄은 권한 있는 분만."""
+    q = (q or "").strip()
+    if len(q) < 2 or not can_view_sales(u):
+        return None
+    can_cost = _z121_can_cost(u)
+    words = [w for w in q.split() if w][:4]
+    where = " AND ".join(["t.text LIKE ?"] * len(words))
+    args = ["%" + w + "%" for w in words]
+    if not can_cost:
+        where += " AND t.cost=0"
+    out, n_lines = [], 0
+    try:
+        with db_session() as c:
+            _z121_table(c)
+            rows = c.execute(
+                "SELECT t.file_id, t.sheet, t.row, t.text FROM project_quote_text t JOIN project_quote_files f ON f.id=t.file_id "
+                f"WHERE f.project_id IS NOT NULL AND f.removed_at IS NULL AND {where} ORDER BY t.file_id DESC, t.sheet, t.row LIMIT 600",
+                args).fetchall()
+            n_lines = len(rows)
+            byf = {}
+            for r in rows:
+                byf.setdefault(r["file_id"], []).append(r)
+            for fid, rs in list(byf.items())[:limit]:
+                f = _z121_file_ctx(c, fid)
+                if not f:
+                    continue
+                st = c.execute("SELECT status FROM orders WHERE id=?", (f["order_id"],)).fetchone() if f.get("order_id") else None
+                book = _z121_book(c, fid) or {}
+                k = f.get("front_pick") if f.get("front_pick") is not None else book.get("front")
+                fr = (book.get("fronts") or [])[k] if (k is not None and 0 <= k < len(book.get("fronts") or [])) else {}
+                titles = [s.get("title") for s in (book.get("sheets") or [])]
+                out.append({"id": fid, "name": f["orig_name"], "pid": f["project_id"], "mgmt": f.get("mgmt_code"), "pname": f.get("pname"),
+                            "order_no": f.get("order_no"), "status": (st["status"] if st else ""), "meta": (fr.get("meta") or {}),
+                            "n": len(rs), "lines": [{"sheet": (titles[r["sheet"]] if r["sheet"] < len(titles) else ""), "text": r["text"][:220]} for r in rs[:3]]})
+    except Exception as _e:
+        print(f"[z1191z121] 견적서 찾기 실패 {q!r}: {_e}")
+        return {"q": q, "files": [], "n_lines": 0, "error": True}
+    return {"q": q, "words": words, "files": out, "n_lines": n_lines, "can_cost": can_cost}
 
 
 @app.get("/projects/{pid}/quote-files/{fid}")
@@ -51815,7 +52091,7 @@ async def sales_quotations_page(req: Request):
         return RedirectResponse("/home", 303)
     _a105 = _z105_args(req, u)
     return ctx(req, "sales_quotations.html", user=u, active="sales_quotations", tab="quotations",
-               qb=_z105_board(u, **_a105))
+               qb=_z105_board(u, **_a105), qhits=_z121_search(u, _a105.get("q")))
 
 
 def _sales_quotations_page_old_z105(req, u):

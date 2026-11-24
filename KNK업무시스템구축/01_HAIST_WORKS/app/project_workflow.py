@@ -1605,11 +1605,15 @@ def cascade_project_meta_to_so(c, project_id: int,
                 (new_ccy, project_id, new_ccy)
             )
             n_so = r1.rowcount or 0
+            # z1191z124 (운영 11-24 11:49 006M2511 사고): 품목 줄은 **자기 수주의 통화를 따른다** — 위에서 통화가 바뀐(또는 이미 새 통화인)
+            #   수주의 품목만. 예전엔 수주는 「입금 기록 있으면 안 바꿈」으로 막고 품목 줄은 막지 않아, 입금 완료 달러 수주(M-251127-2)의
+            #   품목 254줄만 KRW 가 되어 수주(USD)와 어긋났다. 입금·계산서 잠금(INVOICED·PAID) 수주의 품목도 안 바꾼다.
             r2 = c.execute(
-                """UPDATE order_items SET currency=?
-                   WHERE order_id IN (SELECT id FROM orders WHERE project_id=?)
+                f"""UPDATE order_items SET currency=?
+                   WHERE order_id IN (SELECT id FROM orders WHERE project_id=? AND COALESCE(currency,'KRW')=?
+                                      AND COALESCE(status,'') NOT IN ({','.join('?'*len(PROTECTED))}))
                      AND COALESCE(currency,'') != ?""",
-                (new_ccy, project_id, new_ccy)
+                (new_ccy, project_id, new_ccy, *PROTECTED, new_ccy)
             )
             n_it = r2.rowcount or 0
             if n_so or n_it:
@@ -1704,12 +1708,56 @@ def mark_units_delivered(c, project_id: int, changed_by: int | None = None, iids
     return n
 
 
+def sync_so_status_from_units(c, project_id: int, changed_by: int | None = None, order_ids=None) -> int:
+    """z1191z122 (대표 11-24 「1번 진행」 · 운영 32건: 작업일정표=출하 · 수주 카드=수주):
+    수주(SO)마다 — 그 수주 호기가 **모두 출하**면 수주 상태 = SHIPPED · 출하였던 수주의 호기가 **모두 진행중**으로
+    돌아오면 IN_PRODUCTION. 일부만 출하(섞임)·보류·취소·입금/계산서 잠금(INVOICED·PAID)은 그대로.
+    (아래 프로젝트 맞추기는 관리번호 전체 호기가 같을 때만이라 수주가 여럿이면 안 맞췄다.)  바뀐 수주 수.
+    order_ids 를 주면 그 수주만(사람이 손댄 수주 — 같은 관리번호의 다른 수주는 말없이 안 바꾼다). None = 관리번호 전체."""
+    n = 0
+    try:
+        sos = c.execute("SELECT id, status FROM orders WHERE project_id=? AND COALESCE(status,'') NOT IN ('CANCELLED','INVOICED','PAID')",
+                        (project_id,)).fetchall()
+    except Exception as e:
+        print(f"[z1191z122] 수주 목록 실패 pid={project_id}: {e}")
+        return 0
+    _only = None if order_ids is None else {int(x) for x in order_ids if x is not None}
+    for so in sos:
+        if _only is not None and so[0] not in _only:
+            continue
+        sts = {r[0] for r in c.execute("SELECT COALESCE(unit_status,'진행중') FROM order_items WHERE order_id=?", (so[0],)).fetchall()}
+        if len(sts) != 1:
+            continue
+        only = next(iter(sts))
+        cur = (so[1] or "").upper()
+        new = None
+        if only == "출하" and cur in ("", "CONFIRMED", "IN_PRODUCTION", "IN_PROGRESS", "DRAFT"):
+            new = "SHIPPED"
+        elif only == "진행중" and cur == "SHIPPED":
+            new = "IN_PRODUCTION"
+        if not new:
+            continue
+        c.execute("UPDATE orders SET status=?, updated_at=datetime('now','localtime') WHERE id=?", (new, so[0]))
+        try:
+            c.execute("INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) VALUES(?,?,?,?,?)",
+                      (so[0], so[1], new, changed_by,
+                       "호기 상태에 맞춤 — 이 수주 호기가 모두 %s (z1191z122)" % only))
+        except Exception as e:
+            print(f"[z1191z122] 이력 실패 oid={so[0]}: {e}")
+        n += 1
+    return n
+
+
 def cascade_unit_status_to_project(c, project_id: int,
-                                    changed_by: int | None = None) -> dict:
+                                    changed_by: int | None = None, order_ids=None) -> dict:
     """v5H226r/x — 호기 unit_status 변경 시 부모 프로젝트 status + SO orders.status 동기화.
     모든 호기가 동일 상태일 때만 부모 상태 변경. 혼합/0건이면 no-op.
     v5H226x: 4종 모두(진행중/출하/취소/보류) 매핑 + SO orders.status 도 함께 동기화.
     v5H226z571: 단계 시스템 제거 — 출하 단계 거울 동기화(sync_ship_stage_from_units) 폐지(상태 동기화만 유지)."""
+    try:   # z1191z122: 수주마다 먼저 맞춘다(관리번호에 수주가 여럿이어도)
+        sync_so_status_from_units(c, project_id, changed_by, order_ids)
+    except Exception as e:
+        print(f"[z1191z122] 수주별 맞추기 실패 pid={project_id}: {e}")
     try:
         rows = c.execute(
             """SELECT COALESCE(oi.unit_status,'진행중') AS st

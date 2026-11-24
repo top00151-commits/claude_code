@@ -841,6 +841,28 @@ document.addEventListener('submit', function(e){
     if(String(el.value||'').replace(/,/g,'').trim()==='') el.value='0';
   });
 }, true);
+/* z1191z123 (대표 11-24 「③ (나)」 · 운영 M-260728-1·M-261028-1: 품목 줄 수량 2·9 인데 작업일정표 수량 칸에 1 → 일정표엔 1식):
+   제품 형태에서 품목이 **한 줄**인데 「작업일정표 수량」과 그 줄 수량이 다르면 저장 전에 한 번 묻는다(막지 않음 · 입력 실수 알림 원칙).
+   두 줄 이상(세트 · 소켓+PCB)은 작업일정표 수량 = 세트 수라 묻지 않는다. */
+document.addEventListener('submit', function(e){
+  var f = e.target; if(!f || f.id !== 'quickForm' || f.dataset.bq123ok === '1') return;
+  var cell = document.getElementById('qBoardQtyCell'), bq = document.getElementById('qBoardQty');
+  if(!cell || !bq || cell.style.display === 'none') return;
+  var b = qItemNum(bq.value); if(!(b > 0)) return;
+  var rows = Array.prototype.filter.call(document.querySelectorAll('#qItemRows .qi-row'), function(r){
+    var nm = r.querySelector('input[name="it_name[]"]') || r.querySelector('input[type="text"]');
+    return nm && String(nm.value || '').trim() !== '';
+  });
+  if(rows.length !== 1) return;
+  var q = qItemNum((rows[0].querySelector('.qi-qty') || {}).value);
+  if(!(q > 0) || q === b) return;
+  if(!confirm('작업일정표 수량은 ' + b + ' 인데, 품목 줄 수량은 ' + q + ' 입니다.\n\n'
+      + '· 작업일정표에는 「' + b + '」로 보입니다.\n· 품목 수량(' + q + ')이 맞으면 [취소]를 누르고 작업일정표 수량을 ' + q + ' 로 고쳐 주세요.\n\n'
+      + '이대로 저장할까요?')){
+    e.preventDefault(); e.stopImmediatePropagation(); try{ bq.focus(); }catch(_e){} return;
+  }
+  f.dataset.bq123ok = '1';
+}, true);
 function qItemCalc(){
   var box=document.getElementById('qItemRows');
   var rows=box?box.querySelectorAll('.qi-row'):[];
