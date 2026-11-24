@@ -69,10 +69,9 @@ body { overflow: hidden !important; }
   min-height: 0;
   max-height: none !important;
   overflow-y: auto !important;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin; scrollbar-color: rgba(165,40,44,.55) transparent;  /* z1191z138 (대표 11-24 「스크롤은 되는데 막대가 안 보임 → 모두 보이게」): 숨김 → 얇게 보임 */
 }
-.main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar { display: none; }
+.main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar { width: 8px; } .main > .grid-2[data-dn="grid-customer-recent"] .list-card::-webkit-scrollbar-thumb { background: rgba(165,40,44,.5); border-radius: 6px; }
 
 /* v5H226z45: 관리번호 잉크 알약 — 페이지 간 일관성 (project_detail z41 / sales_orders z44) */
 /* chrome (.app/.top/.sidebar/.main/.sb-*/.top-*/.menu-code) — _v5_partials/styles.html 사용 */

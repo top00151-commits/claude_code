@@ -4181,25 +4181,6 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
     except Exception as _e136:
         print(f"[z1191z136 greeting] {_e136}")
         greeting = f"오늘도 평안하세요, {u.get('name','')}님"
-    # z1191z137 (대표 11-24 22:05 「오늘이 내 생일이라고 생각하고 한번 반영 · 확인 후 프로그램 닫았다 열면 원래대로」):
-    #   대표(85) · 11-25 06시 전 · 오늘 화면에서만 한 번 생일 미리보기. 처음 열 때 data/bday_preview_z137_85.done 을 만들고
-    #   창 닫으면 사라지는 쿠키(만료 없음)를 줌 → 같은 창에선 계속 생일 · 닫았다 열면 쿠키 없음 + 표시 파일 있음 = 평소 인사말
-    _bd137_set = False
-    try:
-        if u.get("id") == 85 and datetime.now() < datetime(2026, 11, 25, 6, 0) and sel_date == date.today().isoformat():
-            _bd137 = req.cookies.get("knk_bdprev137") == "1"
-            if not _bd137:
-                try:
-                    os.close(os.open(os.path.join(BASE, "data", "bday_preview_z137_85.done"), os.O_CREAT | os.O_EXCL | os.O_WRONLY))
-                    _bd137 = _bd137_set = True
-                except FileExistsError:
-                    pass
-            if _bd137:
-                from . import greeting as _gr137
-                greeting, greeting_bucket = _gr137.build(u.get("name", ""), u.get("rank"), u.get("entity"),
-                                                         datetime.now().strftime("%m-%d"), datetime.now(), HOLIDAYS_KR, HOLIDAYS_VN)
-    except Exception as _e137:
-        print(f"[z1191z137 birthday preview] {_e137}")
 
     # z108: 홈 진입점 워크플로우 업무카드 (오늘 처리할 업무)
     # z108e: 본인 배정 + 본인 부서 미배정 + 진행 가능 여부(직전 단계 완료) 표시
@@ -4249,7 +4230,7 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
     except Exception as _e:
         print(f"[HOME-WF ERR] {_e}")
 
-    _resp137 = ctx(
+    return ctx(
         req, "home.html",
         user=u, sel_date=sel_date, prev_date=prev_d, next_date=next_d,
         team_data=team_data, my_tasks=my_tasks, pending_yday=pending_yday,
@@ -4271,9 +4252,6 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
         greeting=greeting,
         greeting_bucket=greeting_bucket,  # QA-H6 패치 ④
     )
-    if _bd137_set:   # z1191z137 창 닫으면 사라지는 쿠키(max_age 없음)
-        _resp137.set_cookie("knk_bdprev137", "1", httponly=True, secure=True, samesite="lax", path="/")
-    return _resp137
 
 
 # =====================================================

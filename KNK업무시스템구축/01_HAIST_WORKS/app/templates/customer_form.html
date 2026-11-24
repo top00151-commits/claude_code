@@ -46,8 +46,8 @@ body {
 body { overflow: hidden !important; }
 .main { height: calc(100vh - var(--topbar-h, 80px)) !important; overflow: hidden !important; display: flex; flex-direction: column; }
 .main > .page-head { flex-shrink: 0; padding: 10px var(--content-pad) 6px !important; }
-.main > form { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 8px; }
-.main > form::-webkit-scrollbar { display: none; }
+.main > form { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(165,40,44,.55) transparent; padding-bottom: 8px; }  /* z1191z138 (대표 11-24 「스크롤은 되는데 막대가 안 보임 → 모두 보이게」): 숨김 → 얇게 보임 */
+.main > form::-webkit-scrollbar { width: 8px; } .main > form::-webkit-scrollbar-thumb { background: rgba(165,40,44,.5); border-radius: 6px; }
 @media (min-width:1280px){ .frow{grid-template-columns:repeat(3,1fr) !important;} .fld.full{grid-column:span 3 !important;} }
 .form-card { padding:10px 14px !important; }
 .form-card + .form-card { margin-top: 8px !important; }
