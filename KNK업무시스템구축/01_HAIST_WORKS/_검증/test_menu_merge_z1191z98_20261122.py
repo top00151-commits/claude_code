@@ -221,7 +221,7 @@ check("영업 기회: 탭 줄 [🎯 영업 기회(지금) · 📋 견적서] · 
       '<span class="t on">🎯 영업 기회</span>' in hp and 'href="/sales/quotations">📋 견적서' in hp and 'href="/sales/opportunities/new"' not in hp)
 hq = main_part(q(cl.get, "/sales/quotations").text)
 check("견적서: 같은 탭 줄(견적서 = 지금) · 「＋ 새 견적」·「＋ 첫 견적」 단추 없음",
-      '<span class="t on">📋 견적서</span>' in hq and 'href="/sales/quotes/new"' not in hq)
+      '<span class="t on">📋 견적서·발주서</span>' in hq and 'href="/sales/quotes/new"' not in hq)
 hn = q(cl.get, "/projects/new").text
 cards = [c.split("?")[0] for c in re.findall(r'<a class="pc-card[^"]*" href="([^"]+)"', hn)]
 check("🆕 등록 카드 8개: … 소모품 · 🤝 고객사 · 🎯 영업 기회 · 📋 견적서(→ 견적 관리 · z1191z105)",

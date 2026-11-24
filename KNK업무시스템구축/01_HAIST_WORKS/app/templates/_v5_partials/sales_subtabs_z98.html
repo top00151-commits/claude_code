@@ -17,7 +17,7 @@
   {% set _hint = '계산서를 아직 안 끊은 건은 🧾 마감' %}
 {% elif stz_group == 'presale' %}
   {% set _ = _stz.append(('/sales/opportunities', '🎯 영업 기회')) %}
-  {% if can_s1_z98(user) %}{% set _ = _stz.append(('/sales/quotations', '📋 견적서')) %}{% endif %}
+  {% if can_s1_z98(user) %}{% set _ = _stz.append(('/sales/quotations', '📋 견적서·발주서')) %}{% endif %}
   {% set _hint = '＋ 새 영업 기회·견적은 왼쪽 메뉴 🆕 등록에서' %}
 {% endif %}
 <div class="stz98" data-dn="sub-tabs-z98" data-group="{{ stz_group }}">
