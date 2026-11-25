@@ -1,0 +1,8 @@
+{# 11-25 대표 규정 knk-screen-exit 「팝업으로 열렸으면 항상 닫기 기능」 — 메일 관리 화면 위쪽 오른쪽 공용 나가기 단추
+   쓰는 법: {% with exit_href='/mail/tools', exit_label='설정·정리' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %} (안 주면 받은편지함)
+   새 창(다른 창이 연 창 · 뒤로 갈 곳 없음)이면 창을 닫고, 안 닫히면 돌아갈 곳으로 · 휴대폰 폭에서도 보임 #}
+<span class="mail-exit-box"><a href="{{ exit_href|default('/mail/inbox') }}" class="btn btn-secondary mail-exit" onclick="return mailExit(event,this)" title="이 화면 닫기 — {{ exit_label|default('받은편지함') }}(으)로 · 새 창이면 창 닫기">← {{ exit_label|default('받은편지함') }}</a></span>
+<style>.page-head .mail-exit-box{margin-left:auto;flex:0 0 auto} .mail-exit{white-space:nowrap}</style>
+<script>if(!window.mailExit){ window.mailExit=function(e,a){
+  try{ if(window.opener && !window.opener.closed && history.length<=1){ e.preventDefault(); window.close(); setTimeout(function(){ location.href=a.href; }, 300); return false; } }catch(_){}
+  return true; }; }</script>

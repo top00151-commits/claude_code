@@ -48,6 +48,13 @@
   }
   function scan(){ T.forEach(function(t){ document.querySelectorAll(t[0]).forEach(function(el){ add(el, t[1]); }); }); }
   window.mailPopXScan=scan;
+  // 11-25 대표 규정 knk-screen-exit — 팝업은 ✕ · Esc 로도 닫힘(보이는 팝업의 ✕ 를 대신 누름 · 입력 칸 안에서는 안 함)
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Escape' || e.defaultPrevented) return;
+    var t=e.target; if(t && /INPUT|TEXTAREA|SELECT/.test(t.tagName||'')) return;
+    var hit=false; document.querySelectorAll('.mpx').forEach(function(b){ var p=b.parentElement; if(b.offsetParent!==null && p && getComputedStyle(p).visibility!=='hidden'){ b.click(); hit=true; } });
+    if(hit){ e.preventDefault(); e.stopPropagation(); }   // 팝업만 닫고 창 닫기·선택 풀기 같은 다른 Esc 는 이번엔 안 함
+  }, true);
   // 바뀐 바로 뒤(그리기 전)에 한 번 — 화면 그림 시계(requestAnimationFrame)는 숨은 창에서 멈추므로 쓰지 않음
   var q=false; function later(){ if(q) return; q=true; Promise.resolve().then(function(){ q=false; scan(); }); }
   function start(){ scan(); try{ new MutationObserver(later).observe(document.body, {childList:true, subtree:true}); }catch(e){} }

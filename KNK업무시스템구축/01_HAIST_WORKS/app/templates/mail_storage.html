@@ -34,7 +34,7 @@
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 메일 용량 재기</div>
     <h1 class="page-title">📦 메일 <em>용량 재기</em></h1>
-  </div></div>
+  </div>{% with exit_href='/mail/tools', exit_label='설정·정리' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
 
   <div class="st-card">
     <div style="font-size:13.5px;line-height:1.75">내 메일이 서버에서 차지하는 크기를 <b>기간·종류별</b>로 재고, <b>오래된 메일을 압축하면 얼마로 줄어드는지</b> 실제로 압축해 봅니다.</div>

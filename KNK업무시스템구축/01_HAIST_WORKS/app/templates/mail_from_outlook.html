@@ -32,7 +32,7 @@
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 아웃룩에서 보낸 사람 채우기</div>
     <h1 class="page-title">📇 아웃룩에서 <em>보낸 사람 채우기</em></h1>
-  </div></div>
+  </div>{% with exit_href='/mail/tools', exit_label='설정·정리' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
 
   <div class="fo-card">
     <div style="font-size:13.5px;line-height:1.75">보낸 사람이 비어 있는 예전 메일 <b id="foLeft">{{ '{:,}'.format(left) }}통</b>을 <b>예전 아웃룩에 남은 원본</b>으로 정확히 채웁니다.

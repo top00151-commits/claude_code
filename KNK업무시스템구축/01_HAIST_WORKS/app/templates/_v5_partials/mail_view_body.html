@@ -88,7 +88,7 @@
           {% if is_admin and m.direction != 'out' %}<button type="button" class="warn" onclick="blockSender({{ m.id }})" title="회사 전체 차단목록에 넣기(관리자)">⛔ 회사 전체 차단(관리자)</button>{% endif %}
         </div>
       </details>
-      {% if not pane and not (win is defined and win) %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}{% if win is defined and win %}<button type="button" class="btn btn-secondary" onclick="window.close()" title="이 창 닫기(Esc)">✕ 닫기</button>{% endif %}
+      {% if not pane and not (win is defined and win) %}<a href="/mail/inbox" class="btn btn-secondary">← 목록</a>{% endif %}{% if win is defined and win %}<button type="button" class="btn btn-secondary" onclick="window.close(); setTimeout(function(){ location.href='/mail/inbox'; }, 300)" title="이 창 닫기(Esc) — 안 닫히면 받은편지함으로">✕ 닫기</button>{% endif %}
     </div>
   </div>
   <div class="mv-chips">

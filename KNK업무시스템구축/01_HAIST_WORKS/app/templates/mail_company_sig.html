@@ -30,7 +30,7 @@
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/signature">메일 서명</a> · 회사 서명 틀</div>
     <h1 class="page-title">🏢 회사 서명 <em>틀</em> <small style="font-size:13px;color:var(--mute);font-weight:600">관리자</small></h1>
-  </div></div>
+  </div>{% with exit_href='/mail/signature', exit_label='메일 서명' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
   <div class="cs-wrap">
     <div class="cs-info">
       · 여기서는 <b>모양(글자·자리)</b>만 정합니다. 직원이 「🏢 회사 서명 쓰기」를 누르거나 메일 쓰기 「✍」에서 고르면 <b>그 사람 정보</b>로 채워집니다.<br>
