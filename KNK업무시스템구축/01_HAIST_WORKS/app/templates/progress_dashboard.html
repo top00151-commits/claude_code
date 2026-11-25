@@ -37,6 +37,7 @@
 
   <div class="list-scroll" style="margin: var(--space-5) var(--content-pad) 0;">
     {% if projects %}
+      {% set _mx155 = z155_so_mix() %}{# z1191z155 #}
       {% for p in projects %}
       {% set rate = ((p.done_ms|default(0) * 100 / p.total_ms)|round|int) if p.total_ms else 0 %}
       <a class="project-card" href="/project/{{ p.id }}">
@@ -55,7 +56,7 @@
           <span>고객사 <b>{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}</b></span>
           <span>마일스톤 <b>{{ p.done_ms|default(0) }}/{{ p.total_ms|default(0) }}</b></span>
           {% if p.end_date %}<span>완료 예정 <b>{{ p.end_date }}</b></span>{% endif %}
-          {% if p.order_amount %}<span>수주액 <b>{{ money(p.order_amount, p.currency or 'KRW') }}</b></span>{% endif %}
+          {% if p.order_amount %}{% set _m155 = _mx155.get(p.id) %}<span{% if _m155 and _m155.ccys|length > 1 %} title="수주 통화가 여러 개({{ _m155.ccys|join(', ') }}) — 발주 달 월 기준환율로 바꿔 더한 값"{% endif %}>수주액 <b>{% if _m155 and _m155.ccys|length > 1 %}≈ {% endif %}{{ money(p.order_amount, p.currency or 'KRW') }}</b></span>{% endif %}
         </div>
       </a>
       {% endfor %}

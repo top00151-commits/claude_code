@@ -178,6 +178,7 @@ body {
         </tr>
       </thead>
       <tbody id="projTbody">
+      {% set _mx155 = z155_so_mix() %}{# z1191z155: 수주마다 다른 통화·고객 = 보여 주기만 #}
       {% for p in projects %}
         {# v5H217: _kind 에 따라 라우팅 분기 — 소모품은 /consumables/{id}, 그 외는 /project/{id} #}
         {% set _is_co = (p._kind == 'consumable') %}
@@ -191,7 +192,7 @@ body {
           {% set _bd_lb = (p.equip_name and p.biz_div == 'L') %}
           <td>{{ p.equip_name|default('—') }}{% if _bd_lb %} <span style="font-size:10px;color:var(--qv-ink-3);">(기기)</span>{% endif %}</td>
           <td style="font-family:Consolas,monospace;font-size:12px;">{{ p.model_name|default('—') }}</td>
-          <td title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}</td>{# v5H226z706: 시스템명 우선 #}
+          {% set _m155 = _mx155.get(p.id) if p.id is not none else none %}<td title="정식: {{ p.customer_name|default('—') }}{% if _m155 and _m155.custs|length > 1 %} · 수주별 고객: {{ _m155.custs|join(', ') }}{% endif %}">{% if _m155 and _m155.custs|length > 1 %}{{ _m155.custs[0] }} <span style="color:#64748b;font-size:11px;">외 {{ _m155.custs|length - 1 }}곳</span>{% elif _m155 and _m155.custs %}{{ _m155.custs[0] }}{% else %}{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% endif %}</td>{# v5H226z706: 시스템명 우선 #}
           {# v5H226z448: PO유형 칸 — 등록폼 동일(신규/추가/개조/수리/기타). 신규=흐린 글자·그 외=강조 알약. 소모품 행은 po_type 없음 → '—' #}
           <td class="center">
             {% if (p.project_type or '')|upper == 'CONSUMABLE' or p._div == 'C' %}<span style="color:var(--qv-ink-3);">—</span>
@@ -221,7 +222,7 @@ body {
           </td>
           {# z103: 화면 금액 = 화폐 기호 앞. 소모품 줄은 서버가 통화를 아직 안 넘겨(p.currency 없음) 통화를 모를 땐 숫자만 #}
           {% set _ccy103 = p.currency or ('' if p._kind == 'consumable' else 'KRW') %}
-          <td class="num" style="font-weight:700;">{% if p.order_amount %}{% if _ccy103 %}{{ money(p.order_amount, _ccy103) }}{% else %}{{ '{:,.0f}'.format(p.order_amount) }}{% endif %}{% else %}—{% endif %}
+          <td class="num" style="font-weight:700;"{% if _m155 and _m155.ccys|length > 1 %} title="수주 통화가 여러 개({{ _m155.ccys|join(', ') }}) — 발주 달 월 기준환율로 바꿔 더한 값(≈)"{% endif %}>{% if p.order_amount %}{% if _m155 and _m155.ccys|length > 1 %}≈ {% endif %}{% if _ccy103 %}{{ money(p.order_amount, _ccy103) }}{% else %}{{ '{:,.0f}'.format(p.order_amount) }}{% endif %}{% else %}—{% endif %}
             {# z1191z115 (대표 11-23 「지워」): 옛 「예상 ₩… (+N%)」 줄 지움 — 예상 = 등록 때 1호기 금액에 머문 값이라 123곳이 100% 넘게 차이(프로젝트 상세는 z646 에서 이미 지움) #}
           </td>
           <td class="center" style="font-size:12px;color:var(--qv-ink-3);">{{ p.order_date|default('—') }}</td>

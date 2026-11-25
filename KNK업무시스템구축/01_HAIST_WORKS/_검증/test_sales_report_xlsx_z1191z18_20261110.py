@@ -85,7 +85,7 @@ with D.db_session() as c:
     unit(o4, "1호기", 1000, currency="USD", tax_invoice_date="2026-05-21", tax_invoice_amt1=1000)
     o5 = so(p3, "T-260504-2", "VINA", ccy="USD", end="SEVT")
     unit(o5, "2호기", 2000, currency="USD", tax_invoice_date="2026-05-22", tax_invoice_amt1=2000)
-    o6 = so(p3, "T-260504-3", "VINA", ccy="USD")
+    o6 = so(p3, "T-260504-3", "VINA", ccy="USD", end="")   # z1191z155: '' = 사람이 비움(1차 고객 줄) · NULL(미정)은 test_so_truth_reports_z1191z155 에서
     unit(o6, "3호기", 300, currency="USD", tax_invoice_date="2026-05-23", tax_invoice_amt1=300)
     # 소모품 화면 — 검사기 · 자동화(KNK VINA · 2차 여러 개)
     ins(c, "consumable_orders", {"co_no": "C1", "mgmt_code": "001C2605", "customer_name": "한국성전(주)", "currency": "KRW", "total_amount": 500000,

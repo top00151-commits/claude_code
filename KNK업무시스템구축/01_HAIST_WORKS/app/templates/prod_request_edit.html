@@ -348,10 +348,12 @@ select.prq-in { appearance:auto; }
               </select>
             </div>
             <div class="pe-f"><label>거래구분</label>
+              {# z1191z155: 거래구분 = 고른 수주 품목 줄 값 · 수주에 없으면 대표값을 「(대표값 · 확인 필요)」로 #}
+              {% set _iex155 = z48.iex155 if (z48 and z48.iex155 is not none) else (p.is_export|int) %}
               <select class="prq-in" name="is_export">
-                <option value="0"{% if not (p.is_export|int) %} selected{% endif %}>🏠 내수</option>
-                <option value="1"{% if (p.is_export|int) %} selected{% endif %}>🚢 수출</option>
-              </select>
+                <option value="0"{% if not _iex155 %} selected{% endif %}>🏠 내수</option>
+                <option value="1"{% if _iex155 %} selected{% endif %}>🚢 수출</option>
+              </select>{% if not (z48 and z48.iex155 is not none) %}<div style="font-size:11px;color:#b45309;">(대표값 · 확인 필요 — 고른 수주에 거래구분이 없거나 줄마다 다름)</div>{% endif %}
             </div>
             <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
             <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>
@@ -588,10 +590,12 @@ select.prq-in { appearance:auto; }
               </select>
             </div>
             <div class="pe-f"><label>거래구분</label>
+              {# z1191z155: 거래구분 = 고른 수주 품목 줄 값 · 수주에 없으면 대표값을 「(대표값 · 확인 필요)」로 #}
+              {% set _iex155 = z48.iex155 if (z48 and z48.iex155 is not none) else (p.is_export|int) %}
               <select class="prq-in" name="is_export">
-                <option value="0"{% if not (p.is_export|int) %} selected{% endif %}>🏠 내수</option>
-                <option value="1"{% if (p.is_export|int) %} selected{% endif %}>🚢 수출</option>
-              </select>
+                <option value="0"{% if not _iex155 %} selected{% endif %}>🏠 내수</option>
+                <option value="1"{% if _iex155 %} selected{% endif %}>🚢 수출</option>
+              </select>{% if not (z48 and z48.iex155 is not none) %}<div style="font-size:11px;color:#b45309;">(대표값 · 확인 필요 — 고른 수주에 거래구분이 없거나 줄마다 다름)</div>{% endif %}
             </div>
             <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
             <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>

@@ -33550,6 +33550,38 @@ def _z20_split(line, parts):
     return out
 
 
+def _z155_so_mix():
+    """z1191z155 (대표 11-25 「사실 = 수주」): 관리번호마다 살아 있는 수주의 통화·1차 고객 모음 — 목록·대시에서 「≈」·「외 N곳」 표시용(보여 주기만 · 쓰지 않음).
+    {project_id: {"ccys": [..], "custs": [..]}} · 한 번의 SELECT · 같은 화면 안 여러 번 불러도 3초 동안은 한 번만 셈(읽기만)."""
+    import time as _t155
+    _ch = _z155_so_mix.__dict__.get("_c")
+    if _ch and _t155.time() - _ch[0] < 3:
+        return _ch[1]
+    out = {}
+    try:
+        with db_session() as c:
+            for pid, ccy, cn in c.execute(
+                    "SELECT o.project_id, UPPER(COALESCE(NULLIF(TRIM(o.currency),''),'KRW')), "
+                    "COALESCE(NULLIF(TRIM(cu.alias),''), cu.name, '') FROM orders o LEFT JOIN customers cu ON cu.id=o.customer_id "
+                    "WHERE o.project_id IS NOT NULL AND UPPER(COALESCE(o.status,''))<>'CANCELLED' ORDER BY o.project_id, o.id").fetchall():
+                d = out.setdefault(pid, {"ccys": [], "custs": []})
+                if ccy not in d["ccys"]:
+                    d["ccys"].append(ccy)
+                if cn and cn not in d["custs"]:
+                    d["custs"].append(cn)
+    except Exception as _e155m:
+        print(f"[z1191z155 so mix] {_e155m}")
+        return out
+    _z155_so_mix._c = (_t155.time(), out)
+    return out
+
+
+tpl.env.globals["z155_so_mix"] = _z155_so_mix
+
+
+Z155_TBD = "⚠ 2차 미정(확인 필요)"   # z1191z155: 수주 2차 칸이 아직 안 정해진 매출 — 관리번호 2차로 대신 세지 않고 따로
+
+
 def _z17_lines(c, rates, oi_map, basis):
     """매출 줄 — 호기(order_items)·소모품(consumable_orders) 한 줄씩. 세금계산서 기준은 1·2·3차마다 한 줄."""
     missing, fx_fb = set(), {}
@@ -33570,7 +33602,11 @@ def _z17_lines(c, rates, oi_map, basis):
         if not k:
             return (str(alias.get(cid) or "").strip(), None)
         return (_z74first[k], (str(alias.get(cid) or "").strip() or n) if _z74cnt[k] > 1 else None)
-    vina_ids = {i for i, n in names.items() if str(n).upper().replace(" ", "") == "KNKVINA"}
+    # z1191z155b: 고객사 이름이 「KNK VINA CO LTD」로 바뀌어도(11-20 안지연 변경) VINA 로 알아보게 — 이름 또는 별칭(사람이 적은 값)이 정확히 「KNK VINA」인 곳
+    def _z155_is_vina_nm(_n):
+        _k = "".join(str(_n or "").upper().split())
+        return _k in ("KNKVINA", "KNKVINACOLTD")
+    vina_ids = {i for i, n in names.items() if _z155_is_vina_nm(n) or "".join(str(alias.get(i) or "").upper().split()) == "KNKVINA"}
     # 소모품은 고객사 번호 없이 이름만 적힌 것이 있다 → 정식명·시스템명이 **딱 한 곳**과 같을 때만 그 고객사로(같은 고객이 두 줄로 갈리지 않게)
     _nm2id = {}
     for _i, _n in list(names.items()) + list(alias.items()):
@@ -33612,13 +33648,16 @@ def _z17_lines(c, rates, oi_map, basis):
         _lbl, _key = _pwf.so_form_label_key(so_form=d["so_form"], so_type=d["so_type"], shipment_form=d["o_sf"],
                                            hogi_n=hogi.get(d["oid"], 0), proj_ptype=(d["ptype"] or "NEW_EQUIP"))
         cid = d["ocid"] or d["pcid"]
-        c2 = (d["oend"] if d["oend"] is not None else ((d["psec"] or "") if ((not d["ocid"]) or d["ocid"] == d["pcid"]) else ""))   # z1191z153: '' = 일부러 비움
+        # z1191z155 (대표 11-25 「사실 = 수주 · 수주 칸이 안 정해졌으면 대표값을 계산에 쓰지 않음」): 2차 = 수주 칸만
+        #   NULL(아직 안 정함) = 「2차 미정(확인 필요)」으로 따로 센다(금액은 그대로 · 예전엔 관리번호 2차를 대신 씀) · '' = 사람이 비움(1차 고객 줄)
+        c2 = d["oend"] if d["oend"] is not None else ""
+        _c2tbd155 = d["oend"] is None
         biz = d["biz"] if d["biz"] in ("T", "M", "L", "E") else "E"
         base = {"code": d["code"] or "", "pname": d["pname"] or "", "pid": d["pid"], "so": d["so"] or "", "label": d["lbl"] or "",
                 "model": d["model"] or "", "biz": biz, "cat": _Z17_CAT_BY_KEY.get(_key, "기타"),
                 "cust": (_z74(cid)[0] or d["pcname"] or "—") if cid else (d["pcname"] or "—"),   # z1191z74: 등록명
                 "cust_br": _z74(cid)[1] if cid else None,   # z1191z74: 종사업장(시스템명) — 한 회사 여러 사업장일 때만
-                "cust2": _z17_norm2(c2), "is_vina": cid in vina_ids, "ccy": (d["ccy"] or "KRW").upper(), "kind": "project"}
+                "cust2": _z17_norm2(c2), "c2_tbd": _c2tbd155, "is_vina": cid in vina_ids, "ccy": (d["ccy"] or "KRW").upper(), "kind": "project"}
         if basis == "tax":
             tx = (oi_map or {}).get(d["iid"]) or {}
             for n_, (dk, ak) in enumerate([("t%dd" % _n, "t%da" % _n) for _n in range(1, _TI_MAX + 1)], 1):   # z1191z24
@@ -33668,7 +33707,7 @@ def _z17_lines(c, rates, oi_map, basis):
                 "biz": biz, "cat": "소모품", "cust": (_z74(cid)[0] or d["customer_name"] or "—") if cid else (d["customer_name"] or "—"),   # z1191z74
                 "cust_br": _z74(cid)[1] if cid else None,
                 "cust2": _z17_norm2(d["secondary_customer"]),
-                "is_vina": (cid in vina_ids) or str(d["customer_name"] or "").upper().replace(" ", "") == "KNKVINA",
+                "is_vina": (cid in vina_ids) or _z155_is_vina_nm(d["customer_name"]),
                 "ccy": (d["currency"] or "KRW").upper(), "kind": "consumable"}
         _parts = _z20_parts(_co_item2.get(d["coid"]), base["cust2"])   # z1191z20: 품목별 2차 몫(하나뿐이면 None)
         if basis == "tax":
@@ -33775,8 +33814,8 @@ def _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m):
     va, _so = {}, {}
     for x in vl:
         # z1191z31b (대표 2026-11-16 「2차고객사가 비어 있으면 당연히 입력된 1차 고객사로 적용」): 빈칸 = 1차 고객사(KNK VINA) 줄로
-        k = x["cust2"] or (x["cust"] or "KNK VINA")
-        a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": bool(x["cust2"]) and ("," in k)})
+        k = Z155_TBD if x.get("c2_tbd") else (x["cust2"] or (x["cust"] or "KNK VINA"))   # z1191z155: 수주 2차 미정은 따로
+        a = va.setdefault(k, {"name": k, "total": 0.0, "cnt": 0, "multi": bool(x["cust2"]) and ("," in k), "tbd": k == Z155_TBD})
         a["total"] += x["krw"]; a["cnt"] += 1
         _so.setdefault(k, set()).add(_z33_sok(x))
         _z23_fx_add(a, x)
@@ -34179,7 +34218,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     pv2 = {}
     for x in prv:
         if x["is_vina"]:
-            k = x["cust2"] or (x["cust"] or "KNK VINA")   # z1191z31b: 빈칸 = 1차 고객사
+            k = Z155_TBD if x.get("c2_tbd") else (x["cust2"] or (x["cust"] or "KNK VINA"))   # z1191z31b: 빈칸 = 1차 고객사 · z1191z155: 미정 따로
             pv2[k] = pv2.get(k, 0.0) + x["krw"]
     vt = rep["vina_total"]
 
@@ -34408,7 +34447,7 @@ def _z18_report_xlsx(c, rates, oi_map, rep):
     for x in rep["lines"]:
         rr += 1
         vals = [x["date"], x["nth"], x["code"], x["so"], x["label"], x["pname"], x["model"],
-                _Z18_BIZ_TXT.get(x["biz"], x["biz"]), x["cat"], x.get("cust_br") or x["cust"], x["cust2"], "Y" if x["is_vina"] else "", x["ccy"]]
+                _Z18_BIZ_TXT.get(x["biz"], x["biz"]), x["cat"], x.get("cust_br") or x["cust"], (x["cust2"] or (Z155_TBD if x.get("c2_tbd") else "")), "Y" if x["is_vina"] else "", x["ccy"]]
         for i, v in enumerate(vals):
             put(w2, rr, 1 + i, v, al=a_c if i in (0, 1, 4, 8, 11, 12) else None)
         put(w2, rr, 14, x["amt"], nf='#,##0.##;[Red]-#,##0.##' if x["ccy"] != "KRW" else NF_W)
@@ -37915,6 +37954,16 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         # z1191z48 (대표 2026-11-17): 종이 양식 화면에 쓸 값 — 가리키는 수주(수주번호·호기) · 구분 · 남은 날 · 수정 내용
         _z48 = _z48_view_ctx(c, p, pr)
         _z48.update(_z49_view_ctx(c, p, pr, _z49_cur))
+        # z1191z155 (대표 11-25 「사실 = 수주」): 거래구분 기본값 = 고른 수주의 품목 줄 값(모두 같을 때만) — 없으면 None → 화면 「(대표값 · 확인 필요)」
+        try:
+            _ids155 = _z48.get("sel_ids") or [o["id"] for o in (_z48.get("orders") or [])]
+            _ex155 = {(None if x[0] is None else int(x[0])) for x in c.execute(
+                "SELECT is_export FROM order_items WHERE order_id IN (%s) AND COALESCE(unit_status,'')<>'취소'" % ",".join("?" * len(_ids155)),
+                tuple(_ids155)).fetchall()} if _ids155 else set()
+            _z48["iex155"] = next(iter(_ex155)) if (len(_ex155) == 1 and None not in _ex155) else None
+        except Exception as _e155:
+            print(f"[z1191z155 prq iex] {_e155}")
+            _z48["iex155"] = None
         try:   # z1191z89: 이 관리번호(대표 줄)의 수량 글자 — 고른 수주(없으면 살아 있는 수주 전부)
             _z48["lead_qtytxt"] = _so_qty_join_z89(list(_so_qty_text_map_z89(c, (_z48.get("sel_ids") or [o["id"] for o in (_z48.get("orders") or [])])).values()))
         except Exception as _e89:
@@ -59472,10 +59521,27 @@ def _export_ci_build(c, pid):
                 # v5H226z968: 베트남어 품명(Tên hàng·O열) — 실물 신고용 Invoice&PL 에 사용
                 "description": u.get("description") or "",
             })
+    # z1191z155 (대표 11-25 「사실 = 수주」): 통화·구매자·최종 고객 = 수주 값 — 수주가 모두 같을 때만 그 값 · 다르면 알림(ci_warn155)
+    _live155 = [s for s in sos if str(s.get("status") or "").upper() != "CANCELLED"]
+    _ccys155 = sorted({(s.get("currency") or "").strip().upper() for s in _live155 if (s.get("currency") or "").strip()})
+    _buy155 = sorted({(s.get("so_customer") or "").strip() for s in _live155 if (s.get("so_customer") or "").strip()})
+    _end155 = [s.get("end_customer") for s in _live155]
+    _endv155 = sorted({str(e).strip() for e in _end155 if e is not None and str(e).strip()})
+    _warn155 = []
+    if len(_ccys155) == 1:
+        ccy = _ccys155[0]
+    elif len(_ccys155) > 1:
+        _warn155.append("수주 통화가 여러 개(%s) — 합계는 한 통화로 볼 수 없습니다" % ", ".join(_ccys155))
+    if len(_buy155) > 1:
+        _warn155.append("수주마다 구매자(1차 고객)가 다릅니다(%s)" % ", ".join(_buy155))
+    if any(e is None for e in _end155):
+        _warn155.append("최종 고객(2차)을 아직 안 정한 수주가 있습니다 — 수주 칸 확인 필요")
     ci = {
         "ci_no": f"CI-{p.get('mgmt_code') or pid}",
-        "buyer": p.get("customer_name") or "-",
-        "final_customer": p.get("secondary_customer") or "",
+        # 인쇄 문서(세관 제출)라 수주마다 다르면 글을 이어 붙이지 않고 예전 값 그대로 + 화면 알림만(ci_warn155 · 인쇄 안 됨)
+        "buyer": (_buy155[0] if len(_buy155) == 1 else (p.get("customer_name") or "-")),
+        "final_customer": (_endv155[0] if (len(_endv155) == 1 and not any(e is None for e in _end155)) else (p.get("secondary_customer") or "")),
+        "ci_warn155": _warn155,
         "order_no": " · ".join(so_nos) if so_nos else (p.get("mgmt_code") or "-"),
         "mgmt_code": p.get("mgmt_code") or "-",
         "order_date": p.get("order_date") or "",

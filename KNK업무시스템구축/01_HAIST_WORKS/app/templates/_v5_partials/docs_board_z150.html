@@ -32,7 +32,7 @@
       <tr data-grp="{{ p._grp|default('all') }}" data-div="{{ p._div|default('') }}" data-mine="{{ p._mine|default(0) }}" data-dmiss="{{ p._dmiss|default('') }}">
         <td><a href="/project/{{ p.id }}" class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</a></td>
         <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
-        <td>{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}</td>
+        <td>{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% set _m155 = z155_so_mix().get(p.id) if p.id is defined else none %}{% if _m155 and _m155.custs|length > 1 %} <span style="color:#64748b;font-size:11px;" title="수주별 고객: {{ _m155.custs|join(', ') }}">외 {{ _m155.custs|length - 1 }}곳</span>{% endif %}</td>
         <td>{% if d.pq %}<a class="dc150 lk" href="/quotes/{{ d.pq.id }}" title="{{ d.pq.orig_name }} · {{ d.pq.by_name or '' }} {{ (d.pq.created_at or '')[:10] }}">📋 견적서</a> <a class="dc150dl" href="/projects/{{ p.id }}/quote-files/{{ d.pq.id }}" title="원본 엑셀 받기">⬇</a>{% else %}<span class="dc150 no">없음</span>{% endif %}</td>
         <td>{{ pchip(d.po) if d.po.final else '<span class="dc150 no">없음</span>'|safe }}</td>
         <td>{% if d.sos %}<div class="db150-so">

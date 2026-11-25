@@ -481,7 +481,7 @@ a.z45-all:hover { text-decoration:underline; }
             <span class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</span>
             <div class="list-text">
               <div class="ttl">{{ p.name }}</div>
-              <div class="meta">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.stage %} · {{ p.stage }}{% endif %}</div>
+              <div class="meta">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% set _m155 = z155_so_mix().get(p.id) if p.id is defined else none %}{% if _m155 and _m155.custs|length > 1 %} <span style="color:#64748b;font-size:11px;" title="수주별 고객: {{ _m155.custs|join(', ') }}">외 {{ _m155.custs|length - 1 }}곳</span>{% endif %}{% if p.stage %} · {{ p.stage }}{% endif %}</div>
             </div>
             <div class="list-amount">{# z1191z104 (대표 11-22): 원래 통화로 크게 + 「≈ ₩」 작게 · 마우스 → 몇 월 기준환율·얼마 #}{% if p.fx_show_z104 %}{{ _fx.fx_amt(p.fx_bd_z104, short=true) }}{% else %}—{% endif %}</div>
           </a>

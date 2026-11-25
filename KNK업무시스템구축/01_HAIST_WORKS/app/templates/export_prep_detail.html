@@ -76,7 +76,8 @@
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
         고객사 {{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}
         {% if p.model_name %} · 모델 {{ p.model_name }}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
-        · 통화 <b>{{ p.currency|default('KRW') }}</b>{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
+        {% set _ccys155 = (sos|default([], true))|map(attribute='currency')|select|map('upper')|unique|list %}
+        · 통화 <b>{{ (_ccys155|join(' · ')) if _ccys155 else p.currency|default('KRW') }}</b>{% if _ccys155|length > 1 %} <span style="color:#b45309;">(수주마다 다름 · 줄마다 그 수주 통화)</span>{% endif %}{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
         · 납기 {{ p.due_date|default('—') }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b>
       </div>
     </div>
@@ -238,7 +239,7 @@
           {% set _wt = u.get('weight_kg') %}
           {% set _bx = u.get('box_no') %}
           {% set _pl = u.get('pallet_size') %}
-          <tr data-iid="{{ u.id }}" data-qty="{{ _qty }}" data-sale="{{ _up if _up is not none else 0 }}">
+          <tr data-iid="{{ u.id }}" data-qty="{{ _qty }}" data-sale="{{ _up if _up is not none else 0 }}" data-ccy="{{ _ccy }}">
             <td class="read" data-col="name" style="font-weight:600;" title="{{ u.unit_label or '' }}">
               {{ u.unit_label or ('호기 ' ~ loop.index) }}
               {% if p.model_name or p.equip_name %}<span class="pmodel">{{ p.model_name or '' }}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}</span>{% endif %}
@@ -332,7 +333,9 @@
       if(sale<=0){ return; }
       var base = sale*(1+k);
       var usd;
-      if(PROJ_CCY==='USD') usd = fmt(base);
+      var rc = (row.dataset.ccy || PROJ_CCY);   /* z1191z155: 판매단가 통화 = 그 수주 통화(관리번호 통화 아님) */
+      if(rc==='USD') usd = fmt(base);
+      else if(rc!=='KRW'){ skip++; return; }   /* USD·KRW 말고 다른 외화는 환율이 없어 건너뜀(알림 수에 들어감) */
       else if(PROJ_FX>0) usd = fmt(base/PROJ_FX);
       else { skip++; return; }
       setIfEl(row,'invoice_unit_price_usd', usd);
