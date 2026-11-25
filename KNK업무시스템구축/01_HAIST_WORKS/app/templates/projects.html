@@ -60,6 +60,16 @@ body {
   .proj-bm .bm.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
   .proj-bm .bm.on b { color:#fff; }
   .proj-fs-bar { display:none; }
+  /* z1191z151 (대표 11-25 「표기한 아이콘들이 상위·하위 구분이 정확히 안 돼」): 1단 = 사업부(크고 빨강 채움) · 2단 = 진행 상태(작고 들여쓰기 · 고르면 빨강 테두리) · 📎 = 다른 보기(구분선 뒤) */
+  .proj-bm .bm-lb { align-self:center; min-width:64px; font-size:11.5px; font-weight:800; color:var(--qv-ink-3); letter-spacing:.02em; }
+  .proj-bm.proj-bm-div .bm { font-size:13.5px; padding:8px 16px; }
+  .proj-bm.proj-lv2 { margin-left:calc(var(--content-pad) + 18px); padding-left:12px; border-left:3px solid var(--qv-line); }
+  .proj-bm.proj-lv2 .bm-lb { min-width:58px; }
+  .proj-bm.proj-lv2 .bm { padding:4px 11px; font-size:12px; border-radius:8px; background:var(--qv-surface,#fff); }
+  .proj-bm.proj-lv2 .bm.on { background:#fff; color:var(--knk-red); border:2px solid var(--knk-red); }
+  .proj-bm.proj-lv2 .bm.on b { color:var(--knk-red); }
+  .proj-bm .bm-sep { align-self:stretch; width:1px; background:var(--qv-line); margin:2px 6px; }
+  .proj-bm.proj-lv2 .bm[data-bm="docs"] { border-style:dashed; }
   #projFsWrap:fullscreen { background:var(--qv-surface, #fff); overflow-y:auto; padding:18px 8px 40px; }
   #projFsWrap:fullscreen .proj-fs-bar { display:flex; gap:8px; align-items:center; justify-content:flex-end;
        position:sticky; top:6px; margin:0 var(--content-pad) 8px 0; z-index:30; }
@@ -92,9 +102,10 @@ body {
 
   {# v5H226z217 (대표 지시): 사업부별 책갈피 — 탭으로 사업부 선택 (이동 없이 즉시 필터) #}
   <div class="proj-bm proj-bm-div" data-dn="proj-bm-div" style="margin-bottom:8px;">
+    <span class="bm-lb">사업부</span>
     {# z1191z92 (대표 11-21 P0-6): 👤 내 건만 — 영업담당자 칸 = 내 이름 · 누르면 내 계정에 기억(작업 일정표와 같이) #}
     {% if mine_count %}<a href="/projects?{% for _k, _v in request.query_params.multi_items() if _k != 'mine' %}{{ _k|urlencode }}={{ _v|urlencode }}&amp;{% endfor %}mine={{ 0 if mine_on else 1 }}" id="projMineBtn" class="bm{% if mine_on %} on{% endif %}" title="영업담당자 칸에 내 이름이 적힌 건만 보기 · 다시 누르면 전체">👤 내 건만 <b>{{ mine_count }}</b>{% if mine_on %} <span style="font-weight:600;font-size:11px;">· 남의 건 숨김</span>{% endif %}</a>{% endif %}{# z1191z101: 검색어·폐기함·보기 값 유지 #}
-    <a href="#" data-div="all" onclick="projDivFilter('all');return false;" class="bm on">🗂 전체 <b>{{ div_counts.all }}</b></a>
+    <a href="#" data-div="all" onclick="projDivFilter('all');return false;" class="bm on">🗂 모든 사업부 <b>{{ div_counts.all }}</b></a>
     <a href="#" data-div="T"   onclick="projDivFilter('T');return false;"   class="bm">🔬 검사기 <b>{{ div_counts.T }}</b></a>
     <a href="#" data-div="M"   onclick="projDivFilter('M');return false;"   class="bm">🤖 자동화 <b>{{ div_counts.M }}</b></a>
     <a href="#" data-div="L"   onclick="projDivFilter('L');return false;"   class="bm">💄 라이프밸류 <b>{{ div_counts.L }}</b></a>
@@ -103,13 +114,15 @@ body {
   </div>
 
   {# v5H226z156: 책갈피는 이동 없이 JS 즉시 필터 → 전체화면 유지 (대표 지시) #}
-  <div class="proj-bm" data-dn="proj-bm">
-    <a href="#" data-bm="all"         onclick="projFilter('all');return false;"         class="bm {% if not view %}on{% endif %}">📂 전체 <b>{{ view_counts.all }}</b></a>
+  <div class="proj-bm proj-lv2" data-dn="proj-bm">
+    <span class="bm-lb">└ 진행 상태</span>
+    <a href="#" data-bm="all"         onclick="projFilter('all');return false;"         class="bm {% if not view %}on{% endif %}">📂 모든 상태 <b>{{ view_counts.all }}</b></a>
     <a href="#" data-bm="unconfirmed" onclick="projFilter('unconfirmed');return false;" class="bm {% if view=='unconfirmed' %}on{% endif %}">🆕 미확정 <b>{{ view_counts.unconfirmed }}</b></a>
     <a href="#" data-bm="ongoing"     onclick="projFilter('ongoing');return false;"     class="bm {% if view=='ongoing' %}on{% endif %}">🟡 진행중 <b>{{ view_counts.ongoing }}</b></a>
     <a href="#" data-bm="done"        onclick="projFilter('done');return false;"        class="bm {% if view=='done' %}on{% endif %}">🟢 출하 <b>{{ view_counts.done }}</b></a>
     <a href="#" data-bm="hold"        onclick="projFilter('hold');return false;"        class="bm {% if view=='hold' %}on{% endif %}">⚫ 보류·취소 <b>{{ view_counts.hold }}</b></a>
     {# z1191z150 (대표 11-25 「프로젝트 목록에 책갈피 하나 만들어 견적서·발주서를 한꺼번에」): 숫자 = 견적서·발주서가 하나라도 붙은 관리번호 · 누르면 관리번호 → 수주번호별 보기 #}
+    <span class="bm-sep"></span><span class="bm-lb" style="min-width:auto;">보기</span>
     <a href="#" data-bm="docs" onclick="projDocs150();return false;" class="bm {% if docs_view %}on{% endif %}" title="관리번호마다 수주번호별 견적서·발주서가 있는지 한눈에 · 원본 받기">📎 견적서·발주서 <b>{{ docs_n }}</b></a>
   </div>
 
