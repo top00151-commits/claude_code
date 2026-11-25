@@ -128,6 +128,9 @@ def main():
     print("§1 프로젝트 상세")
     r = cl.get("/project/%d" % pa)
     check("A 상세 열림(200)", r.status_code == 200, r.status_code)
+    # z1191z153 (대표 11-25 원칙 ③): 화면 열기만으로 저장 안 함 → 알림 목록(heal153)에 뜨고, 「맞추기」(POST)를 눌러야 저장
+    check("A 열기만으로는 납기 그대로(저장 안 함) · ⚠ 알림에 납기", pget(pa, "due_date") != "2026-12-10" and any("납기" in h for h in (cap.get("heal153") or [])), (pget(pa, "due_date"), cap.get("heal153")))
+    cl.post("/project/%d/heal" % pa)
     check("A 취소 있음: 납기 = 살아 있는 수주 납기 2026-12-10(취소 수주 2027-03-01 아님)", pget(pa, "due_date") == "2026-12-10", pget(pa, "due_date"))
     check("A 취소 있음: 발주일 = 2026-11-01(취소 수주 2026-10-01 아님)", pget(pa, "order_date") == "2026-11-01", pget(pa, "order_date"))
     _au = cap.get("all_units_sorted") or []
@@ -136,6 +139,9 @@ def main():
           len(cap.get("currency_mix") or []) == 1 and not cap.get("currency_warning"), (cap.get("currency_mix"), cap.get("currency_warning")))
     r = cl.get("/project/%d" % pb)
     check("B 상세 열림(200)", r.status_code == 200, r.status_code)
+    _cap_b = dict(cap)
+    cl.post("/project/%d/heal" % pb)
+    cap.clear(); cap.update(_cap_b)
     check("B 취소 없음: 납기 = MAX 2027-03-01 (예전과 같음)", pget(pb, "due_date") == "2027-03-01", pget(pb, "due_date"))
     check("B 취소 없음: 발주일 = MIN 2026-10-01 (예전과 같음)", pget(pb, "order_date") == "2026-10-01", pget(pb, "order_date"))
     check("B 취소 없음: 호기 3 · 통화 혼합 2 · 경고 있음 (예전과 같음)",
@@ -144,9 +150,12 @@ def main():
 
     print("§1b 빠른 수정 화면 열기")
     cl.get("/projects/%d/quick-edit" % pc)
+    check("C 정보 수정 화면 열기만으로는 저장 안 함(z1191z153)", pget(pc, "due_date") != "2026-12-10", pget(pc, "due_date"))
+    cl.post("/project/%d/heal" % pc)
     check("C 취소 있음: 납기 2026-12-10 · 발주일 2026-11-01", (pget(pc, "due_date"), pget(pc, "order_date")) == ("2026-12-10", "2026-11-01"),
           (pget(pc, "due_date"), pget(pc, "order_date")))
     cl.get("/projects/%d/quick-edit" % pd_)
+    cl.post("/project/%d/heal" % pd_)
     check("D 취소 없음: 납기 MAX 2027-03-01 · 발주일 MIN 2026-10-01 (예전과 같음)",
           (pget(pd_, "due_date"), pget(pd_, "order_date")) == ("2027-03-01", "2026-10-01"), (pget(pd_, "due_date"), pget(pd_, "order_date")))
 

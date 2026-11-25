@@ -134,10 +134,10 @@ ok, F1, raw = followup("VINA", end="가상드림 베트남", iex="1")
 check("3 추가 발주 1차 KNK VINA · 고객사2 「가상드림 베트남」 → 그 수주 2차 저장(예전엔 버려짐)",
       ok and F1["customer_id"] == CUST["VINA"] and F1.get("end_customer") == "가상드림 베트남", (raw, F1 and F1.get("end_customer")))
 ok, F2, raw = followup("DT")
-check("4 같은 고객(가상드림(동탄)) 추가 발주 · 고객사2 비움 → 2차 칸 비움(프로젝트를 따름)",
-      ok and F2.get("end_customer") is None, (raw, F2 and F2.get("end_customer")))
+check("4 같은 고객(가상드림(동탄)) 추가 발주 · 고객사2 비움 → 2차 = '' 없음(관리번호 값 안 물려받음)",
+      ok and F2.get("end_customer") == "", (raw, F2 and F2.get("end_customer")))  # z1191z154 (대표 11-25 「비워 놓은 건 비우고 · 수주가 사실」): 비운 2차 = '' (없음) · 관리번호 값 안 물려받음
 ok, F3, raw = followup("VINA", iex="1")
-check("5 KNK VINA 추가 발주 · 고객사2 비움 → 2차 칸 비움", ok and F3.get("end_customer") is None, (raw, F3 and F3.get("end_customer")))
+check("5 KNK VINA 추가 발주 · 고객사2 비움 → 2차 = '' 없음", ok and F3.get("end_customer") == "", (raw, F3 and F3.get("end_customer")))  # z1191z154 (대표 11-25 「비워 놓은 건 비우고 · 수주가 사실」): 비운 2차 = '' (없음) · 관리번호 값 안 물려받음
 ok, F4, raw = followup("VINA", end="가상드림 베트남", iex="1", sf="PARTS")
 check("6 상품(PARTS) 추가 발주 · 고객사2 → 그 수주 2차 저장", ok and F4.get("end_customer") == "가상드림 베트남",
       (raw, F4 and F4.get("end_customer"), F4 and F4.get("so_type")))
@@ -152,7 +152,7 @@ c2 = {so: r.get("cust2") for so, r in by_so.items()}
 S0 = orders_of(P["id"])[0]["order_no"]
 check("7 작업일정표 줄 고객사2: 첫 수주(같은 고객) = 프로젝트 「가상최종A」", c2.get(S0) == "가상최종A", c2)
 check("   KNK VINA + 2차 적힘 = 「가상드림 베트남」", c2.get(F1["order_no"]) == "가상드림 베트남", c2)
-check("   같은 고객 추가 발주(2차 비움) = 프로젝트 「가상최종A」", c2.get(F2["order_no"]) == "가상최종A", c2)
+check("   같은 고객 추가 발주(2차 비움) = 빈칸(관리번호 값 안 물려받음)", c2.get(F2["order_no"]) == "", c2)  # z1191z154 (대표 11-25 「비워 놓은 건 비우고 · 수주가 사실」): 비운 2차 = '' (없음) · 관리번호 값 안 물려받음
 check("   🔴 KNK VINA 추가 발주(2차 비움) = 빈칸(다른 경로는 프로젝트 2차를 물려받지 않음)", c2.get(F3["order_no"]) == "", c2)
 check("   줄 1차(고객사1)는 그대로 수주 발주처", (by_so.get(F1["order_no"]) or {}).get("customer_disp") == "가상 VINA"
       and (by_so.get(S0) or {}).get("customer_disp") == "가상드림(동탄)",
@@ -167,7 +167,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/sales/orders/%d/quick-edit" % F3["id"], data={"end_customer": ""})
 with D.db_session() as c:
     e3 = c.execute("SELECT end_customer FROM orders WHERE id=?", (F3["id"],)).fetchone()[0]
-check("   2차 지우기 → NULL", r.status_code == 200 and e3 is None, (r.status_code, e3))
+check("   2차 지우기 → '' (사람이 비움 = 없음)", r.status_code == 200 and e3 == "", (r.status_code, e3))  # z1191z154 (대표 11-25 「비워 놓은 건 비우고 · 수주가 사실」): 비운 2차 = '' (없음) · 관리번호 값 안 물려받음
 with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/sales/orders/%d/quick-edit" % F3["id"], data={"end_customer": "T901"})
 check("9 2차 칸에 로그인 ID(브라우저 자동 채움) → 400 + 「2차 발주처」 안내(z1173 막기)",
@@ -177,7 +177,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     h = cl.get("/project/%d" % P["id"]).text
 check("10 상세 화면: 수주 카드마다 「🌐 2차」", h.count("🌐 2차") == len(orders_of(P["id"])), (h.count("🌐 2차"), len(orders_of(P["id"]))))
 check("   적힌 2차는 굵게 · 같은 고객은 「가상최종A (프로젝트)」 · 다른 경로 빈칸은 —",
-      "가상드림 베트남</b>" in h and "가상최종A (프로젝트)" in h, (h.count("가상드림 베트남"), h.count("(프로젝트)")))
+      "가상드림 베트남</b>" in h, (h.count("가상드림 베트남"), h.count("(프로젝트)")))  # z1191z154 (대표 11-25 「비워 놓은 건 비우고 · 수주가 사실」): 비운 2차 = '' (없음) · 관리번호 값 안 물려받음
 check("   수정 칸은 수주 카드마다(z1191z117: 참고 수주도 그 자리에서 고침 · 취소 수주 제외)", h.count('data-field="end_customer"') == len([o for o in orders_of(P["id"]) if str(o.get("status") or "").upper() != "CANCELLED"]),
       h.count('data-field="end_customer"'))
 with contextlib.redirect_stdout(io.StringIO()):
@@ -306,7 +306,7 @@ check("DB 마이그레이션 한 줄 · 업무 데이터 UPDATE 없음",
       and not re.search(r"UPDATE orders SET end_customer", db))
 check("add_followup_order end_customer · 상세 수주 목록 칸", "end_customer: str | None = None) -> dict:" in pw and '"end_customer"):   # z1190' in pw)
 check("main: 추가 발주 넘김 · 상품 · 빠른 수정 · z1173 막기 · 일정표 SQL · 줄 규칙 두 곳",
-      "end_customer=((form.get(\"secondary_customer\")" in mn and "_end1190" in mn and "_has1190" in mn
+      "end_customer=(form.get(\"secondary_customer\")" in mn and "_end1190" in mn and "_has1190" in mn
       and '("2차 발주처", form.get("end_customer"))' in mn and "AS o_end" in mn
       and mn.count('elif _ln.get("so_cust_id") and info.get("pcid")') == 2)
 check("상세 카드 「🌐 2차」 · 템플릿 JS 에 Jinja 기호 문제 없음", "🌐 2차" in tp)

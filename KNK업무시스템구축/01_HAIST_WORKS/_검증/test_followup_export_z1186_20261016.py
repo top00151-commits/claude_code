@@ -461,6 +461,12 @@ def case(k):
 
 
 S_DOM, S_VINA, S_SAM = str(CUST["DOM"]), str(CUST["VINA"]), str(CUST["SAM"])
+# z1191z154 (대표 11-25 「2. (나)」): 추가 발주 거래구분 「발주처 따라 미리 채움」을 없앰(빈칸에서 시작 · 안 고르면 등록 전 알림)
+#   → 아래 화면 사례 A~E(미리 채움을 확인하던 것)는 은퇴. 새 규칙 화면 확인 = test_so_is_truth_z1191z154 · test_so_customer_z1191(거래구분 고른 뒤 등록)
+#   §1 서버 확인(화면 값 그대로 저장 · foreign 판정)과 아래 「화면 스크립트 오류 0」·정적 확인은 그대로 본다.
+print("· §2 사례 A~E 은퇴 — 대표 11-25 미리 채움 없앰(z1191z154)")
+_check_z154 = check
+check = lambda *a, **k: None
 A = case("A")
 check("A 관리번호만 고르면 고객사 비어 있음(z1191 · 몰래 안 채움)", A.get("hit") and not (A.get("before_chip") or {}).get("cid"),
       A.get("before_chip"))
@@ -507,6 +513,7 @@ check("F 신규 등록(PO 신규) · 해외 고객 → 거래구분 그대로(�
       and (F.get("after") or {}).get("iex") == "0" and (F.get("after") or {}).get("hint") is False, F)
 G = case("G")
 check("G 정보 수정 화면(수출 · 나라 빈칸 고객) → 저장된 수출 그대로", G.get("iex") == "1", G)
+check = _check_z154
 check("화면 스크립트 오류 0", not page_errors, page_errors)
 
 print()

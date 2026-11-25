@@ -454,7 +454,7 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
         cols.append("po_type")
         vals.append((str(po_type or "").strip() or "추가"))
     # z1190: 이 수주의 2차 발주처(최종 고객) — 화면의 고객사2. 비면 적지 않는다(NULL = 미지정)
-    if end_customer and str(end_customer).strip() and "end_customer" in _ord_cols:
+    if end_customer is not None and "end_customer" in _ord_cols:   # z1191z154: '' = 사람이 비움(없음) · None = 안 정함
         cols.append("end_customer"); vals.append(str(end_customer).strip()[:100])
     # z1191z5 (안지연 프로 신고 ② · 대표 2026-11-06): 추가·개조 발주 때 적은 모델명·장비명을 **이 수주에** 남긴다(z981 칸).
     #   예전엔 인자가 없어 등록 화면 값이 버려졌고(수주 model_name NULL), 상세 카드·작업일정표가 프로젝트 대표값(첫 등록)을
@@ -757,10 +757,12 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     # v5H89b: customer_id 비어 있으면 customer_name 으로 조회해서 채움
     if not customer_id and proj.get("customer_name"):
         try:
-            row = c.execute(
-                "SELECT id FROM customers WHERE name=? LIMIT 1",
+            # z1191z153 (대표 11-25 원칙 · 데이터 연결성 안전): 같은 이름이 딱 1곳일 때만(여러 곳이면 연결 안 하고 수주 고객사 빈칸 = 화면 ⚠)
+            _rows153 = c.execute(
+                "SELECT id FROM customers WHERE name=? LIMIT 2",
                 (proj["customer_name"],)
-            ).fetchone()
+            ).fetchall()
+            row = _rows153[0] if len(_rows153) == 1 else None
             if row:
                 customer_id = row[0]
                 # 프로젝트에도 채워둠 (다음 호출 빠르게)
@@ -1463,8 +1465,17 @@ PROTECTED_SO_STATUSES = ("INVOICED", "PAID")
 # 재무 잠금(SO INVOICED/PAID) 만 보호. 호기 unit_status 는 모두 cascade 가능.
 
 
+def _z153_multi_so(c, project_id) -> int:
+    """z1191z153 (대표 11-25 원칙 ① 「고른 줄만」): 취소 뺀 수주 수 — 2개 이상이면 프로젝트 값을 수주들에 퍼뜨리지 않는다."""
+    try:
+        return int(c.execute("SELECT COUNT(*) FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
+                             (int(project_id),)).fetchone()[0] or 0)
+    except Exception:
+        return 0
+
+
 def cascade_project_status_to_so(c, project_id: int, new_status: str,
-                                  changed_by: int | None = None) -> dict:
+                                  changed_by: int | None = None, allow_multi: bool = False) -> dict:
     """v5H226r/w — 프로젝트 status 변경 시 자식 SO·호기 자동 동기화.
     cascade 대상이 아닌 status (제안작성/초기협의/...) 는 no-op.
     INVOICED/PAID SO 만 보호 (재무 기록). 호기는 모두 cascade — 사용자 직관(프로젝트=마스터).
@@ -1475,6 +1486,16 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
     target_so = PROJECT_TO_SO_STATUS.get(new_status)
     if not target_unit:
         return {"units_changed": 0, "orders_changed": 0, "skipped": True}
+    # z1191z153 (대표 11-25 원칙 ①②): 수주가 2개 이상이면 사람이 「함께 바꾸기」를 확인했을 때만(allow_multi) 수주·호기에 퍼뜨린다
+    _n153 = _z153_multi_so(c, project_id)
+    if _n153 >= 2 and not allow_multi:
+        try:
+            from .database import log_project_change
+            log_project_change(c, project_id, changed_by, "상태 cascade 동기화", "", new_status,
+                               note=f"z1191z153 수주 {_n153}건은 그대로(수주가 여러 개 — 함께 바꾸기를 고르지 않음 · 수주별로 바꾸세요)")
+        except Exception:
+            pass
+        return {"units_changed": 0, "orders_changed": 0, "skipped": True, "multi_kept": _n153}
     units_changed = 0
     orders_changed = 0
     # v5H226z1094 (대표 지시 2026-09-01): '출하'로 내릴 때는 **납기가 아직 안 온 수주**를 건드리지 않는다.
@@ -1553,12 +1574,26 @@ def cascade_project_status_to_so(c, project_id: int, new_status: str,
 
 def cascade_project_meta_to_so(c, project_id: int,
                                 old_meta: dict, new_meta: dict,
-                                changed_by: int | None = None) -> list[str]:
+                                changed_by: int | None = None, allow_multi: bool = False) -> list[str]:
     """v5H226s — 프로젝트 메타필드(due_date/order_date/currency) 변경 시 자식 SO·호기 동기화.
     원칙: '변경 전 부모값과 동일했던 행만' cascade. override(다른 값 명시)된 행은 보존.
     INVOICED/PAID SO 는 제외 (수금 시작분 보존)."""
     PROTECTED = ("INVOICED", "PAID")
     summary: list[str] = []
+    # z1191z153 (대표 11-25 원칙 ①): 수주가 2개 이상이면 납기·발주일·통화를 수주들에 퍼뜨리지 않는다(고른 수주는 각 화면이 직접 저장)
+    _n153 = _z153_multi_so(c, project_id)
+    if _n153 >= 2 and not allow_multi:
+        _chg153 = [k for k in ("due_date", "order_date", "currency")
+                   if (new_meta.get(k) or "") and (new_meta.get(k) or "") != (old_meta.get(k) or "")]
+        if _chg153:
+            summary.append(f"수주 {_n153}건은 그대로(수주가 여러 개 — 납기·발주일·통화는 수주별로 고치세요)")
+            try:
+                from .database import log_project_change
+                log_project_change(c, project_id, changed_by, "메타 cascade 동기화", "", summary[-1],
+                                   note="z1191z153 프로젝트 값만 바꾸고 수주로 퍼뜨리지 않음")
+            except Exception:
+                pass
+        return summary
     # 1) due_date cascade
     new_due = new_meta.get("due_date")
     old_due = old_meta.get("due_date")

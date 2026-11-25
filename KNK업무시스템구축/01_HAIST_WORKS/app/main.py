@@ -649,7 +649,9 @@ def _z152_effective(proj, so):
     else:
         out["customer_name"] = proj.get("customer_name")
     # 2차 고객 = 상세 화면과 같은 규칙: 수주 칸 → 없으면 (수주 고객사가 대표 고객사와 같을 때만) 프로젝트 2차
-    if so is not None and not (so.get("end_customer") or "").strip():
+    if so is not None and so.get("end_customer") is not None:   # z1191z153: '' = 사람이 일부러 비움 → 빈칸 그대로
+        out["secondary_customer"] = str(so.get("end_customer") or "").strip()
+    elif so is not None:
         same = (not so.get("customer_id")) or _z152_norm("customer_id", so.get("customer_id")) == _z152_norm("customer_id", proj.get("customer_id"))
         out["secondary_customer"] = (proj.get("secondary_customer") or "") if same else ""
     return out
@@ -690,11 +692,20 @@ def _z152_show(c, key, v):
     return v
 
 
-def _z152_save_so_fields(c, pid, form, proj_old, user):
-    """고른 수주에만 저장 → 바뀐 칸 [(이력 글자, 전, 후)] · 수주가 1개이거나 고를 수주가 없으면 None(예전 흐름)."""
+def _z152_save_so_fields(c, pid, form, proj_old, user, allow_single=False):
+    """고른 수주에만 저장 → 바뀐 칸 [(이력 글자, 전, 후)] · 수주가 1개이거나 고를 수주가 없으면 None(예전 흐름).
+    z1191z154 (대표 11-25 「관리번호 = 공통만 · 나머지는 수주번호」): allow_single=True 면 수주 1개 관리번호도 그 수주 칸에 저장
+    (프로젝트 쪽 저장은 예전 흐름이 함께 — 수주 1개 = 프로젝트와 같은 값)."""
+    _single154 = False
     if not _z152_multi(c, pid):
-        return None
-    oid = _quick_target_so_z117(c, pid, form.get("target_so"))
+        if not allow_single:
+            return None
+        _one154 = c.execute("SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'", (int(pid),)).fetchall()
+        if len(_one154) != 1:
+            return None
+        _single154 = True
+    oid = (c.execute("SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'", (int(pid),)).fetchone()[0]
+           if _single154 else _quick_target_so_z117(c, pid, form.get("target_so")))
     if not oid:
         return None
     so, cols = _z152_so_row(c, oid)
@@ -730,6 +741,19 @@ def _z152_save_so_fields(c, pid, form, proj_old, user):
         old_n, new_n = _z152_norm(fk, eff.get(fk)), _z152_norm(fk, new)
         if old_n == new_n:
             continue
+        # z1191z154: 수주 1개 = 화면이 관리번호 값을 보여 준다 → 사람이 화면에서 바꾼 칸(관리번호 옛 값과 다른 칸)만 수주에 쓴다
+        #   (수주 칸이 관리번호와 일부러 다르게 적혀 있으면 안 바꾼 칸으로 덮지 않음)
+        if _single154 and _z152_norm(fk, proj_old.get(pk)) == new_n:
+            continue
+        if _single154 and sk != "@items" and so.get(sk) is not None and str(so.get(sk)).strip() != ""                 and _z152_norm(fk, so.get(sk)) != _z152_norm(fk, proj_old.get(pk)):
+            # 수주 칸에 사람이 관리번호와 다르게 적어 둔 값 = 사람이 넣은 값 우선 → 덮지 않고 알림만(이력)
+            changed.append((lb, _z152_show(c, fk, _z152_norm(fk, so.get(sk))), "수주 칸 값이 관리번호와 달라 그대로(수주 카드에서 고치세요)"))
+            try:
+                _logi.log_project_change(c, int(pid), uid, lb, _z152_show(c, fk, _z152_norm(fk, so.get(sk))), "(그대로)",
+                                         note=f"z1191z154 수주 {so.get('order_no')} 칸이 관리번호와 달라 정보 수정이 덮지 않음 · {who}")
+            except Exception as _e:
+                print(f"[z1191z154] 이력 실패: {_e}")
+            continue
         if fk == "currency":
             st = str(so.get("status") or "").upper()
             paid = has_rp and c.execute("SELECT 1 FROM receipts_payment WHERE order_id=? LIMIT 1", (int(oid),)).fetchone()
@@ -746,7 +770,7 @@ def _z152_save_so_fields(c, pid, form, proj_old, user):
                 continue
             c.execute("UPDATE orders SET so_form=? WHERE id=?", (_Z22_SF2SO[new_n], int(oid)))
         else:
-            val = (int(new_n) if new_n != "" else None) if fk == "customer_id" else (new_n if new_n != "" else None)
+            val = (int(new_n) if new_n != "" else None) if fk == "customer_id" else (new_n if (new_n != "" or sk == "end_customer") else None)   # z1191z153: 2차 비움 = 
             c.execute(f"UPDATE orders SET {sk}=? WHERE id=?", (val, int(oid)))
         if fk == "currency":
             c.execute("UPDATE order_items SET currency=? WHERE order_id=? AND COALESCE(currency,'') NOT IN ('', ?)",
@@ -755,7 +779,8 @@ def _z152_save_so_fields(c, pid, form, proj_old, user):
         changed.append((lb, ov, nv))
         try:
             _logi.log_project_change(c, int(pid), uid, lb, ov, nv,
-                                     note=f"z1191z152 수주 {so.get('order_no')} 만 · 정보 수정(수주 2개 이상 — 다른 수주·대표값 그대로) · {who}")
+                                     note=(f"z1191z154 수주 {so.get('order_no')} 칸에 저장 · 정보 수정(수주 1개 — 관리번호와 같은 값) · {who}" if _single154
+                                           else f"z1191z152 수주 {so.get('order_no')} 만 · 정보 수정(수주 2개 이상 — 다른 수주·대표값 그대로) · {who}"))
         except Exception as _e:
             print(f"[z1191z152] 이력 실패: {_e}")
     return changed
@@ -12063,11 +12088,41 @@ def _heal_by_z13(u) -> str:
     return f" · 화면 연 사람: {_nm}" if _nm else ""
 
 
+# z1191z153 (대표 11-25 원칙 ③ 「화면을 여는 것만으로는 아무것도 저장하지 않는다」 · 「이상하면 알람만」):
+#   상세 화면(GET)의 자가치유(호기 이름 다시 매김 · 수주 대수·합계 · 누락 수주 발행 · 수주액·납기·발주일)는 저장하지 않고
+#   「⚠ 저장된 값과 다름」 목록만 만든다 → 사람이 「맞추기」 단추(POST)를 누를 때만 같은 코드가 저장(이력 = 누른 사람).
+import contextvars as _cv153
+_HEAL153 = _cv153.ContextVar("heal153_commit", default=False)
+
+
+@app.post("/project/{pid}/heal")
+async def project_detail_heal_z153(req: Request, pid: int):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    _tok = _HEAL153.set(True)
+    try:
+        await project_detail(req, pid)
+    finally:
+        _HEAL153.reset(_tok)
+    try:
+        with db_session() as c:
+            _logi.log_project_change(c, int(pid), u.get("id"), "맞추기", "", "수주 기준으로 맞춤",
+                                     note="z1191z153 상세 화면 「⚠ 저장된 값과 다름 · 맞추기」 단추 · " + (vname_full(u) or u.get("name") or ""))
+    except Exception as _e:
+        print(f"[z1191z153] 맞추기 이력 실패: {_e}")
+    return JSONResponse({"ok": True})
+
+
 @app.get("/project/{pid}", response_class=HTMLResponse)
 async def project_detail(req: Request, pid: int):
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
+    _w153 = _HEAL153.get()   # True = 「맞추기」 단추로 들어옴(저장) · False = 화면 열기(저장 안 함)
+    heal153 = []
     # v5H226z695 (대표 지시): 보드에서 누른 수주번호(?so=<수주번호>) — 그 수주를 상세에서 '메인(편집)' 카드로 올림.
     #   없으면 기존대로 가장 오래된 SO = 메인. (호기/관리번호 클릭 → 그 수주가 곧장 보이도록)
     focus_so = (req.query_params.get("so") or "").strip()
@@ -12094,7 +12149,9 @@ async def project_detail(req: Request, pid: int):
                 "ORDER BY o.order_date ASC, o.id ASC, oi.id ASC", (pid,)).fetchall()
             _rl = [(r[0], (r[1] or ""), r[2]) for r in _aitems]
             _hg = [(iid, lbl, oid) for (iid, lbl, oid) in _rl if _hgre.match(lbl)]
-            if _hg and any(lbl != f"{i+1}호기" for i, (_, lbl, _) in enumerate(_hg)):
+            if _hg and any(lbl != f"{i+1}호기" for i, (_, lbl, _) in enumerate(_hg)) and not _w153:
+                heal153.append("호기 번호가 1·2·3… 순서와 다름(" + ", ".join(lbl for _, lbl, _ in _hg[:6]) + ("…" if len(_hg) > 6 else "") + ")")
+            elif _hg and any(lbl != f"{i+1}호기" for i, (_, lbl, _) in enumerate(_hg)):
                 _nm = {}
                 for i, (iid, _, _) in enumerate(_hg):
                     _nm[iid] = f"{i+1}호기"
@@ -12199,6 +12256,11 @@ async def project_detail(req: Request, pid: int):
                             "SELECT COUNT(*) FROM order_items WHERE order_id=?", (_oid,)
                         ).fetchone()[0] or 0
                         if _ic > 0:
+                            if not _w153:   # z1191z153: 열기만 = 알림만
+                                _uq153 = c2.execute("SELECT COALESCE(unit_qty,1), order_no FROM orders WHERE id=?", (_oid,)).fetchone()
+                                if _uq153 and int(_uq153[0] or 1) != _ic:
+                                    heal153.append(f"수주 {_uq153[1]} 대수 {int(_uq153[0] or 1)} ≠ 호기 줄 {_ic}")
+                                continue
                             c2.execute(
                                 "UPDATE orders SET unit_qty=? WHERE id=? AND COALESCE(unit_qty,1) <> ?",
                                 (_ic, _oid, _ic)
@@ -12218,7 +12280,10 @@ async def project_detail(req: Request, pid: int):
                             cur_t = c2.execute(
                                 "SELECT total_amount FROM orders WHERE id=?", (_oid,)
                             ).fetchone()
-                            if cur_t and abs(float(cur_t[0] or 0) - _isum) > 0.5:
+                            if cur_t and abs(float(cur_t[0] or 0) - _isum) > 0.5 and not _w153:
+                                _on153 = c2.execute("SELECT order_no FROM orders WHERE id=?", (_oid,)).fetchone()
+                                heal153.append(f"수주 {(_on153[0] if _on153 else _oid)} 합계 {float(cur_t[0] or 0):,.0f} ≠ 품목 줄 합 {_isum:,.0f}")
+                            elif cur_t and abs(float(cur_t[0] or 0) - _isum) > 0.5:
                                 c2.execute(
                                     "UPDATE orders SET total_amount=? WHERE id=?",
                                     (_isum, _oid)
@@ -12241,6 +12306,9 @@ async def project_detail(req: Request, pid: int):
                 # v5H142: NEW_EQUIP 만 자동 SO 발행 (소모품/수리는 별도 도메인 사용)
                 _ptype_h = (p.get("project_type") if isinstance(p, dict) else (p["project_type"] if "project_type" in p.keys() else "")) or "NEW_EQUIP"
                 if (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0
+                    and _ptype_h == "NEW_EQUIP") and not _w153:
+                    heal153.append(f"상태가 「{_p_status}」이고 수주액 {_p_amt:,.0f} 이 있는데 수주(SO)가 없음 — 맞추기를 누르면 수주를 발행합니다")
+                elif (not _pre_sos and _p_status in _logi.WON_STATUSES and _p_amt > 0
                     and _ptype_h == "NEW_EQUIP"):
                     # v5H226z667 (대표 지시): 자가치유가 수량(unit_qty)을 무시하고 '총액 1줄'을 만들어
                     #   order_items 단가=총액으로 깨지던 버그 수정 → 수량만큼 호기별 per-unit 라인 생성.
@@ -12294,7 +12362,9 @@ async def project_detail(req: Request, pid: int):
                 # z1097b: 통화별 환산 합계로 자가치유. 못 정하면(환율 없음) 그대로 둔다.
                 _so_sum = _recalc_project_amount(c2, pid)
                 _curr = float(p.get("order_amount") or 0) if isinstance(p, dict) else float((p["order_amount"] or 0))
-                if _so_sum is not None and abs(_so_sum - _curr) > 0.5:
+                if _so_sum is not None and abs(_so_sum - _curr) > 0.5 and not _w153:
+                    heal153.append(f"저장된 수주액 {_curr:,.0f} ≠ 수주 합계(환산) {_so_sum:,.0f}")
+                elif _so_sum is not None and abs(_so_sum - _curr) > 0.5:
                     # ccy-ok: 값은 위 _recalc_project_amount(통화별 환산) 결과. 조건부라 직접 저장한다.
                     c2.execute("UPDATE projects SET order_amount=? WHERE id=?",
                                (_so_sum, pid))
@@ -12317,7 +12387,9 @@ async def project_detail(req: Request, pid: int):
                 if _due_dates:
                     _max_due = max(_due_dates)
                     _proj_due = (p.get("due_date") if isinstance(p, dict) else p["due_date"]) or ""
-                    if _max_due != _proj_due:
+                    if _max_due != _proj_due and not _w153:
+                        heal153.append(f"저장된 납기 {_proj_due or '—'} ≠ 수주 가장 늦은 납기 {_max_due}")
+                    elif _max_due != _proj_due:
                         c2.execute("UPDATE projects SET due_date=? WHERE id=?",
                                    (_max_due, pid))
                         if isinstance(p, dict):
@@ -12328,7 +12400,9 @@ async def project_detail(req: Request, pid: int):
                 if _ord_dates:
                     _min_ord = min(_ord_dates)
                     _proj_ord = (p.get("order_date") if isinstance(p, dict) else p["order_date"]) or ""
-                    if _min_ord != _proj_ord:
+                    if _min_ord != _proj_ord and not _w153:
+                        heal153.append(f"저장된 발주일 {_proj_ord or '—'} ≠ 수주 가장 이른 발주일 {_min_ord}")
+                    elif _min_ord != _proj_ord:
                         c2.execute("UPDATE projects SET order_date=? WHERE id=?",
                                    (_min_ord, pid))
                         if isinstance(p, dict):
@@ -12519,7 +12593,7 @@ async def project_detail(req: Request, pid: int):
         "label": (_form_breakdown[0][0] if len(_form_breakdown) == 1 else ""),
         "breakdown": _form_breakdown,
     }
-    return ctx(req, "project_detail.html",
+    return ctx(req, "project_detail.html", heal153=heal153,
                form_summary=form_summary,   # v5H226z1058: 헤더 형태(혼합+구성)
                project_display_status=project_display_status,
                retire_blocked=bool(_retire_fin.get("any")),   # v5H226z872: 실거래 기록 있으면 폐기 불가
@@ -15295,6 +15369,7 @@ async def admin_model_equip_fix_page(req: Request):
 
 
 @app.get("/admin/so-fill-model-equip-run")
+@app.post("/admin/so-fill-model-equip-run")   # z1191z153: 실제 반영은 POST 로만(주소 열기·미리 불러오기로는 안 바뀜)
 async def admin_so_fill_model_equip_run(req: Request, apply: str = "", dl: str = ""):
     """v5H226z1064c (대표 지시·부분수정 적용): 리포지토리에 번들된 pairs(model_equip_backfill_z1064.json)로
     수주(SO)별 모델·장비 '빈칸만' 채움. (fetch/업로드가 WORKS 서비스워커에 막혀 GET=navigate 트리거로 실행.)
@@ -15304,7 +15379,7 @@ async def admin_so_fill_model_equip_run(req: Request, apply: str = "", dl: str =
     if not u:
         return RedirectResponse("/login", 303)
     import json as _j
-    _do = ((apply or "").strip() == "RUN-z1064")
+    _do = ((apply or "").strip() == "RUN-z1064") and req.method == "POST"   # z1191z153 (대표 11-25 원칙 ③): GET = 미리보기만
     _path = os.path.join(os.path.dirname(__file__), "model_equip_backfill_z1064.json")
     try:
         with open(_path, encoding="utf-8") as _f:
@@ -21916,7 +21991,7 @@ async def sales_orders_quick_edit(req: Request, oid: int):
         with db_session() as _c1190:
             _has1190 = "end_customer" in {r[1] for r in _c1190.execute("PRAGMA table_info(orders)").fetchall()}
         if _has1190:
-            sets.append("end_customer=?"); vals.append(((form.get("end_customer") or "").strip()[:100]) or None)
+            sets.append("end_customer=?"); vals.append((form.get("end_customer") or "").strip()[:100])   # z1191z153 (대표 「비워놓은건 비우고」): 비움 = '' (NULL = 아직 안 정함)
     # v5H226z981 (대표 지시): 수주(SO)별 모델명·장비명 + 이 수주 호기 비고 — 작업일정표 셀 편집이
     #   그 발주(SO) 것만 고치도록(프로젝트 전체 덮어쓰기 방지). 컬럼 미생성 DB 는 PRAGMA 로 방어.
     _note981 = (form.get("line_note") or "").strip() if "line_note" in form else None
@@ -22023,6 +22098,16 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                 change_desc.append("모델명→" + ((form.get("model_name") or "").strip()[:60] or "(지움)"))
             if "equip_name=?" in ",".join(sets):
                 change_desc.append("장비명→" + ((form.get("equip_name") or "").strip()[:60] or "(지움)"))
+            if "end_customer=?" in ",".join(sets):   # z1191z153: 2차 고객도 이력에(비움 = 「2차 없음」)
+                change_desc.append("2차 고객→" + ((form.get("end_customer") or "").strip()[:60] or "(2차 없음으로 정함)"))
+                try:
+                    _pid153 = c.execute("SELECT project_id FROM orders WHERE id=?", (oid,)).fetchone()
+                    if _pid153 and _pid153[0]:
+                        _logi.log_project_change(c, int(_pid153[0]), u.get("id"), "2차 고객(수주)", "",
+                                                 (form.get("end_customer") or "").strip()[:60] or "(2차 없음)",
+                                                 note="z1191z153 수주 카드에서 이 수주만 · " + (vname_full(u) or u.get("name") or ""))
+                except Exception as _e153:
+                    print(f"[z1191z153] 2차 이력 실패: {_e153}")
             c.execute(
                 "INSERT INTO order_status_history(order_id, from_status, to_status, "
                 "changed_by, note) VALUES(?,?,?,?,?)",
@@ -33502,7 +33587,7 @@ def _z17_lines(c, rates, oi_map, basis):
         _lbl, _key = _pwf.so_form_label_key(so_form=d["so_form"], so_type=d["so_type"], shipment_form=d["o_sf"],
                                            hogi_n=hogi.get(d["oid"], 0), proj_ptype=(d["ptype"] or "NEW_EQUIP"))
         cid = d["ocid"] or d["pcid"]
-        c2 = d["oend"] or ((d["psec"] or "") if ((not d["ocid"]) or d["ocid"] == d["pcid"]) else "")
+        c2 = (d["oend"] if d["oend"] is not None else ((d["psec"] or "") if ((not d["ocid"]) or d["ocid"] == d["pcid"]) else ""))   # z1191z153: '' = 일부러 비움
         biz = d["biz"] if d["biz"] in ("T", "M", "L", "E") else "E"
         base = {"code": d["code"] or "", "pname": d["pname"] or "", "pid": d["pid"], "so": d["so"] or "", "label": d["lbl"] or "",
                 "model": d["model"] or "", "biz": biz, "cat": _Z17_CAT_BY_KEY.get(_key, "기타"),
@@ -36574,6 +36659,7 @@ async def parts_delete_submit(request: Request, pid: int):
 #   대표 확정: 지금 데이터는 검증용(실운영 시 초기화·재업로드) → 전사 일괄 안전. 충돌(이미 -1 존재)이면 그 건은 건너뜀.
 #   ?do 미지정 = 미리보기(변경 안 함) · ?do=1 = 실제 적용 · ?pid=N = 그 프로젝트만 · 관리자(admin/ceo)만.
 @app.get("/admin/so-suffix-migrate")
+@app.post("/admin/so-suffix-migrate")   # z1191z153: 실제 반영은 POST 로만
 async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
     u = get_user(request)
     if not u:
@@ -36584,7 +36670,7 @@ async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
     from collections import defaultdict as _dd
     _base_re = _re.compile(r"^([TMLECR]-\d{6})$")          # 접미 없음
     _suf_re = _re.compile(r"^([TMLECR]-\d{6})-(\d+)$")     # 접미 있음
-    _apply = (str(do) == "1")
+    _apply = (str(do) == "1") and request.method == "POST"   # z1191z153 (대표 11-25 원칙 ③): GET = 미리보기만
     plan, skipped = [], []
     try:
         with db_session() as c:
@@ -36632,7 +36718,7 @@ async def admin_so_suffix_migrate(request: Request, do: str = "", pid: int = 0):
     return JSONResponse({"ok": True, "applied": _apply, "mode": "cascade(전사·날짜별 한 칸 밀기)",
                          "count": len(_out), "skipped_count": len(skipped),
                          "plan": _out[:400], "skipped": skipped[:50],
-                         "hint": ("미리보기입니다 — 실제 변경하려면 URL 끝에 ?do=1 을 붙이세요."
+                         "hint": ("미리보기입니다 — 주소를 여는 것만으로는 바뀌지 않습니다. 실제 변경은 같은 주소에 do=1 로 POST(확인 후)."
                                   if not _apply else "적용 완료.")})
 
 
@@ -38074,6 +38160,11 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     _mine_count = sum(r["_mine"] for r in rows)
     # z1191z150 (대표 11-25): 📎 견적서·발주서 책갈피 — 숫자는 가볍게(붙은 관리번호 수) · 표는 view=docs 일 때만 계산
     _docs150, _docs_n150, _docs_sum150 = {}, 0, {"miss_q": 0, "miss_p": 0, "so": 0}
+    try:   # z1191z154: 수주 칸 확인 필요 건수(보기만)
+        with db_session() as _c154n:
+            _so_check_n154 = _z154_check_count(_c154n)
+    except Exception:
+        _so_check_n154 = 0
     try:
         _pids150 = [int(r["id"]) for r in rows if r.get("_kind") != "consumable" and r.get("id")]
         with db_session() as _c150:
@@ -38096,7 +38187,7 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     except Exception as _e150:
         print(f"[z1191z150] 견적서·발주서 책갈피 실패: {_e150}")
     return ctx(request, "projects.html",
-               docs_view=(view == "docs"), docs_n=_docs_n150, docs_sum=_docs_sum150,
+               docs_view=(view == "docs"), docs_n=_docs_n150, docs_sum=_docs_sum150, so_check_n=_so_check_n154,
                user=u, active="sales_projects",
                mine_on=bool(_mine_on and _mine_count), mine_count=_mine_count,
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
@@ -38375,7 +38466,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "o_ship": d.get("o_ship") or "", "o_cur": d.get("o_cur") or "KRW",
                         "o_cust": (d.get("o_cust_name") or ""), "o_cust_id": d.get("o_cust_id"),   # v5H226z668/z682: SO 고객사(이름·id)
                         "o_cust_disp": (d.get("o_cust_disp") or ""),   # v5H226z705: SO 고객사 표시명(시스템명 우선)
-                        "o_end": (d.get("o_end") or ""),   # z1190: SO 2차 발주처(최종 고객)
+                        "o_end": d.get("o_end"),   # z1190: SO 2차 발주처(최종 고객) · z1191z153: None = 안 정함 · '' = 일부러 비움
                         "o_cc_name": (d.get("o_cc_name") or ""), "o_cc_dept": (d.get("o_cc_dept") or ""),
                         "o_cc_phone": (d.get("o_cc_phone") or ""),   # v5H226z678: SO 담당자/부서/연락처
                         "o_model": (d.get("o_model") or ""), "o_equip": (d.get("o_equip") or ""),   # v5H226z981: SO 모델명·장비명
@@ -38470,7 +38561,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                     "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "", "is_export": _ciex,   # v5H226z668/z683/z705: SO 발주처(정식명+표시명) + 호기 거래구분
                     "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                     "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
-                    "so_end": _so.get("o_end") or "",   # z1190: SO 2차 발주처
+                    "so_end": _so.get("o_end"),   # z1190: SO 2차 발주처 · z1191z153: None/'' 구분
                     "status_date": (_eff_c("i_sdate", "") or "")[:10],   # v5H226z711: 상태 발생일(호기)
                     # v5H226z981: SO별 모델명·장비명 + 이 SO 호기 비고(부품 SO는 부품별 비고라 제외 — 기타사항 아님)
                     # v5H226z983: None=안 적음(프로젝트 메모 폴백) / ''=지움(폴백 안 함) / 문자열=비고
@@ -38519,7 +38610,7 @@ def _board_split_lines_map(unfold_sos=True, pids=None):
                         "is_export": it.get("i_iex"), "so_customer": _so.get("o_cust") or "", "so_customer_disp": _so.get("o_cust_disp") or _so.get("o_cust") or "",   # v5H226z668/z705: 호기 거래방식·SO 발주처(정식명+표시명)
                         "so_owner": _so.get("o_cc_name") or "", "so_dept": _so.get("o_cc_dept") or "",
                         "so_contact": _so.get("o_cc_phone") or "", "so_cust_id": _so.get("o_cust_id"),   # v5H226z678/z682
-                        "so_end": _so.get("o_end") or "",   # z1190: SO 2차 발주처
+                        "so_end": _so.get("o_end"),   # z1190: SO 2차 발주처 · z1191z153: None/'' 구분
                         "status_date": (str(it.get("i_sdate") or "").strip()[:10]),   # v5H226z711: 상태 발생일(호기)
                         # v5H226z981: SO별 모델명·장비명 + 이 호기 비고 / oid·so_type = 셀 편집 SO 라우팅(data-soid)용
                         # v5H226z983: 비고 3상태 — None=안 적음(폴백) / ''=지움(폴백 안 함) / 문자열
@@ -39234,10 +39325,12 @@ def build_schedule_board_rows(u, _y: int, _m: int, cust: str = "", biz: str = ""
                     _iu["cust_ok"] = True
                 # z1190 (대표 「수주마다 1차·2차 발주처」): 줄의 고객사2 = 그 수주의 2차(있으면) ·
                 #   없고 1차가 프로젝트 고객과 다르면(KNK VINA 처럼 다른 경로) 프로젝트 고객사2 를 물려받지 않는다
-                if _ln.get("so_end"):
-                    _iu["cust2"] = _ln.get("so_end")
+                if _ln.get("so_end") is not None:   # z1191z153: 사람이 넣은 값(비움 '' 포함)이 우선
+                    _iu["cust2"] = _ln.get("so_end") or ""
                 elif _ln.get("so_cust_id") and info.get("pcid") and _ln.get("so_cust_id") != info.get("pcid"):
                     _iu["cust2"] = ""
+                elif _iu.get("cust2"):   # z1191z153 (대표 11-25): 이 수주 칸은 안 정함 → 보이는 값은 관리번호 값(대표값 · 확인 필요)
+                    _iu["cust2_inh"] = True
                 _iu["so_customer"] = ""
                 # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
                 if _ln.get("so_owner"):
@@ -39470,7 +39563,7 @@ def _z46_so_sheet(c, oid):
             if it.get("image_thumb_path"):
                 imgs[(i, pc)] = it.get("image_thumb_path")
     info = [("관리번호", code), ("수주번호", so), ("프로젝트명", _z46_txt(p.get("name"))), ("고객사", cust),
-            ("2차 고객사", _z46_txt(o.get("end_customer")) or _z46_txt(p.get("secondary_customer"))),
+            ("2차 고객사", _z46_txt(o.get("end_customer")) if o.get("end_customer") is not None else _z46_txt(p.get("secondary_customer"))),   # z1191z153
             ("발주일", _z46_txt(o.get("order_date"))[:10]), ("납기", _z46_txt(o.get("due_date"))[:10]),
             ("통화", ccy if one_ccy else "/".join(sorted(ccys))),
             ("모델명", _z46_txt(o.get("model_name")) or _z46_txt(p.get("model_name"))),
@@ -41291,10 +41384,12 @@ def schedule_board(request: Request, ym: str = "", cust: str = "", biz: str = ""
                     _iu["cust_ok"] = True
                 # z1190 (대표 「수주마다 1차·2차 발주처」): 줄의 고객사2 = 그 수주의 2차(있으면) ·
                 #   없고 1차가 프로젝트 고객과 다르면(KNK VINA 처럼 다른 경로) 프로젝트 고객사2 를 물려받지 않는다
-                if _ln.get("so_end"):
-                    _iu["cust2"] = _ln.get("so_end")
+                if _ln.get("so_end") is not None:   # z1191z153: 사람이 넣은 값(비움 '' 포함)이 우선
+                    _iu["cust2"] = _ln.get("so_end") or ""
                 elif _ln.get("so_cust_id") and info.get("pcid") and _ln.get("so_cust_id") != info.get("pcid"):
                     _iu["cust2"] = ""
+                elif _iu.get("cust2"):   # z1191z153 (대표 11-25): 이 수주 칸은 안 정함 → 보이는 값은 관리번호 값(대표값 · 확인 필요)
+                    _iu["cust2_inh"] = True
                 _iu["so_customer"] = ""
                 # v5H226z678 (대표 지시): 수주(SO)별 담당자/부서/연락처 — 같은 관리번호 다른 주문 구분(수주값 있으면 덮어씀)
                 if _ln.get("so_owner"):
@@ -41715,7 +41810,7 @@ def _z1191_so_cell(field, value, so_oid, pid, picked_cid=None, uids=None, user=N
         if field == "cust2":
             if "end_customer" not in oc:
                 return {"ok": False, "error": "수주 2차 칸 없음(마이그레이션 필요)"}
-            c.execute("UPDATE orders SET end_customer=? WHERE id=?", (val[:100] or None, so_oid))
+            c.execute("UPDATE orders SET end_customer=? WHERE id=?", (val[:100], so_oid))   # z1191z153: 비움 = ''
             _z1191_sync_project_from_so(c, pid, so_oid, old_cid, old_end)
             _z1191_hist(c, so_oid, user, f"2차 발주처 변경: {old_end or '(미지정)'} → {val or '(비움)'} (작업일정표)")
             return {"ok": True, "value": val}
@@ -41791,6 +41886,29 @@ def _rows_add_so_custs_z1191(c, rows):
     for r in rows:
         d = by.get(int(r["id"]), {"c": [], "e": []})
         r["so_custs"], r["so_ends"] = d["c"][:8], d["e"][:8]
+    # z1191z154 (대표 11-25 기준 3 「다음 수주는 빈칸에서 시작 · 『앞 수주와 같게』 단추를 사람이 누르면 채움」): 가장 최근 수주 값
+    _oc154 = _z1191_ocols(c)
+    _sf154 = {"ASSEMBLY": "ASSEMBLY", "완제품": "ASSEMBLY", "SEMI": "SEMI", "제품": "SEMI", "PARTS": "PARTS", "상품": "PARTS", "ETC": "ETC", "기타": "ETC"}
+    for r in rows:
+        r["so_last"] = None
+        try:
+            o = c.execute("SELECT o.id, o.order_no, o.customer_id, " + ("o.end_customer" if "end_customer" in _oc154 else "NULL") + ", o.currency, "
+                          + ("o.so_form" if "so_form" in _oc154 else "NULL") + f", {nm} FROM orders o LEFT JOIN customers cu ON cu.id=o.customer_id "
+                          "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY COALESCE(o.order_date,'') DESC, o.id DESC LIMIT 1",
+                          (int(r["id"]),)).fetchone()
+            if not o:
+                continue
+            ex = {x[0] for x in c.execute("SELECT is_export FROM order_items WHERE order_id=? AND COALESCE(unit_status,'')<>'취소'", (o[0],)).fetchall()}
+            fcode = None
+            try:
+                fcode = _Z19_FORM_CODE.get(_z19_so_form_label(c, o[0]) or "") if not o[5] else _sf154.get(str(o[5]).strip())
+            except Exception:
+                fcode = _sf154.get(str(o[5] or "").strip())
+            r["so_last"] = {"order_no": o[1] or "", "customer_id": o[2], "customer_name": (o[6] or "").strip(),
+                            "end_customer": (None if o[3] is None else str(o[3]).strip()), "currency": (o[4] or "").upper(),
+                            "is_export": (next(iter(ex)) if len(ex) == 1 else None), "shipment_form": fcode}
+        except Exception as _e154:
+            print(f"[z1191z154] 앞 수주 값 읽기 실패 pid={r.get('id')}: {_e154}")
 
 
 # z1191z128 (안지연 프로 11-24 사진 「연기 수정 삭제 가능하게 · 항상 사유를 적을 수 있어야 · 삭제한 연기도 관리번호 이력에 · 어떤 이유로 삭제했는지」):
@@ -46686,11 +46804,9 @@ async def projects_quick_edit_form(request: Request, pid: int):
                     _heal.append(("due_date", max(dues)))
                 if ords:
                     _heal.append(("order_date", min(ords)))
-                for _col, _val in _heal:
-                    try:
-                        c2.execute(f"UPDATE projects SET {_col}=? WHERE id=?", (_val, pid))
-                    except Exception:
-                        pass
+                # z1191z153 (대표 11-25 원칙 ③): 정보 수정 화면을 여는 것만으로는 저장하지 않는다(예전엔 수주액·납기·발주일을 저장) —
+                #   상세 화면 「⚠ 저장된 값과 다름 · 맞추기」에서 사람이 맞춘다.
+                _heal153q = _heal
     except Exception:
         pass
     p = _logi.projects_get_logi(pid)
@@ -46807,6 +46923,160 @@ def _parse_cost_margin(cost_list, margin_list, i):
 
 # z1191z22: 등록 화면 형태(shipment_form) → 수주 형태(so_form) — 작업일정표 「형태」 칸(z1191z19)과 같은 값
 _Z22_SF2SO = {"ASSEMBLY": "ASSEMBLY", "SEMI": "SEMI", "PARTS": "PARTS", "ETC": "ETC"}
+
+
+def _z154_seed_new_so(pid, form, exclude_ids=None):
+    """z1191z154 (대표 11-25 기준 1): 새 등록 화면의 2차 고객·PO유형·거래구분 = 이번에 만든 수주의 칸에(그 수주 칸이 비어 있을 때만 · 사람이 화면에 넣은 값).
+    2차를 비워 두고 등록했으면 '' (= 사람이 비움) 로 둔다."""
+    ex = [int(x) for x in (exclude_ids or []) if str(x).isdigit() or isinstance(x, int)]
+    sec = (form.get("secondary_customer") or "").strip()[:100]
+    po = (form.get("po_type") or "").strip()
+    try:
+        with db_session() as c:
+            cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+            q_ex = (" AND id NOT IN (%s)" % ",".join("?" * len(ex))) if ex else ""
+            if "end_customer" in cols:
+                c.execute("UPDATE orders SET end_customer=? WHERE project_id=? AND end_customer IS NULL" + q_ex, [sec, int(pid)] + ex)
+            if "po_type" in cols and po and po in _logi.PO_TYPES:
+                c.execute("UPDATE orders SET po_type=? WHERE project_id=? AND COALESCE(po_type,'')=''" + q_ex, [po, int(pid)] + ex)
+            _iex = (form.get("is_export") or "").strip()
+            if _iex in ("0", "1"):   # 거래구분 = 이번에 만든 수주 품목 줄(비어 있는 줄만)
+                c.execute("UPDATE order_items SET is_export=? WHERE is_export IS NULL AND order_id IN "
+                          "(SELECT id FROM orders WHERE project_id=?" + q_ex + ")", [int(_iex), int(pid)] + ex)
+    except Exception as _e:
+        print(f"[z1191z154] 새 수주 칸 저장 실패 pid={pid}: {_e}")
+
+
+def _z154_check_rows(c, limit=3000):
+    """수주 2개 이상(취소 빼고) 관리번호에서 2차 고객(end_customer NULL)·PO유형(빈칸)이 그 수주에 정해지지 않은 수주."""
+    oc = _z1191_ocols(c)
+    if "end_customer" not in oc or "po_type" not in oc:
+        return []
+    ccols = {x[1] for x in c.execute("PRAGMA table_info(customers)").fetchall()}
+    nm = "COALESCE(NULLIF(cu.alias,''), cu.name, '')" if "alias" in ccols else "COALESCE(cu.name, '')"
+    rows = [dict(r) for r in c.execute(f"""
+        SELECT o.id AS oid, o.order_no, o.order_date, o.project_id AS pid, o.end_customer, NULLIF(o.po_type,'') AS po_type, {nm} AS cust,
+               p.mgmt_code, p.name AS pname, p.secondary_customer AS p_end, p.po_type AS p_po
+          FROM orders o JOIN projects p ON p.id=o.project_id LEFT JOIN customers cu ON cu.id=o.customer_id
+         WHERE COALESCE(o.status,'')<>'CANCELLED'
+           AND o.project_id IN (SELECT project_id FROM orders WHERE COALESCE(status,'')<>'CANCELLED' AND project_id IS NOT NULL
+                                 GROUP BY project_id HAVING COUNT(*)>=2)
+         ORDER BY p.mgmt_code, COALESCE(o.order_date,''), o.id""").fetchall()]
+    prev = {}
+    out = []
+    for r in rows:
+        pv = prev.get(r["pid"])
+        r["prev_end"] = pv["end_customer"] if pv else None
+        r["prev_po"] = (pv["po_type"] if pv else None)
+        prev[r["pid"]] = r
+        if r["end_customer"] is None or not r["po_type"]:
+            out.append(r)
+    return out[:limit]
+
+
+def _z154_check_count(c):
+    try:
+        return len(_z154_check_rows(c))
+    except Exception as _e:
+        print(f"[z1191z154] 확인 필요 세기 실패: {_e}")
+        return 0
+
+
+@app.get("/projects/so-check", response_class=HTMLResponse)
+async def projects_so_check_z154(request: Request):
+    """z1191z154 (대표 11-25 기준 2): 수주 칸 확인 필요 목록 — 보기만(여는 것만으로 저장 안 함)."""
+    u = get_user(request)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not (can_use_sales(u) or can_view_sales(u)):
+        return RedirectResponse("/home", 303)
+    with db_session() as c:
+        rows = _z154_check_rows(c)
+    return ctx(request, "so_check_z154.html", user=u, active="sales", rows=rows, n_proj=len({r["pid"] for r in rows}),
+               can_up=bool(can_use_sales(u)), po_types=list(_logi.PO_TYPES))
+
+
+@app.post("/api/so-check/{oid}")
+async def api_so_check_z154(request: Request, oid: int):
+    """z1191z154: 확인 필요 수주 칸 정하기 — action = rep(대표값으로 확정) · prev(앞 수주와 같게) · set(직접) · 이력 남김."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    form = await request.form()
+    field = (form.get("field") or "").strip()
+    act = (form.get("action") or "").strip()
+    if field not in ("end_customer", "po_type") or act not in ("rep", "prev", "set"):
+        return JSONResponse({"ok": False, "message": "알 수 없는 요청입니다."}, 400)
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        o = c.execute("SELECT id, order_no, project_id, end_customer, NULLIF(po_type,''), COALESCE(order_date,'') FROM orders "
+                      "WHERE id=? AND COALESCE(status,'')<>'CANCELLED'", (int(oid),)).fetchone()
+        if not o:
+            return JSONResponse({"ok": False, "message": "그 수주를 찾지 못했습니다."}, 404)
+        cur = o[3] if field == "end_customer" else o[4]
+        if (field == "end_customer" and cur is not None) or (field == "po_type" and cur):
+            return JSONResponse({"ok": False, "message": "이미 이 수주에 정해진 값이 있습니다(" + (cur or "없음") + ") — 화면을 다시 불러오세요."}, 409)
+        p = c.execute("SELECT secondary_customer, po_type FROM projects WHERE id=?", (o[2],)).fetchone()
+        if act == "rep":
+            val = (p[0] if field == "end_customer" else p[1]) if p else None
+        elif act == "prev":
+            pr = c.execute("SELECT end_customer, NULLIF(po_type,'') FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' AND id<>? "
+                           "AND (COALESCE(order_date,'') < ? OR (COALESCE(order_date,'') = ? AND id < ?)) "
+                           "ORDER BY COALESCE(order_date,'') DESC, id DESC LIMIT 1",
+                           (o[2], o[0], o[5], o[5], o[0])).fetchone()
+            if not pr or (pr[0] if field == "end_customer" else pr[1]) is None:
+                return JSONResponse({"ok": False, "message": "앞 수주에도 정해진 값이 없습니다."}, 400)
+            val = pr[0] if field == "end_customer" else pr[1]
+        else:
+            val = (form.get("value") or "").strip()
+        val = (str(val or "").strip())[:100]
+        if field == "po_type" and val not in _logi.PO_TYPES:
+            return JSONResponse({"ok": False, "message": "PO유형을 골라 주세요."}, 400)
+        c.execute(f"UPDATE orders SET {field}=? WHERE id=?", (val, int(oid)))
+        lb = "2차 고객" if field == "end_customer" else "PO유형"
+        how = {"rep": "대표값으로 확정", "prev": "앞 수주와 같게", "set": "직접 넣음"}[act]
+        try:
+            _logi.log_project_change(c, int(o[2]), u.get("id"), lb, "(정해지지 않음 · 대표값 보임)", val or "없음",
+                                     note=f"z1191z154 수주 {o[1]} 칸 확인 · {how} · {who}")
+        except Exception as _e:
+            print(f"[z1191z154] 이력 실패: {_e}")
+    return JSONResponse({"ok": True, "shown": val or "없음"})
+
+
+@app.post("/api/so-check-proj/{pid}")
+async def api_so_check_proj_z154(request: Request, pid: int):
+    """z1191z154: 「이 관리번호 수주 모두 대표값으로 확정」 — 사람이 누를 때만 · 그 관리번호에서 아직 정해지지 않은 수주 칸만 · 수주마다 이력."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
+    form = await request.form()
+    field = (form.get("field") or "").strip()
+    if field not in ("end_customer", "po_type"):
+        return JSONResponse({"ok": False, "message": "알 수 없는 요청입니다."}, 400)
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        p = c.execute("SELECT secondary_customer, po_type FROM projects WHERE id=?", (int(pid),)).fetchone()
+        if not p:
+            return JSONResponse({"ok": False, "message": "관리번호를 찾지 못했습니다."}, 404)
+        val = (str((p[0] if field == "end_customer" else p[1]) or "").strip())[:100]
+        if field == "po_type" and val not in _logi.PO_TYPES:
+            return JSONResponse({"ok": False, "message": "관리번호의 PO유형이 비어 있어 확정할 값이 없습니다 — 수주마다 골라 주세요."}, 400)
+        guard = "end_customer IS NULL" if field == "end_customer" else "COALESCE(po_type,'')=''"
+        rows = c.execute(f"SELECT id, order_no FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' AND {guard}",
+                         (int(pid),)).fetchall()
+        lb = "2차 고객" if field == "end_customer" else "PO유형"
+        for oid, ono in rows:
+            c.execute(f"UPDATE orders SET {field}=? WHERE id=?", (val, int(oid)))
+            try:
+                _logi.log_project_change(c, int(pid), u.get("id"), lb, "(정해지지 않음 · 대표값 보임)", val or "없음",
+                                         note=f"z1191z154 수주 {ono} 칸 확인 · 관리번호 수주 모두 대표값으로 확정 · {who}")
+            except Exception as _e:
+                print(f"[z1191z154] 이력 실패: {_e}")
+    return JSONResponse({"ok": True, "n": len(rows), "shown": val or "없음"})
 
 
 def _z22_set_so_form(pid, shipment_form, exclude_ids=None):
@@ -47156,7 +47426,7 @@ async def projects_new_submit(request: Request):
                                      (max(1, min(100, _pu974f)), _po_oid))
                         # z1190: 상품 추가 발주도 화면의 고객사2 = 이 수주의 2차 발주처(최종 고객)
                         _end1190 = (form.get("secondary_customer") or "").strip()
-                        if _end1190 and "end_customer" in {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}:
+                        if "end_customer" in {r[1] for r in _cc3.execute("PRAGMA table_info(orders)").fetchall()}:   # z1191z154: 비우면 '' = 없음
                             _cc3.execute("UPDATE orders SET end_customer=? WHERE id=?", (_end1190[:100], _po_oid))
                         # z1191z7 (안지연 프로 신고 ③ 보강 · 대표 2026-11-06): 상품 추가 발주도 화면에서 고른 **PO유형·1차 발주처**를 이 수주에.
                         #   완제품 경로(add_followup_order)는 z1033·z1191 부터 받았지만 상품 경로(confirm_order_multi)는 버려서
@@ -47249,7 +47519,7 @@ async def projects_new_submit(request: Request):
                         so_type=_fu_sotype, currency=_ccy_v, ship_to="",
                         order_customer_id=_fu_cust_id,
                         is_export=_fu_iex,   # z1186: 화면의 거래구분 그대로
-                        end_customer=((form.get("secondary_customer") or "").strip() or None),   # z1190: 화면의 고객사2 = 이 수주의 2차 발주처
+                        end_customer=(form.get("secondary_customer") or "").strip(),   # z1190: 화면의 고객사2 = 이 수주의 2차 발주처 · z1191z154: 비우면 '' = 없음
                         # v5H226z1033: 사용자가 고른 PO유형을 **그 수주에** 남긴다.
                         #   '추가'뿐 아니라 개조·수리·기타도 있으므로 폼값을 그대로 쓴다(비면 '추가').
                         po_type=(form.get("po_type") or "").strip(),
@@ -47592,6 +47862,7 @@ async def projects_new_submit(request: Request):
         #   작업일정표·상세·보고서에 기본 규칙(호기 있으면 완제품 · 없으면 제품)으로 보였다(M-260909-1 과 같은 병).
         if _pid and not _warn:
             _z22_set_so_form(int(_pid), form.get("shipment_form"), exclude_ids=_z209_extra_oids)
+            _z154_seed_new_so(int(_pid), form, exclude_ids=_z209_extra_oids)
         if _warn:
             _qs.append(f"warn={_warn}")
         # v5H226z428(대표 지시): 형태=상품이면 상세의 PACKING LIST 로 유도(자동 스크롤·강조)
@@ -50352,11 +50623,9 @@ async def projects_edit_form(request: Request, pid: int):
                     heal_pairs.append(("due_date", max(dues)))
                 if ords:
                     heal_pairs.append(("order_date", min(ords)))
-                for col, val in heal_pairs:
-                    try:
-                        c2.execute(f"UPDATE projects SET {col}=? WHERE id=?", (val, pid))
-                    except Exception:
-                        pass
+                # z1191z153 (대표 11-25 원칙 ③ 「화면 열기만으로 저장 안 함」): 예전엔 여기서 수주액(통화 섞어 단순 합)·납기·발주일을
+                #   저장했다 → 계산만 하고 저장 안 함(화면이 확정 수량·금액 표로 보여 줌).
+                _heal153 = heal_pairs
     except Exception:
         pass
     p = _logi.projects_get_logi(pid)
@@ -50451,7 +50720,7 @@ async def projects_edit_form(request: Request, pid: int):
                 "cust_edit": ((_alias14.get(_o.get("customer_id")) or _o.get("so_customer") or "") if _o.get("customer_id") else ""),
                 "end_customer": str(_o.get("end_customer") or "").strip(),
                 "end_inh": (str(p.get("secondary_customer") or "").strip()
-                            if ((not str(_o.get("end_customer") or "").strip())
+                            if ((_o.get("end_customer") is None)   # z1191z153: '' = 일부러 비움 → 대표값 안 보여 줌
                                 and ((not _o.get("customer_id")) or _o.get("customer_id") == p.get("customer_id"))) else ""),
                 "po_raw": str(_o.get("po_type") or "").strip(),
                 "po_eff": str(_o.get("po_type") or "").strip() or (str(p.get("po_type") or "").strip() or "신규"),
@@ -50734,7 +51003,30 @@ async def projects_edit_submit(request: Request, pid: int):
         if not _upd10.get("shipment_form"):
             _upd10["shipment_form"] = "ASSEMBLY"
         _old1191 = None   # 첫 수주 맞추기(_z1191_cascade_first_so) 안 함
+    # z1191z153 (대표 11-25 「사용자가 입력한 게 우선 · 고른 줄만」): 고급 편집(정식 폼)은 수주를 고르는 칸이 없다 →
+    #   수주 2개 이상이면 수주별 값(고객사·2차·통화·거래구분·형태·PO유형·모델·장비)은 대표값을 바꾸지 않는다(화면에서 잠금·안내).
+    _b153_locked = False
+    if _multi14 and not _is_quick_edit and _old10:
+        _b153_locked = True
+        _upd10["customer_id"] = _old10.get("customer_id")
+        _upd10["customer"] = _old10.get("customer_name") or customer
+        for _k153, _c153 in (("secondary_customer", "secondary_customer"), ("currency", "currency"), ("po_type", "po_type"),
+                             ("model", "model_name"), ("equip_name", "equip_name"), ("shipment_form", "shipment_form")):
+            _v153 = _old10.get(_c153)
+            _upd10[_k153] = "" if _v153 is None else _v153
+        _upd10["is_export"] = "1" if str(_old10.get("is_export") or "0") in ("1", "True") else "0"
+        if not _upd10.get("shipment_form"):
+            _upd10["shipment_form"] = "ASSEMBLY"
+        _old1191 = None
     _logi.projects_update_logi(pid, _upd10)
+    # z1191z154 (대표 11-25 기준 1 「고객사·2차·PO유형·형태·거래구분·통화 … 는 수주번호」): 수주 1개 관리번호도 바꾼 칸을 그 수주 칸에 저장
+    #   (예전엔 프로젝트에만 쓰고 수주 칸은 비어 프로젝트 값을 대신 보였다 — 다음 수주가 들어오면 그 값이 따라가 틀어짐)
+    if not _multi14 and _old10:
+        try:
+            with db_session() as _c154:
+                _z152_save_so_fields(_c154, int(pid), form, _old10, _u, allow_single=True)
+        except Exception as _e154:
+            print(f"[z1191z154] 수주 1개 수주 칸 저장 실패 pid={pid}: {_e154}")
     # v5H226z976 (대표 지시): 형태=상품 — '완제품 몇 대분'을 단일 상품 SO(orders.unit_qty)에도 동기화.
     #   작업일정표 상품 줄 수량의 소스가 orders.unit_qty 이므로 여기까지 맞춰야 화면이 일치.
     #   상품 SO가 여러 건이면 건드리지 않음(수주별 대수는 작업일정표에서). CANCELLED 제외.

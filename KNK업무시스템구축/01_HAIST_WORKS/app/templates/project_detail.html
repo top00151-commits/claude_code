@@ -388,6 +388,26 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
   }
   </script>
 
+  {# z1191z153 (대표 11-25 「이상하면 알람만」 · 원칙 ③): 화면을 열 때 고치던 값은 저장하지 않고 알림만 — 사람이 「맞추기」를 누를 때만 저장(이력 = 누른 사람) #}
+  {% if heal153 %}
+  <div id="heal153" style="margin:0 var(--content-pad,24px) 10px;padding:9px 13px;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;font-size:12.5px;color:#92400e;">
+    <b>⚠ 저장된 값과 수주 기준 계산이 다릅니다</b> — 화면을 여는 것만으로는 바꾸지 않습니다. 맞는지 보시고 필요하면 「맞추기」를 누르세요.
+    <ul style="margin:5px 0 6px 18px;padding:0;">{% for h in heal153 %}<li>{{ h }}</li>{% endfor %}</ul>
+    {% if can_sales %}<button type="button" id="heal153Go" data-pid="{{ p.id }}" style="padding:4px 12px;border:1px solid #d97706;background:#fff;color:#92400e;border-radius:7px;font-weight:800;cursor:pointer;">맞추기</button>
+    <span id="heal153Msg" style="margin-left:8px;"></span>{% endif %}
+  </div>
+  <script>(function(){
+    var b=document.getElementById('heal153Go'); if(!b||b.__z153) return; b.__z153=1;
+    b.addEventListener('click', function(){
+      if(!window.confirm('위 목록대로 저장된 값을 수주 기준으로 맞출까요?\n누른 사람이 변경 이력에 남습니다.')) return;
+      b.disabled=true; var m=document.getElementById('heal153Msg'); if(m) m.textContent='⏳ 맞추는 중…';
+      fetch('/project/'+b.getAttribute('data-pid')+'/heal',{method:'POST',credentials:'same-origin'}).then(function(r){return r.json().catch(function(){return {ok:false};});})
+        .then(function(j){ if(j&&j.ok){ if(m) m.textContent='✅ 완료 — 맞췄습니다. 다시 불러옵니다…'; setTimeout(function(){ window.knkLeaveOk=true; location.reload(); },700);} else { b.disabled=false; if(m) m.textContent='⚠ 끝나지 않았습니다 — '+((j&&j.message)||'다시 눌러 주세요'); } })
+        .catch(function(){ b.disabled=false; if(m) m.textContent='⚠ 끝나지 않았습니다 — 인터넷 연결을 확인하세요'; });
+    });
+  })();</script>
+  {% endif %}
+
   <!-- KPI -->
   
   <div class="bento kpi-compact" style="grid-template-columns:repeat(4,1fr);">
@@ -722,10 +742,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 {# z1190 (대표 「수주마다 1차·2차 발주처」): 이 수주의 2차 발주처(최종 고객) — 적힌 값 ·
                    없으면 1차가 프로젝트 고객과 같을 때만 프로젝트 고객사2(흐리게 「프로젝트」) · 1차가 다르면 비움 #}
                 {% set _so_end = (so.end_customer or '') %}
-                {% set _so_end_inh = (p.secondary_customer or '') if ((not _so_end) and ((not so.customer_id) or so.customer_id == p.customer_id)) else '' %}
+                {% set _so_end_inh = (p.secondary_customer or '') if ((so.end_customer is none) and ((not so.customer_id) or so.customer_id == p.customer_id)) else '' %}{# z1191z153: '' = 일부러 비움 #}
                 <span class="item" title="이 수주의 2차 발주처(최종 고객) — 비우면 1차가 프로젝트 고객과 같을 때만 프로젝트 값을 따릅니다"><span class="k">🌐 2차</span>
-                  <span class="v display-val">{% if _so_end %}<b style="color:#1d4ed8;">{{ _so_end }}</b>{% elif _so_end_inh %}<span style="color:var(--mute);">{{ _so_end_inh }} (프로젝트)</span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span>
-                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="end_customer" data-orig="{{ _so_end }}" value="{{ _so_end }}" placeholder="(최종 고객 · 여러 곳: SEV 8대, SEVT 3대)" autocomplete="off" title="이 수주의 2차 발주처(최종 고객) · 여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)">{% endif %}
+                  <span class="v display-val">{% if _so_end %}<b style="color:#1d4ed8;">{{ _so_end }}</b>{% elif _so_end_inh %}<span style="color:#b45309;" title="이 수주에는 2차 고객이 아직 한 번도 정해지지 않아 관리번호 값을 대신 보여 줍니다 — 이 수주 값이 아닙니다">{{ _so_end_inh }} <span style="font-size:10.5px;">(대표값 · 확인 필요)</span></span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span>
+                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="end_customer" data-orig="{{ _so_end }}" value="{{ _so_end }}" placeholder="(최종 고객 · 여러 곳: SEV 8대, SEVT 3대)" autocomplete="off" title="이 수주의 2차 발주처(최종 고객) · 여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)">{% endif %}{% if _editable and so.end_customer is none and _so_end_inh %}<button type="button" class="z153-blank" style="margin-left:4px;padding:1px 7px;border:1px solid #cbd5e1;background:#fff;border-radius:6px;font-size:11px;cursor:pointer;" title="이 수주는 2차 고객이 없다고 정합니다(대표값을 따라 보이지 않게) — 저장하면 빈칸으로 남고 이력에 남습니다" onclick="var i=this.parentElement.querySelector('.so-meta-edit[data-field=end_customer]');if(i){i.value='';i.dataset.orig='(안 정함)';i.dispatchEvent(new Event('input',{bubbles:true}));}this.textContent='✓ 저장하면 「2차 없음」';">2차 없음으로 정하기</button>{% endif %}{# z1191z153 (대표 「비워놓은 건 비우고」) #}
                 </span>
                 <span class="item"><span class="k">{# v5H226z695: 메인=누른 수주(선택)일 수 있음 → '최초 수주' 표식은 실제 가장 오래된 카드에만, 나머지는 정확히 구분 #}{% if loop.first %}{% if so.id == _oldest_id %}🆕 최초 수주{% else %}📌 보던 수주 (선택){% endif %}{% else %}{% if so.id == _oldest_id %}🆕 최초 수주 · 참고{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}{% endif %}</span></span>
               </div>
@@ -2353,7 +2373,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           </dd>
           {% endif %}
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
-          {% if _hso %}{% set _hend16 = _hso.end_customer or ((p.secondary_customer or '') if ((not _hso.customer_id) or _hso.customer_id == p.customer_id) else '') %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span> <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>🌐 {{ _hend16 or '—' }}</dd>{% elif p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}
+          {% if _hso %}{% set _hend_inh16 = (_hso.end_customer is none) %}{% set _hend16 = (_hso.end_customer or '') if not _hend_inh16 else ((p.secondary_customer or '') if ((not _hso.customer_id) or _hso.customer_id == p.customer_id) else '') %}{# z1191z153: 비움 = 빈칸 · 안 정함 = 대표값(표시) #}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span> <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>🌐 {{ _hend16 or '—' }}{% if _hend_inh16 and _hend16 %} <span style="font-size:10.5px;color:var(--mute);">(대표값)</span>{% endif %}</dd>{% elif p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}
           {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:inherit;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
           <dt class="fullw">자료 경로</dt><dd class="fullw"><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path or '—' }}</span></dd>
         </dl>

@@ -237,6 +237,8 @@ def pick_semi(pg, rows):
 def submit(pg, path="/projects/new"):
     posts = []
     pg.on("request", lambda rq: posts.append(rq.url) if (rq.method == "POST" and path in rq.url) else None)
+    # z1191z154 (대표 11-25 「2. (나)」): 추가 발주 거래구분은 빈칸에서 시작 — 사람이 고른다(안 고르면 등록 전 알림)
+    pg.evaluate("""()=>{ var s=document.getElementById('qIsExport'); if(s && s.value===''){ s.value='0'; s.dispatchEvent(new Event('change',{bubbles:true})); } }""")
     pg.click("button.qf-save")
     pg.wait_for_timeout(1500)
     try:

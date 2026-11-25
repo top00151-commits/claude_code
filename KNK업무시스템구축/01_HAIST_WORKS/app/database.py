@@ -4131,19 +4131,17 @@ def init_db():
         # 또는 customer_id 를 갖고 있으면 backfill (수주관리 리스트 고객사 표시 회복)
         try:
             # 1) projects.customer_id 가 비었지만 customer_name 매칭되는 customers 가 있으면 채움
+            # z1191z153 (대표 11-25 원칙 · 데이터 연결성 안전): 이름이 같은 고객사가 **딱 1곳**일 때만 연결(같은 이름 여러 곳 = 안 붙임)
             c.execute(
                 "UPDATE projects SET customer_id = ("
-                "  SELECT id FROM customers WHERE customers.name = projects.customer_name LIMIT 1"
+                "  SELECT MIN(id) FROM customers WHERE customers.name = projects.customer_name"
                 ") "
-                "WHERE customer_id IS NULL AND COALESCE(customer_name,'') <> ''"
+                "WHERE customer_id IS NULL AND COALESCE(customer_name,'') <> '' "
+                "AND (SELECT COUNT(*) FROM customers WHERE customers.name = projects.customer_name) = 1"
             )
-            # 2) orders.customer_id NULL → project 의 customer_id 로 채움
-            c.execute(
-                "UPDATE orders SET customer_id = ("
-                "  SELECT customer_id FROM projects WHERE projects.id = orders.project_id"
-                ") "
-                "WHERE customer_id IS NULL AND project_id IS NOT NULL"
-            )
+            # 2) z1191z153 (대표 11-25 「사용자가 입력한 게 우선 · 시스템이 다른 곳 값으로 채우지 않는다」): 예전엔 서버 시작마다
+            #    orders.customer_id 빈칸을 프로젝트 고객으로 채웠다 → 없앰(빈칸 수주는 화면에서 대표값을 「(대표값)」으로 보여 주고 ⚠ 알림)
+            pass
         except Exception:
             pass
 

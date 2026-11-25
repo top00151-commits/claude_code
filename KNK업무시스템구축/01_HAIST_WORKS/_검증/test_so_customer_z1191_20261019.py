@@ -234,7 +234,7 @@ check("1 신규 등록(1차 가상 VINA · 고객사2 가상최종A) → 첫 수
       (st, loc, S0.get("customer_id"), S0.get("end_customer")))
 st2, loc2, Q = new_project("z1191-Q", "OTH", end="")
 Q0 = orders_of(Q["id"])[0] if Q else {}
-check("   고객사2 비우고 신규 → 첫 수주 2차 비움(NULL)", st2 == 303 and Q0.get("end_customer") is None, Q0.get("end_customer"))
+check("   고객사2 비우고 신규 → 첫 수주 2차 = '' (사람이 비움 = 없음)", st2 == 303 and Q0.get("end_customer") == "", Q0.get("end_customer"))  # z1191z154 (대표 11-25 「비워 놓은 건 비우고 · 수주가 사실」): 비운 2차 = '' (없음) · 관리번호 값 안 물려받음
 ok1, F1, raw1 = followup(P, "DT1", end="")
 ok2, F2, raw2 = followup(P, "VINA", end="가상최종B", iex="1")
 check("   추가 발주 둘(가상드림(동탄) · 가상 VINA+2차) 준비", ok1 and ok2, (raw1, raw2))
@@ -262,10 +262,12 @@ check("   수주 없는 관리번호 → 프로젝트 고객 하나(건수 0)",
 # 정보수정 → 첫 수주
 st, loc = edit_roundtrip(P["id"], {"customer_id": str(CUST["OTH"]), "customer_name": "가상기타(주)", "secondary_customer": "가상최종C"})
 s0, f1, f2 = order(S0["id"]), order(F1["id"]), order(F2["id"])
-check("3 정보수정(고급 · 고객사1 → 가상기타 · 고객사2 → 가상최종C) → 대표값만 · 첫 수주는 그대로(z1191z152 수주 3개)",
+check("3 정보수정(고급 · 고객사1 → 가상기타 · 고객사2 → 가상최종C) → 수주 3개라 대표값·첫 수주 모두 그대로(z1191z153 고급 편집 잠금)",
       st == 303 and "error" not in loc and s0["customer_id"] == CUST["VINA"] and s0.get("end_customer") == "가상최종A"
-      and proj(P["id"])["customer_id"] == CUST["OTH"],
-      (st, loc, s0["customer_id"], s0.get("end_customer")))  # z1191z152 (대표 11-25): 수주 2개 이상 = 첫 수주·대표값이 서로 따라가지 않음(기대값 바꿈)
+      and proj(P["id"])["customer_id"] == CUST["VINA"] and proj(P["id"]).get("secondary_customer") == "가상최종A",
+      (st, loc, s0["customer_id"], s0.get("end_customer"), proj(P["id"])["customer_id"]))  # z1191z153 (대표 11-25 「입력한 게 우선」): 고급 편집은 수주를 고르는 칸이 없어 수주별 값 잠금
+with D.db_session() as c:   # 아래 단계 준비 — 대표값을 가상기타·가상최종C 로 둔다(예전 시험과 같은 출발점)
+    c.execute("UPDATE projects SET customer_id=?, customer_name=?, secondary_customer=? WHERE id=?", (CUST["OTH"], "가상기타(주)", "가상최종C", P["id"]))  # z1191z152 (대표 11-25): 수주 2개 이상 = 첫 수주·대표값이 서로 따라가지 않음(기대값 바꿈)
 check("   추가 수주는 그대로(가상드림(동탄) · 가상 VINA/가상최종B)",
       f1["customer_id"] == CUST["DT1"] and f2["customer_id"] == CUST["VINA"] and f2.get("end_customer") == "가상최종B",
       (f1["customer_id"], f2["customer_id"], f2.get("end_customer")))
@@ -307,7 +309,7 @@ check("   첫 수주 줄 → 그 수주 2차만 · 프로젝트 2차 그대로(z
 stc, j = cell(P["id"], "cust2", "", so_oid=S0["id"])
 pp = proj(P["id"])
 check("   첫 수주 줄에서 지우면 → 그 수주만 비움 · 대표값 그대로(z1191z152)",
-      stc == 200 and order(S0["id"]).get("end_customer") is None and pp.get("secondary_customer") == "가상최종C",
+      stc == 200 and order(S0["id"]).get("end_customer") == "" and pp.get("secondary_customer") == "가상최종C",   # z1191z153: 비움 = ''(일부러 비움)
       (order(S0["id"]).get("end_customer"), pp.get("secondary_customer"), pp.get("two_tier_order")))
 
 # 거래구분
@@ -499,6 +501,9 @@ def a_chips(pg):
             pg.fill(sel, v)
     if pg.query_selector("#qUnitPrice"):
         pg.fill("#qUnitPrice", "3000")
+    # z1191z154 (대표 11-25 「2. (나)」): 추가 발주 거래구분은 빈칸에서 시작 — 사람이 고른다(안 고르면 등록 전 알림)
+    if pg.query_selector("#qIsExport"):
+        pg.select_option("#qIsExport", "0")
     posts = []
     pg.on("request", lambda rq: posts.append(rq.url) if (rq.method == "POST" and "/projects/new" in rq.url) else None)
     pg.click("button.qf-save"); pg.wait_for_timeout(1500)

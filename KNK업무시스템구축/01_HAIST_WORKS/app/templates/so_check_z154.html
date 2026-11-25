@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>수주 칸 확인 필요 · KNK</title>
+{% include "_v5_partials/styles.html" %}
+<style>
+/* z1191z154 (대표 11-25 「관리번호 = 공통만 · 나머지는 수주번호」 기준 2): 수주 칸이 한 번도 정해지지 않아 관리번호(대표) 값을 대신 보이던 수주 —
+   사람이 확인하면 그때 그 수주 값이 된다(「대표값으로 확정」·「앞 수주와 같게」·직접 넣기 · 이력 남김). 화면을 여는 것만으로는 아무것도 저장하지 않는다. */
+.sc-wrap { padding: 12px var(--content-pad) 28px; }
+.sc-note { margin:0 0 10px; padding:8px 12px; border:1px solid #bfdbfe; border-radius:8px; background:#eff6ff; font-size:12.5px; color:#1e3a8a; line-height:1.6; }
+.sc-t { width:100%; border-collapse:collapse; font-size:12.5px; background:#fff; }
+.sc-t th { background:#f1f5f9; text-align:left; padding:7px 8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.sc-t td { padding:6px 8px; border-bottom:1px solid #eef1ee; vertical-align:top; }
+.sc-t tr.pj td { background:#fafbfa; font-weight:800; border-top:1px solid #e2e8f0; }
+.sc-rep { color:#92400e; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:1px 7px; font-size:11.5px; white-space:nowrap; }
+.sc-ok { color:#166534; font-weight:700; }
+.sc-b { padding:2px 9px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; margin:2px 2px 0 0; }
+.sc-b.g { border-color:#cbd5e1; background:#fff; color:#334155; }
+.sc-in { width:120px; padding:2px 6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; }
+.sc-msg { font-size:11.5px; margin-left:4px; }
+</style>
+</head><body>
+<div class="app">{% set active_tab = 'sales' %}
+{% include "_v5_partials/chrome.html" with context %}
+<main class="main" data-dn="main" data-dn-tone="amber">
+  <header class="knk-page-head" data-dn="page-head">
+    <div>
+      <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <a href="/projects">프로젝트</a> · <b>수주 칸 확인 필요</b></nav>
+      <h1 class="knk-page-title">⚠ 수주 칸 확인 필요 <span style="font-size:14px;color:var(--qv-ink-3);">{{ rows|length }}건 · 관리번호 {{ n_proj }}곳</span></h1>
+      <p class="knk-page-meta">수주가 2개 이상인 관리번호에서 2차 고객·PO유형이 <b>그 수주에 한 번도 정해지지 않은</b> 수주입니다. 지금은 관리번호 값을 대신 보여 주고 있습니다(계산·비교에는 쓰지 않음).</p>
+    </div>
+    <div class="knk-page-actions">{% set close_fallback = '/projects' %}{% include "_v5_partials/knk_close_btn.html" %}</div>
+  </header>
+  <div class="sc-wrap">
+    <div class="sc-note">👉 남은 일 — 수주마다 맞는 값을 정해 주세요. 「대표값으로 확정」 = 지금 보이는 관리번호 값이 이 수주 값이 맞음 · 「앞 수주와 같게」 = 바로 앞 수주에 정해진 값 · 직접 넣기 = 다른 값(2차는 비워서 「없음」으로 정할 수 있음). 정하면 이 목록에서 빠지고 변경 이력에 남습니다.</div>
+    {% if not rows %}<div class="sc-note" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">✅ 완료 — 확인할 수주가 없습니다.</div>{% else %}
+    <table class="sc-t">
+      <thead><tr><th>관리번호 · 수주번호</th><th>고객사(이 수주)</th><th>2차 고객</th><th>PO유형</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        {% if loop.first or r.pid != rows[loop.index0 - 1].pid %}
+        <tr class="pj"><td colspan="4"><a href="/project/{{ r.pid }}" style="color:inherit;">{{ r.mgmt_code }} {{ r.pname or '' }}</a> <span style="font-weight:400;color:var(--qv-ink-3);font-size:11.5px;">관리번호 값: 2차 {{ r.p_end or '없음' }} · PO유형 {{ r.p_po or '—' }}</span>
+          {% if can_up %}<span class="sc-pj" data-pid="{{ r.pid }}" style="font-weight:400;margin-left:8px;"><button type="button" class="sc-b sc-pjb" data-f="end_customer" title="이 관리번호에서 2차 고객이 아직 정해지지 않은 수주를 모두 관리번호 값({{ r.p_end or '없음' }})으로 정합니다">2차 모두 대표값으로 확정</button><button type="button" class="sc-b sc-pjb" data-f="po_type" title="이 관리번호에서 PO유형이 아직 정해지지 않은 수주를 모두 관리번호 값({{ r.p_po or '—' }})으로 정합니다">PO유형 모두 대표값으로 확정</button><span class="sc-msg"></span></span>{% endif %}</td></tr>
+        {% endif %}
+        <tr data-oid="{{ r.oid }}">
+          <td>└ <a href="/sales/orders/{{ r.oid }}">{{ r.order_no }}</a> <span style="color:var(--qv-ink-3);font-size:11px;">{{ r.order_date or '' }}</span></td>
+          <td>{{ r.cust or '—' }}</td>
+          {% for fk, cur, rep, prev in [('end_customer', r.end_customer, r.p_end, r.prev_end), ('po_type', r.po_type, r.p_po, r.prev_po)] %}
+          <td class="sc-cell" data-f="{{ fk }}">
+            {% if cur is not none and (fk == 'end_customer' or cur) %}<span class="sc-ok">{{ cur or '없음' }}</span>
+            {% else %}
+              <span class="sc-rep" title="이 수주에는 아직 정해지지 않아 관리번호 값을 대신 보이는 중">{{ rep or ('없음' if fk == 'end_customer' else '—') }} · (대표값 · 확인 필요)</span><br>
+              {% if can_up %}
+              <button type="button" class="sc-b" data-act="rep">대표값으로 확정</button>
+              {% if prev is not none %}<button type="button" class="sc-b g" data-act="prev" title="앞 수주 값: {{ prev or '없음' }}">앞 수주와 같게({{ prev or '없음' }})</button>{% endif %}
+              {% if fk == 'po_type' %}<select class="sc-in" data-in="1"><option value="">직접 고르기</option>{% for t in po_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+              {% else %}<input class="sc-in" data-in="1" placeholder="직접 넣기(비우면 없음)">{% endif %}
+              <button type="button" class="sc-b g" data-act="set">넣기</button>
+              {% endif %}
+              <span class="sc-msg"></span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</main>
+</div>
+<script>(function(){
+  if (window.__sc154) return; window.__sc154 = 1;
+  document.addEventListener('click', function(e){
+    var pb = e.target.closest && e.target.closest('.sc-pjb');
+    if (pb) {
+      var box = pb.closest('.sc-pj'), pm = box.querySelector('.sc-msg'), f2 = new FormData(); f2.append('field', pb.getAttribute('data-f'));
+      if (!window.confirm('이 관리번호에서 아직 정해지지 않은 수주의 ' + (pb.getAttribute('data-f') === 'po_type' ? 'PO유형' : '2차 고객') + '을 모두 관리번호 값으로 정할까요?\n(이미 정해진 수주는 그대로 · 수주마다 이력이 남습니다)')) return;
+      pb.disabled = true; pm.style.color = '#475569'; pm.textContent = '⏳ 저장 중…';
+      fetch('/api/so-check-proj/' + box.getAttribute('data-pid'), {method:'POST', body:f2, credentials:'same-origin'})
+        .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+        .then(function(j){ pb.disabled = false;
+          if (j && j.ok) { pm.style.color = '#166534'; pm.textContent = '✅ 완료 — 수주 ' + j.n + '건을 「' + (j.shown || '없음') + '」으로 정했습니다 · 다시 불러옵니다…'; setTimeout(function(){ location.reload(); }, 900); }
+          else { pm.style.color = '#b91c1c'; pm.textContent = '⚠ 끝나지 않았습니다 — ' + ((j && j.message) || '저장하지 못했습니다'); } });
+      return;
+    }
+    var b = e.target.closest && e.target.closest('.sc-b'); if (!b) return;
+    var td = b.closest('.sc-cell'), tr = b.closest('tr'); if (!td || !tr) return;
+    var act = b.getAttribute('data-act'), fd = new FormData();
+    fd.append('field', td.getAttribute('data-f')); fd.append('action', act);
+    if (act === 'set') { var i = td.querySelector('[data-in]'); fd.append('value', i ? i.value : ''); }
+    var m = td.querySelector('.sc-msg'); b.disabled = true; if (m) { m.style.color = '#475569'; m.textContent = '⏳ 저장 중…'; }
+    fetch('/api/so-check/' + tr.getAttribute('data-oid'), {method:'POST', body:fd, credentials:'same-origin'})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(j){
+        b.disabled = false;
+        if (j && j.ok) {
+          td.innerHTML = '';
+          var s = document.createElement('span'); s.className = 'sc-ok'; s.textContent = j.shown || '없음'; td.appendChild(s);
+          var g = document.createElement('span'); g.className = 'sc-msg'; g.style.color = '#166534'; g.textContent = ' ✅ 완료 — 이 수주 값으로 정했습니다(이력 남김)'; td.appendChild(g);
+        } else if (m) { m.style.color = '#b91c1c'; m.textContent = '⚠ 끝나지 않았습니다 — ' + ((j && j.message) || '저장하지 못했습니다'); }
+      }).catch(function(){ b.disabled = false; if (m) { m.style.color = '#b91c1c'; m.textContent = '⚠ 인터넷 연결이 끊겨 저장하지 못했습니다'; } });
+  });
+})();</script>
+</body></html>

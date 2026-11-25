@@ -290,6 +290,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="z14-common-note">
         ⓘ <b>관리번호 공통</b> = 관리번호 <b>{{ project.mgmt_code }}</b> 전체(<b>수주 {{ so_rows|length }}건</b>{% if so_mixed %} · 형태 섞임{% endif %})에 해당하는 정보입니다(프로젝트명·사업부·거래 구분·상태·고객 담당자 등).
         수주마다 다른 <b>발주처·2차 고객사·PO유형·발주일·납기·납품처·모델·장비</b>는 위에서 <b>수주번호를 골라</b> 그 수주만 고칩니다. 수량·금액·호기는 상세 화면 수주 카드(↗)에서 고칩니다.
+        <div style="margin-top:6px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#92400e;">⚠ 수주가 {{ so_rows|length }}건이라 아래 공통 칸의 <b>고객사·2차 고객·통화·거래구분·형태·PO유형·모델·장비</b>는 여기서 저장해도 <b>바뀌지 않습니다</b>(다른 수주 값이 함께 바뀌는 사고 방지 · z1191z153). 수주별로는 위에서 수주번호를 고르거나 「✏️ 프로젝트 정보 수정」에서 고치세요.</div>
         <div style="margin-top:8px;">{{ so_table7(so_rows) }}</div>
       </div>
       {% for r in so_rows %}
@@ -300,7 +301,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="z14-warn">🔒 이 수주는 <b>{{ r.status }}</b> 상태라 고칠 수 없습니다(계산서·수금이 끝났거나 취소된 수주).</div>
         <div class="z14-grid z14-grid-ro">
           <div><span class="z14-k">발주처(고객사1)</span> {{ r.cust_edit or ('(프로젝트 고객 ' ~ (project.customer_name or '') ~ ')') }}</div>
-          <div><span class="z14-k">고객사2(최종)</span> {{ r.end_customer or r.end_inh or '—' }}</div>
+          <div><span class="z14-k">고객사2(최종)</span> {{ r.end_customer or ((r.end_inh ~ ' (대표값)') if r.end_inh else '') or '—' }}</div>
           <div><span class="z14-k">PO유형</span> {{ r.po_eff }}</div>
           <div><span class="z14-k">발주일</span> {{ r.order_date or '—' }}</div>
           <div><span class="z14-k">납기</span> {{ r.due_date or '—' }}</div>

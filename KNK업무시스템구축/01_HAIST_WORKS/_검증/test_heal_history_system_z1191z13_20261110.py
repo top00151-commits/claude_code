@@ -94,6 +94,10 @@ with D.db_session() as c:
     c.execute("UPDATE projects SET order_amount=? WHERE id=?", (777, P1["id"]))
 r = q(cl.get, "/project/%d" % P1["id"])
 check(r.status_code == 200, "상세 200 (%s)" % r.status_code)
+# z1191z153·z154 (대표 11-25 원칙 ③ 「화면 열기만으로는 아무것도 저장 안 함」): 열기만 하면 그대로 · 「맞추기」 단추(POST)를 눌러야 저장
+check(not hist(P1["id"], "수주액(자가치유)") and proj("Z13가")["order_amount"] == 777, "z154 화면 열기만으로는 저장 안 함(수주액 777 그대로 · 이력 0)")
+check("맞추기" in r.text, "z154 화면에 「⚠ 저장된 값과 다름 · 맞추기」 안내")
+q(cl.post, "/project/%d/heal" % P1["id"])
 h = hist(P1["id"], "수주액(자가치유)")
 check(len(h) == 1, "자가치유 이력 1줄 (%d)" % len(h))
 check(h and h[-1]["changed_by"] is None, "자가치유 변경자 = None(시스템)")
@@ -113,6 +117,9 @@ with D.db_session() as c:
     P2 = c.execute("SELECT id FROM projects WHERE name='Z13나'").fetchone()[0]
 r = q(cl.get, "/project/%d" % P2)
 check(r.status_code == 200, "상세 200 (%s)" % r.status_code)
+with D.db_session() as c:
+    check(c.execute("SELECT COUNT(*) FROM orders WHERE project_id=?", (P2,)).fetchone()[0] == 0, "z154 화면 열기만으로는 수주 발행 안 함")
+q(cl.post, "/project/%d/heal" % P2)
 with D.db_session() as c:
     nso = c.execute("SELECT COUNT(*) FROM orders WHERE project_id=?", (P2,)).fetchone()[0]
 check(nso == 1, "누락 SO 자동 발행됨 (%d)" % nso)

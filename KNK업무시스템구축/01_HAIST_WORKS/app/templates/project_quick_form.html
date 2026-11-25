@@ -229,6 +229,8 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f c4"><label>고객사1 <span class="req">*</span> <span style="font-weight:400;color:var(--qv-ink-3);font-size:11px;">(등록 목록에서 선택)</span></label>
             <input type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="1" data-cust-initial="{{ (project.customer_name or '') if ed else '' }}" placeholder="고객사명·시스템명 입력 → 목록 선택" autocomplete="off">
             <div id="qCust1Chips" class="qf-chips" hidden></div>
+            {# z1191z154 (대표 11-25 기준 3): 추가 발주 = 수주 칸은 빈칸에서 시작 · 이 단추를 사람이 누를 때만 앞 수주 값으로 채움 #}
+            <div id="qSameAsPrev" class="qf-chips" hidden><button type="button" class="qf-chip" id="qSameAsPrevBtn" title="고객사1·고객사2·형태·거래구분·통화를 가장 최근 수주와 같게 채웁니다 — 채운 뒤 바꿔도 됩니다"></button><span id="qSameAsPrevMsg" class="qf-chips-h"></span></div>
             <datalist id="qCustList">{% for cu in customers %}<option value="{{ cu.name }}">{% endfor %}</datalist>{# z1158-허용: 「최종 고객사명」은 고객 번호로 연결하지 않고 이름 그대로 저장되는 자유 입력칸 — 정식 상호를 제안한다 #}
           </div>
           {# v5H226z350: 2차거래 폐지 → 고객사2(최종 고객) 직접 입력칸 #}
@@ -271,7 +273,7 @@ html,body{background:#fff!important;overflow:auto!important;}
             </div>
           </div>
           <div class="qf-f c2"><label>거래구분 <span id="qIexHint" style="display:none;font-weight:400;color:var(--qv-ink-3);font-size:11px;">(발주처 기준 · 바꿀 수 있음)</span></label>
-            <select name="is_export" id="qIsExport"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option></select>
+            <select name="is_export" id="qIsExport"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option>{% if not ed %}<option value="" id="qIexBlank" hidden>— 고르세요 —</option>{% endif %}</select>
           </div>
           <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="project_name" title="프로젝트명 — 입력 기준 보기·고치기">ⓘ</button></label>
             {% if not ed %}
@@ -1204,6 +1206,7 @@ function qMgmtPick(rw){
   //   프로젝트(처음) 고객으로 몰래 채우지 않는다(z621 미리 채우기 없앰 — 안 바꾸면 처음 고객이 그 수주에 들어갔다).
   //   그 관리번호 수주들의 발주처·2차를 단추로 보여 주고 사람이 고른다. 고객사1 은 필수라 안 고르면 저장이 막힌다.
   qFuChips(rw);
+  qSamePrevSetup(rw);   /* z1191z154 */
   // 프로젝트명은 백엔드 필수(추가발주 분기보다 먼저 검증) → 비어 있으면 기존값/모델/관리번호로 채움
   var nm=document.querySelector('[name=name]'); if(nm && !nm.value) nm.value=(rw.name || rw.model_name || ('추가발주 '+(rw.mgmt_code||'')));
   // v5H226z429(대표 지시): 추가발주로 기존 관리번호 연결 시 모델명·장비명도 그 프로젝트값으로 자동 채움.
@@ -1240,10 +1243,30 @@ function qFuChips(rw){
     if(sec){ sec.value=o.name; try{ sec.dispatchEvent(new Event('input',{bubbles:true})); sec.dispatchEvent(new Event('change',{bubbles:true})); }catch(_e){} }
   });
 }
+/* z1191z154 (대표 11-25 기준 3): 「앞 수주와 같게」 — 누를 때만 가장 최근 수주의 고객사1·2·형태·거래구분·통화를 칸에 넣는다(사람이 누른 = 사람 입력) */
+function qSamePrevSetup(rw){
+  var box=document.getElementById('qSameAsPrev'), b=document.getElementById('qSameAsPrevBtn'), m=document.getElementById('qSameAsPrevMsg');
+  if(!box||!b) return;
+  var L=rw&&rw.so_last; if(!L){ box.hidden=true; return; }
+  b.textContent='📋 앞 수주('+(L.order_no||'')+')와 같게'; if(m) m.textContent=''; box.hidden=false;
+  b.onclick=function(){
+    var done=[];
+    var custP=document.querySelector('input[data-cust-picker][data-cust-name=customer_name]');
+    if(L.customer_id!=null && custP && window.KNKCust && KNKCust.setById){ KNKCust.setById(custP, L.customer_id); done.push('고객사1'); }
+    var sec=document.querySelector('#quickForm input[name=secondary_customer]');
+    if(sec && L.end_customer!=null){ sec.value=L.end_customer; try{ sec.dispatchEvent(new Event('input',{bubbles:true})); }catch(_e){} done.push('고객사2'); }
+    if(L.shipment_form && typeof qFormPick==='function'){ try{ qFormPick(L.shipment_form); done.push('형태'); }catch(_e){} }
+    var ie=document.getElementById('qIsExport');
+    if(ie && (L.is_export===0||L.is_export===1)){ ie.value=String(L.is_export); try{ _qIexTouched=true; ie.dispatchEvent(new Event('change',{bubbles:true})); }catch(_e){} done.push('거래구분'); }
+    var cu=document.getElementById('qCurrency');
+    if(cu && L.currency){ cu.value=L.currency; try{ cu.dispatchEvent(new Event('change',{bubbles:true})); }catch(_e){} done.push('통화'); }
+    if(m) m.textContent = done.length ? ('✅ '+done.join('·')+'를 '+(L.order_no||'앞 수주')+'와 같게 넣었습니다 — 다르면 고치세요') : '앞 수주에 넣을 값이 없습니다';
+  };
+}
 /* z1191: 추가 발주가 아니게 되면(PO 신규 등) 단추를 치운다 */
 (function(){ var po=document.getElementById('qPoType'); if(!po) return;
   po.addEventListener('change', function(){ if(typeof qIsFollowup==='function' && qIsFollowup()) return;
-    ['qCust1Chips','qCust2Chips'].forEach(function(id){ var bx=document.getElementById(id); if(bx){ bx.hidden=true; bx.innerHTML=''; } }); }); })();
+    ['qCust1Chips','qCust2Chips','qSameAsPrev'].forEach(function(id){ var bx=document.getElementById(id); if(bx){ bx.hidden=true; bx.innerHTML=''; } }); }); })();
 function qMgmtSearch(){
   var inp=document.getElementById('qMgmtInput'), lst=document.getElementById('qMgmtList'); if(!inp||!lst) return;
   var q=(inp.value||'').trim();   // v5H226z385: 비어 있어도(포커스) 최근 프로젝트 표시 — 관리번호 몰라도 고르기 쉽게
@@ -1723,6 +1746,8 @@ function qIexLoad(){
   return _qIexLoading;
 }
 function qIexApply(){
+  /* z1191z154 (대표 11-25 「2. (나)」): 추가 발주 거래구분도 빈칸에서 시작 — 발주처 나라로 미리 채우지 않는다(사람이 고르거나 「앞 수주와 같게」) */
+  if(qIsFollowup()){ var _sb=document.getElementById('qIsExport'); if(_sb && !_qIexTouched && !QF_ED){ var _ob=document.getElementById('qIexBlank'); if(_ob){ _ob.hidden=false; } if(_sb.value!=='' && !_sb.__z154set){ _sb.value=''; } _sb.__z154set=1; } return; }
   if(QF_ED || _qIexTouched || !qIsFollowup()) return;
   var sel=document.getElementById('qIsExport'); if(!sel) return;
   qIexLoad().then(function(m){
@@ -1742,6 +1767,12 @@ function qIexApply(){
   if(QF_ED) return;
   var sel=document.getElementById('qIsExport');
   /* 이 스크립트가 채운 것이 아니면 사람이 고른 것 — 그 뒤로는 덮지 않는다 */
+  /* z1191z154: 추가 발주인데 거래구분을 안 고르고 등록하면 알려 주고 멈춤(빈칸으로 저장하면 그 수주 값이 비어 버림) */
+  var qf154=document.getElementById('quickForm');
+  if(qf154 && !qf154.__z154iex){ qf154.__z154iex=1; qf154.addEventListener('submit', function(e){
+    var s2=document.getElementById('qIsExport');
+    if(s2 && qIsFollowup() && s2.value===''){ e.preventDefault(); e.stopImmediatePropagation(); alert('👉 남은 일 — 이 수주의 거래구분(내수·수출)을 골라 주셔야 등록됩니다.\n(「📋 앞 수주와 같게」를 누르면 앞 수주 값이 들어갑니다)'); try{ s2.focus(); }catch(_e){} }
+  }, true); }
   if(sel) sel.addEventListener('change', function(){
     if(_qIexSelf) return;
     _qIexTouched=true; var h=document.getElementById('qIexHint'); if(h) h.style.display='none';
