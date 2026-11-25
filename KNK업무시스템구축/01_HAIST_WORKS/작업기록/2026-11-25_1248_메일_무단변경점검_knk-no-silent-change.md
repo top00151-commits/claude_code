@@ -95,3 +95,7 @@
 - 다시 통과: cleanup 73 · dnd 77 · menu 86 · layout 58 · adbox 35 · recvtime 20 · screen_exit 34 · import_outlook 41 · easy_sort 18 · readall · find
 - `mail_security_test` = 시험 DB 준비 오류(users 표 없음) — 이번 변경 전부터(무관)
 - 화면 스크립트 node 문법(일반 정리·규칙·답 기다림·차단·메일 보기) · 운영 파이썬 3.8 문법 통과
+
+## 배포 — LIVE(11-25 13:52) · 대표 「올려」
+- 다른 세션 새 커밋(z152) 위로 옮김 · 메일 시험 4가지 다시 통과
+- main `af902eeb..29311bc8` · 되돌림 표시 `rollback-20261125-1351`(→`af902eeb`) · 운영 `eac5877` → **`92717af`**(웍스·kmail 200)
