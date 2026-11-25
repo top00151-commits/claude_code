@@ -33,7 +33,10 @@ BUSY_TIMEOUT_MS = 60000                 # VACUUM 연결이 남의 짧은 쓰기�
 QUIET_MORNING = ((8, 50), (9, 30))      # 출근 직후 — 안 돎
 NAS_WEEKDAY, NAS_START, NAS_END = 0, (2, 0), (7, 30)   # 월요일 NAS 백업 — 안 돎
 
-RES_DONE, RES_SKIP, RES_FAIL = "done", "skip", "fail"
+RES_DONE, RES_SKIP, RES_FAIL, RES_HOLD = "done", "skip", "fail", "hold"
+# 11-25 안전장치: 줄이기(VACUUM) 동안 웍스 전체 저장이 멈춘다(같은 knk.db · z521 로그인 충돌 전례).
+#   사본 뜨기(읽기만 · 저장을 막지 않음)에 걸린 시간을 실측해, 그보다 오래 멈출 것 같으면 줄이지 않고 대표 확인으로 넘긴다.
+MAX_BACKUP_SECS = 90
 
 _MAINT_TL = threading.Lock()
 
@@ -279,6 +282,8 @@ def result_text(result, reason, before, after, secs):
         return "✅ 완료 — 이 작업은 끝났습니다. %s → %s(%s초) · 더 하실 일은 없습니다." % (fmt_bytes(before), fmt_bytes(after), fmt_secs(secs))
     if result == RES_SKIP:
         return "✅ 완료 — 이번엔 줄이지 않았습니다(%s) · 다음 밤 23:30에 다시 봅니다 · 하실 일은 없습니다." % (reason or "건너뜀")
+    if result == RES_HOLD:
+        return "👉 남은 일 — 줄이지 않고 멈췄습니다(%s) · 메일과 파일은 그대로입니다 · 대표님 확인 뒤에 줄입니다." % (reason or "확인 필요")
     return "⚠ 끝나지 않았습니다 — %s · 파일은 줄이기 전 그대로이고 메일은 바뀌지 않았습니다 · 다음 밤 23:30에 다시 시도합니다." % (reason or "실패")
 
 
@@ -331,6 +336,10 @@ def run_once(db_path, backup_dir=None, now=None, busy=None, free_fn=None, tmp_di
     except Exception as e:
         return _end(RES_FAIL, "사본을 못 떠서 줄이지 않음(%s)" % str(e)[:100])
     prune_backups(backup_dir)
+    bk_secs = round(time.time() - t0, 1)
+    if bk_secs > MAX_BACKUP_SECS:
+        return _end(RES_HOLD, "사본 뜨기에 %s초 걸림 → 줄이면 그 이상 웍스 저장이 멈출 수 있음 · DB %s · 빈 자리 %s"
+                    % (fmt_secs(bk_secs), fmt_bytes(rec["before"]), fmt_bytes(m["free"])))
     try:
         (vacuum_fn or do_vacuum)(db_path)
     except Exception as e:

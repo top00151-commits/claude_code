@@ -220,6 +220,23 @@ r = mv.run_once(p, now=NIGHT, free_fn=lambda _p: BIG, vacuum_fn=bad_vac)
 ck("결과 = 실패 · 사본 이름 함께", r["result"] == mv.RES_FAIL and "사본" in r["reason"], r)
 ck("자료 그대로", body_sig(p) == sig0)
 
+print("8b) 사본 뜨기가 오래 걸리면(운영 규모) 줄이지 않고 대표 확인으로 — 웍스 저장 멈춤 방지")
+p = make_db(delete_ratio=0.6)
+sig0 = body_sig(p)
+called = []
+_old_max = mv.MAX_BACKUP_SECS
+mv.MAX_BACKUP_SECS = -1      # 사본 시간이 한도를 넘은 것으로
+r = mv.run_once(p, now=NIGHT, free_fn=lambda _p: BIG, vacuum_fn=lambda d: called.append(8))
+mv.MAX_BACKUP_SECS = _old_max
+ck("결과 = 멈춤(hold) · 줄이기 안 부름", r["result"] == mv.RES_HOLD and called == [], r)
+ck("문구 = 👉 남은 일 · 사본 시간·DB 크기 실측", r["text"].startswith("👉 남은 일") and "초 걸림" in r["reason"], r["text"])
+ck("사본은 남음(되돌릴 길)", bool(r["backup"]) and os.path.isfile(r["backup"]), r["backup"])
+ck("자료 그대로", body_sig(p) == sig0)
+lr = log_rows(p)
+ck("기록에 hold 로 남음", lr and lr[-1][0] == mv.RES_HOLD if lr and isinstance(lr[-1], (tuple, list)) else True, lr[-1:] if lr else lr)
+r2 = mv.run_once(p, now=NIGHT, free_fn=lambda _p: BIG, vacuum_fn=lambda d: called.append(81))
+ck("한도 안이면 그대로 줄임", r2["result"] == mv.RES_DONE and called == [81], r2)
+
 print("9) 다른 연결이 쓰는 중이면 VACUUM 이 기다렸다 진행(busy_timeout)")
 p = make_db(delete_ratio=0.6)
 holder = sqlite3.connect(p, isolation_level=None, check_same_thread=False)
