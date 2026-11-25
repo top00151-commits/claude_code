@@ -104,6 +104,7 @@ h = k.get("/mail/import-outlook").text
 check("직원 화면 200 · 기간 5·3·2·1년", all(('value="%d"' % y) in h for y in (5, 3, 2, 1)), h[:200])
 check("직원 화면 = 폴더 방식 3가지(아웃룩 폴더 그대로 · 자동 분류 · 직접 정리) · 「같은 이름 폴더만」 없음",
       all(('value="%s"' % x) in h for x in ("outlook", "auto", "manual")) and 'value="match"' not in h and "같은 이름 폴더만" not in h)
+check("직원 화면엔 대표 전용 문구 없음(「대표님이 직접 정리」·miOwnerMode)", 'id="miOwnerMode"' not in h and "대표님이 직접 정리" not in h and "대표님 메일함" not in h)
 check("닫기·돌아가기(← 설정·정리) · 결과 문구 규정(✅ 완료 · 👉 남은 일 · ⏳ 진행 중)",
       "/mail/tools" in h and "설정·정리" in h and all(x in h for x in ("완료 — 이 작업은 끝났습니다", "남은 일", "진행 중")))
 check("설정·정리 화면에 「📥 아웃룩 옛 메일 가져오기」(직원 누구나)", 'href="/mail/import-outlook"' in k.get("/mail/tools").text)
