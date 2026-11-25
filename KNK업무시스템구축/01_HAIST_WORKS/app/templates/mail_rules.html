@@ -79,11 +79,18 @@
       if(j.ok) location.reload(); else alert('삭제 실패');
     }catch(e){ alert('네트워크 오류'); }
   };
+  // 11-25 대표 규정 knk-no-silent-change — 먼저 「몇 통이 바뀌는지」 보여 주고 확인 · 바꾼 것은 ↺ 되돌리기
+  function rlPost(o){ var fd=new FormData(); Object.keys(o||{}).forEach(function(k){ fd.append(k,o[k]); }); return fetch('/mail/rules/apply',{method:'POST',body:fd}).then(function(r){ return r.json(); }); }
   window.applyRules=async function(){
-    if(!confirm('지금까지 받은 메일에 규칙을 다시 적용할까요?\n(분류가 규칙대로 바뀝니다)')) return;
-    try{ var r=await fetch('/mail/rules/apply',{method:'POST'}); var j=await r.json();
-      if(j.ok){ alert('✅ '+(j.message||'적용했습니다')); location.href='/mail/inbox'; }
-      else alert('⚠ '+(j.message||'실패'));
+    var d={}; try{ d=await rlPost({dry:'1'}); }catch(e){ alert('네트워크 오류'); return; }
+    if(!d.ok){ alert('⚠ 끝나지 않았습니다 — '+(d.message||'실패')); return; }
+    if(!d.count){ alert('✅ 완료 — 이 작업은 끝났습니다. 규칙대로 바뀔 메일이 없습니다(더 하실 일 없음).'); return; }
+    if(!confirm('지금까지 받은 메일 중 '+d.count.toLocaleString()+'통의 분류가 규칙대로 바뀝니다.\n바꿀까요? (바로 뒤 「↺ 되돌리기」로 그대로 되돌릴 수 있습니다)')) return;
+    try{ var j=await rlPost({});
+      if(j.ok){
+        if(confirm('✅ 완료 — 이 작업은 끝났습니다. '+(j.changed||0).toLocaleString()+'통을 규칙대로 다시 분류했습니다.\n\n[확인] 받은편지함으로 · [취소] ↺ 방금 바꾼 것 되돌리기')){ location.href='/mail/inbox'; }
+        else { var u=await rlPost({undo:'1'}); alert(u.ok ? ('✅ 완료 — 되돌리기가 끝났습니다. '+(u.undone||0).toLocaleString()+'통을 예전 분류로 되돌렸습니다.') : ('⚠ 끝나지 않았습니다 — '+(u.message||'되돌리지 못했습니다'))); }
+      } else alert('⚠ 끝나지 않았습니다 — '+(j.message||'실패'));
     }catch(e){ alert('네트워크 오류'); }
   };
 })();

@@ -229,7 +229,7 @@ try:
         c.execute("UPDATE mail_messages SET fd_team=NULL, fd_key='' WHERE id=?", (q1,))
     mf._CACHE.pop(OWN, None)   # (손으로 칸을 비운 것이라 기억한 결과를 지움 — 실제로는 새 메일·읽음이 바뀌면 다시 셈)
     cls()
-    check("받은 때 부서가 비어 있던 메일 = 폴더 열 때 지금 부서로 한 번 채움", row(q1)["fd_team"] == T_QA, row(q1))
+    check("받은 때 부서가 비어 있던 메일 = 폴더 열기만으로 저장하지 않음(11-25 knk-no-silent-change ③) · 보이는 폴더는 지금 부서", row(q1)["fd_team"] is None and row(q1)["fd_key"] == "t%d" % T_QA, row(q1))
 
     print("== 9. 숫자 = 목록 ==")
     res = cls()
@@ -306,19 +306,19 @@ try:
     check("일반 정리: 「＋ 새 폴더로」 · 이름 = 서명의 회사 이름(㈜ 뺌) · 넣을 곳 기본 = 기타 고객사",
           "＋ 새 폴더로" in gp and 'value="뉴컴프테크"' in gp and ('value="%d" selected' % by["2.기타 고객사"]["id"]) in gp)
     check("일반 정리: 알림·광고 줄 표시 + 위에 「한 번에」 단추(곳·통수)", "📢 알림·광고" in gp and "gnRobots()" in gp and "2곳" in gp)
-    j = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"]}).json()
+    j = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"], "when": "all"}).json()
     with _db.db_session() as c:
         nf = c.execute("SELECT id, parent_id FROM mail_folders WHERE user_id=? AND name='뉴컴프테크'", (OWN,)).fetchone()
     check("「만들고 옮기기」 = 기타 고객사 아래 새 폴더 · 그 회사 메일 모두(사람 2통 + 알림 1통 = 회사 주소)",
           j.get("ok") and j.get("made") and nf and nf["parent_id"] == by["2.기타 고객사"]["id"] and key_of(n1) == "f%d" % nf["id"] and key_of(n2) == "f%d" % nf["id"], j)
     n3 = put("lee@newcomp-x.example", "새 사람", "안녕하세요", name="이뉴컴")
     check("그 회사 새 메일도 새 폴더로", key_of(n3) == "f%d" % nf["id"], row(n3))
-    j2 = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"]}).json()
+    j2 = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"], "when": "all"}).json()
     check("같은 자리 같은 이름이면 새로 안 만들고 그 폴더", j2.get("ok") and not j2.get("made") and j2.get("folder_id") == nf["id"], j2)
     check("넣을 곳이 6.케이엔케이 묶음이면 400 · 이름 없으면 400",
-          k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "x", "parent_id": by["6.케이엔케이"]["id"]}).status_code == 400
-          and k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": " ", "parent_id": by["2.기타 고객사"]["id"]}).status_code == 400)
-    check("내 메일에 없는 주소는 404", k.post("/mail/folders/general/new", data={"sender": "nobody@x.example", "name": "x", "parent_id": by["2.기타 고객사"]["id"]}).status_code == 404)
+          k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "x", "parent_id": by["6.케이엔케이"]["id"], "when": "all"}).status_code == 400
+          and k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": " ", "parent_id": by["2.기타 고객사"]["id"], "when": "all"}).status_code == 400)
+    check("내 메일에 없는 주소는 404", k.post("/mail/folders/general/new", data={"sender": "nobody@x.example", "name": "x", "parent_id": by["2.기타 고객사"]["id"], "when": "all"}).status_code == 404)
     jr = k.post("/mail/folders/general/robots").json()
     with _db.db_session() as c:
         rf = c.execute("SELECT id, parent_id FROM mail_folders WHERE user_id=? AND name=?", (OWN, mf.ROBOT_FOLDER)).fetchone()

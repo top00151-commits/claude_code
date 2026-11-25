@@ -46,6 +46,11 @@ def ensure(c):
             c.execute(ddl)
         except Exception:
             pass
+    # 11-25 대표 「답 옴(자동) 표시와 아직 아님」 — 저절로 「답 옴」으로 바꾼 이력 · 「아직 아님」을 누른 짝은 다시 안 붙임
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_wait_auto_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, mail_id INTEGER NOT NULL, reply_id INTEGER NOT NULL,
+        at TEXT DEFAULT (datetime('now','localtime')), undone_at TEXT DEFAULT NULL)""")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_mwal_mail ON mail_wait_auto_log(mail_id)")
     cols = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
     if {"wait_until", "wait_state", "wait_reply_id"} <= cols:
         _OK.add(k)
@@ -413,14 +418,39 @@ def _find_reply(c, uid, row, norm):
     if not doms:
         return None
     key = norm(row.get("subject") or "")
+    try:   # 11-25 — 「아직 아님」을 누른 짝은 다시 답으로 보지 않음
+        no = {x[0] for x in c.execute("SELECT reply_id FROM mail_wait_auto_log WHERE mail_id=? AND undone_at IS NOT NULL",
+                                      (row["id"],)).fetchall()}
+    except Exception:
+        no = set()
     for d in doms:
         for r in c.execute(
                 "SELECT id, subject FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
                 "AND lower(from_email) LIKE ? AND received_at > ? ORDER BY received_at LIMIT 50",
                 (uid, "%@" + d, row.get("received_at") or "")).fetchall():
+            if r["id"] in no:
+                continue
             if norm(r["subject"] or "") == key:
                 return r["id"]
     return None
+
+
+def wait_not_yet(c, uid, mail_id):
+    """11-25 「아직 아님」 — 저절로 「답 옴」이 된 메일을 다시 답 기다림으로 · 그 짝은 다시 안 붙임(이력에 남김)."""
+    ensure(c)
+    r = c.execute("SELECT id, wait_reply_id FROM mail_messages WHERE id=? AND user_id=? AND direction='out' AND wait_state='replied'",
+                  (mail_id, uid)).fetchone()
+    if not r:
+        return False, "저절로 「답 옴」이 된 메일이 아닙니다."
+    rid = r["wait_reply_id"]
+    if rid:
+        n = c.execute("UPDATE mail_wait_auto_log SET undone_at=datetime('now','localtime') WHERE mail_id=? AND reply_id=? AND undone_at IS NULL",
+                      (mail_id, rid)).rowcount
+        if not n:
+            c.execute("INSERT INTO mail_wait_auto_log(user_id, mail_id, reply_id, undone_at) VALUES(?,?,?,datetime('now','localtime'))",
+                      (uid, mail_id, rid))
+    c.execute("UPDATE mail_messages SET wait_state='wait', wait_reply_id=NULL WHERE id=?", (mail_id,))
+    return True, "⏳ 다시 답을 기다립니다 · 그 메일은 답으로 보지 않습니다"
 
 
 def list_waiting(c, uid, today, norm, include_done=False):
@@ -436,6 +466,7 @@ def list_waiting(c, uid, today, norm, include_done=False):
             rid = _find_reply(c, uid, r, norm)
             if rid:
                 c.execute("UPDATE mail_messages SET wait_state='replied', wait_reply_id=? WHERE id=?", (rid, r["id"]))
+                c.execute("INSERT INTO mail_wait_auto_log(user_id, mail_id, reply_id) VALUES(?,?,?)", (uid, r["id"], rid))   # 11-25 이력
                 r["wait_state"], r["wait_reply_id"] = "replied", rid
                 if not include_done:
                     continue

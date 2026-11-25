@@ -41,7 +41,8 @@
       {% if m.direction == 'out' %}{# 11-19 1단계 ② ⏳ 답 기다리기 — 바깥 거래처에 보낸 메일 #}
         {% if m.wait_state == 'wait' %}<button type="button" class="btn btn-secondary" style="border-color:#93c5fd;background:#eff6ff;color:#1e3a8a" onclick="mvWait(0)" title="눌러서 그만 기다리기 · 답이 오면 저절로 빠짐">⏳ {{ (m.wait_until or '')[5:]|replace('-','/') }}까지 답 기다림 ✕</button>
         <a href="/mail/compose?nudge={{ m.id }}" class="btn btn-secondary" onclick="return window.mailNewWin ? mailNewWin(event,'nudge={{ m.id }}') : true" title="원래 받는 사람에게 「[확인 요청] 원래 제목」 — 새 창으로">✉ 다시 묻기</a>
-        {% elif m.wait_state == 'replied' %}{% if m.wait_reply_id %}<a href="/mail/{{ m.wait_reply_id }}" class="btn btn-secondary" style="color:#166534">✅ 답 옴 — 보기</a>{% endif %}
+        {% elif m.wait_state == 'replied' %}{% if m.wait_reply_id %}<a href="/mail/{{ m.wait_reply_id }}" class="btn btn-secondary" style="color:#166534" title="같은 제목으로 상대 회사에서 온 메일을 저절로 답으로 짝지었습니다 — 틀렸으면 「아직 아님」">✅ 답 옴(자동) — 보기</a>{% endif %}
+        <button type="button" class="btn btn-secondary" onclick="mvWaitNotYet()" title="이 짝이 틀렸으면 — 다시 답 기다림으로(그 메일은 다시 답으로 보지 않음)">↩ 아직 아님</button>
         {% else %}<button type="button" class="btn btn-secondary" onclick="mvWait(3)" title="3일 안에 답이 없으면 받은편지함 위에 알려 드림(바깥 거래처에 보낸 메일만)">⏳ 답 기다리기</button>{% endif %}
       {% endif %}
       {% if m.direction != 'out' %}<button type="button" id="mvStarBtn" class="btn btn-secondary mv-desk mv-ico mv-star{{ ' on' if m.is_starred else '' }}" onclick="mvStar()" title="{{ '⭐ 중요 — 눌러서 풀기' if m.is_starred else '☆ 중요 표시 — 왼쪽 「⭐ 중요」에 모입니다 · 다시 누르면 풀림' }} (S)" aria-label="{{ '중요' if m.is_starred else '중요 표시' }}">{{ '⭐' if m.is_starred else '☆' }}</button>{% endif %}
@@ -315,8 +316,18 @@
     else { if(t)t.style.display='none'; if(f){ f.style.display='block'; setTimeout(mvResize,30);}
       if(bh)bh.classList.add('active'); if(bt)bt.classList.remove('active'); }
   };
+  window.mvWaitNotYet=async function(){
+    if(!confirm('이 메일을 다시 「답 기다림」으로 돌릴까요?\n짝지어진 메일은 앞으로 답으로 보지 않습니다.')) return;
+    try{ var r=await fetch('/mail/'+MAIL_ID+'/wait-notyet',{method:'POST'}); var j=await r.json();
+      if(j.ok){ alert('✅ 완료 — '+(j.message||'다시 답을 기다립니다')); location.reload(); } else { alert('⚠ 끝나지 않았습니다 — '+(j.message||'실패')); }
+    }catch(e){ alert('네트워크 오류'); }
+  };
   window.blockSender=async function(id){
-    if(!confirm('이 보낸 사람을 회사 전체 차단 목록에 넣을까요?\n앞으로 이 주소의 메일은 모든 직원의 받은편지함에 안 보이고 🚫 스팸함으로 갑니다.\n이미 받은 메일도 스팸함으로 옮깁니다(지우지 않음 · 「✓ 스팸 아님」으로 되돌림).')) return;
+    // 11-25 — 누르기 전에 「직원 N명 · M통」을 먼저 보여 주고 확인(knk-no-silent-change ②)
+    var pv={users:0, mails:0};
+    try{ pv=await (await fetch('/mail/'+id+'/block-sender?dry=1',{method:'POST'})).json(); }catch(e){}
+    if(pv && pv.ok===false){ alert('⚠ '+(pv.message||'실패')); return; }
+    if(!confirm('이 보낸 사람을 회사 전체 차단 목록에 넣을까요?\n\n· 지금 받은 메일 중 직원 '+(pv.users||0)+'명 · '+(pv.mails||0)+'통이 🚫 스팸함으로 옮겨집니다(지우지 않음).\n· 앞으로 오는 이 주소 메일도 모든 직원의 스팸함으로 갑니다.\n· 차단을 풀면 이번에 옮긴 메일은 원래 자리로 돌아갑니다.')) return;
     try{ var r=await fetch('/mail/'+id+'/block-sender',{method:'POST'}); var j=await r.json();
       if(j.ok){ alert('🚫 차단했습니다: '+(j.addr||'')+(j.moved?('\n기존 '+j.moved+'통도 스팸함으로 옮겼습니다.'):'')); location.href='/mail/inbox'; }
       else { alert('⚠ '+(j.message||'실패')); }
@@ -402,18 +413,15 @@
     }catch(e){ alert('네트워크 오류'); } })();
     return false;
   };
+  // 11-25 대표 규정 knk-no-silent-change — 예전 「이 회사 메일 모두」 길도 묻지 않고 지난 메일까지 옮기지 않게 공용 묻는 창(언제부터·몇 통 · ↺)으로
   window.mailSetFolderAll=async function(sel){
     var fid=sel.value; if(!fid) return;
-    var name=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,'');
-    var who=sel.getAttribute('data-kind')==='domain' ? ('회사 주소 @'+sel.getAttribute('data-pattern')+' 에서 온 메일') : (sel.getAttribute('data-pattern')+' 에서 온 메일');
-    if(!confirm(who+'을 모두 「'+name+'」 폴더로 옮길까요?\n\n지난 메일과 앞으로 올 메일 모두 · 나에게만 적용됩니다.\n(폴더 ⚙ 관리에서 언제든 지울 수 있습니다)')){ sel.value=''; return; }
-    try{ var fd=new FormData(); fd.append('folder_id', fid);
-      var r=await fetch('/mail/'+MAIL_ID+'/folder',{method:'POST',body:fd}); var j=await r.json();
-      if(!j.ok){ alert('⚠ '+(j.message||'옮기지 못했습니다')); sel.value=''; return; }
-      var cur=document.getElementById('mvFolderCur'); if(cur){ cur.textContent='📁 '+j.folder; cur.title='내 규칙'; }
-      var msg=document.getElementById('mvFolderMsg'); if(msg){ msg.textContent='✓ 메일 '+j.moved+'통을 옮겼습니다 · 왼쪽 숫자는 받은편지함을 다시 열면 바뀝니다'; }
-      sel.value='';
-    }catch(e){ alert('네트워크 오류'); sel.value=''; }
+    var name=sel.options[sel.selectedIndex].text.replace(/^[\s　└]+/,''); sel.value='';
+    if(!window.mailMoveAsk){ alert('화면을 새로 고친 뒤 다시 해 주세요'); return; }
+    var key=(/^\d+$/.test(fid) ? 'f'+fid : fid);
+    var j=await mailMoveAsk({ids:[MAIL_ID], key:key, name:name}); if(!j) return;
+    var cur=document.getElementById('mvFolderCur'); if(cur){ cur.textContent='📁 '+(j.name||name); cur.title=(j.when==='one'?'이 메일만 직접 옮김':'내 규칙'); }
+    var msg=document.getElementById('mvFolderMsg'); if(msg){ msg.textContent='✅ 완료 — '+(j.text||'옮겼습니다')+' · 되돌리려면 「↺ 되돌리기」'; }
   };
   window.muteSender=async function(){
     if(!confirm('이 발신의 메일을 다시 안 받을까요? (나에게만 적용)\n\n이미 받은 메일도, 앞으로 오는 메일도 받은편지함에 안 보이고 스팸함에 모입니다.\n지우지 않으며, 「📮 보낸 곳별 정리」 화면에서 언제든 풀 수 있습니다.')) return;

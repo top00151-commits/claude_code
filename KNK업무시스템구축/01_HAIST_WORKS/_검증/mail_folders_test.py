@@ -227,12 +227,12 @@ try:
         outs = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='3.외주업체'", (OWN,)).fetchone()["id"]
         staff_g = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND kind='staff'", (OWN,)).fetchone()["id"]
         semco = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='삼성전기'", (OWN,)).fetchone()["id"]
-    j = k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj}).json()
+    j = k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj, "when": "all"}).json()
     check("개인 메일 → 그 주소 하나만 기억", j.get("ok") and j.get("kind") == "email" and j.get("pattern") == "hello.yj@gmail.com" and j.get("folder") == "와이제이전자", j)
     with _db.db_session() as c:
         res = mf.classify(c, OWN)
     check("같은 gmail 의 다른 사람은 그대로 일반", mf.folder_of(res, "other.person@gmail.com")["name"] == "일반")
-    j = k.post("/mail/%d/folder" % ids["newco1"], data={"folder_id": outs}).json()
+    j = k.post("/mail/%d/folder" % ids["newco1"], data={"folder_id": outs, "when": "all"}).json()
     check("회사 주소 → @newco.example 전체 기억 · 옮긴 메일 2통", j.get("ok") and j.get("kind") == "domain" and j.get("pattern") == "newco.example" and j.get("moved") == 2, j)
     with _db.db_session() as c:
         res = mf.classify(c, OWN)
@@ -241,20 +241,20 @@ try:
     with _db.db_session() as c:
         res = mf.classify(c, OWN)
     check("앞으로 올 메일도 같은 폴더로", mf.folder_of(res, "c@newco.example")["name"] == "3.외주업체")
-    j = k.post("/mail/%d/folder" % ids["cust_amb"], data={"folder_id": semco}).json()
+    j = k.post("/mail/%d/folder" % ids["cust_amb"], data={"folder_id": semco, "when": "all"}).json()
     with _db.db_session() as c:
         res = mf.classify(c, OWN)
     check("내 규칙이 자동보다 먼저(짐작 못 하던 주소 → 삼성전기)", mf.folder_of(res, "x@shared.example")["name"] == "삼성전기", j)
-    j2 = k.post("/mail/%d/folder" % ids["free"], data={"folder_id": staff_g})
+    j2 = k.post("/mail/%d/folder" % ids["free"], data={"folder_id": staff_g, "when": "all"})
     check("6.케이엔케이 묶음으로는 못 옮김(400)", j2.status_code == 400)
-    j3 = k.post("/mail/%d/folder" % ids["other_user"], data={"folder_id": yj})
+    j3 = k.post("/mail/%d/folder" % ids["other_user"], data={"folder_id": yj, "when": "all"})
     check("남의 메일은 못 건드림(404)", j3.status_code == 404)
     with _db.db_session() as c:
         oth_f = mf.add_folder(c, OTHER, "남의 폴더")
-    j4 = k.post("/mail/%d/folder" % ids["free2"], data={"folder_id": oth_f})
+    j4 = k.post("/mail/%d/folder" % ids["free2"], data={"folder_id": oth_f, "when": "all"})
     check("남의 폴더로는 못 옮김(400)", j4.status_code == 400)
     _UID["v"] = None
-    check("로그인 안 하면 401", k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj}).status_code == 401)
+    check("로그인 안 하면 401", k.post("/mail/%d/folder" % ids["free"], data={"folder_id": yj, "when": "all"}).status_code == 401)
     _UID["v"] = OWN
 
     print("== 4b. 더 똑똑하게(영문 이름·회사 주소·보낸 사람 이름·같은 회사 사람) + 일반 정리 ==")
@@ -301,11 +301,11 @@ try:
     with _db.db_session() as c:
         fine = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='파인텍'", (OWN,)).fetchone()["id"]
         init = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND name='이니텍'", (OWN,)).fetchone()["id"]
-    j = k.post("/mail/folders/rule", data={"sender": "q@unknown-fine.example", "folder_id": fine}).json()
+    j = k.post("/mail/folders/rule", data={"sender": "q@unknown-fine.example", "folder_id": fine, "when": "all"}).json()
     with _db.db_session() as c:
         res = mf.classify(c, OWN)
     check("「옮기기」 → 회사 주소 규칙 · 파인텍으로", j.get("ok") and j.get("kind") == "domain" and fo("q@unknown-fine.example") == "파인텍", j)
-    check("내 메일에 없는 주소로는 규칙 못 만듦(404)", k.post("/mail/folders/rule", data={"sender": "nobody@x.example", "folder_id": fine}).status_code == 404)
+    check("내 메일에 없는 주소로는 규칙 못 만듦(404)", k.post("/mail/folders/rule", data={"sender": "nobody@x.example", "folder_id": fine, "when": "all"}).status_code == 404)
     later2 = put("z9@newcorp.example", "새 회사", "처음")
     k.post("/mail/folders/op", data={"op": "aliases", "id": init, "aliases": "INITECH, newcorp.example"})
     with _db.db_session() as c:
@@ -363,7 +363,7 @@ try:
     km = client(port=5053, host="kmail.knknara.co.kr")
     check("kmail: 받은편지함 폴더 보기 200", km.get("/mail/inbox?fd=gen").status_code == 200)
     check("kmail: 폴더 관리 200", km.get("/mail/folders").status_code == 200)
-    check("kmail: 「📁 이 폴더로」 POST 동작", km.post("/mail/%d/folder" % ids["free2"], data={"folder_id": semco}).json().get("ok"))
+    check("kmail: 「📁 이 폴더로」 POST 동작", km.post("/mail/%d/folder" % ids["free2"], data={"folder_id": semco, "when": "all"}).json().get("ok"))
     check("보낸편지함·휴지통은 폴더 없이 그대로", k.get("/mail/sent").status_code == 200 and k.get("/mail/trash").status_code == 200)
     check("메일 전체 화면에도 폴더 줄", "mvFolderCur" in k.get("/mail/%d" % ids["sig_comp"]).text)
 

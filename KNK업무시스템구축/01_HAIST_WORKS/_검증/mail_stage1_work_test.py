@@ -204,7 +204,7 @@ as_(U_MEM)
 check("남의 메일엔 못 붙임", not k.post("/mail/%d/wait" % o1["id"], data={"days": "3"}).json()["ok"])
 as_(U_CEO)
 hv = km.get("/mail/%d" % o3["id"]).text
-check("읽기 화면 — 답 옴이면 「✅ 답 옴 — 보기」", "✅ 답 옴 — 보기" in hv)
+check("읽기 화면 — 답 옴이면 「✅ 답 옴(자동) — 보기」 + 「↩ 아직 아님」(11-25)", "✅ 답 옴(자동) — 보기" in hv and "아직 아님" in hv)
 k.post("/mail/send", data={"to": "x@cust-b.example", "subject": "새 견적", "body": "x", "send_token": "w4"})
 hv2 = km.get("/mail/%d" % last_out()["id"]).text
 check("읽기 화면 — 보낸 메일에 「⏳ 답 기다리기」 단추", 'onclick="mvWait(3)"' in hv2)

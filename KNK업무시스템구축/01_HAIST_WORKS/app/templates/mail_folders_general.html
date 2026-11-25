@@ -42,6 +42,19 @@
   .gn-ok{font-size:12px;color:#047857;font-weight:700;white-space:nowrap}
   .gn-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
   .gn-empty{padding:34px 16px;text-align:center;color:var(--mute);line-height:1.8}
+  /* 11-25 knk-no-silent-change — 옮기기 전에 「언제부터 · 몇 통」 꼭 묻는 창 */
+  .gna-bg{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px}
+  .gna{position:relative;background:var(--mt-surface,#fff);color:var(--ink,#111827);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.25);width:min(500px,100%);padding:18px 18px 14px;font-size:13.5px;line-height:1.6}
+  .gna h3{margin:0 30px 6px 0;font-size:16px;font-weight:800;overflow-wrap:anywhere}
+  .gna .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:16px;font-weight:700;color:var(--mute,#64748b);cursor:pointer}
+  .gna .sub{color:var(--mute,#64748b);font-size:12.5px;margin-bottom:10px;overflow-wrap:anywhere}
+  .gna .go{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .gna .go button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid #c7d2fe;background:#eef2ff;color:#1e3a8a;border-radius:10px;padding:10px 12px;font:inherit;cursor:pointer}
+  .gna .go button b{font-size:14px}
+  .gna .go button span{font-size:12px;color:#475569}
+  .gna .cancel{margin-top:10px;text-align:right}
+  .gn-done{border:1px solid #86d3a8;background:#ecfdf3;color:#14532d;border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}
+  @media(max-width:520px){ .gna .go{grid-template-columns:1fr} }
   @media(max-width:760px){
     .gn-row{grid-template-columns:26px 1fr auto;gap:6px 8px}
     .gn-row.head{display:none}
@@ -65,6 +78,7 @@
     <br>· 맞는 폴더가 없으면 <b>「＋ 새 폴더로」</b> — 이름(서명의 회사 이름·회사 주소로 미리 채움)을 확인하고 넣을 곳만 고르면 폴더를 만들고 그 회사 메일이 모두 그리로 갑니다. <b>위에서부터</b> 하면 적은 손으로 많이 줄어듭니다.
   </div>
   {% if robot_n|default(0) %}
+  <div id="gnDone" class="gn-done" hidden></div>
   <div class="gn-rb" id="gnRobot">
     <span>📢 <b>알림·광고</b>로 보이는 주소 <b>{{ robot_n }}곳 · {{ '{:,}'.format(robot_m) }}통</b>(noreply·newsletter 등)</span>
     <button type="button" class="gn-btn go" onclick="gnRobots()">「{{ robot_name }}」 폴더로 한 번에</button>
@@ -132,14 +146,57 @@
     rows().forEach(function(r){ r.style.display = (!q || (r.getAttribute('data-q')||'').indexOf(q)>=0) ? '' : 'none'; });
   };
   window.gnAllTog=function(cb){ rows().forEach(function(r){ if(r.style.display!=='none' && !r.classList.contains('done')){ var c=r.querySelector('.gn-ck'); if(c) c.checked=cb.checked; } }); };
-  async function move(r, fid){
+  // 11-25 대표 규정 knk-no-silent-change — 옮기기 전에 「언제부터(지난 메일도 / 지금부터) · 몇 통」을 꼭 묻는다 · ↺ 되돌리기
+  function gnEsc(t){ return String(t==null?'':t).replace(/[&<>"]/g,function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  function gnAsk(title, sub, count){
+    return new Promise(function(resolve){
+      var bg=document.createElement('div'); bg.className='gna-bg';
+      bg.innerHTML='<div class="gna" role="dialog" aria-modal="true"><button type="button" class="x" title="닫기 (Esc)" aria-label="닫기">✕</button>'
+        +'<h3>'+gnEsc(title)+'</h3><div class="sub">'+gnEsc(sub)+'</div>'
+        +'<div style="font-weight:700;margin:4px 0 8px">언제부터 옮길까요?</div><div class="go">'
+        +'<button type="button" data-w="all"><b>📥 지난 메일도 모두</b><span>지금까지 받은 '+(count||0).toLocaleString()+'통 + 앞으로 올 메일</span></button>'
+        +'<button type="button" data-w="new"><b>🆕 지금부터 오는 메일만</b><span>지난 메일은 지금 자리 그대로</span></button></div>'
+        +'<div class="cancel"><button type="button" class="gn-btn" data-w="">취소</button></div></div>';
+      document.body.appendChild(bg);
+      function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
+      function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(null); } }
+      document.addEventListener('keydown', onKey, true);
+      bg.addEventListener('mousedown', function(e){ if(e.target===bg) close(null); });
+      bg.querySelector('.x').onclick=function(){ close(null); };
+      bg.querySelectorAll('[data-w]').forEach(function(b){ b.onclick=function(){ close(b.getAttribute('data-w')||null); }; });
+      var f=bg.querySelector('.go button'); if(f) f.focus();
+    });
+  }
+  function gnDone(html){ var d=document.getElementById('gnDone'); if(d){ d.innerHTML=html; d.hidden=false; d.scrollIntoView({block:'nearest'}); } }
+  async function gnPost(url, o){ var fd=new FormData(); Object.keys(o||{}).forEach(function(k){ fd.append(k,o[k]); }); var r=await fetch(url,{method:'POST',body:fd}); return r.json(); }
+  async function gnCount(list, fid){
+    var n=0; for(var i=0;i<list.length;i++){ try{ var d=await gnPost('/mail/folders/rule',{sender:list[i].getAttribute('data-sender'), folder_id:fid, dry:'1'}); if(d.ok) n+=(d.count||0); }catch(e){} }
+    return n;
+  }
+  function fname(fid){ var o=document.querySelector('#gnBulk option[value="'+fid+'"]')||document.querySelector('.gn-fsel option[value="'+fid+'"]'); return o?o.textContent.replace(/^[\s　└]+/,''):''; }
+  async function moveMany(list, fidOf, title){
+    // 같은 폴더끼리 묶어 한 번 묻고 · 한 묶음(batch)으로 → ↺ 되돌리기 한 번에
+    var groups={}; list.forEach(function(r){ var f=fidOf(r); if(f){ (groups[f]=groups[f]||[]).push(r); } });
+    var keys=Object.keys(groups); if(!keys.length){ alert('먼저 폴더를 골라 주세요.'); return; }
+    var batch='g'+Date.now(), done=0, mails=0, skipped=0;
+    for(var k=0;k<keys.length;k++){
+      var fid=keys[k], rs=groups[fid], cnt=await gnCount(rs, fid);
+      var when=await gnAsk(title||('「'+fname(fid)+'」 폴더로 옮기기'), rs.length+'곳(보낸 곳) · 지금까지 받은 메일 '+cnt.toLocaleString()+'통 · 나에게만 적용', cnt);
+      if(!when){ skipped+=rs.length; continue; }
+      for(var i=0;i<rs.length;i++){ if(await move(rs[i], fid, when, batch)){ done++; } }
+      if(when==='all') mails+=cnt;
+    }
+    if(done) gnDone('✅ <b>완료 — 이 작업은 끝났습니다.</b> '+done+'곳을 옮겼습니다'+(mails?(' · 지난 메일 '+mails.toLocaleString()+'통 포함'):' · 지금부터 오는 메일만')+(skipped?(' · 취소한 '+skipped+'곳은 그대로'):'')+' · <a href="#" onclick="gnUndo();return false">↺ 되돌리기</a>');
+    else if(skipped) gnDone('✅ <b>완료 — 취소했습니다.</b> 아무것도 바뀌지 않았습니다.');
+  }
+  async function move(r, fid, when, batch){
     if(!fid || r.classList.contains('done')) return false;
-    var fd=new FormData(); fd.append('sender', r.getAttribute('data-sender')); fd.append('folder_id', fid);
+    var fd=new FormData(); fd.append('sender', r.getAttribute('data-sender')); fd.append('folder_id', fid); fd.append('when', when||''); fd.append('batch', batch||'');
     try{ var res=await fetch('/mail/folders/rule',{method:'POST',body:fd}); var j=await res.json();
       if(!j.ok){ alert('⚠ '+(j.message||'옮기지 못했습니다')); return false; }
       r.classList.remove('sug'); r.classList.add('done');
       var sel=r.querySelector('.gn-fsel'); var name=sel?sel.querySelector('option[value="'+fid+'"]'):null;
-      var act=r.querySelector('.gn-act'); if(act){ act.innerHTML='<span class="gn-ok">✓ '+((name?name.textContent:'').replace(/^[\s　└]+/,''))+' · '+(j.moved||0)+'통</span>'; }
+      var act=r.querySelector('.gn-act'); if(act){ act.innerHTML='<span class="gn-ok">✓ '+((name?name.textContent:'').replace(/^[\s　└]+/,''))+(j.when==='new'?' · 지금부터':' · '+(j.moved||0)+'통')+'</span>'; }
       var ck=r.querySelector('.gn-ck'); if(ck){ ck.checked=false; ck.disabled=true; }
       return true;
     }catch(e){ alert('네트워크 오류'); return false; }
@@ -149,12 +206,17 @@
   window.gnNew=async function(btn){
     var r=btn.closest('.gn-row'), box=btn.closest('.gn-new'), nm=(box.querySelector('.gn-nm').value||'').trim(), par=box.querySelector('.gn-par');
     if(!nm){ alert('폴더 이름을 적어 주세요.'); return; }
-    var fd=new FormData(); fd.append('sender', r.getAttribute('data-sender')); fd.append('name', nm); fd.append('parent_id', par.value);
+    var d={}; try{ d=await gnPost('/mail/folders/general/new',{sender:r.getAttribute('data-sender'), name:nm, parent_id:par.value, dry:'1'}); }catch(e){}
+    if(!d.ok){ alert('⚠ '+(d.message||'만들지 못했습니다')); return; }
+    var when=await gnAsk('새 폴더 「'+nm+'」 만들고 옮기기', '이 보낸 곳에서 지금까지 받은 메일 '+(d.count||0).toLocaleString()+'통 · 나에게만 적용', d.count||0);
+    if(!when) return;
+    var fd=new FormData(); fd.append('sender', r.getAttribute('data-sender')); fd.append('name', nm); fd.append('parent_id', par.value); fd.append('when', when);
     btn.disabled=true;
     try{ var res=await fetch('/mail/folders/general/new',{method:'POST',body:fd}); var j=await res.json();
       if(!j.ok){ alert('⚠ '+(j.message||'만들지 못했습니다')); btn.disabled=false; return; }
       r.classList.remove('sug'); r.classList.add('done');
-      var act=r.querySelector('.gn-act'); if(act){ act.innerHTML='<span class="gn-ok">✓ '+(j.made?'새 폴더 ':'')+'「'+j.name+'」 · '+(j.moved||0)+'통</span>'; }
+      var act=r.querySelector('.gn-act'); if(act){ act.innerHTML='<span class="gn-ok">✓ '+(j.made?'새 폴더 ':'')+'「'+j.name+'」'+(j.when==='new'?' · 지금부터':' · '+(j.moved||0)+'통')+'</span>'; }
+      gnDone('✅ <b>완료 — 이 작업은 끝났습니다.</b> '+(j.made?'새 폴더 ':'')+'「'+gnEsc(j.name)+'」로 옮겼습니다'+(j.when==='new'?'(지금부터 오는 메일만)':' · '+(j.moved||0).toLocaleString()+'통')+' · <a href="#" onclick="gnUndo();return false">↺ 되돌리기</a>(새로 만든 폴더도 지움)');
       var ck=r.querySelector('.gn-ck'); if(ck){ ck.checked=false; ck.disabled=true; }
       // 새로 만든 폴더를 다른 줄 고르기에도 더함
       if(j.made){ document.querySelectorAll('.gn-fsel, #gnBulk').forEach(function(s){ var o=document.createElement('option'); o.value=j.folder_id; o.textContent='　└ '+j.name; s.appendChild(o); }); }
@@ -162,33 +224,30 @@
   };
   window.gnRobots=async function(){
     var b=document.querySelector('#gnRobot .gn-btn'), m=document.getElementById('gnRobotMsg');
-    if(!confirm('알림·광고로 보이는 주소를 모두 「{{ robot_name|default('알림·광고') }}」 폴더로 옮길까요?\n\n· 주소 하나씩 옮깁니다(같은 회사의 사람 메일은 그대로)\n· 지난 메일·앞으로 올 메일 모두 · 바로 뒤 ↺ 되돌리기 가능')) return;
+    var d={}; try{ d=await gnPost('/mail/folders/general/robots',{dry:'1'}); }catch(e){}
+    if(!d.ok){ alert('⚠ '+(d.message||'하지 못했습니다')); return; }
+    if(!confirm('알림·광고로 보이는 주소 '+(d.senders||0)+'곳 · 메일 '+(d.moved||0).toLocaleString()+'통을 「{{ robot_name|default('알림·광고') }}」 폴더로 옮길까요?\n\n· 주소 하나씩 옮깁니다(같은 회사의 사람 메일은 그대로)\n· 지난 메일·앞으로 올 메일 모두 · 바로 뒤 ↺ 되돌리기 가능')) return;
     b.disabled=true;
     try{ var j=await (await fetch('/mail/folders/general/robots',{method:'POST'})).json();
       if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); b.disabled=false; return; }
-      m.innerHTML='✓ '+j.senders+'곳 · '+(j.moved||0).toLocaleString()+'통을 「'+j.name+'」로 · <a href="#" onclick="gnUndo();return false">↺ 되돌리기</a> · <a href="/mail/folders/general">새로 보기</a>';
+      m.innerHTML='✅ <b>완료 — 이 작업은 끝났습니다.</b> '+j.senders+'곳 · '+(j.moved||0).toLocaleString()+'통을 「'+j.name+'」로 · <a href="#" onclick="gnUndo();return false">↺ 되돌리기</a> · <a href="/mail/folders/general">새로 보기</a>';
       document.querySelectorAll('.gn-row .gn-robot').forEach(function(x){ var r=x.closest('.gn-row'); if(r){ r.classList.add('done'); var a=r.querySelector('.gn-act'); if(a) a.innerHTML='<span class="gn-ok">✓ 「'+j.name+'」</span>'; } });
     }catch(e){ alert('네트워크 오류'); b.disabled=false; }
   };
   window.gnUndo=async function(){
-    try{ var j=await (await fetch('/mail/move/undo',{method:'POST'})).json(); if(j.ok){ location.reload(); } else { alert('⚠ '+(j.message||'되돌리지 못했습니다')); } }catch(e){ alert('네트워크 오류'); }
+    try{ var j=await (await fetch('/mail/move/undo',{method:'POST'})).json(); if(j.ok){ alert('✅ 완료 — 되돌리기가 끝났습니다.'); location.reload(); } else { alert('⚠ 끝나지 않았습니다 — '+(j.message||'되돌리지 못했습니다')); } }catch(e){ alert('네트워크 오류'); }
   };
-  window.gnOne=function(btn){ var r=btn.closest('.gn-row'); var fid=r.querySelector('.gn-fsel').value; if(!fid){ alert('먼저 폴더를 골라 주세요.'); return; } move(r, fid); };
+  window.gnOne=function(btn){ var r=btn.closest('.gn-row'); var fid=r.querySelector('.gn-fsel').value; if(!fid){ alert('먼저 폴더를 골라 주세요.'); return; } moveMany([r], function(){ return fid; }); };
   window.gnSuggested=async function(){
     var list=rows().filter(function(r){ return r.classList.contains('sug') && !r.classList.contains('done'); });
     if(!list.length){ alert('추천이 남은 줄이 없습니다.'); return; }
-    if(!confirm('노란 줄 '+list.length+'곳을 추천한 폴더로 옮길까요?\n(줄마다 고른 폴더를 바꿔 두셨으면 바꾼 대로 옮깁니다)')) return;
-    var n=0; for(var i=0;i<list.length;i++){ if(await move(list[i], list[i].querySelector('.gn-fsel').value)) n++; }
-    alert('✓ '+n+'곳을 옮겼습니다.');
+    await moveMany(list, function(r){ return r.querySelector('.gn-fsel').value; });
   };
   window.gnBulk=async function(){
     var fid=document.getElementById('gnBulk').value; if(!fid){ alert('옮길 폴더를 골라 주세요.'); return; }
     var list=rows().filter(function(r){ var c=r.querySelector('.gn-ck'); return c && c.checked; });
     if(!list.length){ alert('먼저 줄을 골라 주세요(왼쪽 네모).'); return; }
-    var fname=document.getElementById('gnBulk').selectedOptions[0].textContent.replace(/^[\s　└]+/,'');
-    if(!confirm('고른 '+list.length+'곳을 「'+fname+'」 폴더로 옮길까요?')) return;
-    var n=0; for(var i=0;i<list.length;i++){ if(await move(list[i], fid)) n++; }
-    alert('✓ '+n+'곳을 옮겼습니다.');
+    await moveMany(list, function(){ return fid; });
   };
 })();
 </script>

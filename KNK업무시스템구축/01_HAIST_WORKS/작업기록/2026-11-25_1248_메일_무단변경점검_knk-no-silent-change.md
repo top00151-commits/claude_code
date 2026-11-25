@@ -74,3 +74,24 @@
 ## 4. 메모
 - 사용자 자료를 바꾸지 않는 표 만들기(ensure)·임시 표(`_mf_*`·`_mv_*`)·숫자 캐시·받기 계정 상태(`mail_fetch`)·받아 본 번호(UIDL)는 대상에서 뺌(➖)
 - 점검 방법: `app/mail_*.py`·`app/main.py` `/mail/*` 의 UPDATE/INSERT/DELETE 와 그 호출 경로(GET 화면·받기·단추)·화면 confirm 문구를 대조(코드 읽기만)
+
+
+## 고침(2026-11-25 (수) 13:13 KST) — 대표 「진행해」(고칠 것 5) + 대표 답(판단 필요 2: 「답 옴(자동) 표시와 아직 아님」·차단 「ok」)
+아직 운영에 안 올림(대표 「올려」 기다림).
+
+| # | 항목 | 고친 것 | 시험 |
+|---|---|---|---|
+| 1 | #16 「📁 이 폴더로」 예전 길(`/mail/{id}/folder`) · 일반 정리 「옮기기」(`/mail/folders/rule`) | `set_rule(when, dry, batch)` — `dry=1` 몇 통만 · `when`=all/new 를 **꼭** 골라야 바꿈(없으면 400 `need_when`) · 지금부터 = 규칙 since · 되돌림 `move_undo`(`_save_undo` · 같은 batch 는 한 번에) · 메일 보기 예전 함수 = 공용 `mailMoveAsk` · 일반 정리 화면 = 「언제부터 옮길까요?」 창(지난 메일도 N통 / 지금부터) · 완료 문구 + ↺ | dry 안 바꿈 · when 없으면 400 · 지금부터 = 지난 메일 그대로 · ↺ · 한 묶음 ↺ · 화면 문구 |
+| 2 | #21 규칙 소급 적용 | `apply_rules_existing(dry)` · 되돌림 표 `mail_rules_apply_bak`(묶음) · `undo_rules_apply` · `/mail/rules/apply` dry/undo · 화면 = 「N통이 바뀝니다」 확인 → 완료 → ↺ | 셈 안 바꿈 · 3통 · 다른 회사 그대로 · ↺ 그대로 |
+| 3 | #18 새 폴더로 · #19 알림·광고 일괄 | `new_folder_move(dry, when)` · `move_robots(dry)` · 되돌리기 때 그 옮기기로 **새로 만든 폴더도 지움**(`mkfolder`) · 화면 = 먼저 셈 → 묻기 → 완료 + ↺ | 셈 = 폴더 안 만듦 · when 없으면 400 · ↺ 폴더까지 · 알림 셈 안 바꿈 |
+| 4 | #4 화면 열 때 `fd_team` 저장 · #2 다른 이름 채우기 | `classify` 가 옛 메일 받은 때 부서를 **저장하지 않음**(보여 주기만 · 받을 때 `stamp_arrival` 이 적은 값만) · `apply_seed_aliases` = 표시 `seed_alias` 로 한 번만 | fd_team 그대로 NULL · 빈칸 다시 안 채움 |
+| 5 | #26 직원 폴더 다시 만들기 | `undo_reset_staff`(되돌림 표 JSON → 폴더 같은 번호 · 규칙 · 부서 설정 · 고정 되살림) · `/mail/folders/reset-staff` `undo=1` | 같은 번호·내가 만든 폴더까지 그대로 · 없으면 400 |
+| 6 | #8 답 기다림 자동 「답 옴」(대표 답) | 이력 표 `mail_wait_auto_log`(번호만) · 「✅ 답 옴(자동)」 표시(메일 화면·답 기다림 목록) · 「↩ 아직 아님」(`POST /mail/{id}/wait-notyet` · `wait_not_yet`) → 다시 기다림 · **그 짝은 다시 안 붙음**(`_find_reply` 가 뺌) | 이력 · 표시 · 아직 아님 · 같은 짝 안 붙음 · 아닌 메일 400 |
+| 7 | #22 회사 전체 차단(대표 「ok」) | `block_preview` = 미리 「직원 N명 · M통」(안 바꿈 · `dry=1` 두 입구) · 옮긴 메일 번호 = `mail_block_moved` · 차단 풀기 `remove_block` → `restore_block_moves` 로 **원래 자리**(지금도 스팸함인 것만 · 직원이 이미 꺼낸 건 그대로) · 화면 확인 글·완료 문구 | 미리 셈 안 바꿈 · 3명·3통 · 확인 뒤 옮김 · 풀면 2통 되돌림(꺼낸 1통 그대로) · 직원 403 |
+
+- ⚠ 차단 중에 **새로 들어온** 그 주소 메일은 받을 때 차단돼 스팸함으로 가며, 차단을 풀어도 저절로 꺼내지 않음(받을 때는 어느 차단 때문인지 기록하지 않음) — 필요하면 그 메일의 「✓ 스팸 아님」
+- 새 시험 `_검증/mail_no_silent_change_test.py` **35 통과**
+- 규칙 바뀌어 고친 시험: folders 80(이 폴더로·일반 정리에 `when=all`) · move_rules 101(언제부터 + 「받은 때 부서 = 화면 열기로 저장 안 함」) · stage1_work 62(「답 옴(자동)」·「아직 아님」) · tidy 29(차단 확인 글)
+- 다시 통과: cleanup 73 · dnd 77 · menu 86 · layout 58 · adbox 35 · recvtime 20 · screen_exit 34 · import_outlook 41 · easy_sort 18 · readall · find
+- `mail_security_test` = 시험 DB 준비 오류(users 표 없음) — 이번 변경 전부터(무관)
+- 화면 스크립트 node 문법(일반 정리·규칙·답 기다림·차단·메일 보기) · 운영 파이썬 3.8 문법 통과

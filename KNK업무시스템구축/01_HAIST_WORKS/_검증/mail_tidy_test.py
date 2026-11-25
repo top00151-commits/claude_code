@@ -96,7 +96,7 @@ cp = rd("mail_compose.html")
 check("NAS · 발송망(Cloudflare/AWS SMTP) 말 없음(쓰기 화면)", "NAS" not in cp.split("<script")[0] and "Cloudflare/AWS SMTP" not in cp, [x for x in ("NAS", "Cloudflare") if x in cp.split("<script")[0]])
 check("「AI 키」 말 없음", "AI 키" not in inbox)
 check("언어 이름(영어·베트남어)", "{'en':'영어','vi':'베트남어'" in vb)
-check("관리자 차단 확인창 문구 앞뒤 맞음(「이미 받은 것도 이동 아님」 없음)", "이미 받은 것도 이동·삭제 아님" not in vb and "이미 받은 메일도 스팸함으로 옮깁니다" in vb)
+check("관리자 차단 확인창 문구 앞뒤 맞음(「이미 받은 것도 이동 아님」 없음 · 11-25 직원 N명·M통 미리 · 풀면 원래 자리)", "이미 받은 것도 이동·삭제 아님" not in vb and "통이 🚫 스팸함으로 옮겨집니다" in vb and "차단을 풀면 이번에 옮긴 메일은 원래 자리로" in vb)
 
 print("== ⑤ 단축키·도움말 ==")
 check("단축키 S = 중요(Insert 도)", "'Insert':'star','s':'star','S':'star'" in inbox and "{k:'S'}" in inbox)

@@ -440,12 +440,18 @@ def add_block(c, pattern, kind="email", note="", by=None) -> bool:
         return False
 
 
-def remove_block(c, block_id) -> None:
+def remove_block(c, block_id) -> int:
+    """차단 풀기 — 11-25: 그 차단으로 옮겼던 메일도 원래 자리로. 반환 되돌린 통수."""
     _ensure_security_cols(c)
+    n = 0
     try:
+        r = c.execute("SELECT pattern, kind FROM mail_blocklist WHERE id=?", (block_id,)).fetchone()
         c.execute("DELETE FROM mail_blocklist WHERE id=?", (block_id,))
-    except Exception:
-        pass
+        if r:
+            n = restore_block_moves(c, r["pattern"], r["kind"])
+    except Exception as e:
+        print("[MAIL-BLOCK] 차단 풀기 되돌림 실패(차단은 풀림): %s" % str(e)[:120], flush=True)
+    return n
 
 
 def list_blocks(c):
@@ -751,18 +757,49 @@ def match_rules(c, user_id: int, from_email: str = "", from_name: str = "", subj
     return None
 
 
-def apply_rules_existing(c, user_id: int) -> int:
-    """기존 받은편지함 메일에 규칙 소급 적용 — 카테고리 갱신. 변경 건수 반환."""
+def _ensure_rules_apply_bak(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_rules_apply_bak(
+        batch TEXT NOT NULL, user_id INTEGER NOT NULL, mail_id INTEGER NOT NULL, old_category TEXT,
+        PRIMARY KEY(batch, mail_id))""")
+
+
+def apply_rules_existing(c, user_id: int, dry: bool = False) -> int:
+    """기존 받은편지함 메일에 규칙 소급 적용 — 카테고리 갱신. 변경(dry=셈만) 건수 반환.
+    11-25 대표 규정 knk-no-silent-change: dry=True 면 몇 통이 바뀌는지만(아무것도 안 바꿈) ·
+    바꿀 때는 바꾸기 전 값을 되돌림 표(mail_rules_apply_bak · 묶음)에 남김 → undo_rules_apply."""
     _ensure_rules(c)
     rows = c.execute("SELECT id, from_email, from_name, subject, category FROM mail_messages "
                      "WHERE user_id=? AND direction='in' AND is_deleted=0", (user_id,)).fetchall()
     changed = 0
+    batch = ""
+    if not dry:
+        import datetime as _dt
+        _ensure_rules_apply_bak(c)
+        batch = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     for m in rows:
         newcat = match_rules(c, user_id, m["from_email"], m["from_name"], m["subject"])
         if newcat and newcat != m["category"]:
-            c.execute("UPDATE mail_messages SET category=? WHERE id=?", (newcat, m["id"]))
             changed += 1
+            if dry:
+                continue
+            c.execute("INSERT OR REPLACE INTO mail_rules_apply_bak(batch, user_id, mail_id, old_category) VALUES(?,?,?,?)",
+                      (batch, user_id, m["id"], m["category"]))
+            c.execute("UPDATE mail_messages SET category=? WHERE id=?", (newcat, m["id"]))
     return changed
+
+
+def undo_rules_apply(c, user_id: int) -> int:
+    """마지막 「규칙 소급 적용」 묶음을 그대로 되돌림 — 되돌린 통수."""
+    _ensure_rules_apply_bak(c)
+    r = c.execute("SELECT MAX(batch) FROM mail_rules_apply_bak WHERE user_id=?", (user_id,)).fetchone()
+    b = r[0] if r else None
+    if not b:
+        return 0
+    n = 0
+    for x in c.execute("SELECT mail_id, old_category FROM mail_rules_apply_bak WHERE batch=? AND user_id=?", (b, user_id)).fetchall():
+        n += c.execute("UPDATE mail_messages SET category=? WHERE id=? AND user_id=?", (x["old_category"], x["mail_id"], user_id)).rowcount
+    c.execute("DELETE FROM mail_rules_apply_bak WHERE batch=? AND user_id=?", (b, user_id))
+    return n
 
 
 # ─── 조회 ───────────────────────────────────────────────────────────
@@ -1884,22 +1921,62 @@ def set_blocked(c, user_id, mail_id, blocked) -> None:
               (1 if blocked else 0, mail_id, user_id))
 
 
-def apply_block_to_existing(c, pattern, kind) -> int:
-    """차단목록 추가 시 기존 받은 메일도 소급 차단함 이동. 반환 옮긴 건수."""
+def _block_where(pattern, kind):
+    pat = (pattern or "").strip().lower().lstrip("@")
+    if kind == "domain":
+        return pat, "(lower(from_email) LIKE ? OR lower(from_email) LIKE ?)", ("%@" + pat, "%." + pat)
+    return pat, "lower(from_email)=?", (pat,)
+
+
+def _ensure_block_moved(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_block_moved(
+        pattern TEXT NOT NULL, kind TEXT NOT NULL, mail_id INTEGER NOT NULL,
+        moved_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY(pattern, kind, mail_id))""")
+
+
+def block_preview(c, pattern, kind) -> dict:
+    """11-25 대표 「ok」 — 회사 전체 차단 누르기 전에 「직원 N명 · M통이 스팸함으로」(아무것도 안 바꿈 · 숫자만)."""
     _ensure_security_cols(c)
-    pat = (pattern or "").strip().lower()
+    pat, w, args = _block_where(pattern, kind)
+    if not pat:
+        return {"users": 0, "mails": 0}
+    r = c.execute("SELECT COUNT(DISTINCT user_id), COUNT(*) FROM mail_messages WHERE direction='in' AND is_deleted=0 "
+                  "AND COALESCE(is_blocked,0)=0 AND " + w, args).fetchone()
+    return {"users": r[0] or 0, "mails": r[1] or 0}
+
+
+def apply_block_to_existing(c, pattern, kind) -> int:
+    """차단목록 추가 시 기존 받은 메일도 소급 차단함 이동. 반환 옮긴 건수.
+    11-25 — 옮긴 메일 번호를 되돌림 표(mail_block_moved)에 남김 → 차단을 풀면 restore_block_moves 로 원래 자리."""
+    _ensure_security_cols(c)
+    pat, w, args = _block_where(pattern, kind)
     if not pat:
         return 0
-    if kind == "domain":
-        cur = c.execute(
-            "UPDATE mail_messages SET is_blocked=1 WHERE direction='in' AND is_deleted=0 "
-            "AND COALESCE(is_blocked,0)=0 AND (lower(from_email) LIKE ? OR lower(from_email) LIKE ?)",
-            ("%@" + pat, "%." + pat))
-    else:
-        cur = c.execute(
-            "UPDATE mail_messages SET is_blocked=1 WHERE direction='in' AND is_deleted=0 "
-            "AND COALESCE(is_blocked,0)=0 AND lower(from_email)=?", (pat,))
-    return cur.rowcount if cur else 0
+    _ensure_block_moved(c)
+    ids = [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE direction='in' AND is_deleted=0 "
+                                   "AND COALESCE(is_blocked,0)=0 AND " + w, args).fetchall()]
+    kd = "domain" if kind == "domain" else "email"
+    for i in range(0, len(ids), 500):
+        part = ids[i:i + 500]
+        c.executemany("INSERT OR IGNORE INTO mail_block_moved(pattern, kind, mail_id) VALUES(?,?,?)", [(pat, kd, x) for x in part])
+        c.execute("UPDATE mail_messages SET is_blocked=1 WHERE id IN (%s)" % ",".join("?" * len(part)), part)
+    return len(ids)
+
+
+def restore_block_moves(c, pattern, kind) -> int:
+    """차단을 풀 때 — 그 차단으로 스팸함에 옮겼던 메일을 원래 자리로(지금도 스팸함에 있는 것만 · 사람이 다시 옮긴 건 그대로)."""
+    _ensure_security_cols(c)
+    _ensure_block_moved(c)
+    pat = (pattern or "").strip().lower().lstrip("@")
+    kd = "domain" if kind == "domain" else "email"
+    ids = [r[0] for r in c.execute("SELECT mail_id FROM mail_block_moved WHERE pattern=? AND kind=?", (pat, kd)).fetchall()]
+    n = 0
+    for i in range(0, len(ids), 500):
+        part = ids[i:i + 500]
+        n += c.execute("UPDATE mail_messages SET is_blocked=0 WHERE COALESCE(is_blocked,0)=1 AND id IN (%s)"
+                       % ",".join("?" * len(part)), part).rowcount
+    c.execute("DELETE FROM mail_block_moved WHERE pattern=? AND kind=?", (pat, kd))
+    return n
 
 
 def list_trash(c, user_id: int, *, limit: int = 300):

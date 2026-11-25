@@ -94,8 +94,8 @@ with _db.db_session() as c:
     GF = MF.add_folder(c, UID, "1.고객사", None, "customer")
     FA = MF.add_folder(c, UID, "시험드림", GF, "")
     FB = MF.add_folder(c, UID, "시험파트", GF, "")
-    MF.set_rule(c, UID, FA, "han@dream-demo.example")
-    MF.set_rule(c, UID, FB, "oh@part-demo.example")
+    MF.set_rule(c, UID, FA, "han@dream-demo.example", when="all")
+    MF.set_rule(c, UID, FB, "oh@part-demo.example", when="all")
 
 ME = {"id": UID, "role": "member", "name": "시험신입", "rank": "사원", "team_id": 9891, "login_id": "t_me", "email": "me" + D, "lang": "ko"}
 m.get_user = lambda req: ME

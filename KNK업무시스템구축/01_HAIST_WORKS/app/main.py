@@ -25301,6 +25301,7 @@ async def mail_folders_reset_staff(req: Request):
     form = await req.form()
     nm = (form.get("name") or "").strip()
     dry = (form.get("dry") or "") == "1"
+    undo = (form.get("undo") or "") == "1"   # 11-25 — 마지막 「다시 만들기」 되돌리기
     with db_session() as c:
         rs = c.execute("SELECT id FROM users WHERE name=? AND is_active=1", (nm,)).fetchall() if nm else []
         if len(rs) != 1:
@@ -25308,6 +25309,9 @@ async def mail_folders_reset_staff(req: Request):
         tid = rs[0]["id"]
         if _mail_folders._owner_id(c) == tid:
             return JSONResponse({"ok": False, "message": "대표 메일함은 바꾸지 않습니다"}, 400)
+        if undo:
+            out = _mail_folders.undo_reset_staff(c, tid)
+            return JSONResponse(dict(out, user_id=tid), 200 if out.get("ok") else 400)
         out = _mail_folders.reset_to_staff(c, tid, dry=dry)
     print("[MAIL-FOLDERS-RESET] by=%s user=%s dry=%s %s" % (u["id"], tid, dry, {k: v for k, v in out.items() if k != "now"}), flush=True)
     return JSONResponse(dict(out, ok=True, user_id=tid, dry=dry))
@@ -25812,7 +25816,8 @@ async def mail_archive_recent(req: Request):
 
 @app.post("/mail/{mail_id:int}/folder")
 async def mail_set_folder(req: Request, mail_id: int):
-    """「📁 이 폴더로」 — 이 메일 보낸 곳(회사 주소 @ 뒤, 개인 메일은 그 주소)을 그 폴더로 기억. 지난·앞으로 메일 모두."""
+    """「📁 이 폴더로」 — 이 메일 보낸 곳(회사 주소 @ 뒤, 개인 메일은 그 주소)을 그 폴더로 기억.
+    11-25 knk-no-silent-change: dry=1 = 몇 통인지만 · when=all(지난 메일도)/new(지금부터) 를 꼭 골라야 바꿈 · ↺ /mail/move/undo."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
@@ -25825,13 +25830,16 @@ async def mail_set_folder(req: Request, mail_id: int):
         m = _mailbox.get_mail(c, mail_id, u["id"])
         if not m or m.get("direction") == "out":
             return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다(본인 받은 메일만)."}, 404)
-        r = _mail_folders.set_rule(c, u["id"], fid, m.get("from_email") or "", _mail_folders.classify(c, u["id"]))
+        r = _mail_folders.set_rule(c, u["id"], fid, m.get("from_email") or "", _mail_folders.classify(c, u["id"]),
+                                   when=(form.get("when") or "").strip() or None, dry=(form.get("dry") or "") == "1")
         if not r.get("ok"):
             return JSONResponse(r, 400)
+        if r.get("dry"):
+            return JSONResponse(r)
         res = _mail_folders.classify(c, u["id"])
         cur = _mail_folders.folder_of(res, m.get("from_email") or "")
     return JSONResponse({"ok": True, "folder": cur["name"], "key": cur["key"], "kind": r["kind"],
-                         "pattern": r["pattern"], "moved": r["moved"]})
+                         "pattern": r["pattern"], "moved": r["moved"], "when": r.get("when"), "undo": True})
 
 
 @app.post("/mail/move")
@@ -26035,7 +26043,9 @@ async def mail_folders_rule(req: Request):
         if not c.execute("SELECT 1 FROM mail_messages WHERE user_id=? AND direction='in' AND lower(from_email)=? LIMIT 1",
                          (u["id"], sender)).fetchone():
             return JSONResponse({"ok": False, "message": "내 받은 메일의 보낸 주소가 아닙니다."}, 404)
-        r = _mail_folders.set_rule(c, u["id"], fid, sender, _mail_folders.classify(c, u["id"]))
+        r = _mail_folders.set_rule(c, u["id"], fid, sender, _mail_folders.classify(c, u["id"]),
+                                   when=(form.get("when") or "").strip() or None, dry=(form.get("dry") or "") == "1",
+                                   batch=(form.get("batch") or "").strip()[:40])
     return JSONResponse(r, 200 if r.get("ok") else 400)
 
 
@@ -26055,7 +26065,8 @@ async def mail_folders_general_new(req: Request):
         if not c.execute("SELECT 1 FROM mail_messages WHERE user_id=? AND direction='in' AND lower(from_email)=? LIMIT 1",
                          (u["id"], sender)).fetchone():
             return JSONResponse({"ok": False, "message": "내 받은 메일의 보낸 주소가 아닙니다."}, 404)
-        r = _mail_folders.new_folder_move(c, u["id"], _mail_folders.classify(c, u["id"]), sender, form.get("name") or "", pid)
+        r = _mail_folders.new_folder_move(c, u["id"], _mail_folders.classify(c, u["id"]), sender, form.get("name") or "", pid,
+                                          dry=(form.get("dry") or "") == "1", when=(form.get("when") or "").strip())
     return JSONResponse(r, 200 if r.get("ok") else 400)
 
 
@@ -26119,8 +26130,9 @@ async def mail_folders_general_robots(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
     with db_session() as c:
-        r = _mail_folders.move_robots(c, u["id"], _mail_folders.classify(c, u["id"]))
+        r = _mail_folders.move_robots(c, u["id"], _mail_folders.classify(c, u["id"]), dry=(form.get("dry") or "") == "1")
     return JSONResponse(r, 200 if r.get("ok") else 400)
 
 
@@ -26497,11 +26509,18 @@ async def mail_rules_delete(req: Request, rid: int):
 
 @app.post("/mail/rules/apply")
 async def mail_rules_apply(req: Request):
-    """기존 받은 메일에 규칙을 지금 소급 적용(다시 분류)."""
+    """기존 받은 메일에 규칙을 지금 소급 적용(다시 분류).
+    11-25 knk-no-silent-change: dry=1 = 몇 통 바뀌는지만 · 바꾸면 되돌림 표 · undo=1 = 마지막 묶음 되돌림."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
     with db_session() as c:
+        if (form.get("undo") or "") == "1":
+            n = _mailbox.undo_rules_apply(c, u["id"])
+            return JSONResponse({"ok": bool(n), "undone": n, "message": "" if n else "되돌릴 적용이 없습니다."})
+        if (form.get("dry") or "") == "1":
+            return JSONResponse({"ok": True, "dry": True, "count": _mailbox.apply_rules_existing(c, u["id"], dry=True)})
         n = _mailbox.apply_rules_existing(c, u["id"])
     return JSONResponse({"ok": True, "changed": n,
                          "message": f"기존 메일 {n}건을 규칙대로 다시 분류했습니다."})
@@ -27828,6 +27847,17 @@ async def mail_wait_set(req: Request, mail_id: int):
             days = 0
         until = (_mail_now_local(_mail_off(c, u)).date() + timedelta(days=days)).isoformat() if days else ""
         ok, msg = _mwork.set_wait(c, u["id"], mail_id, until)
+    return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
+
+
+@app.post("/mail/{mail_id:int}/wait-notyet")
+async def mail_wait_not_yet(req: Request, mail_id: int):
+    """11-25 대표 「답 옴(자동) 표시와 아직 아님」 — 저절로 「답 옴」이 된 메일을 다시 답 기다림으로(그 짝은 다시 안 붙임)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        ok, msg = _mwork.wait_not_yet(c, u["id"], mail_id)
     return JSONResponse({"ok": ok, "message": msg}, 200 if ok else 400)
 
 
@@ -29217,6 +29247,8 @@ async def mail_block_sender(req: Request, mail_id: int):
         if not row or not (row["from_email"] or "").strip():
             return JSONResponse({"ok": False, "message": "보낸사람을 찾을 수 없습니다."}, 400)
         addr = row["from_email"].strip().lower()
+        if (req.query_params.get("dry") or "") == "1":   # 11-25 — 누르기 전에 「직원 N명 · M통」(아무것도 안 바꿈)
+            return JSONResponse(dict(_mailbox.block_preview(c, addr, "email"), ok=True, dry=True, addr=addr))
         _mailbox.add_block(c, addr, kind="email", note="메일에서 차단", by=u["id"])
         moved = _mailbox.apply_block_to_existing(c, addr, "email")
     return JSONResponse({"ok": True, "addr": addr, "moved": moved})
@@ -29247,6 +29279,9 @@ async def mail_blocklist_add(req: Request):
     if kind not in ("email", "domain"):
         kind = "email"
     note = (form.get("note") or "").strip()
+    if (form.get("dry") or "") == "1":   # 11-25 — 누르기 전에 「직원 N명 · M통」(아무것도 안 바꿈)
+        with db_session() as c:
+            return JSONResponse(dict(_mailbox.block_preview(c, pattern.lstrip("@"), kind), ok=True, dry=True))
     with db_session() as c:
         ok_a = _mailbox.add_block(c, pattern, kind=kind, note=note, by=u["id"])
         moved = _mailbox.apply_block_to_existing(c, pattern.lstrip("@"), kind) if ok_a else 0
@@ -29266,8 +29301,8 @@ async def mail_blocklist_remove(req: Request):
     except Exception:
         bid = 0
     with db_session() as c:
-        _mailbox.remove_block(c, bid)
-    return JSONResponse({"ok": True})
+        restored = _mailbox.remove_block(c, bid) or 0   # 11-25 — 그 차단으로 옮겼던 메일도 원래 자리로
+    return JSONResponse({"ok": True, "restored": restored})
 
 
 # ─── 보낸 곳별 정리 · 다시 안 받기(나에게만) — 2026-11-16 대표 지시 (app/mail_cleanup.py) ───

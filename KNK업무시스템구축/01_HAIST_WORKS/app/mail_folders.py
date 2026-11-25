@@ -297,7 +297,9 @@ def seed_if_owner(c, uid) -> bool:
             return False
         return seed_staff(c, uid)
     made = seed(c, uid)
-    apply_seed_aliases(c, uid)
+    if not _flag(c, uid, "seed_alias"):   # 11-25 — 화면 열 때마다가 아니라 한 번만
+        apply_seed_aliases(c, uid)
+        _set_flag(c, uid, "seed_alias", "1")
     try:
         apply_seed_v2(c, uid)
     except Exception as e:
@@ -1077,8 +1079,8 @@ def classify(c, uid) -> dict:
             g0[1] += 0 if r["is_read"] else 1
         if s is not None and r["id"] >= s.get("_lid", 0):
             s["_lid"], s["fin"] = r["id"], k
-    for i in range(0, len(upd_team), 500):
-        c.executemany("UPDATE mail_messages SET fd_team=? WHERE id=? AND fd_team IS NULL", upd_team[i:i + 500])
+    # 11-25 knk-no-silent-change ③ — 화면을 열 때 옛 메일의 「받은 때 부서」를 지금 부서로 저장하지 않는다(보여 주기만 · 받을 때 적은 값만 저장)
+    upd_team = []
     for i in range(0, len(upd_key), 500):
         c.executemany("UPDATE mail_messages SET fd_key=? WHERE id=?", upd_key[i:i + 500])
     for s in senders.values():
@@ -1359,26 +1361,45 @@ def robot_senders(c, uid, res) -> dict:
     return {e: nu[0] for e, nu in (res.get("gen_senders") or {}).items() if nu and nu[0] and _is_robot(e, bulk)}
 
 
-def move_robots(c, uid, res) -> dict:
+def _save_undo(c, uid, undo, batch=""):
+    """11-25 knk-no-silent-change ④ — 마지막 옮기기 되돌림 기록. batch 가 같으면(일반 정리 화면에서 여러 줄 한꺼번에) 이어 붙임."""
+    import json as _json
+    cur = {}
+    if batch:
+        try:
+            cur = _json.loads(_flag(c, uid, "move_undo") or "{}")
+        except Exception:
+            cur = {}
+        if cur.get("batch") != batch:
+            cur = {}
+    out = {"batch": batch or "", "add": list(cur.get("add") or []) + list(undo.get("add") or []),
+           "del": list(cur.get("del") or []) + list(undo.get("del") or []),
+           "pins": list(cur.get("pins") or []) + list(undo.get("pins") or []),
+           "mkfolder": list(cur.get("mkfolder") or []) + list(undo.get("mkfolder") or [])}
+    _set_flag(c, uid, "move_undo", _json.dumps(out, ensure_ascii=False))
+
+
+def move_robots(c, uid, res, dry=False) -> dict:
     """알림·광고 주소를 한 번에 「알림·광고」 묶음으로 — **주소 하나씩**(회사 주소 전체가 아님: noreply@거래처 때문에 거래처 메일이 따라가지 않게).
     지난 메일·앞으로 올 메일 모두 · ↺ 되돌리기(move_undo)."""
     ensure(c)
     rs = robot_senders(c, uid, res)
     if not rs:
         return {"ok": False, "message": "「일반」에 알림·광고 주소가 없습니다."}
+    if dry:   # 11-25 — 누르기 전에 「몇 곳·몇 통」을 보여 주기만(아무것도 안 바꿈)
+        return {"ok": True, "dry": True, "name": ROBOT_FOLDER, "senders": len(rs), "moved": sum(rs.values())}
     r = c.execute("SELECT id FROM mail_folders WHERE user_id=? AND parent_id IS NULL AND name=?", (uid, ROBOT_FOLDER)).fetchone()
     fid = r["id"] if r else add_folder(c, uid, ROBOT_FOLDER)
-    undo = {"add": [], "del": [], "pins": []}
+    undo = {"add": [], "del": [], "pins": [], "mkfolder": [] if r else [fid]}
     for e in sorted(rs):
         _put_rule(c, uid, "email", e, "f%d" % fid, "", undo)
-    import json as _json
-    _set_flag(c, uid, "move_undo", _json.dumps(undo, ensure_ascii=False))
+    _save_undo(c, uid, undo)
     _CACHE.pop(uid, None)
     classify(c, uid)
     return {"ok": True, "name": ROBOT_FOLDER, "senders": len(rs), "moved": sum(rs.values())}
 
 
-def new_folder_move(c, uid, res, sender, name, parent_id) -> dict:
+def new_folder_move(c, uid, res, sender, name, parent_id, dry=False, when="all") -> dict:
     """「＋ 새 폴더로」 — 폴더를 만들고(같은 이름이 그 자리에 있으면 그것) 그 보낸 곳의 지난·앞으로 메일을 모두 그리로."""
     ensure(c)
     nm = re.sub(r"\s+", " ", (name or "")).strip()[:60]
@@ -1391,6 +1412,10 @@ def new_folder_move(c, uid, res, sender, name, parent_id) -> dict:
     tgt = rule_target(sender, res)
     if not tgt:
         return {"ok": False, "message": "보낸 사람 주소가 없습니다."}
+    if dry:   # 11-25 — 만들기 전에 「옮겨질 지난 메일 몇 통」만(폴더도 안 만듦)
+        return {"ok": True, "dry": True, "name": nm, "kind": tgt[0], "pattern": tgt[1], "count": _match_count(c, uid, [tgt])}
+    if when not in ("all", "new"):
+        return {"ok": False, "message": "언제부터 옮길지 골라 주세요(지난 메일도 모두 / 지금부터)."}
     fid = None
     for r in c.execute("SELECT id, name FROM mail_folders WHERE user_id=? AND parent_id=?", (uid, parent_id)).fetchall():
         if norm_name(r["name"]) == norm_name(nm):
@@ -1402,13 +1427,13 @@ def new_folder_move(c, uid, res, sender, name, parent_id) -> dict:
         made = True
     if not fid:
         return {"ok": False, "message": "폴더를 만들지 못했습니다."}
-    undo = {"add": [], "del": [], "pins": []}
-    _put_rule(c, uid, tgt[0], tgt[1], "f%d" % fid, "", undo)
-    import json as _json
-    _set_flag(c, uid, "move_undo", _json.dumps(undo, ensure_ascii=False))
+    undo = {"add": [], "del": [], "pins": [], "mkfolder": [fid] if made else []}
+    since = c.execute("SELECT datetime('now','localtime')").fetchone()[0] if when == "new" else ""
+    _put_rule(c, uid, tgt[0], tgt[1], "f%d" % fid, since, undo)
+    _save_undo(c, uid, undo)
     _CACHE.pop(uid, None)
     classify(c, uid)
-    return {"ok": True, "folder_id": fid, "name": nm, "made": made, "kind": tgt[0], "pattern": tgt[1],
+    return {"ok": True, "folder_id": fid, "name": nm, "made": made, "kind": tgt[0], "pattern": tgt[1], "when": when,
             "moved": _match_count(c, uid, [tgt], "f%d" % fid)}
 
 
@@ -1580,8 +1605,11 @@ def _put_rule(c, uid, kind, pat, target, since, undo) -> int:
     return rid
 
 
-def set_rule(c, uid, folder_id, sender, res=None) -> dict:
-    """「📁 이 폴더로」(예전 경로·일반 정리 화면) — 그 보낸 곳의 지난·앞으로 메일 모두. 반환 {ok, kind, pattern, moved}."""
+def set_rule(c, uid, folder_id, sender, res=None, when=None, dry=False, batch="") -> dict:
+    """「📁 이 폴더로」(예전 경로·일반 정리 화면) — 그 보낸 곳(회사 주소 · 개인 메일은 주소)을 그 폴더로.
+    11-25 대표 규정 knk-no-silent-change: 묻지 않고 지난 메일까지 옮기지 않는다 —
+      dry=1 = 몇 통인지만(아무것도 안 바꿈) · when = 'all'(지난 메일도 모두) / 'new'(지금부터 오는 메일만) 를 **꼭** 골라야 바꿈
+      · 바꾼 것은 ↺ 되돌리기(move_undo · batch 가 같으면 한 번에). 반환 {ok, kind, pattern, moved, count}."""
     ensure(c)
     f = c.execute("SELECT id, parent_id, kind FROM mail_folders WHERE id=? AND user_id=?",
                   (folder_id, uid)).fetchone()
@@ -1591,10 +1619,21 @@ def set_rule(c, uid, folder_id, sender, res=None) -> dict:
     if not tgt:
         return {"ok": False, "message": "보낸 사람 주소가 없습니다."}
     kind, pat = tgt
-    _put_rule(c, uid, kind, pat, "f%d" % folder_id, "", {"add": [], "del": []})
-    n = _match_count(c, uid, [(kind, pat)])
+    total = _match_count(c, uid, [(kind, pat)])
+    if dry:
+        last = c.execute("SELECT MAX(id) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 AND lower(from_email)=?",
+                         (uid, (sender or "").strip().lower())).fetchone()[0]
+        return {"ok": True, "dry": True, "kind": kind, "pattern": pat, "count": total, "mail_id": last or 0}
+    if when not in ("all", "new"):
+        return {"ok": False, "need_when": True, "kind": kind, "pattern": pat, "count": total,
+                "message": "언제부터 옮길지 골라 주세요(지난 메일도 모두 / 지금부터 오는 메일만)."}
+    undo = {"add": [], "del": [], "pins": []}
+    since = c.execute("SELECT datetime('now','localtime')").fetchone()[0] if when == "new" else ""
+    _put_rule(c, uid, kind, pat, "f%d" % folder_id, since, undo)
+    _save_undo(c, uid, undo, batch)
     _CACHE.pop(uid, None)
-    return {"ok": True, "kind": kind, "pattern": pat, "moved": n}
+    return {"ok": True, "kind": kind, "pattern": pat, "when": when, "count": total,
+            "moved": total if when == "all" else 0}
 
 
 def _pat_tables(c, pats, uid=None):
@@ -1802,6 +1841,8 @@ def move_undo(c, uid) -> int:
         n += 1
     for mid, pin in u.get("pins") or []:
         n += c.execute("UPDATE mail_messages SET fd_pin=? WHERE id=? AND user_id=?", (pin or "", mid, uid)).rowcount
+    for fid in u.get("mkfolder") or []:   # 11-25 — 그 옮기기 때 새로 만든 폴더(알림·광고 · ＋ 새 폴더로)
+        n += delete_folder(c, uid, int(fid)) or 0
     _set_flag(c, uid, "move_undo", "")
     _CACHE.pop(uid, None)
     return n
@@ -2071,3 +2112,43 @@ def reset_to_staff(c, uid, dry=True) -> dict:
     _CACHE.pop(uid, None)
     out.update({"made": bool(made), "batch": batch, "now": [f["name"] for f in folders(c, uid)]})
     return out
+
+
+def undo_reset_staff(c, uid) -> dict:
+    """11-25 knk-no-silent-change ④ — 「직원 폴더 다시 만들기」(reset_to_staff) 마지막 묶음을 그대로 되돌림.
+    지금 폴더·부서 설정을 지우고, 되돌림 표(mail_folder_reset_bak)에 남긴 폴더(같은 번호)·옮기기 규칙·부서 설정·「이 메일만」 표시를 되살림."""
+    import json
+    ensure(c)
+    try:
+        r = c.execute("SELECT batch, data FROM mail_folder_reset_bak WHERE user_id=? ORDER BY batch DESC LIMIT 1", (uid,)).fetchone()
+    except Exception:
+        r = None
+    if not r:
+        return {"ok": False, "message": "되돌릴 「다시 만들기」가 없습니다."}
+    d = json.loads(r["data"] or "{}")
+    for f0 in [x for x in folders(c, uid) if not x["parent_id"]]:
+        delete_folder(c, uid, f0["id"])
+    c.execute("DELETE FROM mail_folders WHERE user_id=?", (uid,))
+    c.execute("DELETE FROM mail_team_prefs WHERE user_id=?", (uid,))
+    fl = sorted(d.get("folders") or [], key=lambda x: (x.get("parent_id") is not None, x.get("id") or 0))
+    for x in fl:
+        c.execute("INSERT INTO mail_folders(id, user_id, parent_id, name, sort, kind, aliases) VALUES(?,?,?,?,?,?,?)",
+                  (x["id"], uid, x.get("parent_id"), x.get("name") or "", x.get("sort") or 0, x.get("kind") or "",
+                   x.get("aliases") if x.get("aliases") != "" else None))
+    cols = {row[1] for row in c.execute("PRAGMA table_info(mail_move_rules)").fetchall()}
+    for x in d.get("rules") or []:
+        ks = [k for k in x.keys() if k in cols and k != "user_id"]
+        c.execute("INSERT OR REPLACE INTO mail_move_rules(user_id, %s) VALUES(?,%s)" % (",".join(ks), ",".join("?" * len(ks))),
+                  [uid] + [x[k] for k in ks])
+    for x in d.get("team_prefs") or []:
+        c.execute("INSERT OR REPLACE INTO mail_team_prefs(user_id, key, name, parent, merge) VALUES(?,?,?,?,?)",
+                  (uid, x.get("key"), x.get("name") or "", x.get("parent") or "", x.get("merge") or ""))
+    for x in d.get("pinned") or []:
+        try:
+            c.execute("UPDATE mail_messages SET fd_pin=? WHERE id=? AND user_id=?", (x.get("fd_pin") or "", x.get("id"), uid))
+        except Exception:
+            pass
+    c.execute("DELETE FROM mail_folder_reset_bak WHERE batch=? AND user_id=?", (r["batch"], uid))
+    _CACHE.pop(uid, None)
+    return {"ok": True, "batch": r["batch"], "folders": len(fl), "rules": len(d.get("rules") or []),
+            "team_prefs": len(d.get("team_prefs") or []), "pinned": len(d.get("pinned") or [])}

@@ -68,15 +68,20 @@ async function blAdd(){
   var note=document.getElementById('blNote').value.trim();
   var el=document.getElementById('blMsg');
   if(!pat){ el.style.color='#b91c1c'; el.textContent='주소나 도메인을 입력하세요.'; return; }
-  el.style.color='var(--mute)'; el.textContent='추가 중…';
+  // 11-25 — 누르기 전에 「직원 N명 · M통」을 먼저 보여 주고 확인(knk-no-silent-change ②)
+  var pv={}; try{ pv=await _blPost('/mail/blocklist/add', {pattern:pat, kind:kind, note:note, dry:'1'}); }catch(e){}
+  if(!confirm('「'+pat+'」을(를) 회사 전체 차단할까요?\n\n· 지금 받은 메일 중 직원 '+(pv.users||0)+'명 · '+(pv.mails||0)+'통이 🚫 스팸함으로 옮겨집니다(지우지 않음).\n· 앞으로 오는 메일도 모든 직원의 스팸함으로 갑니다.\n· 차단을 풀면 이번에 옮긴 메일은 원래 자리로 돌아갑니다.')){ el.textContent=''; return; }
+  el.style.color='var(--mute)'; el.textContent='⏳ 진행 중 — 차단하는 중입니다…';
   try{ var j=await _blPost('/mail/blocklist/add', {pattern:pat, kind:kind, note:note});
-    if(j.ok){ el.style.color='#15803d'; el.textContent='✅ 차단했습니다'+(j.moved?(' · 기존 '+j.moved+'통도 차단함으로 이동'):''); setTimeout(function(){location.reload();}, 900); }
+    if(j.ok){ el.style.color='#15803d'; el.textContent='✅ 완료 — 차단했습니다'+(j.moved?(' · 기존 '+j.moved+'통을 스팸함으로 옮김(차단을 풀면 원래 자리로)'):''); setTimeout(function(){location.reload();}, 1500); }
     else { el.style.color='#b91c1c'; el.textContent='⚠ '+(j.message||'실패'); }
   }catch(e){ el.style.color='#b91c1c'; el.textContent='⚠ 네트워크 오류'; }
 }
 async function blRemove(id){
-  if(!confirm('이 차단을 해제할까요?\n(이미 차단함에 있는 메일은 그대로 남습니다 — 차단함에서 개별 복구하세요)')) return;
-  try{ var j=await _blPost('/mail/blocklist/remove', {id:id}); if(j.ok) location.reload(); else alert('실패'); }catch(e){ alert('네트워크 오류'); }
+  if(!confirm('이 차단을 풀까요?\n(이 차단으로 스팸함에 옮겼던 메일은 원래 자리로 돌아갑니다 · 사람이 따로 옮긴 메일은 그대로)')) return;
+  try{ var j=await _blPost('/mail/blocklist/remove', {id:id});
+    if(j.ok){ alert('✅ 완료 — 차단을 풀었습니다'+(j.restored?(' · '+j.restored+'통을 원래 자리로 되돌렸습니다'):'')+'.'); location.reload(); }
+    else alert('⚠ 끝나지 않았습니다 — 실패'); }catch(e){ alert('네트워크 오류'); }
 }
 </script>
 </body></html>
