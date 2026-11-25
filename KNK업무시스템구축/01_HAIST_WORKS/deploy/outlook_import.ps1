@@ -3,7 +3,8 @@
 # 하는 일: 이 PC 아웃룩의 모든 메일함·폴더(삭제된·보낸·보낼 편지함·임시 보관함·정크 제외)에서
 #   메일 화면에서 고른 기간의 메일을 최근 것부터 한 통씩 KNK 메일(내 메일함)로 보냅니다.
 #   · 아웃룩의 메일은 바꾸지도 지우지도 않습니다(읽기만) · 첨부는 잠깐 임시 폴더에 꺼냈다가 보내고 바로 지웁니다
-#   · 같은 메일은 서버가 건너뜁니다 · 중간에 끊기면 같은 명령을 다시 실행하면 이어서 합니다
+#   · 같은 메일은 서버가 건너뜁니다(11-25: 200통씩 메일 번호만 먼저 물어, 이미 있는 메일은 본문·첨부를 읽지도 보내지도 않음)
+#   · 중간에 끊기면 같은 명령을 다시 실행하면 이어서 합니다
 #   · 보내는 곳은 회사 서버(works.knknara.co.kr) 한 곳뿐입니다
 #
 # 실행: 메일 › 설정·정리 › 「아웃룩 옛 메일 가져오기」 화면에서 번호를 만들고, 그 화면의 한 줄을 PowerShell 에 붙여 넣습니다.
@@ -112,9 +113,48 @@ function Smtp-Of($entry, $pa, $fallback) {
 
 $saved = 0; $skipped = 0; $failed = 0; $streak = 0; $k = 0
 $stopWhy = ''
+# 11-25 빠르게: 200통씩 메일 번호(Message-ID)만 먼저 서버에 물어 「이미 있음」이면 본문·첨부를 읽지 않고 건너뜀
+$CH = 200
+$known = @{}
+function Prefetch-Known($start) {
+    $script:known = @{}
+    $mids = New-Object System.Collections.Generic.List[string]
+    $byMid = @{}
+    $end = [Math]::Min($start + $CH, $total) - 1
+    for ($i = $start; $i -le $end; $i++) {
+        $x = $items[$i]
+        if ($done.ContainsKey($x.e)) { continue }
+        $mm = $null
+        try { $mm = $ns.GetItemFromID($x.e, $x.s) } catch { }
+        if (-not $mm) { continue }
+        $id = ''
+        try { $id = [string]$mm.PropertyAccessor.GetProperty($PR_MSGID) } catch { }
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($mm) } catch { }
+        $id = $id.Trim().Trim('<', '>').Trim()
+        if (-not $id) { continue }
+        if (-not $byMid.ContainsKey($id)) { $byMid[$id] = New-Object System.Collections.Generic.List[string]; $mids.Add($id) }
+        $byMid[$id].Add($x.e)
+    }
+    if ($mids.Count -eq 0) { return }
+    $r = Post-Json '/api/mail/import-outlook/known' @{ code = $Code; ids = $mids.ToArray() }
+    if ($r.ok -and $r.known) {
+        foreach ($id in @($r.known)) { if ($byMid.ContainsKey([string]$id)) { foreach ($e in $byMid[[string]$id]) { $script:known[$e] = $true } } }
+    }
+}
+function Show-Prog {
+    if ($k % 10 -eq 0 -or $k -eq $total) {
+        Write-Host ('  ' + $k + ' / ' + $total + ' · 가져옴 ' + $saved + ' · 건너뜀 ' + $skipped + ' · 실패 ' + $failed)
+    }
+}
 foreach ($it in $items) {
+    if (($k % $CH) -eq 0) { Prefetch-Known $k }
     $k++
-    if ($done.ContainsKey($it.e)) { $skipped++; continue }
+    if ($done.ContainsKey($it.e)) { $skipped++; Show-Prog; continue }
+    if ($known.ContainsKey($it.e)) {
+        $skipped++; $streak = 0
+        [System.IO.File]::AppendAllText($progFile, $it.e + [Environment]::NewLine)
+        Show-Prog; continue
+    }
     $m = $null
     try { $m = $ns.GetItemFromID($it.e, $it.s) } catch { }
     if (-not $m) { $failed++; continue }
@@ -191,9 +231,7 @@ foreach ($it in $items) {
         }
         if ($streak -ge 20) { $stopWhy = 'net'; break }
     } catch { $failed++; $streak++ }
-    if ($k % 10 -eq 0 -or $k -eq $total) {
-        Write-Host ('  ' + $k + ' / ' + $total + ' · 가져옴 ' + $saved + ' · 건너뜀 ' + $skipped + ' · 실패 ' + $failed)
-    }
+    Show-Prog
 }
 Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 

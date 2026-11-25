@@ -146,6 +146,23 @@ r2 = post(code, mail("<imp1@fake.example>", days=40)).json()
 with _db.db_session() as c:
     dupc = c.execute("SELECT COALESCE(dup_count,1) FROM mail_messages WHERE id=?", (m1["id"],)).fetchone()[0]
 check("같은 메일 다시 = 건너뜀(두 번 안 들어감 · 중복 수도 안 늘림)", r2.get("result") == "skip" and dupc == 1 and last_mail(STF)["id"] == m1["id"], (r2, dupc))
+# 11-25 빠르게: 번호 묶음으로 「이미 있음」 먼저 묻기
+from app import mail_store as _MSK
+with _db.db_session() as c:
+    _MSK.store_inbound(c, to_email="own@knknara.co.kr", from_email="x@fake.example", from_name="가짜", subject="남의 메일",
+                       text="가짜", owner_id=OWN, run_ai=False, message_id="<other-user@fake.example>")
+    sk0 = c.execute("SELECT skipped FROM mail_import_tokens WHERE id=(SELECT MAX(id) FROM mail_import_tokens WHERE user_id=?)", (STF,)).fetchone()[0]
+rk = k.post("/api/mail/import-outlook/known", json={"code": code, "ids": ["<imp1@fake.example>", "imp1@fake.example", "nope@fake.example", "other-user@fake.example", ""]})
+jk = rk.json()
+check("번호 묶음 묻기 → 내 메일함에 있는 번호만(꺾쇠 무시·중복 한 번)", rk.status_code == 200 and jk.get("known") == ["imp1@fake.example"], jk)
+check("남의 메일함 번호는 「있음」으로 안 나옴", "other-user@fake.example" not in (jk.get("known") or []), jk)
+with _db.db_session() as c:
+    sk1 = c.execute("SELECT skipped FROM mail_import_tokens WHERE id=(SELECT MAX(id) FROM mail_import_tokens WHERE user_id=?)", (STF,)).fetchone()[0]
+check("「있음」은 건너뛴 수로 셈(화면 숫자와 맞게)", sk1 == sk0 + 1, (sk0, sk1))
+check("묻기 응답 = 보낸 번호 말고 다른 것 없음(제목·주소 없음)", "비밀" not in rk.text and "sender@" not in rk.text, rk.text[:200])
+check("틀린 번호 → 403", k.post("/api/mail/import-outlook/known", json={"code": "nope", "ids": ["a@b"]}).status_code == 403)
+check("목록 아님 → 400", k.post("/api/mail/import-outlook/known", json={"code": code, "ids": "a@b"}).status_code == 400)
+check("한 번에 500개까지만 봄", len(k.post("/api/mail/import-outlook/known", json={"code": code, "ids": ["imp1@fake.example"] * 2 + ["x%d@f" % i for i in range(700)]}).json().get("known")) == 1)
 r3 = post(code, mail("<old@fake.example>", days=3 * 365)).json()
 check("기간(2년) 밖 = outside(넣지 않음)", r3.get("result") == "outside" and last_mail(STF)["id"] == m1["id"], r3)
 big = base64.b64encode(b"x" * (31 * 1024 * 1024)).decode()

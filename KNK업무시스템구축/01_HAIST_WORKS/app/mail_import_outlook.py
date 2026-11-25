@@ -337,6 +337,31 @@ def take_mail(c, t, d):
     return "saved", total, dropped
 
 
+KNOWN_MAX = 500
+
+
+def known_ids(c, t, ids):
+    """11-25 대표 「너무 오래 걸린다」: PC 가 본문·첨부를 읽기 전에 메일 번호(Message-ID)만 묶어 묻는다.
+    이 사람 메일함에 같은 번호의 메일이 이미 있으면 그 번호를 돌려준다(돌려주는 것 = PC 가 보낸 번호 중 일부뿐).
+    판정은 take_mail 과 같은 dedup_hash(번호가 있으면 번호만) — 서버가 보내 준 「있음」은 그대로 건너뛴 수로 센다."""
+    from . import mail_store as MS
+    MS._ensure_dedup_cols(c)
+    uid = t["user_id"]
+    seen, out = set(), []
+    for x in (ids or [])[:KNOWN_MAX]:
+        mid = str(x or "").strip().strip("<>").strip()[:500]
+        if not mid or mid in seen:
+            continue
+        seen.add(mid)
+        h = MS._dedup_hash(mid, "", "", "")
+        if c.execute("SELECT 1 FROM mail_messages WHERE user_id=? AND dedup_hash=? LIMIT 1", (uid, h)).fetchone():
+            out.append(mid)
+    if out:
+        c.execute("UPDATE mail_import_tokens SET skipped=skipped+?, state='running', last_at=? WHERE id=?",
+                  (len(out), _fmt(_now()), t["id"]))
+    return out
+
+
 def finish(c, t):
     """PC 명령이 끝까지 돌았음 — 번호도 함께 끝냄(다시 하려면 새 번호 · 같은 메일은 어차피 건너뜀)."""
     c.execute("UPDATE mail_import_tokens SET state='done', last_at=? WHERE id=?", (_fmt(_now()), t["id"]))

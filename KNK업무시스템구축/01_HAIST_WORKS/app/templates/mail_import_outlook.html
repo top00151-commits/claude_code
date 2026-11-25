@@ -119,8 +119,8 @@ function miShow(s){
   if(s.state==='stopped' || s.state==='ended' || !s.alive){
     miMsg('✅ <b>완료 — 이 번호는 끝났습니다'+(s.state==='stopped'?'(멈춤)':'')+'.</b> 지금까지 '+miN(s.saved)+'통을 가져왔습니다. 남은 메일을 더 가져오려면 ①에서 새 번호를 만들어 다시 실행하세요(이미 들어간 메일은 건너뜀).', 'ok'); return; }
   if(s.state==='ready'){ miMsg('👉 <b>남은 일</b> — ②의 명령을 아웃룩 PC 에서 실행해 주셔야 시작됩니다.', 'todo'); return; }
-  if(idle<=3){ miMsg('⏳ <b>진행 중</b> — 아직 끝나지 않았습니다. PC 명령이 메일을 보내는 중입니다(PC·아웃룩을 켜 두세요). 끝나면 이 칸이 「✅ 완료」로 바뀌고 PC 창에도 「✅ 완료」가 나옵니다.', 'wait'); return; }
-  miMsg('👉 <b>남은 일</b> — 몇 분째 받은 메일이 없습니다. PC 창에 「✅ 완료」가 나왔는지 봐 주세요. 창이 닫혔거나 멈췄으면 같은 명령을 다시 실행하면 이어서 합니다(이미 들어간 메일은 건너뜀).', 'todo');
+  if(idle<=3){ miMsg('⏳ <b>진행 중</b> — 아직 끝나지 않았습니다. PC 명령이 메일을 보내는 중입니다(PC·아웃룩을 켜 두세요). 끝나면 이 칸이 「✅ 완료」로 바뀌고, 명령을 붙여 넣은 PowerShell 창(파란·검은 창)에도 「✅ 완료」가 나옵니다.', 'wait'); return; }
+  miMsg('👉 <b>남은 일</b> — 몇 분째 받은 메일이 없습니다. 명령을 붙여 넣은 <b>PowerShell 창(파란·검은 창)</b>을 봐 주세요 — <b>숫자가 올라가고 있으면</b> 아웃룩 메일 목록을 읽는 중이니 그대로 기다리시면 됩니다 · <b>「✅ 완료」</b>가 나왔으면 끝입니다 · 창이 닫혔거나 「⚠ 끝나지 않았습니다」가 나왔으면 그 창에서 ↑ 키 → Enter(같은 명령 다시 실행)로 이어서 합니다(이미 들어간 메일은 건너뜀).', 'todo');
 }
 async function miMake(){
   var fd=new FormData(); fd.append('years', miPick('miYears')); fd.append('mode', miPick('miMode') || 'match');

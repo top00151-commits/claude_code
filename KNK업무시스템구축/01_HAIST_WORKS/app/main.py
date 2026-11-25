@@ -25678,6 +25678,31 @@ async def mail_import_outlook_mail(req: Request):
     return JSONResponse(out)
 
 
+@app.post("/api/mail/import-outlook/known")
+async def mail_import_outlook_known(req: Request):
+    """11-25 빠르게: 메일 번호 묶음(최대 500) → 내 메일함에 이미 있는 번호만 돌려줌(PC 가 그 메일은 읽지도 보내지도 않음)."""
+    from . import mail_import_outlook as _mio
+    d, err = await _mimp_json(req)
+    if not d:
+        return JSONResponse({"ok": False, "message": "요청을 읽지 못했습니다"}, 400)
+    code = str(d.get("code") or "")
+    ids = d.get("ids") or []
+    if not isinstance(ids, list):
+        return JSONResponse({"ok": False, "message": "번호 목록이 아닙니다"}, 400)
+    from starlette.concurrency import run_in_threadpool
+
+    def _run():
+        with db_session() as c:
+            t = _mio.find_token(c, code)
+            if not t:
+                return None
+            return _mio.known_ids(c, t, ids)
+    known = await run_in_threadpool(_run)
+    if known is None:
+        return JSONResponse({"ok": False, "result": "token", "message": "번호가 없거나 기한이 지났습니다"}, 403)
+    return JSONResponse({"ok": True, "known": known})
+
+
 @app.post("/api/mail/import-outlook/done")
 async def mail_import_outlook_done(req: Request):
     """PC 명령이 끝까지 돌았을 때 — 상태를 「끝」으로(화면에 ✅ 완료). 실패가 남았으면 「다시 실행」 안내가 나오게 실패 수 그대로."""
