@@ -58,6 +58,9 @@
       <div class="sub">완전삭제해도 데이터베이스 <b>파일 크기</b>는 바로 줄지 않습니다(빈 공간은 새 메일이 재사용). 파일 크기까지 줄이려면 디스크 정리를 실행하세요. <b>잠깐(수 초~수십 초) 시스템이 느려질 수 있어</b> 사용량 적은 시간에 권장합니다.</div>
       <button type="button" class="btn btn-secondary" onclick="mpVacuum()" id="mpVacBtn">💾 디스크 정리 실행</button>
       <div class="mp-msg" id="mpVacMsg"></div>
+      {# 11-25 밤 자동 줄이기(매일 23:30) 마지막 결과 한 줄 — 관리자 화면에만 #}
+      <div class="sub" id="mpVacLast" style="margin:10px 0 0;">🌙 마지막 밤 자동 줄이기(매일 23:30):
+        {% if vac_last %}<b>{{ vac_last.started_at[:16] }}</b> · {{ vac_last.text }}{% else %}아직 기록이 없습니다 · 오늘 밤 23:30에 처음 판단합니다.{% endif %}</div>
     </div>
   </div>
 </main></div>

@@ -1928,6 +1928,11 @@ def startup():
             _sch_t.daemon = True
             _sch_t.start()
             print("[MAIL-SCHED] 예약 발송 시계 시작 — 1분마다")
+            # 11-25 메일 DB 빈 자리 밤 줄이기(23:30) — 끄는 길: KNK_RUN_MAIL_VACUUM=0
+            if os.environ.get("KNK_RUN_MAIL_VACUUM", "1").strip().lower() not in ("0", "false", "no", "off"):
+                _start_mail_vacuum_scheduler()
+            else:
+                print("[MAIL-VACUUM] KNK_RUN_MAIL_VACUUM=0 — 밤 줄이기 꺼짐")
         else:
             print("[MAIL-FETCH-AUTO] KNK_RUN_MAIL_FETCH=0 — 이 컨테이너에선 메일 자동수집 비활성(분리 모드)")
     except Exception as _e:
@@ -2572,14 +2577,19 @@ def _mail_body_pack_nightly():
         if now.hour < 22:
             return
         from .database import DB_PATH as _dbp
-        mark = os.path.join(os.path.dirname(_dbp), ".mail_body_pack_auto_%s" % now.strftime("%Y%m%d"))
-        try:
-            fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-        except FileExistsError:
-            return
-        from . import mail_body_pack as _mbp
-        out = _mbp.apply(db_session)
+        from . import mail_vacuum as _mvac
+        # 11-25 밤 줄이기(23:30)와 겹치지 않게 같은 정리 잠금 — 못 잡으면 다음 회차(5분 뒤)에 다시
+        with _mvac.maint_lock(os.path.dirname(_dbp)) as _got:
+            if not _got:
+                return
+            mark = os.path.join(os.path.dirname(_dbp), ".mail_body_pack_auto_%s" % now.strftime("%Y%m%d"))
+            try:
+                fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+            except FileExistsError:
+                return
+            from . import mail_body_pack as _mbp
+            out = _mbp.apply(db_session)
         print("[MAIL-BODY-PACK] 밤 자동 정리 — %d통 · 원래 %.1fMB · 묶음 %s · 건너뜀 %d · 보관함 정리 %d"
               % (out["packed"], out["raw"] / 1048576.0, out["batch"] or "-", out["skipped"], out["gc"]), flush=True)
     except Exception as e:
@@ -2591,6 +2601,87 @@ def _start_mail_fetch_scheduler():
     import threading as _th
     print(f"[MAIL-FETCH-AUTO] 스케줄러 시작 — {_MAIL_FETCH_INTERVAL_SEC}초마다 자동 가져오기.")
     t = _th.Timer(min(60, _MAIL_FETCH_INTERVAL_SEC), _mail_fetch_tick)
+    t.daemon = True
+    t.start()
+
+
+# ── 11-25 대표 「진행해」: 메일 DB 빈 자리 밤 줄이기(VACUUM) — 매일 23:30 한국시간 판단 · 규칙은 app/mail_vacuum.py 한 곳 ──
+#   메일 자동수집과 같은 컨테이너(KNK_RUN_MAIL_FETCH 켜진 곳)에서만 돈다. 일꾼 둘이면 날짜 표시 파일을 먼저 만든 쪽만.
+#   도는 동안 모든 계정의 받아오기 잠금(_MailFetchLock)을 쥐고 있어 자동 받기·「보내기/받기」는 그 사이 「busy」로 건너뜀.
+def _mail_vacuum_busy_and_run():
+    from contextlib import ExitStack
+    from . import mail_vacuum as _mvac
+    from . import mail_storage as _mst
+    from .database import DB_PATH as _dbp
+    data_dir = os.path.dirname(_dbp)
+    with ExitStack() as st:
+        got = st.enter_context(_mvac.maint_lock(data_dir))
+        reasons = []
+        if not got:
+            reasons.append("본문 정리(밤 자동)가 도는 중")
+        if (_mst.job_status("pack") or {}).get("state") == "running":
+            reasons.append("본문 정리(관리자 실행)가 도는 중")
+        with db_session() as c:
+            r = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_fetch_accounts'").fetchone()
+            owners = [x[0] for x in c.execute("SELECT DISTINCT owner_user_id FROM mail_fetch_accounts").fetchall()] if r else []
+            _oi = _mvac.outlook_import_busy(c)
+        if _oi:
+            reasons.append(_oi)
+        if not reasons:
+            for oid in owners:
+                lk = st.enter_context(_MailFetchLock(oid, 0))
+                if not lk.got:
+                    reasons.append("메일 받아오는 중")
+                    break
+        why = " · ".join(reasons)
+        return _mvac.run_once(_dbp, busy=lambda: why)
+
+
+def _mail_vacuum_tick():
+    import threading as _th
+    from . import mail_vacuum as _mvac
+    try:
+        now = _kst_wall_now()
+        from .database import DB_PATH as _dbp
+        data_dir = os.path.dirname(_dbp)
+        if _nas_quiet_now(now) or _mvac.quiet_reason(now):   # 이중 안전 — 23:30 이라 걸리지 않지만 계산이 어긋나도 안 돎
+            print("[MAIL-VACUUM] 돌면 안 되는 시간 — 이번엔 건너뜀(%s)" % (_mvac.quiet_reason(now) or "NAS 백업 시간"), flush=True)
+        elif not _mvac.in_run_window(now):
+            print("[MAIL-VACUUM] 23:30~01:59 밖 — 다시 예약", flush=True)
+        else:
+            day = (now - timedelta(hours=12)).strftime("%Y%m%d")   # 23:30~다음날 낮까지 = 같은 밤
+            mark = os.path.join(data_dir, ".mail_vacuum_auto_%s" % day)
+            try:
+                fd = os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                claimed = True
+            except FileExistsError:
+                claimed = False
+            if claimed:
+                for f in os.listdir(data_dir):   # 지난 날짜 표시 파일 치움
+                    if f.startswith(".mail_vacuum_auto_") and f != os.path.basename(mark):
+                        try:
+                            os.remove(os.path.join(data_dir, f))
+                        except OSError as e:
+                            print("[MAIL-VACUUM] 지난 표시 파일 못 지움 %s: %s" % (f, e), flush=True)
+                _mail_vacuum_busy_and_run()
+    except Exception as e:
+        print("[MAIL-VACUUM tick ERR] %s" % str(e)[:200], flush=True)
+    delay = _mvac.seconds_until_next_run(_kst_wall_now())
+    t = _th.Timer(delay, _mail_vacuum_tick)
+    t.daemon = True
+    t.start()
+
+
+def _start_mail_vacuum_scheduler():
+    """startup 1회 — 다음 23:30(한국시간) 예약."""
+    import threading as _th
+    from . import mail_vacuum as _mvac
+    now = _kst_wall_now()
+    delay = _mvac.seconds_until_next_run(now)
+    print("[MAIL-VACUUM] 밤 줄이기 시계 시작 — 다음 %s (한국시간 · 매일 23:30)"
+          % (now + timedelta(seconds=delay)).strftime("%m-%d %a %H:%M"), flush=True)
+    t = _th.Timer(delay, _mail_vacuum_tick)
     t.daemon = True
     t.start()
 
@@ -29410,7 +29501,9 @@ async def admin_mail_purge_page(req: Request):
         return RedirectResponse(role_home(_au) if _au else "/login", 303)
     with db_session() as c:
         trash_n = _mailbox.count_trash(c, u["id"])
-    return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n)
+        from . import mail_vacuum as _mvac
+        vac_last = _mvac.last_result(c)   # 11-25 밤 줄이기 마지막 결과 한 줄(관리자 화면만)
+    return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n, vac_last=vac_last)
 
 
 @app.post("/admin/mail-purge/preview")
