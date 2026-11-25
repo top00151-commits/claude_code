@@ -138,5 +138,7 @@ check(".ps1 = UTF-8 BOM(5.1 한글) · CRLF", ps.startswith(b"\xef\xbb\xbf") and
 check(".ps1 = 5.1 문법(&& 없음) · 4칸만(제목·본문 안 읽음) · 읽기만", "&&" not in txt and ".Subject" not in txt and ".Body" not in txt
       and ".Delete(" not in txt and ".Move(" not in txt and ".Save(" not in txt and "0x1035001F" in txt)
 
+check("화면 결과 문구 = 대표 규정(knk-done-status): ✅ 완료 — 이 작업은 끝났습니다 · 👉 남은 일 · ⏳ 진행 중 · 더 하실 일 없음",
+      all(x in h for x in ("완료 — 이 작업은 끝났습니다", "남은 일", "진행 중", "더 하실 일은 없습니다", "「✅ 채우기」를 눌러야 끝납니다")), h[-600:])
 print("결과: %d 통과 · %d 실패" % (P, F))
 sys.exit(1 if F else 0)
