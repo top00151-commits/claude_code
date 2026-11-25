@@ -107,6 +107,8 @@ check("직원 화면 = 폴더 방식 3가지(아웃룩 폴더 그대로 · 자�
 check("직원 화면엔 대표 전용 문구 없음(「대표님이 직접 정리」·miOwnerMode)", 'id="miOwnerMode"' not in h and "대표님이 직접 정리" not in h and "대표님 메일함" not in h)
 check("닫기·돌아가기(← 설정·정리) · 결과 문구 규정(✅ 완료 · 👉 남은 일 · ⏳ 진행 중)",
       "/mail/tools" in h and "설정·정리" in h and all(x in h for x in ("완료 — 이 작업은 끝났습니다", "남은 일", "진행 중")))
+check("지금 단계 줄(knk-step-flow) = 1 번호 만들기→2 PC 에서 실행→3 가져오는 중→4 다시 실행→5 끝 · 다시 하기 단추 · 멈추기는 도는 중에만",
+      'id="miFlow"' in h and all(x in h for x in ("번호 만들기", "PC 에서 실행", "가져오는 중", "다시 실행", ">끝<", "miAgain", "그대로 끝내기", 'id="miStopRow" hidden')))
 check("설정·정리 화면에 「📥 아웃룩 옛 메일 가져오기」(직원 누구나)", 'href="/mail/import-outlook"' in k.get("/mail/tools").text)
 _U.update(id=OWN, role="ceo")
 ho = k.get("/mail/import-outlook").text
