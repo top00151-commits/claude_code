@@ -262,9 +262,10 @@ check("   수주 없는 관리번호 → 프로젝트 고객 하나(건수 0)",
 # 정보수정 → 첫 수주
 st, loc = edit_roundtrip(P["id"], {"customer_id": str(CUST["OTH"]), "customer_name": "가상기타(주)", "secondary_customer": "가상최종C"})
 s0, f1, f2 = order(S0["id"]), order(F1["id"]), order(F2["id"])
-check("3 정보수정(고객사1 → 가상기타 · 고객사2 → 가상최종C) → 첫 수주도 같이(옛 대표값과 같았으므로)",
-      st == 303 and "error" not in loc and s0["customer_id"] == CUST["OTH"] and s0.get("end_customer") == "가상최종C",
-      (st, loc, s0["customer_id"], s0.get("end_customer")))
+check("3 정보수정(고급 · 고객사1 → 가상기타 · 고객사2 → 가상최종C) → 대표값만 · 첫 수주는 그대로(z1191z152 수주 3개)",
+      st == 303 and "error" not in loc and s0["customer_id"] == CUST["VINA"] and s0.get("end_customer") == "가상최종A"
+      and proj(P["id"])["customer_id"] == CUST["OTH"],
+      (st, loc, s0["customer_id"], s0.get("end_customer")))  # z1191z152 (대표 11-25): 수주 2개 이상 = 첫 수주·대표값이 서로 따라가지 않음(기대값 바꿈)
 check("   추가 수주는 그대로(가상드림(동탄) · 가상 VINA/가상최종B)",
       f1["customer_id"] == CUST["DT1"] and f2["customer_id"] == CUST["VINA"] and f2.get("end_customer") == "가상최종B",
       (f1["customer_id"], f2["customer_id"], f2.get("end_customer")))
@@ -281,8 +282,8 @@ check("4 작업일정표 고객사 칸(추가 수주 줄) → **그 수주**만 
       stc == 200 and j.get("ok") and j.get("scope") == "so" and order(F1["id"])["customer_id"] == CUST["VINA"]
       and proj(P["id"])["customer_id"] == CUST["OTH"], (stc, j, order(F1["id"])["customer_id"], proj(P["id"])["customer_id"]))
 stc, j = cell(P["id"], "cust", "가상드림(아산)", so_oid=S0["id"], customer_id=CUST["DT2"])
-check("   첫 수주 줄 → 그 수주 + 프로젝트 대표값도(옛 값이 같았으므로)",
-      stc == 200 and j.get("ok") and order(S0["id"])["customer_id"] == CUST["DT2"] and proj(P["id"])["customer_id"] == CUST["DT2"],
+check("   첫 수주 줄 → 그 수주만 · 프로젝트 대표값 그대로(z1191z152)",
+      stc == 200 and j.get("ok") and order(S0["id"])["customer_id"] == CUST["DT2"] and proj(P["id"])["customer_id"] == CUST["OTH"],
       (stc, j, order(S0["id"])["customer_id"], proj(P["id"])["customer_id"]))
 stc, j = cell(P["id"], "cust", "없는회사", so_oid=F1["id"])
 check("   등록 안 된 이름 → 400 · 안내 · 그대로", stc == 400 and "찾을 수 없" in (j.get("error") or "")
@@ -300,13 +301,13 @@ check("5 고객사2 칸(추가 수주 줄) → 그 수주 2차 · 프로젝트 2
       (stc, j, order(F1["id"]).get("end_customer"), proj(P["id"]).get("secondary_customer")))
 stc, j = cell(P["id"], "cust2", "가상최종E", so_oid=S0["id"])
 pp = proj(P["id"])
-check("   첫 수주 줄 → 프로젝트 2차도 · 2단 표시",
-      stc == 200 and order(S0["id"]).get("end_customer") == "가상최종E" and pp.get("secondary_customer") == "가상최종E"
-      and pp.get("two_tier_order") == 1, (stc, j, order(S0["id"]).get("end_customer"), pp.get("secondary_customer")))
+check("   첫 수주 줄 → 그 수주 2차만 · 프로젝트 2차 그대로(z1191z152)",
+      stc == 200 and order(S0["id"]).get("end_customer") == "가상최종E" and pp.get("secondary_customer") == "가상최종C",
+      (stc, j, order(S0["id"]).get("end_customer"), pp.get("secondary_customer")))
 stc, j = cell(P["id"], "cust2", "", so_oid=S0["id"])
 pp = proj(P["id"])
-check("   첫 수주 줄에서 지우면 → 그 수주·대표값 모두 비움 · 2단 끔(최종 매출 0)",
-      stc == 200 and order(S0["id"]).get("end_customer") is None and not pp.get("secondary_customer") and pp.get("two_tier_order") == 0,
+check("   첫 수주 줄에서 지우면 → 그 수주만 비움 · 대표값 그대로(z1191z152)",
+      stc == 200 and order(S0["id"]).get("end_customer") is None and pp.get("secondary_customer") == "가상최종C",
       (order(S0["id"]).get("end_customer"), pp.get("secondary_customer"), pp.get("two_tier_order")))
 
 # 거래구분
@@ -347,22 +348,22 @@ with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/sales/schedule/bulk-cell", json={"field": "cust2", "value": "가상최종G", "targets": [
         {"kind": "project", "ref_id": P["id"], "so_oid": str(F2["id"])}]})
 check("   일괄 고객사2(추가 수주 줄) → 그 수주만", r.json().get("ok_count") == 1 and order(F2["id"]).get("end_customer") == "가상최종G"
-      and not proj(P["id"]).get("secondary_customer"), r.json())
+      and proj(P["id"]).get("secondary_customer") == "가상최종C", r.json())
 
 # 수주 카드 빠른 수정 → 대표값
 with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/sales/orders/%d/quick-edit" % S0["id"], data={"order_customer": "가상 VINA"})
-check("8 수주 카드(첫 수주) 발주처 → 가상 VINA · 프로젝트 대표값도",
-      r.status_code == 200 and order(S0["id"])["customer_id"] == CUST["VINA"] and proj(P["id"])["customer_id"] == CUST["VINA"],
+check("8 수주 카드(첫 수주) 발주처 → 가상 VINA · 그 수주만 · 대표값 그대로(z1191z152)",
+      r.status_code == 200 and order(S0["id"])["customer_id"] == CUST["VINA"] and proj(P["id"])["customer_id"] == CUST["OTH"],
       (r.status_code, order(S0["id"])["customer_id"], proj(P["id"])["customer_id"]))
 with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/sales/orders/%d/quick-edit" % F1["id"], data={"order_customer": "가상드림(동탄)"})
 check("   추가 수주 카드 → 그 수주만(대표값 그대로)",
-      r.status_code == 200 and order(F1["id"])["customer_id"] == CUST["DT1"] and proj(P["id"])["customer_id"] == CUST["VINA"],
+      r.status_code == 200 and order(F1["id"])["customer_id"] == CUST["DT1"] and proj(P["id"])["customer_id"] == CUST["OTH"],
       (r.status_code, order(F1["id"])["customer_id"], proj(P["id"])["customer_id"]))
 with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/sales/orders/%d/quick-edit" % S0["id"], data={"end_customer": "가상최종H"})
-check("   수주 카드(첫 수주) 2차 → 대표값 2차도", r.status_code == 200 and proj(P["id"]).get("secondary_customer") == "가상최종H",
+check("   수주 카드(첫 수주) 2차 → 그 수주만 · 대표값 2차 그대로(z1191z152)", r.status_code == 200 and order(S0["id"]).get("end_customer") == "가상최종H" and proj(P["id"]).get("secondary_customer") == "가상최종C",
       proj(P["id"]).get("secondary_customer"))
 
 print()
@@ -430,8 +431,8 @@ with contextlib.redirect_stdout(io.StringIO()):
     r = cl.get("/project/%d" % P["id"])
 m = re.search(r'<dt>고객사</dt><dd[^>]*>(.*?)</dd>', r.text, re.S)
 dd = re.sub(r"<[^>]+>", " ", m.group(1)) if m else ""
-check("12 상세 맨 위 고객사 = 대표(가상 VINA) + 「외 1곳 (가상드림(동탄))」",
-      r.status_code == 200 and "가상 VINA" in dd and "외 1곳" in dd and "가상드림(동탄)" in dd, re.sub(r"\s+", " ", dd)[:200])
+check("12 상세 맨 위 고객사 = 대표(가상기타 · 정보수정 값) + 「외 2곳 (가상 VINA, 가상드림(동탄))」(z1191z152 대표값 안 따라감)",
+      r.status_code == 200 and "가상기타" in dd and "외 2곳" in dd and "가상 VINA" in dd and "가상드림(동탄)" in dd, re.sub(r"\s+", " ", dd)[:200])
 with contextlib.redirect_stdout(io.StringIO()):
     r = cl.get("/project/%d" % Q["id"])
 m = re.search(r'<dt>고객사</dt><dd[^>]*>(.*?)</dd>', r.text, re.S)
@@ -619,7 +620,7 @@ check("   「＋ 등록」 → 새 수주 1차 = 가상드림(동탄) · 2차 = 
       (A.get("posts"), A.get("url"), [(o["order_no"], o["customer_id"], o.get("end_customer")) for o in newA]))
 B = cases.get("B") or {}
 check("B 작업일정표 · 동탄 수주 줄 고객사 칸에서 가상 VINA 고름 → 그 수주만 바뀜 · 프로젝트 그대로",
-      B.get("has") and B.get("picked") and order(F1["id"])["customer_id"] == CUST["VINA"] and proj(P["id"])["customer_id"] == CUST["VINA"]
+      B.get("has") and B.get("picked") and order(F1["id"])["customer_id"] == CUST["VINA"] and proj(P["id"])["customer_id"] == CUST["OTH"]
       and (B.get("cell") or "").startswith("가상 VINA"), (B, order(F1["id"])["customer_id"]))
 C = cases.get("C") or {}
 with D.db_session() as c:

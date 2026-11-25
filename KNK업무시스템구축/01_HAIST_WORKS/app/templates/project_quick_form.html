@@ -122,8 +122,15 @@ html,body{background:#fff!important;overflow:auto!important;}
   <div class="so117-pick" style="margin:0 0 10px;padding:9px 12px;border:2px solid #f97316;background:#fff7ed;border-radius:8px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
     <b style="color:#9a3412;">✏️ 고치는 수주:</b>
     {% for s in sos117 %}<a href="/projects/{{ project.id }}/quick-edit?so={{ s.no|urlencode }}" style="padding:3px 10px;border-radius:14px;text-decoration:none;font-weight:700;{% if s.no == so_no %}background:#c2410c;color:#fff;{% else %}background:#fff;color:#9a3412;border:1px solid #fdba74;{% endif %}">{{ s.no }}{% if s.form %} <span style="font-weight:500;font-size:11px;">{{ s.form }}</span>{% endif %}</a>{% endfor %}
-    <span style="color:#7c2d12;font-size:12px;">— 수량 단위·납품처·발주일·납기는 이 수주에만 저장</span>
+    <span style="color:#7c2d12;font-size:12px;">— {% if v152 %}고객사·2차 고객·거래구분·형태·통화·PO유형·모델·장비와 {% endif %}수량 단위·납품처·발주일·납기는 이 수주에만 저장</span>
   </div>
+  {% if v152 and v152.notes %}{# z1191z152 (대표 11-25 「사용자가 확정하지 않은 데이터를 마음대로 연결해서 틀어 버리면 신뢰할 수 없어」) #}
+  <div class="v152-warn" style="margin:-4px 0 10px;padding:9px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12.5px;color:#92400e;line-height:1.6;">
+    ⚠ 같은 관리번호의 다른 수주는 값이 다릅니다 —
+    {% for n in v152.notes %}<b>{{ n.no }}</b> = {{ n.diff }}{% if not loop.last %} · {% endif %}{% endfor %}
+    <br>여기서 고치면 지금 고르신 <b>{{ v152.so }}</b> 만 바뀝니다. 다른 수주와 프로젝트 대표값은 그대로입니다.
+  </div>
+  {% endif %}
   {% endif %}
         {% if not ed and reg_lock %}<input type="hidden" name="lock_token" id="qLockTok" value="{{ reg_lock.token }}">{# z1191z57 #}
         <div id="qLockCover" class="z57-cover"{% if reg_lock.held %} hidden{% endif %}>
@@ -627,7 +634,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         {% if ed %}<input type="hidden" name="target_so" form="quickForm" value="{{ so_no|default('') }}">{% endif %}{# z1191z117k: 수주별 값(수량 단위·납품처·발주일·납기)을 저장할 수주 #}
         {% if ed and (so_cnt117|default(0)) > 1 %}
         <div style="margin-top:10px;padding:8px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:6px;font-size:12.5px;color:#92400e;">
-          📎 이 관리번호에는 수주가 <b>{{ so_cnt117 }}건</b> — 고객사·프로젝트명·모델·장비·담당자는 <b>관리번호 공통</b>, 수량 단위·납품처·발주일·납기는 위에서 고른 <b>수주 {{ so_no }}</b>에만 저장됩니다.
+          📎 이 관리번호에는 수주가 <b>{{ so_cnt117 }}건</b> — {% if v152 %}고객사·2차 고객·거래구분·형태·통화·PO유형·모델·장비와 수량 단위·납품처·발주일·납기는 위에서 고른 <b>수주 {{ so_no }}</b>에만 저장되고, 프로젝트명·담당자는 <b>관리번호 공통</b>입니다.{% else %}고객사·프로젝트명·모델·장비·담당자는 <b>관리번호 공통</b>, 수량 단위·납품처·발주일·납기는 위에서 고른 <b>수주 {{ so_no }}</b>에만 저장됩니다.{% endif %}
           수량·단가·금액(줄 값)은 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 고칩니다.
         </div>
         {% endif %}
@@ -867,7 +874,7 @@ document.addEventListener('submit', function(e){
   });
 }, true);
 /* z1191z130 (대표 11-24 「1. 진행」): 수주 통화가 섞인 관리번호에서 통화 칸을 바꾸면 — 프로젝트 통화만 바뀌고 수주 통화는 그대로(서버 규칙) · 저장 전 한 번 알림 */
-{% if ed and (ccys130|default([]))|length > 1 %}
+{% if ed and (ccys130|default([]))|length > 1 and not v152 %}
 (function(){
   var MIX = {{ ccys130|tojson }};
   var sel = document.getElementById('qCurrency'); if(!sel) return;
@@ -882,6 +889,35 @@ document.addEventListener('submit', function(e){
       e.preventDefault(); e.stopImmediatePropagation(); try{ sel.focus(); }catch(_e){} return;
     }
     f.dataset.ccy130ok = '1';
+  }, true);
+})();
+{% endif %}
+{% if ed and v152 %}
+/* z1191z152: 수주 2개 이상 — 칸 이름 옆 「(이 수주)」 · 고객사·통화·형태·거래구분 등을 바꾸면 저장 전 한 번 확인(막지 않음) */
+(function(){
+  var f = document.getElementById('quickForm'); if(!f) return;
+  var SO = {{ v152.so|tojson }};
+  var EFF = {{ v152.eff|tojson }};
+  var KEYS = [['customer_id','고객사','customer_id'],['secondary_customer','2차 고객','secondary_customer'],['is_export','거래구분','is_export'],['shipment_form','형태','shipment_form'],['currency','통화','currency'],['po_type','PO유형','po_type'],['model','모델','model'],['equip_name','장비','equip_name']];
+  var norm = function(k, v){ v = (v == null ? '' : String(v)).trim(); if(k === 'is_export') return (v === '1' || v === 'true' || v === 'True') ? '1' : '0'; if(k === 'currency' || k === 'shipment_form') return v.toUpperCase(); if(k === 'customer_id'){ var n = parseInt(v, 10); return isNaN(n) ? '' : String(n); } return v; };
+  var tag = function(){ KEYS.forEach(function(k){
+    var el = f.querySelector('[name="' + k[0] + '"]'); if(k[0] === 'customer_id') el = f.querySelector('input[data-cust-picker]') || el;
+    if(!el) return; var box = el.closest('.qf-f'); var lb = box && box.querySelector('label');
+    if(lb && !lb.querySelector('.tag152')){ var s = document.createElement('span'); s.className = 'tag152'; s.textContent = ' (이 수주)'; s.style.cssText = 'color:#c2410c;font-size:10.5px;font-weight:800;'; lb.appendChild(s); }
+  }); };
+  tag(); setTimeout(tag, 300);
+  document.addEventListener('submit', function(e){
+    if(e.target !== f || f.dataset.ok152 === '1') return;
+    var ch = [];
+    KEYS.forEach(function(k){ var el = f.querySelector('[name="' + k[0] + '"]'); if(!el) return;
+      if(norm(k[2], el.value) !== norm(k[2], EFF[k[2]]) && ch.indexOf(k[1]) < 0) ch.push(k[1]); });
+    if(!ch.length) return;
+    var NL = String.fromCharCode(10);
+    if(!confirm('👉 확인 — 수주 ' + SO + ' 만 바뀝니다.' + NL + NL + '바꾼 칸: ' + ch.join(' · ') + NL
+        + '같은 관리번호의 다른 수주와 프로젝트 대표값은 그대로입니다.' + NL + NL + '이대로 저장할까요?')){
+      e.preventDefault(); e.stopImmediatePropagation(); return;
+    }
+    f.dataset.ok152 = '1';
   }, true);
 })();
 {% endif %}

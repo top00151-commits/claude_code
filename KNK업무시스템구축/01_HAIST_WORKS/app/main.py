@@ -600,6 +600,195 @@ def _quick_target_so_z117(c, pid, so_no):
     return r[0] if r else None
 
 
+# ═══ z1191z152 (대표 11-25 「사용자가 확정하지 않은 데이터를 마음대로 연결해서 입력한 걸 자꾸 틀어 버리면 … 신뢰할 수 없어」 · 원칙 4개 · 1단계) ═══
+#   수주가 2개 이상(취소 빼고)인 관리번호 = 정보 수정의 고객사·2차 고객·거래구분·형태·통화·PO유형·모델·장비는 화면 위 「고치는 수주」에만 저장.
+#   프로젝트 대표값·첫 수주·다른 수주는 건드리지 않는다(001M2603~004M2603 사고: 고객사 바꾸면 첫 수주 고객사까지 바뀜).
+#   바뀐 칸만 그 수주에 실제 값으로(안 바꾼 빈칸은 비워 둠 — 대표 「빈칸 고정은 하지 않음」) · 이력 = 어느 수주 · 무엇 · 전→후 · 누가.
+_Z152_SO_FIELDS = (   # (화면 이름, 수주 칸, 프로젝트 칸, 이력 글자)
+    ("customer_id", "customer_id", "customer_id", "고객사"),
+    ("secondary_customer", "end_customer", "secondary_customer", "2차 고객"),
+    ("is_export", "@items", "is_export", "거래구분"),   # 수주 거래구분 = 그 수주 품목 줄 is_export(작업일정표 z1191 과 같음)
+    ("shipment_form", "so_form", "shipment_form", "형태"),   # 수주 형태 = orders.so_form(작업일정표 z1191z19 과 같음)
+    ("currency", "currency", "currency", "통화"),
+    ("po_type", "po_type", "po_type", "PO유형"),
+    ("model", "model_name", "model_name", "모델"),
+    ("equip_name", "equip_name", "equip_name", "장비"),
+)
+_Z152_FORM_LB = {"ASSEMBLY": "완제품", "SEMI": "제품", "PARTS": "상품", "ETC": "기타"}
+
+
+def _z152_multi(c, pid):
+    return (c.execute("SELECT COUNT(*) FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED'",
+                      (int(pid),)).fetchone()[0] or 0) >= 2
+
+
+def _z152_norm(key, v):
+    if v is None:
+        return ""
+    s = str(v).strip()
+    if key == "is_export":
+        return "1" if s in ("1", "True", "true", "수출") else "0"
+    if key in ("currency", "shipment_form"):
+        return s.upper()
+    if key == "customer_id":
+        try:
+            return str(int(float(s))) if s else ""
+        except (TypeError, ValueError):
+            return ""
+    return s
+
+
+def _z152_effective(proj, so):
+    """수주 화면 값 = 수주 칸에 값이 있으면 그것 · 비었으면 프로젝트 값(지금 화면 규칙 그대로)."""
+    out = {}
+    for fk, sk, pk, _lb in _Z152_SO_FIELDS:
+        sv = so.get(sk) if so else None
+        out[fk] = sv if (sv is not None and str(sv).strip() != "") else proj.get(pk)
+    if so and so.get("so_customer") and so.get("customer_id"):
+        out["customer_name"] = so.get("so_customer")
+    else:
+        out["customer_name"] = proj.get("customer_name")
+    # 2차 고객 = 상세 화면과 같은 규칙: 수주 칸 → 없으면 (수주 고객사가 대표 고객사와 같을 때만) 프로젝트 2차
+    if so is not None and not (so.get("end_customer") or "").strip():
+        same = (not so.get("customer_id")) or _z152_norm("customer_id", so.get("customer_id")) == _z152_norm("customer_id", proj.get("customer_id"))
+        out["secondary_customer"] = (proj.get("secondary_customer") or "") if same else ""
+    return out
+
+
+def _z152_so_row(c, oid):
+    cols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    want = [sk for _f, sk, _p, _l in _Z152_SO_FIELDS if sk in cols]
+    r = c.execute("SELECT id, order_no, COALESCE(status,'') AS status, " + ", ".join(want) +
+                  ", (SELECT name FROM customers WHERE customers.id=orders.customer_id) AS so_customer FROM orders WHERE id=?",
+                  (int(oid),)).fetchone()
+    d = dict(r) if r else None
+    if d is not None:   # 거래구분 = 품목 줄이 모두 같으면 그 값 · 섞였거나 없으면 None(프로젝트 값을 따름)
+        try:
+            ex = {(None if x[0] is None else int(x[0])) for x in c.execute(
+                "SELECT is_export FROM order_items WHERE order_id=? AND COALESCE(unit_status,'')<>'취소'", (int(oid),)).fetchall()}
+            d["@items"] = (next(iter(ex)) if len(ex) == 1 else None)
+            d["@n_items"] = c.execute("SELECT COUNT(*) FROM order_items WHERE order_id=?", (int(oid),)).fetchone()[0] or 0
+        except Exception:
+            d["@items"], d["@n_items"] = None, 0
+        if not d.get("so_form"):   # 형태 = 작업일정표·상세와 같은 라벨 규칙(so_form 비면 수주 종류·호기로 정함)
+            try:
+                d["so_form"] = _Z19_FORM_CODE.get(_z19_so_form_label(c, oid) or "") or None
+            except Exception:
+                pass
+        cols = set(cols) | {"@items"}
+    return d, cols
+
+
+def _z152_show(c, key, v):
+    if key == "customer_id" and v:
+        r = c.execute("SELECT name FROM customers WHERE id=?", (int(v),)).fetchone()
+        return r[0] if r else v
+    if key == "is_export":
+        return "수출" if v == "1" else "내수"
+    if key == "shipment_form":
+        return _Z152_FORM_LB.get(v, v)
+    return v
+
+
+def _z152_save_so_fields(c, pid, form, proj_old, user):
+    """고른 수주에만 저장 → 바뀐 칸 [(이력 글자, 전, 후)] · 수주가 1개이거나 고를 수주가 없으면 None(예전 흐름)."""
+    if not _z152_multi(c, pid):
+        return None
+    oid = _quick_target_so_z117(c, pid, form.get("target_so"))
+    if not oid:
+        return None
+    so, cols = _z152_so_row(c, oid)
+    if not so:
+        return None
+    proj_old = proj_old or {}
+    eff = _z152_effective(proj_old, so)
+    uid = user.get("id") if isinstance(user, dict) else None
+    who = (vname_full(user) or user.get("name") or "") if isinstance(user, dict) else ""
+    has_rp = bool(c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='receipts_payment'").fetchone())
+    changed = []
+    for fk, sk, pk, lb in _Z152_SO_FIELDS:
+        if sk not in cols:
+            continue
+        if fk == "customer_id":
+            raw = (form.get("customer_id") or "").strip()
+            if not raw.isdigit():
+                nm = (form.get("customer_name") or "").strip()
+                if not nm:
+                    continue
+                try:
+                    _rc152 = _logi.resolve_customer_id(c, nm, prefer_id=so.get("customer_id") or proj_old.get("customer_id"))
+                    raw = str((_rc152[0] if isinstance(_rc152, tuple) else _rc152) or "")
+                except Exception:
+                    raw = ""
+                if not raw:
+                    continue
+            new = raw
+        else:
+            if fk not in form:
+                continue
+            new = form.get(fk)
+        old_n, new_n = _z152_norm(fk, eff.get(fk)), _z152_norm(fk, new)
+        if old_n == new_n:
+            continue
+        if fk == "currency":
+            st = str(so.get("status") or "").upper()
+            paid = has_rp and c.execute("SELECT 1 FROM receipts_payment WHERE order_id=? LIMIT 1", (int(oid),)).fetchone()
+            if st in ("INVOICED", "PAID") or paid:
+                changed.append((lb, old_n, old_n + " (계산서·입금 있어 그대로)"))
+                continue
+        if fk == "is_export":
+            if not so.get("@n_items"):
+                changed.append((lb, _z152_show(c, fk, old_n), "품목 줄이 없어 그대로(작업일정표에서 품목을 넣은 뒤 고쳐 주세요)"))
+                continue
+            c.execute("UPDATE order_items SET is_export=? WHERE order_id=?", (int(new_n or 0), int(oid)))
+        elif fk == "shipment_form":
+            if new_n not in _Z22_SF2SO:
+                continue
+            c.execute("UPDATE orders SET so_form=? WHERE id=?", (_Z22_SF2SO[new_n], int(oid)))
+        else:
+            val = (int(new_n) if new_n != "" else None) if fk == "customer_id" else (new_n if new_n != "" else None)
+            c.execute(f"UPDATE orders SET {sk}=? WHERE id=?", (val, int(oid)))
+        if fk == "currency":
+            c.execute("UPDATE order_items SET currency=? WHERE order_id=? AND COALESCE(currency,'') NOT IN ('', ?)",
+                      (new_n, int(oid), new_n))
+        ov, nv = _z152_show(c, fk, old_n), _z152_show(c, fk, new_n)
+        changed.append((lb, ov, nv))
+        try:
+            _logi.log_project_change(c, int(pid), uid, lb, ov, nv,
+                                     note=f"z1191z152 수주 {so.get('order_no')} 만 · 정보 수정(수주 2개 이상 — 다른 수주·대표값 그대로) · {who}")
+        except Exception as _e:
+            print(f"[z1191z152] 이력 실패: {_e}")
+    return changed
+
+
+def _z152_form_view(c, pid, proj, so_no):
+    """정보 수정 화면 — 수주 2개 이상이면 칸에 「고치는 수주」 값을 채우고, 수주마다 다른 값을 알림 글로."""
+    if not _z152_multi(c, pid):
+        return None
+    oid = _quick_target_so_z117(c, pid, so_no)
+    if not oid:
+        return None
+    so, _cols = _z152_so_row(c, oid)
+    eff = _z152_effective(proj, so)
+    notes = []
+    for r in c.execute("SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' AND id<>? ORDER BY id",
+                       (int(pid), int(oid))).fetchall():
+        o, _x = _z152_so_row(c, r[0])
+        e = _z152_effective(proj, o)
+        diff = []
+        if _z152_norm("customer_id", e.get("customer_id")) != _z152_norm("customer_id", eff.get("customer_id")):
+            diff.append("고객사 " + str(e.get("customer_name") or "—"))
+        if _z152_norm("currency", e.get("currency")) != _z152_norm("currency", eff.get("currency")):
+            diff.append("통화 " + str(e.get("currency") or "—"))
+        if _z152_norm("shipment_form", e.get("shipment_form")) != _z152_norm("shipment_form", eff.get("shipment_form")):
+            diff.append("형태 " + str(_Z152_FORM_LB.get(_z152_norm("shipment_form", e.get("shipment_form")), e.get("shipment_form") or "—")))
+        if _z152_norm("is_export", e.get("is_export")) != _z152_norm("is_export", eff.get("is_export")):
+            diff.append("거래구분 " + ("수출" if _z152_norm("is_export", e.get("is_export")) == "1" else "내수"))
+        if diff:
+            notes.append({"no": o.get("order_no") or "", "diff": " · ".join(diff)})
+    return {"so": so.get("order_no") or "", "eff": eff, "notes": notes}
+
+
 def _price_tbd_col_z117(c):
     try:
         if "price_tbd" not in {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}:
@@ -41290,8 +41479,11 @@ def _z1191_resolve_cust(c, text, picked_id=None):
 
 
 def _z1191_sync_project_from_so(c, pid, oid, old_cid, old_end):
-    """첫 수주를 고쳤으면 프로젝트 대표값(고객사1·고객사2)도 맞춘다 — 프로젝트 값이 그 수주의 옛 값과 같을 때만."""
+    """첫 수주를 고쳤으면 프로젝트 대표값(고객사1·고객사2)도 맞춘다 — 프로젝트 값이 그 수주의 옛 값과 같을 때만.
+    z1191z152 (대표 11-25 원칙 ①): 수주가 2개 이상이면 안 맞춘다 — 대표값이 바뀌면 칸이 빈 다른 수주의 화면 값까지 바뀌었다."""
     if not pid or _z1191_first_so_id(c, pid) != int(oid):
+        return
+    if _z152_multi(c, pid):
         return
     p = c.execute("SELECT customer_id, COALESCE(secondary_customer,''), COALESCE(final_amount,0) FROM projects WHERE id=?",
                   (int(pid),)).fetchone()
@@ -41315,7 +41507,10 @@ def _z1191_sync_project_from_so(c, pid, oid, old_cid, old_end):
 
 
 def _z1191_cascade_first_so(c, pid, old_cid, old_sec):
-    """정보수정으로 프로젝트 대표값(고객사1·고객사2)을 바꾸면 첫 수주도 맞춘다 — 첫 수주 값이 옛 대표값과 같을 때만."""
+    """정보수정으로 프로젝트 대표값(고객사1·고객사2)을 바꾸면 첫 수주도 맞춘다 — 첫 수주 값이 옛 대표값과 같을 때만.
+    z1191z152 (대표 11-25 · 001M2603~004M2603 사고): 수주가 2개 이상이면 첫 수주를 건드리지 않는다(고른 수주에만 저장)."""
+    if _z152_multi(c, pid):
+        return
     fid = _z1191_first_so_id(c, pid)
     if not fid:
         return
@@ -41628,6 +41823,15 @@ async def schedule_board_cell(request: Request):
         if field == "cust":
             _out1191["cust_ok"] = True
         return JSONResponse(_out1191)
+    # z1191z152 (대표 11-25 원칙 ①): 수주가 2개 이상인 관리번호의 수주 줄에서 금액 칸 = 프로젝트 금액(다른 수주 합)을 고치게 되어 막고 안내
+    if field == "amount" and kind == "project" and _so_oid.isdigit():
+        try:
+            with db_session() as _c152a:
+                _m152 = _z152_multi(_c152a, int(ref_id))
+        except Exception:
+            _m152 = False
+        if _m152:
+            return JSONResponse({"ok": False, "error": "👉 이 관리번호는 수주가 2개 이상이라 여기서 금액을 고치면 다른 수주까지 바뀝니다 — 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 고쳐 주세요."}, 400)
     try:
         ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
     except Exception as e:
@@ -46396,6 +46600,24 @@ async def projects_quick_edit_form(request: Request, pid: int):
         _so_cnt117 = 0
         _ccys130 = []
     _focus117 = str(request.query_params.get("so") or "").strip()
+    _v152 = None
+    try:   # z1191z152: 수주 2개 이상 = 칸에 고치는 수주 값 · 다른 수주와 다른 값 알림
+        with db_session() as c6:
+            _v152 = _z152_form_view(c6, pid, p, _so_no)
+        if _v152:
+            _e152 = _v152["eff"]
+            p["customer_id"] = _e152.get("customer_id")
+            p["customer_name"] = _e152.get("customer_name")
+            p["secondary_customer"] = _e152.get("secondary_customer")
+            p["is_export"] = _e152.get("is_export") or 0
+            p["shipment_form"] = _e152.get("shipment_form")
+            p["currency"] = _e152.get("currency") or p.get("currency")
+            p["po_type"] = _e152.get("po_type")
+            p["model_name"] = _e152.get("model")
+            p["equip_name"] = _e152.get("equip_name")
+    except Exception as _e152g:
+        print(f"[z1191z152 quick-edit view] {_e152g}")
+        _v152 = None
     _sos117, _tso117 = [], {}
     try:   # z1191z117k: 수주 고르기 칩 + 고치는 수주의 날짜·수량(보기)
         with db_session() as c5:
@@ -46427,7 +46649,7 @@ async def projects_quick_edit_form(request: Request, pid: int):
                         print(f"[z1191z127 semi line] {_e127g}")
     except Exception as _e117k:
         print(f"[z1191z117k quick-edit so] {_e117k}")
-    return ctx(request, "project_quick_form.html", so_cnt117=_so_cnt117, ccys130=_ccys130, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
+    return ctx(request, "project_quick_form.html", v152=_v152, so_cnt117=_so_cnt117, ccys130=_ccys130, focus_so117=_focus117, sos117=_sos117, tso117=_tso117,
                user=u, active="sales_projects", embed=_embed,
                preset_biz=(p.get("biz_div") or "T"),
                can_money=bool(can_view_sales(u)),
@@ -50364,6 +50586,26 @@ async def projects_edit_submit(request: Request, pid: int):
         if _fk10 not in form and _old10:
             _ov10 = _old10.get(_col10)
             _upd10[_dk10] = _ov10 if _dk10 in ("fx_rate", "amount_krw") else ("" if _ov10 is None else str(_ov10))
+    # z1191z152: 수주 2개 이상 = 고객사·2차·거래구분·형태·통화·PO유형·모델·장비는 고른 수주에만 · 프로젝트 대표값·첫 수주는 그대로
+    _so152 = None
+    if _multi14 and _is_quick_edit:
+        try:
+            with db_session() as _c152:
+                _so152 = _z152_save_so_fields(_c152, int(pid), form, _old10, _u)
+        except Exception as _e152:
+            print(f"[z1191z152] 고른 수주 저장 실패 pid={pid}: {_e152}")
+            _so152 = None
+    if _so152 is not None:
+        _upd10["customer_id"] = _old10.get("customer_id")
+        _upd10["customer"] = _old10.get("customer_name") or customer
+        for _k152, _c152k in (("secondary_customer", "secondary_customer"), ("currency", "currency"), ("po_type", "po_type"),
+                              ("model", "model_name"), ("equip_name", "equip_name"), ("shipment_form", "shipment_form")):
+            _v152 = _old10.get(_c152k)
+            _upd10[_k152] = "" if _v152 is None else _v152
+        _upd10["is_export"] = "1" if str(_old10.get("is_export") or "0") in ("1", "True") else "0"
+        if not _upd10.get("shipment_form"):
+            _upd10["shipment_form"] = "ASSEMBLY"
+        _old1191 = None   # 첫 수주 맞추기(_z1191_cascade_first_so) 안 함
     _logi.projects_update_logi(pid, _upd10)
     # v5H226z976 (대표 지시): 형태=상품 — '완제품 몇 대분'을 단일 상품 SO(orders.unit_qty)에도 동기화.
     #   작업일정표 상품 줄 수량의 소스가 orders.unit_qty 이므로 여기까지 맞춰야 화면이 일치.
@@ -50508,6 +50750,8 @@ async def projects_edit_submit(request: Request, pid: int):
             "order_date": (form.get("order_date", "") or (_old_meta.get("order_date") or "")),
             "currency":   (form.get("currency", "KRW") or "KRW").upper(),
         }
+        if _so152 is not None:   # z1191z152: 통화는 고른 수주에만 저장했다 — 다른 수주로 퍼뜨리지 않음(프로젝트 통화 그대로)
+            _new_meta["currency"] = _old_meta.get("currency") or _new_meta["currency"]
         with db_session() as c:
             _pwf.cascade_project_meta_to_so(c, int(pid), _old_meta, _new_meta, _u.get("id"))
     except Exception as _csc_err:

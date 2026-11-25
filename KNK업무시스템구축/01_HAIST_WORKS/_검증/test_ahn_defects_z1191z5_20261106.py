@@ -236,14 +236,15 @@ f = {"quick": "1", "unlock_verified": "1", "name": "C-정보수정", "customer_n
 r = q(cl.post, "/projects/%d/edit" % PC["id"], data=f)
 PC2 = proj("C-정보수정"); OC2 = orders_of(PC["id"])
 check(r.status_code in (200, 303) and "error=" not in (r.headers.get("location") or ""), "정보 수정 POST 통과 — %s %s" % (r.status_code, r.headers.get("location", "")[:60]))
-check(PC2["po_type"] == "개조", "프로젝트 PO유형 → 개조")
-check(OC2[0].get("po_type") == "신규", "자기 값 없던 첫 수주는 옛 값 '신규'로 굳어짐(따라 바뀌지 않음) — 실제 %r" % OC2[0].get("po_type"))
-check(OC2[1].get("po_type") == "추가", "자기 값 있던 추가 수주는 '추가' 그대로")
+# z1191z152 (대표 11-25 원칙 ①): 수주가 2개 이상이면 정보 수정의 PO유형 = 고른 수주(target_so 없으면 최신)에만 · 프로젝트·첫 수주 그대로
+check(PC2["po_type"] == "신규", "프로젝트 PO유형은 그대로 '신규'(z1191z152) — 실제 %r" % PC2["po_type"])
+check(OC2[0].get("po_type") is None, "첫 수주(자기 값 없음)는 그대로 NULL — 굳힐 일도 없음(z1191z152) — 실제 %r" % OC2[0].get("po_type"))
+check(OC2[1].get("po_type") == "개조", "고른 수주(최신)만 '개조'(z1191z152) — 실제 %r" % OC2[1].get("po_type"))
 with D.db_session() as c:
-    hist = [dict(x) for x in c.execute("SELECT field, new_value FROM project_history WHERE project_id=? ORDER BY id", (PC["id"],))]
-check(any("기존 수주 유지" in (h.get("field") or "") and "1건" in (h.get("new_value") or "") for h in hist), "변경 이력에 「PO유형(기존 수주 유지) … 1건」 남음")
+    hist = [dict(x) for x in c.execute("SELECT field, new_value, note FROM project_history WHERE project_id=? ORDER BY id", (PC["id"],))]
+check(any((h.get("field") or "") == "PO유형" and "z1191z152" in (h.get("note") or "") for h in hist), "변경 이력에 「PO유형 · 수주 ○○ 만」(z1191z152) 남음")
 br = board_rows()
-check(br.get(OC2[0]["order_no"], {}).get("po") == "신규" and br.get(OC2[1]["order_no"], {}).get("po") == "추가", "작업일정표 줄도 신규 / 추가 그대로")
+check(br.get(OC2[0]["order_no"], {}).get("po") == "신규" and br.get(OC2[1]["order_no"], {}).get("po") == "개조", "작업일정표 줄: 첫 수주 신규(대표값 따름) / 고른 수주 개조")
 # 같은 값으로 다시 저장 → 굳히지 않음
 PC3, OC3 = make_two("C2-같은값")
 f2 = dict(f); f2["name"] = "C2-같은값"; f2["po_type"] = "신규"
