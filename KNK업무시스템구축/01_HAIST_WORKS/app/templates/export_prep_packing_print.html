@@ -45,6 +45,7 @@ body { font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif; 
   <button class="print-btn" onclick="window.print()">🖨 인쇄 / Print</button>
   <a class="xlsx-btn" href="/export/prep/{{ pid }}/packing-list.xlsx">📥 엑셀</a>
   <a class="back-btn" href="/export/prep/{{ pid }}">← 돌아가기</a>
+  {# z1191z149: 새 탭으로 열린 인쇄 화면 = 창 닫기 #}{% set close_fallback = '/export/prep/' ~ pid %}{% include "_v5_partials/knk_close_btn.html" %}
 </div>
 <div class="sheet">
   <div class="title-block">

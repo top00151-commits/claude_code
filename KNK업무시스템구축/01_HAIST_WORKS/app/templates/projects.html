@@ -109,6 +109,8 @@ body {
     <a href="#" data-bm="ongoing"     onclick="projFilter('ongoing');return false;"     class="bm {% if view=='ongoing' %}on{% endif %}">🟡 진행중 <b>{{ view_counts.ongoing }}</b></a>
     <a href="#" data-bm="done"        onclick="projFilter('done');return false;"        class="bm {% if view=='done' %}on{% endif %}">🟢 출하 <b>{{ view_counts.done }}</b></a>
     <a href="#" data-bm="hold"        onclick="projFilter('hold');return false;"        class="bm {% if view=='hold' %}on{% endif %}">⚫ 보류·취소 <b>{{ view_counts.hold }}</b></a>
+    {# z1191z150 (대표 11-25 「프로젝트 목록에 책갈피 하나 만들어 견적서·발주서를 한꺼번에」): 숫자 = 견적서·발주서가 하나라도 붙은 관리번호 · 누르면 관리번호 → 수주번호별 보기 #}
+    <a href="#" data-bm="docs" onclick="projDocs150();return false;" class="bm {% if docs_view %}on{% endif %}" title="관리번호마다 수주번호별 견적서·발주서가 있는지 한눈에 · 원본 받기">📎 견적서·발주서 <b>{{ docs_n }}</b></a>
   </div>
 
   <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">
@@ -141,6 +143,7 @@ body {
   {% endif %}
 
   {# v5H226z177: 다건 선택 삭제 툴바 제거 (대표 지시 — 프로젝트 목록 삭제 기능 제거) #}
+  {% if docs_view %}{% include "_v5_partials/docs_board_z150.html" %}{% else %}
   <div class="tbl-wrap tbl-sticky">
     {% if projects %}
     <table class="tbl">
@@ -224,6 +227,7 @@ body {
     </div>
     {% endif %}
   </div>
+  {% endif %}{# /z1191z150 docs_view #}
 
   </div>{# /projFsWrap #}
 
@@ -244,7 +248,8 @@ body {
         var okGrp = (grp === 'all' || g.indexOf(grp) >= 0);
         var okDiv = (dv === 'all' || d === dv);
         var okMine = (!window.__projMine || tr.getAttribute('data-mine') === '1');
-        tr.style.display = (okGrp && okDiv && okMine) ? '' : 'none';
+        var okDm = (!window.__projDm150 || (tr.getAttribute('data-dmiss') || '').indexOf(window.__projDm150) >= 0);   /* z1191z150 */
+        tr.style.display = (okGrp && okDiv && okMine && okDm) ? '' : 'none';
       });
     }
     updateExportLinks();
@@ -263,7 +268,18 @@ body {
       a.href = '/projects/export.xlsx' + qs;
     });
   }
+  /* z1191z150: 📎 견적서·발주서 = 서버가 그 표를 만듦(view=docs) — 검색·상태·내 건만은 그대로 넘김 */
+  function projUrl150(view){
+    var p = [];
+    if (view) p.push('view=' + encodeURIComponent(view));
+    var qEl = document.querySelector('form [name=q]'), stEl = document.querySelector('form [name=status]');
+    if (qEl && qEl.value) p.push('q=' + encodeURIComponent(qEl.value));
+    if (stEl && stEl.value) p.push('status=' + encodeURIComponent(stEl.value));
+    return '/projects' + (p.length ? '?' + p.join('&') : '');
+  }
+  window.projDocs150 = function(){ location.href = projUrl150('docs'); };
   window.projFilter = function(grp){
+    if ({{ 'true' if docs_view else 'false' }} && grp && grp !== 'docs') { location.href = projUrl150(grp === 'all' ? '' : grp); return; }
     window.__projGrp = grp || 'all';
     document.querySelectorAll('.proj-bm:not(.proj-bm-div) .bm').forEach(function(a){
       a.classList.toggle('on', a.getAttribute('data-bm') === window.__projGrp);

@@ -21,6 +21,7 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: white; 
 <div class="print-actions">
   <button class="btn btn-primary" onclick="window.print()">🖨 인쇄</button>
   <a class="btn" href="javascript:history.back()">↩ 뒤로</a>
+  {# z1191z149: 새 탭으로 열린 인쇄 화면 = 창 닫기 #}{% set close_fallback = '/sales/quotations' %}{% include "_v5_partials/knk_close_btn.html" %}
 </div>
 <div class="print-head">
   <h1>견적서 인쇄</h1>

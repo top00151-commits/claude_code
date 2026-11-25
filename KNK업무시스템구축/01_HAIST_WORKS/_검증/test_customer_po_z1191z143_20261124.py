@@ -75,7 +75,7 @@ check("자리 후보에 「이미 있는 발주서 수」(다시 올리면 이�
 
 # 6 권한·안전(코드)
 src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
-blk = src[src.index("# ═══ z1191z143"):src.index("# z1191z59 (대표 2026-11-18")]
+blk = src[src.index("# ═══ z1191z143"):min(src.index("# z1191z59 (대표 2026-11-18"), src.find("# ═══ z1191z150") if "# ═══ z1191z150" in src else len(src))]   # z1191z150 블록(견적서·발주서 모아 보기)은 따로
 check("올리기·붙이기·찾기·확인했음 = can_use_sales·can_view_sales", blk.count("if not (can_use_sales(u) and can_view_sales(u)):") >= 4)
 check("보기·내려받기 = can_view_sales · 빼기 = 올린 사람·기술영업팀(z63)", blk.count("if not can_view_sales(u):") >= 2 and "_z63_can_remove(u, dict(r))" in blk)
 check("저장 이름 = 임의 글자(올린 파일 이름을 경로에 쓰지 않음) · 20MB", 'stored = f"{sub}/{tok}{ext}"' in blk and "_qr61.MAX_BYTES" in blk)

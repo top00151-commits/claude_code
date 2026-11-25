@@ -1,0 +1,30 @@
+{# z1191z150 (대표 11-25 「등록한 견적서·발주서를 한눈에 · 원본 받기 편하게」): 견적서·발주서 상태 칩 — 프로젝트 목록 📎 책갈피 · 프로젝트 상세 위 표 공용
+   qchip(pid, q) = z141 수주 견적 상태 · pchip(p) = z143 발주서 자리 상태 · 칩 = 누르면 웍스 안 보기 · ⬇ = 원본(이름 = 관리번호_수주번호_종류_원본) #}
+{% macro qchip(pid, q, mini=False) -%}
+{%- set f = q.f if q else None -%}
+{%- if q and q.st == 'ok' and q.via == 'own' -%}<a class="dc150 ok" href="/quotes/{{ f.id }}" title="이 수주에 올린 견적서 · {{ f.orig_name }}">🟢 이 수주 견적</a>
+{%- elif q and q.st == 'link' -%}<a class="dc150 lk" href="/quotes/{{ f.id }}" title="따로 올린 것이 없어 {{ (q.via_so ~ ' 견적') if q.via == 'so' else '관리번호 견적서' }}를 따라갑니다 · {{ f.orig_name }}">🔗 {{ '앞 수주 견적' if q.via == 'so' else '관리번호 견적' }}{% if q.acked %} · 확인함{% endif %}</a>
+{%- elif q and q.st == 'diff' -%}<a class="dc150 wn" href="/quotes/{{ f.id }}" title="견적서 금액이 이 수주 금액과 다릅니다 — 견적·발주서 관리에서 「확인했음」 또는 이 수주 견적을 올리세요 · {{ f.orig_name }}">⚠ 견적 금액 다름</a>
+{%- else -%}<span class="dc150 no" title="이 수주가 따라갈 견적서가 없습니다">견적 없음</span>{%- endif -%}
+{%- if f and not mini %} <a class="dc150dl" href="/projects/{{ pid }}/quote-files/{{ f.id }}" title="원본 엑셀 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif -%}
+{%- endmacro %}
+{% macro pchip(p, mini=False) -%}
+{%- set f = p.final if p else None -%}
+{%- if f and p.st == 'diff' -%}<a class="dc150 wn" href="/customer-po/{{ f.id }}" title="발주서 엑셀에서 읽은 금액이 수주 금액과 다릅니다 · {{ f.orig_name }}">⚠ 발주서 금액 다름</a>
+{%- elif f -%}<a class="dc150 ok" href="/customer-po/{{ f.id }}" title="최종 발주서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📄 발주서{% if p.prev %} <small>(이전 {{ p.prev|length }})</small>{% endif %}</a>
+{%- else -%}<span class="dc150 no" title="올린 고객 발주서가 없습니다">발주서 없음</span>{%- endif -%}
+{%- if f and not mini %} <a class="dc150dl" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif -%}
+{%- endmacro %}
+{% macro dc_style() -%}
+<style>
+.dc150 { display:inline-flex; align-items:center; gap:3px; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:800; white-space:nowrap; text-decoration:none; border:1px solid transparent; }
+.dc150.ok { background:#dcfce7; color:#166534; border-color:#bbf7d0; } .dc150.lk { background:#e0edff; color:#1d4ed8; border-color:#bfdbfe; }
+.dc150.wn { background:#fef3c7; color:#92400e; border-color:#fcd34d; } .dc150.no { background:#fee2e2; color:#b91c1c; border-color:#fecaca; }
+.dc150 small { font-weight:600; opacity:.8; } a.dc150:hover { filter:brightness(.96); text-decoration:underline; }
+.dc150dl { display:inline-block; padding:0 5px; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; color:#334155; text-decoration:none; background:#fff; }
+.dc150zip { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; border-radius:6px; font-size:11.5px; font-weight:800; text-decoration:none; white-space:nowrap; }
+.dc150-t { border-collapse:collapse; font-size:12px; margin-top:4px; }
+.dc150-t th, .dc150-t td { border-bottom:1px solid #eef1f4; padding:4px 8px; text-align:left; vertical-align:middle; }
+.dc150-t th { font-size:11px; color:#64748b; font-weight:700; background:#f8fafc; }
+</style>
+{%- endmacro %}

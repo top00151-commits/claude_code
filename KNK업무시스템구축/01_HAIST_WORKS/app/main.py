@@ -37589,7 +37589,31 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     for r in rows:
         r["_mine"] = 1 if _is_mine_z92(u, r.get("sales_name")) else 0
     _mine_count = sum(r["_mine"] for r in rows)
+    # z1191z150 (대표 11-25): 📎 견적서·발주서 책갈피 — 숫자는 가볍게(붙은 관리번호 수) · 표는 view=docs 일 때만 계산
+    _docs150, _docs_n150, _docs_sum150 = {}, 0, {"miss_q": 0, "miss_p": 0, "so": 0}
+    try:
+        _pids150 = [int(r["id"]) for r in rows if r.get("_kind") != "consumable" and r.get("id")]
+        with db_session() as _c150:
+            _z61_table(_c150)
+            _po143.table(_c150)
+            _has150 = {x[0] for x in _c150.execute("SELECT DISTINCT project_id FROM project_quote_files WHERE removed_at IS NULL AND project_id IS NOT NULL")}
+            _has150 |= {x[0] for x in _c150.execute("SELECT DISTINCT project_id FROM project_po_files WHERE project_id IS NOT NULL")}
+            _docs_n150 = sum(1 for x in _pids150 if x in _has150)
+            if view == "docs":
+                _docs150 = _z150_docs(_c150, _pids150)
+        for r in rows:
+            d = _docs150.get(int(r["id"])) if (r.get("_kind") != "consumable" and r.get("id")) else None
+            r["_docs"] = d
+            if d:
+                r["_grp"] = (r.get("_grp") or "all") + " docs"
+                _docs_sum150["miss_q"] += d["miss_q"]
+                _docs_sum150["miss_p"] += d["miss_p"]
+                _docs_sum150["so"] += len(d["sos"])
+                r["_dmiss"] = ("q" if d["miss_q"] or (not d["sos"] and not d["pq"]) else "") + ("p" if d["miss_p"] or (not d["sos"] and not d["po"].get("final")) else "")
+    except Exception as _e150:
+        print(f"[z1191z150] 견적서·발주서 책갈피 실패: {_e150}")
     return ctx(request, "projects.html",
+               docs_view=(view == "docs"), docs_n=_docs_n150, docs_sum=_docs_sum150,
                user=u, active="sales_projects",
                mine_on=bool(_mine_on and _mine_count), mine_count=_mine_count,
                projects=rows, q=q, biz_div=biz_div, stage=stage, status=status,
@@ -44794,7 +44818,8 @@ async def project_quote_file_open(req: Request, pid: int, fid: int):
         return PlainTextResponse("견적서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
     with db_session() as c:
         _z61_table(c)
-        r = c.execute("SELECT orig_name, stored FROM project_quote_files WHERE id=? AND project_id=? AND removed_at IS NULL", (fid, pid)).fetchone()
+        r = c.execute("SELECT f.orig_name, f.stored, p.mgmt_code, o.order_no FROM project_quote_files f JOIN projects p ON p.id=f.project_id "
+                      "LEFT JOIN orders o ON o.id=f.order_id WHERE f.id=? AND f.project_id=? AND f.removed_at IS NULL", (fid, pid)).fetchone()
     fp = os.path.join(_z61_dir(), (r["stored"] if r else "") or "")
     if not r or not r["stored"] or not os.path.isfile(fp):
         return PlainTextResponse("견적서 파일을 찾지 못했습니다.", status_code=404)
@@ -44805,7 +44830,7 @@ async def project_quote_file_open(req: Request, pid: int, fid: int):
           ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12", ".xls": "application/vnd.ms-excel"}.get(ext, "application/octet-stream")
     disp = "inline" if ext in (".pdf", ".png", ".jpg", ".jpeg") else "attachment"
     return FileResponse(fp, media_type=mt, headers={
-        "Content-Disposition": f"{disp}; filename*=UTF-8''{_uq61(r['orig_name'] or ('quote' + ext))}",
+        "Content-Disposition": f"{disp}; filename*=UTF-8''{_uq61(_z150_fname(r['mgmt_code'], r['order_no'], '견적서', r['orig_name'] or ('quote' + ext)))}",   # z1191z150
         "Cache-Control": "private, no-store"})
 
 
@@ -45778,7 +45803,8 @@ async def customer_po_file_z143(req: Request, fid: int):
         return PlainTextResponse("고객 발주서는 금액을 볼 수 있는 분만 열 수 있습니다.", status_code=403)
     with db_session() as c:
         _po143.table(c)
-        r = c.execute("SELECT orig_name, stored FROM project_po_files WHERE id=? AND project_id IS NOT NULL", (fid,)).fetchone()
+        r = c.execute("SELECT f.orig_name, f.stored, p.mgmt_code, o.order_no FROM project_po_files f JOIN projects p ON p.id=f.project_id "
+                      "LEFT JOIN orders o ON o.id=f.order_id WHERE f.id=? AND f.project_id IS NOT NULL", (fid,)).fetchone()
     fp = os.path.join(_z143_dir(), (r["stored"] if r else "") or "")
     if not r or not r["stored"] or not os.path.isfile(fp):
         return PlainTextResponse("발주서 파일을 찾지 못했습니다.", status_code=404)
@@ -45786,8 +45812,175 @@ async def customer_po_file_z143(req: Request, fid: int):
     ext = _po143.ext_of(r["orig_name"] or r["stored"])
     inline = ext in (".pdf", ".png", ".jpg", ".jpeg") and (req.query_params.get("dl") or "") != "1"
     return FileResponse(fp, media_type=_po143.MIME.get(ext, "application/octet-stream"), headers={
-        "Content-Disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{_uq143(r['orig_name'] or ('po' + ext))}",
+        "Content-Disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{_uq143(_z150_fname(r['mgmt_code'], r['order_no'], '발주서', r['orig_name'] or ('po' + ext)))}",   # z1191z150
         "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
+
+# ═══ z1191z150 (대표 11-25 10시 「등록한 견적서·발주서를 어디서 보는 게 편한지 … 프로젝트 목록에 책갈피 하나 만들어 한꺼번에 ·
+#     상세 위쪽에 수주번호별로 등록됐는지 한눈에 · 원본을 어떻게 받아서 일하는 게 편할지」):
+#   · 한 번에 모아 계산(관리번호 여럿도 쿼리 몇 번) — 프로젝트 목록 「📎 견적서·발주서」 책갈피 · 프로젝트 상세 위 「수주별 견적·발주서」 표 같은 함수
+#   · 견적 상태 = z141 판정(app/quote_link.resolve) · 발주서 상태 = z143 customer_po.slot_status
+#   · 내려받는 파일 이름 = 「관리번호_수주번호_견적서_원본이름」(관리번호 자리는 「관리번호」) · 관리번호 하나 = zip 한꺼번에(이전 발주서는 「이전」 폴더)
+_Z150_BAD = _re105.compile(r'[\\/:*?"<>|\r\n\t]+')
+
+
+def _z150_fname(code, order_no, kind, orig):
+    """내려받는 파일 이름 — 관리번호_수주번호(없으면 관리번호)_견적서/발주서_원본이름 · 경로 글자 빼기."""
+    o = str(orig or "").strip()
+    for _pre in (str(order_no or "").strip(), str(code or "").strip()):   # 원본 이름이 이미 관리번호·수주번호로 시작하면 두 번 붙이지 않음
+        if _pre and o.upper().startswith(_pre.upper()):
+            o = o[len(_pre):].lstrip(" _-·.") or o
+    parts = [str(code or "").strip() or "관리번호없음", str(order_no or "").strip() or "관리번호", kind, o or kind]
+    return _Z150_BAD.sub("_", "_".join(parts))[:180]
+
+
+def _z150_docs(c, pids):
+    """{관리번호 id: {"pq": 관리번호 견적서|None, "po": 관리번호 발주서 상태, "sos": [수주 줄], "miss_q": n, "miss_p": n}}
+    수주 줄 = {id, order_no, units, total, ccy, q(z141 상태), p(발주서 상태)} · 취소 수주 뺌."""
+    pids = [int(x) for x in pids if x]
+    out = {pid: {"pq": None, "po": _po143.slot_status([]), "sos": [], "miss_q": 0, "miss_p": 0} for pid in pids}
+    if not pids:
+        return out
+    _z61_table(c)
+    _po143.table(c)
+
+    def _chunks(xs, n=800):
+        for i in range(0, len(xs), n):
+            yield xs[i:i + n]
+    qfiles = {}
+    for ch in _chunks(pids):
+        for r in c.execute("SELECT id, project_id, order_id, orig_name, by_name, created_at, read_json, amt_ack_name, amt_ack_at "
+                           "FROM project_quote_files WHERE removed_at IS NULL AND project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():
+            x = dict(r)
+            try:
+                fd = (_qr61.json.loads(x.pop("read_json") or "{}").get("fields") or {})
+            except Exception:
+                fd = {}
+            x["price"] = _ql141.q_price(fd)
+            x["amt"], x["cur"] = x["price"][1], x["price"][2]
+            qfiles.setdefault(x["project_id"], []).append(x)
+    orders, oids = {}, []
+    for ch in _chunks(pids):
+        for o in c.execute("SELECT id, project_id, order_no, currency, total_amount FROM orders WHERE COALESCE(status,'')<>'CANCELLED' "
+                           "AND project_id IN (%s) ORDER BY COALESCE(order_date,''), id" % ",".join("?" * len(ch)), ch).fetchall():
+            orders.setdefault(o["project_id"], []).append(dict(o))
+            oids.append(o["id"])
+    items = {}
+    for ch in _chunks(oids):
+        for r in c.execute("SELECT order_id, unit_price, unit_label FROM order_items WHERE order_id IN (%s) ORDER BY order_id, id" % ",".join("?" * len(ch)), ch).fetchall():
+            items.setdefault(r[0], []).append((r[1], r[2]))
+    acks = _z141_acks(c)
+    po = {}
+    for ch in _chunks(pids):
+        for r in c.execute("SELECT id, project_id, order_id, orig_name, kind, size, by_id, by_name, created_at, amount, currency, amount_label, "
+                           "book_err, amt_ack_name, amt_ack_at FROM project_po_files WHERE project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():
+            po.setdefault((r["project_id"], r["order_id"]), []).append(dict(r))
+    for pid in pids:
+        own, pf = {}, None
+        for x in qfiles.get(pid, []):
+            if x["order_id"]:
+                own[x["order_id"]] = x
+            else:
+                pf = x
+        os_ = orders.get(pid, [])
+        ql = [{"id": o["id"], "order_no": o["order_no"],
+               "price": _ql141.o_price(o["total_amount"], o["currency"], [a for a, _b in items.get(o["id"], [])])} for o in os_]
+        st = _ql141.resolve(ql, own, pf, acks)
+        d = out[pid]
+        d["pq"] = pf
+        d["po"] = _po143.slot_status(po.get((pid, None), []))
+        for o in os_:
+            q = st.get(o["id"]) or {"st": "none", "f": None, "via": ""}
+            p = _po143.slot_status(po.get((pid, o["id"]), []), o["total_amount"], o["currency"])
+            d["sos"].append({"id": o["id"], "order_no": o["order_no"] or "", "units": _z105_units_txt([b for _a, b in items.get(o["id"], [])]),
+                             "total": o["total_amount"], "ccy": o["currency"] or "KRW", "q": q, "p": p})
+            if q.get("st") == "none":
+                d["miss_q"] += 1
+            if not p.get("final"):
+                d["miss_p"] += 1
+    return out
+
+
+def _z150_one(pid):
+    """프로젝트 상세 위 「수주별 견적·발주서」 표 — 한 관리번호."""
+    try:
+        with db_session() as c:
+            return _z150_docs(c, [pid]).get(int(pid))
+    except Exception as _e:
+        print(f"[z1191z150] 수주별 견적·발주서 실패 pid={pid}: {_e}")
+        return None
+
+
+tpl.env.globals["z150_docs"] = _z150_one
+
+
+@app.get("/projects/{pid}/docs.zip")
+async def project_docs_zip_z150(req: Request, pid: int):
+    """관리번호 하나의 최종 견적서·최종 발주서(이전 발주서는 「이전」 폴더) 한꺼번에 받기 — 매출 보기 권한(파일 하나 받기와 같음)."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    if not can_view_sales(u):
+        return PlainTextResponse("견적서·발주서는 금액을 볼 수 있는 분만 받을 수 있습니다.", status_code=403)
+    import io as _io150, zipfile as _zf150
+    from urllib.parse import quote as _uq150
+    with db_session() as c:
+        pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (int(pid),)).fetchone()
+        if not pr:
+            return PlainTextResponse("프로젝트를 찾지 못했습니다.", status_code=404)
+        d = _z150_docs(c, [int(pid)]).get(int(pid))
+        qstored = {r["id"]: r["stored"] for r in c.execute("SELECT id, stored FROM project_quote_files WHERE project_id=? AND removed_at IS NULL", (int(pid),)).fetchall()}
+        pstored = {r["id"]: r["stored"] for r in c.execute("SELECT id, stored FROM project_po_files WHERE project_id=?", (int(pid),)).fetchall()}
+    code = pr["mgmt_code"] or ("P%d" % pr["id"])
+    plan, seen = [], set()   # (zip 안 경로, 실제 파일, 설명)
+
+    def _add(folder, kind, order_no, f, base_dir, stored_map):
+        if not f or (kind, f["id"]) in seen:
+            return
+        seen.add((kind, f["id"]))
+        plan.append((folder + _z150_fname(code, order_no, kind, f.get("orig_name")), os.path.join(base_dir, stored_map.get(f["id"]) or ""),
+                     "%s %s %s" % (order_no or "관리번호", kind, f.get("orig_name") or "")))
+    _add("", "견적서", "", d["pq"], _z61_dir(), qstored)
+    _add("", "발주서", "", d["po"].get("final"), _z143_dir(), pstored)
+    for x in d["po"].get("prev") or []:
+        _add("이전/", "발주서", "", x, _z143_dir(), pstored)
+    for s in d["sos"]:
+        q = s["q"]
+        if q.get("via") == "own":   # 따라가는 견적서는 관리번호(또는 앞 수주) 것이라 한 번만 담음
+            _add("", "견적서", s["order_no"], q.get("f"), _z61_dir(), qstored)
+        _add("", "발주서", s["order_no"], s["p"].get("final"), _z143_dir(), pstored)
+        for x in s["p"].get("prev") or []:
+            _add("이전/", "발주서", s["order_no"], x, _z143_dir(), pstored)
+    buf, miss, names = _io150.BytesIO(), [], set()
+    with _zf150.ZipFile(buf, "w", _zf150.ZIP_DEFLATED) as z:
+        for arc, fp, desc in plan:
+            if not os.path.isfile(fp):
+                miss.append(desc)
+                continue
+            a, n = arc, 2
+            while a in names:
+                b, e = os.path.splitext(arc)
+                a = "%s(%d)%s" % (b, n, e)
+                n += 1
+            names.add(a)
+            z.write(fp, a)
+        lines = ["%s %s — 견적서·발주서 한꺼번에 받기(웍스 %s)" % (code, pr["name"] or "", _z61_now()),
+                 "· 「이전」 폴더 = 고객이 다시 보내기 전의 예전 발주서",
+                 "· 수주에 따로 올린 견적서가 없으면 관리번호 견적서를 따라갑니다(같은 파일이라 한 번만 담음)", ""]
+        nq = [s["order_no"] for s in d["sos"] if s["q"].get("st") == "none"]
+        npo = [s["order_no"] for s in d["sos"] if not s["p"].get("final")]
+        if nq:
+            lines.append("견적서 없는 수주: " + ", ".join(nq))
+        if npo:
+            lines.append("발주서 없는 수주: " + ", ".join(npo))
+        if miss:
+            lines.append("서버에서 파일을 찾지 못해 빠진 것: " + " / ".join(miss))
+        if not plan:
+            lines.append("올린 견적서·발주서가 없습니다.")
+        z.writestr("빠진_파일.txt" if (nq or npo or miss or not plan) else "안내.txt", "\r\n".join(lines).encode("utf-8-sig"))
+    zn = _Z150_BAD.sub("_", "%s_%s_견적서·발주서.zip" % (code, pr["name"] or ""))
+    return Response(buf.getvalue(), media_type="application/zip", headers={
+        "Content-Disposition": "attachment; filename*=UTF-8''" + _uq150(zn), "Cache-Control": "private, no-store"})
 
 
 # z1191z59 (대표 2026-11-18 「사업부별 기본 받는 부서 … 우선 만들고 실무자들이 선택해서 저장할수있게」):

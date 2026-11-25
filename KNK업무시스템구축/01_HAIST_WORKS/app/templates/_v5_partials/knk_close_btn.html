@@ -1,0 +1,47 @@
+{# z1191z149 (대표 11-25 「주문서(고객발주서) 확인 후 닫기 버튼이 없어 나갈 수가 없어 · 팝업으로 열렸으면 항상 닫기 기능」 — 운영 스킬 knk-screen-exit):
+   보기·상세·인쇄 미리보기 화면 제목 줄의 공용 「✕ 닫기」 단추.
+   쓰는 법:  {% set close_fallback = '/project/' ~ f.project_id %}{% include "_v5_partials/knk_close_btn.html" %}
+     · close_fallback = 돌아갈 곳이 없을 때(주소를 바로 열었을 때) 갈 화면 · 없으면 /home
+     · close_label    = 단추 글(기본 「✕ 닫기」)
+   누르면: ① 새 창·새 탭으로 열렸으면(window.opener 또는 기록 1개) 창을 닫는다 → 안 닫히면 돌아갈 곳으로
+           ② 같은 창이면 「직전에 보던 화면」(공용 knkGoBack · 화면 바꿈 기록) → 기록이 없으면 돌아갈 곳으로
+   Esc 키도 같다(글 쓰는 칸에 있을 때 · 팝업이 열려 있을 때는 그쪽이 먼저). 화면 바꿈(spa)으로 와도 문서에 한 번만 묶임. #}
+<button type="button" class="knk-close-btn" data-fallback="{{ close_fallback or '/home' }}" title="닫고 원래 보던 화면으로 돌아갑니다 (Esc)"
+  style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;line-height:1.2;box-shadow:0 1px 2px rgba(15,23,42,.06);">{{ close_label or '✕ 닫기' }}</button>
+<style>@media print { .knk-close-btn { display:none !important; } }</style>
+<script>(function(){
+  if (window.__knkCloseBtn149) return; window.__knkCloseBtn149 = 1;
+  function pathOf(u){ try { return new URL(u, location.origin).pathname; } catch(e){ return ''; } }
+  function hasBack(){
+    try { var s = JSON.parse(sessionStorage.getItem('knkNavStack') || '[]'), cur = location.pathname;
+      for (var i = s.length - 1; i >= 0; i--) { if (pathOf(s[i]) !== cur) return true; } } catch(e){}
+    var ref = document.referrer || '';
+    return !!(ref && ref.indexOf(location.origin) === 0 && pathOf(ref) !== location.pathname);
+  }
+  function closeNow(b){
+    var fb = (b && b.getAttribute('data-fallback')) || '/home';
+    var newWin = false;
+    try { newWin = !!(window.opener && !window.opener.closed) || history.length <= 1; } catch(e){}
+    if (newWin) {
+      try { window.close(); } catch(e){}
+      setTimeout(function(){ location.assign(fb); }, 250);   /* 창이 안 닫히면(브라우저가 막으면) 돌아갈 곳으로 */
+      return;
+    }
+    if (hasBack() && typeof window.knkGoBack === 'function') { window.knkGoBack(); return; }
+    if (hasBack()) { history.back(); return; }
+    location.assign(fb);
+  }
+  window.knkCloseScreen = closeNow;
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.knk-close-btn');
+    if (b) { e.preventDefault(); closeNow(b); }
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+    if (window.__knkPopupOpen149 && window.__knkPopupOpen149()) return;   /* 열린 팝업이 있으면 팝업이 먼저 */
+    var b = document.querySelector('.knk-close-btn');
+    if (b && b.offsetParent !== null) closeNow(b);
+  });
+})();</script>

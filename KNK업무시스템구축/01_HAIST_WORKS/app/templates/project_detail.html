@@ -2333,6 +2333,24 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 </dd>
           {% if can_money %}{# z1191z143 (대표 11-24): 관리번호 자리 고객 발주서 — 최종 + 이전 발주서 · 올리기(PDF·사진·엑셀) · 수주별 발주서는 수주 카드 「📄 발주서」 #}
           <dt class="fullw" title="z1191z143: 고객사에서 받은 발주서(관리번호 전체) — 수주번호별 발주서는 아래 수주 카드·수주 상세">고객 발주서</dt><dd class="fullw" id="po143">{% set po_pid = p.id %}{% set po_oid = None %}{% set po_s = z143_po(p.id).proj %}{% set po_otxt = '' %}{% include "_v5_partials/po_rows.html" %}</dd>
+          {# z1191z150 (대표 11-25 「상세 위쪽에 수주번호별로 견적서·발주서가 등록됐는지 한눈에」): 아래 수주 카드 표시는 그대로 #}
+          {% from "_v5_partials/docs_chips.html" import qchip, pchip, dc_style %}{% set _d150 = z150_docs(p.id) %}
+          <dt class="fullw" title="z1191z150: 수주번호마다 견적서·발주서가 있는지 한눈에 — 칩을 누르면 웍스 안에서 보기 · ⬇ 원본 받기">수주별 견적·발주서</dt><dd class="fullw" id="docs150">{{ dc_style() }}
+            {% if _d150 and _d150.sos %}
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:12px;color:#475569;">수주 {{ _d150.sos|length }}건 · 견적 없는 수주 <b style="color:{{ '#b91c1c' if _d150.miss_q else '#166534' }};">{{ _d150.miss_q }}</b> · 발주서 없는 수주 <b style="color:{{ '#b91c1c' if _d150.miss_p else '#166534' }};">{{ _d150.miss_p }}</b></span>
+              <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip" title="이 관리번호의 최종 견적서·발주서를 한 파일(zip)로 — 파일 이름에 관리번호·수주번호가 붙고 예전 발주서는 「이전」 폴더">⬇ 한꺼번에 받기(zip)</a>
+            </div>
+            <table class="dc150-t"><thead><tr><th>수주번호</th><th>호기·품목</th><th>견적서</th><th>고객 발주서</th></tr></thead><tbody>
+            {% for s in _d150.sos %}<tr>
+              <td><a href="/sales/orders/{{ s.id }}" style="font-weight:700;color:inherit;">{{ s.order_no }}</a></td>
+              <td style="color:#64748b;">{{ s.units or '—' }}</td>
+              <td>{{ qchip(p.id, s.q) }}</td>
+              <td>{{ pchip(s.p) }}</td>
+            </tr>{% endfor %}
+            </tbody></table>
+            {% else %}<span style="font-size:12px;color:#64748b;">수주가 아직 없습니다 — 위 관리번호 견적서·발주서만 보입니다.</span>{% if _d150 and (_d150.pq or _d150.po.final) %} <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip">⬇ 한꺼번에 받기(zip)</a>{% endif %}{% endif %}
+          </dd>
           {% endif %}
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
           {% if _hso %}{% set _hend16 = _hso.end_customer or ((p.secondary_customer or '') if ((not _hso.customer_id) or _hso.customer_id == p.customer_id) else '') %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span> <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>🌐 {{ _hend16 or '—' }}</dd>{% elif p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}

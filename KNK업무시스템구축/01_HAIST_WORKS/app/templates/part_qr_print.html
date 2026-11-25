@@ -86,6 +86,7 @@ body {
   </select>
   <button class="print-btn" onclick="window.print()">🖨 인쇄</button>
   <a class="back-btn" href="/parts/{{ part.id }}">↩ 자재 상세</a>
+  {# z1191z149: 새 탭으로 열린 인쇄 화면 = 창 닫기 #}{% set close_fallback = '/parts/' ~ part.id %}{% include "_v5_partials/knk_close_btn.html" %}
 </div>
 
 <div class="sheet">

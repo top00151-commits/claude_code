@@ -52,12 +52,13 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
       <h1 class="knk-page-title">📋 {{ mt.title or f.orig_name }}</h1>
       <p class="knk-page-meta">
         <a href="/project/{{ f.project_id }}{% if f.order_no %}?so={{ f.order_no|urlencode }}{% endif %}">{{ f.mgmt_code }}{% if f.pname %} {{ f.pname }}{% endif %}</a>
-        · {% if f.order_no %}수주번호 <b>{{ f.order_no }}</b>의 최종 견적{% else %}관리번호 대표 견적{% endif %}
+        · {% if f.order_no %}수주번호 <b>{{ f.order_no }}</b>의 최종 견적{% else %}관리번호 견적서{% endif %}
         · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }} 올림
       </p>
     </div>
     <div class="knk-page-actions">
       <a class="knk-btn knk-btn--ghost" href="/projects/{{ f.project_id }}/quote-files/{{ f.id }}" title="원본 엑셀 내려받기">⬇ 원본 엑셀</a>
+      {# z1191z149 #}{% set close_fallback = '/project/' ~ f.project_id %}{% include "_v5_partials/knk_close_btn.html" %}
     </div>
   </header>
   <div class="qv-wrap">

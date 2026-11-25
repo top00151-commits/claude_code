@@ -43,6 +43,7 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
     </div>
     <div class="knk-page-actions">
       <a class="knk-btn knk-btn--ghost" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 파일 내려받기">⬇ 원본 내려받기</a>
+      {# z1191z149 (대표 11-25 「확인 후 닫기 버튼이 없어 나갈 수가 없어」) #}{% set close_fallback = ('/sales/orders/' ~ f.order_id ~ '#po143') if f.order_id else ('/project/' ~ f.project_id ~ '#po143') %}{% include "_v5_partials/knk_close_btn.html" %}
     </div>
   </header>
   <div class="pv-wrap">

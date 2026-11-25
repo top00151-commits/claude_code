@@ -1,0 +1,58 @@
+{# z1191z150 (대표 11-25 「프로젝트 목록 책갈피에서 등록한 견적서·발주서를 한꺼번에 · 수주번호별로 등록됐는지 한눈에 · 원본 받기 편하게」):
+   프로젝트 목록 📎 견적서·발주서 보기 — 관리번호 줄 = 관리번호 견적서·발주서 + 수주번호마다 견적·발주서 칩 + ⬇ 한꺼번에 받기(zip)
+   줄마다 data-grp(…docs) · data-div · data-mine = 위 사업부 책갈피·👤 내 건만이 그대로 거름 · data-dmiss(q/p) = 위 「없는 것만」 단추 #}
+{% from "_v5_partials/docs_chips.html" import qchip, pchip, dc_style %}{{ dc_style() }}
+<style>
+.db150-sum { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; font-size:12.5px; color:#334155; }
+.db150-sum button { padding:3px 10px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; font-size:12px; font-weight:700; cursor:pointer; color:#334155; }
+.db150-sum button.on { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.db150-t td { vertical-align:top; }
+.db150-so { display:grid; grid-template-columns:max-content max-content max-content; justify-content:start; gap:3px 10px; align-items:center; font-size:12px; }
+.db150-t td:nth-child(4), .db150-t td:nth-child(5) { white-space:nowrap; }
+.db150-so .no { font-weight:700; color:#0f172a; white-space:nowrap; } .db150-so .no small { font-weight:500; color:#64748b; }
+</style>
+<div class="db150-sum">
+  <b>📎 견적서·발주서</b>
+  <span>수주 {{ docs_sum.so }}건 중 · 견적 없는 수주 <b style="color:{{ '#b91c1c' if docs_sum.miss_q else '#166534' }};">{{ docs_sum.miss_q }}</b> · 발주서 없는 수주 <b style="color:{{ '#b91c1c' if docs_sum.miss_p else '#166534' }};">{{ docs_sum.miss_p }}</b></span>
+  <button type="button" class="on" data-dm="" onclick="projDocMiss150('')">모두</button>
+  <button type="button" data-dm="q" onclick="projDocMiss150('q')">견적 없는 것만</button>
+  <button type="button" data-dm="p" onclick="projDocMiss150('p')">발주서 없는 것만</button>
+  <span style="margin-left:auto;color:#64748b;font-size:11.5px;">칩을 누르면 웍스 안에서 보기 · ⬇ = 원본(파일 이름에 관리번호·수주번호가 붙음) · 관리번호마다 「⬇ 한꺼번에」 = zip</span>
+</div>
+<div class="tbl-wrap tbl-sticky">
+  {% if projects %}
+  <table class="tbl db150-t">
+    <thead><tr>
+      <th>관리코드</th><th>프로젝트명</th><th>고객사</th>
+      <th>관리번호 견적서</th><th>관리번호 발주서</th>
+      <th>수주번호별 견적서 · 발주서</th><th class="center">받기</th>
+    </tr></thead>
+    <tbody id="projTbody">
+    {% for p in projects if p._docs %}{% set d = p._docs %}
+      <tr data-grp="{{ p._grp|default('all') }}" data-div="{{ p._div|default('') }}" data-mine="{{ p._mine|default(0) }}" data-dmiss="{{ p._dmiss|default('') }}">
+        <td><a href="/project/{{ p.id }}" class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</a></td>
+        <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
+        <td>{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}</td>
+        <td>{% if d.pq %}<a class="dc150 lk" href="/quotes/{{ d.pq.id }}" title="{{ d.pq.orig_name }} · {{ d.pq.by_name or '' }} {{ (d.pq.created_at or '')[:10] }}">📋 견적서</a> <a class="dc150dl" href="/projects/{{ p.id }}/quote-files/{{ d.pq.id }}" title="원본 엑셀 받기">⬇</a>{% else %}<span class="dc150 no">없음</span>{% endif %}</td>
+        <td>{{ pchip(d.po) if d.po.final else '<span class="dc150 no">없음</span>'|safe }}</td>
+        <td>{% if d.sos %}<div class="db150-so">
+          {% for s in d.sos %}<span class="no"><a href="/sales/orders/{{ s.id }}" style="color:inherit;">{{ s.order_no }}</a>{% if s.units %} <small>{{ s.units }}</small>{% endif %}</span><span>{{ qchip(p.id, s.q) }}</span><span>{{ pchip(s.p) }}</span>{% endfor %}
+        </div>{% else %}<span style="color:#94a3b8;font-size:12px;">수주 없음</span>{% endif %}</td>
+        <td class="center">{% if d.pq or d.po.final or (d.sos|selectattr('p.final')|list) or (d.sos|selectattr('q.f')|list) %}<a class="dc150zip" href="/projects/{{ p.id }}/docs.zip" title="최종 견적서·발주서를 한 파일(zip)로">⬇ 한꺼번에</a>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="ico">📎</div><div class="ttl">검색 결과 없음</div></div>
+  {% endif %}
+</div>
+<script>
+/* z1191z150: 「견적 없는 것만 · 발주서 없는 것만」 — 위 사업부·내 건만 거르기와 같이(줄 data-dmiss) */
+window.__projDm150 = '';
+window.projDocMiss150 = function(k){
+  window.__projDm150 = k || '';
+  document.querySelectorAll('.db150-sum button').forEach(function(b){ b.classList.toggle('on', (b.getAttribute('data-dm') || '') === window.__projDm150); });
+  if (typeof applyProjFilter === 'function') applyProjFilter();
+};
+</script>

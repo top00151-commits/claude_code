@@ -57,6 +57,7 @@
         if(!j || !j.ok){ rm.disabled=false; alert((j&&j.message)||'빼지 못했습니다 — 다시 해 보세요.'); return; }
         if(row && row.parentNode) row.parentNode.removeChild(row);
         if(list && !list.querySelector('.z62-qrow')){ var nn=list.querySelector('.z63-none'); if(nn) nn.style.display=''; }
+        if(document.getElementById('docs150')) setTimeout(function(){ location.reload(); }, 300);   /* z1191z150: 프로젝트 상세 = 위 「수주별 견적·발주서」 표·수주 카드까지 새로 */
       }).catch(function(){ rm.disabled=false; alert('인터넷 연결이 끊겨 빼지 못했습니다.'); });
     }
   });

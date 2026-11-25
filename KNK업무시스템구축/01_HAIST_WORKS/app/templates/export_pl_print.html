@@ -74,6 +74,7 @@ body {
 <div class="actions">
   <button class="print-btn" onclick="window.print()">🖨 인쇄 / Print</button>
   <a class="back-btn" href="/export/orders/{{ pl.export_order_id }}">← 돌아가기</a>
+  {# z1191z149: 새 탭으로 열린 인쇄 화면 = 창 닫기 #}{% set close_fallback = '/export/orders/' ~ pl.export_order_id %}{% include "_v5_partials/knk_close_btn.html" %}
 </div>
 
 <div class="sheet">

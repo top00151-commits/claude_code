@@ -139,6 +139,7 @@ body {
 <!-- 화면 액션 (인쇄 시 숨김) -->
 <div class="print-bar">
   <a href="/qc/inspection-reports/{{ report.id }}">↩ 상세로 돌아가기</a>
+  {# z1191z149: 새 탭으로 열린 인쇄 화면 = 창 닫기 #}{% set close_fallback = '/qc/inspection-reports/' ~ report.id %}{% include "_v5_partials/knk_close_btn.html" %}
   <button type="button" class="btn-print" onclick="window.print()">🖨 인쇄 (Ctrl+P)</button>
 </div>
 
