@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><title>아웃룩 옛 메일 가져오기 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 11-25 대표 「아웃룩 옛 메일 가져오기」 — 기간(5·3·2·1년) · 첨부도 같은 기간 · 폴더 방식 고르기(대표 계정은 정해진 방식 하나) */
+  .mi-wrap{padding:0 var(--content-pad,32px) 40px;box-sizing:border-box}
+  .mi-wrap .page-head{padding-left:0;padding-right:0}
+  .mi-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin:0 0 14px}
+  .mi-note{font-size:12.5px;color:var(--mute);line-height:1.75}
+  .mi-h{margin:0 0 8px;font-size:15px}
+  .mi-pick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+  .mi-pick label{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:13.5px;line-height:1.6;background:var(--mt-panel,#fafbfc)}
+  .mi-pick label:has(input:checked){border-color:var(--knk-red,#a5282c);background:#fff5f5}
+  .mi-pick.col label{flex:1 1 260px}
+  .mi-pick small{display:block;color:var(--mute);font-size:12px}
+  .mi-fixed{border:1px solid #a9c3f5;background:#eef4ff;color:#1e3a8a;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.7}
+  .mi-code{display:block;background:var(--mt-panel,#f6f7f9);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+  .mi-step{display:flex;gap:10px;margin:8px 0;font-size:13.5px;line-height:1.75}
+  .mi-num{flex:0 0 24px;height:24px;border-radius:50%;background:var(--knk-red,#a5282c);color:#fff;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .mi-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:12px}
+  @media(max-width:760px){.mi-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.mi-wrap{padding:0 12px 32px}}
+  .mi-tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--mt-panel,#fafbfc)}
+  .mi-tile .t{font-size:12px;color:var(--mute);font-weight:700}
+  .mi-tile .v{font-size:20px;font-weight:800;margin-top:2px}
+  #miMsg{display:block;margin-top:10px;font-size:14px;line-height:1.7;border-radius:10px}
+  #miMsg:not(:empty){padding:12px 14px;border:1px solid var(--line,#d6dbe1)}
+  #miMsg.ok{background:#ecfdf3;border-color:#86d3a8;color:#14532d}
+  #miMsg.todo{background:#fff7e6;border-color:#f3c27a;color:#7a4a05}
+  #miMsg.wait{background:#eef4ff;border-color:#a9c3f5;color:#1e3a8a}
+  #miMsg.err{background:#fef2f2;border-color:#f3a5a5;color:#b91c1c}
+  #miMsg b{font-weight:800}
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+<div class="mi-wrap">
+  <div class="page-head"><div>
+    <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 아웃룩 옛 메일 가져오기</div>
+    <h1 class="page-title">📥 아웃룩 <em>옛 메일 가져오기</em></h1>
+  </div>{% with exit_href='/mail/tools', exit_label='설정·정리' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
+
+  <div class="mi-card">
+    <div style="font-size:13.5px;line-height:1.75">PC 의 <b>아웃룩에 남아 있는 옛 메일</b>을 내 메일함으로 가져옵니다. 고른 기간의 메일을 <b>본문·첨부까지</b> 최근 것부터 차례로 옮깁니다.</div>
+    <div class="mi-note">· 같은 메일(메일 번호가 같은 것)은 <b>두 번 들어가지 않습니다</b> — 이미 있는 메일·중간에 끊겨 다시 실행한 메일은 건너뜁니다.<br>
+      · 받은 날짜는 <b>아웃룩에서 받은 날짜 그대로</b> · 옛 메일이라 <b>읽은 메일</b>로 넣고, 새 메일 알림·자동 응답은 나가지 않습니다.<br>
+      · 아웃룩의 메일은 <b>바꾸지도 지우지도 않습니다</b>(읽기만) · 한 통의 첨부가 30MB 넘으면 그 첨부는 아웃룩에 두고 본문만 가져옵니다.</div>
+  </div>
+
+  <div class="mi-card">
+    <h2 class="mi-h">① 고르기</h2>
+    <div class="mi-note" style="font-weight:700;color:var(--text)">기간 <span class="mi-note">(첨부도 같은 기간)</span></div>
+    <div class="mi-pick" role="radiogroup" aria-label="기간">
+      {% for y in years %}<label><input type="radio" name="miYears" value="{{ y }}"{% if y == 2 %} checked{% endif %}><span><b>{{ y }}년 전부터</b></span></label>{% endfor %}
+    </div>
+    <div class="mi-note" style="font-weight:700;color:var(--text)">폴더</div>
+    {% if is_owner %}
+    <div class="mi-fixed" id="miOwnerMode">📁 <b>아웃룩 폴더와 같은 이름의 폴더가 있으면 그 폴더로</b> 넣고, 같은 이름이 없는 메일은 <b>「분류안됨」</b>에 넣습니다 — 나머지는 대표님이 직접 정리하십니다(대표님 메일함은 이 방식으로 정해져 있습니다).
+      <input type="hidden" name="miMode" value="match"></div>
+    {% else %}
+    <div class="mi-pick col" role="radiogroup" aria-label="폴더 방식">
+      {% for m, nm in modes %}<label><input type="radio" name="miMode" value="{{ m }}"{% if loop.first %} checked{% endif %}><span><b>{{ nm }}</b>
+        <small>{% if m == 'outlook' %}아웃룩에서 쓰던 폴더(받은 편지함 아래)를 그대로 만들어 넣습니다 — 이미 같은 이름 폴더가 있으면 그 폴더에{% elif m == 'auto' %}다른 메일처럼 보낸 사람·회사로 이음웍스가 알아서 나눕니다{% else %}모두 「분류안됨」에 넣고 내가 직접 옮깁니다{% endif %}</small></span></label>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="mi-note">🖥 서버 남은 공간: <b>{{ disk.free_gb }}GB</b>{% if not disk.ok %} — <b style="color:#b91c1c">⚠ 모자라서 지금은 가져올 수 없습니다(빅터에게 알려 주세요)</b>{% endif %}</div>
+    <div style="margin-top:10px"><button type="button" class="btn btn-primary" id="miMake" onclick="miMake()"{% if not disk.ok %} disabled{% endif %}>🔑 가져오기 번호 만들기</button>
+      <span class="mi-note">번호는 24시간 쓸 수 있고, 내 메일함에만 넣을 수 있습니다 · 새로 만들면 앞 번호는 끝납니다</span></div>
+  </div>
+
+  <div class="mi-card" id="miRun" hidden>
+    <h2 class="mi-h">② 아웃룩 PC 에서 실행 <span class="mi-note">(아웃룩을 켜 둔 채)</span></h2>
+    <div class="mi-step"><div class="mi-num">1</div><div>키보드 <b>윈도우 키</b> → <code>PowerShell</code> 을 치고 <b>Enter</b> — 파란(또는 검은) 창이 뜹니다.</div></div>
+    <div class="mi-step"><div class="mi-num">2</div><div>아래 한 줄을 <b>복사</b>해 그 창에 붙여 넣고(마우스 오른쪽 클릭) <b>Enter</b> — 아웃룩이 「허용」을 물으면 허용해 주세요.
+      <code class="mi-code" id="miCmd"></code>
+      <button type="button" class="btn btn-secondary" onclick="miCopy()">📋 복사</button> <span class="mi-note" id="miCopied"></span></div></div>
+    <div class="mi-step"><div class="mi-num">3</div><div>창에 「N / 전체」가 올라갑니다. <b>PC 를 켜 둔 채 기다리시면</b> 됩니다(메일이 많으면 몇 시간). 중간에 끊기면 같은 줄을 다시 실행하면 이어서 합니다.</div></div>
+    <div class="mi-note">🔒 번호는 이 화면에서만 한 번 보입니다(서버에는 알아볼 수 없게 바꿔 저장) — 잃어버리면 ①에서 새로 만드세요.</div>
+  </div>
+
+  <div class="mi-card">
+    <h2 class="mi-h">③ 진행 상황</h2>
+    <div class="mi-tiles" id="miTiles">
+      <div class="mi-tile"><div class="t">가져온 메일</div><div class="v" id="miSaved">{{ '{:,}'.format(st.saved or 0) }}</div></div>
+      <div class="mi-tile"><div class="t">이미 있어 건너뜀</div><div class="v" id="miSkipped">{{ '{:,}'.format(st.skipped or 0) }}</div></div>
+      <div class="mi-tile"><div class="t">실패</div><div class="v" id="miFailed">{{ '{:,}'.format(st.failed or 0) }}</div></div>
+      <div class="mi-tile"><div class="t">첨부(MB)</div><div class="v" id="miAtt">{{ st.att_mb or 0 }}</div></div>
+      <div class="mi-tile"><div class="t">마지막으로 받은 때</div><div class="v" style="font-size:14px" id="miLast">{{ (st.last_at or '—')[5:16] if st.last_at else '—' }}</div></div>
+    </div>
+    <span id="miMsg"></span>
+    <div style="margin-top:10px"><button type="button" class="btn btn-secondary" onclick="miStop()" id="miStopBtn">⏹ 멈추기(번호 없애기)</button>
+      <span class="mi-note">멈추면 PC 명령이 더 보내지 못합니다 · 이미 가져온 메일은 그대로 남습니다</span></div>
+  </div>
+</div>
+</main>
+</div>
+<script>
+/* 11-25 대표 규정(knk-done-status): 결과 = ✅ 완료 / ⏳ 진행 중 / 👉 남은 일 중 하나를 맨 앞에 */
+window.MI_ST = {{ st|tojson }};
+function miN(v){ return (Number(v)||0).toLocaleString(); }
+function miMsg(t, kind){ var m=document.getElementById('miMsg'); m.innerHTML=t; m.className=kind||''; }
+function miPick(n){ var e=document.querySelector('input[name="'+n+'"]:checked') || document.querySelector('input[name="'+n+'"]'); return e ? e.value : ''; }
+function miShow(s){
+  s=s||{}; window.MI_ST=s;
+  document.getElementById('miSaved').textContent=miN(s.saved); document.getElementById('miSkipped').textContent=miN(s.skipped);
+  document.getElementById('miFailed').textContent=miN(s.failed); document.getElementById('miAtt').textContent=(s.att_mb||0);
+  document.getElementById('miLast').textContent=s.last_at ? s.last_at.slice(5,16) : '—';
+  var idle=999;
+  if(s.last_at){ var t=new Date(s.last_at.replace(' ','T')); idle=(Date.now()-t.getTime())/60000; }
+  if(s.disk_ok===false){ miMsg('⚠ <b>끝나지 않았습니다</b> — 서버 남은 공간이 모자라 받기를 멈췄습니다. 빅터에게 알려 주세요(가져온 메일은 그대로 있습니다).', 'err'); return; }
+  if(!s.state){ miMsg('👉 <b>남은 일</b> — ①에서 '+(document.getElementById('miOwnerMode')?'기간을':'기간·폴더를')+' 고르고 「🔑 가져오기 번호 만들기」를 눌러 주세요.', 'todo'); return; }
+  if(s.state==='done'){
+    var h='✅ <b>완료 — 이 작업은 끝났습니다.</b><br>· 아웃룩 메일 <b>'+miN(s.saved)+'통</b>을 가져왔습니다'+(Number(s.skipped)>0?' · 이미 있던 '+miN(s.skipped)+'통은 건너뛰었습니다(정상)':'')+'.';
+    if(Number(s.att_dropped)>0) h+='<br>· 너무 큰 첨부 '+miN(s.att_dropped)+'개는 아웃룩에 두었습니다(메일에 그렇게 표시됨).';
+    if(Number(s.failed)>0){ h+='<br>👉 <b>남은 일</b> — 실패 '+miN(s.failed)+'통이 있습니다. ①에서 새 번호를 만들어 같은 방법으로 다시 실행하면 실패한 것만 다시 보냅니다(이미 들어간 메일은 건너뜀).'; miMsg(h,'todo'); return; }
+    h+='<br>· <b>더 하실 일은 없습니다.</b>'+(document.getElementById('miOwnerMode')?' 「분류안됨」에 들어간 메일은 편하실 때 정리하시면 됩니다.':'');
+    miMsg(h,'ok'); return;
+  }
+  if(s.state==='stopped' || s.state==='ended' || !s.alive){
+    miMsg('✅ <b>완료 — 이 번호는 끝났습니다'+(s.state==='stopped'?'(멈춤)':'')+'.</b> 지금까지 '+miN(s.saved)+'통을 가져왔습니다. 남은 메일을 더 가져오려면 ①에서 새 번호를 만들어 다시 실행하세요(이미 들어간 메일은 건너뜀).', 'ok'); return; }
+  if(s.state==='ready'){ miMsg('👉 <b>남은 일</b> — ②의 명령을 아웃룩 PC 에서 실행해 주셔야 시작됩니다.', 'todo'); return; }
+  if(idle<=3){ miMsg('⏳ <b>진행 중</b> — 아직 끝나지 않았습니다. PC 명령이 메일을 보내는 중입니다(PC·아웃룩을 켜 두세요). 끝나면 이 칸이 「✅ 완료」로 바뀌고 PC 창에도 「✅ 완료」가 나옵니다.', 'wait'); return; }
+  miMsg('👉 <b>남은 일</b> — 몇 분째 받은 메일이 없습니다. PC 창에 「✅ 완료」가 나왔는지 봐 주세요. 창이 닫혔거나 멈췄으면 같은 명령을 다시 실행하면 이어서 합니다(이미 들어간 메일은 건너뜀).', 'todo');
+}
+async function miMake(){
+  var fd=new FormData(); fd.append('years', miPick('miYears')); fd.append('mode', miPick('miMode') || 'match');
+  miMsg('⏳ <b>진행 중</b> — 번호를 만드는 중입니다(몇 초).', 'wait');
+  var j={}; try{ var r=await fetch('/mail/import-outlook/token',{method:'POST',body:fd}); j=await r.json(); }catch(e){ j={ok:false,message:'네트워크가 끊겼습니다'}; }
+  if(!j.ok){ miMsg('⚠ <b>끝나지 않았습니다</b> — '+String(j.message||'실패').replace(/</g,'&lt;')+' · 다시 눌러 보시고, 같으면 빅터에게 알려 주세요.', 'err'); return; }
+  document.getElementById('miCmd').textContent=j.command; document.getElementById('miRun').hidden=false;
+  miShow(j.st);
+  try{ document.getElementById('miRun').scrollIntoView({behavior:'smooth', block:'start'}); }catch(_){}
+}
+function miCopy(){ var t=document.getElementById('miCmd').textContent, done=function(){ document.getElementById('miCopied').textContent='✓ 복사했습니다 — PowerShell 창에 붙여 넣고 Enter'; };
+  try{ navigator.clipboard.writeText(t).then(done, function(){ prompt('아래 글을 복사하세요', t); }); }catch(_){ prompt('아래 글을 복사하세요', t); } }
+async function miStop(){
+  if(!confirm('가져오기 번호를 없앨까요?\n(PC 명령이 더 보내지 못합니다 · 이미 가져온 메일은 그대로 남습니다)')) return;
+  var j={}; try{ var r=await fetch('/mail/import-outlook/stop',{method:'POST'}); j=await r.json(); }catch(e){}
+  miPoll();
+}
+async function miPoll(){ try{ var r=await fetch('/mail/import-outlook/status'); var j=await r.json(); if(j.ok) miShow(j.has ? j : {}); }catch(_){} }
+miShow(window.MI_ST);
+setInterval(function(){ if(document.visibilityState==='visible') miPoll(); }, 15000);
+</script>
+</body></html>

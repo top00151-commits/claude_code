@@ -1075,8 +1075,9 @@ def count_snoozed(c, user_id) -> int:
 def latest_inbox(c, user_id):
     """받은편지함 맨 위 새 메일(번호·보낸 사람·제목) — 새 메일이 왔는지 알아보기용(11-19 2단계 · 내 메일만)."""
     _ensure_security_cols(c)
+    # 11-25 읽은 메일은 「새 메일」이 아님 — 아웃룩 옛 메일 가져오기(읽음으로 들어옴)가 알림을 띄우지 않게
     r = c.execute("SELECT id, from_name, from_email, subject FROM mail_messages WHERE user_id=? AND direction='in' "
-                  "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(is_archived,0)=0 "
+                  "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND COALESCE(is_archived,0)=0 AND COALESCE(is_read,0)=0 "
                   "AND (COALESCE(snooze_until,'')='' OR snooze_until <= datetime('now','localtime')) "
                   "ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
     return dict(r) if r else None

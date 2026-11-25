@@ -25159,6 +25159,172 @@ async def mail_recv_fix_apply(req: Request):
     return JSONResponse(dict(out, ok=True))
 
 
+# ─── 11-25 대표 「아웃룩 옛 메일 가져오기」 — 기간(5·3·2·1년) · 첨부도 같은 기간 · 폴더 방식(직원 3가지 · 대표 = 같은 이름 폴더만) ───
+_MIMP_SERVER = "https://works.knknara.co.kr"
+
+
+def _mimp_command(code):
+    """PowerShell 창에 그대로 붙여 넣을 한 줄 — 이 번호로 명령 파일을 받아 바로 실행(다운로드 폴더 이름 문제 없음)."""
+    return ("$c='%s'; [Net.ServicePointManager]::SecurityProtocol='Tls12'; "
+            "Invoke-WebRequest -UseBasicParsing ('%s/api/mail/import-outlook/script?code='+$c) -OutFile \"$env:TEMP\\knk_outlook_import.ps1\"; "
+            "powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:TEMP\\knk_outlook_import.ps1\" -Code $c" % (code, _MIMP_SERVER))
+
+
+@app.get("/mail/import-outlook", response_class=HTMLResponse)
+async def mail_import_outlook_page(req: Request):
+    """아웃룩 옛 메일 가져오기 화면 — 로그인한 직원 누구나 · 내 메일함으로만."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import mail_import_outlook as _mio
+    with db_session() as c:
+        _mio.ensure(c)
+        owner = _mio.is_owner(c, u["id"])
+        t = _mio.latest(c, u["id"])
+    disk = _mio.disk_state()
+    return ctx(req, "mail_import_outlook.html", user=u, active="mail", is_owner=owner,
+               modes=[(m, _mio.MODE_NAME[m]) for m in ((_mio.OWNER_MODE,) if owner else _mio.STAFF_MODES)],
+               years=_mio.YEARS, st=_mio.public(t, disk) if t else {}, disk={"ok": disk["ok"], "free_gb": round(disk["free"] / 1073741824.0, 1)})
+
+
+@app.get("/mail/import-outlook/status")
+async def mail_import_outlook_status(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_import_outlook as _mio
+    with db_session() as c:
+        t = _mio.latest(c, u["id"])
+    return JSONResponse(dict(_mio.public(t, _mio.disk_state()) if t else {}, ok=True, has=bool(t)))
+
+
+@app.post("/mail/import-outlook/token")
+async def mail_import_outlook_token(req: Request):
+    """가져오기 번호 만들기 — 번호는 이 응답에서 한 번만(서버엔 해시만) · 대표 계정 = 같은 이름 폴더만(고정)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_import_outlook as _mio
+    form = await req.form()
+    disk = _mio.disk_state()
+    if not disk["ok"]:
+        return JSONResponse({"ok": False, "message": "서버 남은 공간이 모자랍니다(빅터에게 알려 주세요)"}, 400)
+    try:
+        with db_session() as c:
+            code, t = _mio.create_token(c, u["id"], form.get("years"), (form.get("mode") or "").strip())
+    except ValueError as e:
+        return JSONResponse({"ok": False, "message": str(e)}, 400)
+    print("[MAIL-IMPORT] user=%s 번호 만듦 · %s년 · %s" % (u["id"], t["years"], t["mode"]), flush=True)
+    return JSONResponse({"ok": True, "code": code, "command": _mimp_command(code), "st": _mio.public(t, disk)})
+
+
+@app.post("/mail/import-outlook/stop")
+async def mail_import_outlook_stop(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_import_outlook as _mio
+    with db_session() as c:
+        n = _mio.stop(c, u["id"])
+    return JSONResponse({"ok": True, "stopped": n})
+
+
+@app.get("/api/mail/import-outlook/script")
+async def mail_import_outlook_script(req: Request):
+    """PC 명령 파일 — 살아 있는 번호가 있거나 로그인한 사람만."""
+    from . import mail_import_outlook as _mio
+    ok = bool(get_user(req))
+    if not ok:
+        with db_session() as c:
+            ok = bool(_mio.find_token(c, req.query_params.get("code") or ""))
+    if not ok:
+        return JSONResponse({"ok": False, "message": "번호가 없거나 기한이 지났습니다"}, 403)
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy", "outlook_import.ps1")
+    if not os.path.isfile(p):
+        return JSONResponse({"ok": False, "message": "명령 파일이 서버에 없습니다"}, 404)
+    return FileResponse(p, media_type="application/octet-stream", filename="outlook_import.ps1")
+
+
+async def _mimp_json(req):
+    raw = await req.body()
+    from . import mail_import_outlook as _mio
+    if len(raw) > _mio.MAX_REQ_BYTES:
+        return None, "too_big"
+    try:
+        import json as _jsmi
+        return _jsmi.loads(raw.decode("utf-8")), ""
+    except Exception:
+        return None, "bad"
+
+
+@app.post("/api/mail/import-outlook/check")
+async def mail_import_outlook_check(req: Request):
+    """PC 명령이 처음 묻는 것 — 번호 → 기간·폴더 방식·서버 남은 공간(숫자만)."""
+    from . import mail_import_outlook as _mio
+    d, err = await _mimp_json(req)
+    if not d:
+        return JSONResponse({"ok": False, "message": "요청을 읽지 못했습니다"}, 400)
+    with db_session() as c:
+        t = _mio.find_token(c, str(d.get("code") or ""))
+    if not t:
+        return JSONResponse({"ok": False, "message": "번호가 없거나 기한이 지났습니다 — 화면에서 새 번호를 만들어 주세요"}, 403)
+    return JSONResponse(dict(_mio.public(t, _mio.disk_state()), ok=True))
+
+
+@app.post("/api/mail/import-outlook/mail")
+async def mail_import_outlook_mail(req: Request):
+    """메일 한 통 받기 — 같은 메일 건너뜀 · 기간 밖 거절 · 공간 부족이면 멈춤 · 돌려주는 값 = 숫자·결과 글자만."""
+    from . import mail_import_outlook as _mio
+    d, err = await _mimp_json(req)
+    if err == "too_big":
+        return JSONResponse({"ok": False, "result": "too_big", "message": "한 통이 너무 큽니다"}, 413)
+    if not d:
+        return JSONResponse({"ok": False, "result": "fail", "message": "요청을 읽지 못했습니다"}, 400)
+    code = str(d.get("code") or "")
+    m = d.get("mail") or {}
+    disk = _mio.disk_state()
+    from starlette.concurrency import run_in_threadpool
+
+    def _run():
+        with db_session() as c:
+            t = _mio.find_token(c, code)
+            if not t:
+                return {"ok": False, "result": "token", "message": "번호가 없거나 기한이 지났습니다"}
+            if not disk["ok"]:
+                return {"ok": False, "result": "disk", "message": "서버 남은 공간이 모자라 멈춥니다"}
+            try:
+                res, ab, dr = _mio.take_mail(c, t, m)
+            except Exception as e:
+                print("[MAIL-IMPORT] user=%s 한 통 실패: %s" % (t["user_id"], type(e).__name__), flush=True)
+                res, ab, dr = "fail", 0, 0
+            _mio.count_result(c, t, res, ab, dr)
+            uid = t["user_id"]
+            t2 = _mio.get_token(c, t["id"])
+        if res == "saved":
+            _mail_folders._CACHE.pop(uid, None)
+        return dict(_mio.public(t2, disk), ok=True, result=res)
+    out = await run_in_threadpool(_run)
+    if not out.get("ok"):
+        return JSONResponse(out, 403 if out.get("result") == "token" else 507)
+    return JSONResponse(out)
+
+
+@app.post("/api/mail/import-outlook/done")
+async def mail_import_outlook_done(req: Request):
+    """PC 명령이 끝까지 돌았을 때 — 상태를 「끝」으로(화면에 ✅ 완료). 실패가 남았으면 「다시 실행」 안내가 나오게 실패 수 그대로."""
+    from . import mail_import_outlook as _mio
+    d, err = await _mimp_json(req)
+    if not d:
+        return JSONResponse({"ok": False}, 400)
+    with db_session() as c:
+        t = _mio.find_token(c, str(d.get("code") or ""))
+        if not t:
+            return JSONResponse({"ok": False, "message": "번호가 없거나 기한이 지났습니다"}, 403)
+        _mio.finish(c, t)
+        t2 = _mio.get_token(c, t["id"])
+    return JSONResponse(dict(_mio.public(t2, _mio.disk_state()), ok=True))
+
+
 @app.get("/mail/from-outlook", response_class=HTMLResponse)
 async def mail_from_outlook_page(req: Request):
     """11-25 대표 「예전 아웃룩에 남아있는데 어떻게 전달하지?」 — 아웃룩에서 뽑은 CSV(Message-ID·보낸 사람)로 빈 보낸 사람 채우기(관리자 · 내 메일만)."""
