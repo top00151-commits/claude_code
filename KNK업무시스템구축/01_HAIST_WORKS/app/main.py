@@ -27581,14 +27581,16 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             _to = (to or "").strip()
             if _to and len(_to) <= 200 and "@" in _to and not any(ch in _to for ch in "<>\"'\r\n"):
                 prefill["to"] = _to
-            # 11-26 대표 「새 메일 쓰기 = 아웃룩처럼 기본 글(인사말·끝인사)이 바로」 — 새 메일에만(답장·전달·임시 메일·다시 묻기 아님)
-            #   처음 쓰는 사람은 제안 양식 하나를 내 양식으로 만들어 기본으로(한 번만 · 끄거나 지우면 다시 안 만듦) · 베트남 사람 = 베트남어
+        # 11-26 대표 「새 메일 쓰기 = 아웃룩처럼 기본 글(인사말·끝인사)이 바로」 → 같은 날 「전달·회신에도 기본 양식」
+        #   새 메일·답장·전체 답장·전달 = 기본 양식(인용한 원본 위 · 서명 위) · 임시 메일(이미 쓴 글)·다시 묻기(재촉 글)는 안 넣음
+        #   처음 쓰는 사람은 제안 양식 하나를 내 양식으로 만들어 기본으로(한 번만 · 끄거나 지우면 다시 안 만듦) · 베트남 사람 = 베트남어
+        if not draft and not nudge:
             try:
                 _vn = str(sig_default or "").endswith("vi") or str(u.get("login_id") or "").upper().startswith("VN")
                 _dt = _mwork.get_default_tpl(c, u["id"], "vi" if _vn else "ko")
                 if _dt:
                     default_tpl = {"id": _dt["id"], "title": _dt.get("title") or "", "subject": _dt.get("subject") or "",
-                                   "body": _dt.get("body") or ""}
+                                   "body": _dt.get("body") or "", "kind": ("reply" if (reply or replyall) else ("forward" if forward else "new"))}
             except Exception as e:
                 print("[MAIL-DEFTPL] 기본 양식 읽기 실패: %s" % str(e)[:160], flush=True)
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,

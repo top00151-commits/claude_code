@@ -144,6 +144,11 @@
   /* 11-26 대표 「아웃룩처럼 도구 — 많이보다 쉽게」: 되돌리기·글자 크기·형광펜·정렬·번호 목록·표·그림 · 덜 쓰는 것은 「⋯ 더 보기」 */
   .cmp-tb>button.ic{min-width:30px;padding:0 6px}
   .cmp-tb>button.on{background:#e0e7ff;border-color:#a5b4fc}
+  /* 11-26 대표 「양식 아이콘 다른 걸로 · 너무 작아 · 다른 아이콘들과 다르게(눈에 들어오게)」 — 남색 채움 단추 */
+  #cTplBtn{display:inline-flex;align-items:center;gap:2px;height:30px;padding:0 12px;border-radius:8px;border:1px solid #4338ca;background:linear-gradient(180deg,#6366f1,#4f46e5);color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(79,70,229,.35);font-family:inherit}
+  #cTplBtn:hover{filter:brightness(1.08)}
+  #cTplBtn .cv{font-size:10px;opacity:.85;margin-left:3px}
+  html[data-mt="dark"] #cTplBtn{border-color:#818cf8}
   .cmp-tb svg{width:16px;height:16px;display:block}
   .cmp-tb .tb-sep{width:1px;height:18px;background:var(--line);margin:0 2px}
   .cmp-tb .tb-rel{position:relative;display:inline-block}
@@ -354,7 +359,7 @@
           <div class="cmp-tg" id="cTblGrid"></div><div class="cmp-tg-lab" id="cTblLab">3 × 3 표</div></div></span>
       <button type="button" id="cImgBtn" title="그림 넣기 — 본문 속에 사진·그림(큰 사진은 알맞게 줄여 넣음) · 넣은 그림을 누르면 크기·정렬·자르기">🖼<span class="tl">&nbsp;그림</span></button>
       <input type="file" id="cImgFile" accept="image/*" multiple data-knk-no-dropzone style="display:none">
-      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📝<span class="tl">&nbsp;양식</span></button>
+      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📑<span class="tl-keep">&nbsp;양식</span><span class="cv">▾</span></button>
         <div class="cmp-tpl-pop" id="cTplPop" hidden></div></span>
       <span class="tb-rel"><button type="button" id="cMoreBtn" title="도구 더 보기 — 들여쓰기·가로줄·취소선·서식 지우기" aria-haspopup="true">⋯<span class="tl">&nbsp;더 보기</span></button>
         <div class="cmp-mini" id="cMorePop" hidden role="dialog" aria-label="도구 더 보기"><span class="ttl">⋯ 도구 더 보기</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cMorePop">✕</button>
@@ -1704,7 +1709,7 @@ function abPut(target){
   window.cmpInsertTpl=insertTpl;
 
   /* ══ 11-26 대표 「새 메일 쓰기 = 아웃룩처럼 기본 글이 바로」 ══════════════════════
-     서버가 새 메일에만 CMP_DEFTPL(내 「새 메일 기본 양식」)을 줌 — 답장·전달·임시 메일·다시 묻기에는 안 줌
+     서버가 새 메일·답장·전달에 CMP_DEFTPL(내 「새 메일 기본 양식」)을 줌(11-26 오후 「전달·회신에도」) — 임시 메일·다시 묻기·확인 답장에는 안 줌
      · 본문에 이미 쓴 글이 있으면 넣지 않음 · 서명 위에 · 한 줄씩(빈 줄 그대로) · [내 이름] = 로그인한 사람 이름
      · 커서 = 인사말 아래 첫 빈 줄(받는 사람이 비어 있으면 본문으로 처음 들어올 때 그 자리로)
      · 한 줄 안내: 「이번 메일에서 빼기」 · 「바꾸기·끄기」(양식 화면) — 넣었다고 「고친 글」로 치지 않음(그냥 닫아도 묻지 않음) */
@@ -1716,7 +1721,7 @@ function abPut(target){
       return '<div>'+escH(ln).replace(/\[([^\]\n]{1,30})\]/g, function(all, x){ return FIXED_TAG.test(all) ? all : '<mark class="knk-ph">['+x+']</mark>'; })+'</div>';
     }).join(''); }
   window.cmpDefUntouched=function(){ var b=ED2.querySelector('.knk-tpl-def'); return !!(b && DEF_TXT && defNorm(b.textContent)===DEF_TXT && !b.querySelector('img,table')); };
-  function ownEmpty(){ var t=ED2.cloneNode(true); t.querySelectorAll('.knk-sig').forEach(function(x){ x.remove(); }); return !defNorm(t.textContent) && !t.querySelector('img,table'); }
+  function ownEmpty(){ var t=ED2.cloneNode(true); t.querySelectorAll('.knk-sig,.knk-quote').forEach(function(x){ x.remove(); });   /* 11-26 답장·전달 = 인용한 원본은 「내 글」 아님 */ return !defNorm(t.textContent) && !t.querySelector('img,table'); }
   function defCaret(){ var b=ED2.querySelector('.knk-tpl-def'); if(!b) return;
     var m=b.querySelector('mark.knk-ph'); if(m){ ED2.focus(); selPh(m); return; }
     var kids=[].slice.call(b.children), seen=false, tgt=null;
@@ -1736,7 +1741,7 @@ function abPut(target){
     var subj=document.getElementById('cSubj'); if(t.subject && !subj.value.trim()) subj.value=fillMe(t.subject);
     window._tplPh=(window._tplPh||[]).concat((((t.subject||'')+'\n'+(t.body||'')).match(/\[[^\]\n]{1,30}\]/g)||[]).filter(function(x){ return !FIXED_TAG.test(x) && ME_KEYS.indexOf(x)<0; }));
     var d=document.createElement('div'); d.className='knk-tpl knk-tpl-def'; d.innerHTML=defLinesHtml(t.body);
-    var sig=ED2.querySelector('.knk-sig'), top=sig; while(top && top.parentNode!==ED2) top=top.parentNode;
+    var sig=ED2.querySelector('.knk-sig')||ED2.querySelector('.knk-quote'), top=sig; while(top && top.parentNode!==ED2) top=top.parentNode;   /* 서명 위 · 서명이 없으면 인용한 원본 위 */
     var first=ED2.firstChild;   // 서명 위에 넣어 둔 빈 줄 하나는 양식으로 바꿈
     if(first && first!==top && first.nodeType===1 && !defNorm(first.textContent) && !first.querySelector('img,table')) ED2.removeChild(first);
     if(top){ var gap=document.createElement('div'); gap.innerHTML='<br>'; ED2.insertBefore(d, top); ED2.insertBefore(gap, top); }

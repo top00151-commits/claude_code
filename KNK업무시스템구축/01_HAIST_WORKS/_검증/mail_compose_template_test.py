@@ -93,16 +93,21 @@ check("안내 줄: 이번 메일에서 빼기 · 바꾸기·끄기(새 창 · �
 check("기본 양식만 있고 말씀이 없으면 「본문이 비어 있습니다」", "기본 양식(인사말·끝인사)만 들어 있습니다" in h)
 check("서명 순서: 서버가 서명(cSigHtml)도 함께 줌", 'id="cSigHtml"' in h)
 
-print("③ 답장·전달·임시 메일·다시 묻기 = 안 넣음")
+print("③ 11-26 오후 「전달·회신에도 기본 양식」 — 답장·전체 답장·전달 = 넣음 · 임시 메일·다시 묻기 = 안 넣음")
 with _db.db_session() as c:
     mid, _o = ms.store_inbound(c, to_email="t9801@knknara.co.kr", from_email="buyer@partner-demo.example", from_name="가짜 거래처",
                                subject="가짜 문의", text="가짜 본문", html="<p>가짜 본문</p>", owner_id=ME, run_ai=False,
                                message_id="cmptpl-1@test")
     did = ms.save_draft(c, user_id=ME, to_email="a@partner-demo.example", subject="가짜 임시", body="쓰던 글",
                         body_html="<div>쓰던 글</div>") if hasattr(ms, "save_draft") else 0
-for q in ("reply=%d" % mid, "replyall=%d" % mid, "forward=%d" % mid):
+for q, kind in (("reply=%d" % mid, "reply"), ("replyall=%d" % mid, "reply"), ("forward=%d" % mid, "forward")):
     hh = k.get("/mail/compose?" + q).text
-    check("%s → CMP_DEFTPL 없음(null)" % q.split("=")[0], deftpl(hh) is None, deftpl(hh))
+    _d = deftpl(hh)
+    check("%s → CMP_DEFTPL 있음(kind=%s) · 원본 인용도 그대로" % (q.split("=")[0], kind), isinstance(_d, dict) and _d.get("kind") == kind and "knk-quote" in hh, _d)
+hh = k.get("/mail/compose?reply=%d&ack=2026-11-28" % mid).text
+check("확인 답장(ack) = 서버는 주지만 화면이 넣지 않음(확인 글이 따로 들어감)", "!window.CMP_ACK && defPut(" in hh)
+check("화면: 내 글 판정에서 인용한 원본 뺌 · 서명이 없으면 원본 위에", ".knk-sig,.knk-quote').forEach" in hh and "ED2.querySelector('.knk-sig')||ED2.querySelector('.knk-quote')" in hh)
+check("「양식」 단추 = 남색 채움 · 📑 · 휴대폰도 글자", 'id="cTplBtn"' in hh and "📑<span class=\"tl-keep\">" in hh.replace('"', '\"') or ('📑<span class="tl-keep">' in hh and "#cTplBtn{" in hh), "")
 if did:
     hh = k.get("/mail/compose?draft=%d" % did).text
     check("임시 메일 열기 → 없음", deftpl(hh) is None, deftpl(hh))
