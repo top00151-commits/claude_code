@@ -121,7 +121,7 @@ check("6-3 휴대폰 위 메뉴: 그림 아래 글자 · 「›」 더 보기", 
       and ".mail-tools.more .mt-more{display:inline-flex" in head)
 body = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_body.html"), encoding="utf-8").read()
 sty = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_styles.html"), encoding="utf-8").read()
-check("6-4 휴대폰: 중요·보관·삭제는 「⋯ 더 보기」 안(데스크톱 그대로)", body.count("mv-desk") == 3 and body.count('class="mv-mob') >= 3
+check("6-4 휴대폰: 중요·보관·삭제는 「⋯ 더 보기」 안(데스크톱 그대로)", body.count("mv-desk") - body.count("mv-quick") == 3 and body.count('class="mv-mob') >= 3
       and ".mv-actions .mv-desk{display:none !important}" in sty and ".mv-more-box .mv-mob{display:none}" in sty)
 check("6-4 펼친 상자 = 단추 줄 폭(화면 밖으로 안 나감)", ".mv-hrow .mv-actions .mv-more{position:static}" in sty)
 check("1-2 「임시보관함」 이름 그대로(11-18 대표 2단계 결정)", "📝 임시보관함" in inbox and "쓰다 만 메일" not in inbox)

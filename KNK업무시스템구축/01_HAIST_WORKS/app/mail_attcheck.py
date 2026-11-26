@@ -11,7 +11,7 @@
 import io
 import zipfile
 
-from .mail_guard import EXEC_EXTS, MACRO_EXTS, HTML_EXTS, ARCHIVE_EXTS, DOC_LIKE
+from .mail_guard import EXEC_EXTS, MACRO_EXTS, HTML_EXTS, ARCHIVE_EXTS, DOC_LIKE, name_ext as _name_ext
 
 MAX_SCAN = 25 * 1024 * 1024        # 이보다 크면 속은 안 봄(이름만)
 _OOXML = {".docx", ".xlsx", ".pptx", ".dotx", ".xltx", ".potx", ".ppsx"}
@@ -21,12 +21,13 @@ _RASTER = ("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "i
 
 
 def ext_of(name) -> str:
-    n = (name or "").strip().lower()
-    return ("." + n.rsplit(".", 1)[-1]) if "." in n else ""
+    """11-26 — 끝 점·빈칸·보이지 않는 글자를 떼고 읽음(판정과 같게 · mail_guard.name_ext)."""
+    return _name_ext(name)
 
 
 def _base_ext(name) -> str:
-    n = (name or "").strip().lower()
+    from .mail_guard import _NAME_TAIL
+    n = _NAME_TAIL.sub("", (name or "").strip().lower())
     e = ext_of(n)
     return ext_of(n[: -len(e)]) if e else ""
 

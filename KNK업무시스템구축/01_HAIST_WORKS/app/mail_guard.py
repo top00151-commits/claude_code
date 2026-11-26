@@ -43,7 +43,14 @@ _BEC_PAT = re.compile(
     r"(계좌\s*(가|를|이)?\s*(변경|바뀌|바꾸|새로|신규)|변경\s*된\s*계좌|새\s*계좌|입금\s*계좌\s*(변경|안내)|"
     r"송금\s*계좌|결제\s*계좌\s*변경|bank\s*(account|details?)\s*(change|update|has\s*changed)|"
     r"new\s*bank\s*account|updated?\s*(banking|bank|payment)\s*(details?|information)|"
-    r"change\s*of\s*bank|remit(tance)?\s*to\s*(our\s*)?new|tài\s*khoản\s*mới|thay\s*đổi\s*tài\s*khoản)", re.I)
+    r"change\s*of\s*bank|remit(tance)?\s*to\s*(our\s*)?new|tài\s*khoản\s*mới|thay\s*đổi\s*tài\s*khoản|"
+    # 11-26 — 더 넓힌 말(「계좌번호가 변경」 · 통장 · 수취 · 입금처 · 은행 정보 · have changed · beneficiary)
+    #   「계좌·통장·수취·입금처·은행 정보」와 「변경·바뀌·새」가 한 문장 안 20글자 이내에 같이 있으면
+    r"(계좌\s*번호|계좌|통장|입금\s*처|수취\s*(인|은행|계좌)?|은행\s*(정보|계좌)|결제\s*처)[^.\n。!?]{0,20}(변경|바뀌|바꾸|바꿨|바뀐|새로|신규)|"
+    r"(변경\s*된|바뀐|새로운|신규)\s*(입금\s*)?(계좌|통장|입금\s*처|수취\s*(은행|계좌)?|은행\s*(정보|계좌))|"
+    r"(bank|banking|account|payment|remittance|wire)\s*(details?|information|info|instructions?)\s*(have|has)?\s*(been\s*)?(changed|updated)|"
+    r"new\s*(beneficiary|banking\s*details|bank\s*details|remittance\s*details)|beneficiary\s*(details?\s*)?(change|update)|"
+    r"(số\s*tài\s*khoản|ngân\s*hàng)\s*(mới|đã\s*thay\s*đổi))", re.I)
 _CRED_PAT = re.compile(
     r"(비밀번호|계정\s*(확인|정지|잠금|만료|인증|보안)|본인\s*확인|로그인\s*(하|해|필요|시도)|보안\s*경고|"
     r"메일함\s*(용량|정지|만료)|사서함\s*(용량|정지|만료)|"
@@ -58,9 +65,28 @@ _THREAT_PAT = re.compile(
 _ARCH_PW_PAT = re.compile(r"(압축|첨부|파일).{0,20}(비밀번호|암호|password)|(password|비밀번호|암호)\s*[:：]\s*\S{3,}", re.I)
 
 
-def _ext(fn) -> str:
-    fn = (fn or "").strip().lower().rstrip(". ")
+_NAME_TAIL = re.compile(r"[\s.\x00-\x1f​-‏‪-‮⁠-⁤﻿]+$")
+
+
+def name_ext(fn) -> str:
+    """11-26 — 첨부 이름의 확장자(소문자). 끝의 점·빈칸·보이지 않는 글자는 떼고 본다
+    (윈도는 저장할 때 끝 점·빈칸을 지워 `invoice.js.` 가 `invoice.js` 가 됨). 이 함수 하나로 세 곳(판정·내려받기·저장)이 같게 읽는다."""
+    fn = _NAME_TAIL.sub("", (fn or "").strip().lower())
     return ("." + fn.rsplit(".", 1)[-1]) if "." in fn else ""
+
+
+def real_inline(a) -> bool:
+    """본문 속 그림으로 믿어도 되는 첨부인가 — 「inline」 표시 + 그림 형식 + 그림 확장자.
+    (그림이 아닌 첨부는 inline 표시가 있어도 보통 첨부처럼 판정한다.)"""
+    if not a or not a.get("inline"):
+        return False
+    m = (a.get("mime") or "").lower().split(";")[0].strip()
+    e = name_ext(a.get("filename") or "")
+    return m.startswith("image/") and m != "image/svg+xml" and (e == "" or e in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".tif", ".tiff"))
+
+
+def _ext(fn) -> str:
+    return name_ext(fn)
 
 
 def _domain(addr: str) -> str:
@@ -129,7 +155,35 @@ def parse_auth_results(header_values) -> dict:
     return out
 
 
-_A_TAG = re.compile(r"(?is)<a\b[^>]*?href\s*=\s*([\"'])(.*?)\1[^>]*>(.*?)</a\s*>")
+# 11-26 — 링크 찾기를 정규식 한 개 대신 여는 태그·닫는 태그를 한 번씩만 훑어 짝짓는 방식으로(긴 본문에서도 빠르게).
+#   잡는 링크는 예전과 같다: href 가 있는 <a> 부터 그 뒤 첫 </a> 까지 · 짝이 없으면 안 잡음 · 겹치지 않게 앞에서부터.
+_A_OPEN = re.compile(r"(?is)<a\b((?:[^>\"']|\"[^\"]{0,4000}\"|'[^']{0,4000}'){0,4000})>")
+_A_CLOSE = re.compile(r"(?is)</a\s*>")
+_A_HREF = re.compile(r"(?is)href\s*=\s*([\"'])(.*?)\1")
+
+
+def a_links(html: str):
+    """[(시작, 끝, 따옴표, href, 안쪽 HTML)] — 닫는 </a> 가 있는 <a href="…"> 만."""
+    import bisect
+    if not html:
+        return []
+    closes = [(m.start(), m.end()) for m in _A_CLOSE.finditer(html)]
+    cstart = [c[0] for c in closes]
+    out, pos = [], 0
+    for m in _A_OPEN.finditer(html):
+        if m.start() < pos:
+            continue
+        hm = _A_HREF.search(m.group(1))
+        if not hm:
+            continue
+        i = bisect.bisect_left(cstart, m.end())
+        if i >= len(cstart):
+            break
+        out.append((m.start(), closes[i][1], hm.group(1), hm.group(2), html[m.end():cstart[i]]))
+        pos = closes[i][1]
+    return out
+
+
 _URL_IN_TEXT = re.compile(r"(?i)\bhttps?://[^\s<>\"')]+")
 _HOSTISH = re.compile(r"(?i)^(https?://)?(www\.)?([a-z0-9-]+\.)+[a-z]{2,}(/\S*)?$")
 
@@ -151,7 +205,7 @@ def link_findings(html: str, text: str):
     """(이유 목록, 점수) — 링크 속임수. 링크에 접속하지 않는다(글자만 본다)."""
     notes, score = [], 0
     hrefs = []
-    for _q, href, inner in _A_TAG.findall(html or ""):
+    for _s, _e, _q, href, inner in a_links(html or ""):
         href = (href or "").strip()
         if not re.match(r"(?i)^https?://", href):
             continue
@@ -276,9 +330,9 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
 
     # ⑥ 첨부
     atts = attachments or []
-    names = [(a.get("filename") or "") for a in atts if not a.get("inline")]
+    names = [(a.get("filename") or "") for a in atts if not real_inline(a)]
     exe = [n for n in names if _ext(n) in EXEC_EXTS]
-    dbl = [n for n in names if _ext(n) in EXEC_EXTS and _ext(n[: -len(_ext(n))]) in DOC_LIKE]
+    dbl = [n for n in names if _ext(n) in EXEC_EXTS and _ext(_NAME_TAIL.sub("", n.lower())[: -len(_ext(n))]) in DOC_LIKE]
     if dbl:
         level = max(level, 3)
         codes.append("exec")
@@ -302,7 +356,7 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
     try:
         from . import mail_attcheck as _ac
         for a in atts:
-            if a.get("inline") or not a.get("data"):
+            if real_inline(a) or not a.get("data"):
                 continue
             r = _ac.inspect(a.get("filename") or "", a.get("mime") or "", a.get("data") or b"")
             if r["kind"] == "block" and not any(r["why"] in n for n in notes):
@@ -364,16 +418,16 @@ def should_quarantine(from_email="", attachments=None, auth=None, level=0) -> bo
         return True
     if ours and (au.get("dmarc") == "fail" or au.get("spf") == "fail"):
         return True
-    names = [(a.get("filename") or "") for a in (attachments or []) if not a.get("inline")]
+    names = [(a.get("filename") or "") for a in (attachments or []) if not real_inline(a)]
     exe = [n for n in names if _ext(n) in EXEC_EXTS]
-    dbl = [n for n in exe if _ext(n[: -len(_ext(n))]) in DOC_LIKE]
+    dbl = [n for n in exe if _ext(_NAME_TAIL.sub("", n.lower())[: -len(_ext(n))]) in DOC_LIKE]
     if bool(dbl) or (bool(exe) and not ours):
         return True
     # 11-18 속까지 본 결과 「막아야 할」 첨부(이름만 바꾼 실행파일 · 압축 안 실행파일)
     try:
         from . import mail_attcheck as _ac
         for a in (attachments or []):
-            if not a.get("inline") and a.get("data") and _ac.inspect(a.get("filename") or "", a.get("mime") or "", a.get("data"))["kind"] == "block":
+            if not real_inline(a) and a.get("data") and _ac.inspect(a.get("filename") or "", a.get("mime") or "", a.get("data"))["kind"] == "block":
                 return True
     except Exception:
         pass
@@ -385,12 +439,19 @@ def defang_links_html(html: str) -> str:
     if not html:
         return html
 
-    def _sub(m):
-        href = (m.group(2) or "").strip()
-        inner = m.group(3) or ""
+    def _sub(href, inner):
+        href = (href or "").strip()
+        inner = inner or ""
         h = _host(href) if re.match(r"(?i)^https?://", href) else ""
         tip = ("실제 연결: " + href[:200]).replace('"', "&quot;").replace("<", "&lt;")
         mark = (' <span style="font-size:11px;color:#b91c1c">[' + (h or "링크") + "]</span>") if h else ""
         return ('<span style="text-decoration:underline dotted;color:#6b7280;cursor:not-allowed" title="'
                 + tip + '">' + inner + "</span>" + mark)
-    return _A_TAG.sub(_sub, html)
+    parts, last = [], 0
+    for s0, e0, _q, href, inner in a_links(html):
+        parts.append(html[last:s0])
+        parts.append(_sub(href, inner))
+        last = e0
+    parts.append(html[last:])
+    # 11-26 — 닫는 </a> 가 없는 링크(브라우저는 끝까지 링크로 봄)도 누를 수 없게: 남은 <a …href=…> 의 주소 칸 이름을 바꿈
+    return re.sub(r"(?is)(<a\b[^>]{0,4000}?)\bhref\s*=", r"\1data-x-href=", "".join(parts))

@@ -485,8 +485,9 @@ def _ensure_security_cols(c):
 
 
 def _att_ext(filename) -> str:
-    fn = (filename or "").strip().lower()
-    return ("." + fn.rsplit(".", 1)[-1]) if "." in fn else ""
+    """11-26 — 끝 점·빈칸·보이지 않는 글자를 떼고 읽음(판정과 같게)."""
+    from .mail_guard import name_ext
+    return name_ext(filename)
 
 
 def is_sender_blocked(c, from_email) -> bool:
@@ -2746,6 +2747,24 @@ def view_body_fallback(c, m, all_atts):
     return html, text, used
 
 
+_URL_ATTR_RE = re.compile(r"(?is)\b(href|src|action|formaction|xlink:href|background|poster|dynsrc|lowsrc)\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s>]+))")
+_BAD_URL_HEADS = ("javascript:", "vbscript:", "livescript:", "data:text/html", "data:application/", "data:text/xml")
+
+
+def _defuse_url_attrs(s: str) -> str:
+    """11-26 — 주소 칸(href·src 등)의 javascript:·vbscript:·HTML 데이터 주소를 「#」으로.
+    따옴표 없는 값 · 글자 숨김(&#106; · 탭·줄바꿈 끼우기)도 풀어서 본다(전에는 따옴표 있고 그대로 쓴 javascript: 만)."""
+    import html as _h
+
+    def _one(mm):
+        v = next((g for g in (mm.group(2), mm.group(3), mm.group(4)) if g is not None), "")
+        dv = re.sub(r"[\s\x00-\x20]+", "", _h.unescape(_h.unescape(v))).lower()
+        if dv.startswith(_BAD_URL_HEADS):
+            return mm.group(1) + '="#"'
+        return mm.group(0)
+    return _URL_ATTR_RE.sub(_one, s)
+
+
 def sanitize_html_for_view(html: str, mail_id: int, inline_atts, defang: bool = False) -> str:
     """받은 메일 HTML 을 '격리 iframe' 안에서 보여줄 안전 HTML 로 정리.
     - 스크립트/폼/임베드 등 위험 태그 제거, on* 이벤트·javascript: 스킴 제거.
@@ -2774,8 +2793,11 @@ def sanitize_html_for_view(html: str, mail_id: int, inline_atts, defang: bool = 
     s = re.sub(r"(?is)<style\b[^>]*>(.*?)</style>", _style_clean, s)
 
     # on... 이벤트 핸들러 속성 제거 · href/src javascript: 무력화
-    s = re.sub(r"(?is)\son[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", " ", s)
-    s = re.sub(r"(?is)(href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", r'\1=\2#\2', s)
+    #   11-26 — 앞이 빈칸이 아닌 경우(빗금·따옴표 바로 뒤)도 같이 지움 · 답장·전달 쓰기 화면도 이 결과를 씀
+    #   브라우저는 태그 이름 바로 뒤·따옴표 바로 뒤의 빗금(/)을 빈칸처럼 읽는다 → 그 빗금만 빈칸으로(주소 값 속 빗금은 그대로)
+    s = re.sub(r"(?is)(<[a-z][a-z0-9:-]*|[\"'`])/+(?=\s*on[a-z]+\s*=)", r"\1 ", s)
+    s = re.sub(r"(?is)(?<=[\s\"'`])on[a-z]+\s*=\s*(\"[^\"]*\"|'[^']*'|`[^`]*`|[^\s>]+)", " ", s)
+    s = _defuse_url_attrs(s)
 
     # cid 매칭 맵(content_id·파일명·도메인앞부분)
     cid_map = {}
