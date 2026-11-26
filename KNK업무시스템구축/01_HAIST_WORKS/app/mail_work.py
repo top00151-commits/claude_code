@@ -132,7 +132,7 @@ def list_templates(c, uid):
         "SELECT id, owner_id, title, subject, body, lang, updated_at FROM mail_templates WHERE owner_id=? ORDER BY title COLLATE NOCASE", (uid,)).fetchall()]
     comp = [_tpl_row(r) for r in c.execute(
         "SELECT id, owner_id, title, subject, body, lang, updated_at FROM mail_templates WHERE owner_id IS NULL ORDER BY title COLLATE NOCASE").fetchall()]
-    return {"mine": mine, "company": comp, "builtin": [dict(b) for b in BUILTIN]}
+    return {"mine": mine, "company": comp, "builtin": [dict(b) for b in BUILTIN], "default_id": default_id(c, uid)}
 
 
 def save_template(c, uid, *, tid=0, title="", subject="", body="", lang="ko", company=False, is_admin=False):
@@ -172,6 +172,84 @@ def delete_template(c, uid, tid, is_admin=False):
         return False, "지울 수 없는 양식입니다."
     c.execute("DELETE FROM mail_templates WHERE id=?", (tid,))
     return True, "지웠습니다."
+
+
+# ── 11-26 대표 「새 메일 쓰기를 누르면 아웃룩처럼 기본 글이 바로 — 양식에 『기본 양식』을 두고 그것을 우선으로」 ──
+#   사람마다 「새 메일 기본 양식」 하나(내 양식 또는 회사 양식) → 새 메일(답장·전달·임시 메일·다시 묻기 아님)에 서명 위로 저절로 들어감
+#   처음 쓰는 사람 = 아래 모양으로 「내 양식」 하나를 만들어 기본으로 정해 둠(한 번만 · 지우거나 끄면 다시 안 만듦)
+#   이름은 [내 이름] 칸 → 넣을 때 로그인한 사람 이름으로(코드에 이름을 박지 않음)
+DEFAULT_SEED = {
+    "ko": {"title": "새 메일 기본 양식", "lang": "ko",
+           "body": "안녕하세요.\n케이엔케이 [내 이름] 입니다.\n\n\n\n감사합니다."},
+    "vi": {"title": "새 메일 기본 양식", "lang": "vi",
+           "body": "Kính gửi anh/chị,\nTôi là [tên tôi] từ công ty KNK.\n\n\n\nTrân trọng,"},
+}
+_DEF_OK = set()
+
+
+def _ensure_def(c):
+    ensure(c)
+    k = _key(c)
+    if k in _DEF_OK:
+        return
+    # tpl_id = 기본 양식 번호(NULL = 끔) · seeded_at = 처음 제안 양식을 만든 때(있으면 다시 안 만듦)
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_tpl_default(
+        user_id INTEGER PRIMARY KEY, tpl_id INTEGER, seeded_at TEXT,
+        updated_at TEXT DEFAULT (datetime('now','localtime')))""")
+    _DEF_OK.add(k)
+
+
+def _visible_tpl(c, uid, tid):
+    """내가 쓸 수 있는 양식(내 양식 · 회사 양식)만 — 남의 양식은 None."""
+    if not tid:
+        return None
+    r = c.execute("SELECT id, owner_id, title, subject, body, lang FROM mail_templates WHERE id=? AND (owner_id=? OR owner_id IS NULL)",
+                  (int(tid), uid)).fetchone()
+    return _tpl_row(r) if r else None
+
+
+def default_id(c, uid):
+    """지금 정한 기본 양식 번호(없거나 꺼졌거나 지워졌으면 0) — 읽기만(만들지 않음)."""
+    _ensure_def(c)
+    r = c.execute("SELECT tpl_id FROM mail_tpl_default WHERE user_id=?", (uid,)).fetchone()
+    if not r or not r["tpl_id"]:
+        return 0
+    t = _visible_tpl(c, uid, r["tpl_id"])
+    return int(t["id"]) if t else 0
+
+
+def get_default_tpl(c, uid, lang="ko", seed=True):
+    """새 메일에 넣을 기본 양식 → dict 또는 None(끔).
+    처음 쓰는 사람(줄 없음)이고 seed=True 면 제안 양식을 내 양식으로 하나 만들고 기본으로 정함 — 한 사람에 한 번만."""
+    _ensure_def(c)
+    r = c.execute("SELECT tpl_id, seeded_at FROM mail_tpl_default WHERE user_id=?", (uid,)).fetchone()
+    if not r:
+        if not seed:
+            return None
+        cur = c.execute("INSERT OR IGNORE INTO mail_tpl_default(user_id, tpl_id, seeded_at) VALUES(?, NULL, datetime('now','localtime'))", (uid,))
+        if cur.rowcount != 1:     # 다른 창이 먼저 만듦 — 그쪽 것을 씀
+            return get_default_tpl(c, uid, lang, seed=False)
+        s = DEFAULT_SEED.get(lang) or DEFAULT_SEED["ko"]
+        ok, _m, nid = save_template(c, uid, title=s["title"], subject="", body=s["body"], lang=s["lang"])
+        if not ok or not nid:
+            return None
+        c.execute("UPDATE mail_tpl_default SET tpl_id=?, updated_at=datetime('now','localtime') WHERE user_id=?", (nid, uid))
+        return _visible_tpl(c, uid, nid)
+    return _visible_tpl(c, uid, r["tpl_id"]) if r["tpl_id"] else None
+
+
+def set_default_tpl(c, uid, tid):
+    """기본 양식 정하기(tid) · 끄기(0). 내 양식·회사 양식만. → (ok, message)"""
+    _ensure_def(c)
+    tid = int(tid or 0)
+    if tid and not _visible_tpl(c, uid, tid):
+        return False, "쓸 수 있는 양식이 아닙니다(내 양식·회사 양식만 기본으로 정할 수 있어요)."
+    c.execute("INSERT INTO mail_tpl_default(user_id, tpl_id, seeded_at, updated_at) VALUES(?,?,datetime('now','localtime'),datetime('now','localtime')) "
+              "ON CONFLICT(user_id) DO UPDATE SET tpl_id=excluded.tpl_id, updated_at=excluded.updated_at",
+              (uid, tid or None))
+    if tid:
+        return True, "새 메일 기본 양식으로 정했습니다 — 새 메일을 열면 서명 위에 저절로 들어갑니다."
+    return True, "기본 양식을 껐습니다 — 새 메일에 저절로 넣지 않습니다(양식은 그대로 있어요)."
 
 
 # ═══════════════════════ ④ 받는 사람 묶음 · 회사 그룹 메일 ═══════════════════════

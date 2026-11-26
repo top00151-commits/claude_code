@@ -21,6 +21,13 @@
   .tp-tip code{background:#fef9c3;color:#854d0e;border-radius:4px;padding:0 4px}
   .tp-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
   .tp-ro{background:#f8fafc;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--mute);margin-bottom:6px}
+  /* 11-26 대표 「새 메일 기본 양식」 — 새 메일을 열면 서명 위에 저절로 들어가는 양식 하나 */
+  .tp-def{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.6}
+  .tp-def.off{border-color:var(--line);background:var(--mt-panel,#f8fafc);color:var(--mute)}
+  .tp-def button{font:inherit;font-size:12.5px;font-weight:700;border:1px solid currentColor;background:var(--mt-surface,#fff);color:inherit;border-radius:8px;padding:3px 10px;cursor:pointer}
+  .tp-defb{font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px;background:#dbeafe;color:#1e40af;flex:none}
+  html[data-mt="dark"] .tp-def{background:#1e293b;border-color:#334155;color:#bfdbfe}
+  html[data-mt="dark"] .tp-defb{background:#1e3a8a;color:#dbeafe}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -28,15 +35,22 @@
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 자주 쓰는 글</div>
     <h1 class="page-title">📝 자주 쓰는 <em>글(양식)</em></h1>
-  </div><div><a href="/mail/compose" class="btn btn-secondary">✏️ 새 메일</a> <a href="/mail/tools" class="btn btn-secondary">← 설정·정리</a></div></div>
+  </div><div><a href="/mail/compose" class="btn btn-secondary">✏️ 새 메일</a> <a href="/mail/tools" class="btn btn-secondary">← 설정·정리</a>
+    {% if request and request.query_params.get('from') == 'compose' %}<button type="button" class="btn btn-secondary" id="tpWinX" onclick="try{ window.close(); }catch(e){} setTimeout(function(){ location.href='/mail/inbox'; }, 300)" title="이 창을 닫고 쓰던 메일로 돌아가기">✕ 닫기</button>{% endif %}</div></div>{# 11-26 메일 쓰기의 「양식 만들기·고치기」·「바꾸기·끄기」로 새 창이 열렸을 때 ✕ 닫기(knk-screen-exit) #}
 
   <div class="tp-wrap">
+    {% set _def = data.default_id|default(0) %}{% set _deft = (data.mine + data.company)|selectattr('id', 'equalto', _def)|list %}
+    <div class="tp-def{% if not _deft %} off{% endif %}" id="tpDefBar">
+      {% if _deft %}✉ <span>새 메일을 열면 <b>「{{ _deft[0].title }}」</b>이(가) 서명 위에 저절로 들어갑니다 <small>(답장·전달·임시 메일에는 안 넣음)</small></span>
+        <button type="button" onclick="tpDefSet(0)" title="새 메일에 저절로 넣지 않기 — 양식은 그대로 남음">끄기</button>
+      {% else %}✉ <span>새 메일 <b>기본 양식이 꺼져 있습니다</b> — 아래에서 양식을 고른 뒤 「✉ 새 메일 기본으로」를 누르면 새 메일에 저절로 들어갑니다</span>{% endif %}
+    </div>
     <div class="tp-list" id="tpList">
       <div class="tp-sec">⭐ 내 양식 <span style="font-weight:600">· 나만 씀</span></div>
-      {% for t in data.mine %}<div class="tp-it" data-src="mine" data-i="{{ loop.index0 }}"><span class="t">{{ t.title }}</span><span class="tp-lang">{{ lang_name.get(t.lang, t.lang) }}</span></div>{% else %}<div class="tp-it" style="cursor:default;color:var(--mute)">아직 없어요 — 아래 기본 양식을 「내 양식으로 복사」하거나 오른쪽에서 새로 만드세요</div>{% endfor %}
+      {% for t in data.mine %}<div class="tp-it" data-src="mine" data-i="{{ loop.index0 }}"><span class="t">{{ t.title }}</span>{% if t.id == _def %}<span class="tp-defb" title="새 메일 기본 양식">✉ 기본</span>{% endif %}<span class="tp-lang">{{ lang_name.get(t.lang, t.lang) }}</span></div>{% else %}<div class="tp-it" style="cursor:default;color:var(--mute)">아직 없어요 — 아래 예시 양식을 「내 양식으로 복사」하거나 오른쪽에서 새로 만드세요</div>{% endfor %}
       <div class="tp-sec">🏢 회사 양식 <span style="font-weight:600">· 전 직원이 같이 씀{% if not can_company %} · 관리자가 만듦{% endif %}</span></div>
-      {% for t in data.company %}<div class="tp-it" data-src="company" data-i="{{ loop.index0 }}"><span class="t">{{ t.title }}</span><span class="tp-lang">{{ lang_name.get(t.lang, t.lang) }}</span></div>{% else %}<div class="tp-it" style="cursor:default;color:var(--mute)">아직 없어요{% if can_company %} — 오른쪽에서 만들 때 「회사 양식」을 고르세요{% endif %}</div>{% endfor %}
-      <div class="tp-sec">📚 기본 양식 <span style="font-weight:600">· 바로 쓰거나 복사해서 고쳐 쓰기</span></div>
+      {% for t in data.company %}<div class="tp-it" data-src="company" data-i="{{ loop.index0 }}"><span class="t">{{ t.title }}</span>{% if t.id == _def %}<span class="tp-defb" title="새 메일 기본 양식">✉ 기본</span>{% endif %}<span class="tp-lang">{{ lang_name.get(t.lang, t.lang) }}</span></div>{% else %}<div class="tp-it" style="cursor:default;color:var(--mute)">아직 없어요{% if can_company %} — 오른쪽에서 만들 때 「회사 양식」을 고르세요{% endif %}</div>{% endfor %}
+      <div class="tp-sec">📚 예시 양식 <span style="font-weight:600">· 바로 쓰거나 복사해서 고쳐 쓰기</span></div>
       {% for t in data.builtin %}<div class="tp-it" data-src="builtin" data-i="{{ loop.index0 }}"><span class="t">{{ t.title }}</span><span class="tp-lang">{{ lang_name.get(t.lang, t.lang) }}</span></div>{% endfor %}
     </div>
 
@@ -55,10 +69,12 @@
       <input type="text" id="tpSubj" maxlength="300" placeholder="예: [KNK] [품명] 견적서 송부">
       <label class="l">내용</label>
       <textarea id="tpBody" placeholder="안녕하세요, [거래처] [담당자]님.&#10;KNK [내 이름]입니다.&#10;..."></textarea>
-      <div class="tp-tip">💡 바꿔 쓸 곳은 <code>[대괄호]</code>로 — 메일 쓰기에서 노랗게 보이고 <b>Tab</b> 키로 다음 빈칸으로 넘어갑니다 · <code>[내 이름]</code>은 넣을 때 저절로 「{{ me_name }}」 · 빈칸을 안 채우고 보내려 하면 알려 드립니다</div>
+      <div class="tp-tip">💡 바꿔 쓸 곳은 <code>[대괄호]</code>로 — 메일 쓰기에서 노랗게 보이고 <b>Tab</b> 키로 다음 빈칸으로 넘어갑니다 · <code>[내 이름]</code>은 넣을 때 저절로 「{{ me_name }}」 · 빈칸을 안 채우고 보내려 하면 알려 드립니다<br>✉ <b>새 메일 기본</b>으로 정한 양식은 새 메일을 열 때 서명 위에 들어가고, 커서는 첫 줄들 아래 <b>첫 빈 줄</b>에 놓입니다(빈 줄은 그대로 들어감)</div>
       <div class="tp-act">
         <button type="button" class="btn btn-primary" id="tpSave" onclick="tpSave()">💾 저장</button>
         <button type="button" class="btn btn-secondary" id="tpCopy" onclick="tpCopy()" hidden>📋 내 양식으로 복사</button>
+        <button type="button" class="btn btn-secondary" id="tpDefOn" onclick="tpDefSet(+$('tpId').value)" hidden title="새 메일을 열면 이 양식이 서명 위에 저절로 들어갑니다(나에게만)">✉ 새 메일 기본으로</button>
+        <button type="button" class="btn btn-secondary" id="tpDefOff" onclick="tpDefSet(0)" hidden title="새 메일에 저절로 넣지 않기 — 양식은 그대로 남음">✉ 기본에서 빼기</button>
         <button type="button" class="btn btn-secondary" onclick="tpNew()">＋ 새로 만들기</button>
         <button type="button" class="btn btn-secondary" id="tpDel" onclick="tpDel()" hidden style="color:var(--knk-red)">🗑 지우기</button>
         <span id="tpMsg" style="font-size:13px"></span>
@@ -67,7 +83,7 @@
   </div>
 </main></div>
 <script>
-var TP={mine:{{ data.mine|tojson }}, company:{{ data.company|tojson }}, builtin:{{ data.builtin|tojson }}}, CAN_CO={{ 'true' if can_company else 'false' }};
+var TP={mine:{{ data.mine|tojson }}, company:{{ data.company|tojson }}, builtin:{{ data.builtin|tojson }}}, CAN_CO={{ 'true' if can_company else 'false' }}, TP_DEF={{ (data.default_id|default(0))|tojson }};
 var $=function(i){ return document.getElementById(i); };
 function tpMsg(t,ok){ var m=$('tpMsg'); m.textContent=t; m.style.color=ok?'var(--success)':(ok===false?'var(--knk-red)':'var(--mute)'); }
 function tpFill(t, src){
@@ -76,9 +92,16 @@ function tpFill(t, src){
   var ro = src==='builtin' || (src==='company' && !CAN_CO);
   ['tpTitle','tpSubj','tpBody','tpLang','tpWho'].forEach(function(i){ $(i).disabled=ro; });
   $('tpSave').hidden=ro; $('tpDel').hidden=ro || !t.id; $('tpCopy').hidden=!(src==='builtin' || src==='company');
-  $('tpRo').hidden=!ro; $('tpRo').textContent = src==='builtin' ? '📚 기본 양식 — 메일 쓰기 「📝 양식」에서 바로 쓸 수 있습니다 · 고쳐 쓰려면 「📋 내 양식으로 복사」' : '🏢 회사 양식 — 관리자만 고칠 수 있습니다 · 고쳐 쓰려면 「📋 내 양식으로 복사」';
+  $('tpRo').hidden=!ro; $('tpRo').textContent = src==='builtin' ? '📚 예시 양식 — 메일 쓰기 「📝 양식」에서 바로 쓸 수 있습니다 · 고쳐 쓰거나 새 메일 기본으로 쓰려면 「📋 내 양식으로 복사」' : '🏢 회사 양식 — 관리자만 고칠 수 있습니다 · 고쳐 쓰려면 「📋 내 양식으로 복사」';
+  // 11-26 ✉ 새 메일 기본 — 저장된 내 양식·회사 양식만(예시 양식은 복사해서)
+  var isDef = !!t.id && src!=='builtin' && +t.id===+TP_DEF;
+  $('tpDefOn').hidden = !(t.id && src!=='builtin') || isDef; $('tpDefOff').hidden = !isDef;
   tpMsg('');
 }
+async function tpDefSet(id){
+  var fd=new FormData(); fd.append('id', id||0); tpMsg('저장 중...');
+  try{ var r=await fetch('/mail/templates/default',{method:'POST',body:fd}); var j=await r.json(); tpMsg((j.ok?'✅ ':'⚠ ')+(j.message||''), !!j.ok); if(j.ok) setTimeout(function(){ location.reload(); }, 900); }
+  catch(e){ tpMsg('⚠ 네트워크 오류', false); } }
 document.querySelectorAll('.tp-it[data-src]').forEach(function(el){ el.addEventListener('click', function(){
   document.querySelectorAll('.tp-it.on').forEach(function(x){ x.classList.remove('on'); }); el.classList.add('on');
   tpFill(TP[el.dataset.src][+el.dataset.i], el.dataset.src); }); });

@@ -141,6 +141,40 @@
   .cmp-tb>button:hover,.cmp-color:hover{background:#f0f0f0}
   .cmp-color{position:relative;font-weight:700;min-width:30px}
   .cmp-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  /* 11-26 대표 「아웃룩처럼 도구 — 많이보다 쉽게」: 되돌리기·글자 크기·형광펜·정렬·번호 목록·표·그림 · 덜 쓰는 것은 「⋯ 더 보기」 */
+  .cmp-tb>button.ic{min-width:30px;padding:0 6px}
+  .cmp-tb>button.on{background:#e0e7ff;border-color:#a5b4fc}
+  .cmp-tb svg{width:16px;height:16px;display:block}
+  .cmp-tb .tb-sep{width:1px;height:18px;background:var(--line);margin:0 2px}
+  .cmp-tb .tb-rel{position:relative;display:inline-block}
+  .cmp-tb .tb-rel>button{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px;color:inherit;font-family:inherit}
+  .cmp-tb .tb-rel>button:hover{background:#f0f0f0}
+  .cmp-fsz{font:inherit;font-size:12.5px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--mt-surface,#fff);color:var(--ink);padding:0 4px;cursor:pointer}
+  .cmp-mini{position:absolute;z-index:85;top:32px;left:0;background:var(--mt-surface,#fff);color:var(--mt-text,#111827);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:30px 10px 10px;min-width:180px}
+  .cmp-mini[hidden]{display:none}
+  .cmp-mini .mx{position:absolute;top:4px;right:6px;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--mt-mute,#64748b);font-size:15px;font-weight:700;cursor:pointer;padding:0;font-family:inherit}
+  .cmp-mini .mx:hover{background:var(--mt-hover,#f1f3f5);color:var(--ink,#111827)}
+  .cmp-mini .ttl{position:absolute;top:8px;left:10px;font-size:12px;font-weight:800;color:var(--mute)}
+  .cmp-hl{display:flex;gap:6px;flex-wrap:wrap}
+  .cmp-hl button{width:30px;height:28px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;padding:0;font-family:inherit}
+  .cmp-hl button.none{width:auto;padding:0 8px;background:var(--mt-surface,#fff);color:inherit}
+  .cmp-tg{display:grid;grid-template-columns:repeat(8,20px);gap:3px}
+  .cmp-tg span{width:20px;height:20px;border:1px solid #cbd5e1;border-radius:3px;background:var(--mt-surface,#fff);cursor:pointer;box-sizing:border-box}
+  .cmp-tg span.on{background:#c7d2fe;border-color:#6366f1}
+  .cmp-tg-lab{margin-top:8px;font-size:12.5px;font-weight:700;text-align:center;color:var(--mt-text2,#374151)}
+  .cmp-more{display:flex;flex-direction:column;gap:3px;min-width:200px}
+  .cmp-more button{display:flex;align-items:center;gap:8px;text-align:left;font:inherit;font-size:13px;border:0;background:transparent;color:inherit;border-radius:7px;padding:6px 8px;cursor:pointer}
+  .cmp-more button:hover{background:#eff6ff}
+  .cmp-more button svg{width:16px;height:16px;flex:none}
+  .cmp-more .mob-only{display:none}
+  .cmp-more hr{border:0;border-top:1px solid var(--line);margin:3px 0;width:100%}
+  .cmp-defnote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#1e3a8a;background:#eff6ff;border:1px solid #bfdbfe;border-bottom:0;padding:5px 10px;line-height:1.6}
+  .cmp-defnote[hidden]{display:none}
+  .cmp-defnote button,.cmp-defnote a{font:inherit;font-size:12px;font-weight:700;border:1px solid #93c5fd;background:var(--mt-surface,#fff);color:#1e3a8a;border-radius:7px;padding:1px 9px;cursor:pointer;text-decoration:none}
+  html[data-mt="dark"] .cmp-defnote{background:#1e293b;border-color:#334155;color:#bfdbfe}
+  html[data-mt="dark"] .cmp-defnote button,html[data-mt="dark"] .cmp-defnote a{background:#0f172a;color:#bfdbfe;border-color:#334155}
+  /* 가운데 폭(노트북 반 화면 등): 덜 쓰는 것(되돌리기·정렬·번호 목록)은 「⋯ 더 보기」 안으로 */
+  @media(max-width:1000px){ .cmp-tb .tb-wide{display:none !important} .cmp-more .mob-only{display:flex} }
   .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:var(--mt-surface,#fff)}
   .cmp-editor:empty:before{content:attr(data-ph);color:var(--mt-mute,#9ca3af)}
   .cmp-editor img{max-width:100%;height:auto;cursor:pointer}
@@ -175,6 +209,10 @@
     .cmp-row input{font-size:16px}                 /* 16px=아이폰 입력 시 자동확대 방지 */
     .cmp-editor{min-height:220px;font-size:16px}
     .cmp-tb>button,.cmp-color{height:32px;font-size:14px;padding:0 10px}  /* 서식 버튼 터치영역 키움 */
+    .cmp-tb .tb-rel>button,.cmp-fsz{height:32px;font-size:14px}
+    .cmp-tb .tl{display:none}                      /* 11-26 휴대폰: 도구 이름 글자는 숨기고 그림만(두 줄 안에) */
+    .cmp-tb .tb-sep{display:none}
+    .cmp-mini{position:fixed;left:10px !important;right:10px;top:auto !important;bottom:12px;min-width:0}   /* 휴대폰: 아래쪽에 넓게 */
     .cmp-actions{gap:7px}
     .cmp-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:11px 8px;font-size:14px}
   }
@@ -232,23 +270,58 @@
       <span style="font-size:11.5px;color:var(--mute);">본문에 요점만 막 적고 누르면 → 정중한 업무 메일로 다듬어 줍니다</span>
     </div>
     {% endif %}
+    {# 11-26 대표 「아웃룩 메일 쓰기처럼 도구 — 업무 메일에 자주 쓰는 것만 · 많이보다 쉽게」 — 표·정렬·색은 인라인 style 로 남아 아웃룩·지메일에서 같게 보임 #}
     <div class="cmp-tb" id="cTb">
-      <button type="button" data-cmd="bold" title="굵게"><b>B</b></button>
-      <button type="button" data-cmd="italic" title="기울임"><i>I</i></button>
-      <button type="button" data-cmd="underline" title="밑줄"><u>U</u></button>
+      <button type="button" class="ic tb-wide" data-cmd="undo" title="되돌리기 (Ctrl+Z)">↶</button>
+      <button type="button" class="ic tb-wide" data-cmd="redo" title="다시 하기 (Ctrl+Y)">↷</button>
+      <span class="tb-sep tb-wide"></span>
+      <select id="cFsz" class="cmp-fsz" title="글자 크기 — 글을 고른 뒤 바꾸세요(고르지 않으면 이어서 쓰는 글자부터)"><option value="">가 크기</option><option value="12">작게</option><option value="14">보통</option><option value="18">크게</option><option value="24">아주 크게</option></select>
+      <button type="button" class="ic" data-cmd="bold" title="굵게 (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="ic" data-cmd="italic" title="기울임 (Ctrl+I)"><i>I</i></button>
+      <button type="button" class="ic" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>U</u></button>
       <label class="cmp-color" title="글자색">A<input type="color" id="cColor" value="#c0392b"></label>
-      <button type="button" data-cmd="insertUnorderedList" title="글머리 목록">• 목록</button>
-      <button type="button" id="cLink" title="링크 넣기">🔗 링크</button>
-      <button type="button" id="cClear" title="서식 지우기">✕ 서식</button>
-      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📝 양식</button>
+      <span class="tb-rel"><button type="button" id="cHlBtn" title="형광펜 — 고른 글자에 배경색" aria-haspopup="true">🖍<span class="tl">&nbsp;형광펜</span></button>
+        <div class="cmp-mini" id="cHlPop" hidden role="dialog" aria-label="형광펜 색 고르기"><span class="ttl">🖍 형광펜</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cHlPop">✕</button>
+          <div class="cmp-hl"><button type="button" data-hl="#fef08a" style="background:#fef08a" title="노랑"></button><button type="button" data-hl="#bbf7d0" style="background:#bbf7d0" title="연두"></button><button type="button" data-hl="#bae6fd" style="background:#bae6fd" title="하늘"></button><button type="button" data-hl="#fbcfe8" style="background:#fbcfe8" title="분홍"></button><button type="button" data-hl="#fed7aa" style="background:#fed7aa" title="주황"></button><button type="button" class="none" data-hl="transparent" title="형광펜 지우기">지우기</button></div></div></span>
+      <span class="tb-sep"></span>
+      <button type="button" class="ic tb-wide" data-cmd="justifyLeft" title="왼쪽 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg></button>
+      <button type="button" class="ic tb-wide" data-cmd="justifyCenter" title="가운데 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8"/></svg></button>
+      <button type="button" class="ic tb-wide" data-cmd="justifyRight" title="오른쪽 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8"/></svg></button>
+      <button type="button" data-cmd="insertUnorderedList" title="글머리 목록">•<span class="tl">&nbsp;목록</span></button>
+      <button type="button" class="tb-wide" data-cmd="insertOrderedList" title="번호 목록 (1. 2. 3.)">1.<span class="tl">&nbsp;번호</span></button>
+      <span class="tb-sep"></span>
+      <button type="button" id="cLink" title="링크 넣기">🔗<span class="tl">&nbsp;링크</span></button>
+      <span class="tb-rel"><button type="button" id="cTblBtn" title="표 넣기 — 칸 수를 골라 누르기 · 넣은 표의 칸을 누르면 행·열 더하기·빼기" aria-haspopup="true">▦<span class="tl">&nbsp;표</span></button>
+        <div class="cmp-mini" id="cTblPop" hidden role="dialog" aria-label="표 크기 고르기"><span class="ttl">▦ 표 넣기</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cTblPop">✕</button>
+          <div class="cmp-tg" id="cTblGrid"></div><div class="cmp-tg-lab" id="cTblLab">3 × 3 표</div></div></span>
+      <button type="button" id="cImgBtn" title="그림 넣기 — 본문 속에 사진·그림(큰 사진은 알맞게 줄여 넣음) · 넣은 그림을 누르면 크기·정렬·자르기">🖼<span class="tl">&nbsp;그림</span></button>
+      <input type="file" id="cImgFile" accept="image/*" multiple data-knk-no-dropzone style="display:none">
+      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📝<span class="tl">&nbsp;양식</span></button>
         <div class="cmp-tpl-pop" id="cTplPop" hidden></div></span>
+      <span class="tb-rel"><button type="button" id="cMoreBtn" title="도구 더 보기 — 들여쓰기·가로줄·취소선·서식 지우기" aria-haspopup="true">⋯<span class="tl">&nbsp;더 보기</span></button>
+        <div class="cmp-mini" id="cMorePop" hidden role="dialog" aria-label="도구 더 보기"><span class="ttl">⋯ 도구 더 보기</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cMorePop">✕</button>
+          <div class="cmp-more">
+            <button type="button" class="mob-only" data-cmd="undo">↶ 되돌리기</button>
+            <button type="button" class="mob-only" data-cmd="redo">↷ 다시 하기</button>
+            <button type="button" class="mob-only" data-cmd="justifyLeft"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg>왼쪽 정렬</button>
+            <button type="button" class="mob-only" data-cmd="justifyCenter"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8"/></svg>가운데 정렬</button>
+            <button type="button" class="mob-only" data-cmd="justifyRight"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M6 6.5h8M2 9.5h12M6 12.5h8"/></svg>오른쪽 정렬</button>
+            <button type="button" class="mob-only" data-cmd="insertOrderedList">1. 번호 목록</button>
+            <hr class="mob-only">
+            <button type="button" data-cmd="indent"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 3.5h7M7 6.5h7M7 9.5h7M2 12.5h12M2 5l3 2.5L2 10"/></svg>들여쓰기</button>
+            <button type="button" data-cmd="outdent"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 3.5h7M7 6.5h7M7 9.5h7M2 12.5h12M5 5L2 7.5 5 10"/></svg>내어쓰기</button>
+            <button type="button" id="cHrBtn">― 가로줄 넣기</button>
+            <button type="button" data-cmd="strikeThrough"><s>가</s> 취소선</button>
+            <button type="button" id="cClear" title="고른 글의 굵게·색·크기 등을 지움">✕ 서식 지우기</button>
+          </div></div></span>
       {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">✍ <select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}"{% if (g.slot|string) == (sig_default|default('')|string) %} selected{% endif %}>{{ g.name }}</option>{% endfor %}{% if not (sig_list|default([]) and (sig_list[0].slot|string).startswith('co-')) %}<option value="none"{% if sig_default|default('') == 'none' %} selected{% endif %}>서명 없음</option>{% endif %}</select></label>{% endif %}
     </div>
+    <div class="cmp-defnote" id="cDefNote" hidden role="status"></div>{# 11-26 새 메일 기본 양식을 넣었을 때 한 줄 안내(이번 메일에서 빼기 · 바꾸기·끄기) — 본문에 글을 쓰면 사라짐 #}
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
     <textarea id="cPrefill" style="display:none">{{ prefill.body }}</textarea>
     <textarea id="cPrefillHtml" style="display:none">{{ prefill.body_html }}</textarea>
     <input type="hidden" id="cFwdSrc" value="{{ prefill.fwd_src }}">
-    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }}; window.CMP_ME = {{ (me_name|default(''))|tojson }}; window.CMP_NUDGE_TPL = {{ (prefill.nudge_tpl|default(''))|tojson }}; window.CMP_ACK = {{ (prefill.ack_text|default(''))|tojson }};</script>
+    <script>window.CMP_SIGS = {{ (sig_list or [])|tojson }}; window.CMP_ME = {{ (me_name|default(''))|tojson }}; window.CMP_NUDGE_TPL = {{ (prefill.nudge_tpl|default(''))|tojson }}; window.CMP_ACK = {{ (prefill.ack_text|default(''))|tojson }}; window.CMP_DEFTPL = {{ (default_tpl|default(none))|tojson }};</script>
     <script>window.CMP_FWD = {{ (prefill.fwd_atts or [])|tojson }};</script>
     <textarea id="cSigHtml" style="display:none">{{ sig_html|default('') }}</textarea>
     <input type="hidden" id="cDraftId" value="{{ prefill.draft_id }}">
@@ -520,17 +593,123 @@ function abPut(target){
     if(cur) cur.replaceWith(el); else { var blank=document.createElement('div'); blank.innerHTML='<br>'; ED.insertBefore(el, ED.firstChild); ED.insertBefore(blank, el); }
     window._cDirty=true;
   };
+  /* ── 11-26 대표 「아웃룩처럼 도구」 — 쓰던 자리(커서) 기억 · 도구 누를 때 그 자리에 적용 ──
+     색·형광펜·크기·정렬은 인라인 style 로 남김(아웃룩·지메일에서 같게) · 표·그림은 쓰던 자리에 · 작은 창마다 ✕ 닫기 */
+  var _edRange=null;
+  function saveRange(){ try{ var s=window.getSelection(); if(s && s.rangeCount && ED.contains(s.getRangeAt(0).commonAncestorContainer)) _edRange=s.getRangeAt(0).cloneRange(); }catch(_){} }
+  function fallbackRange(){   // 쓰던 자리가 없으면 = 서명 바로 위(없으면 맨 끝)
+    var r=document.createRange(), sig=ED.querySelector('.knk-sig'), top=sig; while(top && top.parentNode!==ED) top=top.parentNode;
+    if(top){ r.setStartBefore(top); } else { r.selectNodeContents(ED); r.collapse(false); }
+    r.collapse(true); return r; }
+  function useRange(){ ED.focus(); var s=window.getSelection(); var r=(_edRange && ED.contains(_edRange.commonAncestorContainer)) ? _edRange : fallbackRange();
+    try{ s.removeAllRanges(); s.addRange(r); }catch(_){} }
+  window.cmpUseRange=useRange;
+  if(ED){ ['keyup','mouseup','input','focus'].forEach(function(ev){ ED.addEventListener(ev, saveRange); });
+    document.addEventListener('selectionchange', function(){ if(document.activeElement===ED) saveRange(); }); }
+  function exec(cmd, val, css){ useRange(); try{ document.execCommand('styleWithCSS', false, !!css); }catch(_){}
+    try{ document.execCommand(cmd, false, val==null?null:val); }catch(_){}
+    try{ document.execCommand('styleWithCSS', false, false); }catch(_){}
+    saveRange(); window._cDirty=true; }
   var tb=document.getElementById('cTb');
-  if(tb) tb.addEventListener('click',function(e){
-    var b=e.target.closest('button'); if(!b)return; var cmd=b.getAttribute('data-cmd'); if(!cmd)return;
-    e.preventDefault(); if(ED)ED.focus(); try{ document.execCommand(cmd,false,null); }catch(_){}
-  });
+  function closeMinis(except){ ['cHlPop','cTblPop','cMorePop'].forEach(function(id){ if(id!==except){ var p=document.getElementById(id); if(p) p.hidden=true; } }); }
+  window.cmpCloseMinis=closeMinis;
+  // 작은 창이 화면 오른쪽 밖으로 나가면(가로 굴림 생김) 안쪽으로 당김 · 휴대폰은 CSS 가 아래쪽 넓게
+  function fitPop(p){ try{ p.style.left=''; if(p.hidden || window.matchMedia('(max-width:640px)').matches) return; var r=p.getBoundingClientRect(), W=document.documentElement.clientWidth;
+    for(var a=p.parentElement; a && a!==document.body; a=a.parentElement){ var ox=getComputedStyle(a).overflowX; if(ox!=='visible'){ var ar=a.getBoundingClientRect(); W=Math.min(W, ar.left+a.clientWidth); } }   // 굴러가는 칸(본문 영역) 오른쪽 끝까지만
+    if(r.right>W-8) p.style.left=(Math.round(W-8-r.right))+'px'; r=p.getBoundingClientRect(); if(r.left<8) p.style.left=(parseFloat(p.style.left||'0')+(8-r.left))+'px'; }catch(_){} }
+  window.cmpFitPop=fitPop;
+  function toggleMini(id){ var p=document.getElementById(id); if(!p) return; var open=p.hidden; closeMinis(id); var tp=document.getElementById('cTplPop'); if(tp) tp.hidden=true; p.hidden=!open; fitPop(p); }
+  if(tb){
+    // 단추를 눌러도 쓰던 글의 선택(파란 칠)이 풀리지 않게 — 고르기 칸(select)·색 고르기는 그대로 둠
+    tb.addEventListener('mousedown', function(e){ var b=e.target.closest('button'); if(b && tb.contains(b)) e.preventDefault(); });
+    tb.addEventListener('click',function(e){
+      var b=e.target.closest('button'); if(!b || !tb.contains(b)) return;
+      var cl=b.getAttribute('data-close'); if(cl){ e.preventDefault(); var p=document.getElementById(cl); if(p) p.hidden=true; return; }
+      var hl=b.getAttribute('data-hl'); if(hl){ e.preventDefault(); exec('hiliteColor', hl, true); closeMinis(); return; }
+      var cmd=b.getAttribute('data-cmd'); if(!cmd) return;
+      e.preventDefault();
+      if(cmd==='undo' || cmd==='redo'){ ED.focus(); try{ document.execCommand(cmd,false,null); }catch(_){} }
+      else exec(cmd, null, /^justify/.test(cmd));
+      if(b.closest('#cMorePop')) closeMinis();
+    });
+  }
   var col=document.getElementById('cColor');
-  if(col) col.addEventListener('input',function(){ if(ED)ED.focus(); try{ document.execCommand('foreColor',false,col.value); }catch(_){} });
+  if(col){ col.addEventListener('mousedown', saveRange); col.addEventListener('input',function(){ exec('foreColor', col.value, true); }); }
+  // 글자 크기 — 브라우저 크기 7 을 잠깐 쓰고 바로 px 인라인 style 로 바꿈(<font size> 를 남기지 않음 · 아웃룩·지메일 같게)
+  var FSZ_PX=0;
+  function fixFonts(){ if(!FSZ_PX) return; ED.querySelectorAll('font[size="7"]').forEach(function(f){
+      var sp=document.createElement('span'); sp.style.fontSize=FSZ_PX+'px'; while(f.firstChild) sp.appendChild(f.firstChild); f.parentNode.replaceChild(sp, f);
+      sp.querySelectorAll('span[style*="font-size"]').forEach(function(x){ x.style.fontSize=''; if(!x.getAttribute('style')) x.removeAttribute('style'); }); }); }
+  var fsz=document.getElementById('cFsz');
+  if(fsz){ fsz.addEventListener('mousedown', saveRange); fsz.addEventListener('focus', saveRange);
+    fsz.addEventListener('change', function(){ var v=+fsz.value; fsz.value=''; if(!v) return; FSZ_PX=v; exec('fontSize', '7', false); fixFonts(); }); }
+  if(ED) ED.addEventListener('input', fixFonts);   // 고른 글 없이 크기만 바꾼 뒤 이어서 쓴 글자도 px 로
   var lnk=document.getElementById('cLink');
-  if(lnk) lnk.addEventListener('click',function(){ var u=prompt('링크 주소(URL)','https://'); if(u){ if(ED)ED.focus(); try{ document.execCommand('createLink',false,u); }catch(_){} } });
+  if(lnk) lnk.addEventListener('click',function(){ saveRange(); var u=prompt('링크 주소(URL)','https://'); if(u && !/^\s*javascript:/i.test(u)){ exec('createLink', u.trim(), false); } });
   var clr=document.getElementById('cClear');
-  if(clr) clr.addEventListener('click',function(){ if(ED)ED.focus(); try{ document.execCommand('removeFormat',false,null); document.execCommand('unlink',false,null);}catch(_){} });
+  if(clr) clr.addEventListener('click',function(){ useRange(); try{ document.execCommand('removeFormat',false,null); document.execCommand('unlink',false,null);}catch(_){} closeMinis(); });
+  var hrb=document.getElementById('cHrBtn');
+  if(hrb) hrb.addEventListener('click', function(){ exec('insertHTML', '<hr data-knk-hr="1"><div><br></div>', false);
+    ED.querySelectorAll('hr[data-knk-hr]').forEach(function(h){ h.removeAttribute('data-knk-hr'); h.setAttribute('style','border:0;border-top:1px solid #c8c8c8;margin:10px 0'); }); closeMinis(); });
+  document.getElementById('cHlBtn').addEventListener('click', function(e){ e.preventDefault(); saveRange(); toggleMini('cHlPop'); });
+  document.getElementById('cMoreBtn').addEventListener('click', function(e){ e.preventDefault(); saveRange(); toggleMini('cMorePop'); });
+  document.addEventListener('mousedown', function(e){ ['cHlPop','cTblPop','cMorePop'].forEach(function(id){ var p=document.getElementById(id);
+    if(p && !p.hidden && !p.parentNode.contains(e.target)) p.hidden=true; }); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var any=['cHlPop','cTblPop','cMorePop'].some(function(id){ var p=document.getElementById(id); return p && !p.hidden; }); if(any){ e.preventDefault(); closeMinis(); } } });
+  // ▦ 표 넣기 — 칸 수 고르기(마우스를 올리면 크기 표시 · 누르면 넣음 · 휴대폰은 누르면 바로)
+  (function(){
+    var grid=document.getElementById('cTblGrid'), lab=document.getElementById('cTblLab'), R=6, C=8;
+    if(!grid) return;
+    for(var r=1;r<=R;r++) for(var c=1;c<=C;c++){ var s=document.createElement('span'); s.dataset.r=r; s.dataset.c=c; s.title=c+' × '+r; grid.appendChild(s); }
+    function hi(r,c){ grid.querySelectorAll('span').forEach(function(s){ s.classList.toggle('on', +s.dataset.r<=r && +s.dataset.c<=c); }); lab.textContent=c+'칸 × '+r+'줄 표 — 누르면 넣음'; }
+    hi(3,3);
+    grid.addEventListener('mouseover', function(e){ var s=e.target.closest('span'); if(s) hi(+s.dataset.r, +s.dataset.c); });
+    grid.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    grid.addEventListener('click', function(e){ var s=e.target.closest('span'); if(!s) return; closeMinis(); cmpInsertTable(+s.dataset.r, +s.dataset.c); });
+    document.getElementById('cTblBtn').addEventListener('click', function(e){ e.preventDefault(); saveRange(); hi(3,3); toggleMini('cTblPop'); });
+  })();
+  window.cmpInsertTable=function(rows, cols){
+    rows=Math.max(1,Math.min(20,rows|0)); cols=Math.max(1,Math.min(12,cols|0));
+    var h='<table style="border-collapse:collapse;width:100%;margin:6px 0" data-knk-new="1">';
+    for(var r=0;r<rows;r++){ h+='<tr>'; for(var c=0;c<cols;c++) h+='<td style="'+TD_STYLE+'">&nbsp;</td>'; h+='</tr>'; }
+    h+='</table><div><br></div>';
+    exec('insertHTML', h, false);
+    var t=ED.querySelector('table[data-knk-new]'); if(t){ t.removeAttribute('data-knk-new');
+      try{ var td=t.querySelector('td'), rg=document.createRange(); rg.selectNodeContents(td); rg.collapse(true); var s=window.getSelection(); s.removeAllRanges(); s.addRange(rg); saveRange(); }catch(_){} }
+  };
+  // 🖼 그림 넣기 — 본문 속 그림(보낼 때 서버가 인라인 첨부로 바꿔 아웃룩·지메일에서 보임) · 큰 사진은 폭 1280 이하·알맞은 크기로 줄여 넣음
+  var IMG_MAX_W=1280, IMG_MAX_BYTES=700*1024;
+  function shrinkImg(file){ return new Promise(function(ok){
+    var rd=new FileReader(); rd.onerror=function(){ ok(null); };
+    rd.onload=function(){ var src=rd.result; var im=new Image();
+      im.onerror=function(){ ok(null); };
+      im.onload=function(){ var w=im.naturalWidth, h=im.naturalHeight;
+        if(w<=IMG_MAX_W && src.length<=IMG_MAX_BYTES*1.37){ ok({src:src, w:w}); return; }   // 작으면 그대로(투명 PNG 지킴)
+        var k=Math.min(1, IMG_MAX_W/w), cw=Math.max(1,Math.round(w*k)), ch=Math.max(1,Math.round(h*k));
+        try{ var cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; var x=cv.getContext('2d');
+          x.fillStyle='#fff'; x.fillRect(0,0,cw,ch); x.drawImage(im,0,0,cw,ch);
+          var q=0.85, out=cv.toDataURL('image/jpeg', q);
+          while(out.length>IMG_MAX_BYTES*1.37 && q>0.45){ q-=0.1; out=cv.toDataURL('image/jpeg', q); }
+          ok({src:out, w:cw});
+        }catch(err){ ok({src:src, w:w}); } };
+      im.src=src; };
+    rd.readAsDataURL(file); }); }
+  var imgIn=document.getElementById('cImgFile');
+  document.getElementById('cImgBtn').addEventListener('click', function(e){ e.preventDefault(); saveRange(); closeMinis(); imgIn.click(); });
+  imgIn.addEventListener('change', async function(){
+    var files=[].slice.call(imgIn.files||[]).filter(function(f){ return /^image\//.test(f.type||''); }); imgIn.value='';
+    if(!files.length){ cmsg('⚠ 그림 파일(사진·PNG·JPG)만 넣을 수 있어요 — 다른 파일은 「📎 첨부」로','red'); return; }
+    cmsg('🖼 그림 넣는 중...','');
+    var html='';
+    for(var i=0;i<files.length;i++){ var g=await shrinkImg(files[i]); if(!g) continue;
+      var dw=Math.min(g.w, 600);   // 처음 보이는 폭(누르면 크게·작게 바꿀 수 있음)
+      html+='<img src="'+g.src+'" alt="" data-knk-w="'+dw+'">'; }
+    if(!html){ cmsg('⚠ 그림을 읽지 못했습니다 — 다른 파일로 해 보세요','red'); return; }
+    exec('insertHTML', html+'<br>', false);
+    // 브라우저가 넣을 때 style 일부(max-width·height)를 빼므로 넣은 뒤에 붙임(휴대폰·지메일에서 화면 폭에 맞게)
+    ED.querySelectorAll('img[data-knk-w]').forEach(function(im){ im.setAttribute('style', 'max-width:100%;width:'+im.getAttribute('data-knk-w')+'px;height:auto'); im.removeAttribute('data-knk-w'); });
+    cmsg('🖼 그림을 넣었습니다 — 그림을 누르면 크기·정렬·자르기','green');
+  });
 
   // ── 본문 이미지 편집(크기·정렬·회전·자르기·삭제) ──
   var selImg=null, imgTb=null;
@@ -840,6 +1019,9 @@ function abPut(target){
     var t=(document.getElementById('cBody').innerText||'');
     var cut=t.length; ['\n--\n','──────── 원본 메일','──────── 전달된 메일'].forEach(function(mk){ var k=t.indexOf(mk); if(k>=0 && k<cut) cut=k; });
     if(t.indexOf('--\n')===0) cut=0;
+    // 11-26 서명 칸(.knk-sig · 11-23 부터 「--」 줄 없음)부터는 내가 쓴 글이 아님 — 끝인사 검사가 서명 끝(법적 고지)을 보던 것 고침
+    var sg=document.querySelector('#cBody .knk-sig'), st=sg ? (sg.innerText||'').trim().slice(0,40) : '';
+    if(st){ var ks=t.indexOf(st); if(ks>=0 && ks<cut) cut=ks; }
     return t.slice(0,cut); }
   var ATT_WORDS=/첨부|붙임|동봉|attach|enclos|đính kèm/i;
   function attCount(){ return NORMAL.length + LARGE.length + FWD.length; }
@@ -875,7 +1057,8 @@ function abPut(target){
     var own=ownText().trim(), isFwd=!!((document.getElementById('cFwdSrc')||{}).value);
     if(!subj) W.push({ic:'✉', t:'제목이 비어 있습니다', d:'받는 쪽에는 「(제목 없음)」으로 보입니다.'});
     var _ph=cmpLeftPh(); if(_ph.length) W.push({ic:'📝', t:'양식의 빈칸을 아직 안 채웠습니다: '+_ph.slice(0,6).join(' '), d:'노란 칸을 채워 주세요(본문에서 Tab 키로 차례로 이동).'});
-    if(!own && !isFwd) W.push({ic:'📝', t:'본문이 비어 있습니다', d:'서명만 들어 있습니다.'});
+    var _defOnly=!!(window.cmpDefUntouched && cmpDefUntouched());   // 11-26 기본 양식(인사말·끝인사)만 있고 하실 말씀이 없음
+    if((!own || _defOnly) && !isFwd) W.push({ic:'📝', t:'본문이 비어 있습니다', d:_defOnly ? '기본 양식(인사말·끝인사)만 들어 있습니다 — 하실 말씀을 써 주세요.' : '서명만 들어 있습니다.'});
     if(attCount()===0 && (ATT_WORDS.test(own) || ATT_WORDS.test(subj))) W.push({ic:'📎', t:'「첨부」라고 쓰셨는데 붙인 파일이 없습니다', d:'파일을 붙이려면 「고치기」 → 아래 「📎 첨부」.'});
     var dom={}, order=[];
     all.forEach(function(p){ if(isOurs(p.addr)) return; var d=(p.addr.split('@')[1]||'').toLowerCase(); if(!dom[d]){ dom[d]=[]; order.push(d); } dom[d].push(who(p)); });
@@ -1214,6 +1397,12 @@ function abPut(target){
     return out; };
   function selPh(m){ try{ var r=document.createRange(); r.selectNodeContents(m); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); m.scrollIntoView({block:'nearest'}); }catch(_){ } }
   function insertTpl(t, atTop){
+    // 11-26 손대지 않은 「새 메일 기본 양식」이 있으면 그 자리를 고른 양식으로 바꿈(인사말이 두 번 들어가지 않게)
+    var _db=ED2.querySelector('.knk-tpl-def');
+    if(_db && window.cmpDefUntouched && cmpDefUntouched()){ var _bl=document.createElement('div'); _bl.innerHTML='<br>';
+      var _nx=_db.nextSibling; _db.parentNode.replaceChild(_bl, _db);
+      if(_nx && _nx.nodeType===1 && !(_nx.textContent||'').trim() && !_nx.querySelector('img,table') && !_nx.classList.contains('knk-sig')) _nx.remove();
+      ED2.insertBefore(_bl, ED2.firstChild); atTop=true; if(window.cmpDefNoteHide) cmpDefNoteHide(); }
     var subj=document.getElementById('cSubj');
     if(t.subject && !subj.value.trim()){ subj.value=fillMe(t.subject); }
     window._tplPh=(window._tplPh||[]).concat((((t.subject||'')+'\n'+(t.body||'')).match(/\[[^\]\n]{1,30}\]/g)||[]).filter(function(x){ return !FIXED_TAG.test(x); }));
@@ -1226,6 +1415,58 @@ function abPut(target){
     var m=ED2.querySelector('mark.knk-ph'); if(m){ ED2.focus(); selPh(m); }
   }
   window.cmpInsertTpl=insertTpl;
+
+  /* ══ 11-26 대표 「새 메일 쓰기 = 아웃룩처럼 기본 글이 바로」 ══════════════════════
+     서버가 새 메일에만 CMP_DEFTPL(내 「새 메일 기본 양식」)을 줌 — 답장·전달·임시 메일·다시 묻기에는 안 줌
+     · 본문에 이미 쓴 글이 있으면 넣지 않음 · 서명 위에 · 한 줄씩(빈 줄 그대로) · [내 이름] = 로그인한 사람 이름
+     · 커서 = 인사말 아래 첫 빈 줄(받는 사람이 비어 있으면 본문으로 처음 들어올 때 그 자리로)
+     · 한 줄 안내: 「이번 메일에서 빼기」 · 「바꾸기·끄기」(양식 화면) — 넣었다고 「고친 글」로 치지 않음(그냥 닫아도 묻지 않음) */
+  var DEF_TXT='';
+  function defNorm(t){ return (t||'').replace(/[\s ]+/g,''); }
+  function defLinesHtml(body){
+    return fillMe(String(body||'').replace(/\r/g,'')).split('\n').map(function(ln){
+      if(!ln.trim()) return '<div><br></div>';
+      return '<div>'+escH(ln).replace(/\[([^\]\n]{1,30})\]/g, function(all, x){ return FIXED_TAG.test(all) ? all : '<mark class="knk-ph">['+x+']</mark>'; })+'</div>';
+    }).join(''); }
+  window.cmpDefUntouched=function(){ var b=ED2.querySelector('.knk-tpl-def'); return !!(b && DEF_TXT && defNorm(b.textContent)===DEF_TXT && !b.querySelector('img,table')); };
+  function ownEmpty(){ var t=ED2.cloneNode(true); t.querySelectorAll('.knk-sig').forEach(function(x){ x.remove(); }); return !defNorm(t.textContent) && !t.querySelector('img,table'); }
+  function defCaret(){ var b=ED2.querySelector('.knk-tpl-def'); if(!b) return;
+    var m=b.querySelector('mark.knk-ph'); if(m){ ED2.focus(); selPh(m); return; }
+    var kids=[].slice.call(b.children), seen=false, tgt=null;
+    for(var i=0;i<kids.length;i++){ var empty=!defNorm(kids[i].textContent); if(!empty) seen=true; else if(seen){ tgt=kids[i]; break; } }
+    if(!tgt) tgt=kids.filter(function(k){ return !defNorm(k.textContent); })[0] || null;
+    try{ ED2.focus(); var r=document.createRange(); if(tgt){ r.setStart(tgt,0); } else { r.selectNodeContents(b); r.collapse(false); } r.collapse(true);
+      var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(_){} }
+  window.cmpDefCaret=defCaret;
+  var DN=document.getElementById('cDefNote');
+  window.cmpDefNoteHide=function(){ if(DN) DN.hidden=true; };
+  window.cmpDefRemove=function(){ var b=ED2.querySelector('.knk-tpl-def'); if(b){ var nx=b.nextSibling; b.remove();
+      var gapLeft=(nx && nx.nodeType===1 && !defNorm(nx.textContent) && !nx.querySelector('img,table') && !nx.classList.contains('knk-sig'));   // 빈 줄 하나는 남겨 쓸 자리로
+      if(!gapLeft){ var bl=document.createElement('div'); bl.innerHTML='<br>'; ED2.insertBefore(bl, ED2.firstChild); } }
+    cmpDefNoteHide(); window._tplPh=[]; try{ ED2.focus(); var r=document.createRange(); r.setStart(ED2.firstChild||ED2,0); r.collapse(true); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(_){} };
+  function defPut(t){
+    if(!t || !String(t.body||'').trim() || !ownEmpty()) return false;
+    var subj=document.getElementById('cSubj'); if(t.subject && !subj.value.trim()) subj.value=fillMe(t.subject);
+    window._tplPh=(window._tplPh||[]).concat((((t.subject||'')+'\n'+(t.body||'')).match(/\[[^\]\n]{1,30}\]/g)||[]).filter(function(x){ return !FIXED_TAG.test(x) && ME_KEYS.indexOf(x)<0; }));
+    var d=document.createElement('div'); d.className='knk-tpl knk-tpl-def'; d.innerHTML=defLinesHtml(t.body);
+    var sig=ED2.querySelector('.knk-sig'), top=sig; while(top && top.parentNode!==ED2) top=top.parentNode;
+    var first=ED2.firstChild;   // 서명 위에 넣어 둔 빈 줄 하나는 양식으로 바꿈
+    if(first && first!==top && first.nodeType===1 && !defNorm(first.textContent) && !first.querySelector('img,table')) ED2.removeChild(first);
+    if(top){ var gap=document.createElement('div'); gap.innerHTML='<br>'; ED2.insertBefore(d, top); ED2.insertBefore(gap, top); }
+    else { ED2.innerHTML=''; ED2.appendChild(d); }
+    DEF_TXT=defNorm(d.textContent);
+    if(DN){ DN.innerHTML='✉ <span>기본 양식 <b></b>을(를) 넣었습니다</span><button type="button" onclick="cmpDefRemove()" title="이 메일에서만 뺌 — 다음 새 메일에는 또 들어감">이번 메일에서 빼기</button>'+
+        '<a href="/mail/templates?from=compose" target="_blank" rel="noopener" title="다른 양식을 기본으로 정하거나 끄기 — 새 창">바꾸기·끄기 ↗</a>';
+      DN.querySelector('b').textContent='「'+(t.title||'기본 양식')+'」'; DN.hidden=false; }
+    return true;
+  }
+  if(window.CMP_DEFTPL && !window.CMP_NUDGE_TPL && !window.CMP_ACK && defPut(window.CMP_DEFTPL)){
+    if(document.getElementById('cTo').value.trim()) defCaret();     // 받는 사람이 이미 있으면(주소록에서 「메일 쓰기」) 바로 쓸 자리로
+    else { var _pend=true;
+      ED2.addEventListener('mousedown', function(){ _pend=false; });
+      ED2.addEventListener('focus', function(){ if(_pend){ _pend=false; setTimeout(defCaret, 0); } }); }   // Tab 으로 본문에 들어오면 인사말 아래 빈 줄로
+    ED2.addEventListener('input', function(){ if(DN && !DN.hidden && !cmpDefUntouched()) DN.hidden=true; });
+  }
   ED2.addEventListener('keydown', function(e){
     if(e.key!=='Tab') return;
     var ms=[].slice.call(ED2.querySelectorAll('mark.knk-ph')).filter(function(m){ return /^\[[^\]]+\]$/.test((m.textContent||'').trim()); });
@@ -1240,18 +1481,19 @@ function abPut(target){
   var TPLS=null, pop=document.getElementById('cTplPop');
   async function tplLoad(){ if(TPLS) return TPLS; try{ var r=await fetch('/api/mail/templates'); TPLS=await r.json(); }catch(e){ TPLS={mine:[],company:[],builtin:[],lang_name:{}}; } return TPLS; }
   function tplRender(q){ var L=TPLS.lang_name||{}, html='', all=[]; q=(q||'').trim().toLowerCase();
-    [['mine','⭐ 내 양식'],['company','🏢 회사 양식'],['builtin','📚 기본 양식']].forEach(function(sec){
+    [['mine','⭐ 내 양식'],['company','🏢 회사 양식'],['builtin','📚 예시 양식']].forEach(function(sec){
       var it=(TPLS[sec[0]]||[]).filter(function(t){ return !q || (t.title+' '+t.subject+' '+(L[t.lang]||'')).toLowerCase().indexOf(q)>=0; });
       if(!it.length) return; html+='<div class="cmp-tpl-sec">'+sec[1]+'</div>';
-      it.forEach(function(t){ html+='<div class="cmp-tpl-it" data-i="'+all.length+'"><span class="t">'+escH(t.title)+'</span><span class="lg">'+escH(L[t.lang]||t.lang)+'</span></div>'; all.push(t); }); });
+      it.forEach(function(t){ var isDef=sec[0]!=='builtin' && t.id && +t.id===+(TPLS.default_id||0);   // 11-26 ✉ 새 메일 기본 양식 표시
+        html+='<div class="cmp-tpl-it" data-i="'+all.length+'"><span class="t">'+escH(t.title)+'</span>'+(isDef?'<span class="lg" style="background:#dbeafe;color:#1e40af" title="새 메일을 열면 저절로 들어가는 양식">✉ 기본</span>':'')+'<span class="lg">'+escH(L[t.lang]||t.lang)+'</span></div>'; all.push(t); }); });
     if(!all.length) html+='<div style="padding:10px;color:var(--mute);font-size:13px">맞는 양식이 없어요</div>';
-    html+='<div class="cmp-tpl-foot"><span>노란 [빈칸] → Tab 키로 차례로</span><a href="/mail/templates" target="_blank" rel="noopener">✏ 양식 만들기·고치기</a></div>';
+    html+='<div class="cmp-tpl-foot"><span>노란 [빈칸] → Tab 키로 차례로</span><a href="/mail/templates?from=compose" target="_blank" rel="noopener">✏ 양식 만들기·고치기</a></div>';
     var box=pop.querySelector('.lst'); box.innerHTML=html;
     box.querySelectorAll('.cmp-tpl-it').forEach(function(el){ el.addEventListener('mousedown', function(e){ e.preventDefault(); pop.hidden=true; insertTpl(all[+el.dataset.i]); }); });
   }
   document.getElementById('cTplBtn').addEventListener('click', async function(e){
-    e.preventDefault(); if(!pop.hidden){ pop.hidden=true; return; }
-    pop.innerHTML='<input type="text" placeholder="🔍 양식 찾기 (견적, 발주, Quotation…)"><div class="lst"><div style="padding:10px;color:var(--mute)">불러오는 중…</div></div>'; pop.hidden=false;
+    e.preventDefault(); if(window.cmpCloseMinis) cmpCloseMinis(); if(!pop.hidden){ pop.hidden=true; return; }
+    pop.innerHTML='<input type="text" placeholder="🔍 양식 찾기 (견적, 발주, Quotation…)"><div class="lst"><div style="padding:10px;color:var(--mute)">불러오는 중…</div></div>'; pop.hidden=false; if(window.cmpFitPop) cmpFitPop(pop);
     var qi=pop.querySelector('input'); await tplLoad(); tplRender(''); qi.focus(); qi.addEventListener('input', function(){ tplRender(qi.value); });
     qi.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ pop.hidden=true; } if(ev.key==='Enter'){ ev.preventDefault(); var f=pop.querySelector('.cmp-tpl-it'); if(f) f.dispatchEvent(new MouseEvent('mousedown')); } });
   });

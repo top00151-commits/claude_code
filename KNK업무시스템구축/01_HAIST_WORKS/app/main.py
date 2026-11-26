@@ -27457,6 +27457,7 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
         return RedirectResponse("/login", 303)
     prefill = {"to": "", "cc": "", "bcc": "", "subject": "", "body": "", "draft_id": "", "body_html": "",
                "fwd_src": "", "fwd_atts": []}
+    default_tpl = None   # 11-26 새 메일 기본 양식(새 메일에만 채움)
     _co_info = _mguide_company()   # 11-20 3단계 ⑧ 🏢 회사 서명 — 웍스 회사 정보 읽기만(연결 밖에서 먼저)
     with db_session() as c:
         ready = _mail.system_send_ready(c, u["id"])
@@ -27568,11 +27569,22 @@ async def mail_compose_page(req: Request, reply: int = 0, replyall: int = 0,
             _to = (to or "").strip()
             if _to and len(_to) <= 200 and "@" in _to and not any(ch in _to for ch in "<>\"'\r\n"):
                 prefill["to"] = _to
+            # 11-26 대표 「새 메일 쓰기 = 아웃룩처럼 기본 글(인사말·끝인사)이 바로」 — 새 메일에만(답장·전달·임시 메일·다시 묻기 아님)
+            #   처음 쓰는 사람은 제안 양식 하나를 내 양식으로 만들어 기본으로(한 번만 · 끄거나 지우면 다시 안 만듦) · 베트남 사람 = 베트남어
+            try:
+                _vn = str(sig_default or "").endswith("vi") or str(u.get("login_id") or "").upper().startswith("VN")
+                _dt = _mwork.get_default_tpl(c, u["id"], "vi" if _vn else "ko")
+                if _dt:
+                    default_tpl = {"id": _dt["id"], "title": _dt.get("title") or "", "subject": _dt.get("subject") or "",
+                                   "body": _dt.get("body") or ""}
+            except Exception as e:
+                print("[MAIL-DEFTPL] 기본 양식 읽기 실패: %s" % str(e)[:160], flush=True)
     return ctx(req, "mail_compose.html", user=u, prefill=prefill, ready=ready,
                from_addr=my_from, ai_on=mail_ai_enabled_for(u),
                can_link=can_link, acct_ok=acct_ok,
                sched_off=_sched_off, me_name=(u.get("name") or ""),
-               sig_html=("" if draft else sig), sig_list=sig_list, sig_default=sig_default)   # 드래프트는 본문에 서명이 이미 있어 중복 방지
+               sig_html=("" if draft else sig), sig_list=sig_list, sig_default=sig_default,   # 드래프트는 본문에 서명이 이미 있어 중복 방지
+               default_tpl=default_tpl)
 
 
 from starlette.concurrency import run_in_threadpool as _mpre_pool   # noqa: E402
@@ -27935,6 +27947,11 @@ async def mail_templates_page(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
+        try:   # 11-26 처음 쓰는 사람도 「새 메일 기본 양식」 제안이 보이게(한 번만 만듦)
+            _vn = str(u.get("login_id") or "").upper().startswith("VN")
+            _mwork.get_default_tpl(c, u["id"], "vi" if _vn else "ko")
+        except Exception as e:
+            print("[MAIL-DEFTPL] 기본 양식 제안 실패: %s" % str(e)[:160], flush=True)
         data = _mwork.list_templates(c, u["id"])
     return ctx(req, "mail_templates.html", user=u, data=data, lang_name=_mwork.LANG_NAME, can_company=_mw_admin(u),
                me_name=u.get("name") or "")
@@ -27965,6 +27982,22 @@ async def mail_templates_save(req: Request):
                                             body=f.get("body") or "", lang=f.get("lang") or "ko",
                                             company=(f.get("company") or "") in ("1", "on", "true"), is_admin=_mw_admin(u))
     return JSONResponse({"ok": ok, "message": msg, "id": nid}, 200 if ok else 400)
+
+
+@app.post("/mail/templates/default")
+async def mail_templates_default(req: Request):
+    """11-26 「새 메일 기본 양식」 정하기(id) · 끄기(id=0) — 내 양식·회사 양식만 · 나에게만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    f = await req.form()
+    try:
+        tid = int(f.get("id") or 0)
+    except Exception:
+        tid = 0
+    with db_session() as c:
+        ok, msg = _mwork.set_default_tpl(c, u["id"], tid)
+    return JSONResponse({"ok": ok, "message": msg, "id": tid if ok else None}, 200 if ok else 400)
 
 
 @app.post("/mail/templates/{tid}/delete")
