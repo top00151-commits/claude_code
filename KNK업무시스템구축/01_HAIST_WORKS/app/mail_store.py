@@ -699,6 +699,11 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
         _mfo.stamp_arrival(c, mail_id, from_email)
     except Exception as _e:
         print("[MAIL-FOLDERS] 받은 때 부서 적기 실패(폴더 열 때 채움): %s" % str(_e)[:120], flush=True)
+    try:   # 11-26 대표 「1번 진행해」 — 서식 본문 받을 때 바로 압축 · 같은 본문(그룹 메일)은 보관함 한 벌을 같이 씀
+        from .mail_body_pack import pack_now as _pack_now
+        _pack_now(c, mail_id, html or "")
+    except Exception as _e:
+        print("[MAIL-BODY-PACK] 받을 때 압축 건너뜀(본문 그대로): %s" % str(_e)[:120], flush=True)
     return (mail_id, owner)
 
 
@@ -1525,7 +1530,13 @@ def store_outbound(c, *, user_id: int, from_email: str, to_email: str, subject: 
          to_rec, (cc or "").strip(), (bcc or "").strip(),
          (subject or "(제목 없음)").strip(), body or "", body_html or "", "일반", int(size or 0)),
     )
-    return cur.lastrowid
+    _oid = cur.lastrowid
+    try:   # 11-26 서식 본문 보낼 때 바로 압축(받을 때와 같은 규칙)
+        from .mail_body_pack import pack_now as _pack_now
+        _pack_now(c, _oid, body_html or "")
+    except Exception as _e:
+        print("[MAIL-BODY-PACK] 보낼 때 압축 건너뜀(본문 그대로): %s" % str(_e)[:120], flush=True)
+    return _oid
 
 
 # ─── 읽음 수동 표시 + 임시저장(Drafts) — 아웃룩 편의기능 ─────────────

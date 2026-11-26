@@ -182,9 +182,25 @@ with _db.db_session() as _c:
     _rd = _c.execute("SELECT is_read FROM mail_messages WHERE id=?", (M_EXT,)).fetchone()
 check("전체 보기 화면도 열면 읽음 표시", r.status_code == 200 and _rd["is_read"] == 1, dict(_rd))
 from app import mail_folders as _mfo
-with _db.db_session() as _c:   # 1차 옛 색인이 운영에 있는 것처럼 만든 뒤 → 새 색인 셋이 생기면 옛 것은 지워지는지
+with _db.db_session() as _c:   # 1차 옛 색인이 운영에 있는 것처럼
     _c.execute("CREATE INDEX IF NOT EXISTS idx_mail_cover ON mail_messages(user_id, direction)")
-    _mfo._COUNT_IDX_OK.clear()
+# 11-26 운영 사고 재현: 앞선 쓰기 묶음 안에서 지웠다가 그 묶음이 되돌려지면 옛 색인이 남았음 → 쓰기 묶음 중엔 안 지우고 「끝」 표시도 안 함
+try:
+    with _db.db_session() as _c:
+        _c.execute("UPDATE mail_messages SET is_read=is_read WHERE id=?", (M_LEAD,))   # 열린 쓰기 묶음
+        _mfo._COUNT_IDX_OK.clear(); _mfo._OLD_TRY[0] = 0
+        _mfo.ensure_count_indexes(_c)
+        raise RuntimeError("되돌림 재현")
+except RuntimeError:
+    pass
+with _db.db_session() as _c:
+    _still = _c.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_mail_cover'").fetchone()
+check("쓰기 묶음 중엔 옛 색인 안 지움 · 「끝」 표시 안 함(다음에 다시)", _still and "_old" not in _mfo._COUNT_IDX_OK, (_still, _mfo._COUNT_IDX_OK))
+with _db.db_session() as _c:
+    _mfo.ensure_count_indexes(_c)
+check("5분 안엔 다시 안 함(잠김 기록 쏟아짐 방지)", "_old" not in _mfo._COUNT_IDX_OK)
+with _db.db_session() as _c:   # 5분 지난 것처럼 → 열린 묶음 없는 연결에서 지움 · 확정
+    _mfo._OLD_TRY[0] = 0
     _mfo.ensure_count_indexes(_c)
     _ix = sorted(x[0] for x in _c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_mail_cover','idx_mail_cov_d','idx_mail_cov_x','idx_mail_fdpin')").fetchall())
     _pl = " / ".join(r[3] for r in _c.execute("EXPLAIN QUERY PLAN SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0 AND COALESCE(snooze_until,'')<>''", (1,)).fetchall())

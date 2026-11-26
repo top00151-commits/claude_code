@@ -765,6 +765,7 @@ COUNT_INDEXES = (
 )
 _OLD_COUNT_INDEXES = ("idx_mail_cover",)   # 11-26 1차(칸이 모자람) → 새 둘이 생긴 뒤 지움(같은 일을 두 번 저장하지 않게)
 _COUNT_IDX_OK = set()
+_OLD_TRY = [0.0]
 
 
 def ensure_count_indexes(c):
@@ -781,15 +782,30 @@ def ensure_count_indexes(c):
             _COUNT_IDX_OK.add(name)
         except Exception as e:
             print("[MAIL-FOLDERS] 세기 색인 %s 실패(화면은 그대로): %s" % (name, str(e)[:160]), flush=True)
-    if all(n in _COUNT_IDX_OK for n, _ in COUNT_INDEXES) and "_old" not in _COUNT_IDX_OK:
+    # 11-26 운영 실측: 「지움」 기록 뒤에도 옛 색인이 남아 있었음 — 앞서 열린 쓰기 묶음 안에서 지웠다가 그 묶음이 되돌려짐(잠김).
+    #   → 열린 쓰기 묶음이 없을 때만 지움(그 자리에서 바로 확정) · 정말 없어졌는지 확인한 뒤에만 「끝」 · 아니면 5분 뒤 다시
+    if all(n in _COUNT_IDX_OK for n, _ in COUNT_INDEXES) and "_old" not in _COUNT_IDX_OK \
+            and time.time() - _OLD_TRY[0] >= 300:
+        _OLD_TRY[0] = time.time()
+        left = 0
         for old in _OLD_COUNT_INDEXES:
             try:
-                if c.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?", (old,)).fetchone():
-                    c.execute("DROP INDEX IF EXISTS " + old)
-                    print("[MAIL-FOLDERS] 옛 세기 색인 %s 지움(새 색인으로 바뀜)" % old, flush=True)
+                q = "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?"
+                if not c.execute(q, (old,)).fetchone():
+                    continue
+                if getattr(c, "in_transaction", False):
+                    left += 1          # 다른 쓰기와 섞이면 함께 되돌려질 수 있음 → 다음 기회에
+                    continue
+                c.execute("DROP INDEX IF EXISTS " + old)
+                if c.execute(q, (old,)).fetchone() or getattr(c, "in_transaction", False):
+                    left += 1
+                else:
+                    print("[MAIL-FOLDERS] 옛 세기 색인 %s 지움(새 색인으로 바뀜 · 확정 확인)" % old, flush=True)
             except Exception as e:
-                print("[MAIL-FOLDERS] 옛 세기 색인 %s 지우기 실패(그대로 둠): %s" % (old, str(e)[:160]), flush=True)
-        _COUNT_IDX_OK.add("_old")
+                left += 1
+                print("[MAIL-FOLDERS] 옛 세기 색인 %s 지우기 실패(그대로 둠 · 5분 뒤 다시): %s" % (old, str(e)[:160]), flush=True)
+        if not left:
+            _COUNT_IDX_OK.add("_old")
 
 
 def classify(c, uid) -> dict:

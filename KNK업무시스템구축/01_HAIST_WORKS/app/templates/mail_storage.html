@@ -71,10 +71,11 @@
     </div>
   </div>
 
-  {# 11-23 대표 「1번 2번 진행해」 — ① 6개월 지난 본문 압축 · ② 같은 본문 하나로 #}
+  {# 11-23 대표 「1번 2번 진행해」 — ① 6개월 지난 본문 압축 · ② 같은 본문 하나로 · 11-26 「1번 진행해」 ③ 받을 때 바로 · 날짜 상관없이 모두 #}
   <div class="st-card" id="pkCard">
-    <h2 style="margin:0 0 6px;font-size:15px">🗜 본문 정리 — 6개월 지난 본문 압축 · 같은 본문은 하나만</h2>
-    <div class="st-note">· 대상 = 서식 본문(HTML)이 1KB 넘는 메일 가운데 <b>원래 날짜가 6개월 지난 것</b> 또는 <b>다른 메일과 본문이 똑같은 것</b>(전사 공지·자동 알림 등 · 사람이 달라도)<br>
+    <h2 style="margin:0 0 6px;font-size:15px">🗜 본문 정리 — 서식 본문 압축 · 같은 본문은 하나만</h2>
+    <div class="st-note">· <b>새 메일은 받을 때·보낼 때 바로 압축</b>합니다(11-26부터) · 같은 본문(그룹 메일·전사 공지·자동 알림 · 사람이 달라도)은 보관함 <b>한 벌</b>을 같이 씁니다<br>
+      · 여기 「지금 정리」·밤 정리 대상 = 아직 압축 안 된 서식 본문(HTML) 1KB 넘는 메일 <b>모두</b>(날짜 상관없음)<br>
       · 압축한 본문은 「본문 보관함」에 <b>한 벌만</b> 두고, 메일을 열면 그 자리에서 풀어 보여 줍니다(느려짐 거의 없음) · 글 본문은 그대로라 <b>찾기·미리 보기·답장은 그대로</b><br>
       · <b>풀어 보아 원본과 똑같을 때만</b> 옮김 · 정리하기 전 DB 사본을 먼저 만듦 · 「되돌리기」로 마지막 정리를 그대로 되돌림 · <b>매일 밤 22시 이후 저절로 한 번</b> 더 정리</div>
     <div class="st-tiles" id="pkTiles" style="margin-top:10px"></div>
@@ -166,7 +167,7 @@
     psay('세는 중…(몇십 초)');
     try{ var r=await fetch('/mail/storage/pack',{headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ psay('⚠ '+(j.message||''),'#b91c1c'); return; }
       var b=document.getElementById('pkTiles'); b.innerHTML='';
-      tile(b,'정리할 메일', (j.mails||0).toLocaleString()+'통', '6개월 지남 '+(j.old_n||0).toLocaleString()+' · 같은 본문 '+(j.dup_n||0).toLocaleString());
+      tile(b,'정리할 메일', (j.mails||0).toLocaleString()+'통', '6개월 지남 '+(j.old_n||0).toLocaleString()+' · 같은 본문 '+(j.dup_n||0).toLocaleString()+(j.pack_all? ' · 최근 '+(j.new_n||0).toLocaleString() : ''));
       tile(b,'그 본문 크기(지금)', mb(j.raw), '같은 본문 하나로 치면 '+mb(j.unique_raw)+' · '+(j.unique_n||0).toLocaleString()+'가지', j.raw>0);
       tile(b,'이미 정리된 메일', (j.already_packed||0).toLocaleString()+'통', '본문 보관함 '+(j.store_n||0).toLocaleString()+'가지 · 원래 '+mb(j.store_raw)+' → '+mb(j.store_z), (j.store_z||0)>0);
       document.getElementById('pkGo').disabled=!(j.mails>0);

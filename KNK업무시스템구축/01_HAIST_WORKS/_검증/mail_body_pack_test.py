@@ -21,6 +21,9 @@ from app import mail_store as ms  # noqa: E402
 from app import mail_body_pack as mbp  # noqa: E402
 from app import mail_body_refill as mbr  # noqa: E402
 sys.stdout = _so
+# 11-26 「받을 때 바로 · 날짜 상관없이 모두」 스위치를 끄면 11-23 규칙 그대로인지 = 이 시험(켠 쪽은 mail_body_pack_live_test.py)
+mbp.LIVE_PACK = False
+mbp.PACK_ALL = False
 
 P, F = [], []
 

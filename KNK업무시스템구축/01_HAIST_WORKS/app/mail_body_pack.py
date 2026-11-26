@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """메일 본문 정리 — ① 6개월 지난 본문 압축 · ② 같은 본문은 하나만 (대표 2026-11-23 「1번 2번 진행해」)
+   ③ 11-26 대표 「1번 진행해」 — 받을 때·보낼 때 바로 압축(pack_now) · 밤 정리는 날짜 상관없이 모두(PACK_ALL)
 
 까닭(11-23 실측 · 대표 메일함 8,036통): 본문 461MB → 한 통씩 압축하면 51.8MB(89%↓). 직원 160명이 쓰면 사내 공지·이음/웍스 알림이
       사람마다 같은 본문으로 겹쳐 쌓인다.
@@ -20,6 +21,12 @@ import zlib
 MIN_BYTES = 1024
 AGE_DAYS = 183
 CHUNK = 200
+# 11-26 대표 「1번 진행해」(운영 실측: 6개월 안 된 서식 본문 8,893통 464.6MB 가 그대로 · 압축분은 1,162.6→103.4MB)
+#   ① LIVE_PACK = 받을 때·보낼 때 바로 압축(같은 본문이 보관함에 있으면 그 한 벌을 같이 씀)
+#   ② PACK_ALL  = 밤 정리가 날짜와 상관없이 1KB 넘는 본문을 모두 압축(남아 있던 최근 본문 정리)
+#   끄면(False) 11-23 규칙(6개월 지남 · 같은 본문)으로 돌아감 — 이미 압축된 메일은 그대로 열림
+LIVE_PACK = True
+PACK_ALL = True
 _COLS_OK = set()
 _CACHE = {}
 _CACHE_MAX = 64
@@ -100,6 +107,47 @@ def _sha(b):
     return hashlib.sha256(b).hexdigest()
 
 
+def pack_now(c, mail_id, html) -> bool:
+    """받을 때·보낼 때 바로(11-26) — 방금 저장한 메일 한 통의 HTML 을 보관함으로. 같은 본문이 이미 있으면 그 한 벌을 씀.
+    ⭐풀어 보아 원본과 같을 때만 칸을 비움 · 실패하면 아무것도 안 바꾸고 False(메일은 원래 칸 그대로 · 밤 정리가 다시 봄).
+    같은 연결(c) 안에서 돌아 메일 저장과 함께 확정됨. 기록(mail_body_pack_log)은 남기지 않음 — 밤 정리 「되돌리기」와 섞이지 않게."""
+    if not LIVE_PACK or not html or not mail_id:
+        return False
+    try:
+        b = html.encode("utf-8")
+        if len(b) < MIN_BYTES:
+            return False
+        ensure(c)
+        h = _sha(b)
+        c.execute("SAVEPOINT mail_pack_now")
+        try:
+            ex = c.execute("SELECT z FROM mail_body_store WHERE sha=?", (h,)).fetchone()
+            if ex:
+                z = ex[0]
+            else:
+                z = zlib.compress(b, 9)
+                c.execute("INSERT INTO mail_body_store(sha, z, raw_len, z_len) VALUES(?,?,?,?)", (h, z, len(b), len(z)))
+            if zlib.decompress(z) != b:
+                c.execute("ROLLBACK TO mail_pack_now")
+                c.execute("RELEASE mail_pack_now")
+                return False
+            cur = c.execute("UPDATE mail_messages SET body_html='', html_sha=? WHERE id=? AND body_html=? "
+                            "AND direction IN ('in','out')", (h, int(mail_id), html))
+            if not cur.rowcount:
+                c.execute("ROLLBACK TO mail_pack_now")
+                c.execute("RELEASE mail_pack_now")
+                return False
+            c.execute("RELEASE mail_pack_now")
+            return True
+        except Exception:
+            c.execute("ROLLBACK TO mail_pack_now")
+            c.execute("RELEASE mail_pack_now")
+            raise
+    except Exception as e:
+        print("[MAIL-BODY-PACK] 받을 때 압축 실패(본문은 원래 칸 그대로 · 밤 정리가 다시 봄): %s" % str(e)[:160], flush=True)
+        return False
+
+
 def _cut():
     from datetime import datetime, timedelta
     return (datetime.now() - timedelta(days=AGE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
@@ -135,7 +183,8 @@ def plan(db_session):
     cut = _cut()
     old = [m for m in meta if m[3] < cut]
     dup = [m for m in meta if m[3] >= cut and cnt.get(m[1], 0) > 1]
-    tgt = old + dup
+    new = [m for m in meta if m[3] >= cut and cnt.get(m[1], 0) <= 1] if PACK_ALL else []   # 11-26 최근 본문도
+    tgt = old + dup + new
     raw = sum(m[2] for m in tgt)
     uniq = {}
     for m in tgt:
@@ -144,7 +193,7 @@ def plan(db_session):
         ensure(c)
         packed_n = c.execute("SELECT COUNT(*) FROM mail_messages WHERE COALESCE(html_sha,'')<>''").fetchone()[0]
         st = c.execute("SELECT COUNT(*), COALESCE(SUM(raw_len),0), COALESCE(SUM(z_len),0) FROM mail_body_store").fetchone()
-    return {"old_n": len(old), "dup_n": len(dup), "mails": len(tgt), "raw": raw, "unique_raw": sum(uniq.values()),
+    return {"old_n": len(old), "dup_n": len(dup), "new_n": len(new), "pack_all": PACK_ALL, "mails": len(tgt), "raw": raw, "unique_raw": sum(uniq.values()),
             "unique_n": len(uniq), "already_packed": packed_n, "store_n": st[0], "store_raw": st[1], "store_z": st[2]}
 
 
@@ -152,8 +201,8 @@ def apply(db_session, prog=None):
     """정리 실행 — 묶음 번호와 숫자를 돌려줌."""
     cnt, meta = _scan(db_session)
     cut = _cut()
-    tgt = [(m[0], m[1], "6개월 지남" if m[3] < cut else "같은 본문") for m in meta
-           if m[3] < cut or cnt.get(m[1], 0) > 1]
+    tgt = [(m[0], m[1], "6개월 지남" if m[3] < cut else ("같은 본문" if cnt.get(m[1], 0) > 1 else "최근 본문")) for m in meta
+           if PACK_ALL or m[3] < cut or cnt.get(m[1], 0) > 1]
     batch = time.strftime("%Y%m%d-%H%M%S")
     n = raw = zbytes_new = skipped = 0
     for i in range(0, len(tgt), CHUNK):
