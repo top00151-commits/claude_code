@@ -26938,13 +26938,25 @@ async def mail_set_read(req: Request, mail_id: int):
     return JSONResponse({"ok": True, "read": read})
 
 
+# 11-26 운영 Starlette 1.2 = 폼 글 칸 하나 1MB 넘으면 거절(그림 넣은 본문·서명·양식이 걸림 · 로컬 0.38 엔 없음)
+#   → 메일 쓰기 쪽 저장·보내기만 칸 한도를 넓힘(파일 칸은 원래 따로) · 옛 판이면 그냥 form()
+MAIL_FORM_PART_MAX = 32 * 1024 * 1024
+
+
+async def _mail_form(req):
+    try:
+        return await req.form(max_part_size=MAIL_FORM_PART_MAX)
+    except TypeError:
+        return await req.form()
+
+
 @app.post("/mail/draft/save")
 async def mail_draft_save(req: Request):
     """임시저장(신규/갱신). 반환 draft_id."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False}, 401)
-    form = await req.form()
+    form = await _mail_form(req)
     did = (form.get("draft_id") or "").strip()
     with db_session() as c:
         nid = _mailbox.save_draft(
@@ -27126,7 +27138,7 @@ async def mail_signature_save(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False}, 401)
-    form = await req.form()
+    form = await _mail_form(req)
     body = (form.get("body") or "")
     try:
         slot = int(form.get("slot") or 0)
@@ -27627,7 +27639,7 @@ async def mail_send_route(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    form = await req.form()
+    form = await _mail_form(req)
     to_email = (form.get("to") or "").strip()
     cc = (form.get("cc") or "").strip()
     subject = (form.get("subject") or "").strip()
@@ -27972,7 +27984,7 @@ async def mail_templates_save(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    f = await req.form()
+    f = await _mail_form(req)
     try:
         tid = int(f.get("id") or 0)
     except Exception:
@@ -28407,7 +28419,7 @@ async def mail_schedule_route(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
-    form = await req.form()
+    form = await _mail_form(req)
     to_l, bad_t = _mail.parse_addr_list((form.get("to") or "").strip())
     cc_l, bad_c = _mail.parse_addr_list((form.get("cc") or "").strip())
     bcc_l, bad_b = _mail.parse_addr_list((form.get("bcc") or "").strip())

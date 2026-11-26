@@ -211,6 +211,20 @@ else:
                 bad.append((i, rr.stderr[:300]))
         check("%s 스크립트 %d개 문법 맞음" % (path, len(scripts)), not bad, bad)
 
+print("\n⑨ 큰 본문(그림 넣은 메일) — 운영 Starlette 1.2 의 폼 칸 1MB 한도에 안 걸리게(11-26 · 로컬 0.38 엔 한도 없음)")
+import re as _re  # noqa: E402
+_src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
+for _path in ("/mail/send", "/mail/draft/save", "/mail/schedule", "/mail/signature", "/mail/templates/save"):
+    _i = _src.find('@app.post("%s")' % _path)
+    _body = _src[_i:_src.find("\n@app.", _i + 5)] if _i >= 0 else ""
+    check("%s = 칸 한도 넓힌 _mail_form 사용(req.form() 그대로 아님)" % _path,
+          "await _mail_form(req)" in _body and "await req.form()" not in _body, _path)
+check("_mail_form = max_part_size 넘기고 옛 판은 그냥 form()",
+      bool(_re.search(r"req\.form\(max_part_size=MAIL_FORM_PART_MAX\)[\s\S]{0,80}except TypeError", _src)))
+_r = k.post("/mail/draft/save", data={"to": "", "subject": "큰 본문", "body": "x",
+                                      "body_html": "<p>" + "가" * 700000 + "</p>"}, files={"files": ("a.txt", b"x", "text/plain")})
+check("2MB 본문 임시저장 = 거절 안 됨(400 아님)", _r.status_code != 400, (_r.status_code, _r.text[:120]))
+
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 shutil.rmtree(_TMP, ignore_errors=True)
 sys.exit(1 if F else 0)
