@@ -372,6 +372,53 @@ def untrust_sender(c, user_id, email) -> None:
     c.execute("DELETE FROM mail_user_trust WHERE user_id=? AND email=?", (user_id, a))
 
 
+# 11-26 대표 「피싱 아님을 누르면 그 주소로 들어온 것들은 다 정상으로」 — 이미 받은 메일에도 같은 규칙.
+#   받을 때 규칙(store_inbound)과 같게: 의심(2) 가운데 「강한 이유」(codes)가 없는 것만 = 링크·문구만으로 생긴 의심.
+#   저장된 메일엔 codes 가 없으므로, mail_guard 가 그 이유를 적을 때 쓰는 글자로 가려냄(하나라도 있으면 그대로 둠 · 넉넉히).
+STRONG_REASON_KEYS = ("인증 실패", "사칭", "를 흉내 낸 주소(", "개인 무료 메일", "답장이 다른 곳", "실행파일", "매크로",
+                      "웹페이지 파일", "위험한 첨부", "주의할 첨부", "비밀번호 걸린", "송금", "계좌", "계정·비밀번호")
+
+
+def is_link_only_suspicion(level, note) -> bool:
+    n = note or ""
+    return int(level or 0) == 2 and not n.startswith(NOT_PHISH_MARK) and not any(k in n for k in STRONG_REASON_KEYS)
+
+
+def not_phish_same_sender(c, user_id, email, skip_id=0) -> list:
+    """나에게 같은 주소로 온 다른 메일 중 링크·문구만으로 의심(2)인 것 → 외부(1) + 「내가 확인: 피싱 아님」 표시.
+    스팸함으로 옮겨져 있던 것은 받은편지함으로. 바꾼 메일 번호 목록."""
+    a = _norm_addr(email)
+    if not a or not user_id:
+        return []
+    done = []
+    for r in c.execute("SELECT id, risk_level, risk_note, COALESCE(is_blocked,0) AS b FROM mail_messages "
+                       "WHERE user_id=? AND direction='in' AND COALESCE(is_deleted,0)=0 AND risk_level=2 "
+                       "AND lower(from_email)=? AND id<>?", (user_id, a, int(skip_id or 0))).fetchall():
+        if not is_link_only_suspicion(r["risk_level"], r["risk_note"]):
+            continue
+        c.execute("UPDATE mail_messages SET risk_level=1, risk_note=? WHERE id=? AND user_id=? AND risk_level=2",
+                  ((NOT_PHISH_MARK + (r["risk_note"] or ""))[:600], r["id"], user_id))
+        if int(r["b"] or 0):
+            set_blocked(c, user_id, r["id"], False)
+        done.append(r["id"])
+    return done
+
+
+def undo_not_phish_same_sender(c, user_id, email, skip_id=0) -> list:
+    """되돌리기 — 같은 주소 메일 중 「내가 확인: 피싱 아님」 표시가 붙은 것을 의심(2)으로 · 표시 지움."""
+    a = _norm_addr(email)
+    if not a or not user_id:
+        return []
+    done = []
+    for r in c.execute("SELECT id, risk_note FROM mail_messages WHERE user_id=? AND direction='in' AND risk_level=1 "
+                       "AND lower(from_email)=? AND id<>? AND risk_note LIKE ?",
+                       (user_id, a, int(skip_id or 0), NOT_PHISH_MARK + "%")).fetchall():
+        c.execute("UPDATE mail_messages SET risk_level=2, risk_note=? WHERE id=? AND user_id=?",
+                  ((r["risk_note"] or "")[len(NOT_PHISH_MARK):], r["id"], user_id))
+        done.append(r["id"])
+    return done
+
+
 def is_trusted_sender(c, user_id, email) -> bool:
     a = _norm_addr(email)
     if not a or not user_id:

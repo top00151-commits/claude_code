@@ -29577,9 +29577,11 @@ def mail_not_phish(req: Request, mail_id: int, undo: int = 0):
                 return JSONResponse({"ok": False, "message": "이 메일은 「피싱 아님」으로 바꾼 적이 없습니다."}, 400)
             c.execute("UPDATE mail_messages SET risk_level=2, risk_note=? WHERE id=? AND user_id=?",
                       (note[len(mark):], mail_id, u["id"]))
+            more = []
             if addr:
                 _mailbox.untrust_sender(c, u["id"], addr)
-            return JSONResponse({"ok": True, "undo": True, "addr": addr})
+                more = _mailbox.undo_not_phish_same_sender(c, u["id"], addr, mail_id)   # 11-26 같은 주소 메일도 함께 되돌림
+            return JSONResponse({"ok": True, "undo": True, "addr": addr, "more": len(more), "ids": [mail_id] + more})
         if int(row["risk_level"] or 0) >= 3:
             return JSONResponse({"ok": False, "message": "위험 메일(사칭 주소·실행파일 등)은 여기서 풀 수 없습니다 — 빅터나 관리자에게 알려 주세요."}, 400)
         if int(row["risk_level"] or 0) < 2:
@@ -29590,10 +29592,13 @@ def mail_not_phish(req: Request, mail_id: int, undo: int = 0):
                   ((mark + note)[:600], mail_id, u["id"]))
         if int(row["is_blocked"] or 0):
             _mailbox.set_blocked(c, u["id"], mail_id, False)
+        more = []
         if addr:
             _mailbox.allow_sender(c, u["id"], addr)
             _mailbox.trust_sender(c, u["id"], addr)
-    return JSONResponse({"ok": True, "addr": addr})
+            # 11-26 대표 「그 주소로 들어온 것들은 다 정상으로」 — 이미 받은 같은 주소 메일 중 링크·문구만 의심인 것도 함께
+            more = _mailbox.not_phish_same_sender(c, u["id"], addr, mail_id)
+    return JSONResponse({"ok": True, "addr": addr, "more": len(more), "ids": [mail_id] + more})
 
 
 @app.post("/mail/{mail_id:int}/block-sender")

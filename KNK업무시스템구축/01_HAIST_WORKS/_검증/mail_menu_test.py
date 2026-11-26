@@ -196,7 +196,11 @@ try:
     more = p[p.find('id="mvMore"'):p.find("</details>", p.find('id="mvMore"'))]
     # 11-21 대표 「메뉴 중복 · 메일 내용을 더 많이」 — 중요·보관·삭제 단추는 그림만(뜻은 title·aria-label) → 「🗑 삭제」 글자 대신 그림 단추+뜻으로 확인
     check("밖: 답장 · 전체답장 · 전달 · 중요 · 삭제", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "↪ 전달", 'id="mvStarBtn"', 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>')), act[:500])
-    check("밖에서 빠진 것: 안읽음·할 일·번역·인쇄·다시 안 받기", not any(x in act for x in ("markUnread()", "mailToTask()", "translateMail(", "mvPrint()", "muteSender()")))
+    # 11-26 대표 「메뉴 중 가장 많이 사용할 것들은 맡기기 오른쪽으로」 — 안 읽음·할 일·인쇄는 PC 빠른 단추(mv-quick · 휴대폰은 메뉴 안 mv-mob) · 다시 안 받기는 메뉴 안 그대로
+    _qk = "".join(seg for seg in act.split("<") if "mv-quick" in seg)
+    check("밖: 안 읽음·할 일·인쇄 = PC 빠른 단추(mv-quick)만 · 다시 안 받기는 밖에 없음", "muteSender()" not in act and "markUnread()" in _qk and "mvPrint()" in _qk
+          and act.count("markUnread()") == 1 and act.count("mvPrint()") == 1, _qk[:300])
+    check("⋯ 메뉴 안 안 읽음·인쇄 = 휴대폰에서만(mv-mob)", 'class="mv-mob" onclick="markUnread()"' in more and 'class="mv-mob" onclick="mvPrint()"' in more)
     check("⋯ 더 보기 안: 안 읽음 · 할 일·일정(→ 🚩 상자) · 주소록 · 번역 3 · 인쇄 · 다시 안 받기",
           all(x in more for x in ("markUnread()", "📋 할 일·일정으로", 'id="mvContactBtn"', "translateMail('ko')", "translateMail('vi')", "translateMail('en')", "mvPrint()", "muteSender()")), more[:600])
     check("「↩ 답장 쓰기」(회신 띠) 중복 없음", "↩ 답장 쓰기" not in p)

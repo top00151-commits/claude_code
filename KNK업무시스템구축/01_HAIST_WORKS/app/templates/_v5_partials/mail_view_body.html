@@ -42,6 +42,14 @@
       </details>{% endif %}
       <a href="/mail/compose?forward={{ m.id }}" class="btn btn-secondary" onclick="return window.mailNewWin ? mailNewWin(event,'forward={{ m.id }}') : true" title="전달 — 새 창으로 (Shift+F)">↪ 전달</a>
       {% if dl is defined and dl and dl.can %}{# 11-20 👉 맡기기 — 이음 요청으로(🧪 시험 명단만 · mail_delegate.TEST_GROUP) #}<button type="button" class="btn btn-secondary mv-dlg-btn" onclick="mvDlgOpen({{ m.id }})" title="이 메일을 직원에게 맡깁니다 — 이음 요청으로(원문 복사 · 담당·기한·독촉·결과 확인은 이음에서)">👉 맡기기</button>{% endif %}
+      {# 11-26 대표 「메뉴 중 가장 많이 사용할 것들은 맡기기 오른쪽 공간으로」 — PC 에서만 단추로(휴대폰은 그대로 「⋯ 더 보기」 안) #}
+      {% if m.direction != 'out' %}<button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="markUnread()" title="● 안 읽음으로 — 목록에서 다시 굵게">●<span class="mv-bt"> 안 읽음</span></button>
+      <button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="var f=document.getElementById('mvFu');if(f){f.open=true;var t=document.getElementById('mvTaskDate');if(t)t.focus();}" title="📋 할 일·일정으로 — 날짜를 골라 내 일일카드·달력에">📋<span class="mv-bt"> 할 일</span></button>
+      {% if m.lang and m.lang != 'ko' %}<button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="translateMail('ko')" title="🇰🇷 한국어로 번역(다른 말은 「⋯ 더 보기」)">🇰🇷<span class="mv-bt"> 번역</span></button>{% endif %}
+      {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="btn btn-secondary mv-desk mv-quick" title="견적 작성 화면 열기(이 메일 참고)">📝<span class="mv-bt"> 견적 작성</span></a>{% endif %}
+      {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="btn btn-secondary mv-desk mv-quick" title="수주 등록 화면 열기(이 메일 참고)">🛒<span class="mv-bt"> 수주 등록</span></a>{% endif %}{% endif %}
+      <button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="mvPrint()" title="🖨 인쇄·PDF — 이 메일만(인쇄 대화상자에서 'PDF로 저장')">🖨<span class="mv-bt"> 인쇄</span></button>
+      {% if not (win is defined and win) %}<button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="window.mbxOpenWin ? mbxOpenWin(MAIL_ID) : window.open('/mail/'+MAIL_ID+'?win=1','knkmail_'+MAIL_ID,'popup=yes,width=1000,height=880')" title="🗗 이 메일만 새 창으로">🗗<span class="mv-bt"> 새 창</span></button>{% endif %}
       {% if m.direction == 'out' %}{# 11-19 1단계 ② ⏳ 답 기다리기 — 바깥 거래처에 보낸 메일 #}
         {% if m.wait_state == 'wait' %}<button type="button" class="btn btn-secondary" style="border-color:#93c5fd;background:#eff6ff;color:#1e3a8a" onclick="mvWait(0)" title="눌러서 그만 기다리기 · 답이 오면 저절로 빠짐">⏳ {{ (m.wait_until or '')[5:]|replace('-','/') }}까지 답 기다림 ✕</button>
         <a href="/mail/compose?nudge={{ m.id }}" class="btn btn-secondary" onclick="return window.mailNewWin ? mailNewWin(event,'nudge={{ m.id }}') : true" title="원래 받는 사람에게 「[확인 요청] 원래 제목」 — 새 창으로">✉ 다시 묻기</a>
@@ -77,18 +85,18 @@
           <button type="button" class="mv-mob" onclick="document.getElementById('mvMore').open=false;mvArchive()">{{ '📥 받은편지함으로' if m.is_archived else '📦 보관' }}</button>{% endif %}
           <button type="button" class="mv-mob warn" onclick="document.getElementById('mvMore').open=false;delMail({{ m.id }})">🗑 삭제</button><hr class="mv-mob">
           {% if m.direction != 'out' %}
-          <button type="button" onclick="markUnread()">● 안 읽음으로</button>
-          <button type="button" onclick="document.getElementById('mvMore').open=false;var f=document.getElementById('mvFu');if(f){f.open=true;var t=document.getElementById('mvTaskDate');if(t)t.focus();}" title="이 메일을 내 할 일(일일카드)로 등록 — 날짜를 고를 수 있음(위 「🚩 기한·알림」)">📋 할 일·일정으로</button>
+          <button type="button" class="mv-mob" onclick="markUnread()">● 안 읽음으로</button>
+          <button type="button" class="mv-mob" onclick="document.getElementById('mvMore').open=false;var f=document.getElementById('mvFu');if(f){f.open=true;var t=document.getElementById('mvTaskDate');if(t)t.focus();}" title="이 메일을 내 할 일(일일카드)로 등록 — 날짜를 고를 수 있음(위 「🚩 기한·알림」)">📋 할 일·일정으로</button>
           {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" id="mvContactBtn" onclick="mailToContact()" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</button>{% endif %}
-          {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
-          {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" title="수주 등록 화면 열기(이 메일 참고)">🛒 수주 등록</a>{% endif %}
+          {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="mv-mob" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
+          {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="mv-mob" title="수주 등록 화면 열기(이 메일 참고)">🛒 수주 등록</a>{% endif %}
           {% endif %}
           <button type="button" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
           <button type="button" onclick="translateMail('vi')">🇻🇳 베트남어로 번역</button>
           <button type="button" onclick="translateMail('en')">🇺🇸 영어로 번역</button>
           {% if has_html %}<button type="button" onclick="mvShow(document.getElementById('mvText') && document.getElementById('mvText').style.display==='none' ? 'text' : 'html')" title="서식 없이 글자만 보기 ↔ 원본(서식)">🔤 글자만 보기 / 📄 원본</button>{% endif %}
-          {% if not (win is defined and win) %}<button type="button" onclick="window.mbxOpenWin ? mbxOpenWin(MAIL_ID) : window.open('/mail/'+MAIL_ID+'?win=1','knkmail_'+MAIL_ID,'popup=yes,width=1000,height=880')" title="이 메일만 새 창으로(목록에서 메일을 두 번 눌러도 됨)">🗗 새 창으로 보기</button>{% endif %}
-          <button type="button" onclick="mvPrint()" title="이 메일만 인쇄하거나 PDF로 저장(목록·메뉴는 빼고 · 인쇄 대화상자에서 'PDF로 저장')">🖨 인쇄·PDF</button>
+          {% if not (win is defined and win) %}<button type="button" class="mv-mob" onclick="window.mbxOpenWin ? mbxOpenWin(MAIL_ID) : window.open('/mail/'+MAIL_ID+'?win=1','knkmail_'+MAIL_ID,'popup=yes,width=1000,height=880')" title="이 메일만 새 창으로(목록에서 메일을 두 번 눌러도 됨)">🗗 새 창으로 보기</button>{% endif %}
+          <button type="button" class="mv-mob" onclick="mvPrint()" title="이 메일만 인쇄하거나 PDF로 저장(목록·메뉴는 빼고 · 인쇄 대화상자에서 'PDF로 저장')">🖨 인쇄·PDF</button>
           {% if m.direction != 'out' and m.from_email and not (m.from_email|lower).endswith('@knknara.co.kr') %}<hr><button type="button" class="warn" onclick="muteSender()" title="이 보낸 사람 메일을 나에게만 다시 안 받기 — 지금 것도, 앞으로 오는 것도 스팸함으로(스팸함 「✓ 스팸 아님」이나 ⚙ 설정·정리 → 보낸 곳별 정리에서 풂)">🔕 다시 안 받기(나만 · 스팸함으로)</button>{% endif %}
           {% if is_admin and m.direction != 'out' %}<button type="button" class="warn" onclick="blockSender({{ m.id }})" title="회사 전체 차단목록에 넣기(관리자)">⛔ 회사 전체 차단(관리자)</button>{% endif %}
         </div>
@@ -280,9 +288,18 @@
   /* 11-26 ✓ 피싱 아님 — 이 메일 경고 내림 + 이 보낸 사람 믿기(나에게만) · undo=1 이면 되돌리기 */
   window.mvNotPhish=async function(id, addr, undo, btn){
     var NL=String.fromCharCode(10);
-    if(!undo && !confirm('「피싱 아님」으로 확인할까요?'+NL+NL+'· 이 메일: 경고를 내리고 링크를 누를 수 있게 합니다'+NL+'· '+(addr||'이 보낸 사람')+': 앞으로 링크·문구만으로는 경고하지 않습니다'+NL+'  (첨부·사칭·송금 계좌 변경 경고는 그대로 · 나에게만)'+NL+NL+'보낸 사람을 확실히 아는 경우에만 눌러 주세요. 잘못 눌렀으면 「↩ 되돌리기」로 원래대로 됩니다.')) return;
+    if(!undo && !confirm('「피싱 아님」으로 확인할까요?'+NL+NL+'· 이 메일: 경고를 내리고 링크를 누를 수 있게 합니다'+NL+'· '+(addr||'이 보낸 사람')+'에게서 이미 받은 다른 메일도 같은 경고를 함께 내립니다'+NL+'· 앞으로 이 주소 메일은 링크·문구만으로는 경고하지 않습니다'+NL+'  (첨부·사칭·송금 계좌 변경 경고는 그대로 · 나에게만)'+NL+NL+'보낸 사람을 확실히 아는 경우에만 눌러 주세요. 잘못 눌렀으면 「↩ 되돌리기」로 원래대로 됩니다.')) return;
     try{ var r=await fetch('/mail/'+id+'/not-phish'+(undo?'?undo=1':''),{method:'POST'}); var j=await r.json();
       if(!j.ok){ alert('⚠ 끝나지 않았습니다 — '+(j.message||'하지 못했습니다')); return; }
+      /* 11-26 같은 주소 메일 여러 통이 바뀜 → 목록 줄의 ⚠ 표시도 그 자리에서 맞춤(새로 고침 없이 · 열어 둔 메일 그대로) */
+      try{ (j.ids||[]).forEach(function(mid){
+        var row=(window.opener&&!window.opener.closed? window.opener.document : document).querySelector('.mbx-row[data-mail-id="'+mid+'"] .mbx-subj');
+        if(!row) return;
+        var w=row.querySelector('span[title^="위험·외부"]');
+        if(!undo && w){ var nx=w.nextSibling; w.remove(); if(nx && nx.nodeType===3 && /^\s/.test(nx.nodeValue)) nx.nodeValue=nx.nodeValue.replace(/^\s/,''); }
+        if(undo && !w){ row.insertAdjacentHTML('afterbegin','<span style="color:#dc2626" title="위험·외부 메일 — 주의">⚠</span> '); }
+      }); }catch(e){}
+      if(j.more>0){ alert('✅ 완료 — 이 메일과 '+(j.addr||'같은 주소')+'에게서 받은 다른 메일 '+j.more+'통'+(undo?'의 경고를 원래대로 돌렸습니다.':'의 경고도 함께 내렸습니다.')); }
       var pane=document.getElementById('readPane');
       if(pane && btn && pane.contains(btn) && typeof loadPane==='function'){ loadPane(id, document.querySelector('.mbx-row.active,.mbx-headlink.active')); }
       else { location.reload(); }

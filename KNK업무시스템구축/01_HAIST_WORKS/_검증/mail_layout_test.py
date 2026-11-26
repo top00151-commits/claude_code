@@ -207,7 +207,8 @@ check("중요·보관·삭제 = 그림만 + 뜻(title·aria-label)", 'id="mvStar
       and 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>' in act)
 check("기한·알림 · 더 보기 = 넓은 화면 그림만(휴대폰 글자)", '🚩<span class="mv-bt"> 기한·알림</span> ▾' in p and '⋯<span class="mv-bt"> 더 보기</span>' in p)
 check("중요·보관 눌렀을 때 바뀌는 글자도 그림(mvStar·mvArchive)", "b.textContent = j.starred ? '⭐' : '☆';" in p and "b.textContent = on ? '📥' : '📦';" in p)
-check("휴대폰: 중요·보관·삭제는 「⋯ 더 보기」 안 그대로", p.count('class="mv-mob') >= 3 and p.count("mv-desk") == 3)
+# 11-26 대표 「많이 쓰는 메뉴 = 맡기기 오른쪽으로」 — PC 전용 단추(mv-desk)에 빠른 단추(mv-quick)가 더해짐
+check("휴대폰: 중요·보관·삭제는 「⋯ 더 보기」 안 그대로", p.count('class="mv-mob') >= 3 and p.count("mv-desk") - p.count("mv-quick") == 3, (p.count("mv-desk"), p.count("mv-quick")))
 check("📝 요약 = 한 줄로 접고 누르면 펼침(내용 그대로)", 'id="mvAi"' in p and 'class="mv-ai-h"' in p and "📝 요약" in p and "11월 28일까지 견적 회신 요청." in p)
 check("📅 본문 날짜 띠 그대로", 'id="mvDates"' in p)
 rp_in = p.find('id="mvReply"')

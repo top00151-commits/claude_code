@@ -121,5 +121,56 @@ check("회사 전체 차단 주소 = 풀 수 없음(관리자 일)", not k.post(
 _U["id"] = OTHER
 check("다른 직원은 내 메일을 못 품", k.post("/mail/%d/not-phish" % m2).status_code == 404)
 
+print("⑥ 11-26 대표 「피싱 아님을 누르면 그 주소로 들어온 것들은 다 정상으로」 — 이미 받은 메일도 함께")
+_U["id"] = ME
+FRM2 = "jangyn@partner2-demo.example"
+with _db.db_session() as c:
+    ms.untrust_sender(c, ME, FRM2)
+q1, _ = put(ME, FRM2)
+q2, _ = put(ME, FRM2)
+q3, _ = put(ME, FRM2)
+qb, rqb = put(ME, FRM2, text="입금 계좌 변경 안내 — 새 계좌로 송금 부탁드립니다 http://10.20.30.40/data")   # 강한 이유(송금)
+qo, _ = put(ME, "other2@stranger-demo.example")
+qx, _ = put(OTHER, FRM2)
+with _db.db_session() as c:
+    c.execute("UPDATE mail_messages SET is_blocked=1 WHERE id=?", (q3,))     # 스팸함에 가 있던 것
+    lv = {i: c.execute("SELECT risk_level FROM mail_messages WHERE id=?", (i,)).fetchone()[0] for i in (q1, q2, q3, qb, qo, qx)}
+check("준비: 같은 주소 세 통·송금 한 통·다른 주소·다른 직원 모두 의심(2 이상)", all(v >= 2 for v in lv.values()), lv)
+j = k.post("/mail/%d/not-phish" % q1).json()
+with _db.db_session() as c:
+    g = lambda i: dict(c.execute("SELECT risk_level, risk_note, COALESCE(is_blocked,0) AS b FROM mail_messages WHERE id=?", (i,)).fetchone())
+    a1, a2, a3, ab, ao, ax = g(q1), g(q2), g(q3), g(qb), g(qo), g(qx)
+check("⭐같은 주소 다른 메일 두 통도 함께 정상(1) · 응답 more=2 · ids 3개", j.get("ok") and j.get("more") == 2 and sorted(j.get("ids") or []) == sorted([q1, q2, q3])
+      and a2["risk_level"] == 1 and a3["risk_level"] == 1, (j, a2, a3))
+check("함께 바뀐 메일에도 「내가 확인: 피싱 아님」 표시(되돌릴 수 있게)", a2["risk_note"].startswith(ms.NOT_PHISH_MARK) and a3["risk_note"].startswith(ms.NOT_PHISH_MARK))
+check("스팸함에 가 있던 같은 주소 메일 → 받은편지함으로", a3["b"] == 0, a3)
+check("송금·계좌 변경 같은 강한 이유가 있는 메일은 경고 그대로", ab["risk_level"] >= 2 and not ab["risk_note"].startswith(ms.NOT_PHISH_MARK), ab)
+check("다른 주소 메일은 그대로", ao["risk_level"] >= 2)
+check("다른 직원이 같은 주소에게 받은 메일은 그대로(나에게만)", ax["risk_level"] >= 2)
+h = k.get("/mail/%d/pane" % q2).text
+check("함께 바뀐 메일을 열면 경고 띠 없음 · 「피싱 아님으로 확인한 메일」 줄", "피싱·사칭 의심 메일" not in h and "피싱 아님으로 확인한 메일입니다" in h)
+j = k.post("/mail/%d/not-phish?undo=1" % q1).json()
+with _db.db_session() as c:
+    b1, b2, b3, bb = g(q1), g(q2), g(q3), g(qb)
+check("되돌리기 = 같은 주소 메일 셋 모두 다시 의심(2) · 표시 지움 · more=2", j.get("ok") and j.get("more") == 2
+      and all(x["risk_level"] == 2 and not x["risk_note"].startswith(ms.NOT_PHISH_MARK) for x in (b1, b2, b3)), (j, b1, b2, b3))
+check("되돌리기에도 송금 메일은 그대로(처음부터 안 바꿈)", bb == ab, (bb, ab))
+check("판정 함수: 링크만 = 바꿈 · 송금·인증 실패·위험 첨부 = 안 바꿈",
+      ms.is_link_only_suspicion(2, "숫자(IP) 주소 링크(10.20.30.40)") and not ms.is_link_only_suspicion(2, "보낸 회사 주소 인증 실패(DMARC) — 사칭 의심")
+      and not ms.is_link_only_suspicion(2, "위험한 첨부 a.iso — 디스크 이미지") and not ms.is_link_only_suspicion(3, "숫자(IP) 주소 링크"))
+_mvb = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_body.html"), encoding="utf-8").read()
+check("화면: 확인 창에 「이미 받은 다른 메일도 함께」 · 목록 줄 ⚠ 그 자리에서 맞춤(새로 고침 없이)",
+      "이미 받은 다른 메일도 같은 경고를 함께 내립니다" in _mvb and "j.ids" in _mvb and "location.reload(); return;" not in _mvb)
+
+print("⑦ 11-26 대표 「많이 쓰는 메뉴 = 맡기기 오른쪽으로」 — PC 단추 · 휴대폰은 메뉴 안")
+h = k.get("/mail/%d/pane" % q2).text
+_a = h[h.find('class="mv-actions"'):]
+_a = _a[:_a.find('id="mvMore"')]
+check("단추 줄(⋯ 메뉴 앞)에 안 읽음·할 일·인쇄·새 창 단추(mv-desk)", all(x in _a for x in ('onclick="markUnread()"', 'mv-quick', 'onclick="mvPrint()"', 'mbxOpenWin')) and _a.count("mv-quick") >= 4, _a[-800:])
+_mm = h[h.find('id="mvMore"'):]
+_mm = _mm[:_mm.find("</details>")]
+check("⋯ 메뉴 안 같은 항목은 휴대폰에서만(mv-mob)", 'class="mv-mob" onclick="markUnread()"' in _mm and 'class="mv-mob" onclick="mvPrint()"' in _mm, _mm[:600])
+check("⋯ 메뉴에 번역·주소록·다시 안 받기는 그대로", "translateMail('vi')" in _mm and "다시 안 받기" in _mm)
+
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 sys.exit(1 if F else 0)
