@@ -157,8 +157,8 @@ for nm, s in (("되돌리기", 'data-cmd="undo"'), ("다시 하기", 'data-cmd="
               ("더 보기", 'id="cMoreBtn"'), ("서식 지우기", 'id="cClear"'), ("글자색", 'id="cColor"')):
     check("도구 있음: " + nm, s in h)
 check("작은 창 셋(형광펜·표·더 보기)마다 ✕ 닫기", all(('data-close="%s"' % x) in h for x in ("cHlPop", "cTblPop", "cMorePop")))
-check("색·형광펜·정렬 = 인라인 style(styleWithCSS)", "exec('hiliteColor', hl, true)" in h and "exec('foreColor', col.value, true)" in h)
-check("글자 크기 = <font> 대신 px 인라인 style", "sp.style.fontSize=FSZ_PX+'px'" in h)
+check("색·형광펜·정렬 = 인라인 style(styleWithCSS)", "exec('hiliteColor', c, true)" in h and "exec('foreColor', c, true)" in h)
+check("글자 크기 = <font> 대신 인라인 style(pt) · 글꼴도 같은 방식", "FSZ_PEND=v+'pt'" in h and "unwrapFont(f, 'fontSize', FSZ_PEND)" in h and "unwrapFont(f, 'fontFamily', FONT_PEND)" in h)
 check("그림 = 큰 사진 줄여 넣기(폭 1280)", "IMG_MAX_W=1280" in h)
 check("가운데 폭·휴대폰 = 덜 쓰는 것 「더 보기」 안으로", "@media(max-width:1000px)" in h and "mob-only" in h)
 check("Jinja 주석 꼴 '{' + '#' 이 CSS·JS 에 없음", "{#" not in re.sub(r"(?s)<!--.*?-->", "", h))
@@ -224,6 +224,84 @@ check("_mail_form = max_part_size 넘기고 옛 판은 그냥 form()",
 _r = k.post("/mail/draft/save", data={"to": "", "subject": "큰 본문", "body": "x",
                                       "body_html": "<p>" + "가" * 700000 + "</p>"}, files={"files": ("a.txt", b"x", "text/plain")})
 check("2MB 본문 임시저장 = 거절 안 됨(400 아님)", _r.status_code != 400, (_r.status_code, _r.text[:120]))
+
+print("\n⑩ 2차 도구(11-26 대표 「그림·표 크기를 마우스로 · 글꼴 · 글자색 단색 칸」)")
+h = k.get("/mail/compose").text
+# 그림
+check("그림: 모서리 손잡이 넷(겹 요소 img-ov · data-knk-ui) · pointer 이벤트(터치도)",
+      "['nw','ne','sw','se']" in h and "imgOv.className='img-ov'" in h and "imgOv.setAttribute('data-knk-ui','1')" in h
+      and "addEventListener('pointerdown', imgDown)" in h and "setPointerCapture" in h and "touch-action:none" in h)
+check("그림: 손잡이·테두리는 본문(cBody) 밖 body 에 붙음", "document.body.appendChild(imgOv)" in h and "ED.appendChild(imgOv)" not in h)
+check("그림: 크기 = 인라인 width px + height:auto + max-width:100% + width 속성(아웃룩 데스크톱)",
+      "img.style.width=w+'px'; img.style.height='auto'; img.style.maxWidth='100%'" in h and "img.setAttribute('width', w)" in h)
+check("그림 띠: 25·50·75·100%(원래) · 왼쪽·가운데·오른쪽 · 지우기 · ✕ 닫기",
+      "[25,50,75,100].forEach" in h and "'100% 원래'" in h and "'◧ 왼쪽'" in h and "'▣ 가운데'" in h and "'◨ 오른쪽'" in h
+      and "'🗑 지우기'" in h and "mk('✕ 닫기',clearImgSel" in h)
+check("그림: Delete 키로 지우기 · Esc 로 닫기", "e.key==='Delete' || e.key==='Backspace'" in h and "if(selImg){ clearImgSel(); return true; }" in h)
+check("그림: 넣을 때도 width 속성 · 붙여 넣은 그림도 줄여 넣기(putImages)",
+      "im.setAttribute('width', w)" in h and "e.preventDefault(); saveRange(); putImages(fs)" in h)
+# 표
+check("표: 열 경계(cb)·줄 경계(rb)·오른쪽 아래(tc) 손잡이 = 겹 요소(tbl-ov · data-knk-ui)",
+      'class="cb" data-col=' in h and 'class="rb" data-row=' in h and 'class="tc" data-corner="1"' in h
+      and "tblOv.setAttribute('data-knk-ui','1')" in h and "document.body.appendChild(tblOv)" in h)
+check("표: 결과 = td width style·속성 + table width style·속성(아웃룩)",
+      "x.td.style.width=Math.max(8, Math.round(inner))+'px'; x.td.setAttribute('width', s)" in h
+      and "t.style.width=tot+'px'; t.setAttribute('width', tot)" in h)
+check("표: 합친 칸(colspan·rowspan)을 고려한 열 계산(tblGrid)", "function tblGrid(t)" in h and "occ[r+a][c+b]=1" in h)
+check("표 띠: 칸 색 · 선(굵기·모양·색) · 가운데 · 폭 맞춤 · 표 지우기 · ✕ 닫기 · 행·열·합치기 그대로",
+      "'🎨 칸 색 ▾'" in h and "'▦ 선 ▾'" in h and "mk('가운데',toggleCenter" in h and "mk('폭 맞춤',fitWidth" in h
+      and "'🗑 표 지우기'" in h and "mk('✕ 닫기',clearTbl" in h and "mk('합치기',mergeSel" in h and "mk('＋아래'" in h)
+check("표 작은 창(칸 색·선) = ✕ 닫기 · Esc", 'data-subx="1"' in h and "if(tblSub){ tblSub.remove(); tblSub=null; return true; }" in h)
+check("표 가운데 = align 속성 + margin auto(아웃룩·지메일)", "t.setAttribute('align','center'); t.style.marginLeft='auto'" in h)
+check("머리줄 = 칸 너비·선을 지우지 않음(배경·굵기만)", "c.style.backgroundColor = on ? '' : '#f3f4f6'" in h and "c.setAttribute('style', TD_STYLE + (on" not in h)
+# 글꼴
+for f in ("맑은 고딕", "굴림", "돋움", "바탕", "나눔고딕", "Arial", "Times New Roman", "Verdana", "Tahoma"):
+    check("글꼴 목록: " + f, ("['%s'," % f) in h)
+check("글꼴 = 대체 글꼴 목록 붙임(예: 맑은 고딕 → Malgun Gothic · sans-serif)", "\"'맑은 고딕','Malgun Gothic','Apple SD Gothic Neo',sans-serif\"" in h)
+check("글꼴 목록 = 각 글꼴로 보임(b.style.fontFamily)", "b.style.fontFamily=f[1]" in h)
+check("글꼴 창 ✕ 닫기", 'data-close="cFontPop"' in h)
+# 색
+check("글자색: 단추 본체 = 마지막 색 바로(data-paint) · ▾ = 바둑판", 'id="cColor" class="sp-main" data-paint="fore"' in h and 'id="cColorDd"' in h and 'id="cColorPop"' in h)
+check("형광펜도 같은 방식", 'id="cHlBtn" class="sp-main" data-paint="hl"' in h and 'id="cHlDd"' in h)
+check("색 바둑판: 기본 10색 · 밝게 3줄 · 어둡게 2줄 · 자동(검정) · 최근 쓴 색 · 다른 색",
+      "PAL_BASE=['#000000','#c00000','#ff0000','#ff8c00','#ffc000','#00b050','#00b0f0','#0070c0','#002060','#7030a0']" in h
+      and "[0.8,0.6,0.4]" in h and "[0.25,0.5]" in h and "자동(검정)" in h and "최근 쓴 색" in h and "다른 색 고르기" in h)
+check("색 창 ✕ 닫기 · 바깥 누르기·Esc 목록에 들어 있음", 'data-close="cColorPop"' in h and "var MINIS=['cHlPop','cTblPop','cMorePop','cColorPop','cFontPop']" in h)
+check("최근 색·마지막 색 = 이 기기에만(localStorage · try/catch)", "function lsGet(k, d){ try{" in h and "function lsSet(k, v){ try{" in h)
+# 그 밖
+check("굵게·기울임·밑줄 단추 = 지금 서식이면 눌린 모양(queryCommandState)", "document.queryCommandState(c)" in h and "aria-pressed" in h)
+check("글자 크기 숫자 9~36pt", all(('<option value="%s">' % v) in h for v in ("9", "10.5", "12", "14", "24", "36")))
+check("링크 고치기·풀기", "링크 주소 고치기" in h and 'id="cUnlink"' in h and "function unwrapA(a)" in h)
+check("저장·보내기 HTML 에서 화면 표시 뺌(임시저장 · 보내기)",
+      "cmpStripUi(ed.cloneNode(true)).innerHTML" in h and "if(window.cmpStripUi) cmpStripUi(t);" in h)
+check("휴대폰(640 이하) = 글꼴·크기 칸 좁게", ".cmp-fontbtn .fl{max-width:58px}" in h)
+# 브라우저로 끌어 보며 찾은 것(11-26)
+check("줄 높이 = 끈 높이 그대로(칸 height 는 안쪽 여백 포함으로 그려짐 — 빼면 줄이 덜 늘어남)",
+      "td.style.height=Math.max(18, h)+'px'; td.setAttribute('height', h)" in h)
+check("휴대폰 = 그림·표 띠를 화면 아래에(위 글 도구 줄을 덮지 않게)", ".img-tb,.tbl-tb{position:fixed;left:8px !important" in h)
+check("손잡이·띠가 위에 붙은 보내기 단추 줄을 덮지 않음(clipUnder · visTop)", "function visTop()" in h and "clipUnder(imgOv, r, vt)" in h and "clipUnder(tblOv, r, visTop())" in h)
+check("그림 % 단추 = 본문 폭에 막혀 같은 크기면 하나만 눌린 모양", "var hit=false;" in h)
+
+print("⑪ 2차 도구가 만든 HTML 이 보내기 위생 처리 뒤에도 남음 · 위험한 것은 여전히 지워짐")
+made2 = ('<span style="font-family: &quot;맑은 고딕&quot;, &quot;Malgun Gothic&quot;, &quot;Apple SD Gothic Neo&quot;, sans-serif;">맑은 고딕 글</span>'
+         '<span style="font-family:\'Times New Roman\',Times,serif">Times</span>'
+         '<span style="font-size: 14pt;">14pt</span><span style="color: rgb(0, 112, 192);">파랑</span>'
+         '<span style="background-color: rgb(255, 255, 0);">형광</span>'
+         '<img src="data:image/png;base64,iVBORw0KGgo=" alt="" style="width: 321px; height: auto; max-width: 100%;" width="321">'
+         '<table style="border-collapse:collapse;margin:6px auto;width: 412px;" width="412" align="center"><tbody><tr>'
+         '<td style="border: 2px dashed rgb(0, 112, 192); padding: 4px 8px; width: 150px; height: 40px; background-color: rgb(255, 242, 204);" width="167" height="49">가</td>'
+         '<td style="border:1px solid #b9b9b9;padding:4px 8px;width:228px">나</td></tr></tbody></table>'
+         '<p onclick="alert(9)" style="color:red">x</p><a href=" javascript:alert(8)">링크</a><script>alert(7)</script>')
+out2 = ms.sanitize_html_for_view(made2, 0, [])
+for nm, s_ in (("글꼴(대체 목록)", "font-family: &quot;맑은 고딕&quot;, &quot;Malgun Gothic&quot;"), ("영문 글꼴", "font-family:'Times New Roman',Times,serif"),
+               ("글자 크기 pt", "font-size: 14pt"), ("글자색", "color: rgb(0, 112, 192)"), ("형광펜", "background-color: rgb(255, 255, 0)"),
+               ("그림 폭 style", "width: 321px; height: auto; max-width: 100%"), ("그림 width 속성", 'width="321"'),
+               ("표 폭 style·속성", 'width: 412px;" width="412"'), ("표 가운데 align", 'align="center"'),
+               ("칸 너비·높이", "width: 150px; height: 40px"), ("칸 width·height 속성", 'width="167" height="49"'),
+               ("칸 선 굵기·모양·색", "border: 2px dashed rgb(0, 112, 192)"), ("칸 배경색", "background-color: rgb(255, 242, 204)")):
+    check("위생 처리 뒤에도 남음: " + nm, s_ in out2, out2[:400])
+check("2차: 스크립트·onclick·javascript: 여전히 지워짐", "<script" not in out2.lower() and "onclick" not in out2.lower() and "javascript:" not in out2.lower(), out2[-200:])
+check("2차: 손잡이·띠(겹 요소 이름)가 본문에 없음", "img-ov" not in out2 and "tbl-ov" not in out2 and "data-knk-ui" not in out2)
 
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 shutil.rmtree(_TMP, ignore_errors=True)
