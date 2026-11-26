@@ -159,7 +159,7 @@ body {
       {% for r in qb.rows %}{% set p = r.p %}{% set pfs = r.pfs %}
         <tr class="pj" data-pid="{{ p.id }}">{# z1191z156: 관리번호 줄은 올리는 자리가 아님 — 견적서·발주서는 아래 수주번호 줄에 #}
           <td><a href="/project/{{ p.id }}" style="font-weight:800;color:var(--qv-ink);text-decoration:none;"><span class="mgmt-pill sm">{{ p.mgmt_code }}</span> {{ p.name }}</a>{% if r.mine %} <span class="qm-meta">👤</span>{% endif %}</td>
-          <td>{{ p.customer_name or '—' }}<div class="qm-meta">{{ p.sales_name or '' }}{% if p.stage %} · {{ p.stage }}{% endif %}</div></td>
+          <td title="z1191z164: 이 관리번호 수주들의 1차 고객사 — {{ p.cust164_all }}">{{ p.cust164 or '—' }}<div class="qm-meta">{{ p.sales_name or '' }}{% if p.stage %} · {{ p.stage }}{% endif %}</div></td>
           <td class="num qm-meta">{% if not r.sos %}수주 전{% else %}수주 {{ r.sos|length }}건{% endif %}</td>
           <td>{% if pfs %}<a class="qm-pill wn" href="/projects/so-check" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 견적서 — 눌러서 수주번호 고르기(저절로 붙이지 않음)">👉 수주번호를 골라 주세요</a>{% for pf in pfs %} {% if cm %}<a class="qm-f" href="/quotes/{{ pf.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>{% endfor %}
               {% elif not r.sos %}<span class="qm-meta">수주 전 — 수주번호가 생기면 그 수주번호에 올립니다</span>{% else %}<span class="qm-meta">↓ 수주번호마다 올립니다</span>{% endif %}</td>
@@ -172,7 +172,7 @@ body {
         {% for s in r.sos %}{% set o = s.o %}{% set fs = s.fs %}
         <tr class="so qm-slot" data-pid="{{ p.id }}" data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ fs|length if fs else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
           <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a></td>
-          <td>{{ s.units or '—' }}<div class="qm-meta">{% if o.due_date %}납기 {{ o.due_date }}{% endif %}</div></td>
+          <td>{# z1191z164: 이 수주의 1차 고객사(세금계산서 받는 곳) #}<span title="이 수주의 고객사">{{ o.cust or '—' }}</span><div class="qm-meta">{{ s.units or '—' }}{% if o.due_date %} · 납기 {{ o.due_date }}{% endif %}</div></td>
           <td class="num">{% if cm %}{{ money(o.total_amount or 0, o.currency or 'KRW') }}{% else %}🔒{% endif %}</td>
           <td>{% if fs %}<div class="qm-fl">{# z1191z160: 이 수주에 올린 견적서 모두(최근 위) · 금액 비교·따라가기 없음 #}
               {% for f in fs %}<div>{% if cm %}<a class="qm-f" href="/quotes/{{ f.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ f.orig_name }}</a>{% else %}🔒{% endif %}

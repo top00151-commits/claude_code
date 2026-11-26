@@ -23391,13 +23391,13 @@ async def sales_quotations_export_xlsx(req: Request):
     for r in b["rows"]:
         p, pfs = r["p"], r["pfs"]
         for pf in (pfs or [None]):
-            out.append([p["mgmt_code"], "", ("수주번호 고르기 전 견적서" if pf else ("수주 전" if not r["sos"] else "")), p["name"], p["customer_name"], p["sales_name"], "", "",
+            out.append([p["mgmt_code"], "", ("수주번호 고르기 전 견적서" if pf else ("수주 전" if not r["sos"] else "")), p["name"], p.get("cust164_all") or "", p["sales_name"], "", "",
                         (pf["orig_name"] if pf else ""), ((pf["created_at"] or "")[:10] if pf else ""), (pf["by_name"] if pf else ""),
                         "", ("⚠ 수주번호를 골라야 함" if pf else "-")])   # z1191z156
         for s in r["sos"]:
             o, fs = s["o"], s["fs"]
             for i, f in enumerate(fs or [None]):   # z1191z160: 견적서마다 한 줄
-                out.append([p["mgmt_code"], o["order_no"], s["units"], p["name"], p["customer_name"], p["sales_name"],
+                out.append([p["mgmt_code"], o["order_no"], s["units"], p["name"], o.get("cust") or "", p["sales_name"],   # z1191z164: 고객사 = 이 수주
                             (o["total_amount"] if cm else "🔒"), (o["currency"] or "KRW"),
                             (f["orig_name"] if f else ""), ((f["created_at"] or "")[:10] if f else ""), (f["by_name"] if f else ""),
                             ((f["amt"] if f["amt"] is not None else "") if (f and cm) else ("🔒" if (f and not cm) else "")),
@@ -46051,8 +46051,10 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
             "FROM projects WHERE COALESCE(mgmt_code,'')<>'' AND COALESCE(is_archived,0)=0 ORDER BY id DESC").fetchall()]
         _logi.fix_customer_names_in(c, projs)   # z1191z157b: 1차 고객사 = 번호의 지금 이름(화면·엑셀·찾기 같은 이름)
         orders = {}
-        for r in c.execute("SELECT id, project_id, order_no, currency, total_amount, order_date, due_date, status FROM orders "
-                           "WHERE COALESCE(status,'')<>'CANCELLED' ORDER BY COALESCE(order_date,''), id").fetchall():
+        # z1191z164 (안지연 프로 11-26 「위 업체명은 인도인데 눌러 들어가면 인도네시아 수주」): 고객사 = 수주마다(1차 · 번호의 지금 이름)
+        for r in c.execute("SELECT o.id, o.project_id, o.order_no, o.currency, o.total_amount, o.order_date, o.due_date, o.status, "
+                           "o.customer_id, COALESCE(cu.name,'') AS cust FROM orders o LEFT JOIN customers cu ON cu.id=o.customer_id "
+                           "WHERE COALESCE(o.status,'')<>'CANCELLED' ORDER BY COALESCE(o.order_date,''), o.id").fetchall():
             orders.setdefault(r["project_id"], []).append(dict(r))
         labels = {}
         for r in c.execute("SELECT order_id, unit_label FROM order_items ORDER BY order_id, id").fetchall():
@@ -46086,14 +46088,21 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
             if on_tab:
                 cnt["done_hidden"] += 1
             continue
+        # z1191z164: 관리번호 줄 고객사 = 그 수주들의 1차 고객사(처음 등록 때 값 아님) · 여럿이면 「외 N곳」
+        _c164 = []
+        for o in sos_all:
+            if o.get("cust") and o["cust"] not in _c164:
+                _c164.append(o["cust"])
+        p["cust164"] = (_c164[0] + (f" 외 {len(_c164) - 1}곳" if len(_c164) > 1 else "")) if _c164 else "—"
+        p["cust164_all"] = " · ".join(_c164)
         is_mine = _is_mine_z92(u, p.get("sales_name"))
         if is_mine and on_tab:
             cnt["mine"] += 1
         if mine and not is_mine:
             continue
         if ql:
-            hay = " ".join([p["mgmt_code"] or "", p["name"] or "", p["customer_name"] or "", p["sales_name"] or ""]
-                           + [o["order_no"] or "" for o in sos]).lower()
+            hay = " ".join([p["mgmt_code"] or "", p["name"] or "", p["sales_name"] or ""]
+                           + [(o["order_no"] or "") + " " + (o.get("cust") or "") for o in sos]).lower()   # z1191z164: 고객사 = 수주마다
             if ql not in hay:
                 continue
         pfs = list(reversed(files.get((p["id"], None)) or []))   # z1191z156: 수주번호를 아직 안 고른 옛 견적서(보이기만 · ⚠ 수주 칸 확인 필요에서 고름)
@@ -46207,7 +46216,7 @@ async def api_quotes_z105_cands(req: Request):
         if not cands and fd.get("customer"):
             cu = _z61_match_customer(c, fd.get("customer"))
             if cu.get("id"):
-                cands = _so_cands("(o.customer_id=? OR p.customer_id=?)", (cu["id"], cu["id"]))[:8]   # z1191z160: 금액 순서 없음(발주일 최근 순)
+                cands = _so_cands("o.customer_id=?", (cu["id"],))[:8]   # z1191z164: 고객사 = 수주마다(관리번호 처음 등록 값으로 찾지 않음)   # z1191z160: 금액 순서 없음(발주일 최근 순)
                 why = "견적서의 고객사(" + (cu.get("label") or "") + ")"
     # z1191z156 (대표 「수주가 2개 이상이면 고르는 칸은 빈칸으로 시작」): 후보가 딱 하나일 때만 미리 고름
     #   (예전 z105 는 금액이 같은 후보가 하나면 그것을 미리 골랐다 — z1191z160: 금액 같음·다름 표시도 없앰 · 사람이 고름)
