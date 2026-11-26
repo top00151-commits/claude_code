@@ -81,6 +81,11 @@ with D.db_session() as conn:
     conn.execute("INSERT INTO customers (name) VALUES ('가상유로고객')")
     conn.execute("UPDATE projects SET customer_id=(SELECT id FROM customers WHERE name='가상유로고객'), "
                  "customer_name='가상유로고객' WHERE id=?", (P_EUR,))
+    # z1191z161 (대표 11-26): 「최근 프로젝트」 금액 = 살아 있는 수주 합 · 수주가 없으면 「—」(관리번호 금액은 처음 등록 값이라 안 씀)
+    #   → 원화·유로 표시 시험을 그대로 하려고 두 관리번호에 같은 금액의 수주를 단다(유로 수주 고객 = 가상유로고객)
+    so(P_KRW, "Z-261101-1", "KRW", 13500000, "2026-11-01", "2026-11-30")
+    conn.execute("INSERT INTO orders (project_id, order_no, customer_id, currency, total_amount, order_date, due_date, status) "
+                 "VALUES (?, 'Z-260501-9', (SELECT id FROM customers WHERE name='가상유로고객'), 'EUR', 500, '2026-05-01', '2026-05-20', 'CONFIRMED')", (P_EUR,))
 
 import app.main as M                                        # noqa: E402
 from fastapi.testclient import TestClient                  # noqa: E402

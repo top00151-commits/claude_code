@@ -112,59 +112,53 @@ def h_vacation(u, db):
 
 # ── 데이터 조회 ──────────────────────────────
 def h_sales(u, db):
-    """매출/수주 현황 집계"""
+    """매출/수주 현황 — z1191z161 (대표 11-26 「금액은 정말 중요」): 매출 홈과 **같은 계산**(_sales_3way)을 그대로 쓴다.
+    예전엔 관리번호 금액(projects.order_amount)을 통화 구분 없이 더해 달러가 원화로 셈해졌고 소모품·수주별 금액이 빠졌다.
+    ⛔ 매출 금액은 매출영업센터 보기 권한(can_view_sales)과 금액 칸 권한(can_view_field 'sales_amount')이 둘 다 있을 때만 준다."""
+    from .main import (_sales_3way, _fx_load_rates, _board_tax_oi_map, _z40_open_projects, _fmt_money,
+                       can_view_sales, can_view_field)
+    if not (can_view_sales(u) and can_view_field(u, "sales_amount")):
+        return {
+            "type": "data",
+            "title": "💰 매출 · 수주 현황",
+            "text": "매출 금액은 매출영업센터 보기 권한이 있는 분만 볼 수 있습니다.\n필요하면 팀장님께 권한을 요청해 주세요.",
+            "links": [_link("프로젝트 목록", "/projects", "secondary")],
+        }
     today = date.today()
-    ym = today.strftime("%Y-%m")
-    year = today.year
+    y, m = str(today.year), str(today.month)
     try:
+        oi_map, _pi = _board_tax_oi_map()
         with db() as c:
-            month_total = c.execute(
-                """SELECT COALESCE(SUM(order_amount), 0) AS total, COUNT(*) AS cnt
-                   FROM projects
-                   WHERE order_date LIKE ? AND order_amount > 0""",
-                (f"{ym}%",),
-            ).fetchone()
-            ytd_total = c.execute(
-                """SELECT COALESCE(SUM(order_amount), 0) AS total, COUNT(*) AS cnt
-                   FROM projects
-                   WHERE order_date LIKE ? AND order_amount > 0""",
-                (f"{year}%",),
-            ).fetchone()
-            by_biz = [dict(r) for r in c.execute(
-                """SELECT biz_div, COALESCE(SUM(order_amount), 0) AS total, COUNT(*) AS cnt
-                   FROM projects
-                   WHERE order_date LIKE ? AND biz_div IN ('T','M')
-                   GROUP BY biz_div""",
-                (f"{year}%",),
-            ).fetchall()]
-            active = c.execute(
-                "SELECT COUNT(*) FROM projects WHERE status IN ('active','진행중','planning')"
-            ).fetchone()[0]
+            rates = _fx_load_rates(c)
+            sm = _sales_3way(c, rates, oi_map, "month", y, "1", m)
+            sy = _sales_3way(c, rates, oi_map, "year", y, "1", m)
+            n_open = int(_z40_open_projects(c).get("n") or 0)
     except Exception as e:
+        print(f"[z1191z161] 빅터 매출 답 계산 실패: {e!r}")
         return {
             "type": "data",
             "title": "💰 매출 현황",
-            "text": f"데이터 조회 오류: {e}",
-            "links": [_link("전사 대시보드 →", "/dashboard", "primary")],
+            "text": "매출을 계산하지 못했습니다. 매출영업센터에서 확인해 주세요.",
+            "links": [_link("📈 매출·영업 센터 →", "/sales", "primary")],
         }
 
-    def _won(v):
-        if v >= 100000000:
-            return f"{v/100000000:.1f}억원"
-        if v >= 10000000:
-            return f"{v/10000000:.1f}천만원"
-        return f"{int(v):,}원"
+    def _cnt(k):
+        return int(k.get("order_so") or 0) + int(k.get("order_co") or 0)
 
-    biz_lines = []
-    for r in by_biz:
-        name = "T(검사기)" if r["biz_div"] == "T" else "M(자동화)"
-        biz_lines.append(f"  • {name}: {_won(r['total'])} ({r['cnt']}건)")
+    def _z75_won(v):   # 원 단위까지 그대로(매출 홈 숫자와 한 자리도 다르지 않게)
+        return _fmt_money(v or 0, "KRW")
 
+    km, ky = sm["kpi"], sy["kpi"]
+    biz_lines = ["  • %s: 수주 %s · 진행 %s · 최종 %s" % (b["label"], _z75_won(b["order"]), _z75_won(b["prog"]), _z75_won(b["final"]))
+                 for b in (sy.get("biz_rows") or []) if (b["order"] or b["prog"] or b["final"])]
     text = (
-        f"📆 {ym} 당월: {_won(month_total['total'])} ({month_total['cnt']}건)\n"
-        f"📅 {year} YTD: {_won(ytd_total['total'])} ({ytd_total['cnt']}건)\n\n"
-        f"사업부별 (YTD):\n" + ("\n".join(biz_lines) if biz_lines else "  (데이터 없음)") +
-        f"\n\n진행 중 프로젝트: {active}건"
+        f"📆 {today.year}년 {today.month}월: 수주매출 {_z75_won(km['order'])} ({_cnt(km)}건) · "
+        f"진행매출 {_z75_won(km['prog'])} · 최종매출 {_z75_won(km['final'])}\n"
+        f"📅 {today.year}년 누적: 수주매출 {_z75_won(ky['order'])} ({_cnt(ky)}건) · "
+        f"진행매출 {_z75_won(ky['prog'])} · 최종매출 {_z75_won(ky['final'])}\n\n"
+        f"사업부별 ({today.year}년):\n" + ("\n".join(biz_lines) if biz_lines else "  (데이터 없음)") +
+        f"\n\n출하 전 품목이 남은 프로젝트: {n_open}건"
+        "\n(매출 홈과 같은 계산 · 공급가 · 외화는 발주한 달 기준환율로 원화 환산)"
     )
     return {
         "type": "data",

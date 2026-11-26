@@ -53,7 +53,7 @@
         <b>기준</b>
         <select name="basis">
           <option value="tax"{% if rep.basis == 'tax' %} selected{% endif %}>세금계산서 발행(매출)</option>
-          <option value="ship"{% if rep.basis == 'ship' %} selected{% endif %}>출하(납품)</option>
+          <option value="ship"{% if rep.basis == 'ship' %} selected{% endif %}>출하(납품 · 출하일, 없으면 납기)</option>
           <option value="order"{% if rep.basis == 'order' %} selected{% endif %}>수주(발주)</option>
         </select>
         <b style="margin-left:8px;">기간</b>
@@ -91,7 +91,7 @@
 
       <div class="rp-grid">
         <section class="rp-sec">
-          <h3>고객사별 <span class="sub">— 청구처 = 수주에 적힌 1차 발주처(없으면 프로젝트 고객) · 큰 순 · 매출 홈 TOP5 와 같은 기준</span></h3>
+          <h3>고객사별 <span class="sub">— 고객사 = 세금계산서를 받는 1차 고객사(수주번호마다 적힌 곳 · 비어 있으면 「⚠ 고객 미정」) · 큰 순 · 매출 홈 TOP5 와 같은 기준</span></h3>
           <div class="rp-scroll"><table class="rp-t">
             <thead><tr><th class="n rp-rk" title="합계(원) 큰 순서">#</th><th>고객사</th><th class="n"{{ ct('report.row_krw') }}>합계(원)</th><th class="n"{{ ct('report.row_fx') }}>합계(외화)</th><th class="n" data-calc="서로 다른 수주번호 수 — 한 수주에 부품·호기가 여러 개여도, 세금계산서를 여러 번 나눠 냈어도 1건">건수</th></tr></thead>
             <tbody>{% for a in rep.cust_rows %}{% set gi = loop.index %}<tr><td class="n rp-rk">{{ loop.index }}</td><td>{{ a.name }}{% if a.children %}<button type="button" class="z73-tg" data-z73="r{{ gi }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});"><span>▸ </span>{{ a.children|length }}곳</button>{% endif %}</td><td class="n">{{ money(a.total, 'KRW') }}</td><td class="n rp-fx">{{ a.fx_txt }}</td><td class="n">{{ a.so_n }}</td></tr>{% for q in (a.children or []) %}<tr class="z73-ch z73p-r{{ gi }}" hidden><td class="n rp-rk"></td><td><span class="z73-br">└</span> {{ q.name }}</td><td class="n">{{ money(q.total, 'KRW') }}</td><td class="n rp-fx">{{ q.fx_txt }}</td><td class="n">{{ q.so_n }}</td></tr>{% endfor %}{% endfor %}</tbody>

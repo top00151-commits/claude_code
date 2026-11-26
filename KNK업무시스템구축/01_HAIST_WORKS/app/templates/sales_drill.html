@@ -56,7 +56,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
 <div class="app">
 {% set active_tab = 'sales' %}
 {% include "_v5_partials/chrome.html" with context %}
-{%- set P = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m ~ ('&by=end' if by else '') -%}
+{%- set P = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m -%}
 {%- macro dz(v, cls) -%}{% if v %}<span class="{{ cls }}">{{ money(v, 'KRW') }}</span>{% else %}<span class="z">—</span>{% endif %}{%- endmacro -%}
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
@@ -70,7 +70,6 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     <a class="dr-back" href="/sales?{{ P }}" data-knk-back>← 매출 홈</a>
     {% if biz %}<input type="hidden" name="biz" value="{{ biz }}">{% endif %}
     {% if cust %}<input type="hidden" name="cust" value="{{ cust }}">{% endif %}
-    {% if by %}<input type="hidden" name="by" value="end">{% endif %}
     <b>📅 기간</b>
     <select name="mode" id="drMode" aria-label="기간 단위">
       <option value="year"{% if s3.mode=='year' %} selected{% endif %}>연간</option>
@@ -86,16 +85,11 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     <select name="m" id="drM" aria-label="월" onchange="this.form.submit()"{% if s3.mode!='month' %} style="display:none"{% endif %}>
       {% for m in range(1,13) %}<option value="{{ m }}"{% if (m|string)==s3.sel_m %} selected{% endif %}>{{ m }}월</option>{% endfor %}
     </select>
-    <span>{{ s3.period_label }} ({{ s3.period_range }}) · 수주=발주일 · 진행=출하일 · 최종=세금계산서 발행일 기준</span>
+    <span>{{ s3.period_label }} ({{ s3.period_range }}) · 수주=발주일 · 진행=출하일(없으면 납기) · 최종=세금계산서 발행일 기준</span>
   </form>
 
-  {# z1191z88 (대표 11-20): 고객사 기준 — 청구처(세금계산서 받는 곳 = 수주 1차 발주처 · 매출 보고서와 같음) / 최종 고객(프로젝트 고객) #}
-  {%- set PB = 'mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m ~ ('&biz=' ~ biz if biz else '') ~ ('&cust=' ~ (cust|urlencode) if cust else '') -%}
-  <div class="dr-chips" data-dn="drill-basis" style="margin-bottom:6px;">
-    <b style="font-size:12px;color:#475569;margin-right:4px;">고객사 기준</b>
-    <a href="/sales/drill?{{ PB }}"{% if not by %} class="on"{% endif %} title="세금계산서를 받는 곳(수주에 적힌 1차 발주처) — 매출 보고서와 같은 기준">청구처</a>
-    <a href="/sales/drill?{{ PB }}&amp;by=end"{% if by %} class="on"{% endif %} title="실제로 장비를 쓰는 고객(프로젝트 고객) — 예) KNK VINA 를 거친 드림텍 베트남 장비는 드림텍">최종 고객</a>
-  </div>
+  {# z1191z161 (대표 11-26): 고객사 = 수주 1차 고객사 하나(예전 「청구처/최종 고객」 단추 없앰) · 「└ 2차」 = 수주 2차 칸(빈 수주는 줄 없음) #}
+  <div class="dr-note" data-dn="drill-basis">고객사 = 세금계산서를 받는 1차 고객사(수주번호마다 적힌 곳) · 「└ 2차」 = 그 수주의 장비가 최종 납품·셋업되는 곳 · 매출 보고서와 같은 기준</div>
 
   <div class="dr-kpi" data-dn="drill-kpi">
     <div><div class="l c-o"{{ ct('sales.order_rev') }}>💙 수주매출</div><div class="v c-o">{{ money(dr.tot.order, 'KRW') }}</div><div class="s">이 기간에 발주(수주)받은 금액</div></div>
@@ -135,13 +129,30 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
         {% for q in r.children %}
         <tr class="z73-ch z73p-d{{ gi }}" hidden>
           <td class="n"></td>
-          <td><a class="cu" href="/sales/drill?cust={{ q.cust|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="{{ q.cust }} — 이 사업장 수주별로 보기"><span class="z73-br">└</span> {{ q.cust }} ›</a></td>
+          <td><a class="cu" href="/sales/drill?cust={{ q.cust|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="{{ q.cust }} — 이 사업장 수주별로 보기"><span class="z73-br">└</span> 사업장 {{ q.cust }} ›</a></td>
           <td class="r">{{ dz(q.order, 'c-o') }}</td>
           <td class="r">{{ dz(q.prog, 'c-p') }}</td>
           <td class="r">{{ dz(q.final, 'c-f') }}</td>
           <td class="r dr-dim">{{ q.n }}</td>
         </tr>
         {% endfor %}
+        {% set _c2 = r.c2 or [] %}{% set _cut = 4 if _c2|length > 5 else 5 %}
+        {% for v in _c2 %}{# z1191z161: 이 고객사 수주의 2차 — 2차가 빈 수주는 줄 없음 #}
+        <tr class="z73-ch z161-c2 z161p-d{{ gi }}{% if loop.index > _cut %} z161m-d{{ gi }}{% endif %}"{% if loop.index > _cut %} hidden{% endif %}>
+          <td class="n"></td>
+          <td class="dr-dim" style="padding-left:14px;"><span class="z73-br">└</span> 2차 <b>{{ v.name }}</b> · 수주 {{ v.n }}건</td>
+          <td class="r dr-dim">{{ dz(v.order, '') }}</td>
+          <td class="r dr-dim">{{ dz(v.prog, '') }}</td>
+          <td class="r dr-dim">{{ dz(v.final, '') }}</td>
+          <td class="r dr-dim">{{ v.n }}</td>
+        </tr>
+        {% endfor %}
+        {% if _c2|length > 5 %}
+        <tr class="z73-ch z161p-d{{ gi }}">
+          <td class="n"></td>
+          <td colspan="5" style="padding-left:14px;"><button type="button" class="z73-tg" data-z161="d{{ gi }}" aria-expanded="false" title="나머지 2차 고객 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.textContent=(o?'그 밖 2차 접기 ▴':'그 밖 {{ _c2|length - 4 }}곳 ▸');document.querySelectorAll('.z161m-'+this.dataset.z161).forEach(function(x){x.hidden=!o;});">그 밖 {{ _c2|length - 4 }}곳 ▸</button></td>
+        </tr>
+        {% endif %}
       {% endfor %}
       </tbody>
       <tfoot><tr>
@@ -163,6 +174,19 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     수주 <b>{{ dr.rows|length }}</b>건 · 진행매출 순 · 한 줄 = 수주번호 하나(소모품은 발주번호) · 관리번호·수주번호를 누르면 그 프로젝트(소모품) 화면 · 머리글을 누르면 정렬
     <br>수주·출하·발행 날짜가 서로 달라서, 한 수주가 이 기간에 진행매출만(또는 최종매출만) 있을 수 있습니다 · 합계 = 매출 홈 「TOP 5 고객사」의 이 고객사 줄과 같음{% if biz %}({{ biz_label }}만){% endif %}
   </div>
+  {% if dr.c2 %}{# z1191z161: 이 고객사 수주의 2차별 몫 — 2차가 빈 수주는 줄 없음 #}
+  <div class="dr-wrap" style="margin-bottom:12px;" data-dn="drill-c2">
+    <table class="dr-tbl">
+      <thead><tr><th style="cursor:default">2차 (그 수주의 장비가 최종 납품·셋업되는 곳)</th><th class="r c-o"{{ ct('sales.order_rev') }}>수주매출</th><th class="r c-p"{{ ct('sales.ship_rev') }}>진행매출</th><th class="r c-f"{{ ct('sales.final_rev') }}>최종매출</th><th class="r">수주 건수</th></tr></thead>
+      <tbody>
+      {% for v in dr.c2 %}
+        <tr><td><span class="z73-br">└</span> 2차 <b>{{ v.name }}</b></td>
+          <td class="r">{{ dz(v.order, 'c-o') }}</td><td class="r"><b>{{ dz(v.prog, 'c-p') }}</b></td><td class="r">{{ dz(v.final, 'c-f') }}</td><td class="r dr-dim">{{ v.n }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
   {% if dr.biz_sub|length > 1 and not biz %}
   <div class="dr-wrap" style="margin-bottom:12px;">
     <table class="dr-tbl">
@@ -181,7 +205,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     <table class="dr-tbl" id="drTbl">
       <thead><tr>
         <th class="r" data-sort="n">#</th><th data-sort="t">사업부</th><th data-sort="t">관리번호</th><th data-sort="t">수주번호</th>
-        <th data-sort="t">모델명</th><th data-sort="t">설비명</th><th data-sort="t">프로젝트명</th><th data-sort="t"{{ ct('sales.first_order') }}>발주일</th>
+        <th data-sort="t">2차</th><th data-sort="t">모델명</th><th data-sort="t">설비명</th><th data-sort="t">프로젝트명</th><th data-sort="t"{{ ct('sales.first_order') }}>발주일</th>
         <th class="r c-o" data-sort="n"{{ ct('sales.order_rev') }}>수주매출</th><th class="r c-p" data-sort="n"{{ ct('sales.ship_rev') }}>진행매출</th><th class="r c-f" data-sort="n"{{ ct('sales.final_rev') }}>최종매출</th>
       </tr></thead>
       <tbody>
@@ -192,6 +216,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
           <td class="nw" data-v="{{ r.label }}">{{ r.label }}</td>
           <td class="nw" data-v="{{ r.code }}">{% if r.code and href %}<a class="dr-code" href="{{ href }}">{{ r.code }}</a>{% else %}{{ r.code or '—' }}{% endif %}</td>
           <td class="nw" data-v="{{ r.so }}">{% if r.so and href %}<a class="dr-so" href="{{ href }}{% if r.kind != 'C' %}?so={{ r.so|urlencode }}{% endif %}" title="{{ r.so }} — 누르면 이 수주의 프로젝트 정보">{{ r.so }}</a>{% else %}<span class="dr-dim">{{ r.so or '(번호 없음)' }}</span>{% endif %}</td>
+          <td class="nw" data-v="{{ r.c2 }}">{{ r.c2 }}</td>{# z1191z161: 이 수주의 2차(없으면 빈칸) #}
           <td data-v="{{ r.model }}">{{ r.model or '—' }}</td>
           <td data-v="{{ r.equip }}">{{ r.equip or '—' }}</td>
           <td data-v="{{ r.pname }}">{{ r.pname or '—' }}</td>
@@ -203,7 +228,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
       {% endfor %}
       </tbody>
       <tfoot><tr>
-        <td></td><td colspan="7">합계</td>
+        <td></td><td colspan="8">합계</td>
         <td class="r c-o">{{ money(dr.tot.order, 'KRW') }}</td><td class="r c-p">{{ money(dr.tot.prog, 'KRW') }}</td><td class="r c-f">{{ money(dr.tot.final, 'KRW') }}</td>
       </tr></tfoot>
     </table>
@@ -239,7 +264,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
           var r = num ? (parseFloat(x)||0)-(parseFloat(y)||0) : x.localeCompare(y, 'ko');
           return dir==='d' ? -r : r;
         });
-        rows.forEach(function(r){ tb.appendChild(r); var g=r.getAttribute('data-z73'); if(g) tb.querySelectorAll('.z73p-'+g).forEach(function(x){ tb.appendChild(x); }); });
+        rows.forEach(function(r){ tb.appendChild(r); var g=r.getAttribute('data-z73'); if(g) tb.querySelectorAll('.z73p-'+g+', .z161p-'+g).forEach(function(x){ tb.appendChild(x); }); });   // z1191z161: 2차 줄도 제 회사 밑에
       });
     });
   })();

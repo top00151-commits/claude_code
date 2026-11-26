@@ -110,7 +110,8 @@ trip = lambda d: (round(d["order"]), round(d["prog"]), round(d["final"]))
 R = {r["cust"]: r for r in DA["rows"]}
 
 print("§1 매출 집계 고객사 = 등록명")
-check(sorted(R) == sorted(["삼성전기(주)", "(주) 드림텍", "가상무별칭(주)", "번호없는고객"]), "고객사 = 등록명(번호 없으면 저장된 글자)", sorted(R))
+# z1191z161 (대표 11-26): 수주에 1차 고객사가 비면 관리번호에 적힌 글자(번호없는고객)로 대신하지 않고 「⚠ 고객 미정(확인 필요)」
+check(sorted(R) == sorted(["삼성전기(주)", "(주) 드림텍", "가상무별칭(주)", "⚠ 고객 미정(확인 필요)"]), "고객사 = 등록명(수주 고객사가 비면 「⚠ 고객 미정」)", sorted(R))
 check(trip(R["삼성전기(주)"]) == (3400000, 3400000, 1400000), "삼성전기(주) = 등록명·시스템명으로 적힌 건 + 소모품 한 줄로(수주 340만 · 진행 340만 · 최종 140만)", trip(R["삼성전기(주)"]))
 check(R["삼성전기(주)"]["children"] == [] and R["가상무별칭(주)"]["children"] == [], "종사업장이 하나뿐인 고객사는 펼치기 없음")
 check(trip(DA["tot"]) == (round(S["kpi"]["order"]), round(S["kpi"]["prog"]), round(S["kpi"]["final"])) == (5900000, 5900000, 1800000), "합계는 그대로(전체 = 매출 홈 카드)", trip(DA["tot"]))
@@ -138,7 +139,7 @@ check('class="z73-tg" data-z73="d2" aria-expanded="false"' in h and "</span>3곳
 kids = re.findall(r'<tr class="z73-ch z73p-(d\d+)" hidden>.*?cust=([^&"]+)', h, re.S)
 check([k[0] for k in kids] == ["d2"] * 3 and len(kids) == 3, "펼칠 줄 3개(처음엔 숨김 · 드림텍 줄에 딸림)", kids)
 check("cust=%EB%93%9C%EB%A6%BC%ED%85%8D%28%EC%95%84%EC%82%B0%29" in h, "펼친 줄 「드림텍(아산) ›」을 누르면 아산만 보기")
-check("tb.querySelectorAll('.z73p-'+g)" in h, "머리글 정렬해도 펼친 줄은 제 회사 밑에")
+check("tb.querySelectorAll('.z73p-'+g" in h, "머리글 정렬해도 펼친 줄은 제 회사 밑에")   # z1191z161: 2차 줄(.z161p-)도 함께 옮김
 hh = q(cl.get, "/sales?mode=year&year=2026").text
 check('data-z73="t' in hh and 'class="z73p-t' in hh and "삼성전기(주)" in hh, "매출 홈 TOP5: 등록명 · 드림텍 펼치기 단추와 숨은 줄")
 hd = q(cl.get, "/sales/drill?mode=year&year=2026&cust=" + __import__("urllib.parse").parse.quote("(주) 드림텍")).text

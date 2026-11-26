@@ -121,7 +121,7 @@ def tier_pill_class(tier):
     return TIER_PILL.get(str(tier or "").strip(), "pill-muted")
 
 
-def compute_customer_tier(c, customer_id: int) -> dict:
+def compute_customer_tier(c, customer_id: int, rates=None) -> dict:
     """1개 거래처의 5지표 측정 + 점수화 + 등급 산정.
     c: sqlite3.Connection (db_session 안에서 호출)
     반환: {tier, score, breakdown:[5개 항목], updated_at}
@@ -131,33 +131,34 @@ def compute_customer_tier(c, customer_id: int) -> dict:
     ninety_ago = (today - timedelta(days=90)).isoformat()
     today_iso = today.isoformat()
 
-    # 1. 매출 (orders + projects.order_amount 둘 다 합산)
+    # 1. 매출 (12M) — z1191z161 (대표 11-26 「금액은 정말 중요」): 이 고객사가 1차 고객사로 적힌 수주(orders.customer_id)만,
+    #    매출 홈 수주매출과 같은 식(호기 금액 · 통화/발주일 = 호기 → 수주 → 프로젝트 · 발주 달 기준환율 · 취소 수주·취소 호기·폐기 관리번호 제외).
+    #    예전엔 orders.total_amount + projects.order_amount 를 둘 다 더해 같은 수주를 두 번 셌고, 통화를 안 봐 달러가 원화로 셈해졌으며,
+    #    관리번호 고객(처음 등록 때 값)으로 남의 수주까지 들어갔다.
     revenue_12m = 0.0
     try:
-        r = c.execute(
-            "SELECT COALESCE(SUM(total_amount),0) FROM orders "
-            "WHERE customer_id=? AND order_date>=?",
-            (customer_id, one_year_ago)
-        ).fetchone()
-        revenue_12m += float(r[0] or 0)
-    except Exception:
-        pass
-    try:
-        r = c.execute(
-            "SELECT COALESCE(SUM(order_amount),0) FROM projects "
-            "WHERE customer_id=? AND COALESCE(order_date,'') >= ?",
-            (customer_id, one_year_ago)
-        ).fetchone()
-        revenue_12m += float(r[0] or 0)
-    except Exception:
-        pass
+        from .main import SALES_CCY_ITEM, SALES_DD_ORDER, _fx_load_rates, _fx_to_krw
+        _rates = rates if rates is not None else _fx_load_rates(c)
+        for _a, _ccy, _dd in c.execute(
+                "SELECT oi.amount, " + SALES_CCY_ITEM + ", " + SALES_DD_ORDER + " "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+                "WHERE o.customer_id=? AND COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+                "AND COALESCE(oi.unit_status,'')<>'취소'", (customer_id,)).fetchall():
+            _d = str(_dd or "")[:10]
+            if not _d or _d < one_year_ago:
+                continue
+            revenue_12m += float(_fx_to_krw(_rates, _a, _ccy, _d[:7]) or 0)
+    except Exception as _e161:
+        print(f"[z1191z161] 고객 등급 매출 계산 실패(고객 {customer_id}) — 매출 점수 0: {_e161!r}")
+        revenue_12m = 0.0
 
-    # 2. 활성 프로젝트 수
+    # 2. 활성 프로젝트 수 — z1191z161: 이 고객사 수주가 있는 관리번호(관리번호 고객 칸은 쓰지 않음)
     active_proj = 0
     try:
         r = c.execute(
-            "SELECT COUNT(*) FROM projects "
-            "WHERE customer_id=? AND status NOT IN ('완료','종료','취소')",
+            "SELECT COUNT(DISTINCT p.id) FROM projects p JOIN orders o ON o.project_id=p.id "
+            "WHERE o.customer_id=? AND COALESCE(o.status,'')<>'CANCELLED' "
+            "AND COALESCE(p.status,'') NOT IN ('완료','종료','취소')",
             (customer_id,)
         ).fetchone()
         active_proj = int(r[0] or 0)
@@ -169,8 +170,8 @@ def compute_customer_tier(c, customer_id: int) -> dict:
     for sql in [
         "SELECT MAX(order_date) FROM orders WHERE customer_id=?",
         "SELECT MAX(work_date) FROM tasks WHERE customer_id=?",
-        "SELECT MAX(po.order_date) FROM purchase_orders po "
-        "JOIN projects p ON p.id=po.project_id WHERE p.customer_id=?",
+        "SELECT MAX(po.order_date) FROM purchase_orders po "   # z1191z161: 이 고객사 수주가 있는 관리번호
+        "WHERE po.project_id IN (SELECT o.project_id FROM orders o WHERE o.customer_id=? AND COALESCE(o.status,'')<>'CANCELLED')",
     ]:
         try:
             r = c.execute(sql, (customer_id,)).fetchone()
@@ -211,9 +212,9 @@ def compute_customer_tier(c, customer_id: int) -> dict:
         pass
     try:
         r = c.execute(
-            "SELECT COUNT(*) FROM purchase_orders po "
-            "JOIN projects p ON p.id=po.project_id "
-            "WHERE p.customer_id=? AND po.order_date>=?",
+            "SELECT COUNT(*) FROM purchase_orders po "   # z1191z161: 이 고객사 수주가 있는 관리번호
+            "WHERE po.project_id IN (SELECT o.project_id FROM orders o WHERE o.customer_id=? AND COALESCE(o.status,'')<>'CANCELLED') "
+            "AND po.order_date>=?",
             (customer_id, one_year_ago)
         ).fetchone()
         order_n += int(r[0] or 0)
@@ -243,9 +244,9 @@ def compute_customer_tier(c, customer_id: int) -> dict:
     }
 
 
-def refresh_customer_tier(c, customer_id: int) -> dict:
+def refresh_customer_tier(c, customer_id: int, rates=None) -> dict:
     """1개 거래처 등급 재계산 + DB 업데이트."""
-    res = compute_customer_tier(c, customer_id)
+    res = compute_customer_tier(c, customer_id, rates)
     c.execute(
         "UPDATE customers SET tier=?, tier_score=?, tier_computed_at=?, "
         "tier_breakdown=? WHERE id=?",
@@ -259,9 +260,15 @@ def refresh_all_customer_tiers(c) -> int:
     """전체 거래처 등급 일괄 재계산. 반환: 처리 건수."""
     rows = c.execute("SELECT id FROM customers").fetchall()
     n = 0
+    rates = None   # z1191z161: 기준환율은 한 번만 읽는다
+    try:
+        from .main import _fx_load_rates
+        rates = _fx_load_rates(c)
+    except Exception as _e161:
+        print(f"[z1191z161] 고객 등급 일괄 — 기준환율 미리 읽기 실패(고객마다 다시 읽음): {_e161!r}")
     for r in rows:
         try:
-            refresh_customer_tier(c, r["id"] if hasattr(r, '__getitem__') and not isinstance(r, tuple) else r[0])
+            refresh_customer_tier(c, r["id"] if hasattr(r, '__getitem__') and not isinstance(r, tuple) else r[0], rates)
             n += 1
         except Exception as e:
             print(f"[TIER ERR] customer {r[0]}: {e}")

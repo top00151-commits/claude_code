@@ -13830,15 +13830,57 @@ async def customer_detail(req: Request, cid: int):
         if not cu:
             return RedirectResponse("/", 303)
         cu = dict(cu)
-        # 고객사 프로젝트
-        pjts = [dict(r) for r in c.execute(
-            "SELECT * FROM projects WHERE customer_id=? ORDER BY id DESC", (cid,),
-        ).fetchall()]
-        # z1097 (대표 지시 2026-09-10): '총 수주액' 도 통화별 합계 + 원화 환산.
-        #   전엔 통화를 안 보고 더한 뒤 '원' 이라고 적었다(달러 프로젝트가 원화로 둔갑).
-        pjts_total_bd = _ccy_breakdown(
-            pjts, "order_amount", "currency",
-            date_keys=("order_date", "due_date"), rates=_fx_load_rates(c))
+        # z1191z161 (대표 11-26 「금액은 정말 중요 · 다시 검토」): 고객사 상세 = 이 고객사가 **수주에 1차 고객사로 적힌** 수주(orders.customer_id) 기준.
+        #   예전엔 관리번호 고객(projects.customer_id · 처음 등록 때 값)과 관리번호 금액(order_amount)으로 셌다 —
+        #   한 관리번호에 고객이 다른 수주가 있으면 남의 수주까지 들어가고 이 고객 수주는 빠졌다.
+        #   금액 = 매출 홈 수주매출과 같은 식: 호기 금액 · 통화/발주일 = 호기 → 수주 → 프로젝트(SALES_CCY_ITEM · SALES_DD_ORDER) ·
+        #   발주 달 기준환율 · 취소 수주·취소 호기·폐기 관리번호 제외 + 이 고객사 소모품 발주(취소 제외).
+        _rt161 = _fx_load_rates(c)
+        _it161 = {}
+        for _r in c.execute(
+                "SELECT o.id AS oid, oi.amount AS amt, " + SALES_CCY_ITEM + " AS ccy, " + SALES_DD_ORDER + " AS dd "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+                "WHERE o.customer_id=? AND COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+                "AND COALESCE(oi.unit_status,'')<>'취소'", (cid,)).fetchall():
+            _it161.setdefault(_r["oid"], []).append(dict(_r))
+        so_rows = []
+        for _r in c.execute(
+                "SELECT o.id AS oid, COALESCE(o.order_no,'') AS order_no, COALESCE(o.order_date,'') AS order_date, "
+                "COALESCE(o.end_customer,'') AS end_customer, p.id AS pid, COALESCE(p.mgmt_code,'') AS mgmt_code, "
+                "COALESCE(p.name,'') AS name, p.stage AS stage, p.status AS status "
+                "FROM orders o JOIN projects p ON p.id=o.project_id "
+                "WHERE o.customer_id=? AND COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+                "ORDER BY COALESCE(NULLIF(TRIM(o.order_date),''),'0000') DESC, o.id DESC", (cid,)).fetchall():
+            _d = dict(_r)
+            _d["kind"] = "S"
+            _d["bd"] = _ccy_breakdown(_it161.get(_d["oid"], []), "amt", "ccy", date_keys=("dd",), rates=_rt161)
+            so_rows.append(_d)
+        _co161 = []
+        try:
+            for _r in c.execute(
+                    "SELECT id AS coid, COALESCE(co_no,'') AS order_no, COALESCE(order_date,'') AS order_date, "
+                    "COALESCE(mgmt_code,'') AS mgmt_code, COALESCE(secondary_customer,'') AS end_customer, "
+                    "total_amount AS amt, currency AS ccy, NULLIF(TRIM(order_date),'') AS dd, status AS status "
+                    "FROM consumable_orders WHERE customer_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                    "ORDER BY COALESCE(NULLIF(TRIM(order_date),''),'0000') DESC, id DESC", (cid,)).fetchall():
+                _d = dict(_r)
+                _co161.append(dict(_d))
+                _d.update({"kind": "C", "name": "소모품", "stage": "", "pid": None,
+                           "bd": _ccy_breakdown([_d], "amt", "ccy", date_keys=("dd",), rates=_rt161)})
+                so_rows.append(_d)
+        except Exception as _e161:
+            print(f"[z1191z161] 고객사 상세 소모품 읽기 실패(소모품 빼고 보임): {_e161!r}")
+        # 총 수주액 = 위 수주 줄 전부(호기 하나하나를 그 발주 달 환율로) — 통화별 합계 + 원화 환산(z1097 공용 함수)
+        pjts_total_bd = _ccy_breakdown([_x for _l in _it161.values() for _x in _l] + _co161, "amt", "ccy",
+                                       date_keys=("dd",), rates=_rt161)
+        # 관리번호(프로젝트) = 이 고객사 수주가 있는 관리번호 — KPI 「관리번호」「진행 중」 칸
+        _seen161 = set()
+        pjts = []
+        for _d in so_rows:
+            if _d["kind"] == "S" and _d["pid"] not in _seen161:
+                _seen161.add(_d["pid"])
+                pjts.append({"id": _d["pid"], "mgmt_code": _d["mgmt_code"], "name": _d["name"],
+                             "stage": _d["stage"], "status": _d["status"]})
         # 최근 2주 카드
         since = (date.today() - timedelta(days=30)).isoformat()
         tasks = [dict(r) for r in c.execute(
@@ -13895,7 +13937,7 @@ async def customer_detail(req: Request, cid: int):
             if _t in _lab and _n.isdigit():
                 z157_done.append(f"{_lab[_t]} {int(_n)}건")
     return ctx(req, "customer_detail.html", z157_done=z157_done,
-               user=u, cu=cu, pjts=pjts, tasks=tasks[:80],
+               user=u, cu=cu, pjts=pjts, so_rows=so_rows, tasks=tasks[:80],   # z1191z161: so_rows = 수주번호 단위
                pjts_total_bd=pjts_total_bd,     # z1097: 총 수주액(통화별+원화)
                stats=stats, by_team=by_team_list, total_tasks=len(tasks),
                contacts=contacts, tier_breakdown=tier_breakdown,
@@ -32851,6 +32893,8 @@ def _sales_period_ok(mm: int, mode: str, q, m) -> bool:
 #      일정표(_board_split_lines_map · 호기 값 → 수주 값)는 처음부터 맞게 보였다 — 같은 자료를 화면마다 다르게 셌다.
 #   ⛔ 매출 숫자를 세는 SQL 에서 호기의 날짜·통화를 고를 때는 이 세 식을 쓴다
 #      (검사기 check_date_fallback · 현황판 §4 규칙 57 · 시험 _검증/test_sales_date_rule_z1164_20261011.py).
+# z1191z161 표시(대표 11-26 점검 7번 · 이번엔 바꾸지 않음): 호기·수주 날짜·통화가 비면 마지막에 프로젝트(관리번호) 값으로 대신한다.
+#   관리번호 값은 처음 등록 때 값이라 원칙상 쓰면 안 되지만, 운영 영향 3줄·같은 달이라 숫자 변화 위험 > 이득 → 빅터가 따로 판단.
 SALES_DD_ORDER = ("COALESCE(NULLIF(TRIM(oi.order_date),''),NULLIF(TRIM(o.order_date),''),"
                   "NULLIF(TRIM(p.order_date),''))")                                   # ① 수주매출 — 발주일
 # z1191z17 (대표 결정 2026-11-10 「납품일 = 작업일정표에 출하가 찍힌 날」): 호기 상태 발생일(출하 표시 날)이 있으면 그 날 → 없으면 납기
@@ -32887,7 +32931,7 @@ def _z40_open_projects(c):
     #   (n_open · 가장 이른 납기 · 수주번호 목록 셋 다 같은 기준 · 취소 호기가 없으면 결과는 예전과 같다).
     rows = [dict(r) for r in c.execute(
         "SELECT p.id AS pid, COALESCE(p.mgmt_code,'') AS code, COALESCE(p.name,'') AS pname, "
-        "COALESCE(p.model_name,'') AS model, " + _Z72_CUST_P + " AS cust, "   # z1191z72: 시스템명
+        "COALESCE(p.model_name,'') AS model, "   # z1191z161: 고객사는 아래에서 수주마다(관리번호 고객은 쓰지 않음)
         "UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
         "COUNT(*) AS n_all, "
         "SUM(CASE WHEN COALESCE(oi.unit_status,'') NOT IN ('출하','보류','취소') THEN 1 ELSE 0 END) AS n_open, "
@@ -32898,9 +32942,25 @@ def _z40_open_projects(c):
         "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
         "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
         "GROUP BY p.id HAVING n_open > 0").fetchall()]
+    # z1191z161 (대표 11-26): 고객사 = 출하 전 품목이 남은 수주의 1차 고객사(수주마다 · 시스템명 → 정식명) — 여럿이면 「외 N곳」
+    _cs161 = {}
+    for _pid, _cn in c.execute(
+            "SELECT o.project_id, COALESCE((SELECT COALESCE(NULLIF(TRIM(cu.alias),''), NULLIF(TRIM(cu.name),'')) "
+            "FROM customers cu WHERE cu.id=o.customer_id), '') "
+            "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+            "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
+            "AND COALESCE(oi.unit_status,'') NOT IN ('출하','보류','취소') "
+            "GROUP BY o.id ORDER BY o.project_id, o.id").fetchall():
+        _l161 = _cs161.setdefault(_pid, [])
+        _n161 = _cn or Z161_CUST_TBD
+        if _n161 not in _l161:
+            _l161.append(_n161)
     for d in rows:
         d["biz_label"] = SALES_BIZ_LABEL.get(d["biz"], SALES_BIZ_LABEL["E"])
         d["so_list"] = sorted({x for x in (d.get("sos") or "").split(",") if x})
+        _cs = _cs161.get(d["pid"]) or []
+        d["custs"] = _cs   # z1191z161
+        d["cust"] = (_cs[0] + ((" 외 %d곳" % (len(_cs) - 1)) if len(_cs) > 1 else "")) if _cs else ""
     rows.sort(key=lambda d: ((d["due"] or "9999-99-99"), d["code"]))
     return {"projects": rows, "n": len(rows), "units": sum(d["n_open"] for d in rows)}
 
@@ -32914,10 +32974,48 @@ _Z72_CUST_C = ("COALESCE((SELECT COALESCE(NULLIF(TRIM(cu72.alias),''), NULLIF(TR
                "WHERE cu72.id=consumable_orders.customer_id), NULLIF(TRIM(consumable_orders.customer_name),''), '')")
 
 
+# z1191z161 (대표 11-26 「TOP5 에 KNK VINA 아래 SAMSUNG INDIA 가 있는데 이렇게 될 수가 없어」 → 「2차가 없으면 표현하지 마 깔끔하게」):
+#   매출 고객사 = 수주마다 적힌 1차 고객사(orders.customer_id · 세금계산서 받는 곳) 하나로만 묶는다.
+#   관리번호 고객(projects.customer_id·customer_name)은 처음 등록 때 값이라 묶기·표시·대신 쓰기에 쓰지 않는다
+#   (예전 「최종 고객 기준」 보기가 관리번호 고객을 써서 KNK VINA 수주 아래 첫 수주 고객 SAMSUNG INDIA 가 보였다).
+#   고객사 줄 아래 「└ 2차」 = 그 수주의 2차 고객(orders.end_customer · 이름 그대로 · 보고서와 같은 _z17_norm2) — 2차가 빈 수주는 줄을 만들지 않는다.
+#   수주에 1차 고객사가 비어 있으면 관리번호 고객으로 대신하지 않고 「⚠ 고객 미정(확인 필요)」 한 줄로 따로 센다(합계엔 그대로).
+Z161_CUST_TBD = "⚠ 고객 미정(확인 필요)"
+
+
+def _z161_c2_parts(spec, krw):
+    """z1191z161: 매출 한 줄의 2차 몫 [(2차 이름, 원화)].
+    spec = (수주 2차 칸 글자, 소모품 품목 [(품목 2차, 금액)] 또는 None) — 보고서(_z17_lines)와 같은 규칙:
+    이름 정리 = _z17_norm2 · 소모품 품목별 2차 = _z20_parts(금액 비율) · 「SEV 8대, SEVT 3대」 = _z21_counts(대수 비율).
+    2차가 비면 [](줄을 만들지 않는다) · 나눈 몫의 합 = 원래 금액(마지막 몫이 나머지)."""
+    if not spec:
+        return []
+    raw, items = spec
+    order2 = _z17_norm2(raw)
+    parts = _z20_parts(items, order2) if items else None
+    base = [(k, f) for k, f, _n in parts] if parts else ([(order2, 1.0)] if order2 else [])
+    out = []
+    for nm2, f in base:
+        if not nm2:   # 품목 2차·발주 2차가 모두 빈 몫 = 2차 없음
+            continue
+        w = krw * f
+        cs = _z21_counts(nm2)
+        if not cs:
+            out.append((nm2, w))
+            continue
+        tot = sum(n for _, n in cs)
+        used = 0.0
+        for i, (nm, n) in enumerate(cs):
+            v = (w - used) if i == len(cs) - 1 else w * n / tot
+            used += v
+            out.append((nm, v))
+    return out
+
+
 def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=None):
     """v5H226z925 (대표 지시): 매출 홈 3지표 —
        ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
-       ② 진행매출 = 출하일 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
+       ② 진행매출 = 출하일(출하일이 없으면 납기) 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
        ③ 최종매출 = 세금계산서 발행일 기준, 호기 차수 발행액(_board_tax_oi_map 단일소스)
           + 소모품 차수 발행액(v5H226z1086 · 대표 "진행해" 08-19 — 그동안 ①②엔 소모품이 있는데 ③만 빠져
           2026년 5.3억이 최종매출에서 누락. 규칙 동일: 발행칸에 적힌 1~3차 금액만·환율은 발주월(z1191z115 · 예전 발행월).
@@ -32955,26 +33053,47 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
         v = _z73cm.get(d.get("z73cid"))
         if v and v[0]:
             return v
-        return ((d.get("cust") or "").strip(), None)
+        return ((d.get("cust") or "").strip() or _TBD161, None)   # z1191z161: 관리번호 고객으로 대신하지 않음
 
-    # z1191z88 (대표 2026-11-20 「드림텍 매출이 서로 다른데 … 정확한 검산」 → 「1번으로 진행해」):
-    #   매출 고객사 = **청구처**(수주에 적힌 1차 발주처 · 없으면 프로젝트 고객) — 매출 보고서(_z17_lines)와 같은 기준.
-    #   전에는 프로젝트 고객(최종 고객)이라 KNK VINA 경유 드림텍 장비(2026 USD 603,834 · 874,438,912원)가 홈에선 드림텍,
-    #   보고서에선 KNK VINA 로 갈려 같은 「최종매출」이 화면마다 달랐다. 최종 고객 금액은 따로 모아 「최종 고객 기준으로 보기」로 보인다.
-    def _z88e(d):
-        v = _z73cm.get(d.get("z88eid"))
-        if v and v[0]:
-            return v
-        return ((d.get("cust") or "").strip(), None)
+    # z1191z88 (대표 2026-11-20): 매출 고객사 = 수주에 적힌 1차 고객사 — 매출 보고서(_z17_lines)와 같은 기준.
+    # z1191z161 (대표 11-26): 「최종 고객(관리번호 고객) 기준」 보기·「↳ 이 중 …」 줄을 없애고, 고객사 줄 아래 「└ 2차」(수주 2차 칸)만.
+    #   (표준 검사가 이 함수만 떼어 돌리므로 글자·칸 확인은 함수 안에 둔다 — Z161_CUST_TBD 와 같은 글자)
+    _TBD161 = "⚠ 고객 미정(확인 필요)"
+    try:
+        _E161 = "o.end_customer" if "end_customer" in {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()} else "NULL"
+    except Exception as _e161o:
+        print(f"[z1191z161] 수주 2차 칸 확인 실패(2차 줄 없음): {_e161o!r}")
+        _E161 = "NULL"
+    #   소모품 품목별 2차(보고서 _z20_parts 와 같게) — {소모품 번호: [(품목 2차, 금액)]}
+    _z161_coi = {}
+    try:
+        if "secondary_customer" in {r[1] for r in c.execute("PRAGMA table_info(consumable_order_items)").fetchall()}:
+            for _ci, _s2, _am in c.execute("SELECT co_id, COALESCE(secondary_customer,''), COALESCE(amount,0) "
+                                           "FROM consumable_order_items ORDER BY co_id, line_no, id"):
+                _z161_coi.setdefault(_ci, []).append((str(_s2 or "").strip(), float(_am or 0)))
+    except Exception as _e161:
+        print(f"[z1191z161] 소모품 품목 2차 읽기 실패(소모품 2차 줄은 발주 2차 칸만 씀): {_e161!r}")
+        _z161_coi = {}
+    _z161_co2 = {}   # {소모품 번호: 발주 2차 칸}
+    try:
+        for _ci, _s2 in c.execute("SELECT id, secondary_customer FROM consumable_orders"):
+            _z161_co2[_ci] = _s2
+    except Exception as _e161b:
+        print(f"[z1191z161] 소모품 2차 칸 읽기 실패(소모품 2차 줄 없음): {_e161b!r}")
+        _z161_co2 = {}
+
+    def _z161_co_spec(coid):
+        return (_z161_co2.get(coid), _z161_coi.get(coid))
 
     missing = set()
     fx_fb = {}           # z1164: {(통화, 실제 적용월): {요청월, …}} — 그 달 환율이 없어 다른 달로 계산한 것
     sel = str(sel_year)
     agg = {k: {"years": {}, "biz": {}, "cust": {}, "cust_ch": {}, "total": 0.0, "cnt": 0, "so": set(),   # z1191z40: so = 수주 열쇠 · z1191z73: cust_ch = 종사업장별
-               "cust_end": {}, "cust_end_ch": {}, "via": {}, "via_end": {}}   # z1191z88: 최종 고객 · 청구처↔최종 고객이 다른 몫
+               "c2": {}}   # z1191z161: {고객사: {2차 이름: 원화}}
            for k in ("order", "prog", "final")}
+    c2so = {}   # z1191z161: {고객사: {2차 이름: {수주 열쇠}}} — 「수주 N건」(세 지표 합쳐서)
 
-    def add(metric, dd, biz, cust, amount, currency, sok=None, endc=None, fxdd=None):
+    def add(metric, dd, biz, cust, amount, currency, sok=None, c2=None, fxdd=None):
         dd = dd or ""
         # z1191z115 (대표 11-23 「발주달로 통일」): 외화 환율의 달 = 발주 달(fxdd) — 매출을 넣는 달(dd)은 그대로.
         #   발주일이 비면 예전처럼 그 줄 날짜의 달.
@@ -33011,30 +33130,24 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             if ch:
                 _cc = A["cust_ch"].setdefault(nm, {})
                 _cc[ch] = _cc.get(ch, 0.0) + krw
-            # z1191z88: 최종 고객(프로젝트 고객) — 소모품은 청구처와 같다
-            enm, ech = (endc if isinstance(endc, tuple) else (endc, None)) if endc else (nm, ch)
-            enm = enm or "—"
-            A["cust_end"][enm] = A["cust_end"].get(enm, 0.0) + krw
-            if ech:
-                _ce = A["cust_end_ch"].setdefault(enm, {})
-                _ce[ech] = _ce.get(ech, 0.0) + krw
-            if enm != nm:
-                _v = A["via"].setdefault(nm, {})
-                _v[enm] = _v.get(enm, 0.0) + krw
-                _v2 = A["via_end"].setdefault(enm, {})
-                _v2[nm] = _v2.get(nm, 0.0) + krw
+            # z1191z161: 2차 몫(수주 2차 칸 · 빈 칸이면 없음) — 고객사 줄 아래 「└ 2차」
+            _p161 = _z161_c2_parts(c2, krw) if (c2 and (c2[0] or c2[1])) else []
+            for _n2, _w2 in _p161:
+                _g2 = A["c2"].setdefault(nm, {})
+                _g2[_n2] = _g2.get(_n2, 0.0) + _w2
+                if sok:
+                    c2so.setdefault(nm, {}).setdefault(_n2, set()).add(sok)
             A["total"] += krw
             A["cnt"] += 1
             if sok:   # z1191z40: 건수 = 수주 하나(수주번호 · 소모품 발주번호) — 매출 보고서 _z33_sok 와 같은 열쇠
                 A["so"].add(sok)
             if detail is not None:   # z1191z45: 깊이 보기 — 매출 홈 합계와 같은 줄(지표 · 사업부 · 고객사 · 원화 · 수주 열쇠)
-                detail.append((metric, b, nm, krw, sok, ch, enm, ech))   # z1191z73: ch = 종사업장 시스템명 · z1191z88: 최종 고객(등록명, 사업장)
+                detail.append((metric, b, nm, krw, sok, ch, tuple(_p161)))   # z1191z73: ch = 종사업장 시스템명 · z1191z161: 2차 몫 ((이름, 원화), …)
 
     # ① 수주매출 — 발주일(orders.order_date) 기준, 전 호기(취소/폐기 제외)
     for r in c.execute(
             "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
-            "COALESCE(o.customer_id, p.customer_id) AS z73cid, COALESCE(p.customer_name,'') AS cust, "   # z1191z88: 청구처
-            "p.customer_id AS z88eid, oi.amount AS amount, "                                              # z1191z88: 최종 고객
+            "o.customer_id AS z73cid, '' AS cust, " + _E161 + " AS c2raw, oi.amount AS amount, "   # z1191z161: 1차 = 수주 고객사만 · 2차 = 수주 2차 칸
             + SALES_CCY_ITEM + " AS currency, "       # z1164: 호기 → 수주 → 프로젝트(일정표와 같게)
             + SALES_DD_ORDER + " AS dd"                # z1164: 호기 발주일 → 수주 → 프로젝트 · 빈 글자 = 빈칸
             ", 'S' AS z40k, COALESCE(p.mgmt_code,'') AS z40c, COALESCE(o.order_no,'') AS z40s "   # z1191z40
@@ -33044,19 +33157,18 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 위 주석 「취소 제외」대로 「취소」 호기 금액도 뺀다
             "AND COALESCE(oi.unit_status,'')<>'취소'").fetchall():
         d = dict(r)
-        add("order", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d))   # z1191z40 · z1191z88
+        add("order", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), (d["c2raw"], None))   # z1191z40 · z1191z161
     for r in c.execute(
-            "SELECT " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22
+            "SELECT id AS coid, " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22 · z1191z161: coid
             "currency, order_date AS dd, 'C' AS z40k, COALESCE(mgmt_code,'') AS z40c, COALESCE(co_no,'') AS z40s FROM consumable_orders "   # z1191z40
             "WHERE COALESCE(status,'')<>'CANCELLED'").fetchall():
         d = dict(r)
-        add("order", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]))   # z1191z40
+        add("order", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z161_co_spec(d["coid"]))   # z1191z40 · z1191z161
 
-    # ② 진행매출 — 출하일 기준(기존 납품완료 로직과 동일)
+    # ② 진행매출 — 출하일(출하일이 없으면 납기) 기준(기존 납품완료 로직과 동일)
     for r in c.execute(
             "SELECT UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
-            "COALESCE(o.customer_id, p.customer_id) AS z73cid, COALESCE(p.customer_name,'') AS cust, "   # z1191z88: 청구처
-            "p.customer_id AS z88eid, oi.amount AS amount, "                                              # z1191z88: 최종 고객
+            "o.customer_id AS z73cid, '' AS cust, " + _E161 + " AS c2raw, oi.amount AS amount, "   # z1191z161: 1차 = 수주 고객사만 · 2차 = 수주 2차 칸
             + SALES_CCY_ITEM + " AS currency, "       # z1164: 호기 → 수주 → 프로젝트(일정표와 같게)
             + SALES_DD_SHIP + " AS dd, "               # z1164: 호기 납기 → 수주 → 프로젝트 · 빈 글자 = 빈칸
             + SALES_DD_ORDER + " AS fxdd"              # z1191z115: 환율 달 = 발주 달
@@ -33066,22 +33178,22 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             "WHERE oi.unit_status='출하' AND COALESCE(o.status,'')<>'CANCELLED' "
             "AND COALESCE(p.is_archived,0)=0").fetchall():
         d = dict(r)
-        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d), d["fxdd"])   # z1191z40 · z1191z88 · z1191z115
+        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), (d["c2raw"], None), d["fxdd"])   # z1191z40 · z1191z161 · z1191z115
     for r in c.execute(
-            "SELECT " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22
+            "SELECT id AS coid, " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, total_amount AS amount, "   # z1191z22 · z1191z161: coid
             "currency, 'C' AS z40k, COALESCE(mgmt_code,'') AS z40c, COALESCE(co_no,'') AS z40s, "   # z1191z40
             "NULLIF(TRIM(order_date),'') AS fxdd, "   # z1191z115: 환율 달 = 발주 달
             "COALESCE(NULLIF(TRIM(status_date),''),NULLIF(TRIM(due_date),''),NULLIF(TRIM(order_date),'')) AS dd FROM consumable_orders "   # z1164: 빈 글자 = 빈칸 · z1191z17: 상태 발생일(출하한 날) 먼저
             "WHERE status IN ('SHIPPED','PAID')").fetchall():
         d = dict(r)
-        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), None, d["fxdd"])   # z1191z40 · z1191z115
+        add("prog", d["dd"], d["biz"], _z73(d), d["amount"], d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z161_co_spec(d["coid"]), d["fxdd"])   # z1191z40 · z1191z115 · z1191z161
 
     # ③ 최종매출 — 세금계산서 발행일 기준, 호기 차수 발행액(단일소스)
     meta = {}
     for r in c.execute(
             "SELECT oi.id AS iid, UPPER(substr(COALESCE(p.mgmt_code,''),4,1)) AS biz, "
-            "COALESCE(o.customer_id, p.customer_id) AS z73cid, COALESCE(p.customer_name,'') AS cust, "   # z1191z88: 청구처
-            "p.customer_id AS z88eid, " + SALES_CCY_ITEM + " AS currency, "   # z1164: 호기 → 수주 → 프로젝트 · z1191z88: 최종 고객
+            "o.customer_id AS z73cid, '' AS cust, " + _E161 + " AS c2raw, "   # z1191z161: 1차 = 수주 고객사만 · 2차 = 수주 2차 칸
+            + SALES_CCY_ITEM + " AS currency, "   # z1164: 호기 → 수주 → 프로젝트
             + SALES_DD_ORDER + " AS fxdd"              # z1191z115: 환율 달 = 발주 달
             ", 'S' AS z40k, COALESCE(p.mgmt_code,'') AS z40c, COALESCE(o.order_no,'') AS z40s "   # z1191z40
             "FROM order_items oi JOIN orders o ON o.id=oi.order_id "
@@ -33089,12 +33201,12 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 "
             "AND COALESCE(oi.unit_status,'')<>'취소'").fetchall():   # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 「취소」 호기 제외
         d = dict(r)
-        meta[d["iid"]] =(d["biz"], _z73(d), d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z88e(d), d["fxdd"])
+        meta[d["iid"]] =(d["biz"], _z73(d), d["currency"], (d["z40k"], d["z40c"], d["z40s"]), (d["c2raw"], None), d["fxdd"])   # z1191z161
     for iid, tx in (oi_map or {}).items():
         mm = meta.get(iid)
         if not mm:
             continue
-        biz, cust, currency, _sok, _endc, _fxdd = mm
+        biz, cust, currency, _sok, _c2, _fxdd = mm
         for dk, ak in [("t%dd" % _n, "t%da" % _n) for _n in range(1, _TI_MAX + 1)]:   # z1191z24: 1~10차
             dd = tx.get(dk) or ""
             av = tx.get(ak)
@@ -33106,11 +33218,11 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
                 continue
             if amt == 0:
                 continue
-            add("final", dd, biz, cust, amt, currency, _sok, _endc, _fxdd)   # z1191z115: 환율 달 = 발주 달
+            add("final", dd, biz, cust, amt, currency, _sok, _c2, _fxdd)   # z1191z115: 환율 달 = 발주 달 · z1191z161: 2차
     # v5H226z1086 (대표 "진행해" 08-19): 소모품 세금계산서 발행분도 최종매출에 — 호기와 같은 규칙
     #   (발행칸에 적힌 1~3차 금액만 · 각 차수 발행일의 달 환율 · 출하만 되고 발행칸 비면 미포함).
     for r in c.execute(
-            "SELECT " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, currency, "   # z1191z22
+            "SELECT id AS coid, " + _SALES3_CO_BIZ + " AS biz, customer_id AS z73cid, COALESCE(customer_name,'') AS cust, currency, "   # z1191z22 · z1191z161: coid
             "'C' AS z40k, COALESCE(mgmt_code,'') AS z40c, COALESCE(co_no,'') AS z40s, "   # z1191z40
             "tax_invoice_date AS d1, COALESCE(tax_invoice_amt1,0) AS a1, "
             "tax_invoice_date2 AS d2, COALESCE(tax_invoice_amt2,0) AS a2, "
@@ -33126,7 +33238,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
                 continue
             if not dd or amt == 0:
                 continue
-            add("final", dd, d["biz"], _z73(d), amt, d["currency"], (d["z40k"], d["z40c"], d["z40s"]), None, d["fxdd"])   # z1191z40   # z1191z22: 소모품(검사기/자동화) · z1191z115
+            add("final", dd, d["biz"], _z73(d), amt, d["currency"], (d["z40k"], d["z40c"], d["z40s"]), _z161_co_spec(d["coid"]), d["fxdd"])   # z1191z40 · z1191z161   # z1191z22: 소모품(검사기/자동화) · z1191z115
 
     all_years = sorted(set(agg["order"]["years"]) | set(agg["prog"]["years"])
                        | set(agg["final"]["years"]), reverse=True)
@@ -33146,32 +33258,22 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             ks |= set(agg[_m]["cust_ch"].get(nm, {}))
         return sorted([{"customer_name": x, **{_m: agg[_m]["cust_ch"].get(nm, {}).get(x, 0.0) for _m in ("order", "prog", "final")}}
                        for x in ks], key=lambda r: (-r["prog"], -r["order"], r["customer_name"]))
-    def _z88via(nm, key):   # z1191z88: 이 줄 안에서 청구처↔최종 고객이 다른 몫(진행매출 순)
+    def _z161c2(nm):   # z1191z161: 이 고객사 수주의 2차별 몫(진행매출 순) — 2차가 빈 수주는 없음
         ks = set()
         for _m in ("order", "prog", "final"):
-            ks |= set(agg[_m][key].get(nm, {}))
-        return sorted([{"customer_name": x, **{_m: agg[_m][key].get(nm, {}).get(x, 0.0) for _m in ("order", "prog", "final")}}
-                       for x in ks], key=lambda r: (-r["prog"], -r["order"], -r["final"], r["customer_name"]))
+            ks |= set(agg[_m]["c2"].get(nm, {}))
+        return sorted([{"name": x, "n": len(c2so.get(nm, {}).get(x, ())),
+                        **{_m: agg[_m]["c2"].get(nm, {}).get(x, 0.0) for _m in ("order", "prog", "final")}}
+                       for x in ks], key=lambda r: (-r["prog"], -r["order"], -r["final"], r["name"]))
     top = sorted([{"customer_name": nm,
                    "order": agg["order"]["cust"].get(nm, 0.0),
                    "prog": agg["prog"]["cust"].get(nm, 0.0),
                    "final": agg["final"]["cust"].get(nm, 0.0),
-                   "children": _z73kids(nm), "vias": _z88via(nm, "via")} for nm in cust_names],
-                 key=lambda x: -x["prog"])[:5]
-    end_names = set(agg["order"]["cust_end"]) | set(agg["prog"]["cust_end"]) | set(agg["final"]["cust_end"])
-
-    def _z88endkids(nm):
-        ks = set()
-        for _m in ("order", "prog", "final"):
-            ks |= set(agg[_m]["cust_end_ch"].get(nm, {}))
-        return sorted([{"customer_name": x, **{_m: agg[_m]["cust_end_ch"].get(nm, {}).get(x, 0.0) for _m in ("order", "prog", "final")}}
-                       for x in ks], key=lambda r: (-r["prog"], -r["order"], r["customer_name"]))
-    top_end = sorted([{"customer_name": nm,
-                       "order": agg["order"]["cust_end"].get(nm, 0.0),
-                       "prog": agg["prog"]["cust_end"].get(nm, 0.0),
-                       "final": agg["final"]["cust_end"].get(nm, 0.0),
-                       "children": _z88endkids(nm), "vias": _z88via(nm, "via_end")} for nm in end_names],
-                     key=lambda x: -x["prog"])[:5]
+                   "children": _z73kids(nm), "c2": _z161c2(nm)} for nm in cust_names],
+                 key=lambda x: (-x["prog"], -x["order"], -x["final"], x["customer_name"]))[:5]   # z1191z161: 진행매출이 같으면(0 등) 수주·최종·이름 순 — 예전엔 같은 값끼리 순서가 매번 달라 5곳이 바뀌었다
+    # z1191z161: 1차 고객사가 빈 수주(관리번호 고객으로 대신하지 않음) — TOP5 밖이어도 따로 알린다
+    tbd161 = ({_m: agg[_m]["cust"].get(_TBD161, 0.0) for _m in ("order", "prog", "final")}
+              if _TBD161 in cust_names else None)
     if mode == "quarter":
         plabel = f"{sel}년 {sel_q}분기"
     elif mode == "month":
@@ -33193,7 +33295,7 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
         "biz_rows": biz_rows,
         "years": years_rows,
         "top_customers": top,
-        "top_customers_end": top_end,   # z1191z88: 최종 고객(프로젝트 고객) 기준 TOP5
+        "cust_tbd": tbd161,   # z1191z161: 「⚠ 고객 미정」 금액(없으면 None)
         "sel_year": sel, "mode": mode, "sel_q": str(sel_q), "sel_m": str(sel_m),
         "period_label": plabel,
         "year_choices": all_years,
@@ -33253,21 +33355,32 @@ async def sales_dashboard(request: Request):
         #   숫자 = 프로젝트 상세 「수주액」과 같게: 수주가 있으면 수주 합계(각 수주 발주 달 기준환율 · z1191z115), 없으면 프로젝트 금액.
         _ids104 = [d["id"] for d in recent]
         _so104 = {}
+        _cu161 = {}   # z1191z161: {프로젝트: [수주 1차 고객사 …]}
         if _ids104:
             for _r104 in c.execute(
-                    "SELECT project_id, total_amount, currency, due_date, order_date FROM orders "
-                    "WHERE project_id IN (%s)" % ",".join("?" * len(_ids104)), _ids104).fetchall():
+                    "SELECT o.project_id, o.total_amount, o.currency, o.due_date, o.order_date, "
+                    "COALESCE((SELECT COALESCE(NULLIF(TRIM(cu.alias),''), NULLIF(TRIM(cu.name),'')) FROM customers cu "
+                    "WHERE cu.id=o.customer_id), '') FROM orders o "
+                    "WHERE o.project_id IN (%s) AND COALESCE(o.status,'')<>'CANCELLED' "   # z1191z161: 취소 수주 제외
+                    "ORDER BY o.id" % ",".join("?" * len(_ids104)), _ids104).fetchall():
                 _so104.setdefault(_r104[0], []).append(
                     {"total_amount": _r104[1], "currency": _r104[2], "due_date": _r104[3], "order_date": _r104[4]})
+                _l161 = _cu161.setdefault(_r104[0], [])
+                _n161 = _r104[5] or Z161_CUST_TBD
+                if _n161 not in _l161:
+                    _l161.append(_n161)
         for d in recent:
+            # z1191z161 (대표 11-26): 고객 = 수주 1차 고객사(여럿이면 「외 N곳」) · 금액 = 살아 있는 수주 합 · 수주가 없으면 「—」
+            #   (관리번호 금액·고객은 처음 등록 때 값이라 쓰지 않는다)
+            d["custs_z161"] = _cu161.get(d["id"]) or []
             if _so104.get(d["id"]):
                 _bd104 = _ccy_breakdown(_so104[d["id"]], "total_amount", "currency",
                                         date_keys=("order_date", "due_date"), rates=rates)   # z1191z115: 발주 달
+                d["fx_bd_z104"] = _bd104
+                d["fx_show_z104"] = any(abs(float(x["total"] or 0)) >= 0.005 for x in _bd104["by_ccy"])
             else:
-                _bd104 = _ccy_breakdown([d], "order_amount", "currency",
-                                        date_keys=("order_date", "due_date"), rates=rates)   # z1191z115: 발주 달
-            d["fx_bd_z104"] = _bd104
-            d["fx_show_z104"] = any(abs(float(x["total"] or 0)) >= 0.005 for x in _bd104["by_ccy"])
+                d["fx_bd_z104"] = None
+                d["fx_show_z104"] = False
     sales_kpi = {
         "recent": recent,
         "ym": ym, "year": year,
@@ -33286,7 +33399,7 @@ async def sales_dashboard(request: Request):
 #   「숫자로만 되어 있어 읽기가 불편하고 한눈에 안 들어온다 · 지금 페이지는 그냥 두고 책갈피로 한 장 더 · 그래프로 누구나 쉽게」
 #   숫자 = 매출 홈과 같은 _sales_3way(같은 기간 · 같은 줄) — 따로 다시 세지 않는다(두 화면 합계가 늘 같게).
 #   금액은 「억 · 만」으로 줄여 보이고, 정확한 원 단위는 마우스를 올리면(title) 보인다.
-_Z75_METRICS = (("prog", "진행매출", "출하(납품)한 금액", "#15803d", "출하일 기준"),
+_Z75_METRICS = (("prog", "진행매출", "출하(납품)한 금액", "#15803d", "출하일(없으면 납기) 기준"),   # z1191z161: 실제 계산 = 출하 표시 날 → 없으면 납기
                 ("order", "수주매출", "주문(발주) 받은 금액", "#2563eb", "발주일 기준"),
                 ("final", "최종매출", "세금계산서 발행한 금액", "#b45309", "세금계산서 발행일 기준"))
 
@@ -33522,15 +33635,28 @@ def _z45_drill(c, lines, biz, cust):
     tot = {"order": 0.0, "prog": 0.0, "final": 0.0}
     for x in sel:
         tot[x[0]] += x[3]
+    def _c2add(acc, x):   # z1191z161: 2차 몫(x[6] = ((이름, 원화), …)) 모으기 — 2차가 빈 수주는 몫이 없다
+        for _n2, _w2 in (x[6] if len(x) > 6 else ()):
+            q2 = acc.setdefault(_n2, {"name": _n2, "order": 0.0, "prog": 0.0, "final": 0.0, "sos": set()})
+            q2[x[0]] += _w2
+            if x[4]:
+                q2["sos"].add(x[4])
+
+    def _c2rows(acc):
+        out = sorted(acc.values(), key=lambda q: (-q["prog"], -q["order"], -q["final"], q["name"]))
+        for q in out:
+            q["n"] = len(q.pop("sos"))
+        return out
     if not cust:
         g = {}
         for x in sel:
             m, nm, k, sok = x[0], x[2], x[3], x[4]
             ch = x[5] if len(x) > 5 else None
-            r = g.setdefault(nm, {"cust": nm, "order": 0.0, "prog": 0.0, "final": 0.0, "sos": set(), "kids": {}})
+            r = g.setdefault(nm, {"cust": nm, "order": 0.0, "prog": 0.0, "final": 0.0, "sos": set(), "kids": {}, "c2acc": {}})
             r[m] += k
             if sok:
                 r["sos"].add(sok)
+            _c2add(r["c2acc"], x)
             if ch:
                 kd = r["kids"].setdefault(ch, {"cust": ch, "order": 0.0, "prog": 0.0, "final": 0.0, "sos": set()})
                 kd[m] += k
@@ -33543,14 +33669,19 @@ def _z45_drill(c, lines, biz, cust):
             for q in kids:
                 q["n"] = len(q.pop("sos"))
             r["children"] = kids
+            r["c2"] = _c2rows(r.pop("c2acc"))   # z1191z161: 「└ 2차」 줄
         return {"kind": "cust", "rows": rows, "tot": tot}
-    g, bz = {}, {}
+    g, bz, c2all = {}, {}, {}
     for x in sel:
         m, b, k, sok = x[0], x[1], x[3], x[4]
         key = sok or ("?", "", "")
         r = g.setdefault(key, {"kind": key[0], "code": key[1], "so": key[2], "biz": b,
-                               "order": 0.0, "prog": 0.0, "final": 0.0})
+                               "order": 0.0, "prog": 0.0, "final": 0.0, "c2set": []})
         r[m] += k
+        _c2add(c2all, x)   # z1191z161: 이 고객사의 2차별 몫
+        for _n2, _w2 in (x[6] if len(x) > 6 else ()):
+            if _n2 not in r["c2set"]:
+                r["c2set"].append(_n2)
         s = bz.setdefault(b, {"biz": b, "label": SALES3_BIZ_LABEL.get(b, b), "order": 0.0, "prog": 0.0, "final": 0.0})
         s[m] += k
     rows = list(g.values())
@@ -33591,9 +33722,11 @@ def _z45_drill(c, lines, biz, cust):
             p = pmap.get(r["code"]) or {}
             r.update({"id": p.get("id"), "model": p.get("model", ""), "equip": p.get("equip", ""),
                       "pname": p.get("pname", ""), "od": (omap.get(r["so"]) or "")[:10]})
+    for r in rows:
+        r["c2"] = ", ".join(r.pop("c2set"))   # z1191z161: 이 수주의 2차(빈 수주 = 빈칸)
     rows.sort(key=lambda r: (-r["prog"], -r["order"], -r["final"], r["od"], r["so"]))
     order = {b: i for i, b in enumerate(SALES3_BIZ)}
-    return {"kind": "so", "rows": rows, "tot": tot,
+    return {"kind": "so", "rows": rows, "tot": tot, "c2": _c2rows(c2all),
             "biz_sub": sorted(bz.values(), key=lambda s: order.get(s["biz"], 99))}
 
 
@@ -33616,13 +33749,10 @@ async def sales_drill_page(request: Request):
     with db_session() as c:
         rates = _fx_load_rates(c)
         s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines)
-        # z1191z88: 기본 = 청구처(수주 1차 발주처) · ?by=end = 최종 고객(프로젝트 고객) 기준으로 묶어 보기
-        by = "end" if (qp.get("by") or "").strip() == "end" else ""
-        if by:
-            lines = [(x[0], x[1], x[6], x[3], x[4], x[7]) for x in lines]
+        # z1191z161 (대표 11-26): 고객사 = 수주 1차 고객사 하나 — 예전 ?by=end(관리번호 고객 기준) 보기는 없앴다(주소에 남아 있어도 무시)
         dr = _z45_drill(c, lines, biz, cust)
     year_span = sorted(set(s3.get("year_choices") or []) | {str(date.today().year), str(sel_year)}, reverse=True)
-    return ctx(request, "sales_drill.html", user=u, active="sales", s3=s3, dr=dr, biz=biz, cust=cust, by=by,
+    return ctx(request, "sales_drill.html", user=u, active="sales", s3=s3, dr=dr, biz=biz, cust=cust,
                biz_label=SALES3_BIZ_LABEL.get(biz, ""), year_span=year_span)
 
 
@@ -33862,7 +33992,7 @@ def _z17_lines(c, rates, oi_map, basis):
             continue
         _lbl, _key = _pwf.so_form_label_key(so_form=d["so_form"], so_type=d["so_type"], shipment_form=d["o_sf"],
                                            hogi_n=hogi.get(d["oid"], 0), proj_ptype=(d["ptype"] or "NEW_EQUIP"))
-        cid = d["ocid"] or d["pcid"]
+        cid = d["ocid"]   # z1191z161 (대표 11-26): 1차 = 수주 고객사만 — 비면 관리번호 고객으로 대신하지 않고 「⚠ 고객 미정」
         # z1191z155 (대표 11-25 「사실 = 수주 · 수주 칸이 안 정해졌으면 대표값을 계산에 쓰지 않음」): 2차 = 수주 칸만
         #   NULL(아직 안 정함) = 「2차 미정(확인 필요)」으로 따로 센다(금액은 그대로 · 예전엔 관리번호 2차를 대신 씀) · '' = 사람이 비움(1차 고객 줄)
         c2 = d["oend"] if d["oend"] is not None else ""
@@ -33870,7 +34000,7 @@ def _z17_lines(c, rates, oi_map, basis):
         biz = d["biz"] if d["biz"] in ("T", "M", "L", "E") else "E"
         base = {"code": d["code"] or "", "pname": d["pname"] or "", "pid": d["pid"], "so": d["so"] or "", "label": d["lbl"] or "",
                 "model": d["model"] or "", "biz": biz, "cat": _Z17_CAT_BY_KEY.get(_key, "기타"),
-                "cust": (_z74(cid)[0] or d["pcname"] or "—") if cid else (d["pcname"] or "—"),   # z1191z74: 등록명
+                "cust": (_z74(cid)[0] or Z161_CUST_TBD) if cid else Z161_CUST_TBD,   # z1191z74: 등록명 · z1191z161: 관리번호 고객으로 대신하지 않음
                 "cust_br": _z74(cid)[1] if cid else None,   # z1191z74: 종사업장(시스템명) — 한 회사 여러 사업장일 때만
                 "cust2": _z17_norm2(c2), "c2_tbd": _c2tbd155, "is_vina": cid in vina_ids, "ccy": (d["ccy"] or "KRW").upper(), "kind": "project"}
         if basis == "tax":
@@ -33921,7 +34051,7 @@ def _z17_lines(c, rates, oi_map, basis):
                 cid = _logi.customer_old_name_match(c, d["customer_name"])["id"]
         biz = "C" + (d["bd"] if d["bd"] in ("T", "M") else "E")
         base = {"code": d["mgmt_code"] or "", "pname": "소모품", "pid": None, "so": d["co_no"] or "", "label": "", "model": d["model_name"] or "",
-                "biz": biz, "cat": "소모품", "cust": (_z74(cid)[0] or d["customer_name"] or "—") if cid else (d["customer_name"] or "—"),   # z1191z74
+                "biz": biz, "cat": "소모품", "cust": (_z74(cid)[0] or d["customer_name"] or Z161_CUST_TBD) if cid else (d["customer_name"] or Z161_CUST_TBD),   # z1191z74 · z1191z161: 고객 칸이 비면 「⚠ 고객 미정」(매출 홈과 같게)
                 "cust_br": _z74(cid)[1] if cid else None,
                 "cust2": _z17_norm2(d["secondary_customer"]),
                 "is_vina": (cid in vina_ids) if cid else _z155_is_vina_nm(d["customer_name"]),   # z1191z157: 번호 있으면 번호로만
@@ -57143,6 +57273,8 @@ def _fx_gain_calc_z115(rates, ccy, amount, ord_date, rcv_date):
 
 def _order_fx_date_z115(c, oid):
     """수주의 발주일 = 수주 발주일 → 없으면 프로젝트 발주일."""
+    # z1191z161 표시(대표 11-26 점검 7번 · 이번엔 바꾸지 않음): 호기·수주 날짜·통화가 비면 마지막에 프로젝트(관리번호) 값으로 대신한다.
+    #   관리번호 값은 처음 등록 때 값이라 원칙상 쓰면 안 되지만, 운영 영향 3줄·같은 달이라 숫자 변화 위험 > 이득 → 빅터가 따로 판단.
     r = c.execute("SELECT COALESCE(NULLIF(TRIM(o.order_date),''), NULLIF(TRIM(p.order_date),'')) "
                   "FROM orders o LEFT JOIN projects p ON p.id=o.project_id WHERE o.id=?", (oid,)).fetchone()
     return (r[0] if r else None) or ""
@@ -57156,7 +57288,7 @@ def _fx_gain_rows_z115(c, rates, year="", month=""):
     sql = ("SELECT rp.id AS rid, rp.order_id AS oid, COALESCE(rp.received_at,'') AS rat, rp.amount AS amt, "
            + ccy_x + " AS ccy, COALESCE(rp.method,'') AS method, COALESCE(rp.note,'') AS note, "
            "COALESCE(o.order_no,'') AS so, COALESCE(o.status,'') AS ost, "
-           "COALESCE(NULLIF(TRIM(o.order_date),''), NULLIF(TRIM(p.order_date),''), '') AS odd, "
+           "COALESCE(NULLIF(TRIM(o.order_date),''), NULLIF(TRIM(p.order_date),''), '') AS odd, "   # z1191z161 표시: 프로젝트 발주일 대신 쓰기(이번엔 그대로)
            "COALESCE(p.mgmt_code,'') AS mc, p.id AS pid, "
            "COALESCE(NULLIF(TRIM(cu.name),''), NULLIF(TRIM(p.customer_name),''), '—') AS cname "
            "FROM receipts_payment rp JOIN orders o ON o.id=rp.order_id "

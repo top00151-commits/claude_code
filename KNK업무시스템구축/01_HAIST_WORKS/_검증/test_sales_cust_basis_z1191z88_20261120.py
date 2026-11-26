@@ -2,8 +2,8 @@
 """z1191z88 시험 — 매출 고객사 기준 통일: 청구처(수주 1차 발주처 · 없으면 프로젝트 고객) = 매출 보고서와 같게
   대표 2026-11-20 「사진보면 드림텍 매출이 서로 다른데 원인 파악해봐.. 매출 관련 사항은 정확한 검산이 되어야해.」 → 「1번으로 진행해」
   §1 검산: 수주·진행(출하)·최종(세금계산서) 세 기준 모두 — 매출 홈 고객사별 금액 = 매출 보고서 고객사별 금액(고객사마다 원 단위)
-  §2 TOP5 청구처(기본) · 「↳ 이 중 최종 고객」 · 최종 고객 기준 TOP5 · 두 기준 합계 같음
-  §3 깊이 보기 ?by=end · §4 화면 글
+  §2~§4 z1191z161 (대표 11-26 「2차가 없으면 표현하지 마 깔끔하게」)로 바뀜: 「최종 고객 기준」·「↳ 이 중 …」 없앰 ·
+     수주 고객사가 비면 「⚠ 고객 미정」 · 깊이 보기 ?by=end 무시 · 화면 글
   임시 DB · 가짜 회사 · 운영 아님
 """
 import contextlib, io, os, sys, tempfile
@@ -121,35 +121,32 @@ for met, basis, nm in (("order", "order", "수주"), ("prog", "ship", "진행(�
     rep = {a["name"]: a["total"] for a in REP[basis]["cust_rows"]}
     bad = {k: (home.get(k, 0), rep.get(k, 0)) for k in set(home) | set(rep) if abs(home.get(k, 0) - rep.get(k, 0)) >= 1}
     check(not bad and abs(sum(home.values()) - REP[basis]["total"]) < 1, "%s: 고객사 %d곳 금액 모두 같음 · 합계 %s" % (nm, len(rep), format(int(REP[basis]["total"]), ",")), bad)
-want = {"KNK VINA": 1400000, DREAM: 5000000, "한국가상(주)": 3000000 + 700000 + 200000}
+# z1191z161 (대표 11-26): ③ 수주에 고객사가 빈 줄은 관리번호 고객(한국가상)으로 대신하지 않고 「⚠ 고객 미정(확인 필요)」 한 줄로 따로(합계엔 그대로)
+want = {"KNK VINA": 1400000, DREAM: 5000000, "한국가상(주)": 700000 + 200000, M.Z161_CUST_TBD: 3000000}
 got = {c_["customer_name"]: c_["final"] for c_ in S3["top_customers"]}
-check(all(abs(got.get(k, 0) - v) < 1 for k, v in want.items()), "최종매출 청구처: KNK VINA 1,400,000 · 가상드림 5,000,000 · 한국가상 3,900,000", got)
+check(all(abs(got.get(k, 0) - v) < 1 for k, v in want.items()), "최종매출 수주 고객사: KNK VINA 1,400,000 · 가상드림 5,000,000 · 한국가상 900,000 · 고객 미정 3,000,000", got)
 
-print("§2 TOP5 — 「↳ 이 중 최종 고객」 · 최종 고객 기준")
+print("§2 TOP5 — z1191z161: 「최종 고객 기준」·「↳ 이 중 …」 없앰 · 2차는 수주 2차 칸만")
+check("top_customers_end" not in S3 and all("vias" not in c_ for c_ in S3["top_customers"]), "옛 「최종 고객 기준」·「이 중 …」 자료 없음")
+check(all(c_["c2"] == [] for c_ in S3["top_customers"]), "수주 2차 칸이 모두 비었음 → 「└ 2차」 줄 없음(관리번호 고객 가상드림을 KNK VINA 아래에 보이지 않음)",
+      [(c_["customer_name"], c_["c2"]) for c_ in S3["top_customers"]])
 T = {c_["customer_name"]: c_ for c_ in S3["top_customers"]}
-check([(v["customer_name"], round(v["final"])) for v in T["KNK VINA"]["vias"]] == [(DREAM, 1400000)], "KNK VINA 줄 아래: 이 중 최종 고객 가상드림 1,400,000", T["KNK VINA"]["vias"])
-check([(v["customer_name"], round(v["final"])) for v in T["한국가상(주)"]["vias"]] == [("KNK VINA", 700000)], "한국가상 줄 아래: 이 중 최종 고객 KNK VINA 700,000(반대 방향도)")
-check(T[DREAM]["vias"] == [], "청구처 = 최종 고객이면 「이 중」 줄 없음")
-E = {c_["customer_name"]: c_ for c_ in S3["top_customers_end"]}
-check(abs(E[DREAM]["final"] - 6400000) < 1 and [(v["customer_name"], round(v["final"])) for v in E[DREAM]["vias"]] == [("KNK VINA", 1400000)],
-      "최종 고객 기준: 가상드림 6,400,000 = 직접 5,000,000 + KNK VINA 청구 1,400,000", (E[DREAM]["final"], E[DREAM]["vias"]))
-check(sorted(k["customer_name"] for k in E[DREAM]["children"]) == ["가상드림(동탄)", "가상드림(아산)"], "최종 고객 기준에서도 종사업장 펼치기(아산·동탄)")
+check(sorted(k["customer_name"] for k in T[DREAM]["children"]) == ["가상드림(동탄)"], "종사업장 펼치기는 그대로(수주 고객 기준 · 동탄)", T[DREAM]["children"])
 for met in ("order", "prog", "final"):
     sb = sum(c_[met] for c_ in S3["top_customers"])
-    se = sum(c_[met] for c_ in S3["top_customers_end"])
-    check(abs(sb - se) < 1 and abs(sb - S3["kpi"][met]) < 1, "%s 합계: 청구처 = 최종 고객 = 카드 합계 (%s)" % (met, format(int(sb), ",")), (sb, se, S3["kpi"][met]))
+    check(abs(sb - S3["kpi"][met]) < 1, "%s 합계: TOP 줄 합 = 카드 합계 (%s)" % (met, format(int(sb), ",")), (sb, S3["kpi"][met]))
 
-print("§3 깊이 보기 — 기본 청구처 · ?by=end 최종 고객")
+print("§3 깊이 보기 — 고객사 = 수주 고객사 하나 · 옛 ?by=end 는 무시")
 u = "/sales/drill?cust=%s&mode=year&year=2026" % DREAM
 r1, r2 = cl.get(u), cl.get(u + "&by=end")
-check(r1.status_code == 200 and "5,000,000" in r1.text and "6,400,000" not in r1.text, "청구처 기준 가상드림 = 5,000,000")
-check(r2.status_code == 200 and "6,400,000" in r2.text and 'name="by" value="end"' in r2.text, "최종 고객 기준 가상드림 = 6,400,000 · 기간 바꿔도 기준 유지")
-check(">최종 고객</a>" in r1.text and ">청구처</a>" in r1.text, "깊이 보기에 「고객사 기준: 청구처 / 최종 고객」")
+check(r1.status_code == 200 and "5,000,000" in r1.text and "6,400,000" not in r1.text, "가상드림 = 5,000,000(수주 고객사 기준)")
+check(r2.status_code == 200 and "6,400,000" not in r2.text and 'name="by"' not in r2.text, "옛 주소 ?by=end 로 와도 같은 기준(6,400,000 안 나옴)")
+check(">최종 고객</a>" not in r1.text and ">청구처</a>" not in r1.text, "깊이 보기에 「청구처 / 최종 고객」 단추 없음")
 
 print("§4 화면 글")
 h = cl.get("/sales").text
-check("청구처 기준" in h and "최종 고객 기준" in h and 'id="z88End"' in h and "매출 보고서와 같은 기준" in h, "매출 홈 TOP5: 기준 전환 · 안내")
-check("↳ 이 중 최종 고객" in h and "↳ 이 중 청구처" in h, "줄 아래 「↳ 이 중 …」 두 기준 모두")
+check("청구처 기준" not in h and "최종 고객 기준" not in h and 'id="z88End"' not in h and "매출 보고서와 같은 기준" in h, "매출 홈 TOP5: 기준 전환 단추 없음 · 안내 「매출 보고서와 같은 기준」")
+check("이 중 최종 고객" not in h and "이 중 청구처" not in h, "줄 아래 「↳ 이 중 …」 없음")
 rp = cl.get("/sales/report?basis=tax&mode=year&year=2026").text
 check("매출 홈 TOP5 와 같은 기준" in rp, "매출 보고서 고객사별 머리 = 「매출 홈 TOP5 와 같은 기준」")
 
