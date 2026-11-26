@@ -3092,6 +3092,15 @@ def ctx(request, name, **kwargs):
                 "SELECT id, alias FROM customers WHERE COALESCE(alias,'')<>''")}
     except Exception:
         base["cust_alias"] = {}
+    # z1191z157b (대표 11-26 「항상 기본은 ID번호로 연결 · 1차 고객사만」): 화면에 넘기는 자료의 1차 고객사 이름 = 그 번호의 지금 이름
+    #   (공용 한 곳 · 읽기만 · DB 안 바꿈 · 2차 고객 글자는 그대로). 인쇄 서류(…print…) 틀은 발행 서류라 그때 이름 그대로.
+    if "print" not in str(name):
+        try:
+            from . import database as _d157
+            with db_session() as _c157:
+                _d157.fix_customer_names_in(_c157, kwargs)
+        except Exception as _e157:
+            print(f"[z1191z157b] 화면 고객사 이름 맞추기 실패({name}): {_e157}")
     base.update(kwargs)
     # v5H178b: HTML 페이지는 캐시 금지 — 인라인 편집 후 다른 탭/뒤로가기에서 stale 데이터 방지
     resp = tpl.TemplateResponse(request=request, name=name, context=base)
@@ -4067,8 +4076,17 @@ async def api_customers_options(req: Request):
         rows = c.execute(
             f"SELECT id, name, COALESCE({_al},'') AS alias, COALESCE({_sb},'') AS sub_biz_no, COALESCE({_ct},'') AS country "
             "FROM customers WHERE COALESCE(is_active,1)=1 ORDER BY " + _CUST_PICK_ORDER_SQL).fetchall()   # z1158: 공용 선택기도 같은 순서
+        # z1191z157 (대표 11-26): 옛 이름(이름 변경 이력) — 옛 이름으로 쳐도 그 고객사가 찾아지게(지금 이름과 같은 것 제외)
+        _old157 = {}
+        try:
+            for _hc, _ho in c.execute("SELECT DISTINCT customer_id, TRIM(old_value) FROM customer_history "
+                                      "WHERE field='고객사명' AND TRIM(COALESCE(old_value,''))<>''").fetchall():
+                _old157.setdefault(_hc, []).append(_ho)
+        except Exception as _e157:
+            print(f"[z1191z157] 고르기 옛 이름 읽기 실패: {_e157}")
     out = [{"id": r["id"], "name": r["name"] or "",
             "alias": (r["alias"] or ""), "sub_biz_no": (r["sub_biz_no"] or ""),
+            "old_names": [x for x in _old157.get(r["id"], []) if x != (r["name"] or "").strip()],
             "foreign": _cust_is_foreign(r["country"])} for r in rows]   # z1186
     return JSONResponse({"ok": True, "customers": out})
 
@@ -13866,7 +13884,17 @@ async def customer_detail(req: Request, cid: int):
         customer_history = _logi.get_customer_history(cid, limit=50)
     except Exception:
         customer_history = []
-    return ctx(req, "customer_detail.html",
+    # z1191z157: 이름 변경 저장 직후 — 「4 저장 끝」 단계 줄(아는 표 이름 + 숫자만 받음)
+    z157_done = None
+    _zq = (req.query_params.get("z157") or "").strip()
+    if _zq:
+        _lab = {t: lb for t, _c, lb in _logi.CUSTOMER_NAME_SYNC_TABLES}
+        z157_done = []
+        for _part in _zq.split(","):
+            _t, _, _n = _part.partition(":")
+            if _t in _lab and _n.isdigit():
+                z157_done.append(f"{_lab[_t]} {int(_n)}건")
+    return ctx(req, "customer_detail.html", z157_done=z157_done,
                user=u, cu=cu, pjts=pjts, tasks=tasks[:80],
                pjts_total_bd=pjts_total_bd,     # z1097: 총 수주액(통화별+원화)
                stats=stats, by_team=by_team_list, total_tasks=len(tasks),
@@ -15780,6 +15808,15 @@ async def admin_customer_health(req: Request):
                     _cust_by_key[_nm].append(_cu)
                 if _al and _al != _nm:
                     _cust_by_key[_al].append(_cu)
+            # z1191z157: 옛 이름(이름 변경 이력)도 후보로 — 자동 연결 아님(사람이 고름)
+            try:
+                _cu_by_id157 = {x["id"]: x for x in custs}
+                for _hc, _ho in c.execute("SELECT DISTINCT customer_id, TRIM(old_value) FROM customer_history "
+                                          "WHERE field='고객사명' AND TRIM(COALESCE(old_value,''))<>''").fetchall():
+                    if _hc in _cu_by_id157 and _cu_by_id157[_hc] not in _cust_by_key[_ho]:
+                        _cust_by_key[_ho].append(_cu_by_id157[_hc])
+            except Exception as _e157:
+                print(f"[z1191z157] 연결 점검 옛 이름 후보 실패: {_e157}")
 
             def _mk_targets(_rows, _kind):
                 for _r in _rows:
@@ -18920,10 +18957,12 @@ async def sales_opportunity_promote(request: Request, oid: int):
             _cust_unreg = 1
         else:
             with db_session() as c:
-                if not c.execute("SELECT 1 FROM customers WHERE name=? LIMIT 1", (_cn,)).fetchone():
+                # z1191z157: 지금 이름·시스템명·옛 이름(이력)으로 등록 고객사가 있으면 「미등록」 아님(같은 이름 여러 지점 = 등록은 됨)
+                _r157 = _logi.resolve_customer_by_name(c, _cn)
+                if not (_r157["id"] or _r157["reason"] == "ambiguous"):
                     _cust_unreg = 1
-    except Exception:
-        pass
+    except Exception as _e157:
+        print(f"[z1191z157] 승격 고객사 확인 실패: {_e157}")
     # 프로젝트 상세에서 '제작요청 발행'(전부서 통보)을 이어서 하도록 안내 플래그와 함께 이동
     _ce = ("&cust_unreg=1&cust=" + _q((o.get("customer_name") or "").strip())) if _cust_unreg else ""
     return RedirectResponse(f"/project/{new_pid}?promoted_from_opp={oid}{_ce}", 303)
@@ -21978,6 +22017,13 @@ async def sales_orders_quick_edit(req: Request, oid: int):
                 _oc_hits = _coc.execute("SELECT id FROM customers WHERE alias=?", (_ocv,)).fetchall()
                 if not _oc_hits:
                     _oc_hits = _coc.execute("SELECT id FROM customers WHERE name=?", (_ocv,)).fetchall()
+                _o157 = None
+                if not _oc_hits:   # z1191z157: 옛 이름(이름 변경 이력) — 딱 한 고객사일 때만
+                    _o157 = _logi.customer_old_name_match(_coc, _ocv)
+                    if _o157["id"]:
+                        _oc_hits = [(_o157["id"],)]
+            if not _oc_hits and _o157 and _o157["reason"] in ("ambiguous", "unsafe"):
+                return JSONResponse({"ok": False, "message": "👉 " + _o157["note"]}, 400)
             if not _oc_hits:
                 return JSONResponse({"ok": False, "message":
                     f"발주처 '{_ocv}' 를 등록 고객사에서 찾을 수 없습니다 — 고객사 화면의 시스템명(또는 정식명) 그대로 입력해 주세요. 비우면 프로젝트 고객사를 따릅니다."}, 400)
@@ -29979,6 +30025,15 @@ async def customers_edit_submit(req: Request, cid: int):
             (name, _new_sbn, cid)).fetchone()
         if _dupc:
             return RedirectResponse(f"/customers/{cid}/edit?dup=1", status_code=303)
+        # z1191z157 (대표 11-26 「고객사 이름만 바뀔 때도 기존 등록한 것과 연결」): 이름을 바꾸는 저장은 화면의
+        #   「이 이름을 쓰는 곳」 확인 창에서 「확인하고 저장」을 눌렀을 때만(rename_confirm=1) — 아니면 아무것도 안 바꾸고 돌려보냄.
+        _z157_rename = bool(old_name and old_name.strip() != name)
+        if _z157_rename and (form.get("rename_confirm") or "").strip() != "1":
+            return RedirectResponse(f"/customers/{cid}/edit?rename_confirm_needed=1", status_code=303)
+        _z157_done = {}
+        if _z157_rename:
+            # 고객사 이름을 바꾸기 **전에** — 같은 고객 번호 자료 중 저장 글자가 지금 이름·옛 이름인 줄만 새 이름으로(시스템명 글자·발행 서류는 그대로)
+            _z157_done = _logi.customer_rename_sync(c, cid, name, by_id=u.get("id"), by_name=(u.get("name") or ""))
         new_is_active = int(form.get("is_active") or 1)
         new_data = {
             "name": name,
@@ -30026,15 +30081,8 @@ async def customers_edit_submit(req: Request, cid: int):
                 c.execute("UPDATE customers SET code=? WHERE id=?", (_gen_customer_code(c), cid))
         except Exception:
             pass
-        # v5H112: name 변경 시 자식(projects) 동기화
-        if old_name and old_name != name:
-            try:
-                c.execute(
-                    "UPDATE projects SET customer_name=? WHERE customer_id=?",
-                    (name, cid),
-                )
-            except Exception:
-                pass
+        # v5H112: name 변경 시 자식(projects) 동기화 → z1191z157: 위 customer_rename_sync 로 옮김(확인 뒤 · 프로젝트·소모품 등 · 줄마다 이력)
+        #   예전엔 같은 번호 프로젝트를 전부 새 이름으로 덮어 시스템명(드림텍(아산) 등)으로 적힌 줄도 지워졌다.
         # v5H113: 7필드 모두 diff → customer_history 기록
         _label_map = {
             "name": "고객사명", "biz_no": "사업자번호", "ceo_name": "대표자",
@@ -30050,7 +30098,9 @@ async def customers_edit_submit(req: Request, cid: int):
                 continue
             _note = ""
             if _key == "name":
-                _note = "고객사명 변경 → projects.customer_name 동기화"
+                _lab157 = {t: lb for t, _c, lb in _logi.CUSTOMER_NAME_SYNC_TABLES}
+                _note = ("z1191z157 확인 뒤 변경 → 저장 이름 함께 바꿈: "
+                         + (" · ".join(f"{_lab157.get(k, k)} {v}건" for k, v in _z157_done.items()) or "없음"))
             try:
                 c.execute(
                     "INSERT INTO customer_history(customer_id, changed_by, field, "
@@ -30081,7 +30131,27 @@ async def customers_edit_submit(req: Request, cid: int):
         # v5H58: 수정 후에도 등급 즉시 재계산
         from . import customer_tier as _ct
         _ct.refresh_customer_tier(c, cid)
+    if _z157_rename:
+        # 결과 화면(고객사 상세) 맨 위 「4 저장 끝」 단계 줄 — 숫자만 넘기고 글은 서버가 만든다(주소 글자를 그대로 보이지 않음)
+        _q157 = ",".join(f"{k}:{int(v)}" for k, v in _z157_done.items()) or "none"
+        return RedirectResponse(f"/customer/{cid}?z157={_q157}", status_code=303)
     return RedirectResponse(f"/customer/{cid}", status_code=303)
+
+
+@app.get("/api/customers/{cid:int}/rename-preview")
+async def api_customer_rename_preview(req: Request, cid: int, new_name: str = ""):
+    """z1191z157: 고객사 이름 변경 미리보기(읽기 전용) — 이 고객 번호를 쓰는 자료 건수 · 저장 이름이 함께 바뀌는 건수."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "로그인이 필요합니다"}, 401)
+    nm = (new_name or "").strip()
+    if not nm:
+        return JSONResponse({"ok": False, "error": "새 이름이 비었습니다"}, 400)
+    with db_session() as c:
+        out = _logi.customer_rename_usage(c, cid, nm)
+    if not out.get("ok"):
+        return JSONResponse(out, 404)
+    return JSONResponse(out)
 
 
 @app.get("/orders/new", response_class=HTMLResponse)
@@ -33606,7 +33676,27 @@ def _z155_so_mix():
 tpl.env.globals["z155_so_mix"] = _z155_so_mix
 
 
-Z155_TBD = "⚠ 2차 미정(확인 필요)"   # z1191z155: 수주 2차 칸이 아직 안 정해진 매출 — 관리번호 2차로 대신 세지 않고 따로
+Z155_TBD = "⚠ 2차 미정(확인 필요)"
+
+# z1191z157: 「KNK VINA」 뒤에 붙는 법인 꼬리(띄어쓰기·점·쉼표 무시) — 이름을 정식 이름으로 바꿔도 같은 VINA
+_Z157_VINA_TAILS = ("", "CO", "COLTD", "COMPANYLIMITED", "COMPANYLTD", "LTD", "LIMITED", "JSC", "LLC")
+
+
+def _z157_is_vina_txt(_n):
+    _k = "".join(ch for ch in str(_n or "").upper() if ch.isalnum())
+    return _k.startswith("KNKVINA") and _k[len("KNKVINA"):] in _Z157_VINA_TAILS
+
+
+def _z157_vina_ids(c, names, alias):
+    """VINA 고객사 번호 모음 — 지금 이름·시스템명·옛 이름(customer_history 「고객사명」) 중 하나라도 KNK VINA 인 번호."""
+    ids = {i for i, n in names.items() if _z157_is_vina_txt(n) or _z157_is_vina_txt(alias.get(i))}
+    try:
+        for _cid, _ov, _nv in c.execute("SELECT customer_id, old_value, new_value FROM customer_history WHERE field='고객사명'"):
+            if _cid in names and (_z157_is_vina_txt(_ov) or _z157_is_vina_txt(_nv)):
+                ids.add(_cid)
+    except Exception as _e:
+        print(f"[z1191z157] VINA 이름 이력 읽기 실패: {_e}")
+    return ids   # z1191z155: 수주 2차 칸이 아직 안 정해진 매출 — 관리번호 2차로 대신 세지 않고 따로
 
 
 def _z17_lines(c, rates, oi_map, basis):
@@ -33633,7 +33723,9 @@ def _z17_lines(c, rates, oi_map, basis):
     def _z155_is_vina_nm(_n):
         _k = "".join(str(_n or "").upper().split())
         return _k in ("KNKVINA", "KNKVINACOLTD")
-    vina_ids = {i for i, n in names.items() if _z155_is_vina_nm(n) or "".join(str(alias.get(i) or "").upper().split()) == "KNKVINA"}
+    # z1191z157 (대표 11-26 「이름만 바뀔 때도 연결」): VINA = **고객사 번호**로 정한다 — 그 번호의 지금 이름·시스템명·옛 이름(이름 변경 이력)
+    #   중 하나라도 「KNK VINA」(+ 법인 꼬리 CO LTD·COMPANY LIMITED 등)이면 그 번호. 이름을 또 바꿔도 번호는 그대로라 판정이 안 바뀐다.
+    vina_ids = _z157_vina_ids(c, names, alias)
     # 소모품은 고객사 번호 없이 이름만 적힌 것이 있다 → 정식명·시스템명이 **딱 한 곳**과 같을 때만 그 고객사로(같은 고객이 두 줄로 갈리지 않게)
     _nm2id = {}
     for _i, _n in list(names.items()) + list(alias.items()):
@@ -33729,12 +33821,14 @@ def _z17_lines(c, rates, oi_map, basis):
         if not cid:
             _hit = _nm2id.get(str(d["customer_name"] or "").strip()) or set()
             cid = next(iter(_hit)) if len(_hit) == 1 else None
+            if not cid and str(d["customer_name"] or "").strip():   # z1191z157: 옛 이름(이력) — 딱 한 고객사일 때만
+                cid = _logi.customer_old_name_match(c, d["customer_name"])["id"]
         biz = "C" + (d["bd"] if d["bd"] in ("T", "M") else "E")
         base = {"code": d["mgmt_code"] or "", "pname": "소모품", "pid": None, "so": d["co_no"] or "", "label": "", "model": d["model_name"] or "",
                 "biz": biz, "cat": "소모품", "cust": (_z74(cid)[0] or d["customer_name"] or "—") if cid else (d["customer_name"] or "—"),   # z1191z74
                 "cust_br": _z74(cid)[1] if cid else None,
                 "cust2": _z17_norm2(d["secondary_customer"]),
-                "is_vina": (cid in vina_ids) or _z155_is_vina_nm(d["customer_name"]),
+                "is_vina": (cid in vina_ids) if cid else _z155_is_vina_nm(d["customer_name"]),   # z1191z157: 번호 있으면 번호로만
                 "ccy": (d["currency"] or "KRW").upper(), "kind": "consumable"}
         _parts = _z20_parts(_co_item2.get(d["coid"]), base["cust2"])   # z1191z20: 품목별 2차 몫(하나뿐이면 None)
         if basis == "tax":
@@ -37114,12 +37208,12 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     # z987: 시스템명(alias) 검색 포함
                     # v5H226z1083 (대표 지시 2026-08-11): 작업일정표 소모품 찾기에도 품명·규격 포함 —
                     #   "KNK-P-4847" 검색 시 그 품목이 담긴 소모품 발주 행이 나온다.
-                    _cconds.append("(co.mgmt_code LIKE ? OR co.co_no LIKE ? OR co.customer_name LIKE ? "
+                    _cconds.append("(co.mgmt_code LIKE ? OR co.co_no LIKE ? OR co.customer_name LIKE ? OR cu.name LIKE ? "   # z1191z157: 지금 이름
                                    "OR cu.alias LIKE ? OR co.model_name LIKE ? OR co.equip_name LIKE ? "
                                    "OR COALESCE(co.project_name,'') LIKE ? "      # z1191z3
                                    "OR co.id IN (SELECT ci.co_id FROM consumable_order_items ci "
                                    "             WHERE COALESCE(ci.part_name,'') LIKE ? OR COALESCE(ci.spec,'') LIKE ?))")
-                    _cparams += [f"%{_q}%"] * 9
+                    _cparams += [f"%{_q}%"] * 10   # z1191z157: 지금 이름 칸 하나 늘어남
                 if _period == "day":
                     _cconds.append("substr(COALESCE(order_date,''),1,10) = ?"); _cparams.append(_today)
                 elif _period == "week":
@@ -40861,9 +40955,16 @@ async def projects_import_product_parse(request: Request,
         errors.append("부품 줄이 없습니다 (부품 표에 1줄 이상 입력)")
     cust_matched = False
     mgmt_dup = False
+    _cust_now157 = ""
     with db_session() as c:
         if cust:
             cust_matched = bool(c.execute("SELECT 1 FROM customers WHERE name=? LIMIT 1", (cust,)).fetchone())
+            # z1191z157: 시스템명·옛 이름(이름 변경 이력)으로 딱 한 고객사면 그 고객사 — 미리보기에 「→ 지금 이름」
+            _r157 = _logi.resolve_customer_by_name(c, cust)
+            if _r157["id"]:
+                cust_matched = True
+                if _r157["cur_name"] and _r157["cur_name"] != cust:
+                    _cust_now157 = _r157["cur_name"]
         if mgmt:
             mgmt_dup = bool(c.execute("SELECT 1 FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (mgmt,)).fetchone())
     # v5H226z598 (대표 지시): 관리번호 존재 = '추가 수주(다른 수주번호)'로 등록 — 오류 아님.
@@ -40904,7 +41005,7 @@ async def projects_import_product_parse(request: Request,
                          "total": total, "cost_total": cost_total,
                          "cost_total_krw": cost_total_krw, "amount_krw": amount_krw,
                          "fx_rate": fx_rate,
-                         "cust_matched": cust_matched, "n_unpriced": npriced,
+                         "cust_matched": cust_matched, "cust_now": _cust_now157, "n_unpriced": npriced,
                          "is_followup": mgmt_dup, "existing_code": (mgmt if mgmt_dup else ""),
                          "errors": errors, "biz": (biz or "").strip().upper()})
 
@@ -41795,6 +41896,12 @@ def _z1191_resolve_cust(c, text, picked_id=None):
     hits = c.execute("SELECT id FROM customers WHERE alias=?", (t,)).fetchall() if "alias" in ccols else []
     if not hits:
         hits = c.execute("SELECT id FROM customers WHERE name=?", (t,)).fetchall()
+    if not hits:   # z1191z157: 옛 이름(이름 변경 이력) — 딱 한 고객사일 때만
+        _o157 = _logi.customer_old_name_match(c, t)
+        if _o157["id"]:
+            return int(_o157["id"]), ""
+        if _o157["reason"] in ("ambiguous", "unsafe"):
+            return None, _o157["note"]
     if not hits:
         return None, f"'{t}' 를 등록 고객사에서 찾을 수 없습니다 — 목록에서 고르세요(수주 줄은 등록 고객사만)"
     if len(hits) > 1:
@@ -43118,8 +43225,8 @@ def _ti_make_bundle(c, tier, issue_date, currency, cust_name, lines, created_by,
     cid = None
     if cust_name:
         # v5H226z657: 상호(name) 또는 시스템명(alias) 단일 매칭 시 세금계산서 고객사 연결(z654 일관)
-        _m = c.execute("SELECT id FROM customers WHERE name=? OR alias=?", (cust_name, cust_name)).fetchall()
-        cid = _m[0][0] if len(_m) == 1 else None   # 명확한 단일후보만(연결성 안전원칙)
+        # z1191z157: 지금 이름 → 시스템명 → 옛 이름(이력) · 명확한 단일후보만(연결성 안전원칙)
+        cid = _logi.resolve_customer_by_name(c, cust_name)["id"]
     cur = c.execute(
         "INSERT INTO tax_invoices(ti_no, issue_date, customer_name, customer_id, total_amount, currency, memo, status, created_by, created_by_name) "
         "VALUES(?,?,?,?,?,?,?,'발행',?,?)",
@@ -43303,8 +43410,8 @@ async def schedule_tax_invoice_issue(request: Request):
             ti_no = f"{prefix}{seq:04d}"
             cid = None
             if cust_name:
-                _m = c.execute("SELECT id FROM customers WHERE name=?", (cust_name,)).fetchall()
-                cid = _m[0][0] if len(_m) == 1 else None   # 명확한 단일후보만(데이터 연결성 안전원칙)
+                # z1191z157: 지금 이름 → 시스템명 → 옛 이름(이력) · 명확한 단일후보만(데이터 연결성 안전원칙)
+                cid = _logi.resolve_customer_by_name(c, cust_name)["id"]
             cur = c.execute(
                 "INSERT INTO tax_invoices(ti_no, issue_date, customer_name, customer_id, total_amount, currency, memo, status, created_by, created_by_name) "
                 "VALUES(?,?,?,?,?,?,?,'발행',?,?)",
@@ -43385,7 +43492,8 @@ async def schedule_tax_invoice_view(request: Request, ti_id: int):
             _cid = t.get("customer_id")
             _cr = c.execute("SELECT sub_biz_no FROM customers WHERE id=?", (_cid,)).fetchone() if _cid else None
             if not _cr and t.get("customer_name"):
-                _cr = c.execute("SELECT sub_biz_no FROM customers WHERE name=? LIMIT 1", (t.get("customer_name"),)).fetchone()
+                _cid157 = _logi.resolve_customer_by_name(c, t.get("customer_name"))["id"]   # z1191z157: 단일 후보만
+                _cr = c.execute("SELECT sub_biz_no FROM customers WHERE id=?", (_cid157,)).fetchone() if _cid157 else None
             if _cr:
                 _ti_sbn = (_cr[0] or "")
         except Exception:
@@ -44236,6 +44344,11 @@ def projects_export_xlsx(request: Request, q: str = "", div: str = "",
     _ptype = {"E": "OTHER", "C": "CONSUMABLE"}.get(_div, "")
     rows = [dict(r) for r in _logi.projects_list_logi(q=q, biz_div=_biz, stage="",
                                                       status=status, project_type=_ptype)]
+    try:   # z1191z157b: 엑셀도 1차 고객사 = 번호의 지금 이름(화면 목록과 같게)
+        with db_session() as _c157:
+            _logi.fix_customer_names_in(_c157, rows)
+    except Exception as _e157:
+        print(f"[z1191z157b] 프로젝트 엑셀 고객사 이름 실패: {_e157}")
     # 소모품 병합 — v5H226z254 (대표 지시): '전체' 또는 '소모품' 탭일 때만.
     #   소모품 co 는 진행사업부(biz_div)가 T/M 일 수 있어, 검사기/자동화 탭(_div=T/M/L)에서
     #   biz_div 필터만으로는 끼어들던 문제 → 목록 책갈피(_div=C)와 동일하게 _div 기준으로 제한.
@@ -45677,9 +45790,10 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
     with db_session() as c:
         _z61_table(c)
         projs = [dict(r) for r in c.execute(
-            "SELECT id, mgmt_code, name, customer_name, sales_name, currency, order_amount, order_date, stage, biz_div, "
+            "SELECT id, mgmt_code, name, customer_id, customer_name, sales_name, currency, order_amount, order_date, stage, biz_div, "
             "COALESCE(NULLIF(TRIM(order_date),''), substr(COALESCE(created_at,''),1,10)) AS d0 "
             "FROM projects WHERE COALESCE(mgmt_code,'')<>'' AND COALESCE(is_archived,0)=0 ORDER BY id DESC").fetchall()]
+        _logi.fix_customer_names_in(c, projs)   # z1191z157b: 1차 고객사 = 번호의 지금 이름(화면·엑셀·찾기 같은 이름)
         orders = {}
         for r in c.execute("SELECT id, project_id, order_no, currency, total_amount, order_date, due_date, status FROM orders "
                            "WHERE COALESCE(status,'')<>'CANCELLED' ORDER BY COALESCE(order_date,''), id").fetchall():
@@ -46789,8 +46903,7 @@ async def api_z58_waits(request: Request, customer_id: str = "", customer_name: 
         _z58_tables(c)
         cid = int(customer_id) if str(customer_id or "").strip().isdigit() else None
         if not cid and (customer_name or "").strip():
-            r = c.execute("SELECT id FROM customers WHERE name=? OR alias=? ORDER BY id LIMIT 2", ((customer_name or "").strip(),) * 2).fetchall()
-            cid = int(r[0][0]) if len(r) == 1 else None
+            cid = _logi.resolve_customer_by_name(c, customer_name)["id"]   # z1191z157: 지금 이름 → 시스템명 → 옛 이름 · 단일 후보만
         if cid:
             for r in c.execute("SELECT p.id, COALESCE(p.mgmt_code,''), COALESCE(p.model_name,''), COALESCE(p.equip_name,''), "
                                "substr(COALESCE(p.order_date,''),1,10), COALESCE(w.by_name,''), COALESCE(w.at,'') "
@@ -47271,7 +47384,7 @@ async def projects_new_submit(request: Request):
     with db_session() as _cc:
         _ok = _cc.execute(
             "SELECT 1 FROM customers WHERE name=? OR alias=? LIMIT 1", (customer, customer)  # v5H226z654: 상호 또는 시스템명 등록이면 통과
-        ).fetchone()
+        ).fetchone() or _logi.resolve_customer_by_name(_cc, customer)["id"]   # z1191z157: 옛 이름(이력)도 딱 한 고객사면 통과
     if not _ok:
         from urllib.parse import quote as _q
         return _err_redirect("customer_not_registered", f"cust={_q(customer)}")
@@ -50364,6 +50477,16 @@ def _cust_import_parse_xlsx(file_bytes: bytes) -> list[dict]:
 
         existing_id = name_map.get(name)
         action = "update" if existing_id else "create"
+        if not existing_id:
+            # z1191z157 (대표 11-26): 이름을 바꾼 고객사의 옛 이름이면 새 고객사(중복)로 만들지 않는다 — 지금 이름으로 고쳐 올리게
+            try:
+                with db_session() as _cc157:
+                    _o157 = _logi.customer_old_name_match(_cc157, name)
+                    if _o157["cands"]:
+                        _cur157 = [str((_cc157.execute("SELECT name FROM customers WHERE id=?", (i,)).fetchone() or [""])[0]) for i in _o157["cands"]]
+                        errors.append(f"옛 이름 — 이미 「{' / '.join(_cur157)}」(으)로 이름이 바뀐 고객사입니다. 새로 만들지 않습니다 · 지금 이름으로 고쳐 올리세요")
+            except Exception as _e157:
+                print(f"[z1191z157] 고객사 올리기 옛 이름 확인 실패: {_e157}")
         if biz_no_norm and biz_no_norm in bizno_map:
             other_id, other_name = bizno_map[biz_no_norm]
             if other_name != name:
@@ -50609,6 +50732,10 @@ async def customers_import_confirm(request: Request):
                 existing = c.execute(
                     "SELECT id FROM customers WHERE name=?", (name,)
                 ).fetchone()
+                if not existing and _logi.customer_old_name_match(c, name)["cands"]:   # z1191z157: 옛 이름 = 새로 안 만듦
+                    failed.append({"row_no": r.get("row_no"), "name": name,
+                                   "error": "옛 이름 — 이름이 바뀐 고객사입니다. 지금 이름으로 고쳐 올리세요(새로 만들지 않음)"})
+                    continue
                 if existing:
                     cid = existing["id"] if hasattr(existing, "keys") else existing[0]
                     sets, vals = [], []
@@ -50932,7 +51059,7 @@ async def projects_edit_submit(request: Request, pid: int):
         with db_session() as _cc:
             _ok = _cc.execute(
                 "SELECT 1 FROM customers WHERE name=? OR alias=? LIMIT 1", (customer, customer)  # v5H226z654: 상호 또는 시스템명 등록이면 통과
-            ).fetchone()
+            ).fetchone() or _logi.resolve_customer_by_name(_cc, customer)["id"]   # z1191z157: 옛 이름(이력)도 딱 한 고객사면 통과
         if not _ok:
             from urllib.parse import quote as _q
             return RedirectResponse(
@@ -57080,7 +57207,7 @@ async def export_prep_list(req: Request):
         return RedirectResponse("/home", 303)
     with db_session() as c:
         rows = c.execute(
-            """SELECT p.id, p.mgmt_code, p.name, p.customer_name, p.currency,
+            """SELECT p.id, p.mgmt_code, p.name, p.customer_id, p.customer_name, p.currency,
                       p.status, p.stage, p.due_date, p.biz_div, p.shipment_form,
                       (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id
                         WHERE o.project_id=p.id) AS n_items,
@@ -57108,7 +57235,7 @@ async def export_prep_detail(req: Request, pid: int):
     with db_session() as c:
         # v5H226z464 (대표 지시): 통관 입력 화면에 모델명·장비명 참고 표시 → SELECT 에 추가
         prow = c.execute(
-            """SELECT id, mgmt_code, name, customer_name, currency, fx_rate,
+            """SELECT id, mgmt_code, name, customer_id, customer_name, currency, fx_rate,
                       model_name, equip_name,
                       status, stage, due_date, order_date, biz_div, shipment_form, is_export
                FROM projects WHERE id=?""", (pid,)).fetchone()
@@ -59456,7 +59583,7 @@ def _hs_hist_apply_latest(c, expect: int, u) -> tuple:
 def _export_pl_build(c, pid):
     """프로젝트의 수출 품목(order_items)으로 PACKING LIST 데이터 구성. (project, pl, lines) 또는 (None,None,None)."""
     prow = c.execute(
-        """SELECT id, mgmt_code, name, customer_name, currency, order_date, due_date, secondary_customer
+        """SELECT id, mgmt_code, name, customer_id, customer_name, currency, order_date, due_date, secondary_customer
            FROM projects WHERE id=?""", (pid,)).fetchone()
     if not prow:
         return None, None, None
@@ -62946,7 +63073,7 @@ async def api_project_by_mgmt(request: Request, code: str = ""):
         return JSONResponse({"ok": True, "found": False})
     with db_session() as c:
         row = c.execute(
-            "SELECT id, name, customer_name, cc_name, cc_dept, cc_position, "
+            "SELECT id, name, customer_name, customer_id, cc_name, cc_dept, cc_position, "
             "cc_phone, cc_email, cc_note FROM projects WHERE mgmt_code=? LIMIT 1",
             (code,)).fetchone()
         if not row:
@@ -62958,8 +63085,10 @@ async def api_project_by_mgmt(request: Request, code: str = ""):
                 "SELECT cc.name, cc.department, cc.position, cc.phone, cc.mobile, "
                 "cc.email, cc.note FROM customer_contacts cc "
                 "JOIN customers cu ON cc.customer_id=cu.id "
-                "WHERE cu.name=? ORDER BY cc.is_primary DESC, cc.id LIMIT 1",
-                (d["customer_name"],)).fetchone()
+                # z1191z157: 고객 번호로(이름이 바뀌어도·같은 이름 지점이 여러 곳이어도 그 고객사) · 번호 없으면 예전처럼 이름
+                + ("WHERE cu.id=? " if d.get("customer_id") else "WHERE cu.name=? ")
+                + "ORDER BY cc.is_primary DESC, cc.id LIMIT 1",
+                (d["customer_id"] or d["customer_name"],)).fetchone()
             if cc:
                 d["cc_name"] = cc["name"] or ""
                 d["cc_dept"] = cc["department"] or ""
@@ -63112,9 +63241,8 @@ async def consumables_create_direct(request: Request,
     elif (customer_name or "").strip():
         cust_name = customer_name.strip()
         with db_session() as c:
-            r = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1", (cust_name,)).fetchone()
-        if r:
-            cid = r[0]   # 자유입력이 등록 고객사와 정확히 일치하면 연결(아니면 미연결 — 상세에서 선택)
+            # z1191z157: 지금 이름 → 시스템명 → 옛 이름(이력) · 딱 한 고객사일 때만(예전 LIMIT 1 = 같은 이름 지점 중 아무 곳)
+            cid = _logi.resolve_customer_by_name(c, cust_name)["id"]   # 아니면 미연결 — 상세에서 선택
     # v5H226z954 (대표 지시): 관리번호 수동 지정 — 지정 3명만·검증(형식 C·중복[프로젝트+소모품]·재사용). 비우면 자동발급.
     _override = None
     _mm = (manual_mgmt_code or "").strip().upper()

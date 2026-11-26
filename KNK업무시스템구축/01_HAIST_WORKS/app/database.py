@@ -4744,11 +4744,12 @@ def import_mgmt_rows(rows: list) -> dict:
                 # 고객사 upsert
                 cu_id = None
                 if r["customer_name"]:
-                    cu = c.execute(
-                        "SELECT id FROM customers WHERE name=?", (r["customer_name"],)
-                    ).fetchone()
-                    if cu:
-                        cu_id = cu["id"]
+                    # z1191z157: 지금 이름 → 시스템명 → 옛 이름(이력) — 이름이 바뀐 고객사를 새로 만들지 않게(단일 후보만)
+                    _r157 = resolve_customer_by_name(c, r["customer_name"])
+                    if _r157["id"]:
+                        cu_id = _r157["id"]
+                    elif _r157["reason"] in ("ambiguous", "unsafe"):
+                        cu_id = None   # 같은 이름 여러 곳 — 새로 만들지 않고 미연결
                     else:
                         cur = c.execute(
                             "INSERT INTO customers(name, tier, note) VALUES(?,?,?)",
@@ -7116,7 +7117,352 @@ def resolve_customer_id(c, name, picked_id=None, prefer_id=None):
         if prefer_id and prefer_id in _ids:
             return (prefer_id, "kept")
         return (None, "ambiguous")   # 같은 상호 여러 종사업장 등 후보 다수 — 자동연결 금지(수동 유도)
+    # z1191z157 (대표 11-26 「고객사 이름만 바뀔 때도 기존 등록한 것과 연결되게」): 지금 이름·시스템명에 없으면
+    #   고객사 이름 변경 이력(customer_history 「고객사명」)의 **옛 이름**으로 — 딱 한 고객사일 때만 연결.
+    _old = customer_old_name_match(c, _name)
+    if _old["id"]:
+        return (_old["id"], "old_name")
+    if _old["reason"] == "ambiguous":
+        if prefer_id and prefer_id in _old["cands"]:
+            return (prefer_id, "kept")
+        return (None, "ambiguous")
     return (None, "unmatched")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# z1191z157 (대표 11-26): 고객사 이름이 바뀌어도 이미 등록된 자료가 같은 고객사로 이어지게.
+#   연결 기준 = 고객사 번호(customers.id) · 이름으로 찾을 땐 지금 이름 → 시스템명(별칭) → 옛 이름(이력) 순,
+#   **딱 한 고객사에만 맞을 때만** 연결(둘 이상·없음 = 연결 안 함 → 화면이 「확인 필요/못 찾음」).
+# ─────────────────────────────────────────────────────────────────────────────
+def customer_old_name_match(c, name):
+    """옛 이름(customer_history field='고객사명' 의 old_value)이 name 과 같은 고객사 찾기.
+
+    반환 {"id": 번호 또는 None, "reason": 'matched'|'ambiguous'|'unmatched'|'unsafe', "cands": [번호…], "note": 안내}
+      - 지금 이름·시스템명으로 쓰이는 이름은 여기 오기 전에 걸러진다(호출 쪽이 먼저 찾음).
+      - 후보 2곳 이상 = 'ambiguous'.
+      - 후보 1곳이라도 그 고객사의 지금 이름을 다른 고객사도 함께 쓰면(한 회사 여러 종사업장 — 드림텍 본사·아산·동탄)
+        어느 지점인지 옛 이름만으론 모른다 → 'unsafe'(연결 안 함).
+      - 「사용안함」 표시·비활성 고객사도 'unsafe'(새 입력을 쓰지 않는 고객사에 붙이지 않음)."""
+    out = {"id": None, "reason": "unmatched", "cands": [], "note": ""}
+    nm = (name or "").strip()
+    if not nm:
+        out["reason"] = "empty"
+        return out
+    try:
+        rows = c.execute(
+            "SELECT DISTINCT h.customer_id FROM customer_history h JOIN customers cu ON cu.id=h.customer_id "
+            "WHERE h.field='고객사명' AND TRIM(COALESCE(h.old_value,''))=? "
+            "AND TRIM(COALESCE(cu.name,''))<>? AND TRIM(COALESCE(cu.alias,''))<>?", (nm, nm, nm)).fetchall()
+    except Exception as e:   # 이력 표가 없는 옛 DB 등 — 옛 이름 단계만 건너뜀
+        print(f"[z1191z157] 옛 이름 찾기 실패: {e}")
+        return out
+    ids = sorted({int(r[0]) for r in rows if r[0] is not None})
+    out["cands"] = ids
+    if not ids:
+        return out
+    if len(ids) > 1:
+        out["reason"] = "ambiguous"
+        out["note"] = f"'{nm}' 은(는) 고객사 {len(ids)}곳의 옛 이름입니다 — 목록에서 고르세요"
+        return out
+    cid = ids[0]
+    cu = c.execute("SELECT name, COALESCE(is_active,1) FROM customers WHERE id=?", (cid,)).fetchone()
+    cur = str((cu[0] if cu else "") or "").strip()
+    same = c.execute("SELECT COUNT(*) FROM customers WHERE TRIM(COALESCE(name,''))=?", (cur,)).fetchone()[0] if cur else 0
+    if (cu and int(cu[1] or 0) == 0) or ("사용안함" in cur) or same > 1:
+        out["reason"] = "unsafe"
+        out["note"] = (f"'{nm}' 은(는) 고객사 「{cur}」의 옛 이름이지만 "
+                       + ("같은 이름 지점이 여러 곳이라" if same > 1 else "지금 쓰지 않는 고객사라")
+                       + " 저절로 연결하지 않습니다 — 목록에서 고르세요")
+        return out
+    out.update(id=cid, reason="matched", note=f"'{nm}' = 고객사 「{cur}」의 옛 이름 → 같은 고객사로 연결")
+    return out
+
+
+def resolve_customer_by_name(c, name, alias_first=False):
+    """이름 글자 → 고객사(엑셀 올리기·자유 입력 짝짓기 공용). 지금 이름 → 시스템명 → 옛 이름 순 · 단일 후보만.
+
+    alias_first=True 면 시스템명을 먼저(수주 발주처 칸처럼 「시스템명 그대로 입력」 규칙인 곳).
+    반환 {"id", "how": 'name'|'alias'|'old'|None, "reason": 'matched'|'ambiguous'|'unmatched'|'unsafe'|'empty',
+          "cands": [...], "cur_name": 그 번호의 지금 이름, "note": 안내}"""
+    out = {"id": None, "how": None, "reason": "unmatched", "cands": [], "cur_name": "", "note": ""}
+    nm = (name or "").strip()
+    if not nm:
+        out["reason"] = "empty"
+        return out
+    order = (("alias", "alias"), ("name", "name")) if alias_first else (("name", "name"), ("alias", "alias"))
+    for col, how in order:
+        try:
+            ids = [int(r[0]) for r in c.execute(f"SELECT id FROM customers WHERE TRIM(COALESCE({col},''))=?", (nm,)).fetchall()]
+        except Exception as e:   # alias 칸 없는 옛 DB
+            print(f"[z1191z157] 고객사 {col} 찾기 실패: {e}")
+            ids = []
+        if len(ids) == 1:
+            out.update(id=ids[0], how=how, reason="matched", cands=ids)
+            break
+        if len(ids) > 1:
+            out.update(reason="ambiguous", cands=ids,
+                       note=f"'{nm}' 이름의 등록 고객사가 {len(ids)}곳입니다 — 시스템명(예: 드림텍(아산))으로 고르세요")
+            return out
+    if not out["id"]:
+        o = customer_old_name_match(c, nm)
+        out.update(reason=o["reason"], cands=o["cands"], note=o["note"])
+        if o["id"]:
+            out.update(id=o["id"], how="old", reason="matched")
+    if out["id"]:
+        r = c.execute("SELECT name FROM customers WHERE id=?", (out["id"],)).fetchone()
+        out["cur_name"] = str((r[0] if r else "") or "")
+    return out
+
+
+def customer_display_name(stored, cur_name, cur_alias):
+    """화면 이름 — 저장 글자가 그 번호의 지금 이름도 시스템명도 아니면(=옛 이름) 지금 이름을 보인다(DB 는 안 바꿈).
+    시스템명(드림텍(아산) 등)으로 적힌 것은 지점 구분이라 그대로 둔다."""
+    s = str(stored or "").strip()
+    n = str(cur_name or "").strip()
+    a = str(cur_alias or "").strip()
+    if not n:
+        return stored
+    if not s or s == n or (a and s == a):
+        return stored if s else n
+    return n
+
+
+def apply_current_customer_names(c, rows, name_key="customer_name", id_key="customer_id"):
+    """rows(dict 목록)의 고객사 이름을 화면용 지금 이름으로(옛 이름만 바꿈 · 원래 글자는 `<name_key>_saved` 에 둠). 읽기 전용."""
+    ids = {r.get(id_key) for r in rows if isinstance(r, dict) and r.get(id_key)}
+    if not ids:
+        return rows
+    try:
+        cmap = {int(x[0]): (x[1], x[2]) for x in c.execute(
+            "SELECT id, name, COALESCE(alias,'') FROM customers WHERE id IN (%s)" % ",".join(str(int(i)) for i in ids)).fetchall()}
+    except Exception as e:
+        print(f"[z1191z157] 고객사 지금 이름 읽기 실패: {e}")
+        return rows
+    # 시스템명이 옛 이름이기도 한 고객(예: 「KNK VINA」) — 그 이름에서 바꾼 첫 시각 전에 만든 줄은 옛 이름으로 적힌 것
+    alias_before = {}
+    try:
+        for _cid, _al, _at in c.execute(
+                "SELECT cu.id, TRIM(cu.alias), MIN(h.changed_at) FROM customers cu JOIN customer_history h ON h.customer_id=cu.id "
+                "AND h.field='고객사명' AND TRIM(COALESCE(h.old_value,''))=TRIM(cu.alias) "
+                "WHERE TRIM(COALESCE(cu.alias,''))<>'' AND cu.id IN (%s) GROUP BY cu.id" % ",".join(str(int(i)) for i in ids)).fetchall():
+            alias_before[int(_cid)] = (_al, _at)
+    except Exception as e:
+        print(f"[z1191z157] 시스템명 옛 이름 시각 읽기 실패: {e}")
+    for r in rows:
+        if not isinstance(r, dict) or not r.get(id_key):
+            continue
+        cu = cmap.get(int(r[id_key]))
+        if not cu:
+            continue
+        shown = customer_display_name(r.get(name_key), cu[0], cu[1])
+        _ab = alias_before.get(int(r[id_key]))
+        if (_ab and str(r.get(name_key) or "").strip() == _ab[0] and r.get("created_at") and _ab[1]
+                and str(r["created_at"]) < str(_ab[1])):
+            shown = cu[0]
+        if shown != r.get(name_key):
+            r[name_key + "_saved"] = r.get(name_key)
+            r[name_key] = shown
+    return rows
+
+
+# z1191z157b (대표 11-26 「항상 기본은 ID번호로 연결」 → 「1차 고객사만 · 2차는 지금처럼 이름」):
+#   화면에 넘기는 자료 속 **1차 고객사** (번호, 이름) 짝 — 이름 칸을 그 번호의 지금 이름으로(시스템명 글자는 그 번호의 지금 시스템명).
+#   ⛔ 2차 고객(end_customer·secondary_customer)은 이 목록에 넣지 않는다(이름 글자 그대로).
+CUSTOMER_ID_NAME_PAIRS = (
+    ("customer_id", "customer_name"),
+    ("order_customer_id", "order_customer_name"),
+    ("so_customer_id", "so_customer"),
+    ("pcid", "pcname"),
+)
+# 발행 서류(세금계산서·원산지 증명·인보이스 인쇄 등) 자료 표식 — 이런 열쇠가 있는 줄은 그때 이름 그대로
+_DOC_ROW_KEYS = ("ti_no", "cert_no", "fta_no", "invoice_no", "ci_no")
+
+
+def _cust_now_map(c, ids):
+    out = {}
+    ids = sorted({int(i) for i in ids if str(i).strip().isdigit()})
+    for k in range(0, len(ids), 500):
+        part = ids[k:k + 500]
+        for r in c.execute("SELECT id, name, COALESCE(alias,'') FROM customers WHERE id IN (%s)" % ",".join(str(i) for i in part)).fetchall():
+            out[int(r[0])] = (r[1] or "", r[2] or "")
+    return out
+
+
+def cust_name_now(stored, cur_name, cur_alias):
+    """1차 고객사 화면 이름 — 저장 글자가 시스템명이면 그 번호의 지금 시스템명, 아니면 그 번호의 지금 이름(읽기만)."""
+    s = str(stored or "").strip()
+    if not str(cur_name or "").strip():
+        return stored
+    if s and cur_alias and s == str(cur_alias).strip():
+        return cur_alias
+    return cur_name
+
+
+def fix_customer_names_in(c, obj, max_depth=4):
+    """화면에 넘길 자료(dict · dict 목록 · 그 안의 dict/목록)를 훑어 1차 고객사 이름을 번호 기준 지금 이름으로 바꾼다.
+    DB 는 안 바꿈 · 원래 글자는 `<이름 칸>_saved` 에 · sqlite Row(고칠 수 없는 줄)는 건너뜀 · 발행 서류 줄은 그대로.
+    반환 = 고친 칸 수."""
+    found = []   # (dict, id칸, 이름칸)
+    seen = set()
+
+    def walk(o, d):
+        if d > max_depth or id(o) in seen:
+            return
+        if isinstance(o, dict):
+            seen.add(id(o))
+            if not any(k in o for k in _DOC_ROW_KEYS):
+                for ik, nk in CUSTOMER_ID_NAME_PAIRS:
+                    if nk in o and o.get(ik) and isinstance(o.get(nk), (str, type(None))):
+                        found.append((o, ik, nk))
+            for v in o.values():
+                if isinstance(v, (dict, list, tuple)):
+                    walk(v, d + 1)
+        elif isinstance(o, (list, tuple)):
+            seen.add(id(o))
+            for v in o[:20000]:
+                if isinstance(v, (dict, list, tuple)):
+                    walk(v, d + 1)
+    walk(obj, 0)
+    if not found:
+        return 0
+    try:
+        cmap = _cust_now_map(c, [o.get(ik) for o, ik, nk in found])
+    except Exception as e:
+        print(f"[z1191z157b] 고객사 지금 이름 읽기 실패: {e}")
+        return 0
+    n = 0
+    for o, ik, nk in found:
+        try:
+            cu = cmap.get(int(o.get(ik)))
+        except (TypeError, ValueError):
+            cu = None
+        if not cu:
+            continue
+        shown = cust_name_now(o.get(nk), cu[0], cu[1])
+        if shown != o.get(nk):
+            o.setdefault(nk + "_saved", o.get(nk))
+            o[nk] = shown
+            n += 1
+    return n
+
+
+# 고객사 이름 변경 때 함께 새 이름으로 바꿀 「저장된 이름 글자」 칸 — (표, 이름 칸, 화면 이름)
+#   ⛔ 세금계산서(tax_invoices)·원산지 증명(fta_certificates)은 **발행한 서류의 그때 이름**이라 바꾸지 않는다(건수만 보임).
+CUSTOMER_NAME_SYNC_TABLES = (
+    ("projects", "customer_name", "프로젝트"),
+    ("consumable_orders", "customer_name", "소모품 주문"),
+    ("sales_opportunities", "customer_name", "영업 기회"),
+    ("issues", "customer_name", "이슈"),
+    ("as_tickets", "customer_name", "AS 접수"),
+    ("qc_inspection_reports", "customer_name", "검사 성적서"),
+)
+CUSTOMER_NAME_KEEP_TABLES = (
+    ("tax_invoices", "customer_name", "세금계산서(발행 서류 · 그때 이름 그대로)"),
+    ("fta_certificates", "customer_name", "원산지 증명(발행 서류 · 그때 이름 그대로)"),
+)
+
+
+def customer_old_names(c, cid):
+    """그 고객사의 옛 이름들(이력) — 지금 이름 제외."""
+    try:
+        cur = (c.execute("SELECT name FROM customers WHERE id=?", (int(cid),)).fetchone() or [""])[0] or ""
+        return sorted({str(r[0]).strip() for r in c.execute(
+            "SELECT old_value FROM customer_history WHERE customer_id=? AND field='고객사명' AND TRIM(COALESCE(old_value,''))<>''",
+            (int(cid),)).fetchall()} - {cur.strip()})
+    except Exception as e:
+        print(f"[z1191z157] 옛 이름 목록 실패: {e}")
+        return []
+
+
+def _customer_rename_rows(c, tbl, col, cid, olds, alias, alias_before):
+    """이름 변경 때 함께 바꿀 줄(id, 저장 글자) — 같은 고객 번호 + 저장 글자가 지금·옛 이름.
+    시스템명과 같은 글자는 보통 지점 구분이라 그대로지만, 그 글자가 **옛 이름**이고 그 이름을 바꾸기 전에 만든 줄이면
+    (예: 11-20 「KNK VINA」 → 「KNK VINA CO LTD」 전 소모품 64건) 옛 이름으로 적힌 것이라 함께 바꾼다(sync_names.py 와 같은 규칙)."""
+    cols = {r[1] for r in c.execute(f"PRAGMA table_info({tbl})").fetchall()}
+    if "customer_id" not in cols or col not in cols:
+        return None
+    out = []
+    if olds:
+        out += [tuple(r) for r in c.execute(f"SELECT id, {col} FROM {tbl} WHERE customer_id=? AND TRIM(COALESCE({col},'')) IN (%s)"
+                                              % ",".join("?" * len(olds)), [int(cid)] + list(olds)).fetchall()]
+    if alias and alias_before and "created_at" in cols:
+        out += [tuple(r) for r in c.execute(f"SELECT id, {col} FROM {tbl} WHERE customer_id=? AND TRIM(COALESCE({col},''))=? "
+                                              "AND COALESCE(created_at,'')<>'' AND created_at<?", (int(cid), alias, alias_before)).fetchall()]
+    return out
+
+
+def customer_rename_usage(c, cid, new_name):
+    """고객사 이름 변경 미리보기(읽기 전용) — 이 고객 번호의 자료가 몇 건이고, 그중 몇 건의 저장된 이름 글자가 함께 바뀌는지.
+
+    바꾸는 줄 = 같은 고객 번호 + 저장 글자가 지금 이름 또는 옛 이름(이력)인 줄.
+    시스템명(별칭)으로 적힌 줄(드림텍(아산) 등)·그 밖의 글자는 그대로(지점 구분·사람이 적은 글자)."""
+    cid = int(cid)
+    row = c.execute("SELECT name, COALESCE(alias,'') FROM customers WHERE id=?", (cid,)).fetchone()
+    if not row:
+        return {"ok": False, "error": "고객사를 찾을 수 없습니다"}
+    cur, alias = str(row[0] or "").strip(), str(row[1] or "").strip()
+    new_name = (new_name or "").strip()
+    olds = [x for x in ([cur] + customer_old_names(c, cid)) if x and x != new_name and x != alias]
+    # 시스템명이 옛 이름이기도 하면 — 그 이름에서 바꾼 첫 시각(그 전에 만든 줄 = 옛 이름으로 적힌 줄)
+    alias_before = None
+    if alias and alias != new_name:
+        alias_before = c.execute("SELECT MIN(changed_at) FROM customer_history WHERE customer_id=? AND field='고객사명' "
+                                 "AND TRIM(COALESCE(old_value,''))=?", (cid, alias)).fetchone()[0]
+    items, keep = [], []
+    for tbl, col, label in CUSTOMER_NAME_SYNC_TABLES + CUSTOMER_NAME_KEEP_TABLES:
+        try:
+            cols = {r[1] for r in c.execute(f"PRAGMA table_info({tbl})").fetchall()}
+        except Exception as e:
+            print(f"[z1191z157] {tbl} 칸 읽기 실패: {e}")
+            continue
+        if "customer_id" not in cols or col not in cols:
+            continue
+        total = c.execute(f"SELECT COUNT(*) FROM {tbl} WHERE customer_id=?", (cid,)).fetchone()[0]
+        if not total:
+            continue
+        ch = len(_customer_rename_rows(c, tbl, col, cid, olds, alias, alias_before) or [])
+        ent = {"table": tbl, "label": label, "total": total, "change": ch, "keep": total - ch}
+        (keep if (tbl, col, label) in CUSTOMER_NAME_KEEP_TABLES else items).append(ent)
+    return {"ok": True, "id": cid, "old_name": cur, "new_name": new_name, "alias": alias, "alias_before": alias_before,
+            "old_names": olds, "items": items, "documents": keep,
+            "change_total": sum(x["change"] for x in items)}
+
+
+def customer_rename_sync(c, cid, new_name, by_id=None, by_name=""):
+    """사람이 확인을 누른 뒤에만 부른다 — 같은 고객 번호의 저장된 이름 글자(지금·옛 이름)를 새 이름으로 + 바뀐 줄마다 이력.
+    반환 {표: 바뀐 줄 수}. 발행 서류(세금계산서·원산지 증명)·시스템명 글자는 그대로."""
+    u = customer_rename_usage(c, cid, new_name)
+    done = {}
+    if not u.get("ok") or not u["change_total"] or not (new_name or "").strip():
+        return done
+    olds = u["old_names"]
+    _tabs = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    _has_ph, _has_ch = ("project_history" in _tabs), ("consumable_history" in _tabs)
+    for tbl, col, label in CUSTOMER_NAME_SYNC_TABLES:
+        try:
+            rows = _customer_rename_rows(c, tbl, col, cid, olds, u["alias"], u.get("alias_before"))
+        except Exception as e:
+            print(f"[z1191z157] {tbl} 줄 고르기 실패: {e}")
+            continue
+        if not rows:
+            continue
+        _note = "z1191z157 고객사 이름 변경(확인 뒤) — 같은 고객 번호라 저장 이름 함께" + (f" · {by_name}" if by_name else "")
+        for rid, oldv in rows:
+            c.execute(f"UPDATE {tbl} SET {col}=? WHERE id=?", (new_name, rid))
+            # 바뀐 줄마다 이력 — 그 자료 자신의 이력(프로젝트 변경 이력·소모품 이력 탭)에, 그 밖의 표는 고객사 이력에
+            if tbl == "projects" and _has_ph:
+                c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                          (rid, by_id, "고객사명", oldv, new_name, _note))
+            elif tbl == "consumable_orders" and _has_ch:
+                c.execute("INSERT INTO consumable_history(co_id, item_id, scope, field, label, old_value, new_value, changed_by, changed_by_name) "
+                          "VALUES(?,?,?,?,?,?,?,?,?)", (rid, None, "order", "customer_name", "고객사명", oldv, new_name, by_id,
+                                                          (by_name or "") + " (z1191z157 고객사 이름 변경)"))
+            else:
+                c.execute("INSERT INTO customer_history(customer_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                          (int(cid), by_id, "고객사명(연결 자료)", oldv, new_name, f"{_note} → {label} {tbl}#{rid}"))
+        if rows:
+            done[tbl] = len(rows)
+    return done
 
 
 def projects_create_logi(data: dict) -> tuple[int, str | None]:

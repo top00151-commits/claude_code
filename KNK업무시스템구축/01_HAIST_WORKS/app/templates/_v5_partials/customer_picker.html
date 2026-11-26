@@ -35,6 +35,11 @@ window.KNKCust = (function(){
   function findExact(text){
     if(!_opts) return null; var t=norm(text); if(!t) return null;
     var m=_opts.filter(function(o){ return norm(o.name)===t || (o.alias&&norm(o.alias)===t) || norm(disp(o))===t; });
+    if(!m.length){
+      // z1191z157 (대표 11-26): 이름을 바꾼 고객사의 옛 이름 — 딱 한 곳 · 같은 정식명 지점이 여러 곳이면 미확정(서버 규칙과 같음)
+      m=_opts.filter(function(o){ return (o.old_names||[]).some(function(x){ return norm(x)===t; }); });
+      if(m.length===1 && _opts.filter(function(o){ return norm(o.name)===norm(m[0].name); }).length>1) m=[];
+    }
     return m.length===1 ? m[0] : null;   // 모호(2건+)·불일치면 미확정
   }
   function attach(inp){
@@ -71,10 +76,12 @@ window.KNKCust = (function(){
     inp.__custSetById=function(id){ load().then(function(){ var o=(_opts||[]).filter(function(x){ return String(x.id)===String(id); })[0]; if(o) setSel(o); }); };
     function render(q){
       var t=norm(q), qq=(q||'').trim();
-      var list=(_opts||[]).filter(function(o){ return !t || norm(o.name).indexOf(t)>=0 || (o.alias&&norm(o.alias).indexOf(t)>=0) || (o.sub_biz_no&&o.sub_biz_no.indexOf(qq)>=0); }).slice(0,80);
+      function oldHit(o){ return t ? (o.old_names||[]).filter(function(x){ return norm(x).indexOf(t)>=0; })[0] : null; }   // z1191z157: 옛 이름으로도 찾음
+      var list=(_opts||[]).filter(function(o){ return !t || norm(o.name).indexOf(t)>=0 || (o.alias&&norm(o.alias).indexOf(t)>=0) || (o.sub_biz_no&&o.sub_biz_no.indexOf(qq)>=0) || !!oldHit(o); }).slice(0,80);
       dd.innerHTML = list.length ? list.map(function(o){ return '<div class="knkcust-it" data-i="'+_opts.indexOf(o)+'">'+
           '<b>'+esc(o.alias||o.name)+'</b>'+((o.alias&&o.alias!==o.name)?(' <span class="ksub">'+esc(o.name)+'</span>'):'')+
-          (o.sub_biz_no?(' <span class="ksbn">['+esc(o.sub_biz_no)+']</span>'):'')+'</div>'; }).join('')
+          (o.sub_biz_no?(' <span class="ksbn">['+esc(o.sub_biz_no)+']</span>'):'')+
+          ((oldHit(o) && norm(o.name).indexOf(t)<0 && !(o.alias&&norm(o.alias).indexOf(t)>=0))?(' <span class="ksub">· 옛 이름 「'+esc(oldHit(o))+'」</span>'):'')+'</div>'; }).join('')
         : '<div class="knkcust-empty">일치하는 등록 고객사가 없습니다 — 고객사를 먼저 등록하세요.</div>';
       dd.style.display='block';
     }

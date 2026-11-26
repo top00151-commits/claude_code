@@ -61,7 +61,10 @@ check("D 취소 수주는 세지 않음(살아 있는 수주 1개 = 예전대로
 
 # ── E: 이름 짝짓기 = 딱 1곳일 때만(confirm_order_multi 쪽 코드 확인)
 src = open(os.path.join(ROOT, "app", "project_workflow.py"), encoding="utf-8").read()
-check("E 수주 발행: 같은 이름 여러 곳이면 연결 안 함(LIMIT 2 · 1곳일 때만)", "SELECT id FROM customers WHERE name=? LIMIT 2" in src and "len(_rows153) == 1" in src)
+# z1191z157: 같은 규칙을 공용 해석(resolve_customer_by_name = 지금 이름→시스템명→옛 이름 · 단일 후보만)으로 옮김 — 둘 중 하나면 통과
+check("E 수주 발행: 같은 이름 여러 곳이면 연결 안 함(LIMIT 2 · 1곳일 때만)",
+      ("SELECT id FROM customers WHERE name=? LIMIT 2" in src and "len(_rows153) == 1" in src)
+      or ("resolve_customer_by_name" in src and "_z157_res(c, proj[\"customer_name\"])[\"id\"]" in src))
 dsrc = open(os.path.join(ROOT, "app", "database.py"), encoding="utf-8").read()
 check("E 서버 시작: 이름 짝짓기 = 같은 이름 1곳일 때만", "WHERE customers.name = projects.customer_name) = 1" in dsrc)
 check("E 서버 시작: 수주 고객사 빈칸을 프로젝트 값으로 채우던 것 없앰", "UPDATE orders SET customer_id = (" not in dsrc)

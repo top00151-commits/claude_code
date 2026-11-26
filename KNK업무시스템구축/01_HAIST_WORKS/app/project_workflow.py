@@ -758,11 +758,10 @@ def confirm_order_multi(c, project_id: int, units: list[dict],
     if not customer_id and proj.get("customer_name"):
         try:
             # z1191z153 (대표 11-25 원칙 · 데이터 연결성 안전): 같은 이름이 딱 1곳일 때만(여러 곳이면 연결 안 하고 수주 고객사 빈칸 = 화면 ⚠)
-            _rows153 = c.execute(
-                "SELECT id FROM customers WHERE name=? LIMIT 2",
-                (proj["customer_name"],)
-            ).fetchall()
-            row = _rows153[0] if len(_rows153) == 1 else None
+            # z1191z157: 공용 해석(지금 이름 → 시스템명 → 옛 이름 · 단일 후보만)
+            from .database import resolve_customer_by_name as _z157_res
+            _id157 = _z157_res(c, proj["customer_name"])["id"]
+            row = (_id157,) if _id157 else None
             if row:
                 customer_id = row[0]
                 # 프로젝트에도 채워둠 (다음 호출 빠르게)

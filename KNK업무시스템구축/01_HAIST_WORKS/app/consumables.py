@@ -603,11 +603,16 @@ def match_customer_by_name(name: str) -> dict | None:
     n = _norm_company(raw)
     if len(n) < 2:
         return None
+    # z1191z157 (대표 11-26 「고객사 이름만 바뀌어도 연결」): 1) 지금 이름 → 시스템명 → 옛 이름(이력) — 딱 한 고객사일 때만.
+    #   같은 이름이 여러 곳(드림텍 본사·아산·동탄)이면 예전처럼 첫 번째를 고르지 않고 미연결(「확인 필요」).
+    from .database import resolve_customer_by_name as _z157_res
     with db_session() as c:
+        _r157 = _z157_res(c, raw)
         rows = [dict(r) for r in c.execute("SELECT id, name FROM customers").fetchall()]
-    for r in rows:                                   # 1) 원문 정확 일치 우선
-        if (r["name"] or "").strip() == raw:
-            return {"id": r["id"], "name": r["name"]}
+    if _r157["id"]:
+        return {"id": _r157["id"], "name": _r157["cur_name"], "how": _r157["how"]}
+    if _r157["reason"] in ("ambiguous", "unsafe"):
+        return None
     matches = [r for r in rows if _norm_company(r["name"]) == n]   # 2) 정규화 상호 일치
     if len(matches) == 1:                            # 정확히 1건일 때만(애매하면 미연결)
         return {"id": matches[0]["id"], "name": matches[0]["name"]}
@@ -643,11 +648,10 @@ def co_create(customer_name: str = "", biz_div: str = "",
     # 고객사·사업부는 1회 계산 (재시도와 무관)
     cust_id = None
     if customer_name:
+        # z1191z157 (대표 11-26): 지금 이름 → 시스템명 → 옛 이름(이력) · 딱 한 고객사일 때만 연결(예전 LIMIT 1 = 같은 이름 지점 중 아무 곳)
+        from .database import resolve_customer_by_name as _z157_res
         with db_session() as c:
-            r = c.execute("SELECT id FROM customers WHERE name=? LIMIT 1",
-                          (customer_name,)).fetchone()
-            if r:
-                cust_id = r[0]
+            cust_id = _z157_res(c, customer_name)["id"]
     _bd = (biz_div or "").strip().upper()
     if _bd not in ("T", "M", "L"):
         _bd = None  # 미선택 허용 (백워드 호환); UI 에서는 검증 강제
@@ -1081,6 +1085,7 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         _bd987 = "M"
     else:
         _bd987 = ""
+    _m157 = match_customer_by_name(cust) if cust else None
     o = {
         "group_label": "", "customer_name": cust, "customer2": s(hb.get("customer2")),
         "mgmt_code": s(hb.get("mgmt_code")).upper(),
@@ -1092,7 +1097,9 @@ def parse_co_bulk_xlsx(file_path: str, image_out_dir: str | None = None) -> dict
         "model_name": s(hb.get("model_name")), "equip_name": s(hb.get("equip_name")),
         "project_name": norm_project_name(hb.get("project_name")),   # z1191z3
         "status": _norm_co_status(hb.get("status")),
-        "cust_ok": bool(match_customer_by_name(cust)) if cust else False,
+        "cust_ok": bool(_m157) if cust else False,
+        # z1191z157: 옛 이름·시스템명으로 찾았으면 미리보기에 「→ 지금 이름」 안내(연결은 같은 고객 번호)
+        "cust_now": (_m157["name"] if (_m157 and _m157["name"] != cust) else ""),
         "biz_div": _bd987, "note": "", "form_type": "",   # z987b: 카드 사업부 배지(z987) 연동
         "statement_date": "", "tax_invoice_date": "", "ti1_bundle": "",
         "tax_invoice_amt1": 0, "tax_invoice_amt2": 0, "tax_invoice_amt3": 0,
@@ -1209,7 +1216,11 @@ def co_get(co_id: int) -> dict | None:
         r = c.execute(
             "SELECT * FROM consumable_orders WHERE id=?", (int(co_id),)
         ).fetchone()
-        return dict(r) if r else None
+        if not r:
+            return None
+        # z1191z157 (대표 11-26): 고객사 이름이 바뀌었으면 화면엔 그 번호의 지금 이름(저장 글자는 customer_name_saved · DB 는 안 바꿈)
+        from .database import apply_current_customer_names as _z157_names
+        return _z157_names(c, [dict(r)])[0]
 
 
 def co_list(status: str = "", q: str = "", limit: int = 200, overlap=None) -> list[dict]:
@@ -1241,7 +1252,9 @@ def co_list(status: str = "", q: str = "", limit: int = 200, overlap=None) -> li
         params += [_t, _f]
     sql += " ORDER BY id DESC LIMIT ?"; params.append(int(limit))
     with db_session() as c:
-        return [dict(r) for r in c.execute(sql, params).fetchall()]
+        # z1191z157: 옛 이름으로 저장된 소모품도 목록엔 그 고객 번호의 지금 이름(읽기만)
+        from .database import apply_current_customer_names as _z157_names
+        return _z157_names(c, [dict(r) for r in c.execute(sql, params).fetchall()])
 
 
 def coi_list(co_id: int) -> list[dict]:

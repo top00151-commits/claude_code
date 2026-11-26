@@ -100,7 +100,11 @@ body { overflow: hidden !important; }
     • 같은 회사가 <b>실수로 두 개</b> 등록된 거면, 이름 변경이 아니라 <b>고객사 병합</b>이 필요합니다(연결성 점검 화면).
   </div>
   {% endif %}
-  <form method="POST" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
+  {# z1191z157 (대표 11-26): 이름을 바꾸면 「이 이름을 쓰는 곳」을 먼저 보이고 확인받은 뒤 저장 — 확인 없이 들어온 저장은 서버가 막는다 #}
+  {# z1191z157 + knk-step-flow (대표 11-26): 이름을 바꿀 때만 맨 위에 「전체 순서 + 지금 위치 + 지금 하실 일 하나」 #}
+  <div id="z157Steps" data-need="{{ '1' if request.query_params.get('rename_confirm_needed') else '' }}" style="display:none;margin:0 var(--content-pad) 8px;"></div>
+  <form method="POST" id="custForm" data-cid="{{ customer.id if customer else '' }}" data-old-name="{{ customer.name if customer else '' }}" action="{% if customer %}/customers/{{ customer.id }}/edit{% else %}/customers/new{% endif %}" autocomplete="off">
+    <input type="hidden" name="rename_confirm" id="z157Confirm" value="">
 
     <!-- v5H57: 사업자등록증 자동 파서 (PDF / 이미지) -->
     {# v5H226z114: 사업자등록증 영역 한 줄 inline 박스로 압축 (z113 wrapper 회수) #}
@@ -336,6 +340,22 @@ body { overflow: hidden !important; }
       </div>
     </div>
   </form>
+  {# z1191z157: 이름 변경 확인 창 — 「이 이름을 쓰는 곳」 · ✕ 닫기 = 취소(아무것도 안 바뀜) #}
+  <div id="z157Ov" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9000;align-items:center;justify-content:center;padding:16px;">
+    <div role="dialog" aria-modal="true" aria-labelledby="z157Title" style="background:#fff;border-radius:12px;max-width:560px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25);">
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #eef0f4;">
+        <b id="z157Title" style="flex:1;font-size:15px;">고객사 이름 바꾸기 — 확인</b>
+        <button type="button" id="z157X" class="btn btn-secondary" style="padding:4px 10px;" title="닫기(아무것도 바뀌지 않음)">✕ 닫기</button>
+      </div>
+      <div id="z157MSteps" style="padding:10px 16px 0;"></div>
+      <div id="z157Body" style="padding:10px 16px 14px;font-size:13px;line-height:1.7;color:#334155;">불러오는 중…</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #eef0f4;">
+        <button type="button" id="z157No" class="btn btn-secondary" title="고객사명 칸을 원래 이름으로 되돌리고 닫습니다">취소 (원래 이름 그대로)</button>
+        <button type="button" id="z157Re" class="btn btn-secondary">이름 다시 고치기</button>
+        <button type="button" id="z157Yes" class="btn btn-primary">확인하고 저장</button>
+      </div>
+    </div>
+  </div>
   {# v5H226z112: 하단 spacer 제거 — main flex column이 viewport 안 맞춤 #}
 </main></div>
 <script>
@@ -607,6 +627,96 @@ async function parseBizDoc() {
     if (country) country.required = on;
   }
   ov.addEventListener('change', sync); sync();
+})();
+</script>
+<script>
+/* z1191z157 (대표 11-26 「고객사 이름만 바뀔 때도 기존 등록한 것과 연결」): 이름이 바뀌면 저장 전에 「이 이름을 쓰는 곳」을 보이고 확인받는다.
+   사람이 「확인하고 저장」을 누르기 전에는 아무것도 바뀌지 않는다(서버도 확인 표시 없으면 저장 안 함). */
+(function(){
+  var f = document.getElementById('custForm');
+  if (!f || !f.dataset.cid) return;
+  var ov = document.getElementById('z157Ov'), body = document.getElementById('z157Body');
+  var hid = document.getElementById('z157Confirm');
+  function esc(t){ return String(t == null ? '' : t).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+  var nameIn = f.elements['name'], stepBox = document.getElementById('z157Steps'), mStep = document.getElementById('z157MSteps');
+  var STEPS = ['새 이름 적기', '바뀔 곳 확인', '(고칠 때만) 이름 다시 고치기', '저장 끝'];
+  /* knk-step-flow: 지난 단계 ✓ 초록 · 지금 단계 강조 · 남은 단계 흐리게 · 3번은 점선(필요할 때만) · 밑에 「지금 하실 일」 하나 */
+  function stepsHtml(cur, done, head, todo){
+    var h = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12.5px;">';
+    STEPS.forEach(function(t, i){
+      var n = i + 1, st;
+      if (done.indexOf(n) >= 0) st = 'background:#dcfce7;color:#166534;border:1px solid #86efac;';
+      else if (n === cur) st = 'background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;font-weight:700;';
+      else st = 'background:#f8fafc;color:#94a3b8;border:1px ' + (n === 3 ? 'dashed' : 'solid') + ' #cbd5e1;';
+      h += '<span style="padding:3px 9px;border-radius:999px;' + st + '">' + (done.indexOf(n) >= 0 ? '✓ ' : '') + n + ' ' + esc(t) + '</span>';
+      if (n < STEPS.length) h += '<span style="color:#94a3b8;">→</span>';
+    });
+    h += '</div><div style="margin-top:6px;font-size:13px;line-height:1.6;"><b>' + head + '</b>' + (todo ? '<br>' + todo : '') + '</div>';
+    return h;
+  }
+  function renderTop(){
+    var nm = (nameIn.value || '').trim(), old = (f.dataset.oldName || '').trim();
+    var need = stepBox.dataset.need === '1';
+    if (!need && (!nm || nm === old)) { stepBox.style.display = 'none'; return; }
+    stepBox.style.cssText = 'display:block;margin:0 var(--content-pad) 8px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e3a8a;';
+    if (need && (!nm || nm === old)) {
+      stepBox.innerHTML = stepsHtml(3, [1, 2], '👉 아직 아무것도 바뀌지 않았습니다 — 이름 변경은 「바뀔 곳 확인」 창에서 「확인하고 저장」을 눌러야 저장됩니다.',
+        '지금 하실 일: 아래 <b>고객사명</b> 칸에 새 이름을 다시 적고 「💾 수정 저장」을 누르세요 → 바뀔 곳 확인 창이 뜹니다.');
+    } else {
+      stepBox.innerHTML = stepsHtml(need ? 3 : 1, need ? [1, 2] : [], '👉 고객사 이름을 「' + esc(old) + '」 → 「' + esc(nm) + '」(으)로 바꾸는 중입니다 — 아직 저장 전입니다.',
+        '지금 하실 일: 맨 아래 「💾 수정 저장」을 누르세요 → 이 이름을 쓰는 곳(프로젝트·소모품 건수) 확인 창이 뜹니다.');
+    }
+  }
+  nameIn.addEventListener('input', renderTop);
+  renderTop();
+  function close(){ ov.style.display = 'none'; hid.value = ''; }
+  document.getElementById('z157X').onclick = function(){ nameIn.value = f.dataset.oldName || ''; stepBox.dataset.need = ''; close(); renderTop(); };
+  document.getElementById('z157No').onclick = function(){ nameIn.value = f.dataset.oldName || ''; stepBox.dataset.need = ''; close(); renderTop(); };
+  document.getElementById('z157Re').onclick = function(){
+    close(); stepBox.dataset.need = '1'; renderTop();
+    stepBox.innerHTML = stepsHtml(3, [1, 2], '👉 이름을 다시 고치는 단계입니다 — 아직 아무것도 바뀌지 않았습니다.',
+      '지금 하실 일: <b>고객사명</b> 칸을 고친 뒤 「💾 수정 저장」을 누르세요 → 바뀔 곳 확인 창이 다시 뜹니다.');
+    nameIn.focus(); nameIn.select();
+  };
+  ov.addEventListener('click', function(e){ if (e.target === ov) document.getElementById('z157X').onclick(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && ov.style.display !== 'none') document.getElementById('z157X').onclick(); });
+  document.getElementById('z157Yes').onclick = function(){
+    hid.value = '1';
+    this.disabled = true; this.textContent = '⏳ 저장하는 중…';
+    f.submit();
+  };
+  f.addEventListener('submit', function(e){
+    var nm = (f.elements['name'].value || '').trim();
+    var old = (f.dataset.oldName || '').trim();
+    if (!nm || nm === old || hid.value === '1') return;
+    e.preventDefault();
+    var dn = (stepBox.dataset.need === '1') ? [1, 3] : [1];   // 「이름 다시 고치기」를 거쳤으면 3번도 지난 단계
+    mStep.innerHTML = stepsHtml(2, dn, '⏳ 이 이름을 쓰는 곳을 세는 중…', '');
+    document.getElementById('z157Yes').style.display = 'none';
+    body.innerHTML = '';
+    ov.style.display = 'flex';
+    fetch('/api/customers/' + f.dataset.cid + '/rename-preview?new_name=' + encodeURIComponent(nm), {credentials: 'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok) { mStep.innerHTML = stepsHtml(2, [1], '👉 바뀔 곳을 세지 못했습니다 — 저장하지 않았습니다.', '지금 하실 일: 「✕ 닫기」 뒤 「💾 수정 저장」을 다시 누르세요.'); body.innerHTML = '⚠ 미리보기를 못 불러왔습니다: ' + esc((j && j.error) || '알 수 없음') + ' — 저장하지 않았습니다. 닫고 다시 해 주세요.'; document.getElementById('z157Yes').style.display = 'none'; return; }
+        document.getElementById('z157Yes').style.display = '';
+        mStep.innerHTML = stepsHtml(2, dn, '👉 아직 저장 전입니다 — 아래 표를 확인하세요.',
+          '지금 하실 일: 맞으면 「확인하고 저장」 · 이름을 고치려면 「이름 다시 고치기」 · 그만두려면 「취소」(원래 이름 그대로).');
+        var h = '<div style="margin-bottom:8px;">「<b>' + esc(j.old_name) + '</b>」 → 「<b style="color:#1d4ed8;">' + esc(j.new_name) + '</b>」</div>';
+        h += '<div style="margin-bottom:6px;">이 고객사(번호 #' + j.id + ')를 쓰는 곳 — <b>같은 고객사로 그대로 이어지고</b>, 화면에는 새 이름으로 보입니다.</div>';
+        h += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><tr style="background:#f7f8fa;"><th style="text-align:left;padding:4px 6px;">자료</th><th style="padding:4px 6px;">전체</th><th style="padding:4px 6px;">저장 이름 함께 바꿈</th><th style="padding:4px 6px;">그대로</th></tr>';
+        var any = false;
+        (j.items || []).forEach(function(x){ any = true; h += '<tr><td style="padding:4px 6px;border-top:1px solid #eef0f4;">' + esc(x.label) + '</td><td style="text-align:center;border-top:1px solid #eef0f4;">' + x.total + '건</td><td style="text-align:center;border-top:1px solid #eef0f4;color:#1d4ed8;font-weight:700;">' + x.change + '건</td><td style="text-align:center;border-top:1px solid #eef0f4;">' + x.keep + '건</td></tr>'; });
+        (j.documents || []).forEach(function(x){ any = true; h += '<tr><td style="padding:4px 6px;border-top:1px solid #eef0f4;">' + esc(x.label) + '</td><td style="text-align:center;border-top:1px solid #eef0f4;">' + x.total + '건</td><td style="text-align:center;border-top:1px solid #eef0f4;">0건</td><td style="text-align:center;border-top:1px solid #eef0f4;">' + x.total + '건</td></tr>'; });
+        if (!any) h += '<tr><td colspan="4" style="padding:6px;color:#64748b;">이 고객사를 쓰는 자료가 아직 없습니다.</td></tr>';
+        h += '</table>';
+        if (j.alias) h += '<div style="margin-top:8px;color:#64748b;font-size:12px;">· 시스템명 「' + esc(j.alias) + '」으로 적힌 자료는 그대로 둡니다' + (j.alias_before ? '(단 「' + esc(j.alias) + '」이 옛 이름이던 때 ' + esc(String(j.alias_before).slice(0, 16)) + ' 전에 만든 줄은 옛 이름이라 함께 바꿈)' : '(지점 구분)') + '.</div>';
+        h += '<div style="margin-top:4px;color:#64748b;font-size:12px;">· 옛 이름 「' + esc(j.old_name) + '」으로 엑셀을 올려도 이 고객사로 연결됩니다(다른 고객사와 겹치지 않을 때만).</div>';
+        h += '<div style="margin-top:4px;color:#64748b;font-size:12px;">· 바뀐 줄마다 그 자료의 변경 이력(프로젝트·소모품 이력 탭)에 남습니다 · 「취소」나 「✕ 닫기」를 누르면 아무것도 바뀌지 않습니다.</div>';
+        body.innerHTML = h;
+      })
+      .catch(function(err){ mStep.innerHTML = stepsHtml(2, [1], '👉 바뀔 곳을 세지 못했습니다 — 저장하지 않았습니다.', '지금 하실 일: 「✕ 닫기」 뒤 「💾 수정 저장」을 다시 누르세요.'); body.innerHTML = '⚠ 미리보기를 못 불러왔습니다(' + esc(err) + ') — 저장하지 않았습니다. 닫고 다시 해 주세요.'; document.getElementById('z157Yes').style.display = 'none'; });
+  });
 })();
 </script>
 {% include "_v5_partials/knk_inputs.html" ignore missing %}

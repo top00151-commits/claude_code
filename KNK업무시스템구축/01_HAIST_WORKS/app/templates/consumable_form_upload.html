@@ -516,7 +516,7 @@ function renderCoBulkPreview(j){
   list.innerHTML = (j.orders||[]).map(function(o){
     var err = o._errors && o._errors.length > 0;
     var head = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 11px;background:' + (err?'#fff0f0':'#f5f9ff') + ';font-size:13px;">'
-      + '<b>' + _escH(o.customer_name||'(고객사 없음)') + '</b>' + (o.cust_ok?'':' <span style="font-size:11px;color:#c33;">미등록</span>')
+      + '<b>' + _escH(o.customer_name||'(고객사 없음)') + '</b>' + (o.cust_ok?'':' <span style="font-size:11px;color:#c33;">미등록</span>') + (o.cust_now?' <span style="font-size:11px;color:#2563eb;" title="옛 이름·시스템명으로 찾음 — 같은 고객 번호로 연결">→ 지금 이름 '+_escH(o.cust_now)+'</span>':'')
       + '<span style="color:#666;">발주일 ' + _escH(o.order_date||'-') + '</span>'
       // v5H226z959 (대표 지시): 관리번호 — 비움=자동발급 / 채움 검증통과=✓ 지정 / 검증실패=✗(사유는 아래 오류줄)
       + (o._mgmt_auto
