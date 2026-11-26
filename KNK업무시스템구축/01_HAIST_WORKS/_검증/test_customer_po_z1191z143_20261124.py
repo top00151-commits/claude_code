@@ -18,8 +18,8 @@ def check(l, c, g=""):
 check("PDF·PNG·JPG·엑셀(xlsx·xls) 받음", P.kind_of("a.pdf", b"%PDF-1.4 x") == "pdf" and P.kind_of("a.PNG", b"\x89PNG\r\n") == "img"
       and P.kind_of("a.jpg", b"\xff\xd8\xff\xe0") == "img" and P.kind_of("a.xlsx", b"PK\x03\x04..") == "xl"
       and P.kind_of("a.xls", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1") == "xl")
-check("이름만 바꾼 파일·다른 확장자는 안 받음", P.kind_of("a.pdf", b"PK\x03\x04") is None and P.kind_of("a.exe", b"MZ") is None
-      and P.kind_of("a.hwp", b"\xd0\xcf\x11\xe0") is None)
+# z1191z163 (대표 11-26 발주서 등록 안 됨 · 「사용자들이 등록하는걸 믿고」): 문서 보안(DRM) 걸린 파일도 받음 — 확장자 목록 밖만 막음
+check("확장자가 PDF·엑셀이면 내용이 달라도(DRM 등) 받음 · 다른 확장자는 안 받음", P.kind_of("a.pdf", b"PK\x03\x04") == "pdf" and P.kind_of("b.xlsx", b"<DRM>") == "xl" and P.kind_of("a.exe", b"MZ") is None and P.kind_of("a.hwp", b"x") is None)
 
 # 2 엑셀 금액 읽기(AI 없음)
 import openpyxl

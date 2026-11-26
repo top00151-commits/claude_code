@@ -23,19 +23,12 @@ def ext_of(name):
 
 
 def kind_of(name, raw):
-    """확장자 + 파일 첫 바이트가 맞아야 그 종류 — 이름만 바꾼 파일은 None."""
-    ext = ext_of(name)
-    k = EXTS.get(ext)
-    head = bytes((raw or b"")[:8])
-    if k == "pdf":
-        return k if head.startswith(b"%PDF") else None
-    if ext == ".png":
-        return k if head.startswith(b"\x89PNG") else None
-    if ext in (".jpg", ".jpeg"):
-        return k if head.startswith(b"\xff\xd8\xff") else None
-    if k == "xl":
-        return k if (head.startswith(b"PK\x03\x04") or head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")) else None
-    return None
+    """파일 종류 = 확장자로 정한다.
+    z1191z163 (대표 11-26 발주서 등록이 안 됨 「⚠ 파일 내용이 이름과 다릅니다」 → 「검토하는 기능을 빼줘 · 사용자들이 등록하는걸 믿고」):
+      예전엔 첫 바이트가 확장자와 맞아야만 받았다 → 문서 보안(DRM)이 걸린 엑셀·PDF, 앞에 다른 글자가 붙은 PDF 같은 정상 발주서도
+      「이름만 바꾼 파일」로 막혔다. 이제 확장자가 PDF·사진·엑셀이면 받는다(내용을 못 읽으면 웍스 안 보기 대신 원본 받기로 보임).
+      확장자 목록 밖(exe 등)은 그대로 막는다."""
+    return EXTS.get(ext_of(name))
 
 
 def table(c):
