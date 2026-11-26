@@ -54,7 +54,7 @@
     {% from "_v5_partials/step_z156.html" import z156_steps %}
     <div class="sc-note" id="z156Files" style="border-color:#fcd34d;background:#fffbeb;color:#92400e;">
       <b>📎 수주번호를 고를 견적서·고객 발주서 <span id="z156FilesN">{{ files156|length }}</span>건</b> — 견적서·발주서는 이제 수주번호에만 붙습니다. 아래 파일은 예전에 관리번호에만 붙어 수주번호가 없습니다(저절로 아무 수주에나 붙이지 않음).
-      {{ z156_steps('z156FileStep', ['수주번호 고르기', '「이 수주에 붙이기」', '다시 고르기(그 수주에 이미 견적서가 있을 때만)', '끝 — 목록에서 빠짐'], 1, '👉 지금 하실 일: 파일마다 맞는 수주번호를 고르고 「이 수주에 붙이기」를 누르세요') }}
+      {{ z156_steps('z156FileStep', ['수주번호 고르기', '「이 수주에 붙이기」', '다시 고르기(붙지 않았을 때만)', '끝 — 목록에서 빠짐'], 1, '👉 지금 하실 일: 파일마다 맞는 수주번호를 고르고 「이 수주에 붙이기」를 누르세요') }}
     </div>
     <table class="sc-t" style="margin-bottom:14px;" data-dn="so-check-files">
       <thead><tr><th>관리번호</th><th>파일</th><th>올린 사람 · 날</th><th>붙일 수주번호</th></tr></thead>
@@ -69,7 +69,7 @@
             {% elif can_file156 %}
             <select class="sc-in z156-fsel" style="width:auto;min-width:150px;">
               {% if x.sos|length != 1 %}<option value="">— 수주번호 고르기 —</option>{% endif %}
-              {% for o in x.sos %}<option value="{{ o.id }}"{% if x.sos|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.has %} (이미 견적서: {{ o.has }}){% endif %}</option>{% endfor %}
+              {% for o in x.sos %}<option value="{{ o.id }}"{% if x.sos|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.has %} (견적서 {{ o.has }}장 있음 · 함께 남음){% endif %}</option>{% endfor %}
             </select>
             <button type="button" class="sc-b z156-fgo">이 수주에 붙이기</button>
             <span class="sc-msg"></span>

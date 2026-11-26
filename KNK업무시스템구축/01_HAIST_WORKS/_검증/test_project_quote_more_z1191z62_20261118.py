@@ -262,12 +262,12 @@ with D.db_session() as c:
 check(r.json()["ok"] and rr["orig_name"] == "나중에 받은 견적서.pdf" and rr["attached_at"] and rr["by_id"] == UA["id"] and hh == 1 and not CALLS,
       "올리면 바로 보관(AI·칸 채우기 없음) · 이력 「상세 화면」", rr.get("orig_name"))
 hd = q(cl.get, "/project/%d" % P9).text
-# z1191z105 (대표 11-22 「1,2 추천대로」): 대표 견적 자리 1장 — 상세에서 올리면 수정 때 올린 것을 바꿈(예전 것 지움)
-check(hd.count('class="z61-qf"') == 1 and "나중에 받은 견적서.pdf" in hd and r.json().get("replaced") == 1,
-      "상세에서 올리면 대표 견적 자리 1장으로 바꿈(z1191z105 · 수정 때 올린 것은 지움)", (hd.count('class="z61-qf"'), r.json()))
+# z1191z160 (대표 11-26 「여러 개 등록될 수 있게」): 상세에서 올려도 수정 때 올린 것은 그대로 — 2장 모두
+check(hd.count('class="z61-qf"') == 2 and "나중에 받은 견적서.pdf" in hd and "수정용 견적서.png" in hd and "replaced" not in r.json() and r.json().get("n_so") == 2,
+      "z1191z160: 상세에서 올리면 수정 때 올린 것과 함께 2장(지우지 않음)", (hd.count('class="z61-qf"'), r.json()))
 check('<dt class="fullw">견적서</dt>' in hd and "나중에 받은 견적서.pdf</a>" in hd[hd.find('<dt class="fullw">견적서</dt>'):],
       "프로젝트 정보 「견적서」 칸(한 줄 전체)에 그 견적서")
-check(hd.count('class="z62-view"') == 1 and 'data-kind="pdf"' in hd, "줄에 「👁 보기」(PDF → 미리보기 창)")
+check(hd.count('class="z62-view"') == 2 and 'data-kind="pdf"' in hd, "줄마다 「👁 보기」(PDF·사진 → 미리보기 창 · z1191z160 2장)")
 check(q(cl.post, "/api/project-quote/attach/%d" % P9, files={"file": ("x.docx", b"abc", "application/octet-stream")}).json()["ok"] is False, "docx 거절")
 check(q(cl.post, "/api/project-quote/attach/999999", files={"file": ("x.pdf", b"%PDF", "application/pdf")}).status_code == 404, "없는 프로젝트 404")
 as_(UC)

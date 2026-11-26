@@ -24,7 +24,7 @@
                   {% if _sos156|length != 1 %}<option value="">— 수주번호 고르기 —</option>{% endif %}
                   {% for o in _sos156 %}<option value="{{ o.id }}"{% if _sos156|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.units %} · {{ o.units }}{% endif %}</option>{% endfor %}
                 </select></label>
-              <span id="z156QfMsg" style="margin-left:6px;font-size:12px;color:#475569;">그 수주에 예전 견적서가 있으면 바뀝니다</span>
+              <span id="z156QfMsg" style="margin-left:6px;font-size:12px;color:#475569;">그 수주에 견적서가 있어도 함께 남습니다</span>
               {% else %}
               <div style="font-size:12.5px;color:#b45309;font-weight:700;">👉 이 관리번호에는 아직 수주번호가 없어 견적서를 붙일 수 없습니다 — 칸만 채우고 [저장]하면 견적서 파일은 붙지 않습니다.</div>
               {% endif %}
@@ -37,7 +37,7 @@
               var _t156=setInterval(sync, 600);
               function sync(){ if(!document.body.contains(box)){ clearInterval(_t156); return; } box.hidden = !tok.value; }
               sync();
-              if(sel) sel.addEventListener('change', function(){ if(msg){ msg.style.color='#475569'; msg.textContent='그 수주에 예전 견적서가 있으면 바뀝니다'; } if(window.z156Step) z156Step('z156QfStep', sel.value?3:2, sel.value?'👉 지금 하실 일: [저장]을 누르면 '+((sel.options[sel.selectedIndex]||{}).textContent||'').split(' · ')[0]+' 에 붙습니다':'👉 지금 하실 일: 이 견적서를 붙일 수주번호를 고르세요'); });
+              if(sel) sel.addEventListener('change', function(){ if(msg){ msg.style.color='#475569'; msg.textContent='그 수주에 견적서가 있어도 함께 남습니다'; } if(window.z156Step) z156Step('z156QfStep', sel.value?3:2, sel.value?'👉 지금 하실 일: [저장]을 누르면 '+((sel.options[sel.selectedIndex]||{}).textContent||'').split(' · ')[0]+' 에 붙습니다':'👉 지금 하실 일: 이 견적서를 붙일 수주번호를 고르세요'); });
               if(sel && sel.value && window.z156Step) z156Step('z156QfStep', 3, '👉 지금 하실 일: [저장]을 누르면 '+((sel.options[sel.selectedIndex]||{}).textContent||'').split(' · ')[0]+' 에 붙습니다');
               /* 수주 2개 이상인데 안 골랐으면 [저장]을 멈추고 알림(다른 칸도 저장하지 않음 — 고른 뒤 다시 [저장]) */
               if(f) f.addEventListener('submit', function(e){
@@ -199,7 +199,7 @@ input.z61-filled, select.z61-filled { background:#fefce8 !important; box-shadow:
     }
     if(window.knkScanMoney) try{ knkScanMoney(); }catch(e){}
     h+='<div class="z61q-msg">'+esc(j.message||'')+' <b>AI 가 읽은 값이니 '+VERB+' 전에 견적서와 한 번 맞춰 보세요.</b> 노란 칸 = 견적서에서 채운 칸.</div>';
-    (j.warnings||[]).forEach(function(w){ h+='<div class="z61q-warn">⚠ '+esc(w)+'</div>'; });
+    /* z1191z160 (대표 11-26 「검토하는 기능을 빼줘」): 견적서 내용 경고(⚠ 공급자·수량×단가·품명) 줄 없앰 */
     h+='<table class="z61q-tbl">';
     if(d.customer) h+='<tr><td class="k">고객사 (견적서 업체명)</td><td class="v">'+esc(d.customer)+'</td><td class="s">'+custHtml+'</td></tr>';
     rows.forEach(function(r, i){

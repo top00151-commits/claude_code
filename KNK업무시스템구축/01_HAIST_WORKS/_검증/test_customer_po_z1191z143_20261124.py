@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """z1191z143 (대표 11-24 「견적 관리 화면에 고객사에서 받은 발주서도 등록 · 등록한 발주서는 관리번호 또는 수주번호 상세보기에서 견적서처럼」):
-고객 발주서 — 파일 종류 확인 · 엑셀 금액 읽기 · 같은 금액(부가세 포함 포함) · 최종/이전 발주서 · 자리 후보 · 권한 · 화면 글 · 화면 스크립트 문법"""
+고객 발주서 — 파일 종류 확인 · 엑셀 금액 읽기 · 자리 후보 · 권한 · 화면 글 · 화면 스크립트 문법
+z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 여러 개 등록될 수 있게」)로 바꾼 것: §3 금액 비교(same) 시험 → 「비교 함수 없음」 ·
+  §4 최종/이전·금액 판정 → 「여러 장 같은 자격(최근 위) · 비교 없음」 · §6 확인했음 주소 없음 · §7 화면 글(최종·이전·확인했음 없음 · 「더 올리기」)"""
 import io, contextlib, os, re, sqlite3, subprocess, sys, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -39,19 +41,15 @@ a, ccy, lab = P.read_amount(book({(2, 1): "Unit: USD", (5, 1): "Total Amount", (
 check("Total 아래 숫자 · 통화 USD", a == 12500.5 and ccy == "USD", (a, ccy))
 check("합계 글이 없으면 금액 없음", P.read_amount(book({(1, 1): "메모", (1, 2): 100}))[0] is None)
 
-# 3 같은 금액 = 견적서 규칙 + 부가세 포함
-check("원화 1원 차이 = 같음 · 통화 다르면 다름", P.same(4020000.4, "KRW", 4020000, "KRW") and P.same(4020000, "USD", 4020000, "KRW") is False)
-check("부가세 포함 합계(×1.1)도 같음", P.same(4422000, "", 4020000, "KRW") is True)
-check("다른 금액 = 다름 · 못 읽음 = 비교 못 함", P.same(3900000, "KRW", 4020000, "KRW") is False and P.same(None, "", 1, "KRW") is None)
+# 3 z1191z160: 금액 비교 함수 없음(읽은 금액은 보여 주기만)
+check("z1191z160: 발주서 금액 비교 함수(same) 없음", not hasattr(P, "same"))
 
-# 4 최종·이전 발주서 · 금액 판정
+# 4 z1191z160: 여러 장 모두 같은 자격 — 최종·이전 구분 없음 · 금액 비교 없음
 fs = [{"id": 1, "kind": "pdf", "amount": None}, {"id": 5, "kind": "xl", "amount": 3900000, "currency": "KRW"}, {"id": 3, "kind": "img", "amount": None}]
 st = P.slot_status(fs, 4020000, "KRW")
-check("최종 = 가장 나중에 올린 것(id 큰 것) · 이전 = 최근 순", st["final"]["id"] == 5 and [x["id"] for x in st["prev"]] == [3, 1], st)
-check("엑셀 최종 금액 다름 = ⚠ · 확인했음이면 ok", st["st"] == "diff" and P.slot_status([dict(fs[1], amt_ack_at="2026-11-24")], 4020000, "KRW")["st"] == "ok")
-check("PDF·사진 최종 = 비교 없음(알림 없음)", P.slot_status(fs[:1], 4020000, "KRW")["st"] == "nocmp" and P.slot_status([fs[2]], 4020000, "KRW")["st"] == "nocmp")
-check("관리번호 자리(수주 금액 없음) = 비교 없음 · 없음 = none", P.slot_status([fs[1]])["st"] == "nocmp" and P.slot_status([])["st"] == "none")
-check("엑셀 금액 같음 = ok", P.slot_status([{"id": 9, "kind": "xl", "amount": 4020000, "currency": ""}], 4020000, "KRW")["st"] == "ok")
+check("여러 장 모두 목록(최근 위) · 최종·이전 칸 없음", [x["id"] for x in st["files"]] == [5, 3, 1] and "final" not in st and "prev" not in st, st)
+check("엑셀 금액이 수주와 달라도 ⚠ 없음(st = ok)", st["st"] == "ok" and P.slot_status([fs[1]], 4020000, "KRW")["st"] == "ok")
+check("없음 = none · 빈 목록", P.slot_status([]) == {"files": [], "st": "none"})
 
 # 5 main 연결 — 자리 후보 · 화면 상태
 with contextlib.redirect_stdout(io.StringIO()):
@@ -71,12 +69,13 @@ check("관리번호만 → 취소 뺀 수주들만(관리번호 자리 없음 ·
 check("취소 수주 번호는 후보 아님", M._z143_cands(c, "T-260911-1.pdf")[0] == [])
 check("번호가 없으면 후보 없음(찾기로)", M._z143_cands(c, "scan_001.jpg")[0] == [])
 c.execute("INSERT INTO project_po_files(tok, project_id, order_id, orig_name, stored, kind, by_id, created_at) VALUES('a',1,3,'old.pdf','x/a.pdf','pdf',1,'2026-11-01 10:00')")
-check("자리 후보에 「이미 있는 발주서 수」(다시 올리면 이전 발주서로 남김)", M._z143_cands(c, "T-261016-4.pdf")[0][0]["has"] == 1)
+check("자리 후보에 「이미 있는 발주서 수」(z1191z160: 함께 남음)", M._z143_cands(c, "T-261016-4.pdf")[0][0]["has"] == 1)
 
 # 6 권한·안전(코드)
 src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
 blk = src[src.index("# ═══ z1191z143"):min(src.index("# z1191z59 (대표 2026-11-18"), src.find("# ═══ z1191z150") if "# ═══ z1191z150" in src else len(src))]   # z1191z150 블록(견적서·발주서 모아 보기)은 따로
-check("올리기·붙이기·찾기·확인했음 = can_use_sales·can_view_sales", blk.count("if not (can_use_sales(u) and can_view_sales(u)):") >= 4)
+check("올리기·붙이기·찾기 = can_use_sales·can_view_sales", blk.count("if not (can_use_sales(u) and can_view_sales(u)):") >= 3)
+check("z1191z160: 발주서 금액 「확인했음」 주소 없음", '@app.post("/api/customer-po/ack/' not in src and "amt_ack_by=?" not in blk)
 check("보기·내려받기 = can_view_sales · 빼기 = 올린 사람·기술영업팀(z63)", blk.count("if not can_view_sales(u):") >= 2 and "_z63_can_remove(u, dict(r))" in blk)
 check("저장 이름 = 임의 글자(올린 파일 이름을 경로에 쓰지 않음) · 20MB", 'stored = f"{sub}/{tok}{ext}"' in blk and "_qr61.MAX_BYTES" in blk)
 check("다시 올려도 예전 발주서를 지우지 않음(올리기·붙이기에 DELETE 없음)",
@@ -93,8 +92,12 @@ check("프로젝트 상세: 위 「고객 발주서」 칸 + 수주 카드 「�
 od = T("sales_order_detail.html")
 check("수주 상세: 「📄 고객 발주서」 + 관리번호 전체 발주서 줄", "📄 고객 발주서" in od and "_v5_partials/po_rows.html" in od)
 pr = T("_v5_partials", "po_rows.html")
-check("발주서 줄: 최종 · 이전 발주서 · 보기 · 내려받기 · 빼기 · ⚠ 확인했음", all(k in pr for k in ("최종", "이전 발주서", "👁 보기", "⬇ 내려받기", "z143-rm", "z143-ack", "수정 발주서 올리기")))
-check("보기 화면: PDF 틀 · 사진 · 엑셀 시트 표 · 최종/이전", all(k in T("customer_po_view.html") for k in ("<iframe", "<img", "qv-g", "이전 발주서")))
+check("발주서 줄: 여러 장 반복 · 보기 · 내려받기 · 빼기 · 「더 올리기」", all(k in pr for k in ("{% for _pf in _pfs %}", "👁 보기", "⬇ 내려받기", "z143-rm", "발주서 더 올리기")))
+_prx = re.sub(r"\{#.*?#\}", "", pr, flags=re.S)   # 설명 주석 뺀 화면 글
+check("z1191z160 발주서 줄: 최종·이전 발주서·확인했음·금액 다름 글 없음", not any(k in _prx for k in ("최종", "이전 발주서", "z143-ack", "확인했음", "금액 다름")), [k for k in ("최종", "이전 발주서", "z143-ack", "확인했음", "금액 다름") if k in _prx])
+_cv = T("customer_po_view.html")
+check("보기 화면: PDF 틀 · 사진 · 엑셀 시트 표 · 같은 수주 발주서 목록", all(k in _cv for k in ("<iframe", "<img", "qv-g", "같은 수주의 발주서")))
+check("z1191z160 보기 화면: 최종·이전 발주서·확인했음·금액 다름 없음", not any(k in re.sub(r"\{#.*?#\}", "", _cv, flags=re.S) for k in ("이전 발주서", "is_final", "확인했음", "금액 다름", "z143-ack")))
 
 # 8 화면 스크립트 문법(node · 작은따옴표 글 안 줄바꿈 같은 실수 — z141 사고 재발 막기)
 node = None

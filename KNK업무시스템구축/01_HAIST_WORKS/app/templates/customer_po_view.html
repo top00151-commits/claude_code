@@ -37,7 +37,6 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
       <p class="knk-page-meta">
         <a href="/project/{{ f.project_id }}#po143">{{ f.mgmt_code }}{% if f.pname %} {{ f.pname }}{% endif %}</a>
         · {% if f.order_no %}수주번호 <a href="/sales/orders/{{ f.order_id }}#po143"><b>{{ f.order_no }}</b></a>의 고객 발주서{% else %}<a href="/projects/so-check" style="color:#b45309;font-weight:700;" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 발주서">👉 수주번호를 아직 고르지 않은 고객 발주서 — 고르기</a>{% endif %}
-        · {% if is_final %}<b style="color:#166534;">최종</b>{% else %}<b style="color:#64748b;">이전 발주서(수정 전)</b>{% endif %}
         · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }} 올림
       </p>
     </div>
@@ -47,18 +46,14 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
     </div>
   </header>
   <div class="pv-wrap">
-    {% set _all = [st.final] + st.prev if st.final else [] %}
+    {# z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 여러 개 등록될 수 있게」): 같은 수주 발주서 모두 같은 자격(최근 위) · 금액은 읽은 값 보여 주기만 #}
+    {% set _all = st.files if st else [] %}
     {% if _all|length > 1 %}
-    <div class="pv-sib">같은 자리의 발주서:
-      {% for x in _all %}<a href="/customer-po/{{ x.id }}" class="{% if x.id == f.id %}on{% endif %}">{% if loop.first %}최종{% else %}이전 {{ loop.index0 }}{% endif %} · {{ (x.created_at or '')[:10] }} · {{ x.orig_name }}</a>{% endfor %}
+    <div class="pv-sib">같은 수주의 발주서 {{ _all|length }}장:
+      {% for x in _all %}<a href="/customer-po/{{ x.id }}" class="{% if x.id == f.id %}on{% endif %}">{{ (x.created_at or '')[:10] }} · {{ x.orig_name }}</a>{% endfor %}
     </div>
     {% endif %}
-    {% if not is_final %}<div class="pv-note info">이 발주서는 <b>이전 발주서</b>(나중에 수정 발주서가 올라옴)입니다 — 최종은 위 「최종」을 누르세요.</div>{% endif %}
-    {% if is_final and st.st == 'diff' %}
-    <div class="pv-note">⚠ 발주서 엑셀에서 읽은 금액 <b>{{ money(f.amount|float, f.currency or 'KRW') }}</b>{% if f.amount_label %}({{ f.amount_label }}){% endif %}이 수주 금액 <b>{{ money(f.o_amt or 0, f.o_ccy or 'KRW') }}</b>과 다릅니다 — 고객 발주서와 수주 금액을 확인해 주세요.
-      {% if can_up %}<button type="button" class="pv-btn z143-ack" data-fid="{{ f.id }}">확인했음</button>{% endif %}</div>
-    {% elif f.amt_ack_at %}<div class="pv-note info">금액 다름 확인함 · {{ f.amt_ack_name or '' }} {{ (f.amt_ack_at or '')[:16] }}</div>
-    {% elif f.kind == 'xl' and f.amount is not none %}<div class="pv-note info">엑셀에서 읽은 금액 <b>{{ money(f.amount|float, f.currency or 'KRW') }}</b>{% if f.amount_label %}({{ f.amount_label }}){% endif %}{% if f.order_no and st.cmp %} · 수주 금액과 같습니다{% endif %}</div>{% endif %}
+    {% if f.kind == 'xl' and f.amount is not none %}<div class="pv-note info">엑셀에서 읽은 금액 <b>{{ money(f.amount|float, f.currency or 'KRW') }}</b>{% if f.amount_label %}({{ f.amount_label }}){% endif %}</div>{% endif %}
 
     {% if f.kind == 'pdf' %}
     <iframe class="pv-frame" src="/customer-po/{{ f.id }}/file" title="고객 발주서 PDF"></iframe>

@@ -7,6 +7,8 @@
   §5 관리번호에만 붙는 줄(order_id NULL)이 새로 생기지 않음 · 등록 전 임시 파일은 그대로
   §6 옛 order_id 없는 견적서·발주서 = 저절로 안 붙음 · 판정에 안 씀 · 「⚠ 수주 칸 확인 필요」에 나옴 · 열기만으로 저장 안 함 · 사람이 고르면 붙음·이력
   §7 화면(상세·견적 관리·수정 화면·확인 필요) · 「대표 견적」 말 없음 · 화면 스크립트 문법(node)
+  z1191z160 (대표 11-26)로 바꾼 것: 올린 답의 금액 다름 알림 → 「알림 없음」 · 같은 수주에 다시 올리면 바뀜 → 「모두 남음」 ·
+    후보 「금액 같음」 → 「표시 없음」 · 확인 필요에서 그 수주에 견적서가 있으면 409 → 「함께 붙음」 · 판정 via·f → fs 목록
   임시 DB · TestClient · 운영 아님"""
 import contextlib
 import io
@@ -154,7 +156,7 @@ check("수주 2개 · 안 고르면 저장 안 함 · 「👉 수주번호를 �
 check("멈춤 답에 고를 수주 2개(취소 수주 뺌)", [o["id"] for o in j.get("sos") or []] == [O21, O22], j.get("sos"))
 j = attach(P2, "견적_둘_2호기.xlsx", O22, {"amount": 2500000, "currency": "KRW"})
 check("고르면 그 수주에만(2호기) · 1호기 수주엔 없음", j.get("ok") and qfiles(P2) == [(O22, "견적_둘_2호기.xlsx")], qfiles(P2))
-check("올린 순간 이 수주 금액 다름 알림(via own)", j.get("diff_sos") == ["Z-261126-3"], j)
+check("z1191z160: 올린 답에 금액 비교 알림 없음(견적 금액이 수주와 달라도)", not any(k in j for k in ("diff_sos", "amt_read", "replaced")) and j.get("n_so") == 1, j)
 check("변경 이력에 어느 수주인지", rows("SELECT COUNT(*) FROM project_history WHERE project_id=? AND note LIKE '%수주 Z-261126-3%'", P2)[0][0] >= 1)
 j = attach(P2, "견적_남의수주.xlsx", O11)
 check("다른 관리번호의 수주번호 = 막음(저장 안 함)", (not j.get("ok")) and j.get("need_so") and len(qfiles(P2)) == 1, (j, qfiles(P2)))
@@ -163,15 +165,16 @@ check("취소된 수주 = 막음", (not j.get("ok")) and len(qfiles(P2)) == 1, j
 j = attach(P0, "견적_수주없음.xlsx")
 check("수주 없는 관리번호 = 막음 · 「수주를 먼저 등록」", (not j.get("ok")) and j.get("no_so") and "수주를 먼저" in (j.get("message") or "") and qfiles(P0) == [], j)
 j = attach(P2, "견적_둘_2호기_새판.xlsx", O22, {"amount": 3000000, "currency": "KRW"})
-check("같은 수주에 다시 올리면 그 수주 견적만 바뀜(예전 것 지움)", j.get("ok") and j.get("replaced") == 1 and qfiles(P2) == [(O22, "견적_둘_2호기_새판.xlsx")] and not j.get("diff_sos"), (j, qfiles(P2)))
+check("z1191z160: 같은 수주에 다시 올리면 둘 다 남음(예전 것 지우지 않음)", j.get("ok") and j.get("n_so") == 2
+      and qfiles(P2) == [(O22, "견적_둘_2호기.xlsx"), (O22, "견적_둘_2호기_새판.xlsx")], (j, qfiles(P2)))
 
 print("§2 견적 관리 — 올리기 → 수주번호 고르기 → 붙이기")
 FAKE["fields"] = {"amount": 2000000, "currency": "KRW"}
 rd = q(cl.post, "/api/project-quote/read", files={"file": ("962M2611_견적.xlsx", XL, "application/vnd.ms-excel")}).json()
 cd = q(cl.get, "/api/quotes-z105/cands?tok=" + rd["tok"]).json()
-check("관리번호만 적힌 파일 → 후보 = 그 관리번호의 수주번호들만(관리번호 자리 없음) · 금액이 같아도 미리 안 고름(빈칸 · 「금액 같음」 표시만)",
+check("관리번호만 적힌 파일 → 후보 = 그 관리번호의 수주번호들만(관리번호 자리 없음) · 미리 안 고름(빈칸) · z1191z160: 금액 같음 표시 없음",
       sorted(x["oid"] for x in cd.get("cands") or []) == [O21, O22] and cd.get("pick") is None
-      and [x["same"] for x in cd["cands"] if x["oid"] == O21] == [True], cd)
+      and not any("same" in x for x in cd["cands"]) and [x["has"] for x in cd["cands"] if x["oid"] == O22] == [2], cd)
 check("수주 1개 관리번호 파일 → 그 수주 하나 · 미리 고름",
       (lambda c2: [x["oid"] for x in c2.get("cands") or []] == [O11] and c2.get("pick") == 0)(
           q(cl.get, "/api/quotes-z105/cands?tok=" + q(cl.post, "/api/project-quote/read", files={"file": ("961M2611.xlsx", XL, "application/vnd.ms-excel")}).json()["tok"]).json()))
@@ -249,10 +252,10 @@ check("코드: 견적서를 붙이는 곳에 order_id=NULL·IS NULL 자리 고�
 print("§6 옛 order_id 없는 견적서·발주서")
 with D.db_session() as c:
     st = M._z141_project(c, PL)
-check("판정에 안 씀: 수주 넷 모두 「없음」(관리번호 견적서를 따라가지 않음 · via proj 없음)",
-      all(st[o]["st"] == "none" and st[o]["via"] != "proj" for o in OL), st)
+check("판정에 안 씀: 수주 넷 모두 「없음」(관리번호 견적서를 따라가지 않음)",
+      all(st[o]["st"] == "none" and st[o]["fs"] == [] for o in OL), st)
 d150 = M._z150_one(PL)
-check("모아 보기: 옛 견적서는 pq 로 보이기만 · 견적 없는 수주 4", d150["pq"] and d150["pq"]["id"] == LQ and d150["miss_q"] == 4, d150 and d150["miss_q"])
+check("모아 보기: 옛 견적서는 pqs 로 보이기만 · 견적 없는 수주 4", [x["id"] for x in d150["pqs"]] == [LQ] and d150["miss_q"] == 4, d150 and d150["miss_q"])
 
 
 def fp():
@@ -276,18 +279,19 @@ with D.db_session() as c:   # 3호기에는 이미 견적서가 있다
     c.execute("INSERT INTO project_quote_files(tok, project_id, order_id, orig_name, stored, by_id, created_at, attached_at) "
               "VALUES('l3', ?, ?, '3호기_견적.xlsx', '202611/l3.xlsx', ?, '2026-11-20 10:00', '2026-11-20 10:00')", (PL, OL[2], ADMIN["id"]))
 f0 = fp()
+h3 = q(cl.get, "/projects/so-check").text
+check("z1191z160: 확인 필요 고르기 칸 = 그 수주 견적서 수만 보여 줌(막지 않음)", "견적서 1장 있음 · 함께 남음" in h3 and "이미 견적서:" not in h3)
 rr = q(cl.post, "/api/so-check-file/quote/%d" % LQ, data={"order_id": OL[2]})
 r = rr.json()
-check("그 수주에 이미 견적서가 있으면 멈춤(저절로 지우지 않음) · 「👉」", rr.status_code == 409 and not r.get("ok") and "👉" in (r.get("message") or "") and fp() == f0, r)
-r = q(cl.post, "/api/so-check-file/quote/%d" % LQ, data={"order_id": OL[1]}).json()
-check("사람이 고른 수주(2호기)에 붙음", r.get("ok") and r.get("shown") == "Z-2611L-2" and rows("SELECT order_id FROM project_quote_files WHERE id=?", LQ) == [(OL[1],)], r)
-check("이력: 누가·어느 파일·어느 수주", rows("SELECT COUNT(*) FROM project_history WHERE project_id=? AND field='견적서 파일 수주번호' AND new_value='Z-2611L-2' "
+check("z1191z160: 그 수주에 이미 견적서가 있어도 함께 붙음(아무것도 지우지 않음)", rr.status_code == 200 and r.get("ok") and r.get("shown") == "Z-2611L-3"
+      and rows("SELECT id FROM project_quote_files WHERE order_id=? ORDER BY id", OL[2]) == [(LQ,), rows("SELECT id FROM project_quote_files WHERE tok='l3'")[0]], r)
+check("이력: 누가·어느 파일·어느 수주", rows("SELECT COUNT(*) FROM project_history WHERE project_id=? AND field='견적서 파일 수주번호' AND new_value='Z-2611L-3' "
                                    "AND note LIKE '%옛_관리번호견적.xlsx%' AND changed_by=?", PL, ADMIN["id"])[0][0] == 1)
 r = q(cl.post, "/api/so-check-file/quote/%d" % LQ, data={"order_id": OL[0]})
 check("두 번 누르면 409(이미 정해짐)", r.status_code == 409)
 with D.db_session() as c:
     st = M._z141_project(c, PL)
-check("붙인 뒤 = 2호기 「이 수주 견적」으로 판정", st[OL[1]]["via"] == "own" and st[OL[1]]["f"]["id"] == LQ, st[OL[1]])
+check("붙인 뒤 = 3호기 견적서 2장 모두(최근 위 · 비교 없음)", st[OL[2]]["st"] == "ok" and sorted(x["id"] for x in st[OL[2]]["fs"]) == sorted([LQ, rows("SELECT id FROM project_quote_files WHERE tok='l3'")[0][0]]), st[OL[2]])
 r = q(cl.post, "/api/so-check-file/po/%d" % LP, data={"order_id": OL[3]}).json()
 check("옛 발주서 → 고른 수주(4호기)에 붙음 · 이력", r.get("ok") and rows("SELECT order_id FROM project_po_files WHERE id=?", LP) == [(OL[3],)]
       and rows("SELECT COUNT(*) FROM project_history WHERE project_id=? AND field='고객 발주서 수주번호'", PL)[0][0] == 1, r)

@@ -1,19 +1,16 @@
-{# z1191z150 (대표 11-25 「등록한 견적서·발주서를 한눈에 · 원본 받기 편하게」): 견적서·발주서 상태 칩 — 프로젝트 목록 📎 책갈피 · 프로젝트 상세 위 표 공용
-   qchip(pid, q) = z141 수주 견적 상태 · pchip(p) = z143 발주서 자리 상태 · 칩 = 누르면 웍스 안 보기 · ⬇ = 원본(이름 = 관리번호_수주번호_종류_원본) #}
+{# z1191z150 (대표 11-25 「등록한 견적서·발주서를 한눈에 · 원본 받기 편하게」): 견적서·발주서 칩 — 프로젝트 목록 📎 책갈피 · 프로젝트 상세 위 표 공용
+   qchip(pid, q) = 수주 견적서({st, fs}) · pchip(p) = 수주 발주서({files, st}) · 칩 = 누르면 웍스 안 보기 · ⬇ = 원본(이름 = 관리번호_수주번호_종류_원본)
+   z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 여러 개 등록될 수 있게」): 한 수주에 여러 장이면 칩도 여러 개(모두 같은 자격 · 최근 위)
+   · 금액 비교(⚠ 금액 다름)·앞 수주 견적 따라가기(🔗)·「이전 발주서」 표시 없음 #}
 {% macro qchip(pid, q, mini=False) -%}
-{%- set f = q.f if q else None -%}
-{%- if q and q.st == 'ok' and q.via == 'own' -%}<a class="dc150 ok" href="/quotes/{{ f.id }}" title="이 수주에 올린 견적서 · {{ f.orig_name }}">🟢 이 수주 견적</a>
-{%- elif q and q.st == 'link' -%}<a class="dc150 lk" href="/quotes/{{ f.id }}" title="따로 올린 것이 없어 금액이 같은 {{ (q.via_so or '앞 수주') ~ ' 견적서' }}를 따라갑니다 · {{ f.orig_name }}">🔗 앞 수주 견적{% if q.acked %} · 확인함{% endif %}</a>
-{%- elif q and q.st == 'diff' -%}<a class="dc150 wn" href="/quotes/{{ f.id }}" title="견적서 금액이 이 수주 금액과 다릅니다 — 견적·발주서 관리에서 「확인했음」 또는 이 수주 견적을 올리세요 · {{ f.orig_name }}">⚠ 견적 금액 다름</a>
-{%- else -%}<span class="dc150 no" title="이 수주가 따라갈 견적서가 없습니다">견적 없음</span>{%- endif -%}
-{%- if f and not mini %} <a class="dc150dl" href="/projects/{{ pid }}/quote-files/{{ f.id }}" title="원본 엑셀 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif -%}
+{%- set fs = (q.fs if (q and q.fs) else []) -%}
+{%- if fs -%}{%- for f in fs -%}{% if not loop.first %} {% endif %}<a class="dc150 ok" href="/quotes/{{ f.id }}" title="이 수주에 올린 견적서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📋 {{ f.orig_name|truncate(22, True, '…') }}</a>{% if not mini %} <a class="dc150dl" href="/projects/{{ pid }}/quote-files/{{ f.id }}" title="원본 엑셀 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif %}{%- endfor -%}
+{%- else -%}<span class="dc150 no" title="이 수주에 올린 견적서가 없습니다">견적 없음</span>{%- endif -%}
 {%- endmacro %}
 {% macro pchip(p, mini=False) -%}
-{%- set f = p.final if p else None -%}
-{%- if f and p.st == 'diff' -%}<a class="dc150 wn" href="/customer-po/{{ f.id }}" title="발주서 엑셀에서 읽은 금액이 수주 금액과 다릅니다 · {{ f.orig_name }}">⚠ 발주서 금액 다름</a>
-{%- elif f -%}<a class="dc150 ok" href="/customer-po/{{ f.id }}" title="최종 발주서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📄 발주서{% if p.prev %} <small>(이전 {{ p.prev|length }})</small>{% endif %}</a>
+{%- set fs = (p.files if (p and p.files) else []) -%}
+{%- if fs -%}{%- for f in fs -%}{% if not loop.first %} {% endif %}<a class="dc150 ok" href="/customer-po/{{ f.id }}" title="고객 발주서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📄 {{ f.orig_name|truncate(22, True, '…') }}</a>{% if not mini %} <a class="dc150dl" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif %}{%- endfor -%}
 {%- else -%}<span class="dc150 no" title="올린 고객 발주서가 없습니다">발주서 없음</span>{%- endif -%}
-{%- if f and not mini %} <a class="dc150dl" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif -%}
 {%- endmacro %}
 {% macro dc_style() -%}
 <style>

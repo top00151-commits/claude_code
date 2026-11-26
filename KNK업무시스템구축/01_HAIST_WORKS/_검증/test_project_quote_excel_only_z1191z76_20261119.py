@@ -217,7 +217,7 @@ check(r.headers.get("cache-control", "").startswith("private"), "남의 컴퓨�
 dinp = re.search(r'<input type="file" class="z62-up-file" accept="([^"]+)"', hd)
 check(dinp and ".pdf" not in dinp.group(1) and "＋ 견적서 엑셀 올리기" in hd, "상세 「＋ 견적서 엑셀 올리기」도 엑셀만", dinp and dinp.group(1))
 
-print("§4 상세에서 더 올리기 = 엑셀만 · 고친 것을 올리면 「최신」")
+print("§4 상세에서 더 올리기 = 엑셀만 · z1191z160: 고친 것을 올려도 예전 것과 함께 남음(「최신」 표시 없음)")
 for nm, raw in (("나중 견적서.pdf", b"%PDF-1.4 x"), ("나중 견적서.png", PNG), ("가짜.xlsx", b"%PDF-1.4 x")):
     rj = q(cl.post, "/api/project-quote/attach/%d" % P1, files={"file": (nm, raw, "application/octet-stream")}).json()
     check(rj["ok"] is False and "엑셀" in rj["message"], "상세 올리기 %s → 거절" % nm, rj)
@@ -225,11 +225,11 @@ PLAIN2 = xlsx_bytes([["견 적 서 (수정)"], ["품 명", "가상 패널 검사
 rj = q(cl.post, "/api/project-quote/attach/%d" % P1, files={"file": ("가상 견적서 최종_수정1.xlsx", PLAIN2, "application/octet-stream")}).json()
 check(rj["ok"], "고친 엑셀 올리기 → 보관", rj)
 hd = q(cl.get, "/project/%d" % P1).text
-# z1191z105 (대표 11-22): 자리마다 최종 1장 — 고친 엑셀을 올리면 예전 것은 지움(「최신」 표시가 필요 없음)
-check("가상 견적서 최종_수정1.xlsx</a>" in hd and "가상 견적서 최종.xlsx</a>" not in hd and ">최신</span>" not in hd and rj.get("replaced") == 1,
-      "고친 엑셀 → 그 자리를 바꿈(예전 「최종.xlsx」 지움 · 1장)", rj)
+# z1191z160 (대표 11-26 「발주서·견적서가 무조건 하나만 등록되는 건 아니야」): 고친 엑셀을 올려도 예전 것은 그대로 — 둘 다 같은 자격(「최신」 없음)
+check("가상 견적서 최종_수정1.xlsx</a>" in hd and "가상 견적서 최종.xlsx</a>" in hd and ">최신</span>" not in hd and "replaced" not in rj and rj.get("n_so") == 2,
+      "고친 엑셀 → 예전 「최종.xlsx」와 함께 남음(2장)", rj)
 fs = M._z61_quote_files(P1)
-check([x["orig_name"] for x in fs] == ["가상 견적서 최종_수정1.xlsx"], "목록 자료: 고친 엑셀 1장", [x["orig_name"] for x in fs])
+check([x["orig_name"] for x in fs] == ["가상 견적서 최종_수정1.xlsx", "가상 견적서 최종.xlsx"], "목록 자료: 2장 · 최근 위", [x["orig_name"] for x in fs])
 P2, _ = reg(model="TP-77", quote_tok="")
 q(cl.post, "/api/project-quote/attach/%d" % P2, files={"file": ("하나뿐.xlsx", PLAIN, "application/octet-stream")})
 check(">최신</span>" not in q(cl.get, "/project/%d" % P2).text, "견적서가 하나뿐이면 「최신」 표시 없음")

@@ -287,7 +287,13 @@ def normalize(data: dict) -> dict:
 
 
 def checks(f: dict) -> list:
-    """사람이 꼭 봐야 할 것(경고 문장)."""
+    """z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 사용자들이 등록하는 걸 믿고 진행」): 경고 없음 — 늘 빈 목록.
+    (예전: 공급자 KNK 아님 · 수량×단가≠합계 · 품명 없음 — 아래 옛 판단은 _checks_old_z61 에 기록으로만 남김)"""
+    return []
+
+
+def _checks_old_z61(f: dict) -> list:
+    """(z1191z160 전) 쓰지 않음 — 기록용."""
     w = []
     sup, cus = f.get("supplier") or "", f.get("customer") or ""
     if (sup and not is_knk(sup)) or (cus and is_knk(cus)):

@@ -3,10 +3,9 @@
 수주번호 상세보기에서 견적서처럼 볼수있게」 → 빅터 안 → 「진행」): 고객 발주서 파일 — 규칙·읽기 도구(AI 없음).
 
   · 자리 = 관리번호(order_id 없음) 또는 수주번호마다 · 파일 = PDF · 사진(jpg·png) · 엑셀(xlsx·xlsm·xls)
-  · 다시 올리면 새 것이 「최종」, 예전 것은 지우지 않고 「이전 발주서」로 남는다(고객이 수정 발주서를 보내는 경우 · 빅터 권한 안)
-    최종 = 그 자리에서 가장 나중에 올린 것(id 가 가장 큰 것) · 최종을 빼면 바로 앞 것이 다시 최종
-  · 엑셀 발주서만 금액을 읽어 수주 금액과 비교(막지 않음 · 「확인했음」) — PDF·사진은 비교하지 않음
-  · 「같은 금액」 = 견적서 z105·z141 규칙(통화가 적혀 있으면 같아야 · 원화 1원 · 외화 0.01) + 부가세 포함 합계(×1.1)도 같음으로 봄
+  · z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 여러 개 등록될 수 있게 제한을 풀어줘」):
+    한 수주에 발주서를 여러 장 올려도 모두 같은 자격으로 남는다(「최종」·「이전 발주서」 구분 없음 · 올린 순서 최근 위)
+  · 엑셀 발주서는 금액을 읽어 보여 주기만 한다 — 수주 금액과 비교·경고·「확인했음」 없음
 """
 import re
 
@@ -112,28 +111,8 @@ def read_amount(book):
     return None, ccy, ""
 
 
-def same(a, ccy_a, b, ccy_b):
-    """None = 비교 못 함 · True/False — 견적서 z105 규칙 + 부가세 포함(×1.1)도 같음."""
-    if a is None or b is None:
-        return None
-    ca, cb = (ccy_a or "").upper(), (ccy_b or "KRW").upper()
-    if ca and ca != cb:
-        return False
-    tol = 1 if cb == "KRW" else 0.01
-    a, b = float(a), float(b)
-    return abs(a - b) < tol or abs(a - round(b * 1.1, 2)) < max(tol, 1 if cb == "KRW" else 0.05)
-
-
 def slot_status(files, order_total=None, order_ccy=None):
-    """한 자리(관리번호 또는 수주번호)의 발주서 줄들 → {final, prev[], st('ok'|'diff'|'none'|'nocmp'), cmp}
-    files = 그 자리의 줄(dict · id 오름차순). 최종 = 마지막."""
-    if not files:
-        return {"final": None, "prev": [], "st": "none", "cmp": None}
-    fs = sorted(files, key=lambda x: x["id"])
-    fin = fs[-1]
-    prev = list(reversed(fs[:-1]))
-    st, cmp_ = "nocmp", None
-    if fin.get("kind") == "xl" and order_total is not None and fin.get("amount") is not None:
-        cmp_ = same(fin.get("amount"), fin.get("currency"), order_total, order_ccy)
-        st = "diff" if (cmp_ is False and not fin.get("amt_ack_at")) else "ok"
-    return {"final": fin, "prev": prev, "st": st, "cmp": cmp_}
+    """z1191z160: 한 수주(또는 수주번호를 아직 안 고른 옛 자리)의 발주서 줄 → {files: [줄 · 최근 위], st: 'ok'|'none'}.
+    최종·이전 구분 없음 · 금액 비교 없음(order_total·order_ccy 는 옛 부르는 곳 호환용 · 쓰지 않음)."""
+    fs = sorted(files or [], key=lambda x: x.get("id") or 0, reverse=True)
+    return {"files": fs, "st": "ok" if fs else "none"}

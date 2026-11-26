@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""z1191z141 (대표 11-24 「진행」): 수주마다 🟢 이 수주 견적 / 🔗 관리번호(앞 수주) 견적 사용 / ⚠ 금액 다름 / 없음 · 등록 화면 비슷한 지난 견적"""
+"""z1191z141 (대표 11-24 「진행」): 수주마다 견적서 상태 · 등록 화면 비슷한 지난 견적
+z1191z160 (대표 11-26)로 바꾼 것: 🔗 따라가기·⚠ 금액 다름·「확인했음」 시험 → 「수주마다 그 수주 견적서 전부(여러 장) · 없으면 없음 · 비교 없음」"""
 import io, contextlib, json, os, sqlite3, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -11,51 +12,28 @@ def check(l, c, g=""):
     R.append(bool(c)); print(("✅ " if c else "❌ ") + l + ("" if c else "  → " + str(g)[:300]))
 
 
-def F(fid, up=None, amt=None, cur="KRW", qty=None, ack=None):
-    return {"id": fid, "price": Q.q_price({"unit_price": up, "amount": amt, "currency": cur, "qty": qty}), "amt_ack_at": ack, "orig_name": "q%d.xlsx" % fid}
+def F(fid, amt=None, cur="KRW"):
+    return {"id": fid, "amt": amt, "cur": cur, "orig_name": "q%d.xlsx" % fid}
 
 
-def O(oid, no, total, prices, cur="KRW"):
-    return {"id": oid, "order_no": no, "price": Q.o_price(total, cur, prices)}
+def O(oid, no):
+    return {"id": oid, "order_no": no}
 
 
-# 가격 읽기
-check("견적 단가 없으면 합계 ÷ 수량", Q.q_price({"amount": "12,060,000", "qty": 6})[0] == 2010000)
-check("수주 단가 = 품목 줄 단가가 모두 같을 때만", Q.o_price(4020000, "KRW", [2010000, 2010000])[0] == 2010000 and Q.o_price(5000, "KRW", [1000, 4000])[0] is None)
-check("같음 = 원화 1원 · 외화 0.01 · 통화 다르면 다름", Q.same(100.4, "KRW", 100, "KRW") and not Q.same(100.02, "USD", 100, "USD") and Q.same(100, "USD", 100, "KRW") is False)
-# 사진 같은 경우: 관리번호 견적서 6대 × 2,010,000 = 12,060,000 · 수주 4건(2대·2대·1대·1대)
-orders = [O(1, "T-260826-1", 2010000, [2010000]), O(2, "T-260911-1", 2010000, [2010000]),
-          O(3, "T-260930-9", 4020000, [2010000, 2010000]), O(4, "T-261016-4", 4020000, [2010000, 2010000])]
-r = Q.resolve(orders, {}, F(10, up=2010000, amt=12060000, qty=6), {})
-check("관리번호 견적서만 있고 단가 같음 → 모든 수주 🔗 관리번호 견적", all(r[i]["st"] == "link" and r[i]["via"] == "proj" and r[i]["f"]["id"] == 10 for i in (1, 2, 3, 4)), r)
-# 이 수주 견적
-r = Q.resolve(orders, {2: F(20, up=2010000, amt=2010000)}, None, {})
-check("이 수주에 올린 견적 = 🟢", r[2]["st"] == "ok" and r[2]["via"] == "own")
-check("뒤 수주(단가 같음) = 앞 수주 견적 🔗 · 그 앞 수주는 없음", r[3]["st"] == "link" and r[3]["via"] == "so" and r[3]["via_so"] == "T-260911-1" and r[1]["st"] == "none", r)
-r = Q.resolve(orders, {2: F(20, up=1500000, amt=1500000)}, None, {})
-check("이 수주 견적 금액 다름 = ⚠(z105 그대로) · 「확인했음」이면 🟢", r[2]["st"] == "diff" and
-      Q.resolve(orders, {2: F(20, up=1500000, amt=1500000, ack="2026-11-24")}, None, {})[2]["st"] == "ok")
-check("이 수주 견적: 단가만 같아도(합계 다름) 🟢", Q.resolve([O(5, "X", 4020000, [2010000, 2010000])], {5: F(30, up=2010000, amt=2010000, qty=1)}, None, {})[5]["st"] == "ok")
-# 두 번째부터 금액이 달라질 때(대표 말씀 예)
-o2 = [O(1, "A-1", 1000000, [1000000]), O(2, "A-2", 1200000, [1200000]), O(3, "A-3", 1200000, [1200000])]
-r = Q.resolve(o2, {}, F(10, up=1000000, amt=1000000), {})
-check("첫 수주 🔗 · 둘째(단가 다름) ⚠ · 셋째도 ⚠", r[1]["st"] == "link" and r[2]["st"] == "diff" and r[3]["st"] == "diff", r)
-r = Q.resolve(o2, {2: F(20, up=1200000, amt=1200000)}, F(10, up=1000000, amt=1000000), {})
-check("둘째에 새 견적 → 🟢 · 셋째(둘째와 단가 같음) = 둘째 견적 🔗(다시 안 올림)", r[2]["st"] == "ok" and r[3]["st"] == "link" and r[3]["via_so"] == "A-2" and r[3]["f"]["id"] == 20, r)
-# 확인했음(따라가는 견적 금액 다름)
-r = Q.resolve(o2, {}, F(10, up=1000000, amt=1000000), {2: 10})
-check("둘째 「확인했음」(같은 견적서) → 🔗 · 확인함 표시 · 셋째는 그대로 ⚠", r[2]["st"] == "link" and r[2]["acked"] and r[3]["st"] == "diff", r)
-r = Q.resolve(o2, {}, F(11, up=1000000, amt=1000000), {2: 10})
-check("확인한 뒤 관리번호 견적서가 바뀌면 다시 ⚠", r[2]["st"] == "diff")
-# 비교 못 함
-r = Q.resolve(o2, {}, F(10), {})
-check("관리번호 견적서 금액을 못 읽음 → 관리번호 견적 🔗(비교 못 함)", all(r[i]["st"] == "link" and r[i]["cmp"] is None for i in (1, 2, 3)))
-r = Q.resolve([O(1, "B-1", None, [])], {}, F(10, up=5, amt=5), {})
-check("수주 금액 없음 → 관리번호 견적 🔗", r[1]["st"] == "link")
-check("견적서 하나도 없음 = 없음", Q.resolve(o2, {}, None, {})[1]["st"] == "none")
-check("통화 다름 = ⚠", Q.resolve([O(1, "U-1", 100, [100], "USD")], {}, F(10, up=100, amt=100, cur="KRW"), {})[1]["st"] == "diff")
-check("관리번호 견적서 없고 앞 수주 견적만 단가 다름 = 없음(따라갈 것 없음 → 이 수주 견적서 올릴 자리)",
-      Q.resolve(o2[:2], {1: F(20, up=1000000, amt=1000000)}, None, {})[2]["st"] == "none")
+# 가격 읽기(보여 주기용 · 비교 아님)
+check("견적 단가 없으면 합계 ÷ 수량(읽은 값 보여 주기용)", Q.q_price({"amount": "12,060,000", "qty": 6})[0] == 2010000)
+# z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 여러 개 등록될 수 있게」): 금액 비교·따라가기·확인했음 없음
+check("z1191z160: 금액 비교 함수(same·match·o_price) 없음", not any(hasattr(Q, n) for n in ("same", "match", "o_price")))
+orders = [O(1, "T-260826-1"), O(2, "T-260911-1"), O(3, "T-260930-9"), O(4, "T-261016-4")]
+r = Q.resolve(orders, {2: [F(20, 2010000)]})
+check("이 수주에 올린 견적 = ok · 그 견적서만", r[2]["st"] == "ok" and [x["id"] for x in r[2]["fs"]] == [20])
+check("z1191z160: 뒤 수주는 앞 수주 견적을 따라가지 않음 = 없음", r[3]["st"] == "none" and r[3]["fs"] == [] and r[1]["st"] == "none", r)
+r = Q.resolve(orders, {2: [F(20, 2010000), F(25, 1500000), F(22, 9)]})
+check("z1191z160: 한 수주에 여러 장 = 모두(최근 위) · 금액이 달라도 ⚠ 없음", r[2]["st"] == "ok" and [x["id"] for x in r[2]["fs"]] == [25, 22, 20], r[2])
+check("결과 칸 = st·fs 뿐(via·cmp·acked 없음)", set(r[2]) == {"st", "fs"})
+check("한 장만 넘겨도(옛 부르는 모양) 목록으로", Q.resolve([O(5, "X")], {5: F(30)})[5]["fs"][0]["id"] == 30)
+check("견적서 하나도 없음 = 없음", Q.resolve(orders, {})[1] == {"st": "none", "fs": []})
+check("옛 인자(관리번호 견적서·확인 목록)를 넘겨도 쓰지 않음", Q.resolve(orders, {}, F(10, 1), {2: 10})[2]["st"] == "none")
 
 # main 연결 — 등록 화면 비슷한 지난 견적(_z141_similar) · 견적 관리 판(_z105_board) 숫자
 with contextlib.redirect_stdout(io.StringIO()):
@@ -79,10 +57,10 @@ check("비슷한 견적: 고객사 이름만으로도(띄어쓰기 무시)", [x[
 check("비슷한 견적: 최대 3건", len(M._z141_similar(c, "", "", "VMS0952 로봇 VSWR", "")) <= 3)
 check("비슷한 견적 결과에 원가 칸 없음(앞장 머리 값만)", not any(k for x in s for k in x if "cost" in k or "원가" in k))
 src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
-check("새 API 두 곳 권한 확인(can_use_sales·can_view_sales)", src.count("if not (can_use_sales(u) and can_view_sales(u)):") >= 2 and
-      "/api/quotes-z141/similar" in src and "/api/quote-so-ack/{oid}" in src)
+check("비슷한 견적 API 권한 확인(can_use_sales·can_view_sales) · z1191z160: 「확인했음」 주소 없음", src.count("if not (can_use_sales(u) and can_view_sales(u)):") >= 2 and
+      "/api/quotes-z141/similar" in src and '@app.post("/api/quote-so-ack/' not in src)
 tpl_q = open(os.path.join(ROOT, "app", "templates", "sales_quotations.html"), encoding="utf-8").read()
-check("견적 관리: 견적 있음(이 수주 + 관리번호 사용) · 금액 다름 · 정말 없음", "견적 있음" in tpl_q and "정말 없음" in tpl_q and "금액 다름(확인 필요)" in tpl_q and "🔗" in tpl_q)
+check("견적 관리: 견적서 있음 · 견적서 없음 · z1191z160: 금액 다름·🔗 따라가기 없음", "견적서 있음" in tpl_q and "견적서 없음" in tpl_q and "금액 다름(확인 필요)" not in tpl_q and "🔗" not in tpl_q)
 tpl_f = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "quote_fill.html"), encoding="utf-8").read()
 check("등록 화면 안내 한 줄(z1191z156: 이번 수주번호에 붙음)", "[등록]하면 이번에 만드는 수주번호에 붙습니다" in tpl_f)
 print("\n결과: %d 통과 / %d 실패" % (sum(R), len(R) - sum(R)))

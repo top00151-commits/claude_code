@@ -177,9 +177,14 @@ F1 = row(tok)["id"]
 h = hist(P)
 check(len(h) == 1 and h[0]["changed_by"] == UA["id"] and "가영업" in h[0]["note"], "등록 화면에서 올림 → 이력에 올린 사람(번호·이름)", h)
 as_(UD)
-# z1191z105 (대표 11-22): 대표 견적 자리 1장 · 남이 올린 것 바꾸기 = 올린 사람·기술영업팀만
-r105 = q(cl.post, "/api/project-quote/attach/%d" % P, files={"file": ("라영업이 바꾸려는 견적서.pdf", b"%PDF-1.4 x", "application/pdf")})
-check(r105.status_code == 403 and "기술영업팀" in r105.json().get("message", ""), "z1191z105: 라영업은 가영업 견적서를 못 바꿈(403)", r105.json())
+# z1191z160 (대표 11-26 「여러 개 등록될 수 있게」): 남이 올린 견적서가 있어도 더 올림 — 남의 것은 지우지 않으므로 막지 않음
+r105 = q(cl.post, "/api/project-quote/attach/%d" % P, files={"file": ("라영업이 더 올린 견적서.pdf", b"%PDF-1.4 x", "application/pdf")})
+with D.db_session() as c:
+    _n160 = [x[0] for x in c.execute("SELECT orig_name FROM project_quote_files WHERE project_id=? ORDER BY id", (P,)).fetchall()]
+check(r105.status_code == 200 and r105.json().get("ok") and _n160 == ["가영업이 올린 견적서.png", "라영업이 더 올린 견적서.pdf"],
+      "z1191z160: 라영업도 같은 수주에 더 올림 · 가영업 것은 그대로", (r105.json(), _n160))
+_s160, _j160 = rm(r105.json()["fid"])
+check(_s160 == 200 and _j160.get("ok"), "잘못 올린 것은 올린 사람이 「빼기」(그대로 됨)", _j160)
 as_(UA)
 P2, _ = reg(model="TP-63B", quote_tok="")
 as_(UD)

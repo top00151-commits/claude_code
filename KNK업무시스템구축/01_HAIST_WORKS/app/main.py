@@ -23338,33 +23338,35 @@ async def sales_orders_export_xlsx(req: Request):
 
 @app.get("/sales/quotations/export.xlsx")
 async def sales_quotations_export_xlsx(req: Request):
-    """z1191z105: 견적 관리 화면 그대로(같은 거르기) — 관리번호·수주번호별 최종 견적서 상태."""
+    """z1191z105: 견적 관리 화면 그대로(같은 거르기) — 관리번호·수주번호별 견적서.
+    z1191z160: 「금액 다름」 상태 없음 · 한 수주에 견적서가 여러 장이면 장마다 한 줄."""
     u = _s1_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
     b = _z105_board(u, **_z105_args(req, u))
     cm = b["can_money"]
-    st_txt = {"ok": "있음", "diff": "있음 · 금액 다름", "none": "없음"}
     out = []
     for r in b["rows"]:
-        p, pf = r["p"], r["pf"]
-        out.append([p["mgmt_code"], "", ("수주번호 고르기 전 견적서" if pf else ("수주 전" if not r["sos"] else "")), p["name"], p["customer_name"], p["sales_name"], "", "",
-                    (pf["orig_name"] if pf else ""), ((pf["created_at"] or "")[:10] if pf else ""), (pf["by_name"] if pf else ""),
-                    "", ("⚠ 수주번호를 골라야 함" if pf else "-")])   # z1191z156
+        p, pfs = r["p"], r["pfs"]
+        for pf in (pfs or [None]):
+            out.append([p["mgmt_code"], "", ("수주번호 고르기 전 견적서" if pf else ("수주 전" if not r["sos"] else "")), p["name"], p["customer_name"], p["sales_name"], "", "",
+                        (pf["orig_name"] if pf else ""), ((pf["created_at"] or "")[:10] if pf else ""), (pf["by_name"] if pf else ""),
+                        "", ("⚠ 수주번호를 골라야 함" if pf else "-")])   # z1191z156
         for s in r["sos"]:
-            o, f = s["o"], s["f"]
-            out.append([p["mgmt_code"], o["order_no"], s["units"], p["name"], p["customer_name"], p["sales_name"],
-                        (o["total_amount"] if cm else "🔒"), (o["currency"] or "KRW"),
-                        (f["orig_name"] if f else ""), ((f["created_at"] or "")[:10] if f else ""), (f["by_name"] if f else ""),
-                        ((f["amt"] if f["amt"] is not None else "") if (f and cm) else ("🔒" if (f and not cm) else "")),
-                        st_txt.get(s["st"], "")])
+            o, fs = s["o"], s["fs"]
+            for i, f in enumerate(fs or [None]):   # z1191z160: 견적서마다 한 줄
+                out.append([p["mgmt_code"], o["order_no"], s["units"], p["name"], p["customer_name"], p["sales_name"],
+                            (o["total_amount"] if cm else "🔒"), (o["currency"] or "KRW"),
+                            (f["orig_name"] if f else ""), ((f["created_at"] or "")[:10] if f else ""), (f["by_name"] if f else ""),
+                            ((f["amt"] if f["amt"] is not None else "") if (f and cm) else ("🔒" if (f and not cm) else "")),
+                            (("있음" + (" (%d장 중 %d)" % (len(fs), i + 1) if len(fs) > 1 else "")) if f else "없음")])
     for co in b.get("cons") or []:   # z1191z107: 소모품 책갈피 = 소모품 주문(보기만 · 견적서 자리 없음)
         out.append([co["mgmt_code"], co["co_no"], "소모품", (co["project_name"] or co["equip_name"] or ""), co["customer_name"],
                     co["sales_name"], (co["total_amount"] if cm else "🔒"), (co["currency"] or "KRW"), "", "", "", "",
                     "소모품(보기만) · " + (co.get("st_txt") or "")])
     return _make_xlsx_response([{"name": "견적 관리", "headers": [
         "관리번호", "수주번호", "호기·구분", "프로젝트", "고객사", "영업담당", "수주 금액", "통화",
-        "최종 견적서(엑셀)", "올린 날", "올린 사람", "견적서 금액(읽은 값)", "상태"], "rows": out}], "견적관리")
+        "견적서(엑셀)", "올린 날", "올린 사람", "견적서 금액(읽은 값)", "상태"], "rows": out}], "견적관리")
 
 
 async def _sales_quotations_export_old_z105(req: Request):
@@ -38472,7 +38474,7 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                 _docs_sum150["miss_q"] += d["miss_q"]
                 _docs_sum150["miss_p"] += d["miss_p"]
                 _docs_sum150["so"] += len(d["sos"])
-                r["_dmiss"] = ("q" if d["miss_q"] or (not d["sos"] and not d["pq"]) else "") + ("p" if d["miss_p"] or (not d["sos"] and not d["po"].get("final")) else "")
+                r["_dmiss"] = ("q" if d["miss_q"] or (not d["sos"] and not d["pqs"]) else "") + ("p" if d["miss_p"] or (not d["sos"] and not d["po"].get("files")) else "")   # z1191z160
     except Exception as _e150:
         print(f"[z1191z150] 견적서·발주서 책갈피 실패: {_e150}")
     return ctx(request, "projects.html",
@@ -45334,7 +45336,8 @@ tpl.env.globals["z156_sos"] = _z156_sos_view
 async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = File(...)):
     """z1191z62 (대표 11-18 「상세 화면에도 둠」): 등록된 프로젝트에 견적서만 바로 보관(칸 채우기 없음).
     z1191z146 (대표 11-25 「고쳐주고」): 금액도 읽어 둠(견적 관리 올리기와 같은 read_quote) → 수주와 금액 다르면 수주 카드 ⚠ · 답에 알림.
-    z1191z156: 고른 수주번호(order_id)에만 붙임 — 수주 1개면 그 수주 · 2개 이상인데 안 골랐으면 저장하지 않고 「👉 수주번호를 골라 주세요」."""
+    z1191z156: 고른 수주번호(order_id)에만 붙임 — 수주 1개면 그 수주 · 2개 이상인데 안 골랐으면 저장하지 않고 「👉 수주번호를 골라 주세요」.
+    z1191z160 (대표 11-26): 같은 수주에 여러 장 올려도 모두 남음(예전 것 지우지 않음) · 금액은 읽어 보관만(수주 금액과 비교·알림 없음)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -45349,9 +45352,6 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
         if _err156:
             return JSONResponse(_err156)   # 저장하지 않음(파일도 서버에 안 둠)
         _so156 = (c.execute("SELECT order_no FROM orders WHERE id=?", (_oid156,)).fetchone() or [""])[0] or ""
-        _old105 = [dict(r) for r in _z105_slot_rows(c, int(pid), _oid156)]   # z1191z156: 그 수주 자리에 이미 있는 것
-    if _old105 and not _z105_can_replace(u, _old105):
-        return JSONResponse({"ok": False, "message": _Z105_NO_REPLACE}, 403)
     name = _qr61._nfc(file.filename or "견적서")[:200]
     ext = _qr61.ext_of(name)
     if ext not in _Z76_XL_EXTS:   # z1191z76: 엑셀만
@@ -45374,7 +45374,7 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
     except Exception as _e:
         print(f"[z1191z62] 파일 저장 실패: {_e}")
         return JSONResponse({"ok": False, "message": "파일을 서버에 저장하지 못했습니다 — 다시 올려 주세요."})
-    # z1191z146: 금액 읽기(AI 기다림은 DB 를 잡기 전에) — 못 읽어도 보관은 그대로
+    # z1191z146: 금액 읽기(AI 기다림은 DB 를 잡기 전에) — 못 읽어도 보관은 그대로 · z1191z160: 읽은 금액은 보여 주기만(비교 없음)
     try:
         from starlette.concurrency import run_in_threadpool as _rit146
         _rd146 = await _rit146(_qr61.read_quote, raw, name)
@@ -45390,22 +45390,12 @@ async def api_project_quote_attach(req: Request, pid: int, file: UploadFile = Fi
         c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                   (int(pid), u.get("id"), "견적서 파일", "", name, f"z1191z62 상세 화면 「＋ 견적서 올리기」 · 수주 {_so156} · {vname_full(u) or u.get('name') or ''}"))   # z1191z63: 누가 · z1191z156: 어느 수주
         _nid105 = c.execute("SELECT id FROM project_quote_files WHERE tok=?", (tok,)).fetchone()[0]
-        _z105_drop_slot(c, u, int(pid), _nid105, _old105, "상세 「＋ 견적서 엑셀 올리기」 · " + _so156)   # z1191z105: 그 수주 자리 예전 것 지움
+        # z1191z160: 그 수주의 예전 견적서는 지우지 않음 — 모두 같은 자격으로 남음
+        _n160 = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE project_id=? AND order_id=? AND removed_at IS NULL",
+                          (int(pid), _oid156)).fetchone()[0]
     await _z121_index_tok(tok, raw, name)   # z1191z121
-    # z1191z146: 올린 순간 알림(막지 않음) — 이 견적서를 따라가는 수주 중 금액 다른 것 · 금액을 못 읽었으면 그렇다고
-    _fd146 = (_rd146.get("fields") or {}) if isinstance(_rd146, dict) else {}
-    _amt146 = _ql141.q_price(_fd146)
-    _diff146, _cmp146 = [], (_amt146[0] is not None or _amt146[1] is not None)
-    try:
-        with db_session() as c:
-            _st146 = _z141_project(c, int(pid))
-        _s156 = _st146.get(_oid156) or {}   # z1191z156: 올린 수주 자기 견적만 비교
-        _diff146 = [_so156] if (_s156.get("st") == "diff" and _s156.get("via") == "own" and (_s156.get("f") or {}).get("id") == _nid105) else []
-    except Exception as _e146b:
-        print(f"[z1191z146] 금액 비교 실패 pid={pid}: {_e146b}")
-    return JSONResponse({"ok": True, "name": name, "replaced": len(_old105), "fid": _nid105, "slot": _so156, "order_id": _oid156,
-                         "amt_read": _cmp146, "need_password": bool(isinstance(_rd146, dict) and _rd146.get("need_password")),
-                         "diff_sos": _diff146})
+    return JSONResponse({"ok": True, "name": name, "fid": _nid105, "slot": _so156, "order_id": _oid156, "n_so": _n160,
+                         "need_password": bool(isinstance(_rd146, dict) and _rd146.get("need_password"))})
 
 
 tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and can_view_sales(u)
@@ -45515,12 +45505,8 @@ def _z61_attach(pid, tok, u, note="z1191z61 등록 화면 「견적서로 채우
                     print(f"[z1191z156] 견적서 붙이기 멈춤 pid={pid}: {_err156.get('message')}")
                     return "need_so" if _err156.get("need_so") else False
             _so156 = (c.execute("SELECT order_no FROM orders WHERE id=?", (_oid156,)).fetchone() or [""])[0] or ""
-            _old105 = [dict(x) for x in _z105_slot_rows(c, int(pid), _oid156)]   # z1191z156: 그 수주 자리 1장
-            if _old105 and not _z105_can_replace(u, _old105):
-                print(f"[z1191z105] 수주 {_so156} 견적서 바꾸기 권한 없음 pid={pid} — 붙이지 않음")
-                return False
+            # z1191z160: 그 수주에 이미 견적서가 있어도 지우지 않고 함께 남김(여러 장)
             c.execute("UPDATE project_quote_files SET project_id=?, order_id=?, attached_at=? WHERE id=?", (int(pid), _oid156, _z61_now(), r["id"]))
-            _z105_drop_slot(c, u, int(pid), r["id"], _old105, note + " · " + _so156)
             c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                       (int(pid), (u or {}).get("id"), "견적서 파일", "", r["orig_name"], f"{note} · 수주 {_so156} · {vname_full(u or {}) or (u or {}).get('name') or ''}"))   # z1191z63: 누가
         return True
@@ -45540,7 +45526,7 @@ def _z61_quote_files(pid):
             for r in c.execute("SELECT f.id, f.order_id, f.orig_name, f.size, f.by_id, f.by_name, f.created_at, f.read_json, o.order_no "
                                "FROM project_quote_files f LEFT JOIN orders o ON o.id=f.order_id "
                                "WHERE f.project_id=? AND f.removed_at IS NULL "
-                               "ORDER BY (f.order_id IS NOT NULL), COALESCE(o.order_date,''), f.order_id, f.id",
+                               "ORDER BY (f.order_id IS NOT NULL), COALESCE(o.order_date,''), f.order_id, f.id DESC",   # z1191z160: 수주 안에서 최근 위
                                (int(pid),)).fetchall():
                 x = dict(r)
                 x["no_so"] = not x.get("order_id")
@@ -45556,14 +45542,7 @@ def _z61_quote_files(pid):
                 x["locked"] = bool(rj.get("locked") or rj.get("need_password"))
                 x["kind"] = "pdf" if (x["orig_name"] or "").lower().endswith(".pdf") else ("img" if _qr61.ext_of(x["orig_name"] or "") in (".png", ".jpg", ".jpeg") else "file")
                 out.append(x)
-            # z1191z76: 엑셀 견적서가 여러 개면 가장 나중에 올린 것 = 「최신」 — z1191z156: 같은 수주번호 자리 안에서만
-            _slots156 = {}
-            for x in out:
-                if _qr61.ext_of(x["orig_name"] or "") in _Z76_XL_EXTS:
-                    _slots156.setdefault(x.get("order_id"), []).append(x)
-            for _xl in _slots156.values():
-                if len(_xl) > 1:
-                    max(_xl, key=lambda y: y["id"])["latest"] = True
+            # z1191z160 (대표 11-26 「여러 개가 등록될 수도 있어」): 한 수주에 여러 장이면 모두 같은 자격 — 「최신」 표시 없음
             return out
     except Exception as _e:
         print(f"[z1191z61] 견적서 목록 실패 pid={pid}: {_e}")
@@ -45842,41 +45821,18 @@ async def project_quote_file_open(req: Request, pid: int, fid: int):
 
 # ═══ z1191z105 (대표 11-22 「견적관리 부분을 정리하자 … 관리번호별, 수주번호별 최종 견적서(엑셀) 등록 또는 등록된 상태를
 #     보는걸로 … 1호기 가격과 2호기, 3호기 가격이 다를수있어서 수주번호별 견적 등록이 필요」 → 「1,2 추천대로 · 3번은 그대로」)
-#   · 자리 = 수주번호마다 1장(z1191z156 — 관리번호에만 붙이는 자리는 없앰) — 엑셀만(z76) · 시스템에서 견적서를 쓰지 않는다
-#   · 새로 올리면 그 자리의 예전 파일은 바로 지움(대표 ① · 되돌릴 수 없음 · 변경 이력에 누가)
-#   · 바꾸기(=예전 것 지우기)는 예전 것을 뺄 수 있는 사람만(올린 사람·기술영업팀 · z63 규칙 그대로)
+#   · 자리 = 수주번호(z1191z156 — 관리번호에만 붙이는 자리는 없앰) — 엑셀만(z76) · 시스템에서 견적서를 쓰지 않는다
+#   · z1191z160 (대표 11-26 「발주서·견적서가 무조건 하나만 등록되는 건 아니야 · 제한을 풀어줘」): 한 수주에 여러 장 — 새로 올려도
+#     예전 것을 지우지 않음(예전 「바꾸기 = 예전 것 지우기」 없앰) · 잘못 올린 것은 「🗑 빼기」(올린 사람·기술영업팀 · z63 그대로)
 #   · 🆕 등록 「📋 견적서」 카드 → 견적 관리로(대표 ②) · 상세 「＋ 견적서 엑셀 올리기」 단추는 그대로(대표 ③)
 #   · 화면 = /sales/quotations(견적 관리) · 엑셀을 넣으면 읽어서(z61 판독) 관리번호·수주번호 후보를 찾아 줌
-#     — 후보가 딱 하나일 때만 미리 고름(데이터 연결성 규칙) · 견적 금액 ≠ 수주 금액이면 알림(막지 않음 · 「확인했음」 한 번)
-_Z105_NO_REPLACE = ("이 자리에 이미 다른 분이 올린 견적서가 있습니다 — 바꾸기(예전 것 지우기)는 "
-                    "올린 사람과 기술영업팀만 할 수 있습니다.")
+#     — 후보가 딱 하나일 때만 미리 고름(데이터 연결성 규칙) · z1191z160: 견적 금액과 수주 금액 비교·「확인했음」은 없앰
 import re as _re105
 _Z105_MGMT_RE = _re105.compile(r"(?<![0-9A-Za-z])(\d{3}[A-Za-z]\d{4})(?![0-9A-Za-z])")
 _Z105_SO_RE = _re105.compile(r"(?<![0-9A-Za-z])([A-Za-z]{1,3}-\d{6}-\d{1,3})(?![0-9])")
 
 
-def _z105_slot_rows(c, pid, oid):
-    if oid:
-        return c.execute("SELECT id, orig_name, stored, by_id FROM project_quote_files "
-                         "WHERE project_id=? AND order_id=?", (int(pid), int(oid))).fetchall()
-    return c.execute("SELECT id, orig_name, stored, by_id FROM project_quote_files "
-                     "WHERE project_id=? AND order_id IS NULL", (int(pid),)).fetchall()
-
-
-def _z105_can_replace(u, olds):
-    return all(_z63_can_remove(u, dict(r)) for r in (olds or []))
-
-
-def _z105_drop_slot(c, u, pid, keep_id, olds, note):
-    """자리에 있던 예전 견적서를 지움(새 것 keep_id 빼고) — 변경 이력에 누가."""
-    who = vname_full(u or {}) or (u or {}).get("name") or ""
-    for r in (olds or []):
-        if r["id"] == keep_id:
-            continue
-        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (int(pid), (u or {}).get("id"), "견적서 파일", r["orig_name"], "",
-                   f"z1191z105 견적서 바꾸기(예전 것 지움) · {note} · {who}"))
-        _z64_drop(c, r["id"], r["stored"])
+# z1191z160: 예전 「그 수주 자리 1장 — 새로 올리면 예전 것 지움」(_z105_slot_rows·_z105_can_replace·_z105_drop_slot) 없앰
 
 
 def _z105_num(v):
@@ -45887,14 +45843,7 @@ def _z105_num(v):
         return None
 
 
-def _z105_amt_same(a, ccy_a, b, ccy_b):
-    """견적 금액 = 수주 금액? (통화가 적혀 있으면 같아야 함 · 원화 1원 · 외화 0.01 차이까지 같음)"""
-    if a is None or b is None:
-        return None
-    ca, cb = (ccy_a or "").upper(), (ccy_b or "KRW").upper()
-    if ca and ca != cb:
-        return False
-    return abs(float(a) - float(b)) < (1 if cb == "KRW" else 0.01)
+# z1191z160: 견적 금액 = 수주 금액 비교(_z105_amt_same) 없앰
 
 
 def _z105_units_txt(labels):
@@ -45957,7 +45906,8 @@ def _z107_cons(u, ql, mine, since, done):
 
 
 def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
-    """견적 관리 화면 자료 — 관리번호 줄 + 그 아래 수주번호 줄 · 줄마다 최종 견적서(엑셀) 상태."""
+    """견적 관리 화면 자료 — 관리번호 줄 + 그 아래 수주번호 줄 · 줄마다 그 수주에 올린 견적서·발주서 전부.
+    z1191z160 (대표 11-26): 금액 비교(⚠ 금액 다름)·앞 수주 견적 따라가기 없음 · 한 수주에 여러 장 모두 보임."""
     from datetime import date as _d105, timedelta as _td105
     can_money = bool(can_view_sales(u))
     since = {"1y": 365, "2y": 730}.get(period)
@@ -45978,24 +45928,20 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
         for r in c.execute("SELECT order_id, unit_label FROM order_items ORDER BY order_id, id").fetchall():
             labels.setdefault(r[0], []).append(r[1])
         files = {}
-        for r in c.execute("SELECT id, project_id, order_id, orig_name, by_id, by_name, created_at, read_json, amt_ack_name, amt_ack_at "
+        for r in c.execute("SELECT id, project_id, order_id, orig_name, by_id, by_name, created_at, read_json "
                            "FROM project_quote_files WHERE project_id IS NOT NULL AND removed_at IS NULL ORDER BY id").fetchall():
             x = dict(r)
             try:
                 fd = (_qr61.json.loads(x.pop("read_json") or "{}").get("fields") or {})
-            except Exception:
+            except Exception as _e160:
+                print(f"[z1191z160] 견적서 읽은 값 풀기 실패 {x.get('id')}: {_e160}")
                 fd = {}
-            x["amt"] = _z105_num(fd.get("amount"))
+            x["amt"] = _z105_num(fd.get("amount"))   # 읽은 금액 — 보여 주기만(비교 없음)
             x["cur"] = (fd.get("currency") or "").upper()
-            x["price"] = _ql141.q_price(fd)   # z1191z141: 단가·합계·통화
-            files[(x["project_id"], x["order_id"])] = x   # 자리마다 1장(혹시 둘이면 나중 것)
-        prices141 = {}
-        for r in c.execute("SELECT order_id, unit_price FROM order_items ORDER BY order_id, id").fetchall():
-            prices141.setdefault(r[0], []).append(r[1])
-        acks141 = _z141_acks(c)
-        po143 = _z143_rows(c)   # z1191z143: 고객 발주서(관리번호·수주번호 자리마다 · 최종 + 이전)
-    rows, cnt = [], {"so": 0, "so_with": 0, "so_own": 0, "so_link": 0, "so_none": 0, "diff": 0, "pre": 0, "pre_with": 0, "noso": 0, "mine": 0, "done_hidden": 0,
-           "po_so": 0, "po_diff": 0}   # z1191z143 고객 발주서 있는 수주 · 엑셀 발주서 금액 다름
+            files.setdefault((x["project_id"], x["order_id"]), []).append(x)   # z1191z160: 자리마다 여러 장
+        po143 = _z143_rows(c)   # z1191z143: 고객 발주서(수주번호 자리마다 · 여러 장)
+    rows, cnt = [], {"so": 0, "so_with": 0, "so_none": 0, "pre": 0, "pre_with": 0, "noso": 0, "mine": 0, "done_hidden": 0,
+           "po_so": 0}   # z1191z143 고객 발주서 있는 수주
     bcnt = {k or "all": 0 for k, _l in _Z107_BIZ_TABS}   # z1191z107: 책갈피마다 관리번호 수(다른 거르기는 그대로 적용한 뒤)
     for p in projs:
         if since and (p["d0"] or "") < since:
@@ -46020,49 +45966,38 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
                            + [o["order_no"] or "" for o in sos]).lower()
             if ql not in hay:
                 continue
-        pf = files.get((p["id"], None))   # z1191z156: 수주번호를 아직 안 고른 옛 견적서(보이기만 · ⚠ 수주 칸 확인 필요에서 고름)
-        # z1191z141: 수주마다 🟢 이 수주 견적 / 🔗 앞 수주 견적(금액 같음) / ⚠ 금액 다름 / 없음 — 입금 끝난 앞 수주 견적도 따라갈 후보(sos_all)
-        #   z1191z156: 관리번호에만 붙은 견적서는 따라가지 않음(수주 자기 견적 · 금액 같은 앞 수주 견적만)
-        res141 = _ql141.resolve(
-            [{"id": o["id"], "order_no": o["order_no"], "price": _ql141.o_price(o["total_amount"], o["currency"], prices141.get(o["id"]))}
-             for o in sos_all],
-            {o["id"]: files[(p["id"], o["id"])] for o in sos_all if (p["id"], o["id"]) in files}, None, acks141)
+        pfs = list(reversed(files.get((p["id"], None)) or []))   # z1191z156: 수주번호를 아직 안 고른 옛 견적서(보이기만 · ⚠ 수주 칸 확인 필요에서 고름)
+        # z1191z160: 수주마다 그 수주에 올린 견적서 전부(최근 위) · 없으면 「없음」 — 금액 비교·앞 수주 견적 따라가기 없음
+        res160 = _ql141.resolve([{"id": o["id"]} for o in sos], {o["id"]: files.get((p["id"], o["id"])) or [] for o in sos})
         so_rows = []
         for o in sos:
-            rs = res141.get(o["id"]) or {"st": "none", "f": None, "via": "", "via_so": "", "acked": False}
-            so_rows.append({"o": o, "f": rs["f"], "st": rs["st"], "via": rs["via"], "via_so": rs["via_so"], "acked": rs["acked"],
+            rs = res160.get(o["id"]) or {"st": "none", "fs": []}
+            so_rows.append({"o": o, "fs": rs["fs"], "st": rs["st"],
                             "units": _z105_units_txt(labels.get(o["id"], [])),
-                            "po": _po143.slot_status(po143.get((p["id"], o["id"]), []), o["total_amount"], o["currency"])})   # z1191z143
+                            "po": _po143.slot_status(po143.get((p["id"], o["id"]), []))})   # z1191z143 · z1191z160 여러 장
         if on_tab:   # 요약 칸 = 지금 고른 책갈피 안에서만
             for s in so_rows:
                 cnt["so"] += 1
-                if s["po"]["final"]:   # z1191z143
+                if s["po"]["files"]:   # z1191z143
                     cnt["po_so"] += 1
-                    if s["po"]["st"] == "diff":
-                        cnt["po_diff"] += 1
-                if s["st"] in ("ok", "link"):
+                if s["fs"]:
                     cnt["so_with"] += 1
-                    cnt["so_own" if s["via"] == "own" else "so_link"] += 1
-                elif s["st"] == "diff":
-                    cnt["diff"] += 1
                 else:
                     cnt["so_none"] += 1
             if not sos:
                 cnt["pre"] += 1
-                if pf:
+                if pfs:
                     cnt["pre_with"] += 1
-            if pf:   # z1191z156: 수주번호를 골라야 하는 옛 견적서
+            if pfs:   # z1191z156: 수주번호를 골라야 하는 옛 견적서
                 cnt["noso"] += 1
         if only == "none" and not any(s["st"] == "none" for s in so_rows):   # z1191z156: 수주 전 관리번호는 올릴 자리가 없어 뺌
-            continue
-        if only == "diff" and not any(s["st"] == "diff" for s in so_rows):
             continue
         bcnt["all"] += 1
         bcnt[pbiz] += 1
         if on_tab:
-            rows.append({"p": p, "pf": pf, "sos": so_rows, "mine": is_mine,
-                         "po": _po143.slot_status(po143.get((p["id"], None), []))})   # z1191z143 관리번호 발주서
-    # 소모품 주문 = 보기만(대표 「소모품은 보기만」) — 「견적서 없음·금액 다름」 거르기는 견적서 자리가 없으므로 적용 안 함
+            rows.append({"p": p, "pfs": pfs, "sos": so_rows, "mine": is_mine,
+                         "po": _po143.slot_status(po143.get((p["id"], None), []))})   # z1191z143 수주번호 안 고른 옛 발주서
+    # 소모품 주문 = 보기만(대표 「소모품은 보기만」) — 「견적서 없음」 거르기는 견적서 자리가 없으므로 적용 안 함
     cons, cons_hidden = _z107_cons(u, ql, mine, since, done)
     bcnt["C"] += len(cons)
     if biz != "C":
@@ -46079,7 +46014,7 @@ def _z105_args(req, u):
     if period not in ("1y", "2y", "all"):
         period = "1y"
     only = (qp.get("only") or "").strip()
-    if only not in ("", "none", "diff"):
+    if only not in ("", "none"):   # z1191z160: 「⚠ 금액 다름」 거르기 없앰(예전 주소 ?only=diff 는 전체로)
         only = ""
     biz = (qp.get("biz") or "").strip().upper()   # z1191z107 사업부 책갈피
     if biz not in ("T", "M", "L", "C", "E"):
@@ -46090,7 +46025,8 @@ def _z105_args(req, u):
 
 @app.get("/api/quotes-z105/cands")
 async def api_quotes_z105_cands(req: Request):
-    """올린(아직 안 붙인) 견적서 → 관리번호·수주번호 후보. 후보가 딱 하나로 분명할 때만 pick."""
+    """올린(아직 안 붙인) 견적서 → 관리번호·수주번호 후보. 후보가 딱 하나로 분명할 때만 pick.
+    z1191z160: 금액 같음/다름 표시·금액 기준 순서 없음 · 후보마다 그 수주에 이미 있는 견적서 수만(has = 장 수)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -46119,9 +46055,8 @@ async def api_quotes_z105_cands(req: Request):
                     "AND COALESCE(p.is_archived,0)=0 AND " + where + " ORDER BY COALESCE(o.order_date,'') DESC, o.id DESC LIMIT 40",
                     args).fetchall():
                 labs = [x[0] for x in c.execute("SELECT unit_label FROM order_items WHERE order_id=? ORDER BY id", (o["id"],))]
-                has = c.execute("SELECT 1 FROM project_quote_files WHERE order_id=?", (o["id"],)).fetchone()
-                out.append({"pid": o["project_id"], "oid": o["id"], "has": bool(has),
-                            "same": _z105_amt_same(amt, ccy, o["total_amount"], o["currency"]),
+                has = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE order_id=? AND removed_at IS NULL", (o["id"],)).fetchone()[0]
+                out.append({"pid": o["project_id"], "oid": o["id"], "has": int(has or 0),
                             "label": _z105_slot_label(o["mgmt_code"] or "", o["order_no"] or "", _z105_units_txt(labs),
                                                       o["total_amount"], o["currency"], True) + " · " + (o["name"] or "")})
             return out
@@ -46142,12 +46077,10 @@ async def api_quotes_z105_cands(req: Request):
         if not cands and fd.get("customer"):
             cu = _z61_match_customer(c, fd.get("customer"))
             if cu.get("id"):
-                cands = _so_cands("(o.customer_id=? OR p.customer_id=?)", (cu["id"], cu["id"]))
-                cands.sort(key=lambda x: 0 if x["same"] else 1)
-                cands = cands[:8]
-                why = "견적서의 고객사(" + (cu.get("label") or "") + ")" + (" · 금액이 같은 수주 먼저" if amt is not None else "")
+                cands = _so_cands("(o.customer_id=? OR p.customer_id=?)", (cu["id"], cu["id"]))[:8]   # z1191z160: 금액 순서 없음(발주일 최근 순)
+                why = "견적서의 고객사(" + (cu.get("label") or "") + ")"
     # z1191z156 (대표 「수주가 2개 이상이면 고르는 칸은 빈칸으로 시작」): 후보가 딱 하나일 때만 미리 고름
-    #   (예전 z105 는 금액이 같은 후보가 하나면 그것을 미리 골랐다 — 이제는 「금액 같음」 표시만 하고 사람이 고름)
+    #   (예전 z105 는 금액이 같은 후보가 하나면 그것을 미리 골랐다 — z1191z160: 금액 같음·다름 표시도 없앰 · 사람이 고름)
     pick = 0 if len(cands) == 1 else None
     return JSONResponse({"ok": True, "cands": cands, "pick": pick, "why": why,
                          "amount": amt, "currency": ccy,
@@ -46181,8 +46114,8 @@ async def api_quotes_z105_search(req: Request):
                                  + ("" if _sos156 else " — 수주번호가 아직 없어 붙일 수 없습니다")})
             for o in _sos156:
                 labs = [x[0] for x in c.execute("SELECT unit_label FROM order_items WHERE order_id=? ORDER BY id", (o["id"],))]
-                hs = c.execute("SELECT 1 FROM project_quote_files WHERE order_id=?", (o["id"],)).fetchone()
-                out.append({"pid": p["id"], "oid": o["id"], "has": bool(hs),
+                hs = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE order_id=? AND removed_at IS NULL", (o["id"],)).fetchone()[0]
+                out.append({"pid": p["id"], "oid": o["id"], "has": int(hs or 0),   # z1191z160: 이미 있는 장 수(지우지 않음)
                             "label": "　└ " + _z105_slot_label(p["mgmt_code"] or "", o["order_no"] or "", _z105_units_txt(labs),
                                                               o["total_amount"], o["currency"], True)})
     return JSONResponse({"ok": True, "items": out[:40]})
@@ -46190,7 +46123,8 @@ async def api_quotes_z105_search(req: Request):
 
 @app.post("/api/project-quote/place")
 async def api_project_quote_place(req: Request):
-    """올린(읽은) 견적서를 수주번호 자리에 붙임 — 그 자리 예전 파일은 지움. z1191z156: 수주번호가 없으면 붙이지 않음(수주 1개면 그 수주)."""
+    """올린(읽은) 견적서를 수주번호 자리에 붙임. z1191z156: 수주번호가 없으면 붙이지 않음(수주 1개면 그 수주).
+    z1191z160: 그 수주에 예전 견적서가 있어도 지우지 않음 — 여러 장 모두 남음."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -46215,9 +46149,6 @@ async def api_project_quote_place(req: Request):
         if _err156:
             return JSONResponse(_err156)
         so = c.execute("SELECT order_no FROM orders WHERE id=? AND project_id=?", (oid, pid)).fetchone()
-        olds = [dict(x) for x in _z105_slot_rows(c, pid, oid)]
-    if olds and not _z105_can_replace(u, olds):
-        return JSONResponse({"ok": False, "message": _Z105_NO_REPLACE}, 403)
     slot = so["order_no"] or ""
     with db_session() as c:
         c.execute("UPDATE project_quote_files SET project_id=?, order_id=?, attached_at=? WHERE id=? AND project_id IS NULL",
@@ -46225,40 +46156,26 @@ async def api_project_quote_place(req: Request):
         c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                   (pid, u.get("id"), "견적서 파일", "", r["orig_name"],
                    f"z1191z105 견적 관리 「올리기」 · {slot} · {vname_full(u) or u.get('name') or ''}"))
-        _z105_drop_slot(c, u, pid, r["id"], olds, "견적 관리 · " + slot)
-    return JSONResponse({"ok": True, "replaced": len(olds), "slot": slot})
+        n_so = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE project_id=? AND order_id=? AND removed_at IS NULL",
+                         (pid, oid)).fetchone()[0]   # z1191z160: 그 수주 견적서 모두 몇 장(예전 것 지우지 않음)
+    return JSONResponse({"ok": True, "slot": slot, "n_so": n_so})
 
 
-@app.post("/api/project-quote/ack/{fid}")
-async def api_project_quote_ack(req: Request, fid: int):
-    """견적 금액 ≠ 수주 금액 — 「확인했음」 한 번(막지 않고 알림 · 누가·언제 남김)."""
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    if not (can_use_sales(u) and can_view_sales(u)):
-        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
-    who = vname_full(u) or u.get("name") or ""
-    with db_session() as c:
-        _z61_table(c)
-        r = c.execute("SELECT project_id, orig_name FROM project_quote_files WHERE id=? AND project_id IS NOT NULL", (fid,)).fetchone()
-        if not r:
-            return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다."}, 404)
-        c.execute("UPDATE project_quote_files SET amt_ack_by=?, amt_ack_name=?, amt_ack_at=? WHERE id=?",
-                  (u.get("id"), who, _z61_now(), fid))
-        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (r["project_id"], u.get("id"), "견적서 금액 확인", "", r["orig_name"],
-                   f"z1191z105 견적 금액 ≠ 수주 금액 「확인했음」 · {who}"))
-    return JSONResponse({"ok": True})
+# z1191z160 (대표 11-26 「검토하는 기능을 빼줘」): 견적 금액 ≠ 수주 금액 「확인했음」(/api/project-quote/ack) 없앰
+#   — 표의 amt_ack_* 칸은 지우지 않고 쓰지만 않음(마이그레이션 없음)
 
 
 def _z105_so_quotes(pid):
-    """프로젝트 상세 수주 카드용 — {수주 id: 견적서 줄}."""
+    """프로젝트 상세 수주 카드용 — {수주 id: [견적서 줄 · 최근 위]} (z1191z160: 여러 장)."""
     try:
         with db_session() as c:
             _z61_table(c)
-            return {r["order_id"]: dict(r) for r in c.execute(
-                "SELECT id, order_id, orig_name, by_name, created_at FROM project_quote_files "
-                "WHERE project_id=? AND order_id IS NOT NULL AND removed_at IS NULL ORDER BY id", (int(pid),)).fetchall()}
+            out = {}
+            for r in c.execute(
+                    "SELECT id, order_id, orig_name, by_name, created_at FROM project_quote_files "
+                    "WHERE project_id=? AND order_id IS NOT NULL AND removed_at IS NULL ORDER BY id DESC", (int(pid),)).fetchall():
+                out.setdefault(r["order_id"], []).append(dict(r))
+            return out
     except Exception as _e:
         print(f"[z1191z105] 수주 견적서 목록 실패 pid={pid}: {_e}")
         return {}
@@ -46267,43 +46184,30 @@ def _z105_so_quotes(pid):
 tpl.env.globals["z105_so_quotes"] = _z105_so_quotes
 
 
-# ═══ z1191z141 (대표 11-24 「진행」 — 앞 제안 「수주 호기는 따로 올린 견적서가 없으면 관리번호 견적서를 따라가고, 금액이 다르면 알려 준다」):
-#   🟢 이 수주 견적 · 🔗 관리번호(또는 앞 수주) 견적 사용 · ⚠ 견적 금액 다름(막지 않음 · 「확인했음」 한 번 = 수주마다 quote_so_ack)
-#   판정 규칙 = app/quote_link.py 한 곳(견적 관리 _z105_board · 프로젝트 상세 수주 카드 같은 함수)
+# ═══ z1191z141 (대표 11-24 「진행」): 수주 카드 견적서 표시 — 판정 규칙 = app/quote_link.py 한 곳
+#   z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 여러 개 등록될 수 있게」): 🔗 따라가기 · ⚠ 금액 다름 · 「확인했음」(quote_so_ack) 없앰
+#   → 수주마다 그 수주에 올린 견적서 전부(최근 위) · 없으면 「없음」 · quote_so_ack 표는 지우지 않고 쓰지만 않음
 from . import quote_link as _ql141
 
 
-def _z141_table(c):
-    c.execute("CREATE TABLE IF NOT EXISTS quote_so_ack(order_id INTEGER PRIMARY KEY, fid INTEGER, by_id INTEGER, by_name TEXT, at TEXT)")
-
-
-def _z141_acks(c):
-    _z141_table(c)
-    return {r[0]: r[1] for r in c.execute("SELECT order_id, fid FROM quote_so_ack").fetchall()}
-
-
 def _z141_project(c, pid):
-    """한 관리번호 → {수주 id: 상태} (취소 수주 뺌)."""
+    """한 관리번호 → {수주 id: {st, fs}} (취소 수주 뺌 · z1191z160 여러 장 · 비교 없음)."""
     _z61_table(c)
-    files, pf = {}, None
-    for r in c.execute("SELECT id, order_id, orig_name, by_name, created_at, read_json, amt_ack_name, amt_ack_at FROM project_quote_files "
-                       "WHERE project_id=? AND removed_at IS NULL ORDER BY id", (int(pid),)).fetchall():
+    files = {}
+    for r in c.execute("SELECT id, order_id, orig_name, by_name, created_at, read_json FROM project_quote_files "
+                       "WHERE project_id=? AND removed_at IS NULL AND order_id IS NOT NULL ORDER BY id", (int(pid),)).fetchall():
         x = dict(r)
         try:
             fd = (_qr61.json.loads(x.pop("read_json") or "{}").get("fields") or {})
-        except Exception:
+        except Exception as _e160:
+            print(f"[z1191z160] 견적서 읽은 값 풀기 실패 {x.get('id')}: {_e160}")
             fd = {}
-        x["price"] = _ql141.q_price(fd)
-        x["amt"], x["cur"] = x["price"][1], x["price"][2]
-        if x["order_id"]:
-            files[x["order_id"]] = x
-        # z1191z156: 수주번호 없는 옛 견적서는 따라가지 않음(⚠ 수주 칸 확인 필요에서 수주를 고르면 그 수주 견적이 됨)
-    orders = []
-    for o in c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
-                       "ORDER BY COALESCE(order_date,''), id", (int(pid),)).fetchall():
-        ps = [r[0] for r in c.execute("SELECT unit_price FROM order_items WHERE order_id=? ORDER BY id", (o["id"],)).fetchall()]
-        orders.append({"id": o["id"], "order_no": o["order_no"], "price": _ql141.o_price(o["total_amount"], o["currency"], ps)})
-    return _ql141.resolve(orders, files, pf, _z141_acks(c))
+        x["amt"], x["cur"] = _z105_num(fd.get("amount")), (fd.get("currency") or "").upper()   # 보여 주기만
+        files.setdefault(x["order_id"], []).append(x)
+        # z1191z156: 수주번호 없는 옛 견적서는 수주에 붙이지 않음(⚠ 수주 칸 확인 필요에서 수주를 고르면 그 수주 견적이 됨)
+    orders = [{"id": o["id"]} for o in c.execute("SELECT id FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
+                                                 "ORDER BY COALESCE(order_date,''), id", (int(pid),)).fetchall()]
+    return _ql141.resolve(orders, files)
 
 
 def _z141_so_status(pid):
@@ -46319,29 +46223,7 @@ def _z141_so_status(pid):
 tpl.env.globals["z141_so_status"] = _z141_so_status
 
 
-@app.post("/api/quote-so-ack/{oid}")
-async def api_quote_so_ack_z141(req: Request, oid: int):
-    """따라가는 견적서 금액 ≠ 이 수주 금액 — 「확인했음」 한 번(막지 않고 알림 · 누가·언제 · 그 견적서가 바뀌면 다시 알림)."""
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    if not (can_use_sales(u) and can_view_sales(u)):
-        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
-    who = vname_full(u) or u.get("name") or ""
-    with db_session() as c:
-        o = c.execute("SELECT id, project_id, order_no FROM orders WHERE id=? AND COALESCE(status,'')<>'CANCELLED'", (oid,)).fetchone()
-        if not o:
-            return JSONResponse({"ok": False, "message": "그 수주를 찾지 못했습니다."}, 404)
-        rs = _z141_project(c, o["project_id"]).get(oid)
-        if not rs or rs["st"] != "diff" or rs["via"] == "own" or not rs["f"]:
-            return JSONResponse({"ok": False, "message": "확인할 금액 차이가 없습니다 — 화면을 새로 고쳐 보세요."}, 400)
-        c.execute("INSERT INTO quote_so_ack(order_id, fid, by_id, by_name, at) VALUES(?,?,?,?,?) "
-                  "ON CONFLICT(order_id) DO UPDATE SET fid=excluded.fid, by_id=excluded.by_id, by_name=excluded.by_name, at=excluded.at",
-                  (oid, rs["f"]["id"], u.get("id"), who, _z61_now()))
-        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (o["project_id"], u.get("id"), "견적서 금액 확인", "", rs["f"]["orig_name"],
-                   f"z1191z141 {o['order_no']} 따라가는 견적 금액 ≠ 수주 금액 「확인했음」 · {who}"))
-    return JSONResponse({"ok": True})
+# z1191z160: 따라가는 견적 금액 ≠ 수주 금액 「확인했음」(/api/quote-so-ack) 없앰
 
 
 def _z141_words(*xs):
@@ -46413,7 +46295,8 @@ async def api_quotes_similar_z141(req: Request):
 
 
 # ═══ z1191z143 (대표 11-24 「견적 관리 화면에 고객사에서 받은 발주서도 등록할수있게」 → 「등록한 발주서는 관리번호 또는
-#     수주번호 상세보기에서 견적서 처럼 볼수있게」 → 빅터 안(PDF·사진·엑셀 · 수정 발주서는 예전 것도 「이전 발주서」로 남김) → 「진행」)
+#     수주번호 상세보기에서 견적서 처럼 볼수있게」 → 빅터 안(PDF·사진·엑셀) → 「진행」)
+#   z1191z160 (대표 11-26): 한 수주에 여러 장 모두 같은 자격(「최종」·「이전 발주서」 구분 없음) · 금액은 읽어 보여 주기만(비교·「확인했음」 없음)
 #   규칙·읽기 = app/customer_po.py · 표 = project_po_files(견적서 표와 따로 — 견적 숫자·판정에 섞이지 않게)
 #   올리기 = 견적서와 같은 사람(can_use_sales + can_view_sales) · 빼기 = 올린 사람·기술영업팀(z63 규칙) · 보기·내려받기 = can_view_sales
 from . import customer_po as _po143
@@ -46476,7 +46359,7 @@ def _z143_rows(c, pid=None):
     """{(관리번호 id, 수주 id 또는 None): [발주서 줄(id 오름차순)]} — 자리에 붙은 것만."""
     _po143.table(c)
     sql = ("SELECT id, project_id, order_id, orig_name, kind, size, by_id, by_name, created_at, amount, currency, amount_label, "
-           "book_err, amt_ack_name, amt_ack_at FROM project_po_files WHERE project_id IS NOT NULL")
+           "book_err FROM project_po_files WHERE project_id IS NOT NULL")   # z1191z160: amt_ack_* 안 씀
     args = ()
     if pid:
         sql += " AND project_id=?"
@@ -46488,17 +46371,15 @@ def _z143_rows(c, pid=None):
 
 
 def _z143_po(pid):
-    """화면용(프로젝트 상세·수주 상세) — {"proj": 관리번호 자리 상태, "so": {수주 id: 상태}} · 상태 = customer_po.slot_status."""
+    """화면용(프로젝트 상세·수주 상세) — {"proj": 수주번호 안 고른 옛 자리, "so": {수주 id: 상태}} · 상태 = customer_po.slot_status({files, st})."""
     try:
         with db_session() as c:
             m = _z143_rows(c, pid)
-            sos = {o["id"]: o for o in c.execute("SELECT id, total_amount, currency FROM orders WHERE project_id=?", (int(pid),)).fetchall()}
         res = {"proj": _po143.slot_status(m.get((int(pid), None), [])), "so": {}}
         for (p_, oid), fs in m.items():
             if oid is None:
                 continue
-            o = sos.get(oid)
-            res["so"][oid] = _po143.slot_status(fs, (o["total_amount"] if o else None), (o["currency"] if o else None))
+            res["so"][oid] = _po143.slot_status(fs)   # z1191z160: 여러 장 · 비교 없음
         return res
     except Exception as _e:
         print(f"[z1191z143] 발주서 상태 실패 pid={pid}: {_e}")
@@ -46577,6 +46458,7 @@ def _z143_slot_name(p, so):
 
 
 def _z143_nprev(c, pid, oid, not_id=None):
+    """그 자리(수주)에 붙은 발주서 수(not_id 빼고) — z1191z160: 「이전 발주서」가 아니라 같은 수주의 다른 발주서 수."""
     sql = "SELECT COUNT(*) FROM project_po_files WHERE project_id=? AND " + ("order_id=?" if oid else "order_id IS NULL")
     args = [pid] + ([oid] if oid else [])
     if not_id:
@@ -46651,11 +46533,11 @@ async def api_customer_po_upload_z143(req: Request, file: UploadFile = File(...)
         if pid:
             p, so, _e143 = _z143_where(c, pid, oid)
             slot = _z143_slot_name(p, so)
-            n_prev = _z143_nprev(c, pid, oid, fid)
+            n_so = _z143_nprev(c, pid, oid)   # z1191z160: 그 수주 발주서 모두 몇 장(예전 것 그대로)
             c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                       (pid, u.get("id"), "고객 발주서", "", name,
-                       f"z1191z143 고객 발주서 올리기 · {slot}" + (f" · 이전 발주서 {n_prev}장 남김" if n_prev else "") + f" · {who}"))
-            return JSONResponse({"ok": True, "placed": True, "fid": fid, "slot": slot, "prev": n_prev, "kind": kind, "amount_txt": amount_txt})
+                       f"z1191z143 고객 발주서 올리기 · {slot}" + (f" · 이 수주 발주서 모두 {n_so}장" if n_so > 1 else "") + f" · {who}"))
+            return JSONResponse({"ok": True, "placed": True, "fid": fid, "slot": slot, "n_so": n_so, "kind": kind, "amount_txt": amount_txt})
         cands, pick, why = _z143_cands(c, text)
     return JSONResponse({"ok": True, "placed": False, "tok": tok, "fid": fid, "name": name, "kind": kind, "amount_txt": amount_txt,
                          "amount_label": lab, "cands": cands, "pick": pick, "why": why})
@@ -46694,7 +46576,7 @@ async def api_customer_po_search_z143(req: Request):
 
 @app.post("/api/customer-po/place")
 async def api_customer_po_place_z143(req: Request):
-    """올린(아직 안 붙인) 발주서를 수주번호 자리에 붙임 — 그 자리에 있던 발주서는 지우지 않고 「이전 발주서」로 남음.
+    """올린(아직 안 붙인) 발주서를 수주번호 자리에 붙임 — 그 수주에 있던 발주서도 그대로(z1191z160: 여러 장 같은 자격).
     z1191z156: 수주번호가 없으면 붙이지 않음(수주 1개면 그 수주)."""
     u = get_user(req)
     if not u:
@@ -46720,19 +46602,19 @@ async def api_customer_po_place_z143(req: Request):
         p, so, err = _z143_where(c, pid, oid)
         if err:
             return JSONResponse({"ok": False, "message": err}, 400)
-        n_prev = _z143_nprev(c, pid, oid)
         c.execute("UPDATE project_po_files SET project_id=?, order_id=?, attached_at=? WHERE id=? AND project_id IS NULL",
                   (pid, oid, _z61_now(), r["id"]))
+        n_so = _z143_nprev(c, pid, oid)   # z1191z160: 그 수주 발주서 모두 몇 장
         slot = _z143_slot_name(p, so)
         c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
                   (pid, u.get("id"), "고객 발주서", "", r["orig_name"],
-                   f"z1191z143 견적 관리 「발주서 올리기」 · {slot}" + (f" · 이전 발주서 {n_prev}장 남김" if n_prev else "") + f" · {who}"))
-    return JSONResponse({"ok": True, "slot": slot, "prev": n_prev, "fid": r["id"]})
+                   f"z1191z143 견적 관리 「발주서 올리기」 · {slot}" + (f" · 이 수주 발주서 모두 {n_so}장" if n_so > 1 else "") + f" · {who}"))
+    return JSONResponse({"ok": True, "slot": slot, "n_so": n_so, "fid": r["id"]})
 
 
 @app.post("/api/customer-po/remove/{fid}")
 async def api_customer_po_remove_z143(req: Request, fid: int):
-    """발주서 빼기 — 올린 사람·기술영업팀(견적서 z63 규칙) · 파일·줄 바로 지움 · 변경 이력에 누가 · 최종을 빼면 바로 앞 것이 최종."""
+    """발주서 빼기 — 올린 사람·기술영업팀(견적서 z63 규칙) · 파일·줄 바로 지움 · 변경 이력에 누가(z1191z160: 같은 수주의 다른 발주서는 그대로)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
@@ -46751,24 +46633,8 @@ async def api_customer_po_remove_z143(req: Request, fid: int):
     return JSONResponse({"ok": True})
 
 
-@app.post("/api/customer-po/ack/{fid}")
-async def api_customer_po_ack_z143(req: Request, fid: int):
-    """엑셀 발주서 금액 ≠ 수주 금액 — 「확인했음」 한 번(막지 않음 · 누가·언제 · 변경 이력)."""
-    u = get_user(req)
-    if not u:
-        return JSONResponse({"ok": False, "error": "login_required"}, 401)
-    if not (can_use_sales(u) and can_view_sales(u)):
-        return JSONResponse({"ok": False, "message": "권한이 없습니다."}, 403)
-    who = vname_full(u) or u.get("name") or ""
-    with db_session() as c:
-        _po143.table(c)
-        r = c.execute("SELECT project_id, orig_name FROM project_po_files WHERE id=? AND project_id IS NOT NULL", (fid,)).fetchone()
-        if not r:
-            return JSONResponse({"ok": False, "message": "그 발주서를 찾지 못했습니다."}, 404)
-        c.execute("UPDATE project_po_files SET amt_ack_by=?, amt_ack_name=?, amt_ack_at=? WHERE id=?", (u.get("id"), who, _z61_now(), fid))
-        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (r["project_id"], u.get("id"), "고객 발주서 금액 확인", "", r["orig_name"], f"z1191z143 발주서 금액 ≠ 수주 금액 「확인했음」 · {who}"))
-    return JSONResponse({"ok": True})
+# z1191z160 (대표 11-26 「검토하는 기능을 빼줘」): 엑셀 발주서 금액 ≠ 수주 금액 「확인했음」(/api/customer-po/ack) 없앰
+#   — project_po_files.amt_ack_* 칸은 지우지 않고 쓰지만 않음
 
 
 def _z143_file_row(c, fid):
@@ -46781,7 +46647,7 @@ def _z143_file_row(c, fid):
 
 @app.get("/customer-po/{fid}", response_class=HTMLResponse)
 async def customer_po_view_z143(req: Request, fid: int):
-    """발주서 보기 — PDF·사진 = 화면 안 그대로 · 엑셀 = 견적서처럼 시트 표 · 같은 자리의 최종·이전 발주서 목록."""
+    """발주서 보기 — PDF·사진 = 화면 안 그대로 · 엑셀 = 견적서처럼 시트 표 · 같은 수주의 발주서 목록(z1191z160: 모두 같은 자격)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -46792,7 +46658,7 @@ async def customer_po_view_z143(req: Request, fid: int):
         if not f:
             return PlainTextResponse("발주서를 찾지 못했습니다(뺐을 수 있습니다).", status_code=404)
         sib = [dict(r) for r in c.execute(
-            "SELECT id, orig_name, kind, by_name, created_at, amount, currency, amt_ack_at FROM project_po_files WHERE project_id=? AND "
+            "SELECT id, orig_name, kind, by_name, created_at, amount, currency FROM project_po_files WHERE project_id=? AND "
             + ("order_id=?" if f["order_id"] else "order_id IS NULL") + " ORDER BY id",
             ((f["project_id"], f["order_id"]) if f["order_id"] else (f["project_id"],))).fetchall()]
     book = None
@@ -46803,9 +46669,8 @@ async def customer_po_view_z143(req: Request, fid: int):
             print(f"[z1191z143] 읽어 둔 발주서 풀기 실패 {fid}: {_e}")
     f.pop("book_gz", None)
     view = _qs121.view_of(book, True) if book else None   # 고객 발주서 = 회사 안 원가 칸 없음 → 그대로
-    st = _po143.slot_status(sib, f.get("o_amt") if f["order_id"] else None, f.get("o_ccy") if f["order_id"] else None)
-    is_final = bool(st["final"]) and st["final"]["id"] == f["id"]
-    return ctx(req, "customer_po_view.html", user=u, active="sales", f=f, view=view, st=st, is_final=is_final,
+    st = _po143.slot_status(sib)   # z1191z160: 같은 수주 발주서 모두(최근 위) · 최종·이전 구분 없음
+    return ctx(req, "customer_po_view.html", user=u, active="sales", f=f, view=view, st=st,
                can_rm=bool(_z63_can_remove(u, f)), can_up=bool(can_use_sales(u) and can_view_sales(u)))
 
 
@@ -46834,8 +46699,8 @@ async def customer_po_file_z143(req: Request, fid: int):
 # ═══ z1191z150 (대표 11-25 10시 「등록한 견적서·발주서를 어디서 보는 게 편한지 … 프로젝트 목록에 책갈피 하나 만들어 한꺼번에 ·
 #     상세 위쪽에 수주번호별로 등록됐는지 한눈에 · 원본을 어떻게 받아서 일하는 게 편할지」):
 #   · 한 번에 모아 계산(관리번호 여럿도 쿼리 몇 번) — 프로젝트 목록 「📎 견적서·발주서」 책갈피 · 프로젝트 상세 위 「수주별 견적·발주서」 표 같은 함수
-#   · 견적 상태 = z141 판정(app/quote_link.resolve) · 발주서 상태 = z143 customer_po.slot_status
-#   · 내려받는 파일 이름 = 「관리번호_수주번호_견적서_원본이름」(관리번호 자리는 「관리번호」) · 관리번호 하나 = zip 한꺼번에(이전 발주서는 「이전」 폴더)
+#   · 견적 상태 = app/quote_link.resolve · 발주서 상태 = customer_po.slot_status — z1191z160: 둘 다 수주마다 여러 장 목록(비교·최종 없음)
+#   · 내려받는 파일 이름 = 「관리번호_수주번호_견적서_원본이름」(관리번호 자리는 「관리번호」) · 관리번호 하나 = zip 한꺼번에(수주마다 견적서·발주서 모두)
 _Z150_BAD = _re105.compile(r'[\\/:*?"<>|\r\n\t]+')
 
 
@@ -46850,10 +46715,11 @@ def _z150_fname(code, order_no, kind, orig):
 
 
 def _z150_docs(c, pids):
-    """{관리번호 id: {"pq": 관리번호 견적서|None, "po": 관리번호 발주서 상태, "sos": [수주 줄], "miss_q": n, "miss_p": n}}
-    수주 줄 = {id, order_no, units, total, ccy, q(z141 상태), p(발주서 상태)} · 취소 수주 뺌."""
+    """{관리번호 id: {"pqs": [수주번호 안 고른 옛 견적서], "po": 옛 발주서 자리 상태, "sos": [수주 줄], "miss_q": n, "miss_p": n}}
+    수주 줄 = {id, order_no, units, total, ccy, q({st, fs}), p({files, st})} · 취소 수주 뺌.
+    z1191z160: 수주마다 견적서·발주서 여러 장 · miss_q·miss_p = 그 수주에 붙은 파일이 0개인 수주 수."""
     pids = [int(x) for x in pids if x]
-    out = {pid: {"pq": None, "po": _po143.slot_status([]), "sos": [], "miss_q": 0, "miss_p": 0} for pid in pids}
+    out = {pid: {"pqs": [], "po": _po143.slot_status([]), "sos": [], "miss_q": 0, "miss_p": 0} for pid in pids}
     if not pids:
         return out
     _z61_table(c)
@@ -46864,15 +46730,15 @@ def _z150_docs(c, pids):
             yield xs[i:i + n]
     qfiles = {}
     for ch in _chunks(pids):
-        for r in c.execute("SELECT id, project_id, order_id, orig_name, by_name, created_at, read_json, amt_ack_name, amt_ack_at "
+        for r in c.execute("SELECT id, project_id, order_id, orig_name, by_name, created_at, read_json "
                            "FROM project_quote_files WHERE removed_at IS NULL AND project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():
             x = dict(r)
             try:
                 fd = (_qr61.json.loads(x.pop("read_json") or "{}").get("fields") or {})
-            except Exception:
+            except Exception as _e160:
+                print(f"[z1191z160] 견적서 읽은 값 풀기 실패 {x.get('id')}: {_e160}")
                 fd = {}
-            x["price"] = _ql141.q_price(fd)
-            x["amt"], x["cur"] = x["price"][1], x["price"][2]
+            x["amt"], x["cur"] = _z105_num(fd.get("amount")), (fd.get("currency") or "").upper()   # 보여 주기만
             qfiles.setdefault(x["project_id"], []).append(x)
     orders, oids = {}, []
     for ch in _chunks(pids):
@@ -46884,34 +46750,31 @@ def _z150_docs(c, pids):
     for ch in _chunks(oids):
         for r in c.execute("SELECT order_id, unit_price, unit_label FROM order_items WHERE order_id IN (%s) ORDER BY order_id, id" % ",".join("?" * len(ch)), ch).fetchall():
             items.setdefault(r[0], []).append((r[1], r[2]))
-    acks = _z141_acks(c)
     po = {}
     for ch in _chunks(pids):
         for r in c.execute("SELECT id, project_id, order_id, orig_name, kind, size, by_id, by_name, created_at, amount, currency, amount_label, "
-                           "book_err, amt_ack_name, amt_ack_at FROM project_po_files WHERE project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():
+                           "book_err FROM project_po_files WHERE project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():
             po.setdefault((r["project_id"], r["order_id"]), []).append(dict(r))
     for pid in pids:
-        own, pf = {}, None
+        own, pqs = {}, []
         for x in qfiles.get(pid, []):
             if x["order_id"]:
-                own[x["order_id"]] = x
+                own.setdefault(x["order_id"], []).append(x)   # z1191z160: 수주마다 여러 장
             else:
-                pf = x
+                pqs.append(x)
         os_ = orders.get(pid, [])
-        ql = [{"id": o["id"], "order_no": o["order_no"],
-               "price": _ql141.o_price(o["total_amount"], o["currency"], [a for a, _b in items.get(o["id"], [])])} for o in os_]
-        st = _ql141.resolve(ql, own, None, acks)   # z1191z156: 수주 자기 견적(·금액 같은 앞 수주 견적)만
+        st = _ql141.resolve([{"id": o["id"]} for o in os_], own)   # z1191z160: 수주 자기 견적서 전부 · 비교·따라가기 없음
         d = out[pid]
-        d["pq"] = pf   # 수주번호를 아직 안 고른 옛 견적서(보이기만)
+        d["pqs"] = list(reversed(pqs))   # 수주번호를 아직 안 고른 옛 견적서(보이기만 · 최근 위)
         d["po"] = _po143.slot_status(po.get((pid, None), []))
         for o in os_:
-            q = st.get(o["id"]) or {"st": "none", "f": None, "via": ""}
-            p = _po143.slot_status(po.get((pid, o["id"]), []), o["total_amount"], o["currency"])
+            q = st.get(o["id"]) or {"st": "none", "fs": []}
+            p = _po143.slot_status(po.get((pid, o["id"]), []))
             d["sos"].append({"id": o["id"], "order_no": o["order_no"] or "", "units": _z105_units_txt([b for _a, b in items.get(o["id"], [])]),
                              "total": o["total_amount"], "ccy": o["currency"] or "KRW", "q": q, "p": p})
-            if q.get("st") == "none":
+            if not q.get("fs"):
                 d["miss_q"] += 1
-            if not p.get("final"):
+            if not p.get("files"):
                 d["miss_p"] += 1
     return out
 
@@ -46931,7 +46794,7 @@ tpl.env.globals["z150_docs"] = _z150_one
 
 @app.get("/projects/{pid}/docs.zip")
 async def project_docs_zip_z150(req: Request, pid: int):
-    """관리번호 하나의 최종 견적서·최종 발주서(이전 발주서는 「이전」 폴더) 한꺼번에 받기 — 매출 보기 권한(파일 하나 받기와 같음)."""
+    """관리번호 하나의 견적서·발주서 한꺼번에 받기(z1191z160: 수주마다 올린 것 모두 · 「이전」 폴더 없음) — 매출 보기 권한(파일 하나 받기와 같음)."""
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -46955,17 +46818,15 @@ async def project_docs_zip_z150(req: Request, pid: int):
         seen.add((kind, f["id"]))
         plan.append((folder + _z150_fname(code, order_no, kind, f.get("orig_name")), os.path.join(base_dir, stored_map.get(f["id"]) or ""),
                      "%s %s %s" % (order_no or "관리번호", kind, f.get("orig_name") or "")))
-    _add("", "견적서", "", d["pq"], _z61_dir(), qstored)
-    _add("", "발주서", "", d["po"].get("final"), _z143_dir(), pstored)
-    for x in d["po"].get("prev") or []:
-        _add("이전/", "발주서", "", x, _z143_dir(), pstored)
-    for s in d["sos"]:
-        q = s["q"]
-        if q.get("via") == "own":   # 따라가는 견적서는 관리번호(또는 앞 수주) 것이라 한 번만 담음
-            _add("", "견적서", s["order_no"], q.get("f"), _z61_dir(), qstored)
-        _add("", "발주서", s["order_no"], s["p"].get("final"), _z143_dir(), pstored)
-        for x in s["p"].get("prev") or []:
-            _add("이전/", "발주서", s["order_no"], x, _z143_dir(), pstored)
+    for x in d["pqs"]:   # 수주번호를 아직 안 고른 옛 견적서
+        _add("", "견적서", "", x, _z61_dir(), qstored)
+    for x in d["po"].get("files") or []:
+        _add("", "발주서", "", x, _z143_dir(), pstored)
+    for s in d["sos"]:   # z1191z160: 수주마다 견적서·발주서 모두(같은 이름이면 zip 안에서 (2)·(3) 붙임)
+        for x in s["q"].get("fs") or []:
+            _add("", "견적서", s["order_no"], x, _z61_dir(), qstored)
+        for x in s["p"].get("files") or []:
+            _add("", "발주서", s["order_no"], x, _z143_dir(), pstored)
     buf, miss, names = _io150.BytesIO(), [], set()
     with _zf150.ZipFile(buf, "w", _zf150.ZIP_DEFLATED) as z:
         for arc, fp, desc in plan:
@@ -46980,11 +46841,10 @@ async def project_docs_zip_z150(req: Request, pid: int):
             names.add(a)
             z.write(fp, a)
         lines = ["%s %s — 견적서·발주서 한꺼번에 받기(웍스 %s)" % (code, pr["name"] or "", _z61_now()),
-                 "· 「이전」 폴더 = 고객이 다시 보내기 전의 예전 발주서",
-                 "· 수주에 따로 올린 견적서가 없으면 금액이 같은 앞 수주 견적서를 따라갑니다(같은 파일이라 한 번만 담음)",
+                 "· 수주번호마다 올린 견적서·발주서를 모두 담았습니다(한 수주에 여러 장이면 모두)",
                  "· 이름에 수주번호 대신 「관리번호」가 붙은 파일 = 수주번호를 아직 고르지 않은 옛 파일(웍스 「⚠ 수주 칸 확인 필요」에서 고름)", ""]
-        nq = [s["order_no"] for s in d["sos"] if s["q"].get("st") == "none"]
-        npo = [s["order_no"] for s in d["sos"] if not s["p"].get("final")]
+        nq = [s["order_no"] for s in d["sos"] if not s["q"].get("fs")]
+        npo = [s["order_no"] for s in d["sos"] if not s["p"].get("files")]
         if nq:
             lines.append("견적서 없는 수주: " + ", ".join(nq))
         if npo:
@@ -47396,11 +47256,11 @@ def _z156_noso_files(c):
             p = c.execute("SELECT mgmt_code, name FROM projects WHERE id=?", (x["project_id"],)).fetchone()
             x["mgmt_code"], x["pname"] = (p["mgmt_code"], p["name"]) if p else ("", "")
             x["sos"] = _z156_sos(c, x["project_id"])
-            if kind == "quote":   # 이미 견적서가 있는 수주 표시(고르면 막힘 — 한쪽을 빼고 다시)
-                have = {a: b for a, b in c.execute("SELECT order_id, orig_name FROM project_quote_files WHERE project_id=? AND order_id IS NOT NULL "
-                                                   "AND removed_at IS NULL", (x["project_id"],)).fetchall()}
+            if kind == "quote":   # 그 수주에 이미 있는 견적서 수(보이기만 · z1191z160: 있어도 함께 붙음)
+                have = {a: b for a, b in c.execute("SELECT order_id, COUNT(*) FROM project_quote_files WHERE project_id=? AND order_id IS NOT NULL "
+                                                   "AND removed_at IS NULL GROUP BY order_id", (x["project_id"],)).fetchall()}
                 for o in x["sos"]:
-                    o["has"] = have.get(o["id"]) or ""
+                    o["has"] = int(have.get(o["id"]) or 0)
             out.append(x)
     return out
 
@@ -47519,7 +47379,8 @@ async def api_so_check_z154(request: Request, oid: int):
 @app.post("/api/so-check-file/{kind}/{fid}")
 async def api_so_check_file_z156(request: Request, kind: str, fid: int):
     """z1191z156: 수주번호 없이 관리번호에만 붙은 옛 견적서·고객 발주서 → 사람이 고른 수주번호에 붙임(이력 남김).
-    수주는 반드시 사람이 고른 것만(수주가 하나여도 화면이 미리 골라 둔 것을 사람이 눌러야 함) · 견적서는 그 수주에 이미 있으면 멈춤(지우지 않음)."""
+    수주는 반드시 사람이 고른 것만(수주가 하나여도 화면이 미리 골라 둔 것을 사람이 눌러야 함).
+    z1191z160: 그 수주에 이미 견적서가 있어도 막지 않고 함께 붙임(여러 장 · 아무것도 지우지 않음)."""
     u = get_user(request)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, 401)
@@ -47541,12 +47402,6 @@ async def api_so_check_file_z156(request: Request, kind: str, fid: int):
         if err:
             return JSONResponse(err)
         ono = c.execute("SELECT order_no FROM orders WHERE id=?", (oid,)).fetchone()[0] or ""
-        if kind == "quote":
-            ex = c.execute("SELECT orig_name FROM project_quote_files WHERE project_id=? AND order_id=? AND removed_at IS NULL",
-                           (r["project_id"], oid)).fetchone()
-            if ex:
-                return JSONResponse({"ok": False, "message": f"👉 수주 {ono} 에는 이미 견적서 「{ex[0]}」가 있습니다 — 둘 중 맞지 않는 쪽을 "
-                                                             "프로젝트 상세 「견적서」에서 빼고 다시 고르세요(저절로 지우지 않습니다)."}, 409)
         n = c.execute(f"UPDATE {tbl} SET order_id=? WHERE id=? AND order_id IS NULL", (oid, int(fid))).rowcount
         if not n:
             return JSONResponse({"ok": False, "message": "이미 수주번호가 정해졌습니다 — 화면을 다시 불러오세요."}, 409)

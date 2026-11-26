@@ -17,6 +17,12 @@
   부르는 곳(main.py _z105_board · _z141_project · _z150_docs)은 proj_file 에 늘 None 을 넘긴다 →
   결과는 🟢 이 수주 견적 · 🔗 금액 같은 앞 수주 견적 · ⚠ 이 수주 견적 금액 다름 · none 뿐(via 'proj' 는 생기지 않음).
   수주번호 없는 옛 견적서는 판정에 안 쓰고 「⚠ 수주 칸 확인 필요」에서 사람이 수주를 고른다.
+
+  z1191z160 (대표 11-26 「견적서·발주서 내용을 검토하는 기능을 빼줘 · 사용자들이 등록하는 걸 믿고 진행 ·
+    발주서·견적서가 무조건 하나만 등록되는 건 아니야 · 여러 개 등록될 수 있게 제한을 풀어줘」):
+  · 위 🔗·⚠ 판정(금액 비교 · 앞 수주 견적 따라가기 · 「확인했음」)은 모두 없앰 — 아래 resolve 는 수주마다 그 수주에 올린 견적서 전부만 돌려준다
+  · 한 수주에 견적서가 여러 장이면 모두 같은 자격(「최종」·「이전」 없음) · 올린 순서(최근 위)
+  · 견적서가 없는 수주는 「없음」 — 다른 수주 견적서를 저절로 이어 붙이지 않는다(사용자가 고르지 않은 것을 연결하지 않음)
 """
 
 
@@ -26,16 +32,6 @@ def num(v):
         return x if x == x else None
     except (TypeError, ValueError):
         return None
-
-
-def same(a, ccy_a, b, ccy_b):
-    """None = 비교 못 함 · True/False."""
-    if a is None or b is None:
-        return None
-    ca, cb = (ccy_a or "").upper(), (ccy_b or "KRW").upper()
-    if ca and ca != cb:
-        return False
-    return abs(float(a) - float(b)) < (1 if cb == "KRW" else 0.01)
 
 
 def q_price(fields):
@@ -49,62 +45,15 @@ def q_price(fields):
     return up, amt, (fd.get("currency") or "").upper()
 
 
-def o_price(total, currency, item_prices):
-    """수주 → (단가 · 품목 줄 단가가 모두 같을 때만, 합계, 통화)."""
-    ps = [num(x) for x in (item_prices or [])]
-    ps = [x for x in ps if x is not None and x > 0]
-    up = ps[0] if ps and all(abs(x - ps[0]) < 0.005 for x in ps) else None
-    return up, num(total), (currency or "KRW").upper()
 
-
-def match(qf, op):
-    """견적서(q_price) ↔ 수주(o_price) — True 같음 · False 다름 · None 비교 못 함."""
-    qup, qamt, qcur = qf
-    oup, otot, ocur = op
-    r1 = same(qup, qcur, oup, ocur)
-    r2 = same(qamt, qcur, otot, ocur)
-    if r1 or r2:
-        return True
-    if r1 is None and r2 is None:
-        return None
-    return False
-
-
-def resolve(orders, own, proj_file, acks):
-    """orders: 취소 뺀 수주 [{id, order_no, price(o_price)}] (발주일·id 순)
-       own: {수주 id: 파일{id, price(q_price), amt_ack_at …}} · proj_file: 관리번호 견적서 파일 또는 None
-       acks: {수주 id: 확인한 파일 id}(따라간 견적과 금액 다름 「확인했음」)
-       → {수주 id: {st, f, via('own'|'so'|'proj'|''), via_so, cmp, acked}}"""
+def resolve(orders, own, proj_file=None, acks=None):
+    """z1191z160: orders = 취소 뺀 수주 [{id, …}] · own = {수주 id: [그 수주에 올린 견적서 줄 …]}(한 장만 넘겨도 됨)
+       → {수주 id: {st('ok'|'none'), fs([견적서 줄 · 최근 위])}} — 금액 비교·따라가기 없음(proj_file·acks 는 옛 부르는 곳 호환용 · 쓰지 않음)."""
     out = {}
-    for i, o in enumerate(orders):
-        f = own.get(o["id"])
-        if f:
-            m = match(f["price"], o["price"])
-            st = "diff" if (m is False and not f.get("amt_ack_at")) else "ok"
-            out[o["id"]] = {"st": st, "f": f, "via": "own", "via_so": "", "cmp": m, "acked": bool(f.get("amt_ack_at"))}
-            continue
-        cands = []
-        for prev in reversed(orders[:i]):
-            pf = own.get(prev["id"])
-            if pf:
-                cands.append((pf, "so", prev.get("order_no") or ""))
-        if proj_file:
-            cands.append((proj_file, "proj", ""))
-        hit = None
-        for cf, via, vso in cands:
-            if match(cf["price"], o["price"]) is True:
-                hit = (cf, via, vso, True)
-                break
-        if not hit and proj_file and match(proj_file["price"], o["price"]) is None:
-            hit = (proj_file, "proj", "", None)
-        if hit:
-            out[o["id"]] = {"st": "link", "f": hit[0], "via": hit[1], "via_so": hit[2], "cmp": hit[3], "acked": False}
-            continue
-        if proj_file:   # 따라갈 자리 = 관리번호 견적서(대표 「모든 수주가 따라간다」) — 금액이 달라 ⚠
-            ack = acks.get(o["id"]) == proj_file["id"]
-            out[o["id"]] = {"st": "link" if ack else "diff", "f": proj_file, "via": "proj", "via_so": "",
-                            "cmp": False, "acked": ack}
-            continue
-        # 관리번호 견적서가 없고 앞 수주 견적서도 금액이 달라 따라갈 것이 없음 = 없음(이 수주 견적서를 올릴 자리)
-        out[o["id"]] = {"st": "none", "f": None, "via": "", "via_so": "", "cmp": None, "acked": False}
+    for o in orders:
+        fs = own.get(o["id"]) or []
+        if isinstance(fs, dict):
+            fs = [fs]
+        fs = sorted(fs, key=lambda x: x.get("id") or 0, reverse=True)
+        out[o["id"]] = {"st": "ok" if fs else "none", "fs": fs}
     return out
