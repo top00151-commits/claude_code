@@ -181,9 +181,15 @@ r = k.get("/mail/%d" % M_EXT)
 with _db.db_session() as _c:
     _rd = _c.execute("SELECT is_read FROM mail_messages WHERE id=?", (M_EXT,)).fetchone()
 check("전체 보기 화면도 열면 읽음 표시", r.status_code == 200 and _rd["is_read"] == 1, dict(_rd))
-with _db.db_session() as _c:
-    _ix = [x[0] for x in _c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_mail_cover','idx_mail_fdpin')").fetchall()]
-check("세기 색인 두 개가 만들어짐(idx_mail_cover · idx_mail_fdpin)", sorted(_ix) == ["idx_mail_cover", "idx_mail_fdpin"], _ix)
+from app import mail_folders as _mfo
+with _db.db_session() as _c:   # 1차 옛 색인이 운영에 있는 것처럼 만든 뒤 → 새 색인 셋이 생기면 옛 것은 지워지는지
+    _c.execute("CREATE INDEX IF NOT EXISTS idx_mail_cover ON mail_messages(user_id, direction)")
+    _mfo._COUNT_IDX_OK.clear()
+    _mfo.ensure_count_indexes(_c)
+    _ix = sorted(x[0] for x in _c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_mail_cover','idx_mail_cov_d','idx_mail_cov_x','idx_mail_fdpin')").fetchall())
+    _pl = " / ".join(r[3] for r in _c.execute("EXPLAIN QUERY PLAN SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0 AND COALESCE(snooze_until,'')<>''", (1,)).fetchall())
+check("세기 색인 셋(idx_mail_cov_d · idx_mail_cov_x · idx_mail_fdpin) · 1차 idx_mail_cover 는 지움", _ix == ["idx_mail_cov_d", "idx_mail_cov_x", "idx_mail_fdpin"], _ix)
+check("다시 알림 세기 = 덮는 색인만 봄(본문 안 읽음)", "COVERING INDEX" in _pl, _pl)
 
 
 print("\n④ ✅ 확인 답장")

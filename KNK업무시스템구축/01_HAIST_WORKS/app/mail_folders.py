@@ -752,13 +752,18 @@ def _spec(hits, par):
     return hits - ups
 
 
+_COVER_COLS = ("is_read, is_blocked, is_archived, fd_key, fd_pin, received_at, created_at, category, is_starred, "
+               "flag_due, snooze_until, snooze_back, risk_level, from_email, from_name, to_email, cc, subject")
 COUNT_INDEXES = (
-    # 11-26 대표 「메일 누르면 2초」 — 세기 질의가 본문 칸 뒤의 짧은 칸(읽음·폴더 등)을 읽으려고 메일마다 본문까지 읽던 것을
-    # 색인만 보고 끝나게(덮는 색인). 4만 통 가짜 자료 실측: 메일 열기 2,238 → 618ms · 목록 11,508 → 4,207ms.
-    ("idx_mail_cover", "CREATE INDEX IF NOT EXISTS idx_mail_cover ON mail_messages(user_id, direction, is_deleted, is_read, "
-                       "is_blocked, is_archived, fd_key, fd_pin, received_at, created_at, from_email, from_name, to_email, cc, subject)"),
+    # 11-26 대표 「메일 누르면 2초」·「목록 여는 것도 빠르게」 — 세기 질의가 본문 칸 뒤의 짧은 칸(읽음·폴더·기한·다시 알림 등)을
+    # 읽으려고 메일마다 본문까지 읽던 것을 색인만 보고 끝나게(덮는 색인). 받은 메일(direction)로 거르는 질의와
+    # 지운 것(is_deleted)으로만 거르는 질의가 둘 다 있어 앞 칸 순서가 다른 둘.
+    # 4만 통 가짜 자료 실측: 메일 열기 2,238 → 196ms(1차) · 목록은 아래 기록 참고.
+    ("idx_mail_cov_d", "CREATE INDEX IF NOT EXISTS idx_mail_cov_d ON mail_messages(user_id, direction, is_deleted, " + _COVER_COLS + ")"),
+    ("idx_mail_cov_x", "CREATE INDEX IF NOT EXISTS idx_mail_cov_x ON mail_messages(user_id, is_deleted, direction, " + _COVER_COLS + ")"),
     ("idx_mail_fdpin", "CREATE INDEX IF NOT EXISTS idx_mail_fdpin ON mail_messages(user_id, fd_pin)"),
 )
+_OLD_COUNT_INDEXES = ("idx_mail_cover",)   # 11-26 1차(칸이 모자람) → 새 둘이 생긴 뒤 지움(같은 일을 두 번 저장하지 않게)
 _COUNT_IDX_OK = set()
 
 
@@ -776,6 +781,15 @@ def ensure_count_indexes(c):
             _COUNT_IDX_OK.add(name)
         except Exception as e:
             print("[MAIL-FOLDERS] 세기 색인 %s 실패(화면은 그대로): %s" % (name, str(e)[:160]), flush=True)
+    if all(n in _COUNT_IDX_OK for n, _ in COUNT_INDEXES) and "_old" not in _COUNT_IDX_OK:
+        for old in _OLD_COUNT_INDEXES:
+            try:
+                if c.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?", (old,)).fetchone():
+                    c.execute("DROP INDEX IF EXISTS " + old)
+                    print("[MAIL-FOLDERS] 옛 세기 색인 %s 지움(새 색인으로 바뀜)" % old, flush=True)
+            except Exception as e:
+                print("[MAIL-FOLDERS] 옛 세기 색인 %s 지우기 실패(그대로 둠): %s" % (old, str(e)[:160]), flush=True)
+        _COUNT_IDX_OK.add("_old")
 
 
 def classify(c, uid) -> dict:

@@ -24563,7 +24563,7 @@ async def admin_mail_inbound_bind(req: Request):
 
 
 @app.get("/mail/inbox")
-async def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
+def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unread: int = 0,
                           df: str = "", dt: str = "", att: int = 0, thread: int = 1, cust: str = "",
                           reply: int = 0, fd: str = "", qf: str = "all", where: str = "", per: str = "",
                           who: str = "", dom: str = "", noad: int = 0, off: int = 0, frag: int = 0, prev: str = "",
@@ -29146,7 +29146,8 @@ async def mail_ui_prefs_save(req: Request):
 
 
 @app.get("/api/mail/counts")
-async def mail_counts_api(req: Request):
+def mail_counts_api(req: Request):
+    # 11-26 「목록 여는 것도 빠르게」 — def(스레드): 1분마다 부르는 숫자 세기가 같은 일꾼의 다른 요청을 막지 않게
     """늘 보이는 도구 줄(11-19) 숫자 — 안 읽음 · 회신 필요 · 임시보관함 · 스팸함 · 보관함(읽기만 · 내 메일만)."""
     u = get_user(req)
     if not u:
