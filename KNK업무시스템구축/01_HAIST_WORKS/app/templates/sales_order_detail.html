@@ -62,7 +62,7 @@ body {
     {% set po_pid = order.project_id %}{% set po_oid = order.id %}{% set po_s = _po143.so.get(order.id) %}{% set po_otxt = money(order.total_amount or 0, order.currency or 'KRW') %}
     {% include "_v5_partials/po_rows.html" %}
     {% set _pp143 = _po143.proj %}{% if _pp143 and _pp143.final %}
-    <div style="margin-top:8px;font-size:12px;color:#475569;">관리번호 {{ order.mgmt_code }} 전체 발주서: <a href="/customer-po/{{ _pp143.final.id }}" style="font-weight:700;color:#166534;text-decoration:none;">📄 {{ _pp143.final.orig_name }}</a>{% if _pp143.prev %} · 이전 {{ _pp143.prev|length }}장{% endif %} <a href="/project/{{ order.project_id }}#po143" style="font-size:11.5px;">프로젝트에서 보기 →</a></div>
+    <div style="margin-top:8px;font-size:12px;color:#475569;">수주번호를 아직 고르지 않은 발주서(관리번호 {{ order.mgmt_code }}): <a href="/customer-po/{{ _pp143.final.id }}" style="font-weight:700;color:#166534;text-decoration:none;">📄 {{ _pp143.final.orig_name }}</a>{% if _pp143.prev %} · 이전 {{ _pp143.prev|length }}장{% endif %} <a href="/projects/so-check" style="font-size:11.5px;color:#b45309;font-weight:700;">👉 수주번호 고르기 →</a></div>
     {% endif %}
   </div>
   {% endif %}

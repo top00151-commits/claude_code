@@ -126,7 +126,7 @@ check("관리번호 줄 + 수주번호 줄 3개", h.count('class="so qm-slot"') 
 check("호기 표시(1호기·2호기·3호기)", all(x in h for x in ("1호기", "2호기", "3호기")))
 check("수주 금액 $15,000.00", "$15,000.00" in h)
 check("요약: 견적서 없음 3건", re.search(r"정말 없음</div><div class=\"n\">3건", h) is not None)
-check("요약: 수주 전 1건", re.search(r"수주 전\(관리번호만\)</div><div class=\"n\">1건", h) is not None)
+check("요약: 수주 전 1건", re.search(r"수주 전</div><div class=\"n\">1건", h) is not None)   # z1191z156: 「(관리번호만)」 뺌
 check("올리기 칸(끌어다 놓기) 보임", 'id="qmTopDrop"' in h)
 
 print("§2 엑셀을 넣으면 후보 찾기 · 붙이기")
@@ -140,11 +140,12 @@ check("붙이기 ok(Z-261101-1)", p.get("ok") and p.get("replaced") == 0 and p.g
 check("파일 줄 order_id = 1호기 수주", [f["order_id"] for f in files_of(PA)] == [O1], files_of(PA))
 j2 = read("견적서 951M2611 2호기.xlsx", {"customer": "가상수출고객", "amount": 14000, "currency": "USD"})
 c2 = cl.get("/api/quotes-z105/cands?tok=" + j2["tok"]).json()
-check("관리번호로 찾기: 대표 견적 + 수주 3개 · 금액 같은 2호기 미리 고름",
-      len(c2["cands"]) == 4 and c2["pick"] is not None and c2["cands"][c2["pick"]]["oid"] == O2, c2)
+# z1191z156: 관리번호 자리 없음 · 수주 2개 이상이면 빈칸으로 시작(금액 같음은 표시만)
+check("관리번호로 찾기: 수주 3개만(관리번호 자리 없음) · 미리 안 고름 · 2호기 「금액 같음」",
+      len(c2["cands"]) == 3 and c2["pick"] is None and [x["same"] for x in c2["cands"] if x["oid"] == O2] == [True], c2)
 j3 = read("quote.xlsx", {"customer": "가상수출고객", "amount": 16000, "currency": "USD"})
 c3 = cl.get("/api/quotes-z105/cands?tok=" + j3["tok"]).json()
-check("고객사로 찾기: 금액 같은 3호기 하나 → 미리 고름", c3["pick"] is not None and c3["cands"][c3["pick"]]["oid"] == O3, c3)
+check("고객사로 찾기: 후보 여럿 → 미리 안 고름 · 3호기 「금액 같음」(z1191z156)", c3["pick"] is None and [x["same"] for x in c3["cands"] if x["oid"] == O3] == [True], c3)
 j4 = read("quote2.xlsx", {"customer": "없는회사", "amount": 1})
 c4 = cl.get("/api/quotes-z105/cands?tok=" + j4["tok"]).json()
 check("못 찾으면 후보 0 · 미리 고르지 않음", c4["cands"] == [] and c4["pick"] is None, c4)
@@ -195,18 +196,23 @@ check("남의 표지(tok)로는 못 붙임", not p.get("ok"), p)
 S["user"] = U["Z501"]
 
 print("§5 상세 화면")
-r1 = cl.post("/api/project-quote/attach/%d" % PA, files={"file": ("대표견적.xlsx", XL, "application/vnd.ms-excel")}).json()
-r2 = cl.post("/api/project-quote/attach/%d" % PA, files={"file": ("대표견적_v2.xlsx", XL, "application/vnd.ms-excel")}).json()
+# z1191z156: 관리번호 자리 없음 — 수주 3개라 안 고르면 저장 안 함 · 고른 수주(2호기)에만 · 다시 올리면 그 수주 것만 바뀜
+r0 = cl.post("/api/project-quote/attach/%d" % PA, files={"file": ("대표견적.xlsx", XL, "application/vnd.ms-excel")}).json()
+r1 = cl.post("/api/project-quote/attach/%d" % PA, data={"order_id": O2}, files={"file": ("2호기견적.xlsx", XL, "application/vnd.ms-excel")}).json()
+r2 = cl.post("/api/project-quote/attach/%d" % PA, data={"order_id": O2}, files={"file": ("2호기견적_v2.xlsx", XL, "application/vnd.ms-excel")}).json()
 rep_rows = [f for f in files_of(PA) if f["order_id"] is None]
-check("상세 「＋ 견적서 엑셀 올리기」 = 대표 견적 자리 1장(두 번째가 바꿈)", r1.get("ok") and r2.get("replaced") == 1
-      and [f["orig_name"] for f in rep_rows] == ["대표견적_v2.xlsx"], (r1, r2, rep_rows))
-check("프로젝트 견적서 칸 = 대표 견적만(수주번호 견적은 빠짐)", [x["orig_name"] for x in M._z61_quote_files(PA)] == ["대표견적_v2.xlsx"])
+check("상세 「＋ 견적서 엑셀 올리기」 = 수주 안 고르면 멈춤 · 고른 수주 자리 1장(두 번째가 바꿈)", (not r0.get("ok")) and r0.get("need_so")
+      and r1.get("ok") and r2.get("replaced") == 1 and rep_rows == [] and [f["orig_name"] for f in files_of(PA) if f["order_id"] == O2] == ["2호기견적_v2.xlsx"],
+      (r0, r1, r2, files_of(PA)))
+check("프로젝트 견적서 칸 = 수주번호마다 붙은 견적서 전부(z1191z156)", "2호기견적_v2.xlsx" in [x["orig_name"] for x in M._z61_quote_files(PA)]
+      and all(x["order_id"] for x in M._z61_quote_files(PA)))
 h = cl.get("/project/%d" % PA).text
 check("상세: 「＋ 견적서 엑셀 올리기」 단추 그대로", "＋ 견적서 엑셀 올리기" in h)
 check("상세 수주 카드: 📋 견적서 줄 · 1호기 파일 받기", "📋 견적서" in h and "🟢 1호기_최종_v2.xlsx" in h)   # z1191z121 👁 → z1191z141 🟢 이 수주 견적
 h = cl.get("/sales/quotations?period=all").text
-check("견적 관리: 대표 견적 표시", "관리번호 견적서</span>" in h and "대표견적_v2.xlsx" in h)   # z1191z141 이름
-check("요약: 견적서 있음 3 / 3건 · 없음 0건", "3 <span" in h and re.search(r"정말 없음</div><div class=\"n\">0건", h) is not None)
+check("견적 관리: 관리번호 견적서 표시 없음 · 2호기 견적 보임(z1191z156)", "관리번호 견적서</span>" not in h and "2호기견적_v2.xlsx" in h)
+# z1191z156: 2호기는 방금 「2호기견적_v2」(금액 못 읽음·다를 수 있음)로 바꿨으므로 있음/금액 다름 수는 고정하지 않고 「없음 0건」만
+check("요약: 없음 0건(세 수주 모두 자기 견적)", re.search(r"정말 없음</div><div class=\"n\">0건", h) is not None)
 
 print("§5b 입금 끝난 수주는 기본으로 숨김 · 부품 줄은 「품목 N줄」")
 with D.db_session() as cc:
@@ -235,7 +241,7 @@ h = cl.get("/sales/quotations?period=all&mine=1").text
 check("👤 내 건만: 내 담당(951M2611)만 · 남의 건(952T2611) 숨김", "951M2611" in h and "952T2611" not in h)
 cl.get("/sales/quotations?mine=0")
 h = cl.get("/sales/quotations?period=all&only=none").text
-check("없음만: 수주 전 관리번호(대표 견적 없음)만 남음", "952T2611" in h and "951M2611" not in h)
+check("없음만: 견적 없는 수주가 없으면 아무 관리번호도 안 남음(수주 전 관리번호는 올릴 자리가 없어 뺌 · z1191z156)", "952T2611" not in h and "951M2611" not in h)
 r = cl.post("/api/project-quote/read", files={"file": ("사진.png", b"\x89PNG0000", "image/png")}).json()
 check("엑셀 아닌 파일은 안 받음", not r.get("ok"), r)
 

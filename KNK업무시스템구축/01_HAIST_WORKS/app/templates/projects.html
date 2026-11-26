@@ -123,7 +123,7 @@ body {
     <a href="#" data-bm="hold"        onclick="projFilter('hold');return false;"        class="bm {% if view=='hold' %}on{% endif %}">⚫ 보류·취소 <b>{{ view_counts.hold }}</b></a>
     {# z1191z150 (대표 11-25 「프로젝트 목록에 책갈피 하나 만들어 견적서·발주서를 한꺼번에」): 숫자 = 견적서·발주서가 하나라도 붙은 관리번호 · 누르면 관리번호 → 수주번호별 보기 #}
     <span class="bm-sep"></span><span class="bm-lb" style="min-width:auto;">보기</span>
-    {% if so_check_n %}<a href="/projects/so-check" class="bm" title="PO유형·거래구분이 그 수주번호에 아직 적히지 않은 수주 — 눌러서 정하기" style="border-color:#fcd34d;color:#92400e;">⚠ 수주 칸 확인 필요 <b>{{ so_check_n }}</b></a>{% endif %}
+    {% if so_check_n %}<a href="/projects/so-check" class="bm" title="PO유형·거래구분이 그 수주번호에 아직 적히지 않은 수주 · 수주번호를 고를 견적서·발주서(z1191z156) — 눌러서 정하기" style="border-color:#fcd34d;color:#92400e;">⚠ 수주 칸 확인 필요 <b>{{ so_check_n }}</b></a>{% endif %}
     <a href="#" data-bm="docs" onclick="projDocs150();return false;" class="bm {% if docs_view %}on{% endif %}" title="관리번호마다 수주번호별 견적서·발주서가 있는지 한눈에 · 원본 받기">📎 견적서·발주서 <b>{{ docs_n }}</b></a>
   </div>
 

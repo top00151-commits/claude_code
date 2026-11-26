@@ -3,11 +3,13 @@
    변수: po_pid · po_oid(없으면 관리번호 자리) · po_s(customer_po.slot_status) · po_otxt(수주 금액 글 · 금액 비교 알림용 · 없어도 됨)
    쓰는 곳: 프로젝트 상세 「고객 발주서」 칸 · 수주 상세 「📄 고객 발주서」 #}
 {% set _pf = po_s.final if po_s else None %}
+{% set _proj156 = (po_oid is none) %}{# z1191z156: 관리번호 칸(프로젝트 상세) = 수주번호를 골라 올림 · 여기 보이는 발주서 = 수주번호를 안 고른 옛 것뿐 #}
 <div class="z143-box" data-pid="{{ po_pid }}" data-oid="{{ po_oid or '' }}" style="margin-top:4px;">
   {% if _pf %}
   <div class="z143-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 9px;border:1px solid #bbf7d0;background:#f6fef9;border-radius:8px;">
     <a href="/customer-po/{{ _pf.id }}" style="font-size:12px;color:#166534;font-weight:700;text-decoration:none;word-break:break-all;" title="웍스 안에서 바로 보기">📄 {{ _pf.orig_name }}</a>
     <span style="padding:0 7px;border-radius:999px;background:#dcfce7;color:#166534;font-size:11px;font-weight:800;" title="이 자리에서 가장 나중에 올린 발주서">최종</span>
+    {% if _proj156 %}<a href="/projects/so-check" title="관리번호에만 붙어 있고 수주번호가 없는 옛 발주서 — 「⚠ 수주 칸 확인 필요」에서 수주번호를 고르면 그 수주 발주서가 됩니다" style="padding:0 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;text-decoration:none;">👉 수주번호를 골라 주세요 →</a>{% endif %}
     <span style="font-size:11px;color:#64748b;">{{ {'pdf':'PDF','img':'사진','xl':'엑셀'}.get(_pf.kind, '') }}{% if _pf.kind == 'xl' and _pf.amount is not none %} · 읽은 금액 <b style="color:#0f172a;">{{ money(_pf.amount|float, _pf.currency or 'KRW') }}</b>{% endif %} · {{ _pf.by_name or '' }} · {{ (_pf.created_at or '')[:16] }}</span>
     <span style="margin-left:auto;display:inline-flex;gap:6px;">
       <a href="/customer-po/{{ _pf.id }}" class="z143-b">👁 보기</a>
@@ -34,14 +36,32 @@
   </details>
   {% endif %}
   {% else %}
-  <div style="font-size:12px;color:#64748b;">등록된 고객 발주서가 없습니다.</div>
+  <div style="font-size:12px;color:#64748b;">{% if _proj156 %}수주번호마다 올린 발주서는 아래 「수주별 견적·발주서」 표와 수주 카드에서 봅니다.{% else %}등록된 고객 발주서가 없습니다.{% endif %}</div>
   {% endif %}
   {% if z62_can_upload(user) %}
+  {% if _proj156 %}{# z1191z156: 수주번호를 골라 그 수주에만 #}
+  {% set _ps156 = po_sos or [] %}
+  {% if not _ps156 %}<div style="margin-top:6px;font-size:12px;color:#b45309;font-weight:700;">👉 이 관리번호에는 아직 수주번호가 없어 발주서를 올릴 수 없습니다 — 수주를 먼저 등록하세요.</div>
+  {% else %}
+  {% from "_v5_partials/step_z156.html" import z156_steps %}
+  {{ z156_steps('z156PStep' ~ po_pid, ['수주번호 고르기', '발주서 올리기', '금액 확인 · 다시 올리기(다를 때만)', '끝'], (2 if _ps156|length == 1 else 1), ('👉 지금 하실 일: 「＋ 발주서 올리기」를 누르거나 파일을 여기에 끌어다 놓으세요 — ' ~ _ps156[0].order_no ~ ' 에 붙습니다') if _ps156|length == 1 else '👉 지금 하실 일: 아래 칸에서 이 발주서를 붙일 수주번호를 고르세요') }}
+  <span class="z143-upw" data-step="z156PStep{{ po_pid }}" style="display:inline-flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;">
+    <select class="z156-so-sel" title="발주서를 붙일 수주번호 — 수주가 2개 이상이면 꼭 고르세요" style="padding:2px 6px;border:1px solid #86efac;border-radius:6px;font-size:12px;">
+      {% if _ps156|length != 1 %}<option value="">— 수주번호 고르기 —</option>{% endif %}
+      {% for o in _ps156 %}<option value="{{ o.id }}"{% if _ps156|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.units %} · {{ o.units }}{% endif %}</option>{% endfor %}
+    </select>
+    <button type="button" class="z143-b u z143-up" title="PDF · 사진(jpg·png) · 엑셀 — 여기에 끌어다 놓아도 됩니다">＋ 발주서 올리기</button>
+    <input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;">
+    <span class="z143-msg" style="font-size:11.5px;color:#475569;">PDF·사진·엑셀 · 끌어다 놓기 · 그 수주에 발주서가 있으면 「이전 발주서」로 남습니다</span>
+  </span>
+  {% endif %}
+  {% else %}
   <span class="z143-upw" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
     <button type="button" class="z143-b u z143-up" title="PDF · 사진(jpg·png) · 엑셀 — 여기에 끌어다 놓아도 됩니다">＋ {% if _pf %}수정 발주서 올리기{% else %}발주서 올리기{% endif %}</button>
     <input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;">
     <span class="z143-msg" style="font-size:11.5px;color:#475569;">{% if _pf %}다시 올리면 지금 것은 「이전 발주서」로 남습니다{% else %}PDF·사진·엑셀 · 끌어다 놓기{% endif %}</span>
   </span>
+  {% endif %}
   {% endif %}
 </div>
 <style>

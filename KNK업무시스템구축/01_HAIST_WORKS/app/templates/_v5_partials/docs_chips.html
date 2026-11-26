@@ -3,7 +3,7 @@
 {% macro qchip(pid, q, mini=False) -%}
 {%- set f = q.f if q else None -%}
 {%- if q and q.st == 'ok' and q.via == 'own' -%}<a class="dc150 ok" href="/quotes/{{ f.id }}" title="이 수주에 올린 견적서 · {{ f.orig_name }}">🟢 이 수주 견적</a>
-{%- elif q and q.st == 'link' -%}<a class="dc150 lk" href="/quotes/{{ f.id }}" title="따로 올린 것이 없어 {{ (q.via_so ~ ' 견적') if q.via == 'so' else '관리번호 견적서' }}를 따라갑니다 · {{ f.orig_name }}">🔗 {{ '앞 수주 견적' if q.via == 'so' else '관리번호 견적' }}{% if q.acked %} · 확인함{% endif %}</a>
+{%- elif q and q.st == 'link' -%}<a class="dc150 lk" href="/quotes/{{ f.id }}" title="따로 올린 것이 없어 금액이 같은 {{ (q.via_so or '앞 수주') ~ ' 견적서' }}를 따라갑니다 · {{ f.orig_name }}">🔗 앞 수주 견적{% if q.acked %} · 확인함{% endif %}</a>
 {%- elif q and q.st == 'diff' -%}<a class="dc150 wn" href="/quotes/{{ f.id }}" title="견적서 금액이 이 수주 금액과 다릅니다 — 견적·발주서 관리에서 「확인했음」 또는 이 수주 견적을 올리세요 · {{ f.orig_name }}">⚠ 견적 금액 다름</a>
 {%- else -%}<span class="dc150 no" title="이 수주가 따라갈 견적서가 없습니다">견적 없음</span>{%- endif -%}
 {%- if f and not mini %} <a class="dc150dl" href="/projects/{{ pid }}/quote-files/{{ f.id }}" title="원본 엑셀 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% endif -%}

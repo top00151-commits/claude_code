@@ -84,6 +84,6 @@ check("새 API 두 곳 권한 확인(can_use_sales·can_view_sales)", src.count(
 tpl_q = open(os.path.join(ROOT, "app", "templates", "sales_quotations.html"), encoding="utf-8").read()
 check("견적 관리: 견적 있음(이 수주 + 관리번호 사용) · 금액 다름 · 정말 없음", "견적 있음" in tpl_q and "정말 없음" in tpl_q and "금액 다름(확인 필요)" in tpl_q and "🔗" in tpl_q)
 tpl_f = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "quote_fill.html"), encoding="utf-8").read()
-check("등록 화면 안내 한 줄", "모든 수주가 이 견적서를 따라갑니다 · 금액이 다른 수주만 따로 올리세요" in tpl_f)
+check("등록 화면 안내 한 줄(z1191z156: 이번 수주번호에 붙음)", "[등록]하면 이번에 만드는 수주번호에 붙습니다" in tpl_f)
 print("\n결과: %d 통과 / %d 실패" % (sum(R), len(R) - sum(R)))
 sys.exit(0 if all(R) else 1)

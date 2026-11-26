@@ -24,7 +24,7 @@
   <table class="tbl db150-t">
     <thead><tr>
       <th>관리코드</th><th>프로젝트명</th><th>고객사</th>
-      <th>관리번호 견적서</th><th>관리번호 발주서</th>
+      <th title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 견적서·발주서 — 눌러서 수주번호 고르기">수주번호 고르기 전</th>
       <th>수주번호별 견적서 · 발주서</th><th class="center">받기</th>
     </tr></thead>
     <tbody id="projTbody">
@@ -33,8 +33,7 @@
         <td><a href="/project/{{ p.id }}" class="mgmt-pill sm{% if not p.mgmt_code %} empty{% endif %}">{{ p.mgmt_code|default('—') }}</a></td>
         <td><a href="/project/{{ p.id }}" style="color:inherit;"><b>{{ p.name|default(p.project_name|default('—')) }}</b></a></td>
         <td>{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% set _m155 = z155_so_mix().get(p.id) if p.id is defined else none %}{% if _m155 and _m155.custs|length > 1 %} <span style="color:#64748b;font-size:11px;" title="수주별 고객: {{ _m155.custs|join(', ') }}">외 {{ _m155.custs|length - 1 }}곳</span>{% endif %}</td>
-        <td>{% if d.pq %}<a class="dc150 lk" href="/quotes/{{ d.pq.id }}" title="{{ d.pq.orig_name }} · {{ d.pq.by_name or '' }} {{ (d.pq.created_at or '')[:10] }}">📋 견적서</a> <a class="dc150dl" href="/projects/{{ p.id }}/quote-files/{{ d.pq.id }}" title="원본 엑셀 받기">⬇</a>{% else %}<span class="dc150 no">없음</span>{% endif %}</td>
-        <td>{{ pchip(d.po) if d.po.final else '<span class="dc150 no">없음</span>'|safe }}</td>
+        <td>{% if d.pq or d.po.final %}{% if d.pq %}<a class="dc150 wn" href="/quotes/{{ d.pq.id }}" title="{{ d.pq.orig_name }} · {{ d.pq.by_name or '' }} {{ (d.pq.created_at or '')[:10] }}">📋 견적서</a> {% endif %}{% if d.po.final %}<a class="dc150 wn" href="/customer-po/{{ d.po.final.id }}" title="{{ d.po.final.orig_name }}">📄 발주서</a> {% endif %}<a href="/projects/so-check" style="font-size:11.5px;color:#b45309;font-weight:700;white-space:nowrap;">👉 수주번호 고르기</a>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
         <td>{% if d.sos %}<div class="db150-so">
           {% for s in d.sos %}<span class="no"><a href="/sales/orders/{{ s.id }}" style="color:inherit;">{{ s.order_no }}</a>{% if s.units %} <small>{{ s.units }}</small>{% endif %}</span><span>{{ qchip(p.id, s.q) }}</span><span>{{ pchip(s.p) }}</span>{% endfor %}
         </div>{% else %}<span style="color:#94a3b8;font-size:12px;">수주 없음</span>{% endif %}</td>

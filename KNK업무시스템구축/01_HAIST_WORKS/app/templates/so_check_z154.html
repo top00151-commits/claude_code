@@ -29,8 +29,8 @@
   <header class="knk-page-head" data-dn="page-head">
     <div>
       <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · <a href="/projects">프로젝트</a> · <b>수주 칸 확인 필요</b></nav>
-      <h1 class="knk-page-title">⚠ 수주 칸 확인 필요 <span style="font-size:14px;color:var(--qv-ink-3);">{{ rows|length }}건 · 관리번호 {{ n_proj }}곳</span></h1>
-      <p class="knk-page-meta">수주가 2개 이상인 관리번호에서 PO유형·거래구분이 <b>그 수주번호에 아직 적히지 않은</b> 수주입니다.</p>
+      <h1 class="knk-page-title">⚠ 수주 칸 확인 필요 <span style="font-size:14px;color:var(--qv-ink-3);">{{ rows|length }}건 · 관리번호 {{ n_proj }}곳{% if files156 %} · 수주번호 고를 파일 {{ files156|length }}건{% endif %}</span></h1>
+      <p class="knk-page-meta">수주가 2개 이상인 관리번호에서 PO유형·거래구분이 <b>그 수주번호에 아직 적히지 않은</b> 수주{% if files156 %}와, 관리번호에만 붙어 <b>수주번호가 없는</b> 견적서·고객 발주서{% endif %}입니다.</p>
     </div>
     <div class="knk-page-actions">{% set close_fallback = '/projects' %}{% include "_v5_partials/knk_close_btn.html" %}</div>
   </header>
@@ -50,7 +50,58 @@
       {% for nm, n in f158.sales %}<a class="sc-chip{{ ' on' if f158.sp == (nm or '-') }}" href="?st={{ f158.st }}&sp={{ (nm or '-')|urlencode }}">{{ nm or '(담당 없음)' }}<span class="n">{{ n }}</span></a>{% endfor %}
     </div>
     {% endif %}
-    {% if not rows %}<div class="sc-note" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">{% if f158 and (f158.st or f158.sp) %}✅ 이 거르기에는 확인할 수주가 없습니다. 「전체」를 눌러 다른 수주를 보세요.{% else %}✅ 완료 — 확인할 수주가 없습니다.{% endif %}</div>{% else %}
+    {% if files156 %}{# z1191z156 (대표 11-26 「진행하자」): 견적서·발주서는 수주번호에만 — 옛 자료(관리번호에만 붙음)는 저절로 붙이지 않고 여기서 사람이 고름 #}
+    {% from "_v5_partials/step_z156.html" import z156_steps %}
+    <div class="sc-note" id="z156Files" style="border-color:#fcd34d;background:#fffbeb;color:#92400e;">
+      <b>📎 수주번호를 고를 견적서·고객 발주서 <span id="z156FilesN">{{ files156|length }}</span>건</b> — 견적서·발주서는 이제 수주번호에만 붙습니다. 아래 파일은 예전에 관리번호에만 붙어 수주번호가 없습니다(저절로 아무 수주에나 붙이지 않음).
+      {{ z156_steps('z156FileStep', ['수주번호 고르기', '「이 수주에 붙이기」', '다시 고르기(그 수주에 이미 견적서가 있을 때만)', '끝 — 목록에서 빠짐'], 1, '👉 지금 하실 일: 파일마다 맞는 수주번호를 고르고 「이 수주에 붙이기」를 누르세요') }}
+    </div>
+    <table class="sc-t" style="margin-bottom:14px;" data-dn="so-check-files">
+      <thead><tr><th>관리번호</th><th>파일</th><th>올린 사람 · 날</th><th>붙일 수주번호</th></tr></thead>
+      <tbody>
+      {% for x in files156 %}
+        <tr data-kind="{{ x.kind }}" data-fid="{{ x.id }}">
+          <td><a href="/project/{{ x.project_id }}" style="color:inherit;font-weight:700;">{{ x.mgmt_code }}</a> <span style="color:var(--qv-ink-3);font-size:11.5px;">{{ x.pname or '' }}</span></td>
+          <td>{% if x.kind == 'quote' %}📋 견적서 <a href="/quotes/{{ x.id }}">{{ x.orig_name }}</a>{% else %}📄 고객 발주서 <a href="/customer-po/{{ x.id }}">{{ x.orig_name }}</a>{% endif %}</td>
+          <td style="color:var(--qv-ink-3);font-size:11.5px;">{{ x.by_name or '' }} · {{ (x.created_at or '')[:10] }}</td>
+          <td class="z156-fcell">
+            {% if not x.sos %}<span class="sc-rep">이 관리번호에 수주번호가 없습니다 — 수주를 먼저 등록하세요</span>
+            {% elif can_file156 %}
+            <select class="sc-in z156-fsel" style="width:auto;min-width:150px;">
+              {% if x.sos|length != 1 %}<option value="">— 수주번호 고르기 —</option>{% endif %}
+              {% for o in x.sos %}<option value="{{ o.id }}"{% if x.sos|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.has %} (이미 견적서: {{ o.has }}){% endif %}</option>{% endfor %}
+            </select>
+            <button type="button" class="sc-b z156-fgo">이 수주에 붙이기</button>
+            <span class="sc-msg"></span>
+            {% else %}<span class="sc-rep">수주번호 고르기는 영업 등록 권한이 있는 분만</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <script>(function(){
+      if (window.__z156sc) return; window.__z156sc = 1;
+      document.addEventListener('click', function(e){
+        var b = e.target.closest && e.target.closest('.z156-fgo'); if (!b) return;
+        var tr = b.closest('tr'), td = b.closest('td'), sel = td.querySelector('.z156-fsel'), m = td.querySelector('.sc-msg');
+        if (!sel || !sel.value) { if (m) { m.style.color = '#b45309'; m.textContent = '👉 수주번호를 골라 주세요(저장하지 않았습니다)'; } try { sel.focus(); } catch (x) {} if (window.z156Step) z156Step('z156FileStep', 1, '👉 수주번호를 고른 뒤 「이 수주에 붙이기」'); return; }
+        var fd = new FormData(); fd.append('order_id', sel.value);
+        b.disabled = true; if (m) { m.style.color = '#475569'; m.textContent = '⏳ 붙이는 중…'; }
+        fetch('/api/so-check-file/' + tr.getAttribute('data-kind') + '/' + tr.getAttribute('data-fid'), {method:'POST', body:fd, credentials:'same-origin'})
+          .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+          .then(function(j){
+            b.disabled = false;
+            if (j && j.ok) {
+              td.innerHTML = '';
+              var s = document.createElement('span'); s.className = 'sc-ok'; s.textContent = '✅ 완료 — ' + (j.shown || '') + ' 에 붙였습니다(이력 남김)'; td.appendChild(s);
+              var left = document.querySelectorAll('.z156-fgo').length, n = document.getElementById('z156FilesN'); if (n) n.textContent = left;
+              if (window.z156Step) z156Step('z156FileStep', left ? 1 : 4, left ? ('👉 남은 일 — 수주번호를 고를 파일 ' + left + '건이 더 있습니다') : '✅ 완료 — 수주번호를 고를 파일이 없습니다');
+            } else if (m) { m.style.color = '#b91c1c'; m.textContent = '⚠ 끝나지 않았습니다 — ' + ((j && j.message) || '저장하지 못했습니다'); if (window.z156Step) z156Step('z156FileStep', 3, '👉 ' + ((j && j.message) || '다시 골라 주세요').replace(/^👉\s*/, '')); }
+          }).catch(function(){ b.disabled = false; if (m) { m.style.color = '#b91c1c'; m.textContent = '⚠ 인터넷 연결이 끊겨 저장하지 못했습니다'; } });
+      });
+    })();</script>
+    {% endif %}
+    {% if not rows and files156 %}<div class="sc-note">수주 칸(PO유형·거래구분)은 확인할 수주가 없습니다 — 위 파일만 수주번호를 골라 주세요.</div>{% elif not rows %}<div class="sc-note" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">{% if f158 and (f158.st or f158.sp) %}✅ 이 거르기에는 확인할 수주가 없습니다. 「전체」를 눌러 다른 수주를 보세요.{% else %}✅ 완료 — 확인할 수주가 없습니다.{% endif %}</div>{% else %}
     <table class="sc-t">
       <thead><tr><th>관리번호 · 수주번호</th><th>고객사(이 수주)</th><th>PO유형</th><th>거래구분</th></tr></thead>
       <tbody>

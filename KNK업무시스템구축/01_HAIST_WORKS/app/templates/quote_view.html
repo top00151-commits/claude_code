@@ -52,7 +52,7 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
       <h1 class="knk-page-title">📋 {{ mt.title or f.orig_name }}</h1>
       <p class="knk-page-meta">
         <a href="/project/{{ f.project_id }}{% if f.order_no %}?so={{ f.order_no|urlencode }}{% endif %}">{{ f.mgmt_code }}{% if f.pname %} {{ f.pname }}{% endif %}</a>
-        · {% if f.order_no %}수주번호 <b>{{ f.order_no }}</b>의 최종 견적{% else %}관리번호 견적서{% endif %}
+        · {% if f.order_no %}수주번호 <b>{{ f.order_no }}</b>의 최종 견적{% else %}<a href="/projects/so-check" style="color:#b45309;font-weight:700;" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 견적서">👉 수주번호를 아직 고르지 않은 견적서 — 고르기</a>{% endif %}
         · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }} 올림
       </p>
     </div>

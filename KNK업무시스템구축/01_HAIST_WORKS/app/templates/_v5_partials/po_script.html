@@ -9,17 +9,27 @@
     if (!box || !file) return;
     if (!OK_EXT.test(file.name || '')) { say(box, '고객 발주서는 PDF · 사진(jpg·png) · 엑셀(xlsx·xls) 파일만 올릴 수 있습니다.', true); return; }
     if (file.size > 20*1024*1024) { say(box, '20MB 보다 큰 파일은 올릴 수 없습니다.', true); return; }
-    var fd = new FormData(); fd.append('file', file); fd.append('pid', box.getAttribute('data-pid') || ''); fd.append('order_id', box.getAttribute('data-oid') || '');
-    say(box, '⏳ 올리는 중…');
+    /* z1191z156: 수주번호 고르는 칸이 있으면(프로젝트 상세 「고객 발주서」) 그 값 · 안 골랐으면 올리지 않음 */
+    var sel = box.querySelector('.z156-so-sel'), up = box.querySelector('.z143-upw'), sid = up && up.getAttribute('data-step');
+    function step(n, t){ if (sid && window.z156Step) window.z156Step(sid, n, t); }
+    var oid = sel ? sel.value : (box.getAttribute('data-oid') || '');
+    if (sel && !oid) { say(box, '👉 수주번호를 골라 주세요 — 발주서는 수주번호에만 붙습니다(저장하지 않았습니다).', true); step(1, '👉 지금 하실 일: 수주번호를 고른 뒤 다시 올리세요'); try { sel.focus(); } catch (e) {} return; }
+    var soTxt = sel ? ((sel.options[sel.selectedIndex] || {}).textContent || '').split(' · ')[0] : '';
+    var fd = new FormData(); fd.append('file', file); fd.append('pid', box.getAttribute('data-pid') || ''); fd.append('order_id', oid);
+    say(box, '⏳ 올리는 중…'); step(2, '⏳ 진행 중 — 「' + (file.name || '') + '」을 ' + soTxt + ' 에 올리는 중입니다');
     post('/api/customer-po/upload', fd).then(function(j){
-      if (!j || !j.ok) { say(box, (j && j.message) || '올리지 못했습니다 — 다시 해 보세요.', true); return; }
-      say(box, '✓ ' + (j.slot || '') + '에 올렸습니다' + (j.prev ? ' (예전 발주서 ' + j.prev + '장은 「이전 발주서」로 남김)' : '') + ' — 다시 불러옵니다…');
-      setTimeout(function(){ location.reload(); }, 700);
-    }).catch(function(){ say(box, '인터넷 연결이 끊겨 올리지 못했습니다.', true); });
+      if (j && (j.need_so || j.no_so)) { say(box, j.message || '👉 수주번호를 골라 주세요.', true); step(1, j.message || '👉 수주번호를 골라 주세요'); return; }
+      if (!j || !j.ok) { say(box, '⚠ 끝나지 않았습니다 — ' + ((j && j.message) || '올리지 못했습니다 — 다시 해 보세요.'), true); step(3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); return; }
+      say(box, '✅ 완료 — ' + (j.slot || '') + '에 올렸습니다' + (j.prev ? ' (예전 발주서 ' + j.prev + '장은 「이전 발주서」로 남김)' : '') + ' — 다시 불러옵니다…');
+      step(4, '✅ 완료 — ' + (j.slot || '') + ' 에 붙었습니다 (엑셀 금액이 수주와 다르면 그 수주 줄에 ⚠ 로 보입니다)');
+      setTimeout(function(){ location.reload(); }, 900);
+    }).catch(function(){ say(box, '⚠ 인터넷 연결이 끊겨 올리지 못했습니다 — 다시 올려 주세요.', true); step(3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); });
   }
   document.addEventListener('click', function(e){
     var t = e.target.closest && e.target.closest('.z143-up');
-    if (t) { var box = t.closest('.z143-box'); var fi = box && box.querySelector('.z143-file'); if (fi) fi.click(); return; }
+    if (t) { var box = t.closest('.z143-box'); var sl = box && box.querySelector('.z156-so-sel');
+      if (sl && !sl.value) { say(box, '👉 수주번호를 골라 주세요 — 발주서는 수주번호에만 붙습니다.', true); try { sl.focus(); } catch (e) {} return; }   /* z1191z156 */
+      var fi = box && box.querySelector('.z143-file'); if (fi) fi.click(); return; }
     var rm = e.target.closest && e.target.closest('.z143-rm');
     if (rm) {
       if (!window.confirm('「' + rm.getAttribute('data-name') + '」 발주서를 뺄까요?\n빼면 파일이 바로 지워지고 되돌릴 수 없습니다(누가 뺐는지는 변경 이력에 남습니다).\n최종 발주서를 빼면 바로 앞 발주서가 다시 최종이 됩니다.')) return;
@@ -40,6 +50,11 @@
   });
   document.addEventListener('change', function(e){
     var fi = e.target;
+    if (fi.classList && fi.classList.contains('z156-so-sel')) {   /* z1191z156: 수주번호를 고르면 다음 할 일 */
+      var bx = fi.closest('.z143-box'), u2 = bx && bx.querySelector('.z143-upw'), s2 = u2 && u2.getAttribute('data-step');
+      if (s2 && window.z156Step) window.z156Step(s2, fi.value ? 2 : 1, fi.value ? '👉 지금 하실 일: 「＋ 발주서 올리기」를 누르거나 파일을 끌어다 놓으세요 — ' + ((fi.options[fi.selectedIndex] || {}).textContent || '').split(' · ')[0] + ' 에 붙습니다' : '👉 지금 하실 일: 이 발주서를 붙일 수주번호를 고르세요');
+      return;
+    }
     if (!fi.classList || !fi.classList.contains('z143-file')) return;
     var f = fi.files && fi.files[0]; fi.value = '';
     upload(fi.closest('.z143-box'), f);

@@ -675,7 +675,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 {% if can_money %}{% set _qs141 = _sq105.get(so.id) or {} %}{% set _qf105 = _qs141.f %}
                 <span class="item" title="z1191z105: 이 수주번호의 최종 견적서(엑셀) — 올리기·바꾸기는 🎯 수주 전 → 📋 견적서(견적 관리)"><span class="k">📋 견적서</span>
                   {% if _qf105 and _qs141.via == 'own' %}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 따로 올린 최종 견적서 — 내용 바로 보기" style="font-weight:700;color:#166534;text-decoration:none;">🟢 {{ _qf105.orig_name }}</a>{% if _qs141.st == 'diff' %} <a href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" title="견적서 금액이 이 수주 금액과 다릅니다 — 견적 관리에서 확인" style="color:#b45309;font-weight:700;text-decoration:none;">⚠ 금액 다름</a>{% endif %}
-                  {% elif _qf105 %}{% set _via141 = (_qs141.via_so ~ ' 견적') if _qs141.via == 'so' else '관리번호 견적' %}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 따로 올린 견적서가 없어 {{ _via141 }}서({{ _qf105.orig_name }})를 따라갑니다 — 누르면 그 견적서 내용" style="font-weight:700;color:#075985;text-decoration:none;">🔗 {{ _via141 }} 사용</a>{% if _qs141.st == 'diff' %} <a href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" title="따라가는 견적서의 금액이 이 수주와 다릅니다 — 이 수주 견적서를 올리거나 「확인했음」" style="color:#b45309;font-weight:700;text-decoration:none;">⚠ 금액 다름 · 확인 →</a>{% endif %}
+                  {% elif _qf105 %}{% set _via141 = ((_qs141.via_so or '앞 수주') ~ ' 견적') %}{# z1191z156: 따라가는 것은 금액 같은 앞 수주 견적뿐 #}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 따로 올린 견적서가 없어 {{ _via141 }}서({{ _qf105.orig_name }})를 따라갑니다 — 누르면 그 견적서 내용" style="font-weight:700;color:#075985;text-decoration:none;">🔗 {{ _via141 }} 사용</a>{% if _qs141.st == 'diff' %} <a href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" title="따라가는 견적서의 금액이 이 수주와 다릅니다 — 이 수주 견적서를 올리거나 「확인했음」" style="color:#b45309;font-weight:700;text-decoration:none;">⚠ 금액 다름 · 확인 →</a>{% endif %}
                   {% else %}<a class="v" href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" style="color:#b45309;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
                 </span>{% endif %}
                 {% if can_money %}{% set _ps143 = _po143so.so.get(so.id) %}{# z1191z143 (대표 11-24 「등록한 발주서는 … 수주번호 상세보기에서 견적서처럼」): 이 수주의 고객 발주서(최종) · 올리기·이전 발주서 = 수주 상세 #}
@@ -2311,20 +2311,34 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           {% if _hso %}<dt>수량 <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>{% if _hso.form_key == 'parts' %}{% set _hq16 = partsqty(_hso.unit_qty, _hso.po_type or p.po_type) %}<span{% if _hq16.missing %} style="color:#b91c1c;font-weight:700;"{% endif %}>{{ _hq16.label }}</span>{% elif _hso.form_key == 'assembly' %}{{ (_hso.units|length) if _hso.units else (_hso.unit_qty or 1) }}대{% elif _hso.form_key == 'consumable' and not _hso.board_unit %}{{ qtyu((_hso.units|length) or 1, '건') }}{% else %}{{ qtyu(soqty(_hso), sounit(_hso)) }}{% if soqty_note(_hso) %} <span style="color:var(--mute);font-size:11px;">{{ soqty_note(_hso) }}</span>{% endif %}{% endif %}</dd>{% endif %}{# z1191z16 · z1191z89: 단위 = 일정표와 같은 규칙 #}
           {# v5H201: 제안 단계 일정 #}
           <dt>제안서</dt><dd>{{ p.proposal_date or '—' }}</dd>
-          <dt class="fullw" title="z1191z141: 따로 올린 견적서가 없는 수주는 이 견적서를 따라갑니다(금액이 다르면 수주 카드에 ⚠)">관리번호 견적서</dt><dd class="fullw">{# z1191z61·z62·z63 (대표 11-18 「등록된 견적은 프로젝트 정보에서 볼수있게」 · 「견적빼기는 견적 등록하는 화면에는 무조건」): 견적일 · 견적서 줄(_v5_partials/quote_rows.html · 👁 보기 · 🗑 빼기) · ＋ 올리기 — 파일은 금액 볼 권한자만 #}
+          <dt class="fullw" title="z1191z156: 견적서는 수주번호마다 붙습니다 — 올릴 때 수주번호를 고릅니다">견적서</dt><dd class="fullw">{# z1191z61·z62·z63 (대표 11-18 「등록된 견적은 프로젝트 정보에서 볼수있게」 · 「견적빼기는 견적 등록하는 화면에는 무조건」): 견적일 · 견적서 줄(_v5_partials/quote_rows.html · 👁 보기 · 🗑 빼기) · ＋ 올리기 — 파일은 금액 볼 권한자만 #}
   <span style="font-weight:700;">{{ p.quotation_date or '—' }}</span>
   {% if can_money %}
   {% set qr_pid = p.id %}{% include "_v5_partials/quote_rows.html" %}
-  {% if z62_can_upload(user) %}{# z1191z62: 등록된 프로젝트에 견적서만 붙이기 — 칸 채우기 없이 보관 #}
-  <span class="z62-up" data-pid="{{ p.id }}" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;">
+  {% if request.query_params.get('z156') == 'need_so' %}<div class="z156-need" style="margin-top:6px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e;font-weight:700;">👉 남은 일 — 수정 화면에서 올린 견적서는 수주번호를 고르지 않아 붙이지 않았습니다(다른 칸은 저장됨). 아래에서 수주번호를 고르고 견적서 엑셀을 다시 올려 주세요.</div>{% endif %}
+  {% if z62_can_upload(user) %}{# z1191z62: 등록된 프로젝트에 견적서만 붙이기 — 칸 채우기 없이 보관 · z1191z156: 수주번호를 골라 그 수주에만 #}
+  {% set _sos156 = z156_sos(p.id) %}
+  {% if not _sos156 %}<div style="margin-top:6px;font-size:12px;color:#b45309;font-weight:700;">👉 이 관리번호에는 아직 수주번호가 없어 견적서를 올릴 수 없습니다 — 수주를 먼저 등록하세요(견적서는 수주번호마다 붙습니다).</div>
+  {% else %}
+  {% from "_v5_partials/step_z156.html" import z156_steps %}
+  <div class="z62-up" data-pid="{{ p.id }}" style="margin-top:6px;padding:6px 9px;border:1px dashed #bfdbfe;border-radius:8px;">
+    {{ z156_steps('z156QStep', ['수주번호 고르기', '견적서 엑셀 올리기', '금액 확인 · 다시 올리기(다를 때만)', '끝'], (2 if _sos156|length == 1 else 1), ('👉 지금 하실 일: 「＋ 견적서 엑셀 올리기」를 누르거나 엑셀을 여기에 끌어다 놓으세요 — ' ~ _sos156[0].order_no ~ ' 에 붙습니다') if _sos156|length == 1 else '👉 지금 하실 일: 아래 칸에서 이 견적서를 붙일 수주번호를 고르세요') }}
+    <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <select class="z156-so-sel" title="견적서를 붙일 수주번호 — 수주가 2개 이상이면 꼭 고르세요" style="padding:2px 6px;border:1px solid #93c5fd;border-radius:6px;font-size:12px;">
+      {% if _sos156|length != 1 %}<option value="">— 수주번호 고르기 —</option>{% endif %}
+      {% for o in _sos156 %}<option value="{{ o.id }}"{% if _sos156|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.units %} · {{ o.units }}{% endif %}</option>{% endfor %}
+    </select>
     <button type="button" class="z62-up-btn" title="엑셀 파일(xlsx·xls)만 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게" style="padding:3px 10px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">＋ 견적서 엑셀 올리기</button>
     <input type="file" class="z62-up-file" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
-    <span class="z62-up-msg" style="font-size:11.5px;color:#475569;">엑셀 · 끌어다 놓기</span></span>
+    <span class="z62-up-msg" style="font-size:11.5px;color:#475569;">엑셀 · 끌어다 놓기 · 그 수주에 예전 견적서가 있으면 바뀝니다</span></span></div>
   <script>(function(){
     var w=document.querySelector('.z62-up[data-pid="{{ p.id }}"]');
     if(!w || w.__z62) return; w.__z62=1;
-    var b=w.querySelector('.z62-up-btn'), fi=w.querySelector('.z62-up-file'), m=w.querySelector('.z62-up-msg');
-    b.addEventListener('click', function(){ fi.click(); });
+    var b=w.querySelector('.z62-up-btn'), fi=w.querySelector('.z62-up-file'), m=w.querySelector('.z62-up-msg'), sel=w.querySelector('.z156-so-sel');
+    function soName(){ var o=sel&&sel.options[sel.selectedIndex]; return o&&o.value ? (o.textContent||'').split(' · ')[0] : ''; }
+    function needSo(){ if(sel && !sel.value){ m.style.color='#b45309'; m.textContent='👉 수주번호를 골라 주세요 — 견적서는 수주번호에만 붙습니다(저장하지 않았습니다).'; z156Step('z156QStep', 1, '👉 지금 하실 일: 위 칸에서 수주번호를 고른 뒤 다시 올리세요'); try{ sel.focus(); }catch(e){} return true; } return false; }
+    if(sel) sel.addEventListener('change', function(){ if(sel.value) z156Step('z156QStep', 2, '👉 지금 하실 일: 「＋ 견적서 엑셀 올리기」를 누르거나 엑셀을 끌어다 놓으세요 — '+soName()+' 에 붙습니다'); else z156Step('z156QStep', 1, '👉 지금 하실 일: 이 견적서를 붙일 수주번호를 고르세요'); });
+    b.addEventListener('click', function(){ if(needSo()) return; fi.click(); });
     /* z1191z147 (대표 11-25 「견적서 올리기는 끌어다 놓기가 안 돼」): 관리번호 견적서 칸 전체에 끌어다 놓기 — 발주서 칸과 따로 */
     var zone=w.closest('dd')||w;
     zone.addEventListener('dragover', function(e){ if(e.target.closest&&e.target.closest('.z143-box')) return; e.preventDefault(); zone.classList.add('z62-over'); });
@@ -2334,25 +2348,29 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     function send(x){
       if(!/\.(xlsx|xlsm|xls)$/i.test(x.name||'')){ m.style.color='#b91c1c'; m.textContent='견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.'; return; }   /* z1191z76 */
       if(x.size>20*1024*1024){ m.style.color='#b91c1c'; m.textContent='20MB 보다 큰 파일은 올릴 수 없습니다.'; return; }
-      var fd=new FormData(); fd.append('file', x); b.disabled=true; m.style.color='#475569'; m.textContent='⏳ 올리는 중…';
+      if(needSo()) return;   /* z1191z156: 수주 2개 이상인데 안 골랐으면 올리지 않음 */
+      var fd=new FormData(); fd.append('file', x); if(sel) fd.append('order_id', sel.value); b.disabled=true; m.style.color='#475569'; m.textContent='⏳ 올리는 중…';
+      z156Step('z156QStep', 2, '⏳ 진행 중 — 「'+(x.name||'')+'」을 '+soName()+' 에 올리고 금액을 읽는 중입니다(10~30초)');
       fetch('/api/project-quote/attach/'+w.getAttribute('data-pid'),{method:'POST',body:fd,credentials:'same-origin'})
         .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
         .then(function(j){ b.disabled=false;
           if(j&&j.ok){   /* z1191z146: 올린 순간 금액 다름 알림(막지 않음) */
             var d=(j.diff_sos||[]).filter(function(x){return x;});
-            if(d.length){ m.style.color='#b45309'; m.textContent='⚠ 보관했습니다 — 견적 금액이 수주 금액과 다릅니다: '+d.join(', ')+' (수주 카드에서 「확인했음」 또는 그 수주 견적을 올리세요)'; setTimeout(function(){ location.reload(); }, 4500); }
-            else if(!j.amt_read){ m.style.color='#b45309'; m.textContent='✓ 보관했습니다 · '+(j.need_password?'비밀번호가 걸려 있어':'')+'견적 금액을 읽지 못해 수주 금액과 비교하지 못했습니다'; setTimeout(function(){ location.reload(); }, 4500); }
-            else { m.style.color='#166534'; m.textContent='✓ 보관했습니다 · 수주 금액과 맞습니다'; setTimeout(function(){ location.reload(); }, 1200); } }
-          else { m.style.color='#b91c1c'; m.textContent=(j&&j.message)||'올리지 못했습니다 — 다시 해 보세요.'; } })
-        .catch(function(){ b.disabled=false; m.style.color='#b91c1c'; m.textContent='인터넷 연결이 끊겨 올리지 못했습니다.'; });
+            if(d.length){ m.style.color='#b45309'; m.textContent='👉 남은 일 — '+(j.slot||'')+' 에 보관했지만 견적 금액이 수주 금액과 다릅니다. 수주 카드에서 「확인했음」을 누르거나 맞는 견적서를 다시 올리세요.'; z156Step('z156QStep', 3, '👉 남은 일 — 견적 금액이 수주 금액과 다릅니다: 맞으면 수주 카드 「확인했음」 · 아니면 맞는 견적서를 다시 올리기'); setTimeout(function(){ location.reload(); }, 4500); }
+            else if(!j.amt_read){ m.style.color='#166534'; m.textContent='✅ 완료 — '+(j.slot||'')+' 에 보관했습니다 · '+(j.need_password?'비밀번호가 걸려 있어 ':'')+'견적 금액을 읽지 못해 수주 금액과 비교는 못 했습니다'; z156Step('z156QStep', 4, '✅ 완료 — '+(j.slot||'')+' 에 붙었습니다(금액 비교는 못 함)'); setTimeout(function(){ location.reload(); }, 4500); }
+            else { m.style.color='#166534'; m.textContent='✅ 완료 — '+(j.slot||'')+' 에 보관했습니다 · 수주 금액과 맞습니다'; z156Step('z156QStep', 4, '✅ 완료 — '+(j.slot||'')+' 에 붙었습니다 · 수주 금액과 맞습니다'); setTimeout(function(){ location.reload(); }, 1200); } }
+          else if(j&&(j.need_so||j.no_so)){ m.style.color='#b45309'; m.textContent=j.message||'👉 수주번호를 골라 주세요.'; z156Step('z156QStep', 1, j.message||'👉 수주번호를 골라 주세요'); }
+          else { m.style.color='#b91c1c'; m.textContent='⚠ 끝나지 않았습니다 — '+((j&&j.message)||'올리지 못했습니다 — 다시 해 보세요.'); z156Step('z156QStep', 3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); } })
+        .catch(function(){ b.disabled=false; m.style.color='#b91c1c'; m.textContent='⚠ 인터넷 연결이 끊겨 올리지 못했습니다 — 다시 올려 주세요.'; z156Step('z156QStep', 3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); });
     }
   })();</script>
   <style>.z62-over{ outline:2px dashed #2563eb; outline-offset:3px; background:#eff6ff; border-radius:8px; } .z62-over .z62-up-btn{ outline:2px solid #2563eb; } .z62-over .z62-up-btn::after{ content:'  ← 여기에 놓으면 견적서'; }</style>
+  {% endif %}{# /z156 수주 있음 #}
   {% endif %}
   {% endif %}
 </dd>
           {% if can_money %}{# z1191z143 (대표 11-24): 관리번호 자리 고객 발주서 — 최종 + 이전 발주서 · 올리기(PDF·사진·엑셀) · 수주별 발주서는 수주 카드 「📄 발주서」 #}
-          <dt class="fullw" title="z1191z143: 고객사에서 받은 발주서(관리번호 전체) — 수주번호별 발주서는 아래 수주 카드·수주 상세">고객 발주서</dt><dd class="fullw" id="po143">{% set po_pid = p.id %}{% set po_oid = None %}{% set po_s = z143_po(p.id).proj %}{% set po_otxt = '' %}{% include "_v5_partials/po_rows.html" %}</dd>
+          <dt class="fullw" title="z1191z156: 고객사에서 받은 발주서 — 수주번호마다 붙습니다(올릴 때 수주번호를 고름) · 수주번호별 발주서는 아래 표·수주 카드·수주 상세">고객 발주서</dt><dd class="fullw" id="po143">{% set po_pid = p.id %}{% set po_oid = None %}{% set po_s = z143_po(p.id).proj %}{% set po_otxt = '' %}{% set po_sos = z156_sos(p.id) %}{% include "_v5_partials/po_rows.html" %}</dd>
           {# z1191z150 (대표 11-25 「상세 위쪽에 수주번호별로 견적서·발주서가 등록됐는지 한눈에」): 아래 수주 카드 표시는 그대로 #}
           {% from "_v5_partials/docs_chips.html" import qchip, pchip, dc_style %}{% set _d150 = z150_docs(p.id) %}
           <dt class="fullw" title="z1191z150: 수주번호마다 견적서·발주서가 있는지 한눈에 — 칩을 누르면 웍스 안에서 보기 · ⬇ 원본 받기">수주별 견적·발주서</dt><dd class="fullw" id="docs150">{{ dc_style() }}
@@ -2369,7 +2387,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               <td>{{ pchip(s.p) }}</td>
             </tr>{% endfor %}
             </tbody></table>
-            {% else %}<span style="font-size:12px;color:#64748b;">수주가 아직 없습니다 — 위 관리번호 견적서·발주서만 보입니다.</span>{% if _d150 and (_d150.pq or _d150.po.final) %} <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip">⬇ 한꺼번에 받기(zip)</a>{% endif %}{% endif %}
+            {% else %}<span style="font-size:12px;color:#64748b;">수주가 아직 없습니다 — 견적서·발주서는 수주번호가 생기면 그 수주번호에 올립니다.</span>{% if _d150 and (_d150.pq or _d150.po.final) %} <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip">⬇ 한꺼번에 받기(zip)</a>{% endif %}{% endif %}
           </dd>
           {% endif %}
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}

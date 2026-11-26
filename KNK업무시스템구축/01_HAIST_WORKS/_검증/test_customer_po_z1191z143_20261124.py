@@ -67,7 +67,7 @@ c.executemany("INSERT INTO orders VALUES(?,?,?,?,?,?,?)", [(1, 1, "T-260826-1", 
 cs, pick, why = M._z143_cands(c, "PO_T-261016-4_한국성전.pdf")
 check("파일 이름의 수주번호 → 그 수주 하나 · 미리 고름", len(cs) == 1 and cs[0]["oid"] == 3 and pick == 0 and "수주번호" in why, cs)
 cs, pick, why = M._z143_cands(c, "006T2608 발주서.xlsx")
-check("관리번호만 → 관리번호 자리 + 취소 뺀 수주들 · 고르기(미리 안 고름)", [x["oid"] for x in cs] == [None, 1, 3] and pick is None, cs)
+check("관리번호만 → 취소 뺀 수주들만(관리번호 자리 없음 · z1191z156) · 고르기(미리 안 고름)", [x["oid"] for x in cs] == [1, 3] and pick is None, cs)
 check("취소 수주 번호는 후보 아님", M._z143_cands(c, "T-260911-1.pdf")[0] == [])
 check("번호가 없으면 후보 없음(찾기로)", M._z143_cands(c, "scan_001.jpg")[0] == [])
 c.execute("INSERT INTO project_po_files(tok, project_id, order_id, orig_name, stored, kind, by_id, created_at) VALUES('a',1,3,'old.pdf','x/a.pdf','pdf',1,'2026-11-01 10:00')")

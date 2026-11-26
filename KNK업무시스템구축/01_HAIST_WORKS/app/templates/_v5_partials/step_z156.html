@@ -1,0 +1,36 @@
+{# z1191z156 (대표 11-26 운영 스킬 knk-step-flow): 견적서·고객 발주서 올리기 = 여러 단계 → 맨 위에 「전체 순서 + 지금 위치 + 지금 하실 일 하나」
+   쓰는 법: {% from "_v5_partials/step_z156.html" import z156_steps %}{{ z156_steps('상자 id', ['수주번호 고르기', '엑셀 올리기', ...], 1, '👉 지금 하실 일') }}
+   글·위치 바꾸기(화면 스크립트): window.z156Step('상자 id', 지금 단계 번호, '✅|⏳|👉 로 시작하는 한 줄')
+   · 지난 단계 = ✓ 초록 · 지금 단계 = 강조 · 남은 단계 = 흐리게 · 「다시 하기」 칸은 점선(문제 있을 때만) #}
+{% macro z156_steps(bid, names, cur=1, now='') -%}
+<div class="z156-flow" id="{{ bid }}" data-cur="{{ cur }}">
+  <ol class="z156-st">{% for n in names %}<li data-i="{{ loop.index }}" class="{% if loop.index < cur %}done{% elif loop.index == cur %}on{% endif %}{% if '다시' in n %} redo{% endif %}"><span class="k">{{ loop.index }}</span> {{ n }}</li>{% endfor %}</ol>
+  <div class="z156-now">{{ now }}</div>
+</div>
+<style>
+.z156-flow { margin:4px 0 6px; }
+.z156-st { display:flex; flex-wrap:wrap; gap:4px; list-style:none; margin:0; padding:0; font-size:11.5px; }
+.z156-st li { padding:1px 8px; border-radius:999px; border:1px solid #e2e8f0; color:#94a3b8; background:#fff; white-space:nowrap; }
+.z156-st li .k { font-weight:800; }
+.z156-st li.redo { border-style:dashed; }
+.z156-st li.done { color:#166534; border-color:#bbf7d0; background:#f0fdf4; }
+.z156-st li.done .k::before { content:'✓ '; }
+.z156-st li.on { color:#fff; background:#1d4ed8; border-color:#1d4ed8; font-weight:700; }
+.z156-now { margin-top:3px; font-size:12px; color:#1e3a8a; font-weight:700; }
+.z156-now.bad { color:#b91c1c; } .z156-now.ok { color:#166534; } .z156-now.todo { color:#b45309; }
+</style>
+<script>(function(){
+  if (window.z156Step) return;
+  window.z156Step = function(bid, cur, text){
+    var b = document.getElementById(bid); if (!b) return;
+    b.setAttribute('data-cur', cur);
+    Array.prototype.forEach.call(b.querySelectorAll('.z156-st li'), function(li){
+      var i = +li.getAttribute('data-i'); li.classList.toggle('done', i < cur); li.classList.toggle('on', i === cur);
+    });
+    var n = b.querySelector('.z156-now'); if (!n) return;
+    n.textContent = text || '';
+    var t = String(text || '');
+    n.className = 'z156-now' + (t.indexOf('✅') === 0 ? ' ok' : (t.indexOf('👉') === 0 ? ' todo' : (t.indexOf('⚠') === 0 ? ' bad' : '')));
+  };
+})();</script>
+{%- endmacro %}
