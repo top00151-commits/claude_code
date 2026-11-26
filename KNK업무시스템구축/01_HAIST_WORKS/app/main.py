@@ -47272,7 +47272,8 @@ def _z154_check_rows(c, limit=3000):
         r["prev_end"] = pv["end_customer"] if pv else None
         r["prev_po"] = (pv["po_type"] if pv else None)
         prev[r["pid"]] = r
-        if r["end_customer"] is None or not r["po_type"] or r.get("iex_null"):   # z1191z159: 거래구분 빈 품목 줄도(대표 11-26 「37건 직접 수정」)
+        # z1191z159c (대표 11-26 「2차 = 장비가 최종 납품·셋업되는 곳 · 2차 모두 대표값으로 확정을 왜 하라는건지 모르겠어」): 2차는 사람에게 다시 묻지 않음
+        if not r["po_type"] or r.get("iex_null"):   # z1191z159: 거래구분 빈 품목 줄도(대표 11-26 「37건 직접 수정」)
             out.append(r)
     return out[:limit]
 

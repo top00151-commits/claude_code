@@ -122,7 +122,9 @@ with D.db_session() as c:   # 수주 2개 관리번호: 옛 자료처럼 수주 
     c.execute("INSERT INTO orders(order_no, customer_id, project_id, order_date, status) VALUES('M-Z154-3', ?, ?, '2026-06-01', 'CONFIRMED')", (cid, PB))
 f0 = fp()
 r = q(cl.get, "/projects/so-check")
-check("목록 200 · 수주 3건(2차·PO유형 비어 있음)", r.status_code == 200 and r.text.count('data-oid="') == 3 and "(대표값 · 확인 필요)" in r.text, r.status_code)
+check("목록 200 · 수주 3건(PO유형 비어 있음)", r.status_code == 200 and r.text.count('data-oid="') == 3 and "비어 있음(확인 필요)" in r.text, r.status_code)
+# z1191z159c (대표 11-26 「2차 = 장비 최종 납품·셋업처 · 2차 모두 대표값으로 확정을 왜 하라는건지」): 2차는 묻지 않음 · 「대표값」·「관리번호 값」 말 없음
+check("2차 칸·대표값 말 없음", "<th>2차 고객</th>" not in r.text and "대표값" not in r.text and "관리번호 값" not in r.text and "2차 모두" not in r.text)
 check("목록을 여는 것만으로는 저장 안 함", fp() == f0)
 check("프로젝트 목록에 「⚠ 수주 칸 확인 필요 3」", "수주 칸 확인 필요 <b>3</b>" in q(cl.get, "/projects").text)
 with D.db_session() as c:
