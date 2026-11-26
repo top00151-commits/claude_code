@@ -36,7 +36,7 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
       <h1 class="knk-page-title">📄 {{ f.orig_name }}</h1>
       <p class="knk-page-meta">
         <a href="/project/{{ f.project_id }}#po143">{{ f.mgmt_code }}{% if f.pname %} {{ f.pname }}{% endif %}</a>
-        · {% if f.order_no %}수주번호 <a href="/sales/orders/{{ f.order_id }}#po143"><b>{{ f.order_no }}</b></a>의 고객 발주서{% else %}관리번호 전체 고객 발주서{% endif %}
+        · {% if f.order_no %}수주번호 <a href="/sales/orders/{{ f.order_id }}#po143"><b>{{ f.order_no }}</b></a>의 고객 발주서{% else %}<a href="/projects/so-check" style="color:#b45309;font-weight:700;" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 발주서">👉 수주번호를 아직 고르지 않은 고객 발주서 — 고르기</a>{% endif %}
         · {% if is_final %}<b style="color:#166534;">최종</b>{% else %}<b style="color:#64748b;">이전 발주서(수정 전)</b>{% endif %}
         · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }} 올림
       </p>
