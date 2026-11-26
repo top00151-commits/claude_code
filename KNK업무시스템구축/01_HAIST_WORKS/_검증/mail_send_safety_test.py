@@ -213,7 +213,8 @@ check("전체 답장 참조 = 원래 받는 사람(나 빼고) + 참조 · 이�
       '"Lee, Jay" <jay@semco.example>' in ccv and "kim@partner.example" in ccv and "cc1@semco.example" in ccv, ccv)
 check("전체 답장: 나(이름 붙은 대문자 주소 포함)·원래 보낸 사람은 빠짐", "boss@knknara.co.kr" not in ccv.lower() and "p@semco.example" not in ccv, ccv)
 check("전체 답장: 받는 사람 = 원래 보낸 사람", 'value="p@semco.example"' in hr)
-check("받아 오는 두 곳 모두 to_all 넘김", open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read().count('to_all=parsed.get("to_all", "")') == 2)
+check("받아 오는 두 곳 모두 to_all 넘김", open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read().count('to_all=parsed.get("to_all", "")') == 1
+      and open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read().count("_mailfetch_store_all(res, acct") == 2)   # 11-27 두 가져오기 = 한 저장 함수
 check("원문 해석이 To 전체를 돌려줌", '"to_all": _h("To")' in open(os.path.join(ROOT, "app", "mail_store.py"), encoding="utf-8").read())
 
 print("== ⑩ 임시 메일 ==")

@@ -2469,6 +2469,46 @@ def _mailfetch_run_owner(owner_id, wait=0, label="자동 가져오기"):
         return _mailfetch_run_owner_locked(owner_id, label)
 
 
+def _mailfetch_store_all(res, acct, user, protocol, ai_on, status_owner, label):
+    """가져온 메일들을 저장(11-27) — 한 통마다 짧은 저장 한 번(원문 읽기는 DB 밖에서) · 받은 표시도 그 한 통과 같이.
+    AI 분류·요약은 여기서 기다리지 않고 번호만 모은다(부른 쪽이 저장 끝난 뒤 ai_fill_later).
+    반환 (stored, [(새 메일 번호, 자동 발송 표시)], AI 미룬 번호들)."""
+    from . import mail_fetch as _mailfetch
+    stored, got, ai_ids = 0, [], []
+    for key, raw in res.get("messages", []):
+        try:
+            parsed = _mailbox.parse_raw_email(raw)
+            with db_session() as c:
+                mid = None
+                if parsed:
+                    mid, _own = _mailbox.store_inbound(
+                        c, to_email=(parsed.get("to_email") or user),
+                        from_email=parsed.get("from_email", ""), from_name=parsed.get("from_name", ""),
+                        subject=parsed.get("subject", ""), text=parsed.get("text", ""),
+                        html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
+                        owner_id=acct["owner_user_id"], run_ai=ai_on,
+                        attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
+                        auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
+                        raw_headers=parsed.get("raw_headers", ""), sent_at=parsed.get("sent_at", ""),   # 11-22 원문 머리글 · 11-23 원래 날짜
+                        ai_later=ai_ids)
+                if protocol != "imap":
+                    _mailfetch.add_seen(c, acct["id"], [key])   # 받아본 UIDL = 저장과 같은 묶음(중간에 멈춰도 다시 받아 겹치지 않게)
+            if mid:
+                stored += 1
+                got.append((mid, bool(parsed.get("auto_hdr"))))
+        except Exception as _e:
+            print("[MAIL-FETCH] 한 통 저장 건너뜀(%s): %s" % (label, str(_e)[:160]), flush=True)
+    with db_session() as c:
+        if protocol == "imap":
+            _mailfetch.set_status(c, status_owner, last_uid=res.get("max_uid", acct.get("last_uid") or 0),
+                                  status="%s %d건" % (label, stored), count=stored)
+        else:
+            # 받아본 UIDL 전부 seen 처리(중복·오류메일 재시도 루프 방지)
+            _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
+            _mailfetch.set_status(c, status_owner, status="%s %d건" % (label, stored), count=stored)
+    return stored, got, ai_ids
+
+
 def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
     """한 계정의 새 메일을 가져와 저장(동기·블로킹 — 스케줄러 스레드·「보내기/받기」 단추(스레드풀)에서 호출).
     /admin/mail-fetch/run 과 동일 수집·적재 로직의 '자동판'. 반환 (ok, stored, msg)."""
@@ -2516,47 +2556,21 @@ def _mailfetch_run_owner_locked(owner_id, label="자동 가져오기"):
     _old_imp = bool(acct.get("old_import"))
     if _old_imp:
         ai_on = False   # 11-23 지난 메일을 한꺼번에 가져오는 동안은 AI 요약 안 함(느림·비용)
-    stored = 0
     _ar_cand = []   # 11-19 2단계-나 — 새로 들어온 메일(번호 · 자동 발송 표시) → 🏖 부재중 자동 응답
     with db_session() as c:
         _ar_max = c.execute("SELECT COALESCE(MAX(id),0) FROM mail_messages").fetchone()[0] or 0
-    with db_session() as c:
-        for key, raw in res.get("messages", []):
-            try:
-                parsed = _mailbox.parse_raw_email(raw)
-                if not parsed:
-                    continue
-                mid, _own = _mailbox.store_inbound(
-                    c, to_email=(parsed.get("to_email") or user),
-                    from_email=parsed.get("from_email", ""), from_name=parsed.get("from_name", ""),
-                    subject=parsed.get("subject", ""), text=parsed.get("text", ""),
-                    html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
-                    owner_id=acct["owner_user_id"], run_ai=ai_on,
-                    attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
-                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
-                    raw_headers=parsed.get("raw_headers", ""), sent_at=parsed.get("sent_at", ""))   # 11-22 원문 머리글 보관 · 11-23 원래 날짜
-                if mid:
-                    stored += 1
-                    if mid > _ar_max:
-                        _ar_cand.append((mid, bool(parsed.get("auto_hdr"))))
-            except Exception:
-                pass
-        if protocol == "imap":
-            _mailfetch.set_status(c, owner_id, last_uid=res.get("max_uid", acct.get("last_uid") or 0),
-                                  status="%s %d건" % (label, stored), count=stored)
-        else:
-            _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
-            _mailfetch.set_status(c, owner_id, status="%s %d건" % (label, stored), count=stored)
-        # [z521 핫픽스] 자동 중복정리 비활성화 — 가져오기 트랜잭션(db_session) 안에서 받은편지함
-        # 전체 백필+대량삭제를 돌리면 긴 쓰기 락이 걸려, 그 사이 로그인(sso_land→upsert_user)이
-        # 'database is locked' 로 실패함. 잠금 안 걸리는 방식(busy_timeout·소량 배치·짧은 전용
-        # 트랜잭션)으로 재설계 후 재도입 예정. 신규 1통저장(store_inbound)·수동 🔁·수동 압축은 유지.
+    # 11-27 한 통마다 짧은 저장 · AI 는 저장 뒤(DB 를 잡은 채 AI 를 기다리지 않게)
+    # [z521 핫픽스] 자동 중복정리 비활성화는 그대로 — 가져오기 중 받은편지함 전체 정리는 하지 않음.
+    stored, _got, _ai_ids = _mailfetch_store_all(res, acct, user, protocol, ai_on, owner_id, label)
+    _ar_cand = [(m, a) for (m, a) in _got if m > _ar_max]
     if _old_imp:
         _ar_cand = []   # 11-23 지난 메일에 부재중 자동 응답을 보내지 않음
     try:
         _mail_autoreply_run(owner_user, _ar_cand)   # 11-19 받아 온 저장을 끝낸 뒤(쓰기 잠금 풀린 뒤) 🏖 자동 응답
     except Exception as _e:
         print("[MAIL-AUTOREPLY run ERR] %s" % str(_e)[:160], flush=True)
+    if _ai_ids:
+        _mailbox.ai_fill_later(db_session, _ai_ids)   # 11-27 저장이 끝난 뒤 AI 분류·요약(한 통씩 짧게 적음)
     return (True, stored, "")
 
 
@@ -24542,17 +24556,40 @@ async def mail_inbound(req: Request):
     """Cloudflare Email Routing(Worker)가 받은 메일을 밀어넣는 받는 구멍.
     보안: 비밀토큰 일치 필수(관리자 설정 mail_inbound_token 또는 환경변수). 미설정 시 비활성.
     payload: {to, from, subject, raw(MIME 원문), ...} — raw 있으면 파이썬으로 파싱."""
+    import hmac as _hmac
+    import json
+    from starlette.concurrency import run_in_threadpool
+    _ip = ((req.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+           or (req.client.host if req.client else ""))[:64]
     token_cfg = _mail_inbound_token()
     if not token_cfg:
         return JSONResponse({"ok": False, "message": "수신 기능 비활성 — 관리자 '메일 받기 설정'에서 토큰을 먼저 생성하세요."}, 403)
-    token = (req.headers.get("X-KNK-Mail-Token")
-             or req.query_params.get("token") or "").strip()
-    if token != token_cfg:
+    # 11-27 머리글로만 받는다(주소 뒤 값은 접속 기록에 남을 수 있음) · 같은 시간 비교
+    token = (req.headers.get("X-KNK-Mail-Token") or "").strip()
+    if not token or not _hmac.compare_digest(token.encode("utf-8"), token_cfg.encode("utf-8")):
+        _mail_inbound_log(_ip, "", "", 0, "인증 실패")
         return JSONResponse({"ok": False, "message": "인증 실패"}, 401)
     try:
-        d = await req.json()
+        _clen = int(req.headers.get("content-length") or 0)
+    except Exception:
+        _clen = 0
+    if _clen > MAIL_INBOUND_MAX_BYTES:
+        _mail_inbound_log(_ip, "", "", _clen, "너무 큼")
+        return JSONResponse({"ok": False, "message": "메일이 너무 큽니다."}, 413)
+    try:
+        _body = await req.body()
+        if len(_body) > MAIL_INBOUND_MAX_BYTES:
+            _mail_inbound_log(_ip, "", "", len(_body), "너무 큼")
+            return JSONResponse({"ok": False, "message": "메일이 너무 큽니다."}, 413)
+        d = json.loads(_body or b"{}")
+        if not isinstance(d, dict):
+            raise ValueError("not object")
     except Exception:
         return JSONResponse({"ok": False, "message": "JSON 본문이 필요합니다."}, 400)
+    _to0 = _mailbox._norm_addr(d.get("to") or "")
+    if _mail_inbound_too_many(_to0):
+        _mail_inbound_log(_ip, _to0, d.get("from") or "", len(_body), "너무 많이 들어옴")
+        return JSONResponse({"ok": False, "message": "잠시 뒤 다시 보내 주세요(짧은 시간에 너무 많이 들어옴)."}, 429)
 
     f = {"to_email": (d.get("to") or "").strip(),
          "from_email": d.get("from") or "", "from_name": d.get("from_name") or "",
@@ -24565,7 +24602,7 @@ async def mail_inbound(req: Request):
     _raw_hdr = ""
     _sent_at = ""
     if raw:
-        parsed = _mailbox.parse_raw_email(raw)
+        parsed = await run_in_threadpool(_mailbox.parse_raw_email, raw)   # 11-27 일꾼 밖에서
         if parsed:
             for k in ("from_email", "from_name", "subject", "text", "html", "cc", "message_id"):
                 if parsed.get(k):
@@ -24579,20 +24616,84 @@ async def mail_inbound(req: Request):
             _sent_at = parsed.get("sent_at", "")
 
     if not f["to_email"]:
+        _mail_inbound_log(_ip, "", f["from_email"], len(_body), "받는 주소 없음")
         return JSONResponse({"ok": False, "message": "수신 주소(to)가 없습니다."}, 400)
-    with db_session() as c:
-        mid, owner = _mailbox.store_inbound(
-            c, to_email=f["to_email"], from_email=f["from_email"],
-            from_name=f["from_name"], subject=f["subject"], text=f["text"],
-            html=f["html"], cc=f["cc"], size=f["size"], run_ai=None,   # 11-18: 받는 사람의 메일 AI 허용(OpenAI)일 때만
-            attachments=_atts, message_id=f.get("message_id", ""),
-            auth=_auth, reply_to=_reply_to, raw_headers=_raw_hdr,   # 11-22 원문 머리글 보관
-            sent_at=_sent_at,                                        # 11-23 원래 날짜
-        )
+    # 11-27 받는 주소 = 우리가 받는 도메인(회사·시험 도메인·등록된 별칭)만 — 아무 주소나 기본 받는 사람에게 넣지 않게
+    if not _mail_inbound_domain_ok(f["to_email"]):
+        _mail_inbound_log(_ip, f["to_email"], f["from_email"], len(_body), "받지 않는 주소")
+        return JSONResponse({"ok": False, "message": "받지 않는 주소입니다."}, 422)
+    # 11-27 이 입구(바깥 받기)로 들어온 것 표시 — 우리 회사 주소로 왔는데 서버 확인(통과)이 없으면 경고하려고
+    _auth = dict(_auth or {})
+    _auth["via"] = "inbound"
+    _ai_ids = []
+
+    def _store():
+        with db_session() as c:
+            return _mailbox.store_inbound(
+                c, to_email=f["to_email"], from_email=f["from_email"],
+                from_name=f["from_name"], subject=f["subject"], text=f["text"],
+                html=f["html"], cc=f["cc"], size=f["size"], run_ai=None,   # 11-18: 받는 사람의 메일 AI 허용(OpenAI)일 때만
+                attachments=_atts, message_id=f.get("message_id", ""),
+                auth=_auth, reply_to=_reply_to, raw_headers=_raw_hdr,   # 11-22 원문 머리글 보관
+                sent_at=_sent_at,                                        # 11-23 원래 날짜
+                ai_later=_ai_ids,                                        # 11-27 AI 는 저장 뒤
+            )
+    mid, owner = await run_in_threadpool(_store)   # 11-27 일꾼을 붙잡지 않게
     if not mid:
         # 데이터 연결성 원칙: 조용히 버리지 않고 사유 표면화
+        _mail_inbound_log(_ip, f["to_email"], f["from_email"], len(_body), "받는 사람 못 찾음")
         return JSONResponse({"ok": False, "message": "수신자 매핑 실패(받는 사람을 찾지 못함)"}, 422)
-    return JSONResponse({"ok": True, "id": mid, "owner": owner})
+    _mail_inbound_log(_ip, f["to_email"], f["from_email"], len(_body), "받음")
+    if _ai_ids:
+        await run_in_threadpool(_mailbox.ai_fill_later, db_session, _ai_ids)
+    return JSONResponse({"ok": True})   # 11-27 받는 사람·메일 번호는 돌려주지 않음
+
+
+MAIL_INBOUND_MAX_BYTES = int(os.environ.get("KNK_MAIL_INBOUND_MAX_MB") or 40) * 1024 * 1024   # 한 통(JSON 전체) 최대
+MAIL_INBOUND_PER_MIN = 120        # 1분에 전체 최대 통수(이 일꾼 기준)
+MAIL_INBOUND_PER_MIN_ADDR = 30    # 1분에 한 받는 주소 최대 통수
+_MAIL_INBOUND_HITS = []           # (시각, 받는 주소)
+_MAIL_INBOUND_DOMAINS = ("knknara.co.kr", "knk-mailtest.com")
+
+
+def _mail_inbound_too_many(to_addr) -> bool:
+    """수신 입구 횟수 한도(11-27) — 1분 동안 전체·같은 주소 통수. 넘으면 True(이번 것은 세지 않음)."""
+    import time as _t
+    now = _t.time()
+    _MAIL_INBOUND_HITS[:] = [h for h in _MAIL_INBOUND_HITS if now - h[0] < 60]
+    if len(_MAIL_INBOUND_HITS) >= MAIL_INBOUND_PER_MIN:
+        return True
+    if to_addr and sum(1 for h in _MAIL_INBOUND_HITS if h[1] == to_addr) >= MAIL_INBOUND_PER_MIN_ADDR:
+        return True
+    _MAIL_INBOUND_HITS.append((now, to_addr or ""))
+    return False
+
+
+def _mail_inbound_domain_ok(to_addr) -> bool:
+    """받는 주소가 우리가 받는 곳인가 — 회사 도메인·시험 도메인 · 또는 별칭 표(mail_aliases)에 있는 주소."""
+    a = _mailbox._norm_addr(to_addr)
+    dom = a.split("@")[-1] if "@" in a else ""
+    if dom in _MAIL_INBOUND_DOMAINS:
+        return True
+    try:
+        with db_session() as c:
+            return bool(c.execute("SELECT 1 FROM mail_aliases WHERE address=?", (a,)).fetchone())
+    except Exception:
+        return False
+
+
+def _mail_inbound_log(ip, to_addr, from_addr, size, result):
+    """수신 입구 기록(11-27) — 언제·어디서·누구에게·크기·결과만(메일 내용은 남기지 않음). 90일 지난 줄은 지움. 실패해도 받기는 계속."""
+    try:
+        with db_session() as c:
+            c.execute("CREATE TABLE IF NOT EXISTS mail_inbound_log (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                      "at TEXT DEFAULT (datetime('now','localtime')), ip TEXT, to_addr TEXT, from_addr TEXT, size INTEGER, result TEXT)")
+            c.execute("INSERT INTO mail_inbound_log(ip, to_addr, from_addr, size, result) VALUES(?,?,?,?,?)",
+                      ((ip or "")[:64], (to_addr or "")[:200], (from_addr or "")[:200], int(size or 0), (result or "")[:40]))
+            if c.execute("SELECT MAX(id) FROM mail_inbound_log").fetchone()[0] % 200 == 0:
+                c.execute("DELETE FROM mail_inbound_log WHERE at < datetime('now','localtime','-90 days')")
+    except Exception as _e:
+        print("[MAIL-INBOUND-LOG] 기록 실패(받기는 계속): %s" % str(_e)[:120], flush=True)
 
 
 _MAIL_POC_ADDR = "test@knk-mailtest.com"
@@ -24761,6 +24862,8 @@ def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unr
             _m["ccme"] = _mail_find.is_cc(_m, _mine)
             _sp = _mpeople.sender(_mpst, _mpme, _m.get("from_email")) if _inb else {}
             _m["staff"], _m["boss"] = _sp.get("disp", ""), _sp.get("boss", "")
+            if int(_m.get("risk_level") or 0) >= 2:
+                _m["boss"] = ""   # 11-27 의심 메일엔 👔 윗분 표시 안 함(회사 주소는 흉내 낼 수 있음)
             _m["kind"] = _mailbox.mail_kind(_m)
             _m["flag_late"] = bool(_m.get("flag_due") and _m["flag_due"] < _mtoday)
             _m["flag_today"] = bool(_m.get("flag_due") and _m["flag_due"] == _mtoday)
@@ -29098,33 +29201,11 @@ async def admin_mail_fetch_run(req: Request):
         with db_session() as c:
             _mailfetch.set_status(c, u["id"], status="실패: " + res.get("error", ""))
         return JSONResponse({"ok": False, "message": "가져오기 실패: " + res.get("error", "")})
-    stored = 0
     ai_on = mail_ai_enabled_for(u)
-    with db_session() as c:
-        for key, raw in res.get("messages", []):
-            try:
-                parsed = _mailbox.parse_raw_email(raw)
-                if not parsed:
-                    continue
-                mid, _own = _mailbox.store_inbound(
-                    c, to_email=(parsed.get("to_email") or user),
-                    from_email=parsed.get("from_email", ""), from_name=parsed.get("from_name", ""),
-                    subject=parsed.get("subject", ""), text=parsed.get("text", ""),
-                    html=parsed.get("html", ""), cc=parsed.get("cc", ""), size=len(raw),
-                    owner_id=acct["owner_user_id"], run_ai=ai_on, attachments=parsed.get("attachments"), message_id=parsed.get("message_id", ""),
-                    auth=parsed.get("auth"), reply_to=parsed.get("reply_to", ""), to_all=parsed.get("to_all", ""),
-                    raw_headers=parsed.get("raw_headers", ""), sent_at=parsed.get("sent_at", ""))   # 11-22 원문 머리글 보관 · 11-23 원래 날짜
-                if mid:
-                    stored += 1
-            except Exception:
-                pass
-        if protocol == "imap":
-            _mailfetch.set_status(c, u["id"], last_uid=res.get("max_uid", acct.get("last_uid") or 0),
-                                  status="가져오기 %d건" % stored, count=stored)
-        else:
-            # 받아본 UIDL 전부 seen 처리(중복·오류메일 재시도 루프 방지)
-            _mailfetch.add_seen(c, acct["id"], [k for (k, _r) in res.get("messages", [])])
-            _mailfetch.set_status(c, u["id"], status="가져오기 %d건" % stored, count=stored)
+    # 11-27 한 통마다 짧은 저장 · 일꾼 밖(스레드)에서 · AI 는 저장 뒤
+    stored, _got, _ai_ids = await run_in_threadpool(_mailfetch_store_all, res, acct, user, protocol, ai_on, u["id"], "가져오기")
+    if _ai_ids:
+        await run_in_threadpool(_mailbox.ai_fill_later, db_session, _ai_ids)
     return JSONResponse({"ok": True, "count": stored})
 
 
@@ -29462,8 +29543,8 @@ def _mail_boss_ids(c, uid, reply_map, st, me) -> set:
     out = set()
     for i in range(0, len(ids), 400):
         chunk = ids[i:i + 400]
-        for r in c.execute("SELECT id, from_email FROM mail_messages WHERE user_id=? AND id IN (" + ",".join("?" * len(chunk)) + ")",
-                           (uid, *chunk)).fetchall():
+        for r in c.execute("SELECT id, from_email FROM mail_messages WHERE user_id=? AND COALESCE(risk_level,0)<2 AND id IN (" + ",".join("?" * len(chunk)) + ")",
+                           (uid, *chunk)).fetchall():   # 11-27 의심 메일은 👔 윗분 지시에서 뺌
             if _mpeople.sender(st, me, r["from_email"]).get("boss"):
                 out.add(r["id"])
     return out
@@ -29515,7 +29596,8 @@ def _mail_view_people(c, u, m) -> dict:
                 if _r["via"]:
                     _r["title"] = "나는 이 그룹 메일로 받았습니다 — " + _r["title"]
                 _r["x"] = _i >= 4 and not _r["me"] and not _r["via"]   # 「외 N명」에 숨기는 칩(나·내 그룹은 늘 보임)
-        return {"disp": s.get("disp", ""), "boss": s.get("boss", ""),
+        _boss = "" if int(m.get("risk_level") or 0) >= 2 else s.get("boss", "")   # 11-27 의심 메일엔 👔 안 붙임
+        return {"disp": s.get("disp", ""), "boss": _boss,
                 "role": _role, "via": _via, "rcpt_to": _to, "rcpt_cc": _cc}
     except Exception as _e:
         print("[MAIL-PEOPLE] 메일 보기 사람 표시 실패: %s" % str(_e)[:160], flush=True)

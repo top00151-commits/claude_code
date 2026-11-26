@@ -251,7 +251,7 @@ check("List-Id · Precedence: bulk · Auto-Submitted → 자동 발송",
       and ms.parse_raw_email(raw("Auto-Submitted: auto-replied\r\n"))["auto_hdr"])
 check("보통 메일 · Auto-Submitted: no → 사람 메일", not ms.parse_raw_email(raw("X-Mailer: Outlook\r\n"))["auto_hdr"] and not ms.parse_raw_email(raw("Auto-Submitted: no\r\n"))["auto_hdr"])
 src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
-check("받아 온 뒤(저장 끝난 뒤) 자동 응답 부름 · 새 메일만", "_mail_autoreply_run(owner_user, _ar_cand)" in src and "if mid > _ar_max:" in src)
+check("받아 온 뒤(저장 끝난 뒤) 자동 응답 부름 · 새 메일만", "_mail_autoreply_run(owner_user, _ar_cand)" in src and "if m > _ar_max]" in src)   # 11-27 새 메일만(저장 함수가 돌려준 번호 중)
 check("예약 시계 = 메일 수집 서버에서만 · 나스 백업 시간엔 쉼", "_sch_th.Timer(90, _mail_sched_tick)" in src and "if not _nas_quiet_now():" in src)
 
 print("== ⑨ 화면 ==")

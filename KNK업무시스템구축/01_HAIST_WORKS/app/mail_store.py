@@ -615,8 +615,10 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
                   subject: str = "", text: str = "", html: str = "", cc: str = "",
                   size=0, owner_id=None, run_ai: bool = True, attachments=None,
                   message_id: str = "", auth=None, reply_to: str = "", to_all: str = "",
-                  raw_headers: str = "", sent_at: str = ""):
+                  raw_headers: str = "", sent_at: str = "", ai_later=None):
     """받은 메일 1건 저장. 반환 (mail_id, owner_id).
+    ai_later(목록을 넘기면): AI 분류·요약을 여기서 기다리지 않고 메일 번호만 담는다 → 부른 쪽이 저장(commit) 뒤 ai_fill_later 로
+      (11-27 — 저장 묶음이 DB 를 잡은 채 AI 를 기다리면 그동안 웍스 저장이 실패한다).
     raw_headers: 원문 머리글(11-22 대표 「보낸 사람 주소를 알 수 없는 건 치명적」) — 서버 안에 남겨 언제든 다시 읽게(save_raw_headers).
     to_all: 원문 「받는 사람」 머리 그대로(여러 명) — 전체 답장 명단용(11-19).
     owner_id 미지정 시 to_email 로 수신자 해석. 수신자 없으면 (None, None).
@@ -644,7 +646,8 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     category, lang, summary = "일반", "", ""
     if run_ai is None:   # 11-18: 바깥 입구(/api/mail/inbound)도 받는 사람의 AI 허용·메일 AI(OpenAI) 여부를 따른다
         run_ai = _owner_mail_ai_ok(c, owner)
-    if run_ai:
+    _ai_defer = bool(run_ai) and ai_later is not None
+    if run_ai and not _ai_defer:
         category, lang = _ai_classify(subject, body)
         summary = _ai_summary(body)
     # 사용자 자동분류 규칙이 일치하면 AI 결과를 덮어씀(명시 의도 우선)
@@ -730,6 +733,8 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
                 dedup_hash, dup_count, is_blocked, risk_level, risk_note, to_all)
                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", _vals)
     mail_id = cur.lastrowid
+    if _ai_defer:
+        ai_later.append(mail_id)
     if _arr:
         try:
             c.execute("UPDATE mail_messages SET received_at=? WHERE id=?", (_arr, mail_id))
@@ -753,6 +758,42 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     except Exception as _e:
         print("[MAIL-BODY-PACK] 받을 때 압축 건너뜀(본문 그대로): %s" % str(_e)[:120], flush=True)
     return (mail_id, owner)
+
+
+AI_LATER_MAX = 40   # 11-27 한 번 받기에서 AI 분류·요약을 돌리는 최대 통수(메일이 한꺼번에 몰려도 비용·시간이 끝없이 늘지 않게)
+
+
+def ai_fill_later(session, ids, limit=AI_LATER_MAX) -> int:
+    """store_inbound(ai_later=…) 로 미뤄 둔 AI 분류·요약 채우기 — 저장(commit)이 끝난 뒤 부른다.
+    읽기 → (DB 를 잡지 않은 채) AI 기다리기 → 짧게 UPDATE. 그 사이 사람이 종류를 바꿨으면 종류는 그대로 둔다.
+    session = database.db_session. 반환 = 채운 통수. 실패한 메일은 AI 없이 그대로(메일은 이미 저장됨)."""
+    done = 0
+    for mid in list(ids or [])[:max(0, int(limit or 0))]:
+        try:
+            with session() as c:
+                r = c.execute("SELECT user_id, from_email, from_name, subject, body_text, category "
+                              "FROM mail_messages WHERE id=?", (mid,)).fetchone()
+            if not r:
+                continue
+            cat, lang = _ai_classify(r["subject"] or "", r["body_text"] or "")
+            summ = _ai_summary(r["body_text"] or "")
+            with session() as c:
+                try:
+                    _rcat = match_rules(c, r["user_id"], r["from_email"], r["from_name"], r["subject"])
+                except Exception:
+                    _rcat = None
+                # 저장 때 넣은 처음 값(규칙 결과 또는 「일반」) 그대로일 때만 종류를 바꾼다 — 사람이 바꾼 종류는 덮지 않음
+                c.execute("UPDATE mail_messages SET category=CASE WHEN category=? THEN ? ELSE category END, "
+                          "lang=CASE WHEN COALESCE(lang,'')='' THEN ? ELSE lang END, "
+                          "summary=CASE WHEN COALESCE(summary,'')='' THEN ? ELSE summary END WHERE id=?",
+                          (_rcat or "일반", _rcat or cat, lang, summ, mid))
+            done += 1
+        except Exception as _e:
+            print("[MAIL-AI-LATER] %s 번 AI 채우기 건너뜀(메일은 저장됨): %s" % (mid, str(_e)[:120]), flush=True)
+    _left = len(list(ids or [])) - max(0, int(limit or 0))
+    if _left > 0:
+        print("[MAIL-AI-LATER] 한 번 받기 AI 한도(%d통) 넘음 — %d통은 AI 없이 저장" % (limit, _left), flush=True)
+    return done
 
 
 def dedup_inbox(c, user_id: int, hard: bool = False) -> int:
@@ -2455,7 +2496,8 @@ def parse_raw_email(raw) -> dict:
 #   → 받을 때 머리글을 서버에 남긴다. 주소를 읽은 메일 = 주소 관련 머리만(작게) · **주소를 못 읽은 메일 = 머리글 전부**.
 #   읽는 방식을 또 고치면 서버 안에서 바로 다시 읽어 채울 수 있다(reparse_from).
 HDR_KEEP = ("from", "sender", "reply-to", "return-path", "to", "cc", "message-id", "date",
-            "x-original-from", "x-sender", "x-original-sender", "resent-from", "envelope-from", "x-envelope-from")
+            "x-original-from", "x-sender", "x-original-sender", "resent-from", "envelope-from", "x-envelope-from",
+            "authentication-results")   # 11-27 메일 서버 확인 결과 줄(회사 주소 위조 판정을 운영 자료로 맞추려고 · 메일 내용 아님)
 HDR_MAX = 64 * 1024
 
 

@@ -266,6 +266,11 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
         level = max(level, 3)
         codes.append("auth_ours")
         notes.append("우리 회사 주소로 왔지만 메일 서버 인증 실패(%s) — 회사 사칭 의심" % "·".join(fails))
+    elif ours and au.get("via") == "inbound" and not (au.get("dmarc") == "pass" or (au.get("spf") == "pass" and au.get("dkim") == "pass")):
+        # 11-27 바깥 받는 길(수신 입구)로 들어온 「우리 회사 주소」 메일인데 서버 확인(통과)이 없음
+        level = max(level, 2)
+        codes.append("ours_unverified")
+        notes.append("우리 회사 주소로 왔지만 바깥에서 들어왔고 메일 서버 확인이 없음 — 회사 사칭 의심")
     elif external and au.get("dmarc") == "fail":
         level = max(level, 2)
         codes.append("auth")
@@ -387,6 +392,11 @@ def assess(from_email="", from_name="", subject="", body="", html="", attachment
         level = max(level, 2)
         codes.append("bec")
         notes.append("송금·계좌 변경 요구 — 반드시 전화로 거래처에 직접 확인")
+    elif ours and _BEC_PAT.search(blob):
+        # 11-27 회사 주소는 바깥에서 흉내 낼 수 있다 — 사내 메일이라도 송금·계좌 변경은 경고(사내 메일은 스팸함으로 옮기지 않음)
+        level = max(level, 2)
+        codes.append("bec")
+        notes.append("사내 주소로 온 송금·계좌 변경 요구 — 보낸 분께 전화로 직접 확인")
     if external and nlinks and _CRED_PAT.search(blob):
         _cl = 2 if (_URGENT_PAT.search(blob) or _THREAT_PAT.search(blob) or fails or lnotes) else 1
         level = max(level, _cl)

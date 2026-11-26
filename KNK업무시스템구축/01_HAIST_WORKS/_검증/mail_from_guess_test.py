@@ -91,7 +91,8 @@ _p, _i, _h = store(long_fold)
 check("이어진 줄(접힌 머리)도 함께 남김", _h and "rt@demo-a.example" in _h["hdr"], _h)
 src = io.open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
 check("메일 받는 세 곳(자동 가져오기 · 지금 가져오기 · 바깥 입구) 모두 원문 머리글을 넘김",
-      src.count('raw_headers=parsed.get("raw_headers", "")') == 2 and "raw_headers=_raw_hdr" in src)
+      src.count('raw_headers=parsed.get("raw_headers", "")') == 1 and src.count("_mailfetch_store_all(res, acct") == 2   # 11-27 두 가져오기 = 한 저장 함수
+      and "raw_headers=_raw_hdr" in src)
 
 print("== ③ 우리 자료로 찾기 — 가짜 메일 ==")
 
