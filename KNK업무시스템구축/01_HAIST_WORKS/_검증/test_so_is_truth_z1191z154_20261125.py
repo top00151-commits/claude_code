@@ -139,6 +139,19 @@ j = q(cl.post, "/api/so-check-proj/%d" % PB, data={"field": "po_type"}).json()
 check("관리번호 모두 대표값으로 확정: PO유형 3건 = 추가", j.get("ok") and j.get("n") == 3
       and one("SELECT COUNT(*) FROM orders WHERE project_id=? AND po_type='추가'", PB) == (3,), j)
 check("이력: 수주마다 「칸 확인」 남음", one("SELECT COUNT(*) FROM project_history WHERE project_id=? AND note LIKE 'z1191z154 수주 %칸 확인%'", PB)[0] >= 6)
+# z1191z159: 거래구분이 빈 품목 줄도 목록에 — 「내수로 확정」·「수출」(사람이 고름 · 빈 줄만 · 이력)
+with D.db_session() as c:
+    _iex_o = [x[0] for x in c.execute("SELECT DISTINCT o.id FROM orders o JOIN order_items i ON i.order_id=o.id JOIN projects p ON p.id=o.project_id "
+                                       "WHERE i.is_export IS NULL AND COALESCE(o.status,'')<>'CANCELLED'").fetchall()]
+_iex_ok = True
+for _k, _oid in enumerate(_iex_o):
+    _v = "수출" if _k == 0 else "내수"
+    _j = q(cl.post, "/api/so-check/%d" % _oid, data={"field": "is_export", "action": "set", "value": _v}).json()
+    _iex_ok = _iex_ok and bool(_j.get("ok")) and one("SELECT COUNT(*) FROM order_items WHERE order_id=? AND is_export IS NULL", _oid) == (0,)
+check("거래구분 빈 줄 = 사람이 고른 값으로(%d건)" % len(_iex_o), _iex_ok)
+if _iex_o:
+    _j = q(cl.post, "/api/so-check/%d" % _iex_o[0], data={"field": "is_export", "action": "set", "value": "내수"}).json()
+    check("거래구분 이미 정한 수주는 다시 안 바꿈(409)", not _j.get("ok") and one("SELECT MIN(is_export) FROM order_items WHERE order_id=?", _iex_o[0]) == (1,), _j)
 check("모두 정하면 목록 비어 「✅ 완료」", "✅ 완료 — 확인할 수주가 없습니다" in q(cl.get, "/projects/so-check").text)
 tt = open(os.path.join(ROOT, "app", "templates", "so_check_z154.html"), encoding="utf-8").read()
 check("목록 화면 ✕ 닫기", "knk_close_btn.html" in tt)

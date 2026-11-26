@@ -47204,7 +47204,7 @@ def _z154_seed_new_so(pid, form, exclude_ids=None):
 
 
 def _z154_check_rows(c, limit=3000):
-    """수주 2개 이상(취소 빼고) 관리번호에서 2차 고객(end_customer NULL)·PO유형(빈칸)이 그 수주에 정해지지 않은 수주."""
+    """수주 2개 이상(취소 빼고) 관리번호에서 2차 고객(end_customer NULL)·PO유형(빈칸)·거래구분(품목 줄 is_export NULL)이 그 수주에 정해지지 않은 수주."""
     oc = _z1191_ocols(c)
     if "end_customer" not in oc or "po_type" not in oc:
         return []
@@ -47213,7 +47213,8 @@ def _z154_check_rows(c, limit=3000):
     rows = [dict(r) for r in c.execute(f"""
         SELECT o.id AS oid, o.order_no, o.order_date, o.project_id AS pid, o.end_customer, NULLIF(o.po_type,'') AS po_type, {nm} AS cust,
                p.mgmt_code, p.name AS pname, p.secondary_customer AS p_end, p.po_type AS p_po,
-               COALESCE(p.status,'') AS pst, TRIM(COALESCE(p.sales_name,'')) AS psales
+               COALESCE(p.status,'') AS pst, TRIM(COALESCE(p.sales_name,'')) AS psales, COALESCE(o.status,'') AS ost,
+               (SELECT COUNT(*) FROM order_items i WHERE i.order_id=o.id AND i.is_export IS NULL) AS iex_null
           FROM orders o JOIN projects p ON p.id=o.project_id LEFT JOIN customers cu ON cu.id=o.customer_id
          WHERE COALESCE(o.status,'')<>'CANCELLED'
            AND o.project_id IN (SELECT project_id FROM orders WHERE COALESCE(status,'')<>'CANCELLED' AND project_id IS NOT NULL
@@ -47226,7 +47227,7 @@ def _z154_check_rows(c, limit=3000):
         r["prev_end"] = pv["end_customer"] if pv else None
         r["prev_po"] = (pv["po_type"] if pv else None)
         prev[r["pid"]] = r
-        if r["end_customer"] is None or not r["po_type"]:
+        if r["end_customer"] is None or not r["po_type"] or r.get("iex_null"):   # z1191z159: 거래구분 빈 품목 줄도(대표 11-26 「37건 직접 수정」)
             out.append(r)
     return out[:limit]
 
@@ -47284,9 +47285,31 @@ async def api_so_check_z154(request: Request, oid: int):
     form = await request.form()
     field = (form.get("field") or "").strip()
     act = (form.get("action") or "").strip()
-    if field not in ("end_customer", "po_type") or act not in ("rep", "prev", "set"):
+    if field not in ("end_customer", "po_type", "is_export") or act not in ("rep", "prev", "set"):
         return JSONResponse({"ok": False, "message": "알 수 없는 요청입니다."}, 400)
     who = vname_full(u) or u.get("name") or ""
+    if field == "is_export":
+        # z1191z159 (대표 11-26 「37건 어떤 항목인지 · 안지연·이새롬 프로가 직접 수정」): 거래구분이 빈 품목 줄만 사람이 고른 값으로
+        # (작업일정표는 빈칸을 「내수」로 보여 「내수」를 다시 골라도 저장되지 않아 여기서 정함 · 이미 정해진 줄은 안 건드림)
+        val = (form.get("value") or "").strip()
+        if act != "set" or val not in ("내수", "수출"):
+            return JSONResponse({"ok": False, "message": "내수 또는 수출을 골라 주세요."}, 400)
+        with db_session() as c:
+            o = c.execute("SELECT id, order_no, project_id, COALESCE(status,'') FROM orders WHERE id=? AND COALESCE(status,'')<>'CANCELLED'",
+                          (int(oid),)).fetchone()
+            if not o:
+                return JSONResponse({"ok": False, "message": "그 수주를 찾지 못했습니다."}, 404)
+            if val == "수출" and o[3] in ("INVOICED", "PAID"):
+                return JSONResponse({"ok": False, "message": "세금계산서 발행·입금까지 끝난 수주라 수출로 바꿀 수 없습니다(작업일정표와 같은 잠금) — 관리팀과 확인해 주세요."}, 409)
+            n = c.execute("UPDATE order_items SET is_export=? WHERE order_id=? AND is_export IS NULL", (1 if val == "수출" else 0, int(oid))).rowcount
+            if not n:
+                return JSONResponse({"ok": False, "message": "이미 거래구분이 정해져 있습니다 — 화면을 다시 불러오세요."}, 409)
+            try:
+                _logi.log_project_change(c, int(o[2]), u.get("id"), "거래구분", "(품목 %d줄 비어 있음 · 내수로 보임)" % n, val,
+                                         note=f"z1191z159 수주 {o[1]} 칸 확인 · 직접 고름 · {who}")
+            except Exception as _e:
+                print(f"[z1191z159] 이력 실패: {_e}")
+        return JSONResponse({"ok": True, "shown": val})
     with db_session() as c:
         o = c.execute("SELECT id, order_no, project_id, end_customer, NULLIF(po_type,''), COALESCE(order_date,'') FROM orders "
                       "WHERE id=? AND COALESCE(status,'')<>'CANCELLED'", (int(oid),)).fetchone()
