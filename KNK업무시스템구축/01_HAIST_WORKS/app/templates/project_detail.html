@@ -2381,9 +2381,36 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               <td><a href="/sales/orders/{{ s.id }}" style="font-weight:700;color:inherit;">{{ s.order_no }}</a></td>
               <td style="color:#64748b;">{{ s.units or '—' }}</td>
               <td>{{ qchip(p.id, s.q) }}</td>
-              <td>{{ pchip(s.p) }}</td>
+              <td>{# z1191z162 (안지연 프로 요청 · 대표 11-26 「수주번호별 발주서 삭제 · 부분/전체」): 발주서마다 🗑 · 2장 이상이면 「이 수주 발주서 모두 빼기」 #}
+                {%- set _pfs162 = (s.p.files if (s.p and s.p.files) else []) -%}
+                {%- if _pfs162 -%}
+                <span class="po162" data-ono="{{ s.order_no }}">{% for f in _pfs162 %}<span class="po162-one" style="white-space:nowrap;">{% if not loop.first %} {% endif %}<a class="dc150 ok" href="/customer-po/{{ f.id }}" title="고객 발주서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📄 {{ f.orig_name|truncate(22, True, '…') }}</a> <a class="dc150dl" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% if z63_can_remove(user, f) %} <button type="button" class="dc150dl po162-rm" data-fid="{{ f.id }}" data-name="{{ f.orig_name }}" title="이 발주서만 빼기(올린 사람·기술영업팀) — 파일이 바로 지워집니다 · 이력 남음" style="cursor:pointer;color:#b91c1c;">🗑</button>{% endif %}</span>{% endfor %}
+                {%- if _pfs162|length > 1 %} <button type="button" class="dc150dl po162-rmall" title="이 수주번호의 고객 발주서 {{ _pfs162|length }}장을 모두 빼기(뺄 수 있는 것만) — 파일이 바로 지워집니다 · 이력 남음" style="cursor:pointer;color:#b91c1c;font-weight:700;">🗑 모두 빼기({{ _pfs162|length }})</button>{% endif %}
+                <span class="po162-msg" style="font-size:11.5px;margin-left:4px;"></span></span>
+                {%- else -%}{{ pchip(s.p) }}{%- endif -%}
+              </td>
             </tr>{% endfor %}
             </tbody></table>
+            <script>(function(){
+              if (window.__po162) return; window.__po162 = 1;
+              function rmOne(fid){ return fetch('/api/customer-po/remove/' + fid, {method:'POST', credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }).catch(function(){ return {ok:false, message:'인터넷 연결이 끊겨 빼지 못했습니다'}; }); }
+              document.addEventListener('click', function(e){
+                var one = e.target.closest && e.target.closest('.po162-rm'), all = e.target.closest && e.target.closest('.po162-rmall');
+                if (!one && !all) return;
+                var box = (one || all).closest('.po162'), msg = box.querySelector('.po162-msg'), ono = box.getAttribute('data-ono');
+                var btns = one ? [one] : Array.prototype.slice.call(box.querySelectorAll('.po162-rm'));
+                if (!btns.length) { msg.style.color = '#b91c1c'; msg.textContent = '⚠ 뺄 수 있는 발주서가 없습니다(올린 사람·기술영업팀만 뺄 수 있습니다)'; return; }
+                var names = btns.map(function(b){ return '· ' + b.getAttribute('data-name'); }).join('\n');
+                if (!window.confirm('수주 ' + ono + ' 의 고객 발주서 ' + btns.length + '장을 뺄까요?\n' + names + '\n\n파일이 바로 지워지고 되돌릴 수 없습니다(변경 이력에는 남습니다).')) return;
+                msg.style.color = '#475569'; msg.textContent = '⏳ 빼는 중…';
+                var ok = 0, bad = [];
+                btns.reduce(function(p, b){ return p.then(function(){ return rmOne(b.getAttribute('data-fid')).then(function(j){ if (j && j.ok) { ok++; } else { bad.push(b.getAttribute('data-name') + ' — ' + ((j && j.message) || '빼지 못했습니다')); } }); }); }, Promise.resolve())
+                  .then(function(){
+                    if (!bad.length) { msg.style.color = '#166534'; msg.textContent = '✅ 완료 — ' + ok + '장을 뺐습니다 · 다시 불러옵니다…'; setTimeout(function(){ location.reload(); }, 900); }
+                    else { msg.style.color = '#b91c1c'; msg.textContent = '👉 ' + ok + '장은 뺐고 ' + bad.length + '장은 못 뺐습니다: ' + bad.join(' / '); }
+                  });
+              });
+            })();</script>
             {% else %}<span style="font-size:12px;color:#64748b;">수주가 아직 없습니다 — 견적서·발주서는 수주번호가 생기면 그 수주번호에 올립니다.</span>{% if _d150 and (_d150.pqs or _d150.po.files) %} <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip">⬇ 한꺼번에 받기(zip)</a>{% endif %}{% endif %}
           </dd>
           {% endif %}
