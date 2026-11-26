@@ -934,7 +934,7 @@
       {% else %}
         {# 보낸/임시함 (제목 우선 2줄, 보낸사람=받는사람) #}
         {% for m in mails %}
-        <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row">
+        <a href="{% if box=='draft' %}/mail/compose?draft={{ m.id }}{% else %}/mail/{{ m.id }}{% endif %}" class="mbx-row" data-mail-id="{{ m.id }}">
           {% if box != 'draft' %}<button type="button" class="mbx-star {{ 'on' if m.is_starred else '' }}" title="중요 표시" onclick="toggleStar(event,{{ m.id }})">★</button>{% else %}<span class="mbx-star" style="cursor:default">📝</span>{% endif %}
           <div class="mbx-main">
             <div class="mbx-r1">
@@ -1808,6 +1808,70 @@ async function mbxDropDo(tg, ids){
     if((k==='F'||k==='f') && e.shiftKey){ e.preventDefault(); mbxCmd('forward'); return; }
     if(map[k]){ e.preventDefault(); mbxCmd(map[k]); }
   });
+})();
+/* ── 11-26 대표 「오른쪽 클릭하면 그 항목에서 지금 쓸 수 있는 도구가 나와 바로 쓰게(삭제·스팸 등)」 ──
+   받은편지함은 위(2단계 아웃룩식) 메뉴 · 여기는 임시보관함·보낸편지함·휴지통·스팸함 — 그 칸에서 할 수 있는 것만 */
+(function(){
+  var BOX=window._mbxBox; if(BOX==='in' || ['draft','sent','trash','blocked'].indexOf(BOX)<0) return;
+  var menu=document.createElement('div'); menu.className='mbx-ctx'; menu.hidden=true; menu.setAttribute('role','menu'); document.body.appendChild(menu);
+  function closeMenu(){ menu.hidden=true; menu.innerHTML=''; }
+  function place(x, y){ menu.hidden=false; var w=menu.offsetWidth, h=menu.offsetHeight;
+    menu.style.left=Math.max(6, Math.min(x, innerWidth-w-8))+'px'; menu.style.top=Math.max(6, Math.min(y, innerHeight-h-8))+'px'; }
+  function item(label, fn, opt){ opt=opt||{}; var d=document.createElement('div'); d.className='i'+(opt.cls?(' '+opt.cls):''); d.setAttribute('role','menuitem');
+    var sp=document.createElement('span'); sp.textContent=label; d.appendChild(sp);
+    if(opt.k){ var k=document.createElement('kbd'); k.textContent=opt.k; d.appendChild(k); }
+    d.onclick=function(e){ e.stopPropagation(); closeMenu(); fn(); }; menu.appendChild(d); return d; }
+  function hr(){ menu.appendChild(document.createElement('hr')); }
+  function head(t){ var d=document.createElement('div'); d.className='h'; d.textContent=t; menu.appendChild(d); }
+  function rowGone(id){ mbxRowsOf(id).forEach(function(x){ x.remove(); }); }
+  function winOpen(url, name){ var aw=screen.availWidth||1280, ah=screen.availHeight||960, w=Math.max(720, Math.min(1100, aw-80)), h=Math.max(600, Math.min(900, ah-60));
+    var x=window.open(url, name, 'popup=yes,width='+w+',height='+h+',left='+Math.max(0,(aw-w)/2|0)+',top='+Math.max(0,(ah-h)/2|0)); if(x){ try{ x.focus(); }catch(_){} } else location.href=url; }
+  function compose(q){ if(window.mailNewWin) mailNewWin(null, q); else location.href='/mail/compose?'+q; }
+  async function post(url){ try{ var r=await fetch(url,{method:'POST'}); return await r.json(); }catch(_){ return null; } }
+  async function toTrash(id, what){
+    var j=await post('/mail/'+id+'/delete');
+    if(!j || !j.ok){ mbxToast('⚠ 끝나지 않았습니다 — 지우지 못했습니다', null, true); return; }
+    rowGone(id);
+    mbxToast('🗑 '+what+'을(를) 휴지통으로 옮겼습니다', [['↺ 되돌리기', async function(){ var k=await post('/mail/'+id+'/restore'); if(k && k.ok) location.reload(); else mbxToast('⚠ 되돌리지 못했습니다 — 휴지통에서 「복원」', null, true); }]]);
+    if(typeof mbxSideRefresh==='function') mbxSideRefresh();
+  }
+  document.addEventListener('contextmenu', function(e){
+    var r=e.target.closest && e.target.closest('.mbx-list .mbx-row[data-mail-id]'); if(!r) return;
+    e.preventDefault();
+    var id=r.dataset.mailId, subj=((r.querySelector('.mbx-subj')||{}).textContent||'').trim().slice(0,40);
+    menu.innerHTML=''; head(subj || '(제목 없음)');
+    if(BOX==='draft'){
+      item('✏️ 이어 쓰기', function(){ location.href='/mail/compose?draft='+id; }, {k:'누르기'});
+      item('🗗 새 창으로 이어 쓰기', function(){ compose('draft='+id); });
+      hr();
+      item('🗑 삭제(휴지통으로)', function(){ toTrash(id, '임시 메일'); }, {cls:'red'});
+    } else if(BOX==='sent'){
+      item('📄 열기', function(){ location.href='/mail/'+id; }, {k:'누르기'});
+      item('🗗 새 창으로 열기', function(){ winOpen('/mail/'+id+'?win=1', 'knkmail_'+id); });
+      hr();
+      item('↪ 전달', function(){ compose('forward='+id); });
+      item('✉ 다시 묻기(답이 없을 때)', function(){ compose('nudge='+id); });
+      var st=r.querySelector('.mbx-star');
+      item(st && st.classList.contains('on') ? '☆ 중요 풀기' : '⭐ 중요 표시', async function(){ var j=await post('/mail/'+id+'/star'); if(j && j.ok && st) st.classList.toggle('on', !!j.starred); });
+      hr();
+      item('🗑 삭제(휴지통으로)', function(){ toTrash(id, '보낸 메일'); }, {cls:'red'});
+    } else if(BOX==='trash'){
+      item('↩ 복원(원래 자리로)', function(){ restoreMail(null, id); });
+      hr();
+      item('🗑 완전삭제(되돌릴 수 없음)', function(){ purgeMail(null, id); }, {cls:'red'});
+    } else if(BOX==='blocked'){
+      item('📄 열기(주의해서)', function(){ location.href='/mail/'+id; });
+      item('✓ 스팸 아님(받은편지함으로 · 이 사람 다시 안 옮김)', function(){ notSpam(null, id); });
+      hr();
+      item('🗑 삭제(휴지통으로)', function(){ toTrash(id, '스팸 메일'); }, {cls:'red'});
+    }
+    /* ✕ 닫기 = 공용(mail_popx.html 이 .mbx-ctx 위에 저절로) · Esc · 바깥 누르기 */
+    place(e.clientX, e.clientY);
+  });
+  document.addEventListener('click', function(e){ if(!menu.hidden && !menu.contains(e.target)) closeMenu(); });
+  document.addEventListener('keydown', function(e){ if(!menu.hidden && e.key==='Escape') closeMenu(); });
+  window.addEventListener('blur', closeMenu);
+  document.addEventListener('scroll', function(ev){ if(menu.hidden) return; var t=ev && ev.target; if(t && t.nodeType===1 && menu.contains(t)) return; closeMenu(); }, true);
 })();
 /* ── 메일 없는 폴더 보기(11-18) — 기본은 접어 둠 ── */
 function mfShowZero(ev, key){
