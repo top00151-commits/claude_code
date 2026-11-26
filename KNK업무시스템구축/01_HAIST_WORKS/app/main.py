@@ -41997,7 +41997,7 @@ def _z1191_cascade_first_so(c, pid, old_cid, old_sec):
         c.execute("UPDATE orders SET customer_id=? WHERE id=?", (p[0], fid))
     new_sec, old_sec = (p[1] or "").strip(), (old_sec or "").strip()
     if has_end and new_sec != old_sec and so[1] is not None and (so[1] or "").strip() == old_sec:
-        c.execute("UPDATE orders SET end_customer=? WHERE id=?", (new_sec[:100] or None, fid))
+        c.execute("UPDATE orders SET end_customer=? WHERE id=?", (new_sec[:100], fid))   # z1191z159: 비움 = '' (2차 없음 · 대표 11-26)
 
 
 def _z1191_hist(c, oid, user, note):

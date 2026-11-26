@@ -142,8 +142,11 @@ def _z1191_end_first(c, proj, order_id):
     2차 발주처(고객사2)를 자기 칸(orders.end_customer)에 갖는다. 1차는 이미 프로젝트 고객으로 들어간다. 프로젝트 값 = 대표(첫 수주)."""
     try:
         sec = str((proj or {}).get("secondary_customer") or "").strip()
-        if not sec or sec == "None" or not order_id:
+        if sec == "None":
+            sec = ""
+        if not order_id:
             return
+        # z1191z159 (대표 11-26 「2차 고객사가 빈칸은 2차고객사가 없는 항목 · 그냥 비워두면 됨」): 빈칸 = '' (없음) — NULL(안 정함)로 남기지 않음
         if "end_customer" not in {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}:
             return
         c.execute("UPDATE orders SET end_customer=? WHERE id=? AND end_customer IS NULL", (sec[:100], int(order_id)))
