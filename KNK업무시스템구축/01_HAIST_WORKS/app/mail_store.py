@@ -342,6 +342,46 @@ def allow_sender(c, user_id, email) -> bool:
     return True
 
 
+NOT_PHISH_MARK = "내가 확인: 피싱 아님 / "   # 11-26 이 메일 경고를 사용자가 직접 푼 표시(되돌리기 때 원래대로)
+
+
+def _ensure_trust(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_user_trust(
+        user_id INTEGER NOT NULL,
+        email TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        PRIMARY KEY(user_id, email))""")
+
+
+def trust_sender(c, user_id, email) -> bool:
+    """11-26 대표 「피싱이 아닌 것으로 확정 · 의심을 풀어야 다음부터 정상으로」 — 이 보낸 사람(주소 그대로)을 믿음(나에게만).
+    앞으로 이 사람 메일이 링크·문구만으로 「의심」이 되면 경고를 띄우지 않는다(save 참고). 첨부·사칭·인증·송금 경고는 그대로."""
+    a = _norm_addr(email)
+    if not a or "@" not in a or not user_id:
+        return False
+    _ensure_trust(c)
+    c.execute("INSERT OR IGNORE INTO mail_user_trust(user_id, email) VALUES(?,?)", (user_id, a))
+    return True
+
+
+def untrust_sender(c, user_id, email) -> None:
+    a = _norm_addr(email)
+    if not a or not user_id:
+        return
+    _ensure_trust(c)
+    c.execute("DELETE FROM mail_user_trust WHERE user_id=? AND email=?", (user_id, a))
+
+
+def is_trusted_sender(c, user_id, email) -> bool:
+    a = _norm_addr(email)
+    if not a or not user_id:
+        return False
+    try:
+        return bool(c.execute("SELECT 1 FROM mail_user_trust WHERE user_id=? AND email=? LIMIT 1", (user_id, a)).fetchone())
+    except Exception:
+        return False   # 표가 아직 없음(아무도 안 누름)
+
+
 def _ensure_security_cols(c):
     """메일 표에 더한 칸(차단·위험 · 11-18 보관·이 메일만 폴더)을 만든다.
     ⭐(11-18) 「만들었다」를 기억하기 전에 **칸이 실제로 있는지** 확인한다 — 처음 열 때 DB 가 잠깐 잠겨 ALTER 가
@@ -583,6 +623,15 @@ def store_inbound(c, *, to_email: str, from_email: str = "", from_name: str = ""
     _codes = []
     _rlevel, _rnote = assess_risk(from_email, to_email, subject, body, html, attachments,
                                   from_name=from_name, auth=auth, reply_to=reply_to, c=c, codes=_codes)
+    # 11-26 내가 「피싱 아님」으로 믿기로 한 보낸 사람 = 링크·문구만으로 생긴 「의심(2)」은 외부(1)로(경고 띠 없음 · 링크 그대로).
+    #   이유 코드가 하나라도 있으면(첨부·사칭·인증 실패·답장 주소·송금 변경·계정 요구) 그대로 경고 — 믿는 사람 계정이 털린 경우를 막음
+    if _rlevel == 2 and not _codes:
+        try:
+            if is_trusted_sender(c, owner, from_email):
+                _rlevel = 1
+                _rnote = ("믿는 보낸 사람(내가 「피싱 아님」 확인) / " + (_rnote or ""))[:600]
+        except Exception:
+            pass
     # 2026-11-16: 위험(3) = 차단함으로 격리(지우지 않음 · 차단함에서 복구 가능)
     #   증거가 강한 경우만(우리 회사 흉내 주소 · 우리 주소 인증 실패 · 위장 실행파일 · 회사 밖 실행파일) — 정상 메일을 숨기지 않게
     try:

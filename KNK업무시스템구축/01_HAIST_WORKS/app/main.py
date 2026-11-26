@@ -29509,6 +29509,48 @@ async def mail_not_spam(req: Request, mail_id: int):
     return JSONResponse({"ok": True, "addr": addr})
 
 
+@app.post("/mail/{mail_id:int}/not-phish")
+def mail_not_phish(req: Request, mail_id: int, undo: int = 0):
+    """11-26 대표 「피싱이 아닌 것으로 확정하는 방법 · 의심을 해지해야 다음부터 정상으로」 — 나에게만.
+    ✓ 이 메일: 경고 띠를 내리고 링크를 되살림(위험 3·회사 전체 차단은 안 됨) · 스팸함에 있었으면 받은편지함으로
+    ✓ 이 보낸 사람(주소 그대로): 앞으로 링크·문구만으로 생긴 의심은 띄우지 않음 · 스팸함으로도 안 옮김
+    undo=1 이면 이 메일 경고를 원래대로 + 믿기 취소(「스팸 아님」 표시는 그대로)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    with db_session() as c:
+        _mailbox._ensure_security_cols(c)
+        row = c.execute("SELECT from_email, risk_level, risk_note, is_blocked FROM mail_messages "
+                        "WHERE id=? AND user_id=? AND direction='in'", (mail_id, u["id"])).fetchone()
+        if not row:
+            return JSONResponse({"ok": False, "message": "내 받은 메일이 아닙니다."}, 404)
+        addr = (row["from_email"] or "").strip().lower()
+        note = row["risk_note"] or ""
+        mark = _mailbox.NOT_PHISH_MARK
+        if undo:
+            if not note.startswith(mark):
+                return JSONResponse({"ok": False, "message": "이 메일은 「피싱 아님」으로 바꾼 적이 없습니다."}, 400)
+            c.execute("UPDATE mail_messages SET risk_level=2, risk_note=? WHERE id=? AND user_id=?",
+                      (note[len(mark):], mail_id, u["id"]))
+            if addr:
+                _mailbox.untrust_sender(c, u["id"], addr)
+            return JSONResponse({"ok": True, "undo": True, "addr": addr})
+        if int(row["risk_level"] or 0) >= 3:
+            return JSONResponse({"ok": False, "message": "위험 메일(사칭 주소·실행파일 등)은 여기서 풀 수 없습니다 — 빅터나 관리자에게 알려 주세요."}, 400)
+        if int(row["risk_level"] or 0) < 2:
+            return JSONResponse({"ok": True, "already": True, "addr": addr})
+        if addr and _mailbox.is_sender_blocked(c, addr):
+            return JSONResponse({"ok": False, "message": "회사 전체 차단목록에 있는 주소라 관리자만 풀 수 있습니다."}, 400)
+        c.execute("UPDATE mail_messages SET risk_level=1, risk_note=? WHERE id=? AND user_id=?",
+                  ((mark + note)[:600], mail_id, u["id"]))
+        if int(row["is_blocked"] or 0):
+            _mailbox.set_blocked(c, u["id"], mail_id, False)
+        if addr:
+            _mailbox.allow_sender(c, u["id"], addr)
+            _mailbox.trust_sender(c, u["id"], addr)
+    return JSONResponse({"ok": True, "addr": addr})
+
+
 @app.post("/mail/{mail_id:int}/block-sender")
 async def mail_block_sender(req: Request, mail_id: int):
     """이 메일의 보낸사람을 차단목록에 추가 + 기존 메일 소급 차단(관리자만 — 전사 영향)."""

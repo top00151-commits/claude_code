@@ -7,7 +7,11 @@
 <div class="mv-warn high">⚠ <b>{{ ('위험 메일 — 스팸함으로 옮겼습니다' if m.risk_level >= 3 else '피싱·사칭 의심 메일 — 스팸함으로 옮겼습니다') if m.is_blocked else ('위험 메일' if m.risk_level >= 3 else '피싱·사칭 의심 메일') }}</b>
   <ul class="mv-warn-list" style="margin:6px 0 4px 18px;padding:0;font-weight:500">{% for _r in (m.risk_note or '외부·미인증 발신').split(' / ') if _r != '스팸함으로 옮김' %}<li>{{ _r }}</li>{% endfor %}</ul>
   <span>링크는 눌리지 않게 막았습니다(마우스를 올리면 실제 주소). <b>첨부를 열거나 회신·송금하기 전에 보낸 사람에게 전화로 확인</b>하세요.</span>
-  {% if m.direction != 'out' %}<div style="margin-top:6px">{% if m.is_blocked %}<button type="button" class="mv-warn-btn" style="margin-left:0" onclick="mvNotSpam({{ m.id }})" title="받은편지함으로 · 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만)">✓ 스팸 아님</button>{% elif not (m.from_email|lower).endswith('@knknara.co.kr') %}<button type="button" class="mv-warn-btn" style="margin-left:0" onclick="muteSender()" title="이 보낸 사람 메일은 앞으로 스팸함으로(나에게만 · 지우지 않음)">🔕 다시 안 받기(나만 · 스팸함으로)</button>{% endif %}</div>{% endif %}{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">⛔ 회사 전체 차단(관리자)</button>{% endif %}</div>
+  {# 11-26 대표 「오른쪽 두 아이콘 줄이 틀어졌어」 — 단추를 한 줄(같은 칸)에 · 「피싱 아님」 단추 더함 #}
+  <div class="mv-warn-acts">{% if m.direction != 'out' %}{% if m.risk_level == 2 %}<button type="button" class="mv-warn-btn ok" onclick="mvNotPhish({{ m.id }}, '{{ (m.from_email or '')|lower|e }}', 0, this)" title="이 메일 경고를 내리고, 이 보낸 사람(주소 그대로)은 앞으로 링크·문구만으로는 의심하지 않습니다(나에게만 · 되돌릴 수 있음)">✓ 피싱 아님(이 보낸 사람 믿기)</button>{% endif %}{% if m.is_blocked %}<button type="button" class="mv-warn-btn" onclick="mvNotSpam({{ m.id }})" title="받은편지함으로 · 이 보낸 사람은 앞으로 스팸함으로 옮기지 않음(나에게만)">✓ 스팸 아님</button>{% elif not (m.from_email|lower).endswith('@knknara.co.kr') %}<button type="button" class="mv-warn-btn" onclick="muteSender()" title="이 보낸 사람 메일은 앞으로 스팸함으로(나에게만 · 지우지 않음)">🔕 다시 안 받기(나만 · 스팸함으로)</button>{% endif %}{% endif %}{% if is_admin %}<button type="button" class="mv-warn-btn" onclick="blockSender({{ m.id }})">⛔ 회사 전체 차단(관리자)</button>{% endif %}</div></div>
+{% elif m.direction != 'out' and (m.risk_note or '').startswith('내가 확인: 피싱 아님') %}
+<div class="mv-warn low mv-warn-okd">✓ <b>피싱 아님으로 확인한 메일입니다</b><span>— 이 보낸 사람은 앞으로 링크·문구만으로는 경고하지 않습니다(나에게만 · 첨부·사칭·송금 경고는 그대로).</span>
+  <div class="mv-warn-acts"><button type="button" class="mv-warn-btn" onclick="mvNotPhish({{ m.id }}, '', 1, this)" title="이 메일 경고를 원래대로 · 이 보낸 사람 믿기 취소">↩ 되돌리기</button></div></div>
 {% endif %}
 
 <div class="mv-head">
@@ -272,6 +276,17 @@
     var pane=document.getElementById('readPane');
     if(pane && btn && pane.contains(btn) && typeof loadPane==='function'){ loadPane(MAIL_ID, document.querySelector('.mbx-row.active,.mbx-headlink.active'), '?img=1'); }
     else { location.href='/mail/'+MAIL_ID+'?img=1'+(window.KNK_MAIL_WIN?'&win=1':''); }
+  };
+  /* 11-26 ✓ 피싱 아님 — 이 메일 경고 내림 + 이 보낸 사람 믿기(나에게만) · undo=1 이면 되돌리기 */
+  window.mvNotPhish=async function(id, addr, undo, btn){
+    var NL=String.fromCharCode(10);
+    if(!undo && !confirm('「피싱 아님」으로 확인할까요?'+NL+NL+'· 이 메일: 경고를 내리고 링크를 누를 수 있게 합니다'+NL+'· '+(addr||'이 보낸 사람')+': 앞으로 링크·문구만으로는 경고하지 않습니다'+NL+'  (첨부·사칭·송금 계좌 변경 경고는 그대로 · 나에게만)'+NL+NL+'보낸 사람을 확실히 아는 경우에만 눌러 주세요. 잘못 눌렀으면 「↩ 되돌리기」로 원래대로 됩니다.')) return;
+    try{ var r=await fetch('/mail/'+id+'/not-phish'+(undo?'?undo=1':''),{method:'POST'}); var j=await r.json();
+      if(!j.ok){ alert('⚠ 끝나지 않았습니다 — '+(j.message||'하지 못했습니다')); return; }
+      var pane=document.getElementById('readPane');
+      if(pane && btn && pane.contains(btn) && typeof loadPane==='function'){ loadPane(id, document.querySelector('.mbx-row.active,.mbx-headlink.active')); }
+      else { location.reload(); }
+    }catch(e){ alert('⚠ 끝나지 않았습니다 — 네트워크 오류 · 다시 눌러 주세요'); }
   };
   /* ✓ 스팸 아님 — 받은편지함으로 + 이 보낸 사람은 앞으로 스팸함으로 안 옮김(나에게만) */
   window.mvNotSpam=async function(id){
