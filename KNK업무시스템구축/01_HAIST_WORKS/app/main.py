@@ -47212,7 +47212,8 @@ def _z154_check_rows(c, limit=3000):
     nm = "COALESCE(NULLIF(cu.alias,''), cu.name, '')" if "alias" in ccols else "COALESCE(cu.name, '')"
     rows = [dict(r) for r in c.execute(f"""
         SELECT o.id AS oid, o.order_no, o.order_date, o.project_id AS pid, o.end_customer, NULLIF(o.po_type,'') AS po_type, {nm} AS cust,
-               p.mgmt_code, p.name AS pname, p.secondary_customer AS p_end, p.po_type AS p_po
+               p.mgmt_code, p.name AS pname, p.secondary_customer AS p_end, p.po_type AS p_po,
+               COALESCE(p.status,'') AS pst, TRIM(COALESCE(p.sales_name,'')) AS psales
           FROM orders o JOIN projects p ON p.id=o.project_id LEFT JOIN customers cu ON cu.id=o.customer_id
          WHERE COALESCE(o.status,'')<>'CANCELLED'
            AND o.project_id IN (SELECT project_id FROM orders WHERE COALESCE(status,'')<>'CANCELLED' AND project_id IS NOT NULL
@@ -47228,6 +47229,10 @@ def _z154_check_rows(c, limit=3000):
         if r["end_customer"] is None or not r["po_type"]:
             out.append(r)
     return out[:limit]
+
+
+# z1191z158: 확인 필요 목록 거르기 — 출하·끝난 관리번호(지난 자료) · 그 밖은 「진행 중」
+_Z158_DONE_ST = ("출하",)   # 운영 프로젝트 상태 = 수주확정·진행중·보류·출하(11-26 읽기 전용 확인)
 
 
 def _z154_check_count(c):
@@ -47247,9 +47252,25 @@ async def projects_so_check_z154(request: Request):
     if not (can_use_sales(u) or can_view_sales(u)):
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        rows = _z154_check_rows(c)
+        rows_all = _z154_check_rows(c)
+    # z1191z158 (대표 11-26 「거르기 단추 넣어줘」): 진행 상태(진행 중 / 출하·끝남)·영업담당으로 거르기 — 보기만(저장 안 함)
+    st = (request.query_params.get("st") or "").strip()
+    sp = (request.query_params.get("sp") or "").strip()
+    if st not in ("act", "done"):
+        st = ""
+    def _z158_done(r):
+        return (r.get("pst") or "") in _Z158_DONE_ST
+    rows_st = [r for r in rows_all if (not st) or (st == "done") == _z158_done(r)]
+    sales_cnt = {}
+    for r in rows_st:
+        k = r.get("psales") or ""
+        sales_cnt[k] = sales_cnt.get(k, 0) + 1
+    rows = [r for r in rows_st if (not sp) or (r.get("psales") or "") == ("" if sp == "-" else sp)]
+    n_act = sum(1 for r in rows_all if not _z158_done(r))
     return ctx(request, "so_check_z154.html", user=u, active="sales", rows=rows, n_proj=len({r["pid"] for r in rows}),
-               can_up=bool(can_use_sales(u)), po_types=list(_logi.PO_TYPES))
+               can_up=bool(can_use_sales(u)), po_types=list(_logi.PO_TYPES),
+               f158={"st": st, "sp": sp, "n_all": len(rows_all), "n_act": n_act, "n_done": len(rows_all) - n_act,
+                     "sales": sorted(sales_cnt.items(), key=lambda x: (-x[1], x[0]))})
 
 
 @app.post("/api/so-check/{oid}")
