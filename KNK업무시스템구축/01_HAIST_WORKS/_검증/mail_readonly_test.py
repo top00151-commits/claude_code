@@ -166,8 +166,8 @@ check("가드 증명: 주석에만 적힌 이름은 안 잡는다",
 print("=== 7) (회귀) 기존 화면 라우트는 여전히 읽음 처리한다 ===")
 for route in ['@app.get("/mail/{mail_id:int}")', '@app.get("/mail/{mail_id:int}/pane"']:
     i = MAIN.index(route)
-    seg = MAIN[i:i + 1400]
-    check("화면 라우트 유지: %s" % route[:34], "mark_read" in seg)
+    seg = MAIN[i:MAIN.index(chr(10) + "@app.", i + 10)]   # 11-26 읽음 표시를 함수 끝(짧게 따로 저장)으로 옮김 → 함수 전체에서 찾음
+    check("화면 라우트 유지: %s" % route[:34], "_mail_mark_read_short(mail_id" in seg)
 
 print("\n===== 결과: %d PASS / %d FAIL =====" % (PASS, FAIL))
 sys.exit(0 if FAIL == 0 else 1)

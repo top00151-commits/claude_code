@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 OUR_DOMAINS = ("knknara.co.kr",)
 
@@ -751,6 +752,32 @@ def _spec(hits, par):
     return hits - ups
 
 
+COUNT_INDEXES = (
+    # 11-26 대표 「메일 누르면 2초」 — 세기 질의가 본문 칸 뒤의 짧은 칸(읽음·폴더 등)을 읽으려고 메일마다 본문까지 읽던 것을
+    # 색인만 보고 끝나게(덮는 색인). 4만 통 가짜 자료 실측: 메일 열기 2,238 → 618ms · 목록 11,508 → 4,207ms.
+    ("idx_mail_cover", "CREATE INDEX IF NOT EXISTS idx_mail_cover ON mail_messages(user_id, direction, is_deleted, is_read, "
+                       "is_blocked, is_archived, fd_key, fd_pin, received_at, created_at, from_email, from_name, to_email, cc, subject)"),
+    ("idx_mail_fdpin", "CREATE INDEX IF NOT EXISTS idx_mail_fdpin ON mail_messages(user_id, fd_pin)"),
+)
+_COUNT_IDX_OK = set()
+
+
+def ensure_count_indexes(c):
+    """세기용 색인 — 처음 한 번만 만든다(있으면 바로 지나감). 실패해도 화면은 그대로(느릴 뿐)."""
+    for name, sql in COUNT_INDEXES:
+        if name in _COUNT_IDX_OK:
+            continue
+        try:
+            t0 = time.time()
+            had = c.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?", (name,)).fetchone()
+            c.execute(sql)
+            if not had:
+                print("[MAIL-FOLDERS] 세기 색인 %s 만듦 %.1f초" % (name, time.time() - t0), flush=True)
+            _COUNT_IDX_OK.add(name)
+        except Exception as e:
+            print("[MAIL-FOLDERS] 세기 색인 %s 실패(화면은 그대로): %s" % (name, str(e)[:160]), flush=True)
+
+
 def classify(c, uid) -> dict:
     """메일 → 폴더 열쇠(메일 한 통마다 · fd_key 칸). 반환 {
         'senders': {email: {'key'(보낸 사람 자동),'fin'(가장 최근 메일의 폴더),'how','n','u'}},
@@ -768,6 +795,7 @@ def classify(c, uid) -> dict:
         c.execute("CREATE INDEX IF NOT EXISTS idx_mail_fdkey ON mail_messages(user_id, fd_key)")
     except Exception:
         pass
+    ensure_count_indexes(c)
     st = _stamp(c, uid)
     hit = _CACHE.get(uid)
     if hit and hit[0] == st:

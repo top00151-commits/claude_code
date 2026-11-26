@@ -25102,7 +25102,8 @@ async def mail_inbox_demo(req: Request):
 
 
 @app.get("/mail/{mail_id:int}")
-async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0):
+def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0):
+    # 11-26 대표 「메일 누르면 2초」 — def(스레드)로 돌려 다른 직원 요청을 막지 않음 · 읽음 표시는 끝에 짧게 따로 저장
     u = get_user(req)
     if not u:
         return RedirectResponse("/login", 303)
@@ -25110,7 +25111,6 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
         m = _mailbox.get_mail(c, mail_id, u["id"])
         if not m:
             return RedirectResponse("/mail/inbox", 303)
-        _mailbox.mark_read(c, mail_id, u["id"])
         all_atts = _mailbox.list_attachments(c, mail_id)
         # 11-23 대표 「애플 영수증 빈 화면」 — 예전에 본문이 인라인 첨부로 잘못 저장된 메일은 그 부분을 본문으로(보기 때만 · DB 그대로)
         _bh, _bt, _bused = _mailbox.view_body_fallback(c, m, all_atts)
@@ -25153,14 +25153,16 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
             reply_info = _mail_reply.one(c, u["id"], m["id"])
         except Exception:
             reply_info = {}
-        folder_info = _mail_folder_info(c, u["id"], m)
-        m = dict(m, thread=_mail_thread_info(c, u["id"], m))   # 11-22 밤 「💬 같은 대화」(옮기지 않고 한눈에)
+        _fres = _mail_folders_res(c, u["id"])   # 11-26 폴더 나누기는 한 번만(예전엔 폴더 줄·같은 대화가 따로 두 번)
+        folder_info = _mail_folder_info(c, u["id"], m, _fres)
+        m = dict(m, thread=_mail_thread_info(c, u["id"], m, _fres))   # 11-22 밤 「💬 같은 대화」(옮기지 않고 한눈에)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
         pp = _mail_view_people(c, u, m)   # 11-21 다 묶음 — 사내 보낸 사람 「이름 직책 부서」·👔 · 나=받는 사람/참조
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
         lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
+    _mail_mark_read_short(mail_id, u["id"])
     return ctx(req, "mail_view_win.html" if win else "mail_view.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=_mailbox.html_has_content(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
@@ -25169,7 +25171,8 @@ async def mail_view_page(req: Request, mail_id: int, img: int = 0, win: int = 0)
 
 
 @app.get("/mail/{mail_id:int}/pane", response_class=HTMLResponse)
-async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
+def mail_view_pane(req: Request, mail_id: int, img: int = 0):
+    # 11-26 대표 「메일 누르면 2초」 — def(스레드)로 돌려 다른 직원 요청을 막지 않음 · 읽음 표시는 끝에 짧게 따로 저장
     # A1 읽기 창(아웃룩식) — 받은편지함 우측에 innerHTML 주입할 메일 내용 '조각'.
     #   풀페이지 /mail/{id} 와 동일 로직(본인 메일·읽음처리·sanitize) — 보안 동일.
     u = get_user(req)
@@ -25179,7 +25182,6 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
         m = _mailbox.get_mail(c, mail_id, u["id"])
         if not m:
             return HTMLResponse("<div style='padding:24px;color:#b91c1c'>메일을 찾을 수 없습니다.</div>", status_code=404)
-        _mailbox.mark_read(c, mail_id, u["id"])
         all_atts = _mailbox.list_attachments(c, mail_id)
         # 11-23 대표 「애플 영수증 빈 화면」 — 예전에 본문이 인라인 첨부로 잘못 저장된 메일은 그 부분을 본문으로(보기 때만 · DB 그대로)
         _bh, _bt, _bused = _mailbox.view_body_fallback(c, m, all_atts)
@@ -25220,14 +25222,16 @@ async def mail_view_pane(req: Request, mail_id: int, img: int = 0):
             reply_info = _mail_reply.one(c, u["id"], m["id"])
         except Exception:
             reply_info = {}
-        folder_info = _mail_folder_info(c, u["id"], m)
-        m = dict(m, thread=_mail_thread_info(c, u["id"], m))   # 11-22 밤 「💬 같은 대화」(옮기지 않고 한눈에)
+        _fres = _mail_folders_res(c, u["id"])   # 11-26 폴더 나누기는 한 번만(예전엔 폴더 줄·같은 대화가 따로 두 번)
+        folder_info = _mail_folder_info(c, u["id"], m, _fres)
+        m = dict(m, thread=_mail_thread_info(c, u["id"], m, _fres))   # 11-22 밤 「💬 같은 대화」(옮기지 않고 한눈에)
         who_info = _mail_who_info(m, folder_info)
         nav = _mailbox.nav_ids(c, u["id"], m)
         fu = _mail_follow_info(c, u, m)   # 11-19 2단계 — 🚩 기한 · ⏰ 다시 알림 표시(보는 사람 소속 시각)
         pp = _mail_view_people(c, u, m)   # 11-21 다 묶음 — 사내 보낸 사람 「이름 직책 부서」·👔 · 나=받는 사람/참조
         dl = _mdlg_ctx(c, u, mail_id)     # 11-20 👉 맡기기(이음 요청) — 단추·상태 띠
         lgf, cpg = _mail_glance_view(c, u, m)   # 11-20 2단계 — ⑦ 큰 파일 받아 간 시각 · 🏢 거래처 진행 상황(읽기만)
+    _mail_mark_read_short(mail_id, u["id"])
     return ctx(req, "mail_view_pane.html", user=u, m=m, ai_on=mail_ai_enabled_for(u),
                safe_html=safe_html, file_atts=file_atts, has_html=_mailbox.html_has_content(safe_html),
                sender_contact=sender_contact, reply_info=reply_info, folder_info=folder_info,
@@ -25258,24 +25262,46 @@ def _mail_who_info(m, folder_info):
         return None
 
 
-def _mail_thread_info(c, uid, m):
+def _mail_folders_res(c, uid):
+    """읽기 화면 한 번에 폴더 나누기 결과 한 번(폴더 나무 없는 사람 = None · 실패도 None)."""
+    try:
+        return _mail_folders.classify(c, uid) if _mail_folders.has_tree(c, uid) else None
+    except Exception as _e:
+        print(f"[MAIL-FOLDERS view ERR] {type(_e).__name__}: {_e}")
+        return None
+
+
+def _mail_mark_read_short(mail_id, uid):
+    """11-26 — 읽음 표시를 화면 계산이 끝난 뒤 짧게 따로 저장(예전엔 맨 앞에서 저장해 계산 내내 쓰기 잠금을 쥠)."""
+    try:
+        with db_session() as c2:
+            _mailbox.mark_read(c2, mail_id, uid)
+    except Exception as _e:
+        print(f"[MAIL-READ mark ERR] {type(_e).__name__}: {_e}")
+
+
+def _mail_thread_info(c, uid, m, res=False):
     """11-22 밤 대표 「메일 규칙을 쉽게 — 너가 사용자라면」 3 — 같은 대화(제목 같은 메일 · RE·FW 뺌)를 폴더가 달라도 한눈에.
     실패하면 줄을 안 보인다."""
     try:
         from . import mail_thread as _mth
-        res = _mail_folders.classify(c, uid) if _mail_folders.has_tree(c, uid) else None
+        if res is False:
+            res = _mail_folders.classify(c, uid) if _mail_folders.has_tree(c, uid) else None
         return _mth.thread_of(c, uid, m, res)
     except Exception as _e:
         print(f"[MAIL-THREAD view ERR] {type(_e).__name__}: {_e}")
         return None
 
 
-def _mail_folder_info(c, uid, m):
+def _mail_folder_info(c, uid, m, res=False):
     """읽기 화면의 「📁 폴더」 줄 — 폴더 나무가 있는 사람의 받은 메일만. 실패하면 줄을 안 보인다."""
     try:
-        if m.get("direction") == "out" or not _mail_folders.has_tree(c, uid):
+        if res is False:
+            if m.get("direction") == "out" or not _mail_folders.has_tree(c, uid):
+                return None
+            res = _mail_folders.classify(c, uid)
+        if m.get("direction") == "out" or not res:
             return None
-        res = _mail_folders.classify(c, uid)
         if not m.get("fd_key"):
             try:
                 _r0 = c.execute("SELECT COALESCE(fd_key,'') AS k FROM mail_messages WHERE id=?", (m.get("id"),)).fetchone()

@@ -139,7 +139,7 @@ k.headers.update({"host": "works.knknara.co.kr", "x-forwarded-proto": "https"})
 def snap():
     with _db.db_session() as c:
         return (c.execute("SELECT group_concat(id||name||COALESCE(rank,'')||COALESCE(team_id,'')) FROM users").fetchone()[0],
-                c.execute("SELECT group_concat(id||COALESCE(from_name,'')||COALESCE(subject,'')) FROM mail_messages").fetchone()[0])
+                c.execute("SELECT group_concat(x) FROM (SELECT id||COALESCE(from_name,'')||COALESCE(subject,'') AS x FROM mail_messages ORDER BY id)").fetchone()[0])   # 11-26 순서 고정(새 색인이 생기면 읽는 순서가 바뀜)
 
 
 S0 = snap()
@@ -167,6 +167,24 @@ check("전체 보기: 나 = 참조 줄의 초록 「나」 칩(11-22 「👀 나
 r = k.get("/mail/%d/pane" % M_EXT)
 check("바깥 메일: 👔 없음 · 이름 그대로", "👔" not in r.text.split('class="mv-actions"')[0] and "메일프로그램이름" in r.text, "")
 check("읽기만 — 직원 명부·메일 표 그대로", snap() == S0)
+# 11-26 「메일 누르면 2초」 — 읽음 표시를 화면 계산 뒤 짧게 따로 저장: 열면 여전히 읽음이 되는지 · 쓰기 잠금이 남지 않는지
+with _db.db_session() as _c:
+    _c.execute("UPDATE mail_messages SET is_read=0, read_at=NULL WHERE id=?", (M_EXT,))
+r = k.get("/mail/%d/pane" % M_EXT)
+with _db.db_session() as _c:
+    _rd = _c.execute("SELECT is_read, read_at FROM mail_messages WHERE id=?", (M_EXT,)).fetchone()
+    _c.execute("BEGIN IMMEDIATE"); _c.execute("ROLLBACK")
+check("읽기 창을 열면 읽음 표시(끝에서 짧게 저장) · 쓰기 잠금 안 남음", r.status_code == 200 and _rd["is_read"] == 1 and _rd["read_at"], dict(_rd))
+with _db.db_session() as _c:
+    _c.execute("UPDATE mail_messages SET is_read=0, read_at=NULL WHERE id=?", (M_EXT,))
+r = k.get("/mail/%d" % M_EXT)
+with _db.db_session() as _c:
+    _rd = _c.execute("SELECT is_read FROM mail_messages WHERE id=?", (M_EXT,)).fetchone()
+check("전체 보기 화면도 열면 읽음 표시", r.status_code == 200 and _rd["is_read"] == 1, dict(_rd))
+with _db.db_session() as _c:
+    _ix = [x[0] for x in _c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_mail_cover','idx_mail_fdpin')").fetchall()]
+check("세기 색인 두 개가 만들어짐(idx_mail_cover · idx_mail_fdpin)", sorted(_ix) == ["idx_mail_cover", "idx_mail_fdpin"], _ix)
+
 
 print("\n④ ✅ 확인 답장")
 r = k.post("/mail/flag", data={"ids": str(M_LEAD), "due": "2026-11-27"})
