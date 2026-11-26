@@ -39,6 +39,13 @@ body {
 .qm-t .num { text-align:right; white-space:nowrap; }
 .qm-pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
 .qm-pill.ok { background:#dcfce7; color:#166534; } .qm-pill.no { background:#fee2e2; color:#b91c1c; }
+/* z1191z165: 입금 끝난 수주 = 회색 접은 줄 */
+.qm-paidbar td { padding:3px 10px !important; background:#f8fafc; }
+.qm-paidbtn { border:0; background:none; cursor:pointer; font-size:12px; color:#475569; padding:2px 0; text-align:left; }
+.qm-paidbtn:hover .qm-paidarr { text-decoration:underline; }
+.qm-paidarr { color:#1d4ed8; }
+tr.qm-paid td { background:#f8fafc; color:#64748b; }
+tr.qm-paid[hidden] { display:none; }
 .qm-pill.wn { background:#fef3c7; color:#92400e; } .qm-pill.rep { background:#e0e7ff; color:#3730a3; } .qm-pill.mute { background:#f1f5f9; color:#64748b; }
 .qm-f { color:#1d4ed8; font-weight:700; text-decoration:none; word-break:break-all; }
 .qm-meta { font-size:11px; color:#94a3b8; }
@@ -160,7 +167,7 @@ body {
         <tr class="pj" data-pid="{{ p.id }}">{# z1191z156: 관리번호 줄은 올리는 자리가 아님 — 견적서·발주서는 아래 수주번호 줄에 #}
           <td><a href="/project/{{ p.id }}" style="font-weight:800;color:var(--qv-ink);text-decoration:none;"><span class="mgmt-pill sm">{{ p.mgmt_code }}</span> {{ p.name }}</a>{% if r.mine %} <span class="qm-meta">👤</span>{% endif %}</td>
           <td title="z1191z164: 이 관리번호 수주들의 1차 고객사 — {{ p.cust164_all }}">{{ p.cust164 or '—' }}<div class="qm-meta">{{ p.sales_name or '' }}{% if p.stage %} · {{ p.stage }}{% endif %}</div></td>
-          <td class="num qm-meta">{% if not r.sos %}수주 전{% else %}수주 {{ r.sos|length }}건{% endif %}</td>
+          <td class="num qm-meta">{% if not r.n_all %}수주 전{% else %}수주 {{ r.n_all }}건{% if r.paid %}<div title="z1191z165: 입금까지 끝난 수주 — 아래 회색 줄을 누르면 보입니다">(입금 끝남 {{ r.paid|length }})</div>{% endif %}{% endif %}</td>
           <td>{% if pfs %}<a class="qm-pill wn" href="/projects/so-check" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 견적서 — 눌러서 수주번호 고르기(저절로 붙이지 않음)">👉 수주번호를 골라 주세요</a>{% for pf in pfs %} {% if cm %}<a class="qm-f" href="/quotes/{{ pf.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ pf.orig_name }}</a>{% else %}🔒{% endif %} <span class="qm-meta">{{ (pf.created_at or '')[:10] }} {{ pf.by_name or '' }}</span>{% endfor %}
               {% elif not r.sos %}<span class="qm-meta">수주 전 — 수주번호가 생기면 그 수주번호에 올립니다</span>{% else %}<span class="qm-meta">↓ 수주번호마다 올립니다</span>{% endif %}</td>
           <td></td>
@@ -169,15 +176,18 @@ body {
             <div><a class="qm-pill wn" href="/projects/so-check" title="z1191z156: 수주번호가 없는 옛 발주서 — 눌러서 수주번호 고르기">👉 수주번호를 골라 주세요</a></div>
           </div>{% endif %}</td>
         </tr>
-        {% for s in r.sos %}{% set o = s.o %}{% set fs = s.fs %}
-        <tr class="so qm-slot" data-pid="{{ p.id }}" data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ fs|length if fs else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
-          <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a></td>
+        {% for s in r.sos + r.paid %}{% set o = s.o %}{% set fs = s.fs %}
+        {% if s.paid and loop.index0 == r.sos|length %}{# z1191z165 (대표 11-27): 입금 끝난 수주도 말없이 빼지 않음 — 접은 줄 하나 #}
+        <tr class="qm-paidbar" data-pid="{{ p.id }}"><td colspan="6"><button type="button" class="qm-paidbtn" data-pid="{{ p.id }}" aria-expanded="{{ 'true' if r.paid_open else 'false' }}">└ 입금 끝난 수주 {{ r.paid|length }}건 <span class="qm-meta">({% for x in r.paid %}{{ x.o.order_no }}{% if not loop.last %} · {% endif %}{% endfor %})</span> <b class="qm-paidarr">{{ '▾ 접기' if r.paid_open else '▸ 펼쳐 보기' }}</b></button></td></tr>
+        {% endif %}
+        <tr class="so qm-slot{% if s.paid %} qm-paid{% endif %}" data-pid="{{ p.id }}"{% if s.paid and not r.paid_open %} hidden{% endif %} data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ fs|length if fs else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
+          <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a>{% if s.paid %} <span class="qm-pill" style="background:#f1f5f9;color:#475569;">입금 끝남</span>{% endif %}</td>
           <td>{# z1191z164: 이 수주의 1차 고객사(세금계산서 받는 곳) #}<span title="이 수주의 고객사">{{ o.cust or '—' }}</span><div class="qm-meta">{{ s.units or '—' }}{% if o.due_date %} · 납기 {{ o.due_date }}{% endif %}</div></td>
           <td class="num">{% if cm %}{{ money(o.total_amount or 0, o.currency or 'KRW') }}{% else %}🔒{% endif %}</td>
           <td>{% if fs %}<div class="qm-fl">{# z1191z160: 이 수주에 올린 견적서 모두(최근 위) · 금액 비교·따라가기 없음 #}
               {% for f in fs %}<div>{% if cm %}<a class="qm-f" href="/quotes/{{ f.id }}" title="z1191z121: 견적서 내용 바로 보기">👁 {{ f.orig_name }}</a>{% else %}🔒{% endif %}
               <span class="qm-meta">{% if cm and f.amt is not none %}{{ money(f.amt, f.cur or o.currency or 'KRW') }} · {% endif %}{{ (f.created_at or '')[:10] }} {{ f.by_name or '' }}</span></div>{% endfor %}
-            </div>{% else %}<span class="qm-pill no">없음</span>{% endif %}</td>
+            </div>{% else %}<span class="qm-pill {{ 'mute' if s.paid else 'no' }}">없음</span>{% endif %}</td>
           <td>{% if can_up %}<button type="button" class="qm-btn{% if not fs %} up{% endif %} qm-pick" title="엑셀 견적서 — 이 줄에 끌어다 놓아도 됩니다 · 더 올려도 지금 것은 그대로 남습니다">{% if fs %}＋ 더 올리기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
           <td class="qm-po">{% set _ps = s.po %}<div class="z143-box" data-pid="{{ p.id }}" data-oid="{{ o.id }}">
             {% if _ps.files %}<div class="qm-fl">{% for x in _ps.files %}<div>{% if cm %}<a class="qm-f" href="/customer-po/{{ x.id }}" title="고객 발주서 바로 보기 · {{ x.by_name or '' }} {{ (x.created_at or '')[:16] }}" style="color:#166534;">📄 {{ x.orig_name }}</a>{% else %}🔒{% endif %}{% if cm and x.kind == 'xl' and x.amount is not none %} <span class="qm-meta">{{ money(x.amount|float, x.currency or 'KRW') }}</span>{% endif %}</div>{% endfor %}</div>
@@ -189,6 +199,14 @@ body {
       {% endfor %}
       </tbody>
     </table>
+    <script>/* z1191z165: 입금 끝난 수주 접기·펼치기(올리기 권한과 상관없이) */
+    if (!window.__qmPaid165) { window.__qmPaid165 = 1; document.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('.qm-paidbtn'); if (!b) return;
+      var open = b.getAttribute('aria-expanded') !== 'true', pid = b.getAttribute('data-pid');
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+      var a = b.querySelector('.qm-paidarr'); if (a) a.textContent = open ? '▾ 접기' : '▸ 펼쳐 보기';
+      document.querySelectorAll('tr.qm-paid[data-pid="' + pid + '"]').forEach(function(tr){ tr.hidden = !open; });
+    }); }</script>
     {% elif not qb.cons and not (qhits and qhits.files) %}{# z1191z121: 견적서 안에서 찾았으면 「없습니다」 안 띄움 #}
     <div class="empty"><div class="ico">📋</div><div class="ttl">{% if qb.q or qb.only or qb.mine or qb.biz %}조건에 맞는 관리번호가 없습니다{% else %}이 기간에 관리번호가 없습니다{% endif %}</div><div style="margin-top:10px;font-size:12px;color:var(--mute);">기간을 「전체」로 바꾸거나 거르기를 풀어 보세요.</div></div>
     {% endif %}

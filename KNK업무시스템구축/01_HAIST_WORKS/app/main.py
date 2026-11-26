@@ -23394,14 +23394,14 @@ async def sales_quotations_export_xlsx(req: Request):
             out.append([p["mgmt_code"], "", ("수주번호 고르기 전 견적서" if pf else ("수주 전" if not r["sos"] else "")), p["name"], p.get("cust164_all") or "", p["sales_name"], "", "",
                         (pf["orig_name"] if pf else ""), ((pf["created_at"] or "")[:10] if pf else ""), (pf["by_name"] if pf else ""),
                         "", ("⚠ 수주번호를 골라야 함" if pf else "-")])   # z1191z156
-        for s in r["sos"]:
+        for s in r["sos"] + (r.get("paid") or []):   # z1191z165: 화면과 같게 입금 끝난 수주도
             o, fs = s["o"], s["fs"]
             for i, f in enumerate(fs or [None]):   # z1191z160: 견적서마다 한 줄
                 out.append([p["mgmt_code"], o["order_no"], s["units"], p["name"], o.get("cust") or "", p["sales_name"],   # z1191z164: 고객사 = 이 수주
                             (o["total_amount"] if cm else "🔒"), (o["currency"] or "KRW"),
                             (f["orig_name"] if f else ""), ((f["created_at"] or "")[:10] if f else ""), (f["by_name"] if f else ""),
                             ((f["amt"] if f["amt"] is not None else "") if (f and cm) else ("🔒" if (f and not cm) else "")),
-                            (("있음" + (" (%d장 중 %d)" % (len(fs), i + 1) if len(fs) > 1 else "")) if f else "없음")])
+                            (("있음" + (" (%d장 중 %d)" % (len(fs), i + 1) if len(fs) > 1 else "")) if f else "없음") + (" · 입금 끝남" if s.get("paid") else "")])
     for co in b.get("cons") or []:   # z1191z107: 소모품 책갈피 = 소모품 주문(보기만 · 견적서 자리 없음)
         out.append([co["mgmt_code"], co["co_no"], "소모품", (co["project_name"] or co["equip_name"] or ""), co["customer_name"],
                     co["sales_name"], (co["total_amount"] if cm else "🔒"), (co["currency"] or "KRW"), "", "", "", "",
@@ -46083,7 +46083,9 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
         on_tab = (not biz) or pbiz == biz
         sos_all = orders.get(p["id"], [])
         # 기본 = 입금 전 수주만(입금까지 끝난 수주는 「입금 끝난 수주도 보기」) — 처음부터 1,000건 넘게 「없음」으로 뜨지 않게
+        # z1191z165 (대표 11-27 「수주 4개인데 2개만」): 입금 끝난 수주도 관리번호 아래에 모두 보임(회색 접은 줄) · 말없이 빼지 않음
         sos = sos_all if done else [o for o in sos_all if (o.get("status") or "").upper() != "PAID"]
+        paid165 = [] if done else [o for o in sos_all if (o.get("status") or "").upper() == "PAID"]
         if sos_all and not sos:
             if on_tab:
                 cnt["done_hidden"] += 1
@@ -46102,16 +46104,16 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
             continue
         if ql:
             hay = " ".join([p["mgmt_code"] or "", p["name"] or "", p["sales_name"] or ""]
-                           + [(o["order_no"] or "") + " " + (o.get("cust") or "") for o in sos]).lower()   # z1191z164: 고객사 = 수주마다
+                           + [(o["order_no"] or "") + " " + (o.get("cust") or "") for o in sos_all]).lower()   # z1191z165: 입금 끝난 수주도 찾음   # z1191z164: 고객사 = 수주마다
             if ql not in hay:
                 continue
         pfs = list(reversed(files.get((p["id"], None)) or []))   # z1191z156: 수주번호를 아직 안 고른 옛 견적서(보이기만 · ⚠ 수주 칸 확인 필요에서 고름)
         # z1191z160: 수주마다 그 수주에 올린 견적서 전부(최근 위) · 없으면 「없음」 — 금액 비교·앞 수주 견적 따라가기 없음
-        res160 = _ql141.resolve([{"id": o["id"]} for o in sos], {o["id"]: files.get((p["id"], o["id"])) or [] for o in sos})
-        so_rows = []
-        for o in sos:
+        res160 = _ql141.resolve([{"id": o["id"]} for o in sos_all], {o["id"]: files.get((p["id"], o["id"])) or [] for o in sos_all})
+        so_rows, paid_rows = [], []
+        for o in sos + paid165:
             rs = res160.get(o["id"]) or {"st": "none", "fs": []}
-            so_rows.append({"o": o, "fs": rs["fs"], "st": rs["st"],
+            (paid_rows if o in paid165 else so_rows).append({"o": o, "fs": rs["fs"], "st": rs["st"], "paid": o in paid165,
                             "units": _z105_units_txt(labels.get(o["id"], [])),
                             "po": _po143.slot_status(po143.get((p["id"], o["id"]), []))})   # z1191z143 · z1191z160 여러 장
         if on_tab:   # 요약 칸 = 지금 고른 책갈피 안에서만
@@ -46134,7 +46136,8 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
         bcnt["all"] += 1
         bcnt[pbiz] += 1
         if on_tab:
-            rows.append({"p": p, "pfs": pfs, "sos": so_rows, "mine": is_mine,
+            rows.append({"p": p, "pfs": pfs, "sos": so_rows, "paid": paid_rows, "n_all": len(sos_all), "mine": is_mine,
+                         "paid_open": bool(ql and any(ql in ((o["order_no"] or "") + " " + (o.get("cust") or "")).lower() for o in paid165)),
                          "po": _po143.slot_status(po143.get((p["id"], None), []))})   # z1191z143 수주번호 안 고른 옛 발주서
     # 소모품 주문 = 보기만(대표 「소모품은 보기만」) — 「견적서 없음」 거르기는 견적서 자리가 없으므로 적용 안 함
     cons, cons_hidden = _z107_cons(u, ql, mine, since, done)

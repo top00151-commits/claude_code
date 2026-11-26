@@ -225,7 +225,8 @@ print("§5b 입금 끝난 수주는 기본으로 숨김 · 부품 줄은 「품�
 with D.db_session() as cc:
     cc.execute("UPDATE orders SET status='PAID' WHERE id=?", (O3,))
 h = cl.get("/sales/quotations?period=all").text
-check("입금 끝난 3호기 수주는 기본으로 안 보임", "Z-261102-1" not in h and "Z-261101-1" in h)
+# z1191z165 (대표 11-27 「수주 4개인데 2개만」): 말없이 빼지 않음 — 접은 회색 줄로 남고 건수에 들어감
+check("입금 끝난 3호기 수주 = 접은 회색 줄(숨김 아님 · 건수에 들어감)", "입금 끝난 수주 1건" in h and 'qm-paid" data-pid' in h and "Z-261102-1" in h and "Z-261101-1" in h)
 h = cl.get("/sales/quotations?period=all&done=1").text
 check("「입금 끝난 수주도 보기」면 보임", "Z-261102-1" in h and "입금 끝난 수주도 보는 중" in h)
 with D.db_session() as cc:
