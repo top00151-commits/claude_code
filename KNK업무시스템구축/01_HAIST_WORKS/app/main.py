@@ -26338,6 +26338,221 @@ async def mail_hiworks_folders_rules_save(req: Request):
     return JSONResponse(out, 200 if out.get("ok") else 400)
 
 
+# ─── 11-27 대표 「하이웍스에서 옮겨 오기」 — 「최대한 쉽게 설명을 포함해서 · 직원들이 직접 내용 보고 쉽게 · 자꾸 나한테 질문하게 하지 말고」 ───
+#   ① 하이웍스 자동분류 표 붙여넣기 → 우리 규칙(보낸 사람 → 폴더) · ② 하이웍스 규칙 지우기 안내 · ③ 하이웍스 「메일 백업」 파일 올리기
+#   누구나 · 본인 메일함만 · 저장은 사람이 확인한 것만(knk-no-silent-change).
+@app.get("/mail/hiworks-move", response_class=HTMLResponse)
+async def mail_hiworks_move_page(req: Request):
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import mail_hiworks_move as _hwm
+    from . import mail_hiworks_folders as _mhw
+    with db_session() as c:
+        _hwm.ensure(c)
+        _hwm.cleanup_old(c, u["id"])
+        rs = _hwm.rules_state(c, u["id"])
+        files = _hwm.list_files(c, u["id"])
+        n_cand = len([x for x in _mhw.rule_candidates(c, u["id"]) if x["status"] != "have"])
+    return ctx(req, "mail_hiworks_move.html", user=u, active="mail", rs=rs, files=files, n_cand=n_cand,
+               max_gb=_hwm.MAX_FILE // 1024 ** 3, keep_days=_hwm.KEEP_DAYS, running=_hwm.is_running(u["id"]))
+
+
+@app.post("/mail/hiworks-move/rules/preview")
+async def mail_hiworks_move_rules_preview(req: Request):
+    """① 붙여 넣은 표 → 미리 보기(저장 안 함)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    form = await _mail_form(req)
+    text = form.get("text") or ""
+    if len(text) > _hwm.MAX_RULE_TEXT:
+        return JSONResponse({"ok": False, "message": "붙여 넣은 글이 너무 깁니다 — 한 쪽씩 붙여 넣어 주세요."}, 400)
+    with db_session() as c:
+        out = _hwm.preview_rules(c, u["id"], text)
+    return JSONResponse(out)
+
+
+@app.post("/mail/hiworks-move/rules/save")
+async def mail_hiworks_move_rules_save(req: Request):
+    """① 체크한 줄만 저장 — 지난 메일도(past=1) / 지금부터만(past=0) · ↺ 되돌리기 있음."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    form = await _mail_form(req)
+    text = form.get("text") or ""
+    try:
+        picked = [str(x) for x in __import__("json").loads(form.get("picked") or "[]")][:_hwm.MAX_RULE_ROWS]
+    except Exception:
+        picked = []
+    if not picked:
+        return JSONResponse({"ok": False, "message": "저장할 줄에 체크해 주세요."}, 400)
+    with db_session() as c:
+        out = _hwm.save_rules(c, u["id"], text, picked, (form.get("past") or "") == "1")
+        out["rs"] = _hwm.rules_state(c, u["id"])
+    _mail_folders._CACHE.pop(u["id"], None)
+    print("[MAIL-HWM] user=%s 규칙 저장 %s개" % (u["id"], out.get("saved")), flush=True)
+    return JSONResponse(out)
+
+
+@app.post("/mail/hiworks-move/rules/undo")
+async def mail_hiworks_move_rules_undo(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    with db_session() as c:
+        out = _hwm.undo_rules(c, u["id"])
+        out["rs"] = _hwm.rules_state(c, u["id"])
+    _mail_folders._CACHE.pop(u["id"], None)
+    return JSONResponse(out, 200 if out.get("ok") else 400)
+
+
+@app.post("/mail/hiworks-move/up/begin")
+async def mail_hiworks_move_up_begin(req: Request):
+    """③ 올리기 시작(파일 이름·크기) → 번호 · 이미 받은 크기(이어 올리기)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    form = await _mail_form(req)
+    with db_session() as c:
+        out = _hwm.begin(c, u["id"], form.get("name") or "", form.get("size") or "")
+    return JSONResponse(out, 200 if out.get("ok") else 400)
+
+
+@app.post("/mail/hiworks-move/up/chunk")
+async def mail_hiworks_move_up_chunk(req: Request):
+    """③ 조각 하나 — 몸통 그대로(메모리에 통째로 두지 않고 바로 임시 파일 뒤에 붙임) · 위치(off)가 다르면 받은 크기만 알려 줌."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    try:
+        fid = int(req.query_params.get("id") or 0)
+        off = int(req.query_params.get("off") or -1)
+    except Exception:
+        return JSONResponse({"ok": False, "message": "잘못된 요청"}, 400)
+    with db_session() as c:
+        path, got, size, why = _hwm.chunk_target(c, u["id"], fid, off)
+    if why == "where":
+        return JSONResponse({"ok": False, "where": True, "received": got})
+    if not path:
+        return JSONResponse({"ok": False, "message": why}, 400)
+    n, over = 0, False
+    try:
+        with open(path, "ab") as f:
+            async for part in req.stream():
+                n += len(part)
+                if n > _hwm.CHUNK_MAX or got + n > size:
+                    over = True
+                    break
+                f.write(part)
+        if over:
+            with open(path, "r+b") as f:
+                f.truncate(got)
+            return JSONResponse({"ok": False, "message": "조각이 너무 큽니다. 화면을 새로 고쳐 다시 올려 주세요."}, 413)
+    except Exception as e:
+        try:
+            with open(path, "r+b") as f:
+                f.truncate(got)
+        except Exception:
+            pass
+        print("[MAIL-HWM] 조각 받기 실패: %s" % type(e).__name__, flush=True)
+        return JSONResponse({"ok": False, "where": True, "received": got})
+    with db_session() as c:
+        full = _hwm.chunk_done(c, u["id"], fid, got + n)
+    return JSONResponse({"ok": True, "received": got + n, "full": full})
+
+
+@app.post("/mail/hiworks-move/scan")
+async def mail_hiworks_move_scan(req: Request):
+    """③ 다 올라간 파일 안 보기 — 메일함별 통수 · 넣을 폴더 이름 후보(저장은 아직 안 함)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    from starlette.concurrency import run_in_threadpool
+    form = await _mail_form(req)
+    try:
+        fid = int(form.get("id") or 0)
+    except Exception:
+        fid = 0
+    out = await run_in_threadpool(_hwm.scan, db_session, u["id"], fid)
+    return JSONResponse(out, 200 if out.get("ok") else 400)
+
+
+@app.post("/mail/hiworks-move/start")
+async def mail_hiworks_move_start(req: Request):
+    """③ 폴더 이름을 확인한 뒤 넣기 시작(뒤에서) · 멈춘 것을 같은 폴더로 다시 누르면 이어서."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    from .mail_import_outlook import disk_state as _hwm_disk
+    form = await _mail_form(req)
+    try:
+        fid = int(form.get("id") or 0)
+        plan = __import__("json").loads(form.get("plan") or "{}")
+        if not isinstance(plan, dict):
+            plan = {}
+    except Exception:
+        fid, plan = 0, {}
+    if not _hwm_disk().get("ok", True):
+        return JSONResponse({"ok": False, "message": "서버 남은 공간이 모자랍니다(빅터에게 알려 주세요)."}, 400)
+    try:
+        ok, msg = _hwm.start(db_session, u["id"], fid, plan)
+    except ValueError as e:
+        return JSONResponse({"ok": False, "message": str(e)}, 400)
+    if not ok:
+        return JSONResponse({"ok": False, "message": msg}, 400)
+    with db_session() as c:
+        files = _hwm.list_files(c, u["id"])
+    print("[MAIL-HWM] user=%s 넣기 시작 file=%s" % (u["id"], fid), flush=True)
+    return JSONResponse({"ok": True, "files": files})
+
+
+@app.get("/mail/hiworks-move/status")
+async def mail_hiworks_move_status(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    with db_session() as c:
+        files = _hwm.list_files(c, u["id"])
+    return JSONResponse({"ok": True, "files": files, "running": _hwm.is_running(u["id"])})
+
+
+@app.post("/mail/hiworks-move/stop")
+async def mail_hiworks_move_stop(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    with db_session() as c:
+        n = _hwm.stop(c, u["id"])
+    return JSONResponse({"ok": True, "stopped": n})
+
+
+@app.post("/mail/hiworks-move/cancel")
+async def mail_hiworks_move_cancel(req: Request):
+    """올린 파일 지우기(넣는 중이 아닐 때) — 이미 넣은 메일은 그대로."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_move as _hwm
+    form = await _mail_form(req)
+    try:
+        fid = int(form.get("id") or 0)
+    except Exception:
+        fid = 0
+    with db_session() as c:
+        ok = _hwm.cancel(c, u["id"], fid)
+    return JSONResponse({"ok": ok, "message": "" if ok else "지금 넣는 중이라 지울 수 없습니다(먼저 멈추기)."}, 200 if ok else 400)
+
+
 @app.get("/mail/from-outlook", response_class=HTMLResponse)
 async def mail_from_outlook_page(req: Request):
     """11-25 대표 「예전 아웃룩에 남아있는데 어떻게 전달하지?」 — 아웃룩에서 뽑은 CSV(Message-ID·보낸 사람)로 빈 보낸 사람 채우기(관리자 · 내 메일만)."""

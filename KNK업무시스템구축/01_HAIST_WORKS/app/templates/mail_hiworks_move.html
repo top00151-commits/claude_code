@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>하이웍스에서 옮겨 오기 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_pwa_head.html" %}
+<style>
+  /* 11-27 대표 「최대한 쉽게 설명을 포함해서 · 직원들이 직접 내용 보고 쉽게 · 자꾸 나한테 질문하게 하지 말고」
+     색 = 메일 테마 토큰(--mt-*) · 알림 상자 색은 아래 --hm-* (어둡게 테마에서 따로) */
+  .hm-wrap{--hm-ok-bg:#ecfdf3;--hm-ok-fg:#14532d;--hm-ok-bd:#86d3a8;--hm-todo-bg:#fff7e6;--hm-todo-fg:#6b3f03;--hm-todo-bd:#f3c27a;
+    --hm-wait-bg:#eef4ff;--hm-wait-fg:#1e3a8a;--hm-wait-bd:#a9c3f5;--hm-err-bg:#fef2f2;--hm-err-fg:#a11616;--hm-err-bd:#f3a5a5;--hm-sel:#fff5f5;--hm-red:var(--knk-red,#a5282c);
+    padding:0 var(--content-pad,32px) 40px;box-sizing:border-box;max-width:1100px;color:var(--mt-text,var(--text,#111827))}
+  html[data-mt="dark"] .hm-wrap{--hm-ok-bg:#12301f;--hm-ok-fg:#a7f3c6;--hm-ok-bd:#2f6b48;--hm-todo-bg:#3a2a0c;--hm-todo-fg:#fcd58a;--hm-todo-bd:#7a5a1c;
+    --hm-wait-bg:#15233f;--hm-wait-fg:#bcd0f8;--hm-wait-bd:#34508a;--hm-err-bg:#3b1517;--hm-err-fg:#fdb4b4;--hm-err-bd:#7f2a2e;--hm-sel:#3a1c1e;--hm-red:#e0565b}
+  .hm-wrap .page-head{padding-left:0;padding-right:0;display:flex;align-items:flex-start;gap:10px}
+  .hm-x{margin-left:auto;flex:0 0 auto;white-space:nowrap}
+  .hm-card{border:1px solid var(--mt-line,var(--line,#d6dbe1));border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin:0 0 14px;min-width:0}
+  .hm-note{font-size:13px;color:var(--mt-mute,var(--mute,#56606e));line-height:1.75}
+  .hm-h{margin:0 0 6px;font-size:16px;color:var(--mt-text,inherit)}
+  .hm-why{margin:0 0 10px;font-size:13.5px;line-height:1.7;font-weight:700;color:var(--hm-todo-fg);background:var(--hm-todo-bg);border:1px solid var(--hm-todo-bd);border-radius:8px;padding:8px 12px}
+  .hm-flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 4px}
+  .hm-fs{display:flex;align-items:center;gap:6px;border:1px solid var(--mt-line,var(--line));border-radius:999px;padding:5px 12px 5px 6px;font-size:13px;color:var(--mt-text2,var(--mt-text,#374151));background:var(--mt-panel,#f6f7f9);cursor:pointer;font:inherit;font-size:13px}
+  .hm-fs .n{width:22px;height:22px;border-radius:50%;background:#6b7380;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .hm-fs.past{color:var(--hm-ok-fg);border-color:var(--hm-ok-bd);background:var(--hm-ok-bg)}
+  .hm-fs.past .n{background:#15803d}
+  .hm-fs.cur{color:#fff;border-color:var(--knk-red,#a5282c);background:var(--knk-red,#a5282c);font-weight:800}
+  .hm-fs.cur .n{background:#fff;color:var(--knk-red,#a5282c)}
+  .hm-arrow{color:var(--mt-mute,var(--mute));font-size:12px}
+  .hm-now{border-width:2px}
+  .hm-msg{display:block;margin-top:10px;font-size:14px;line-height:1.7;border-radius:10px}
+  .hm-msg:not(:empty){padding:12px 14px;border:1px solid var(--mt-line,var(--line))}
+  .hm-msg.ok,.hm-box.ok{background:var(--hm-ok-bg);border-color:var(--hm-ok-bd);color:var(--hm-ok-fg)}
+  .hm-msg.todo,.hm-box.todo{background:var(--hm-todo-bg);border-color:var(--hm-todo-bd);color:var(--hm-todo-fg)}
+  .hm-msg.wait,.hm-box.wait{background:var(--hm-wait-bg);border-color:var(--hm-wait-bd);color:var(--hm-wait-fg)}
+  .hm-msg.err,.hm-box.err{background:var(--hm-err-bg);border-color:var(--hm-err-bd);color:var(--hm-err-fg)}
+  .hm-box{border:1px solid var(--mt-line,var(--line));border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13.5px;line-height:1.7}
+  .hm-box:empty{display:none}
+  .hm-act{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .hm-act:empty{display:none}
+  details.hm-sec{padding:0}
+  details.hm-sec>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  details.hm-sec>summary::-webkit-details-marker{display:none}
+  details.hm-sec>summary .hm-h{margin:0;flex:1 1 auto;min-width:0}
+  details.hm-sec>summary .hm-tag{font-size:12px;font-weight:800;border-radius:999px;padding:2px 10px;border:1px solid var(--mt-line,var(--line));color:var(--mt-mute,var(--mute))}
+  details.hm-sec>summary .hm-tag.ok{color:var(--hm-ok-fg);background:var(--hm-ok-bg);border-color:var(--hm-ok-bd)}
+  details.hm-sec>summary .hm-tag.cur{color:#fff;background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c)}
+  details.hm-sec>summary::after{content:"펼치기 ▾";font-size:12px;color:var(--mt-mute,var(--mute))}
+  details.hm-sec[open]>summary::after{content:"접기 ▴"}
+  details.hm-sec>.hm-body{padding:0 18px 16px}
+  ol.hm-steps{margin:6px 0 10px;padding-left:22px;font-size:14px;line-height:1.8}
+  ol.hm-steps li{margin:2px 0}
+  ol.hm-steps b.k{display:inline-block;border:1px solid var(--mt-line,var(--line));border-bottom-width:2px;border-radius:5px;padding:0 6px;font-size:12.5px;background:var(--mt-panel,#f6f7f9);color:var(--mt-text,inherit)}
+  .hm-ta{width:100%;box-sizing:border-box;min-height:120px;padding:10px 12px;border:2px dashed var(--mt-sep,#a9b3bf);border-radius:10px;font-size:13.5px;font-family:inherit;background:var(--mt-panel,#f6f7f9);color:var(--mt-text,inherit);resize:vertical}
+  .hm-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+  .hm-list{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+  .hm-item{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--mt-line,var(--line));border-radius:10px;padding:9px 12px;font-size:14px;background:var(--mt-panel,#f6f7f9);min-width:0}
+  label.hm-item{cursor:pointer}
+  label.hm-item:has(input:checked){border-color:var(--hm-red);background:var(--hm-sel)}
+  .hm-item.dis{opacity:.85}
+  .hm-item input[type=checkbox]{margin-top:4px;flex:0 0 auto;width:18px;height:18px}
+  .hm-item .nm{flex:1 1 auto;min-width:0;word-break:break-all;line-height:1.6}
+  .hm-item small{display:block;color:var(--mt-mute,var(--mute));font-size:12.5px;line-height:1.6}
+  .hm-badge{display:inline-block;font-size:12px;font-weight:800;border-radius:999px;padding:1px 9px;margin-left:4px;border:1px solid var(--mt-line,var(--line));white-space:nowrap}
+  .hm-badge.new{color:var(--hm-ok-fg);background:var(--hm-ok-bg);border-color:var(--hm-ok-bd)}
+  .hm-badge.have{color:var(--mt-mute,var(--mute))}
+  .hm-badge.other,.hm-badge.dup{color:var(--hm-todo-fg);background:var(--hm-todo-bg);border-color:var(--hm-todo-bd)}
+  .hm-badge.no{color:var(--hm-err-fg);background:var(--hm-err-bg);border-color:var(--hm-err-bd)}
+  .hm-drop{border:2px dashed var(--mt-sep,#a9b3bf);border-radius:12px;padding:18px;text-align:center;background:var(--mt-panel,#f6f7f9);font-size:14px;line-height:1.7}
+  .hm-drop.on{border-color:var(--hm-red);background:var(--hm-sel)}
+  .hm-file{border:1px solid var(--mt-line,var(--line));border-radius:12px;padding:12px 14px;margin:10px 0;background:var(--mt-surface,#fff)}
+  .hm-file .fh{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-weight:800;font-size:14.5px;word-break:break-all}
+  .hm-bar{height:10px;border-radius:999px;background:var(--mt-track,#e3e7ec);overflow:hidden;margin-top:8px}
+  .hm-bar i{display:block;height:100%;width:0;background:var(--knk-red,#a5282c);transition:width .4s}
+  .hm-grp{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.1fr);gap:8px 10px;align-items:center;border-top:1px solid var(--mt-line,var(--line));padding:8px 0;font-size:13.5px}
+  .hm-grp input[type=text]{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--mt-line,var(--line));border-radius:8px;font-size:14px;background:var(--mt-surface,#fff);color:var(--mt-text,inherit)}
+  .hm-grp .src{word-break:break-all;line-height:1.5}
+  .hm-grp small{display:block;color:var(--mt-mute,var(--mute));font-size:12px}
+  .hm-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+  .hm-tile{border:1px solid var(--mt-line,var(--line));border-radius:10px;padding:8px 10px;background:var(--mt-panel,#f6f7f9)}
+  .hm-tile .t{font-size:12px;color:var(--mt-mute,var(--mute));font-weight:700;line-height:1.4}
+  .hm-tile .v{font-size:18px;font-weight:800;margin-top:2px}
+  .hm-chk{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;font-weight:700;border:2px solid var(--mt-line,var(--line));border-radius:10px;padding:10px 12px;cursor:pointer;line-height:1.6}
+  .hm-chk input{width:20px;height:20px;flex:0 0 auto;margin-top:2px}
+  .hm-chk:has(input:checked){border-color:var(--hm-ok-bd);background:var(--hm-ok-bg);color:var(--hm-ok-fg)}
+  .hm-small{font-size:12.5px}
+  @media(max-width:760px){
+    .hm-wrap{padding:0 16px 32px}
+    .hm-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .hm-grp{grid-template-columns:auto minmax(0,1fr)}
+    .hm-grp .to{grid-column:1 / -1}
+    details.hm-sec>summary,details.hm-sec>.hm-body{padding-left:12px;padding-right:12px}
+    .hm-card{padding:12px}
+    .hm-wrap .page-head{flex-wrap:wrap}
+  }
+</style>
+</head><body>
+<div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
+<main class="main" data-dn="main">
+<div class="hm-wrap">
+  <div class="page-head"><div style="min-width:0">
+    <div class="crumbs"><a href="/mail/inbox">메일함</a> · <a href="/mail/tools">설정·정리</a> · 하이웍스에서 옮겨 오기</div>
+    <h1 class="page-title">🔀 하이웍스에서 <em>옮겨 오기</em></h1>
+  </div><a href="/mail/tools" class="btn btn-secondary hm-x" onclick="return hmExit(event,this)" title="이 화면 닫기 — 설정·정리로(새 창이면 창 닫기)">✕ 닫기</a></div>
+
+  <div class="hm-card hm-now" id="hmNow">
+    <h2 class="hm-h">지금 단계 <span class="hm-note">(누르면 그 단계 설명으로)</span></h2>
+    <div class="hm-flow" id="hmFlow" aria-label="옮겨 오기 순서">
+      <button type="button" class="hm-fs" data-s="1" onclick="hmOpen(1,true)"><span class="n">1</span>규칙 옮기기</button><span class="hm-arrow">→</span>
+      <button type="button" class="hm-fs" data-s="2" onclick="hmOpen(2,true)"><span class="n">2</span>하이웍스 규칙 지우기</button><span class="hm-arrow">→</span>
+      <button type="button" class="hm-fs" data-s="3" onclick="hmOpen(3,true)"><span class="n">3</span>옛 메일 올리기</button><span class="hm-arrow">→</span>
+      <button type="button" class="hm-fs" data-s="4" onclick="hmOpen(4,true)"><span class="n">4</span>끝</button>
+    </div>
+    <span class="hm-msg" id="hmMsg"></span>
+    <div class="hm-act" id="hmAct"></div>
+  </div>
+
+  <div class="hm-card">
+    <div style="font-size:14px;line-height:1.8"><b>왜 하나요?</b> 이음 메일은 하이웍스의 <b>「받은 메일함」만</b> 받아 옵니다.
+      그래서 하이웍스 <b>「메일 자동분류」 규칙</b>이 개인 메일함으로 바로 넣는 <b>새 메일</b>과, 하이웍스 <b>개인 메일함에 든 옛 메일</b>은 이음 메일에 <b>오지 않습니다</b>.</div>
+    <div class="hm-note" style="margin-top:6px">· 위 순서대로 1 → 2 → 3 을 하면 끝납니다(대략 10~30분). 화면의 설명만 따라 하시면 됩니다 — 누구에게 묻지 않아도 됩니다.<br>
+      · <b>PC 에서</b> 하세요(복사·붙여넣기·파일 올리기 때문 · 휴대폰으로는 진행 상황만 보셔도 됩니다).<br>
+      · 내 메일함에만 들어갑니다 · 하이웍스 메일은 지우지 않습니다 · 같은 메일은 두 번 들어가지 않습니다 · 새 메일 알림·자동 응답은 나가지 않습니다.</div>
+  </div>
+
+  <!-- ① 규칙 옮기기 -->
+  <details class="hm-card hm-sec" id="hmS1">
+    <summary><h2 class="hm-h">① 규칙 옮기기 <span class="hm-note">— 하이웍스 「메일 자동분류」 표를 복사해 붙여 넣기</span></h2><span class="hm-tag" id="hmTag1"></span></summary>
+    <div class="hm-body">
+      <div class="hm-why">⚠ 이걸 안 하면, 하이웍스 규칙에 걸린 새 메일이 이음 메일에 안 옵니다.</div>
+      <ol class="hm-steps">
+        <li>PC 에서 <b>하이웍스 메일</b>을 엽니다(다른 창이나 탭에).</li>
+        <li>왼쪽 아래 <b>⚙ 「메일 환경설정」</b>을 누릅니다.</li>
+        <li>위쪽 탭 중 <b>「메일 자동분류」</b>를 누릅니다 — 「분류 대상 · 분류 조건 · 조건 내용 · 이동할 메일함」 표가 보입니다.</li>
+        <li>표가 있는 화면 아무 빈 곳을 한 번 누르고 <b class="k">Ctrl</b> + <b class="k">A</b>(전체 선택) → <b class="k">Ctrl</b> + <b class="k">C</b>(복사).
+          <div class="hm-note">화면 전체가 파랗게 골라져도 괜찮습니다 — 메뉴 글자 같은 것은 빼고 <b>규칙 줄만 골라 읽습니다</b>. 표만 마우스로 끌어 골라도 됩니다.</div></li>
+        <li>이 화면 아래 <b>점선 칸</b>을 누르고 <b class="k">Ctrl</b> + <b class="k">V</b>(붙여넣기) — 바로 읽어서 아래에 미리 보기가 나옵니다.</li>
+        <li>표 아래에 <b>쪽 번호(1 2 3 …)</b>가 있으면, 하이웍스에서 다음 쪽을 눌러 4~5번을 <b>쪽마다 반복</b>합니다. 붙여 넣을 때마다 <b>쌓입니다</b>(같은 줄을 두 번 붙여도 한 번만).</li>
+        <li>미리 보기에서 <b>맞는 줄만 체크</b>(처음엔 새 규칙이 모두 체크되어 있음)하고 <b>「✔ 확인한 규칙 저장」</b>을 누릅니다. 잘못했으면 <b>↺ 되돌리기</b>.</li>
+      </ol>
+      <textarea class="hm-ta" id="hmTa" placeholder="여기를 누르고 Ctrl+V — 하이웍스 「메일 자동분류」 화면에서 복사한 것을 붙여 넣으세요(쪽마다 계속 붙여 넣으면 쌓입니다)"></textarea>
+      <div class="hm-row"><button type="button" class="btn btn-secondary" onclick="hmTake()">📋 칸에 쓴 글 읽기</button>
+        <span class="hm-note" id="hmPasteN"></span>
+        <button type="button" class="btn btn-secondary" id="hmClearBtn" onclick="hmClear()" hidden>처음부터 다시(붙여 넣은 것 비우기)</button></div>
+      <div class="hm-box" id="hmRuleMsg"></div>
+      <div id="hmPv" hidden>
+        <div class="hm-note">아래는 <b>아직 저장 전</b>입니다. 체크한 줄만 저장됩니다. 폴더가 이음 메일에 없으면 <b>저장할 때 새로 만듭니다</b>(같은 이름 폴더가 있으면 그 폴더).</div>
+        <div class="hm-row"><button type="button" class="btn btn-secondary hm-small" onclick="hmAllRules(true)">새 규칙 모두 체크</button><button type="button" class="btn btn-secondary hm-small" onclick="hmAllRules(false)">모두 빼기</button></div>
+        <div class="hm-list" id="hmRules"></div>
+        <details id="hmNoBox" style="margin:6px 0"><summary class="hm-note" style="cursor:pointer" id="hmNoSum"></summary><div class="hm-list" id="hmNoList"></div>
+          <div class="hm-note">옮길 수 없는 규칙은 하이웍스에 그대로 두셔도 됩니다 — 다만 그 규칙에 걸린 메일은 이음 메일에 오지 않으니, 필요 없으면 ②에서 함께 지우세요.</div></details>
+        <details id="hmLeftBox" style="margin:6px 0"><summary class="hm-note" style="cursor:pointer" id="hmLeftSum"></summary><div class="hm-note" id="hmLeft" style="word-break:break-all"></div></details>
+        <label class="hm-chk" style="margin-top:8px"><input type="checkbox" id="hmPast" onchange="hmPastN()"><span>지난 메일도 이 규칙대로 옮기기 <span class="hm-note" id="hmPastN" style="font-weight:600"></span>
+          <span class="hm-note" style="display:block;font-weight:500">체크 안 하면(기본) <b>지금부터 오는 메일만</b> 그 폴더로 갑니다. 내가 이미 다른 폴더로 옮겨 둔 메일은 어느 쪽이든 그대로 둡니다.</span></span></label>
+        <div class="hm-row"><button type="button" class="btn btn-primary" id="hmSaveBtn" onclick="hmSave()">✔ 확인한 규칙 저장</button><span class="hm-note" id="hmPickN"></span></div>
+      </div>
+      <div class="hm-box" id="hmSaved"></div>
+      <div class="hm-row"><button type="button" class="btn btn-secondary hm-small" onclick="hmSkip1()">하이웍스에 자동분류 규칙이 하나도 없어요 → 다음으로</button></div>
+    </div>
+  </details>
+
+  <!-- ② 하이웍스 규칙 지우기 -->
+  <details class="hm-card hm-sec" id="hmS2">
+    <summary><h2 class="hm-h">② 하이웍스 규칙 지우기 <span class="hm-note">— ①을 저장한 뒤에</span></h2><span class="hm-tag" id="hmTag2"></span></summary>
+    <div class="hm-body">
+      <div class="hm-why">⚠ 하이웍스에 규칙이 남아 있으면 그 규칙에 걸린 새 메일이 하이웍스 개인 메일함으로 바로 들어가 이음 메일에 안 옵니다.</div>
+      <div class="hm-box todo" id="hmS2Warn" hidden>👉 <b>①을 먼저 저장하세요.</b> 먼저 지우면 그사이 온 메일은 이음 메일 「받은편지함」에 그냥 쌓입니다(없어지지는 않습니다 — 나중에 폴더로 옮기면 됩니다).</div>
+      <ol class="hm-steps">
+        <li>하이웍스 메일 → 왼쪽 아래 <b>⚙ 「메일 환경설정」</b> → 위쪽 <b>「메일 자동분류」</b> 탭.</li>
+        <li>줄마다 오른쪽 <b>「관리」 칸의 「삭제」</b>를 누릅니다. 표 맨 위에 <b>전체를 고르는 네모 칸</b>이 있으면 그것을 누르고 한 번에 지워도 됩니다.</li>
+        <li>쪽이 여러 개면(표 아래 1 2 3 …) <b>모든 쪽</b>에서 지웁니다. 표가 비면 끝입니다.</li>
+        <li>①에서 <b>「옮길 수 없음」</b>으로 나온 규칙도 필요 없으면 지웁니다(남겨 두면 그 메일은 계속 하이웍스에만 있습니다).</li>
+        <li>다 지웠으면 아래 <b>「✓ 하이웍스 규칙을 다 지웠어요」</b>에 체크합니다.</li>
+      </ol>
+      <div class="hm-note" style="margin-bottom:8px">· 규칙을 지워도 <b>메일은 없어지지 않습니다</b> — 규칙(나누는 약속)만 지워집니다.<br>· 이 체크는 이 PC 화면에만 기억됩니다(다른 PC 에서는 다시 체크).</div>
+      <label class="hm-chk"><input type="checkbox" id="hmS2Done" onchange="hmSet('s2done', this.checked); hmShow()"><span>✓ 하이웍스 규칙을 다 지웠어요</span></label>
+    </div>
+  </details>
+
+  <!-- ③ 옛 메일 올리기 -->
+  <details class="hm-card hm-sec" id="hmS3">
+    <summary><h2 class="hm-h">③ 옛 메일 올리기 <span class="hm-note">— 하이웍스 「메일 백업」 파일</span></h2><span class="hm-tag" id="hmTag3"></span></summary>
+    <div class="hm-body">
+      <div class="hm-why">⚠ 하이웍스 개인 메일함에 든 옛 메일은 이음 메일에 없습니다 — 백업 파일을 올리면 같은 이름 폴더로 들어옵니다.</div>
+      <ol class="hm-steps">
+        <li>하이웍스 메일 → 왼쪽 아래 <b>⚙ 「메일 환경설정」</b> → 위쪽 <b>「메일함 관리」</b> 탭 → <b>「메일 백업」</b>.</li>
+        <li>옮길 <b>개인 메일함</b>(내가 만든 폴더 · 예: 주간업무)을 고르고 백업(내려받기) 단추를 누릅니다. <b>메일이 많은 메일함은 하나씩</b> 받으세요.</li>
+        <li>PC 에 받아진 파일(보통 「다운로드」 폴더)을 아래 <b>「📂 파일 고르기」</b>로 고르거나 점선 칸에 <b>끌어다 놓습니다</b>. 여러 개를 한 번에 골라도 됩니다. <b>압축(zip)은 풀지 말고 그대로</b> 올리세요.</li>
+        <li>다 올라가면 <b>「하이웍스 메일함 → 이음 메일 폴더」</b> 이름이 보입니다. 이름이 맞는지 보고(고쳐 써도 됨) <b>「📥 넣기 시작」</b>.</li>
+        <li>다음 메일함도 같은 방법으로 받아서 올립니다. 다 했으면 아래 <b>「옛 메일 올리기 끝」</b>을 누릅니다.</li>
+      </ol>
+      <div class="hm-note" style="margin-bottom:8px">· 올릴 수 있는 파일: <b>.zip</b>(안에 .eml 이나 .mbox · zip 안의 zip 도 한 단계까지) · <b>.eml</b> · <b>.mbox</b>(.txt 로 된 mbox 도) — 한 파일 <b>최대 {{ max_gb }}GB</b>.<br>
+        · <b>올리는 동안에는 이 화면을 닫지 마세요</b>(끊기면 같은 파일을 다시 고르면 이어서 올립니다). <b>넣기</b>가 시작되면 화면을 닫아도 서버에서 계속합니다.<br>
+        · 이미 이음 메일에 있는 메일은 <b>두 번 들어가지 않고</b> 같은 이름 폴더로 옮기기만 합니다 — 내가 이미 다른 폴더에 둔 메일·지운 메일은 <b>그대로 둡니다</b>.<br>
+        · 받은 날짜는 <b>원래 날짜</b> 그대로 · 내가 보낸 메일은 <b>「보낸 메일함」</b>으로 · 다 넣지 못한 파일은 {{ keep_days }}일 동안 서버에 두었다가 지웁니다(이어 넣기용).</div>
+      <div class="hm-drop" id="hmDrop">📂 여기에 파일을 끌어다 놓거나 <button type="button" class="btn btn-primary" onclick="document.getElementById('hmFileIn').click()">📂 파일 고르기</button>
+        <input type="file" id="hmFileIn" multiple accept=".zip,.eml,.mbox,.mbx,.txt,application/zip,message/rfc822" hidden onchange="hmPick(this.files); this.value=''"></div>
+      <div id="hmFiles"></div>
+      <div class="hm-box" id="hmCandBox"></div>
+      <div id="hmCand" hidden>
+        <div class="hm-list" id="hmCandList"></div>
+        <div class="hm-row" role="radiogroup" aria-label="언제부터">
+          <label class="hm-small"><input type="radio" name="hmCandWhen" value="new" checked> <b>지금부터 오는 메일만</b></label>
+          <label class="hm-small"><input type="radio" name="hmCandWhen" value="all"> <b>지난 메일도</b></label></div>
+        <div class="hm-row"><button type="button" class="btn btn-primary" onclick="hmCandSave()">✔ 확인한 규칙 저장</button>
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('hmCand').hidden=true">규칙 없이 닫기</button></div>
+      </div>
+      <div class="hm-row" style="margin-top:12px"><button type="button" class="btn btn-secondary" onclick="hmEnd3()">✓ 옛 메일 올리기 끝(더 올릴 메일함 없음)</button></div>
+    </div>
+  </details>
+
+  <!-- ④ 끝 -->
+  <details class="hm-card hm-sec" id="hmS4">
+    <summary><h2 class="hm-h">④ 끝</h2><span class="hm-tag" id="hmTag4"></span></summary>
+    <div class="hm-body"><div class="hm-box" id="hmSum"></div>
+      <div class="hm-row"><a class="btn btn-secondary" href="/mail/inbox">📬 메일함으로</a><a class="btn btn-secondary" href="/mail/folders">📁 폴더 관리(규칙 목록)</a></div></div>
+  </details>
+</div>
+</main>
+</div>
+<script>
+/* knk-step-flow · knk-done-status: 맨 위 단계 줄 + 지금 하실 일 하나(첫 낱말 ✅ / ⏳ / 👉).
+   상황표: 규칙 저장 전 = 1👉 · 저장(또는 「규칙 없어요」) 뒤 「지웠어요」 전 = 2👉 · 올리는 중/넣는 중 = 3⏳ ·
+   폴더 확인 기다림 = 3👉 · 멈춤 = 3👉(이어서) · 「올리기 끝」 = 4✅ */
+var HM_UID = {{ user.id|int }};
+var HM_RS = {{ rs|tojson }};
+var HM_FILES = {{ files|tojson }};
+var HM_NCAND = {{ n_cand|int }};
+var HM_CH = 8 * 1024 * 1024;
+var HM_TEXTS = [], HM_PV = null, HM_UP = {}, HM_UPQ = [], HM_UPBUSY = false, HM_OPENED = 0;
+function hmEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function hmN(v){ return (Number(v)||0).toLocaleString(); }
+function hmMB(b){ b=Number(b)||0; return b>=1073741824 ? (b/1073741824).toFixed(2)+'GB' : (b/1048576).toFixed(1)+'MB'; }
+function hmK(k){ return 'hwm:'+HM_UID+':'+k; }
+function hmGet(k){ try{ return localStorage.getItem(hmK(k)); }catch(_){ return null; } }
+function hmSet(k,v){ try{ if(v) localStorage.setItem(hmK(k), v===true?'1':String(v)); else localStorage.removeItem(hmK(k)); }catch(_){} }
+function hmExit(e,a){ try{ if(window.opener && !window.opener.closed && history.length<=1){ e.preventDefault(); window.close(); setTimeout(function(){ location.href=a.href; },300); return false; } }catch(_){} return true; }
+async function hmPost(url, fd){
+  try{ var r=await fetch(url,{method:'POST',body:fd,credentials:'same-origin'}); var j={}; try{ j=await r.json(); }catch(_){ j={ok:false,message:'서버 답을 읽지 못했습니다('+r.status+'). 잠시 뒤 다시 해 주세요.'}; } return j; }
+  catch(e){ return {ok:false,message:'네트워크가 끊겼습니다. 다시 눌러 주세요.'}; }
+}
+function hmMsg(t,k){ var m=document.getElementById('hmMsg'); m.innerHTML=t; m.className='hm-msg '+(k||''); }
+function hmAct(h){ document.getElementById('hmAct').innerHTML=h||''; }
+function hmBox(id,t,k){ var b=document.getElementById(id); b.innerHTML=t||''; b.className='hm-box '+(k||''); }
+function hmOpen(n, scroll){
+  ['hmS1','hmS2','hmS3','hmS4'].forEach(function(id,i){ var d=document.getElementById(id); if(i+1===n) d.open=true; });
+  if(scroll){ try{ document.getElementById('hmS'+n).scrollIntoView({behavior:'smooth',block:'start'}); }catch(_){} }
+}
+function hmRulesDone(){ return (HM_RS && Number(HM_RS.n)>0 && !HM_RS.undone) || !!hmGet('s1skip'); }
+function hmFileBusy(){ return HM_FILES.filter(function(f){ return f.state==='running'; })[0] || null; }
+function hmFileWait(){ return HM_FILES.filter(function(f){ return f.state==='scanned' || f.state==='stopped' || f.state==='lost' || f.state==='uploaded'; })[0] || null; }
+function hmUploading(){ return Object.keys(HM_UP).filter(function(k){ return HM_UP[k] && HM_UP[k].active; }).length>0 || HM_UPQ.length>0; }
+function hmStepNow(){
+  if(!hmRulesDone()) return 1;
+  if(!hmGet('s2done')) return 2;
+  if(hmFileBusy() || hmUploading() || hmFileWait() || !hmGet('s3done')) return 3;
+  return 4;
+}
+function hmTag(n, t, k){ var e=document.getElementById('hmTag'+n); e.textContent=t; e.className='hm-tag '+(k||''); }
+function hmShow(){
+  var s=hmStepNow();
+  document.querySelectorAll('#hmFlow .hm-fs').forEach(function(e){ var d=Number(e.getAttribute('data-s')); e.classList.toggle('cur', d===s); e.classList.toggle('past', d<s); });
+  hmTag(1, hmRulesDone() ? (Number(HM_RS.n)>0 && !HM_RS.undone ? '✓ 규칙 '+hmN(HM_RS.n)+'개 저장' : '✓ 규칙 없음') : (s===1?'지금 할 일':'아직'), hmRulesDone()?'ok':(s===1?'cur':''));
+  hmTag(2, hmGet('s2done') ? '✓ 지웠음' : (s===2?'지금 할 일':'아직'), hmGet('s2done')?'ok':(s===2?'cur':''));
+  hmTag(3, hmGet('s3done') && s===4 ? '✓ 끝' : (s===3?'지금 할 일':'아직'), hmGet('s3done') && s===4 ? 'ok' : (s===3?'cur':''));
+  hmTag(4, s===4 ? '✓ 완료' : '', s===4?'ok':'');
+  document.getElementById('hmS2Done').checked = !!hmGet('s2done');
+  document.getElementById('hmS2Warn').hidden = hmRulesDone();
+  hmAct('');
+  if(s===1){
+    if(HM_PV && HM_PV.n_ok){
+      hmMsg('👉 <b>남은 일 — ① 규칙 옮기기</b>: 아래 미리 보기에서 맞는 줄만 체크하고 <b>「✔ 확인한 규칙 저장」</b>을 누르세요. 하이웍스 표에 다른 쪽(2, 3 …)이 더 있으면 그 쪽도 복사해 붙여 넣으세요(쌓입니다).', 'todo');
+    } else {
+      hmMsg('👉 <b>남은 일 — ① 규칙 옮기기</b>: 하이웍스 「메일 자동분류」 표를 복사해 아래 ①의 점선 칸에 붙여 넣으세요(설명 1~7번). 하이웍스에 규칙이 하나도 없으면 「규칙이 없어요」를 누르세요.', 'todo');
+      hmAct('<button type="button" class="btn btn-primary" onclick="hmOpen(1,true);document.getElementById(\'hmTa\').focus()">① 붙여 넣으러 가기</button> <button type="button" class="btn btn-secondary" onclick="hmSkip1()">규칙이 없어요 → 다음으로</button>');
+    }
+  } else if(s===2){
+    hmMsg('👉 <b>남은 일 — ② 하이웍스 규칙 지우기</b>: '+(Number(HM_RS.n)>0 && !HM_RS.undone ? '①에서 규칙 '+hmN(HM_RS.n)+'개를 이음 메일에 저장했습니다. ' : '')+'이제 하이웍스 「메일 자동분류」에서 규칙을 지우고, 다 지웠으면 「✓ 하이웍스 규칙을 다 지웠어요」에 체크하세요.', 'todo');
+    hmAct('<button type="button" class="btn btn-primary" onclick="hmOpen(2,true)">② 지우는 방법 보기</button>');
+  } else if(s===3){
+    var b=hmFileBusy(), w=hmFileWait();
+    if(hmUploading()){
+      hmMsg('⏳ <b>진행 중 — ③ 파일 올리는 중</b>: 아직 끝나지 않았습니다. <b>이 화면을 닫지 마세요</b> — 다 올라가면 메일함·폴더 이름을 보여 드립니다.', 'wait');
+    } else if(b){
+      hmMsg('⏳ <b>진행 중 — ③ 「'+hmEsc(b.name)+'」 넣는 중</b>: '+hmN(b.done)+' / '+hmN(b.total)+'통. 이 화면을 닫아도 서버에서 계속합니다 — 끝나면 여기 숫자가 ✅ 로 바뀝니다.', 'wait');
+      hmAct('<button type="button" class="btn btn-secondary" onclick="hmOpen(3,true)">③ 진행 상황 보기</button>');
+    } else if(w && (w.state==='stopped' || w.state==='lost')){
+      hmMsg('👉 <b>남은 일 — ③ 이어서 넣기</b>: 「'+hmEsc(w.name)+'」는 <b>끝나지 않았습니다</b>('+hmN(w.done)+' / '+hmN(w.total)+'통). 아래 「🔁 이어서 넣기」를 누르세요 — 이미 들어간 메일은 건너뜁니다.', 'todo');
+      hmAct('<button type="button" class="btn btn-primary" onclick="hmStart('+w.id+')">🔁 이어서 넣기</button>');
+    } else if(w){
+      hmMsg('👉 <b>남은 일 — ③ 폴더 이름 확인</b>: 「'+hmEsc(w.name)+'」가 올라갔습니다. 아래에서 <b>하이웍스 메일함 → 이음 메일 폴더</b> 이름을 확인하고 <b>「📥 넣기 시작」</b>을 누르세요.', 'todo');
+      hmAct('<button type="button" class="btn btn-secondary" onclick="hmOpen(3,true)">③ 확인하러 가기</button>');
+    } else {
+      var dn=HM_FILES.filter(function(f){ return f.state==='done'; });
+      hmMsg('👉 <b>남은 일 — ③ 옛 메일 올리기</b>: '+(dn.length?'지금까지 파일 '+dn.length+'개를 넣었습니다. 더 올릴 메일함이 있으면 같은 방법으로 올리고, ':'하이웍스 「메일 백업」 파일을 받아 ③에 올리세요. ')+'더 없으면 <b>「옛 메일 올리기 끝」</b>을 누르세요.', 'todo');
+      hmAct('<button type="button" class="btn btn-primary" onclick="hmOpen(3,true)">③ 파일 올리러 가기</button> <button type="button" class="btn btn-secondary" onclick="hmEnd3()">개인 메일함이 없어요 / 다 올렸어요 → 끝</button>');
+    }
+  } else {
+    var tot={saved:0,moved:0,sent:0}; HM_FILES.forEach(function(f){ if(f.state==='done'){ tot.saved+=f.saved; tot.moved+=f.moved; tot.sent+=f.sent; } });
+    var sum='· 규칙: '+(Number(HM_RS.n)>0 && !HM_RS.undone ? hmN(HM_RS.n)+'개 저장' : '없음')+'<br>· 하이웍스 규칙: 지웠음<br>· 옛 메일: 새로 넣음 '+hmN(tot.saved)+'통 · 폴더로 옮김 '+hmN(tot.moved)+'통'+(tot.sent?' · 보낸 메일함 '+hmN(tot.sent)+'통':'');
+    hmMsg('✅ <b>완료 — 하이웍스에서 옮겨 오기가 끝났습니다.</b> 더 하실 일은 없습니다.<br>'+sum, 'ok');
+    hmBox('hmSum', '✅ <b>완료</b><br>'+sum+'<br>· 앞으로 오는 메일은 이음 메일 규칙대로 폴더에 들어갑니다. 규칙은 「📁 폴더 관리」에서 보고 고칠 수 있습니다.', 'ok');
+    hmAct('<a class="btn btn-secondary" href="/mail/inbox">📬 메일함으로</a> <button type="button" class="btn btn-secondary" onclick="hmSet(\'s3done\',\'\');hmShow()">옛 메일 더 올리기</button>');
+  }
+  if(HM_OPENED!==s){ HM_OPENED=s; hmOpen(s,false); }
+  hmRenderSaved();
+}
+/* ── ① ── */
+function hmLoadTexts(){ try{ var v=JSON.parse(hmGet('texts')||'[]'); if(Array.isArray(v)) HM_TEXTS=v; }catch(_){ HM_TEXTS=[]; } }
+function hmSaveTexts(){ try{ var s=JSON.stringify(HM_TEXTS); if(s.length<1500000) localStorage.setItem(hmK('texts'), s); }catch(_){} }
+function hmTake(){
+  var ta=document.getElementById('hmTa'), v=(ta.value||'').trim();
+  if(!v){ hmBox('hmRuleMsg','👉 칸이 비어 있습니다 — 하이웍스에서 복사한 뒤 칸을 누르고 Ctrl+V 를 눌러 주세요.','todo'); return; }
+  if(HM_TEXTS.indexOf(v)<0) HM_TEXTS.push(v);
+  ta.value=''; hmSaveTexts(); hmPreview();
+}
+async function hmPreview(){
+  document.getElementById('hmPasteN').textContent = HM_TEXTS.length ? '붙여 넣은 쪽: '+HM_TEXTS.length+'번' : '';
+  document.getElementById('hmClearBtn').hidden = !HM_TEXTS.length;
+  if(!HM_TEXTS.length){ HM_PV=null; document.getElementById('hmPv').hidden=true; hmBox('hmRuleMsg',''); hmShow(); return; }
+  hmBox('hmRuleMsg','⏳ <b>진행 중</b> — 붙여 넣은 글을 읽는 중입니다.','wait');
+  var fd=new FormData(); fd.append('text', HM_TEXTS.join('\n'));
+  var j=await hmPost('/mail/hiworks-move/rules/preview', fd);
+  if(!j.ok){ hmBox('hmRuleMsg','⚠ <b>읽지 못했습니다</b> — '+hmEsc(j.message||''),'err'); return; }
+  var keep={}; if(HM_PV){ document.querySelectorAll('.hmR').forEach(function(e){ keep[e.value]=e.checked; }); }
+  HM_PV=j; hmRenderPv(keep); hmShow();
+}
+function hmRenderPv(keep){
+  var j=HM_PV, ok=j.rows.filter(function(r){ return r.ok; }), no=j.rows.filter(function(r){ return !r.ok; });
+  if(!j.rows.length){
+    hmBox('hmRuleMsg','⚠ <b>규칙 줄을 찾지 못했습니다.</b> 하이웍스 「메일 자동분류」 화면(표가 보이는 화면)에서 복사했는지 확인해 주세요. 표가 비어 있으면 「규칙이 없어요」를 누르세요.','err');
+    document.getElementById('hmPv').hidden=true; return;
+  }
+  hmBox('hmRuleMsg','읽은 규칙 <b>'+hmN(j.n_rows)+'줄</b> — 옮길 수 있음 <b>'+hmN(j.n_ok)+'</b> · 옮길 수 없음 '+hmN(j.n_no)+(HM_TEXTS.length>1?' (붙여 넣은 '+HM_TEXTS.length+'쪽 합침 · 같은 줄은 한 번만)':''), j.n_ok?'ok':'todo');
+  var ST={new:['new','새로'],have:['have','✔ 이미 있음'],other:['other','⚠ 다른 폴더로 가는 규칙 있음'],dup:['dup','⚠ 위 줄과 같은 보낸 사람']};
+  document.getElementById('hmRules').innerHTML = ok.length ? ok.map(function(r){
+    var b=ST[r.status]||['',''], dis=r.status==='have', chk=(keep && (r.id in keep)) ? keep[r.id] : r.checked;
+    var who = r.kind==='domain' ? '회사 주소 <b>@'+hmEsc(r.pattern)+'</b> 에서 온 메일' : '<b>'+hmEsc(r.pattern)+'</b> 이(가) 보낸 메일';
+    var ex = r.status==='other' ? '<small>지금은 「'+hmEsc(r.other_folder)+'」(으)로 가는 규칙이 있습니다 — 체크해서 저장하면 이 폴더로 바뀝니다(기본은 빼 둠).</small>'
+      : (r.status==='dup' ? '<small>하이웍스는 위 줄 규칙을 먼저 씁니다 — 이 줄은 기본으로 빼 둡니다(둘 다 체크하면 위 줄만 저장).</small>' : (dis?'<small>이음 메일에 같은 규칙이 이미 있어 저장할 것이 없습니다.</small>':''));
+    return '<label class="hm-item'+(dis?' dis':'')+'"><input type="checkbox" class="hmR" value="'+hmEsc(r.id)+'"'+(dis?' disabled':'')+(chk&&!dis?' checked':'')+' onchange="hmPickN()">'+
+      '<span class="nm">'+who+' → 📁 <b>'+hmEsc(r.folder)+'</b>'+(r.folder_new?' <span class="hm-badge new">새로 만듦</span>':'')+' <span class="hm-badge '+b[0]+'">'+b[1]+'</span>'+
+      '<small>하이웍스: '+hmEsc(r.who)+' · '+hmEsc(r.cond)+' · '+hmEsc(r.value)+' → '+hmEsc(r.dest)+' · 이미 받은 이 사람 메일 '+hmN(r.more)+'통</small>'+ex+'</span></label>'; }).join('')
+    : '<div class="hm-note">옮길 수 있는 규칙이 없습니다(아래 「옮길 수 없는 줄」 참고).</div>';
+  document.getElementById('hmNoBox').hidden=!no.length; document.getElementById('hmNoBox').open = no.length>0 && no.length<=8;
+  document.getElementById('hmNoSum').innerHTML='옮길 수 없는 줄 <b>'+hmN(no.length)+'개</b> — 이유 보기';
+  document.getElementById('hmNoList').innerHTML = no.map(function(r){ return '<div class="hm-item dis"><span class="nm">'+hmEsc(r.who)+' · '+hmEsc(r.cond)+' · '+hmEsc(r.value)+' → '+hmEsc(r.dest)+' <span class="hm-badge no">옮길 수 없음</span><small>'+hmEsc(r.why)+'</small></span></div>'; }).join('');
+  document.getElementById('hmLeftBox').hidden=!j.n_left;
+  document.getElementById('hmLeftSum').innerHTML='규칙이 아닌 글 '+hmN(j.n_left)+'개는 건너뛰었습니다(메뉴 글자 등) — 펼쳐 보기';
+  document.getElementById('hmLeft').textContent=(j.left||[]).join(' · ');
+  document.getElementById('hmPv').hidden=false; hmPickN();
+}
+function hmPicked(){ return Array.prototype.map.call(document.querySelectorAll('.hmR:checked'), function(e){ return e.value; }); }
+function hmPickN(){ var p=hmPicked(); document.getElementById('hmPickN').textContent = p.length ? '체크한 규칙 '+p.length+'개' : '체크한 규칙이 없습니다'; hmPastN(); }
+function hmPastN(){
+  var p=hmPicked(), n=0; if(HM_PV) HM_PV.rows.forEach(function(r){ if(p.indexOf(r.id)>=0) n+=Number(r.more)||0; });
+  document.getElementById('hmPastN').textContent = '— 켜면 이미 받은 메일 약 '+hmN(n)+'통이 그 폴더로 옮겨집니다';
+}
+function hmAllRules(on){ document.querySelectorAll('.hmR').forEach(function(e){ if(!e.disabled){ var r=(HM_PV.rows.filter(function(x){return x.id===e.value;})[0]||{}); e.checked = on && r.status==='new'; } }); hmPickN(); }
+function hmClear(){ if(!confirm('붙여 넣은 것을 모두 비울까요?\n(이미 저장한 규칙은 그대로입니다)')) return; HM_TEXTS=[]; hmSaveTexts(); hmSet('texts',''); HM_PV=null; hmPreview(); }
+async function hmSave(){
+  var p=hmPicked();
+  if(!p.length){ hmBox('hmRuleMsg','👉 저장할 줄에 체크해 주세요.','todo'); return; }
+  var past=document.getElementById('hmPast').checked;
+  if(past && !confirm('지난 메일도 이 규칙대로 옮길까요?\n이미 받은 메일도 그 폴더로 옮겨집니다(내가 따로 옮겨 둔 메일은 그대로 · ↺ 되돌리기 가능).')) return;
+  var b=document.getElementById('hmSaveBtn'); b.disabled=true;
+  var fd=new FormData(); fd.append('text', HM_TEXTS.join('\n')); fd.append('picked', JSON.stringify(p)); fd.append('past', past?'1':'0');
+  var j=await hmPost('/mail/hiworks-move/rules/save', fd); b.disabled=false;
+  if(!j.ok){ hmBox('hmRuleMsg','⚠ <b>저장하지 못했습니다</b> — '+hmEsc(j.message||''),'err'); return; }
+  if(j.rs) HM_RS=j.rs;
+  var t='✅ <b>규칙 '+hmN(j.saved)+'개를 저장했습니다</b>'+(j.made?' · 새 폴더 '+hmN(j.made)+'개 만듦':'')+(j.have?' · 이미 있던 '+hmN(j.have)+'개는 그대로':'')+(j.dup?' · 같은 보낸 사람이 겹친 '+hmN(j.dup)+'개는 위 줄만':'')+'.';
+  if(!j.saved) t='👉 저장한 규칙이 없습니다'+(j.have?' — 체크한 것이 모두 이미 있는 규칙입니다':'')+'.';
+  hmBox('hmRuleMsg', t, j.saved?'ok':'todo');
+  await hmPreview();
+  if(j.saved){ hmShow(); try{ document.getElementById('hmNow').scrollIntoView({behavior:'smooth'}); }catch(_){} }
+}
+function hmRenderSaved(){
+  var r=HM_RS||{};
+  if(Number(r.n)>0 && !r.undone){
+    hmBox('hmSaved','✅ <b>저장됨</b> — '+hmEsc((r.at||'').slice(0,16))+' 규칙 '+hmN(r.n)+'개'+(r.made?' · 새 폴더 '+hmN(r.made)+'개':'')+' · '+(r.past?'지난 메일도 옮김':'지금부터 오는 메일만')+
+      (r.can_undo?' <button type="button" class="btn btn-secondary hm-small" onclick="hmUndo()">↺ 되돌리기</button>':'<br><span class="hm-small">되돌리려면 「📁 폴더 관리」의 규칙 목록에서 지우세요(그 뒤 다른 옮기기를 해서 한 번에 되돌리기는 안 됩니다).</span>'), 'ok');
+  } else if(r.undone){ hmBox('hmSaved','↺ 마지막 저장을 되돌렸습니다 — 다시 체크해서 저장하시면 됩니다.','todo'); }
+  else hmBox('hmSaved','');
+}
+async function hmUndo(){
+  if(!confirm('방금 저장한 규칙을 모두 되돌릴까요?\n(그때 새로 만든 빈 폴더도 지웁니다 · 메일은 지우지 않습니다)')) return;
+  var j=await hmPost('/mail/hiworks-move/rules/undo', new FormData());
+  if(!j.ok){ hmBox('hmSaved','⚠ '+hmEsc(j.message||''),'err'); return; }
+  HM_RS=j.rs||{}; hmSet('s1skip',''); await hmPreview(); hmShow();
+}
+function hmSkip1(){ if(!confirm('하이웍스 「메일 자동분류」에 규칙이 하나도 없나요?\n(있으면 ①에서 옮겨야 그 메일이 이음 메일에 옵니다)')) return; hmSet('s1skip', true); hmShow(); }
+/* ── ③ 올리기 ── */
+function hmPick(list){
+  Array.prototype.forEach.call(list||[], function(f){ HM_UPQ.push(f); });
+  hmShow(); hmRenderFiles(); hmUpNext();
+}
+async function hmUpNext(){
+  if(HM_UPBUSY) return; var f=HM_UPQ.shift(); if(!f){ hmShow(); hmRenderFiles(); return; }
+  HM_UPBUSY=true;
+  try{ await hmUpload(f); }catch(e){ }
+  HM_UPBUSY=false; hmUpNext();
+}
+function hmSleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+async function hmUpload(file){
+  var key='q'+Date.now()+Math.random(); HM_UP[key]={name:file.name, size:file.size, got:0, active:true, err:''}; hmRenderFiles(); hmShow();
+  var fd=new FormData(); fd.append('name', file.name); fd.append('size', String(file.size));
+  var j=await hmPost('/mail/hiworks-move/up/begin', fd);
+  if(!j.ok){ HM_UP[key].active=false; HM_UP[key].err=j.message||'올리지 못했습니다'; hmRenderFiles(); hmShow(); return; }
+  var id=j.id, off=j.received||0, tries=0; HM_UP[key].id=id; HM_UP[key].got=off; HM_UP[key].same=!!j.same_done; HM_UP[key].resumed=!!j.resumed;
+  while(off<file.size){
+    var blob=file.slice(off, Math.min(file.size, off+HM_CH)), r=null;
+    try{ r=await fetch('/mail/hiworks-move/up/chunk?id='+id+'&off='+off, {method:'POST', body:blob, credentials:'same-origin', headers:{'Content-Type':'application/octet-stream'}}); j=await r.json(); }
+    catch(e){ j={ok:false, net:true}; }
+    if(j.where){ off=Number(j.received)||0; HM_UP[key].got=off; continue; }
+    if(!j.ok){
+      if(j.net && tries<5){ tries++; HM_UP[key].err='연결이 끊겨 다시 시도하는 중('+tries+'/5)'; hmRenderFiles(); await hmSleep(2000*tries); continue; }
+      HM_UP[key].active=false; HM_UP[key].err=(j.message||'올리다 끊겼습니다')+' — 같은 파일을 다시 고르면 이어서 올립니다.'; hmRenderFiles(); hmShow(); return;
+    }
+    tries=0; HM_UP[key].err=''; off=Number(j.received)||off; HM_UP[key].got=off; hmRenderFiles();
+  }
+  HM_UP[key].scanning=true; hmRenderFiles();
+  var fd2=new FormData(); fd2.append('id', String(id));
+  var s=await hmPost('/mail/hiworks-move/scan', fd2);
+  delete HM_UP[key];
+  await hmRefresh();
+  if(!s.ok) hmBox('hmCandBox','⚠ <b>「'+hmEsc(file.name)+'」</b> — '+hmEsc(s.message||'파일을 읽지 못했습니다'),'err');
+}
+async function hmRefresh(){
+  try{ var r=await fetch('/mail/hiworks-move/status',{credentials:'same-origin'}); var j=await r.json(); if(j.ok){
+    var wasRun=!!hmFileBusy(); HM_FILES=j.files||[];
+    if(wasRun && !hmFileBusy()) await hmCandLoad(true);
+  } }catch(_){}
+  hmRenderFiles(); hmShow();
+}
+var HM_NOTE={sent:'보낸 메일함 — 내가 보낸 메일은 「보낸 메일함」으로 들어갑니다', trash:'휴지통 — 기본으로 빼 둠(필요하면 체크)', spam:'스팸 — 기본으로 빼 둠', draft:'임시·예약 메일 — 기본으로 빼 둠', inbox:'받은 메일함 — 폴더 칸을 비우면 폴더 없이 받은편지함으로'};
+function hmTiles(f){
+  var T=[['새로 넣음',f.saved],['폴더로 옮김(이미 있던 메일)',f.moved],['이미 그 폴더에 있음',f.already],['다른 폴더에 있어 그대로',f.kept],['지운 메일이라 그대로',f.other],['보낸 메일함으로',f.sent],['너무 커서 뺌(40MB 넘음)',f.big],['읽지 못함',f.failed]];
+  return '<div class="hm-tiles">'+T.map(function(t){ return '<div class="hm-tile"><div class="t">'+t[0]+'</div><div class="v">'+hmN(t[1])+'</div></div>'; }).join('')+'</div>';
+}
+function hmRenderFiles(){
+  var h='';
+  Object.keys(HM_UP).forEach(function(k){ var u=HM_UP[k], pct=u.size?Math.round(100*u.got/u.size):0;
+    h+='<div class="hm-file"><div class="fh">📦 '+hmEsc(u.name)+' <span class="hm-note">'+hmMB(u.size)+'</span></div>'+
+      (u.err && !u.active ? '<div class="hm-box err">⚠ <b>끝나지 않았습니다</b> — '+hmEsc(u.err)+'</div>' :
+       (u.scanning ? '<div class="hm-box wait">⏳ <b>진행 중</b> — 다 올라갔습니다. 파일 안의 메일함을 살펴보는 중입니다(큰 파일은 1~2분).</div>' :
+        '<div class="hm-box wait">⏳ <b>올리는 중</b> '+pct+'% ('+hmMB(u.got)+' / '+hmMB(u.size)+')'+(u.resumed?' · 지난번 끊긴 곳부터 이어서':'')+' — <b>이 화면을 닫지 마세요</b>'+(u.err?' · '+hmEsc(u.err):'')+'</div><div class="hm-bar"><i style="width:'+pct+'%"></i></div>'))+
+      (u.same?'<div class="hm-note">· 전에 넣은 파일과 이름·크기가 같습니다 — 다시 넣어도 메일은 두 번 들어가지 않습니다.</div>':'')+'</div>'; });
+  HM_FILES.forEach(function(f){ h+=hmFileHtml(f); });
+  document.getElementById('hmFiles').innerHTML = h || '<div class="hm-note" style="margin-top:8px">아직 올린 파일이 없습니다.</div>';
+}
+function hmFileHtml(f){
+  var head='<div class="fh">📦 '+hmEsc(f.name)+' <span class="hm-note">'+hmMB(f.size)+' · '+hmEsc((f.created_at||'').slice(5,16))+'</span></div>';
+  var bad = f.n_bad ? '<div class="hm-note">· 메일이 아닌 파일 '+hmN(f.n_bad)+'개는 건너뜀: '+hmEsc((f.bad||[]).slice(0,5).join(', '))+(f.n_bad>5?' …':'')+'</div>' : '';
+  var cancel=' <button type="button" class="btn btn-secondary hm-small" onclick="hmCancel('+f.id+')">이 파일 지우기</button>';
+  if(f.state==='uploading'){
+    var up=Object.keys(HM_UP).some(function(k){ return HM_UP[k].id===f.id; }); if(up) return '';
+    return '<div class="hm-file">'+head+'<div class="hm-box todo">👉 <b>올리다 멈췄습니다</b>('+hmMB(f.received)+' / '+hmMB(f.size)+') — 같은 파일을 다시 고르면 <b>이어서</b> 올립니다.'+cancel+'</div></div>';
+  }
+  if(f.state==='uploaded') return '<div class="hm-file">'+head+'<div class="hm-box todo">👉 다 올라갔지만 안을 아직 못 봤습니다. <button type="button" class="btn btn-primary hm-small" onclick="hmScan('+f.id+')">파일 안 보기</button>'+cancel+'</div></div>';
+  if(f.state==='scanned' || ((f.state==='stopped' || f.state==='lost') && !Object.keys(f.plan||{}).length)){
+    var rows=(f.groups||[]).map(function(g,i){
+      var note=HM_NOTE[g.note]||'';
+      return '<div class="hm-grp"><input type="checkbox" class="hmG" data-f="'+f.id+'" data-i="'+i+'"'+(g.use?' checked':'')+' aria-label="이 메일함 넣기">'+
+        '<div class="src">📁 하이웍스: <b>'+hmEsc(g.label)+'</b> <span class="hm-note">('+hmN(g.n)+'통'+(g.big?' · 너무 큰 메일 '+hmN(g.big)+'통':'')+')</span>'+(note?'<small>'+hmEsc(note)+'</small>':'')+'</div>'+
+        '<div class="to">→ 이음 메일 폴더: <input type="text" class="hmGF" data-f="'+f.id+'" data-i="'+i+'" value="'+hmEsc(g.folder)+'" placeholder="비워 두면 폴더 없이 받은편지함" aria-label="넣을 폴더 이름"></div></div>'; }).join('');
+    var tot=(f.groups||[]).reduce(function(a,g){ return a+(g.n||0); },0);
+    return '<div class="hm-file">'+head+'<div class="hm-box todo">👉 <b>남은 일 — 폴더 이름 확인</b>: 파일 안 메일 <b>'+hmN(tot)+'통</b>. 왼쪽 체크 = 넣을 메일함 · 오른쪽 칸 = 넣을 이음 메일 폴더(없으면 새로 만듦 · 「상위/하위」 처럼 / 로 나누면 아래 폴더). 맞으면 「📥 넣기 시작」.</div>'+
+      rows+bad+'<div class="hm-row"><button type="button" class="btn btn-primary" onclick="hmStart('+f.id+')">📥 넣기 시작</button>'+cancel+'</div></div>';
+  }
+  var pct=f.total?Math.min(100,Math.round(100*f.done/f.total)):0;
+  var planTxt=Object.keys(f.plan||{}).map(function(k){ var g=(f.groups||[]).filter(function(x){return x.gid===k;})[0]; return hmEsc(g?g.label:k)+' → '+(f.plan[k]?'📁 '+hmEsc(f.plan[k]):'받은편지함'); }).join(' · ');
+  var bar='<div class="hm-bar"><i style="width:'+pct+'%"></i></div>';
+  if(f.state==='running') return '<div class="hm-file">'+head+'<div class="hm-box wait">⏳ <b>진행 중 — 넣는 중</b> '+hmN(f.done)+' / '+hmN(f.total)+'통('+pct+'%)'+(f.cur?' · 지금: '+hmEsc(f.cur):'')+'<br>이 화면을 닫아도 서버에서 계속합니다.</div>'+bar+'<div class="hm-note">'+planTxt+'</div>'+hmTiles(f)+
+    '<div class="hm-row"><button type="button" class="btn btn-secondary" onclick="hmStop()">⏹ 멈추기</button><span class="hm-note">멈춰도 이미 넣은 메일은 그대로 · 나중에 이어서</span></div></div>';
+  if(f.state==='stopped' || f.state==='lost') return '<div class="hm-file">'+head+'<div class="hm-box todo">👉 <b>끝나지 않았습니다</b> — '+hmEsc(f.state==='lost'?'서버가 다시 켜졌거나 끊겨 멈췄습니다':(f.msg||'멈췄습니다'))+' ('+hmN(f.done)+' / '+hmN(f.total)+'통)</div>'+bar+'<div class="hm-note">'+planTxt+'</div>'+hmTiles(f)+
+    '<div class="hm-row"><button type="button" class="btn btn-primary" onclick="hmStart('+f.id+')">🔁 이어서 넣기</button>'+cancel+'</div></div>';
+  if(f.state==='done') return '<div class="hm-file">'+head+'<div class="hm-box ok">✅ <b>완료</b> — '+hmN(f.done)+'통 처리 · 새로 넣음 '+hmN(f.saved)+' · 폴더로 옮김 '+hmN(f.moved)+(f.kept?' · <b>다른 폴더에 있어 그대로 '+hmN(f.kept)+'</b>(내가 옮겨 둔 자리는 안 바꿈)':'')+(f.sent?' · 보낸 메일함 '+hmN(f.sent):'')+(f.failed?' · 읽지 못함 '+hmN(f.failed):'')+(f.big?' · 너무 커서 뺌 '+hmN(f.big):'')+'. 올린 파일은 서버에서 지웠습니다.</div><div class="hm-note">'+planTxt+'</div>'+bad+'</div>';
+  if(f.state==='failed') return '<div class="hm-file">'+head+'<div class="hm-box err">⚠ <b>넣지 못했습니다</b> — '+hmEsc(f.msg||'')+'</div>'+bad+'<div class="hm-row">'+cancel+'</div></div>';
+  if(f.state==='expired') return '<div class="hm-file">'+head+'<div class="hm-box todo">'+hmEsc(f.msg||'')+'</div></div>';
+  return '';
+}
+async function hmScan(id){ var fd=new FormData(); fd.append('id', String(id)); var j=await hmPost('/mail/hiworks-move/scan', fd); if(!j.ok) hmBox('hmCandBox','⚠ '+hmEsc(j.message||''),'err'); await hmRefresh(); }
+async function hmStart(id){
+  var f=HM_FILES.filter(function(x){ return x.id===id; })[0]; if(!f) return;
+  var plan={};
+  if(Object.keys(f.plan||{}).length && f.state!=='scanned'){ plan=f.plan; }
+  else {
+    (f.groups||[]).forEach(function(g,i){ var cb=document.querySelector('.hmG[data-f="'+id+'"][data-i="'+i+'"]'), tx=document.querySelector('.hmGF[data-f="'+id+'"][data-i="'+i+'"]');
+      plan[g.gid] = (cb && cb.checked) ? (tx ? tx.value.trim() : g.folder) : null; });
+    var picked=Object.keys(plan).filter(function(k){ return plan[k]!==null; });
+    if(!picked.length){ hmBox('hmCandBox','👉 넣을 메일함을 하나 이상 체크해 주세요.','todo'); return; }
+  }
+  var fd=new FormData(); fd.append('id', String(id)); fd.append('plan', JSON.stringify(plan));
+  var j=await hmPost('/mail/hiworks-move/start', fd);
+  if(!j.ok){ hmBox('hmCandBox','⚠ <b>시작하지 못했습니다</b> — '+hmEsc(j.message||''),'err'); return; }
+  hmBox('hmCandBox',''); HM_FILES=j.files||HM_FILES; hmRenderFiles(); hmShow();
+}
+async function hmStop(){ if(!confirm('넣기를 멈출까요?\n(이미 넣은 메일은 그대로 · 나중에 「이어서 넣기」)')) return; await hmPost('/mail/hiworks-move/stop', new FormData()); await hmRefresh(); }
+async function hmCancel(id){ if(!confirm('올린 파일을 서버에서 지울까요?\n(이미 넣은 메일은 그대로입니다)')) return; var fd=new FormData(); fd.append('id', String(id)); var j=await hmPost('/mail/hiworks-move/cancel', fd); if(!j.ok) alert(j.message||'지우지 못했습니다'); await hmRefresh(); }
+function hmEnd3(){
+  if(hmFileBusy() || hmUploading()){ alert('아직 올리거나 넣는 중입니다 — 끝난 뒤에 눌러 주세요.'); return; }
+  var w=hmFileWait(); if(w && !confirm('「'+w.name+'」를 아직 넣지 않았습니다(또는 멈춤).\n그래도 끝낼까요?')) return;
+  hmSet('s3done', true); hmShow(); try{ document.getElementById('hmNow').scrollIntoView({behavior:'smooth'}); }catch(_){}
+}
+/* ── ③ 뒤 규칙 후보(올린 폴더마다 거의 한 사람에게서 온 폴더) — 기존 /mail/hiworks-folders/rules 그대로 ── */
+var HM_CAND=[];
+async function hmCandLoad(show){
+  try{ var r=await fetch('/mail/hiworks-folders/rules',{credentials:'same-origin'}); var j=await r.json(); if(!j.ok) return; HM_CAND=(j.rules||[]).filter(function(x){ return x.status!=='have'; }); }catch(_){ return; }
+  if(!HM_CAND.length){ hmBox('hmCandBox',''); document.getElementById('hmCand').hidden=true; return; }
+  hmBox('hmCandBox','📌 <b>올린 폴더로 규칙 후보 '+HM_CAND.length+'개</b> — 거의 한 사람(또는 한 회사)에게서만 온 폴더입니다. 앞으로 오는 메일도 그 폴더로 보내려면 체크하고 저장하세요(안 해도 됩니다). <button type="button" class="btn btn-secondary hm-small" onclick="hmCandShow()">후보 보기</button>','todo');
+  if(show) hmCandShow();
+}
+function hmCandShow(){
+  document.getElementById('hmCandList').innerHTML=HM_CAND.map(function(x,i){
+    var who = x.kind==='domain' ? '회사 주소 <b>@'+hmEsc(x.pattern)+'</b> 에서 온 메일' : '<b>'+hmEsc(x.pattern)+'</b> 이(가) 보낸 메일';
+    return '<label class="hm-item"><input type="checkbox" class="hmC" value="'+i+'"><span class="nm">'+who+' → 📁 <b>'+hmEsc(x.folder)+'</b><small>이 폴더 메일 '+hmN(x.total)+'통 중 '+hmN(x.n)+'통'+(x.status==='other'?' · ⚠ 지금은 「'+hmEsc(x.other_folder)+'」(으)로 가는 규칙이 있음 — 저장하면 바뀜':'')+'</small></span></label>'; }).join('');
+  document.getElementById('hmCand').hidden=false;
+}
+async function hmCandSave(){
+  var p=Array.prototype.map.call(document.querySelectorAll('.hmC:checked'), function(e){ return HM_CAND[Number(e.value)].id; });
+  if(!p.length){ hmBox('hmCandBox','👉 저장할 규칙에 체크해 주세요(필요 없으면 「규칙 없이 닫기」).','todo'); return; }
+  var w=document.querySelector('input[name="hmCandWhen"]:checked'); var fd=new FormData(); fd.append('picked', JSON.stringify(p)); fd.append('when', w?w.value:'new');
+  var j=await hmPost('/mail/hiworks-folders/rules', fd);
+  if(!j.ok){ hmBox('hmCandBox','⚠ '+hmEsc(j.message||''),'err'); return; }
+  document.getElementById('hmCand').hidden=true; hmBox('hmCandBox','✅ 규칙 '+hmN(j.saved)+'개를 저장했습니다(되돌리기: 「📁 폴더 관리」의 ↺).','ok');
+}
+/* ── 시작 ── */
+(function(){
+  var ta=document.getElementById('hmTa');
+  ta.addEventListener('paste', function(){ setTimeout(hmTake, 0); });
+  var d=document.getElementById('hmDrop');
+  ['dragenter','dragover'].forEach(function(t){ d.addEventListener(t, function(e){ e.preventDefault(); d.classList.add('on'); }); });
+  ['dragleave','drop'].forEach(function(t){ d.addEventListener(t, function(e){ e.preventDefault(); d.classList.remove('on'); }); });
+  d.addEventListener('drop', function(e){ if(e.dataTransfer && e.dataTransfer.files) hmPick(e.dataTransfer.files); });
+  window.addEventListener('beforeunload', function(e){ if(hmUploading()){ e.preventDefault(); e.returnValue='파일을 올리는 중입니다. 닫으면 올리기가 멈춥니다.'; return e.returnValue; } });
+  hmLoadTexts(); hmRenderFiles(); hmShow();
+  if(HM_TEXTS.length) hmPreview();
+  if(HM_NCAND>0) hmCandLoad(false);
+  setInterval(function(){ if(document.visibilityState==='visible' && hmFileBusy()) hmRefresh(); }, 3000);
+})();
+</script>
+</body></html>

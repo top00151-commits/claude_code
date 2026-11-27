@@ -121,6 +121,7 @@
       <span class="st {{ 'ok' if grp_n|default(0) else 'no' }}">{{ ('그룹 메일 ' ~ grp_n ~ '개') if grp_n|default(0) else '그룹 메일 아직 없음' }}</span><span class="arr">›</span></a>
     {# 11-25 대표 「아웃룩 옛 메일 가져오기」 — 직원 누구나(내 메일함으로만) #}
     <a class="mt-row" href="/mail/import-outlook"><span class="ic">📥</span><span class="tx"><span class="t">아웃룩 옛 메일 가져오기</span><span class="d" style="display:block">PC 아웃룩에 남은 옛 메일을 기간(5·3·2·1년)을 골라 본문·첨부까지 내 메일함으로 — 같은 메일은 두 번 안 들어감</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/hiworks-move"><span class="ic">🔀</span><span class="tx"><span class="t">하이웍스에서 옮겨 오기</span><span class="d" style="display:block">하이웍스 「메일 자동분류」 규칙과 개인 메일함 옛 메일을 이음 메일로 — <b>안 하면 그 규칙에 걸린 새 메일이 이음 메일에 안 옵니다</b> · 화면 설명대로 따라 하면 혼자 끝남</span></span><span class="arr">›</span></a>
     {# 11-27 대표 「아웃룩 안 쓰고 하이웍스만 사용하는 직원들이 있어서」 — 직원 누구나(본인 메일함만 · 비밀번호 저장 안 함) #}
 {% if false %}{# 11-27 대표 「우선 비활성화 — 방법이 없어」(하이웍스에 IMAP 길이 없음) · 다시 열 때 이 줄 조건만 #}    <a class="mt-row" href="/mail/hiworks-folders"><span class="ic">📂</span><span class="tx"><span class="t">하이웍스 개인 메일함 가져오기</span><span class="d" style="display:block">하이웍스에서 내가 만든 메일함(주간업무·자금일보 등)을 같은 이름 폴더로 — 하이웍스 메일은 그대로 · 같은 메일은 두 번 안 들어감</span></span><span class="arr">›</span></a>{% endif %}
     {% if is_admin %}{# 11-20 대표 「인원이 바뀔 때마다 이 파일을 올려서 업데이트」 #}
