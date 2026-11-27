@@ -198,10 +198,15 @@
   {% endif %}
 
   {# v5H226z970 (대표 지시): 박스별 무게·크기 — 실무는 부품별이 아니라 '박스 단위' 계량. 표의 '박스' 칸 번호를 자동 수집 → 박스마다 무게만 입력. 신고용 패킹리스트가 이 무게를 우선 사용. #}
-  <details style="margin:0 0 14px;border:1px solid #b9d2ff;border-radius:9px;background:#fbfdff;">
-    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:#1d4ed8;">📦 박스별 무게·크기 — <span id="bxHead">{{ boxes|length }}박스 등록됨</span> <span style="font-weight:500;color:#94a3b8;">(부품별 중량 대신 박스 단위로 — 저장하면 [📄 Invoice&amp;PL] 패킹리스트에 사용)</span></summary>
+  {% if box_src == 'pick' %}{# z1191z177: 박스 무게 = 수주마다 — 수출 수주가 여럿이면 먼저 고름 #}
+  <div style="margin:0 0 14px;border:1px dashed #b9d2ff;border-radius:9px;background:#fbfdff;padding:10px 14px;font-size:12.5px;color:#1e3a8a;">📦 <b>박스별 무게·크기</b> — 👉 수출 수주가 여럿입니다. 위 「수주별 수출 서류」 표에서 수주 줄의 「🧾 서류 정보」를 눌러 고르면, 그 수주의 박스 무게를 적습니다.</div>
+  {% else %}
+  <details style="margin:0 0 14px;border:1px solid #b9d2ff;border-radius:9px;background:#fbfdff;"{% if box_src == 'old' %} open{% endif %}>
+    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:#1d4ed8;">📦 박스별 무게·크기{% if sel166 %} — 수주 <span style="font-family:Consolas,monospace;">{{ sel166.order_no }}</span>{% endif %} — <span id="bxHead">{{ boxes|length }}박스 등록됨</span> <span style="font-weight:500;color:#94a3b8;">(부품별 중량 대신 박스 단위로 — 저장하면 [📄 Invoice&amp;PL] 패킹리스트에 사용)</span></summary>
     <div style="padding:4px 14px 12px;">
+      {% if box_src == 'old' %}<div style="margin:0 0 8px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:7px;font-size:12px;color:#92400e;">⏳ 아직 이 수주로 저장한 박스 무게가 없어, 예전(관리번호 하나로 적던) 값 가운데 이 수주 품목 박스만 보여 줍니다 — 확인하고 「💾 박스 저장」을 누르면 이 수주 것으로 저장됩니다.</div>{% endif %}
       <div style="font-size:11.5px;color:#475569;margin-bottom:8px;line-height:1.7;">
+        박스 무게는 <b>수주마다</b> 따로 적습니다(같은 관리번호의 다른 수주와 섞이지 않음).
         ① 표의 <b>박스</b> 칸에 품목마다 박스번호(BOX-1, BOX-2…)를 적고 저장 → ② <b>[표에서 박스 불러오기]</b> → ③ 박스마다 <b>무게(kg)</b>·크기만 입력 후 저장.
         부품별 중량은 몰라도 됩니다 — 안 쓰는 '중량' 칸은 [⚙ 컬럼 설정]에서 숨기세요.
       </div>
@@ -233,6 +238,7 @@
       </div>
     </div>
   </details>
+  {% endif %}
 
   {# v5H226z951 (대표 지시·2단계): 컬럼 폭조절·숨김·순서 도구 + 계정별 저장(view_prefs) #}
   <div class="excol-bar">
@@ -300,7 +306,7 @@
           {% set _wt = u.get('weight_kg') %}
           {% set _bx = u.get('box_no') %}
           {% set _pl = u.get('pallet_size') %}
-          <tr data-iid="{{ u.id }}" data-qty="{{ _qty }}" data-sale="{{ _up if _up is not none else 0 }}" data-ccy="{{ _ccy }}">
+          <tr data-iid="{{ u.id }}" data-oid="{{ so.id }}" data-qty="{{ _qty }}" data-sale="{{ _up if _up is not none else 0 }}" data-ccy="{{ _ccy }}">
             <td class="read" data-col="name" style="font-weight:600;" title="{{ u.unit_label or '' }}">
               {{ u.unit_label or ('호기 ' ~ loop.index) }}
               {% if p.model_name or p.equip_name %}<span class="pmodel">{{ p.model_name or '' }}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}</span>{% endif %}
@@ -490,9 +496,15 @@
       +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_sz" value="'+bxEsc(sz)+'" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>'
       +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><button type="button" onclick="this.closest(\'tr\').remove();bxHeadUpd();" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:13px;">✕</button></td></tr>';
   }
+  var BX_SO = '{{ sel166.id if sel166 else "" }}';   /* z1191z177: 박스 무게 = 이 수주 */
+  function bxInputs(){
+    var all = document.querySelectorAll('.ex-grid tbody input[name="box_no"]');
+    if (!BX_SO) return Array.prototype.slice.call(all);
+    return Array.prototype.filter.call(all, function(i){ var tr = i.closest('tr'); return tr && tr.getAttribute('data-oid') === BX_SO; });
+  }
   function bxCount(){
     var cnt = {};
-    document.querySelectorAll('.ex-grid tbody input[name="box_no"]').forEach(function(i){
+    bxInputs().forEach(function(i){
       var v = (i.value||'').trim().toUpperCase(); if(v) cnt[v] = (cnt[v]||0) + 1;
     });
     document.querySelectorAll('#bxBody tr').forEach(function(tr){
@@ -509,7 +521,7 @@
     var have = {};
     body.querySelectorAll('input[name="bx_no"]').forEach(function(i){ var v=(i.value||'').trim().toUpperCase(); if(v) have[v]=1; });
     var added = 0, seen = {};
-    document.querySelectorAll('.ex-grid tbody input[name="box_no"]').forEach(function(i){
+    bxInputs().forEach(function(i){
       var v = (i.value||'').trim(); if(!v) return;
       var k = v.toUpperCase(); if(seen[k]) return; seen[k] = 1;
       if(!have[k]){ body.insertAdjacentHTML('beforeend', bxRowHtml(v, '', '')); added++; }
@@ -527,9 +539,9 @@
     var btn = document.getElementById('bxSaveBtn'), msg = document.getElementById('bxMsg');
     btn.disabled = true;
     try {
-      var r = await fetch('/export/prep/{{ p.id }}/boxes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({boxes: rows}), credentials:'same-origin'});
+      var r = await fetch('/export/prep/{{ p.id }}/boxes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({boxes: rows, so: BX_SO}), credentials:'same-origin'});
       var j = await r.json();
-      if(j.ok){ msg.textContent = '✓ ' + j.saved + '박스 저장 — [📄 Invoice&PL] 패킹리스트에 반영됩니다'; msg.style.color = '#15803d'; }
+      if(j.ok){ msg.textContent = '✅ 완료 — 수주 ' + (j.order_no||'') + ' 박스 ' + j.saved + '개 저장 · 이 수주 [📄 신고용] 패킹리스트에 들어갑니다'; msg.style.color = '#15803d'; }
       else { msg.textContent = '실패: ' + (j.error||''); msg.style.color = '#dc2626'; }
     } catch(e){ msg.textContent = '통신 오류: ' + e; msg.style.color = '#dc2626'; }
     btn.disabled = false; bxHeadUpd();

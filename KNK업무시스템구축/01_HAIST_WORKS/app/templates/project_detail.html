@@ -119,7 +119,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/quick-edit{% if focus_so and project_orders and project_orders|length > 1 %}?so={{ focus_so|urlencode }}{% endif %}" title="관리번호 {{ p.mgmt_code }} 전체의 공통 정보(고객사·모델·사업부·상태 등)를 고칩니다{% if project_orders and project_orders|length > 1 %} — 수주번호 {{ project_orders|length }}건 모두에 영향.
 특정 수주 하나만 고치려면 아래 [수주 내역]의 그 카드에서 고치세요.{% endif %}">✏️ 프로젝트 정보 수정{% if project_orders and project_orders|length > 1 %} <span style="font-size:10px;opacity:.75;">(전체 {{ project_orders|length }}건)</span>{% endif %}</a>{% endif %}
       {# v5H226z946 (대표 지시): 수출 건 → 수출 서류(통관 입력·패킹리스트·인보이스·출고 QR)로 바로가기. '다음 단계' 연결. #}
-      {% if can_sales and p.is_export %}<a class="btn btn-primary" style="background:#0369a1;" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
+      {% if can_sales and z177_exp_n %}<a class="btn btn-primary" style="background:#0369a1;" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
       {# v5H226z872 (2026-07-08 대표 지시): 폐기(완전삭제) 버튼은 헤더에서 제거 → 페이지 최하단 '위험 구역'으로 이동(실수 클릭 방지).
          경고 → 본인 비밀번호 확인 2단계 + 출하·세금계산서·수금 이력 있으면 아예 불가. 숨김해제는 옛 폐기(숨김)건 정리용만 헤더 유지. #}
       {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="옛 숨김(폐기)을 해제 — 다시 목록·일정표에 표시(삭제 아님)">♻ 숨김해제</button>{% endif %}

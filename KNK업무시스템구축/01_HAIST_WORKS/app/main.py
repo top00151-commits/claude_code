@@ -12663,7 +12663,13 @@ async def project_detail(req: Request, pid: int):
         "label": (_form_breakdown[0][0] if len(_form_breakdown) == 1 else ""),
         "breakdown": _form_breakdown,
     }
-    return ctx(req, "project_detail.html", heal153=heal153,
+    try:   # z1191z177 (대표 11-27): 「📦 수출 서류」 단추 = 수출 서류 대상 수주가 있을 때(관리번호 처음 등록 값 아님)
+        with db_session() as _c177:
+            z177_exp_n = len(_z166_doc_orders(_c177, pid)["doc"])
+    except Exception as _e177:
+        print(f"[z1191z177] 수출 서류 대상 판정 실패 {pid}: {_e177}")
+        z177_exp_n = 0
+    return ctx(req, "project_detail.html", heal153=heal153, z177_exp_n=z177_exp_n,
                form_summary=form_summary,   # v5H226z1058: 헤더 형태(혼합+구성)
                project_display_status=project_display_status,
                retire_blocked=bool(_retire_fin.get("any")),   # v5H226z872: 실거래 기록 있으면 폐기 불가
@@ -33002,6 +33008,33 @@ SALES_BIZ_LABEL = {"T": "🔬 검사기", "M": "🤖 자동화", "L": "💄 라�
 # z1191z39 (대표 2026-11-16): 줄 순서 = 검사기 · 자동화 · 라이프밸류 · 소모품(검사기) · 소모품(자동화) · (소모품(기타)) · 기타
 SALES3_BIZ = ("T", "M", "L", "CT", "CM", "CE", "E")
 SALES3_BIZ_LABEL = dict(SALES_BIZ_LABEL, CT="📦 소모품(검사기)", CM="📦 소모품(자동화)", CE="📦 소모품(기타)")
+# z1191z179 (대표 11-27 「사업부별 매출에 소모품 부분을 각 자동화·검사기 항목으로 포함 · 하단 항목으로 얼마인지」):
+#   화면 사업부 줄 = 사업부 + 그 사업부 소모품(아래 「└ 소모품」 줄로 금액) · 계산 줄(biz_rows·보고서)은 그대로 — 합계 같음
+SALES3_BIZ_GRP = {"TA": ("T", "CT"), "MA": ("M", "CM"), "EA": ("E", "CE")}
+SALES3_BIZ_GRP_LABEL = {"TA": "검사기(소모품 포함)", "MA": "자동화(소모품 포함)", "EA": "기타(소모품 포함)"}
+
+
+def _z179_biz_merged(biz_rows):
+    """사업부 줄(T·M·L·CT·CM·CE·E) → 화면 줄: 검사기 = 검사기 + 소모품(검사기) … · 줄마다 subs = [장비·제품 몫, 소모품 몫](소모품 있을 때만)."""
+    by = {b["biz"]: b for b in (biz_rows or [])}
+    out = []
+    for code in ("T", "M", "L", "E"):
+        base = by.get(code)
+        if not base:
+            continue
+        cons = next((by.get(cc) for g, (bc, cc) in SALES3_BIZ_GRP.items() if bc == code), None)
+        has_c = bool(cons) and any(abs(float(cons.get(k) or 0)) >= 0.5 for k in ("order", "prog", "final"))
+        row = {"biz": code, "label": base["label"]}
+        for k in ("order", "prog", "final"):
+            row[k] = float(base.get(k) or 0) + (float(cons.get(k) or 0) if has_c else 0.0)
+        row["subs"] = []
+        if has_c:
+            g = next(g for g, (bc, _cc) in SALES3_BIZ_GRP.items() if bc == code)
+            row["biz"] = g   # 이름 누르면 소모품까지 합친 고객사별
+            row["subs"] = [dict({k: float(base.get(k) or 0) for k in ("order", "prog", "final")}, biz=code, label="장비·제품"),
+                           dict({k: float(cons.get(k) or 0) for k in ("order", "prog", "final")}, biz=cons["biz"], label="📦 소모품")]
+        out.append(row)
+    return out
 _SALES3_CO_BIZ = "('C' || CASE WHEN UPPER(COALESCE(biz_div,'')) IN ('T','M') THEN UPPER(biz_div) ELSE 'E' END)"
 
 
@@ -33555,6 +33588,7 @@ async def sales_dashboard(request: Request):
     with db_session() as c:
         rates = _fx_load_rates(c)   # z900: 월 기준환율(각 기준월 원화 환산)
         s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m)
+        s3["biz_merged"] = _z179_biz_merged(s3.get("biz_rows"))   # z1191z179: 화면 사업부 줄(소모품 = 그 사업부 안 「└ 소모품」)
         open_proj = _z40_open_projects(c)   # z1191z40: 진행 프로젝트 = 출하 전 품목이 남은 프로젝트(+ 목록 창)
         # 최근 프로젝트 — 참고 목록(그 프로젝트의 계약금액을 원화 환산해 표시)
         _miss = set()
@@ -33747,12 +33781,16 @@ def _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today):
         done = [x for x in months if x["v"] > 0]
         best = max(done, key=lambda x: x["v"]) if done else None
         # 사업부(큰 순 · 0 은 뺀다)
-        brows = [b for b in (s3.get("biz_rows") or []) if float(b.get(key) or 0) > 0]
+        # z1191z179: 소모품 = 그 사업부 안(아래 「└ 소모품」 줄로 금액)
+        brows = [b for b in (s3.get("biz_merged") or s3.get("biz_rows") or []) if float(b.get(key) or 0) > 0]
         brows = sorted(brows, key=lambda b: -float(b.get(key) or 0))
         bmax = max([float(b.get(key) or 0) for b in brows] + [0.0])
         biz = [{"biz": b["biz"], "label": b["label"], "v": float(b[key]), "txt": _z75_won(b[key]),
                 "pct": (100.0 * float(b[key]) / total) if total else 0.0,
-                "w": round(100.0 * float(b[key]) / bmax, 1) if bmax else 0} for b in brows]
+                "w": round(100.0 * float(b[key]) / bmax, 1) if bmax else 0,
+                "subs": [{"biz": x["biz"], "label": x["label"], "v": float(x.get(key) or 0), "txt": _z75_won(x.get(key) or 0),
+                          "pct": (100.0 * float(x.get(key) or 0) / total) if total else 0.0}
+                         for x in (b.get("subs") or []) if abs(float(x.get(key) or 0)) >= 0.5]} for b in brows]
         # 고객사(등록명 합산 · 종사업장은 아래 작은 글) — 매출 홈 합계와 같은 줄
         cu, ch = {}, {}
         for x in (lines or []):
@@ -33818,6 +33856,7 @@ async def sales_glance_page(request: Request):
             s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines)
             _sales_3way(c, rates, oi_map, "year", sel_year, sel_q, sel_m, ym=ymd)
         open_proj = _z40_open_projects(c)
+    s3["biz_merged"] = _z179_biz_merged(s3.get("biz_rows"))   # z1191z179
     G = _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today)
     _late = [p for p in (open_proj.get("projects") or []) if p.get("due") and p["due"] < today.isoformat()]
     year_span = sorted(set(s3.get("year_choices") or [])
@@ -33849,7 +33888,8 @@ def _z45_drill(c, lines, biz, cust, c2=""):
     """detail 줄 → 깊이 보기 표. biz·cust 로 거른 뒤
        cust 없으면 고객사별 [{cust, order, prog, final, n}] · cust 있으면 수주별 [{kind, code, so, …}] + 사업부별 소계."""
     # z1191z73: 줄 = (지표, 사업부, 등록명, 원화, 수주 열쇠, 종사업장 시스템명|None) · cust 는 등록명(합산) 또는 시스템명(그 사업장만)
-    sel = [x for x in lines if (not biz or x[1] == biz) and (not cust or x[2] == cust or (len(x) > 5 and x[5] == cust))]
+    _bset = SALES3_BIZ_GRP.get(biz, (biz,))   # z1191z179: TA = 검사기 + 소모품(검사기)
+    sel = [x for x in lines if (not biz or x[1] in _bset) and (not cust or x[2] == cust or (len(x) > 5 and x[5] == cust))]
     if c2 and cust:
         # z1191z170 (대표 11-27 「2차 고객사 수주건수를 클릭하면 어떤 수주건인지」): 그 2차가 적힌 수주만 · 금액 = 그 수주의 2차 몫
         #   (매출 홈 TOP5 「└ 2차」 줄과 같은 숫자 — 한 수주에 2차가 여럿이면 대수로 나눈 몫)
@@ -33970,7 +34010,7 @@ async def sales_drill_page(request: Request):
     qp = request.query_params
     mode, sel_year, sel_q, sel_m = _z45_period(qp)
     biz = (qp.get("biz") or "").strip().upper()
-    if biz not in SALES3_BIZ:
+    if biz not in SALES3_BIZ and biz not in SALES3_BIZ_GRP:   # z1191z179: TA·MA·EA = 사업부 + 그 소모품
         biz = ""
     cust = (qp.get("cust") or "").strip()
     c2 = (qp.get("c2") or "").strip()[:120]   # z1191z170: 2차로 거르기(고객사 안에서만)
@@ -33983,7 +34023,7 @@ async def sales_drill_page(request: Request):
         dr = _z45_drill(c, lines, biz, cust, c2 if cust else "")
     year_span = sorted(set(s3.get("year_choices") or []) | {str(date.today().year), str(sel_year)}, reverse=True)
     return ctx(request, "sales_drill.html", user=u, active="sales", s3=s3, dr=dr, biz=biz, cust=cust, c2=(c2 if cust else ""),
-               biz_label=SALES3_BIZ_LABEL.get(biz, ""), year_span=year_span)
+               biz_label=(SALES3_BIZ_GRP_LABEL.get(biz) or SALES3_BIZ_LABEL.get(biz, "")), year_span=year_span)
 
 
 # ── z1191z17 매출 보고서 (대표 「1,2,3 진행해」 2026-11-10 · 이새롬·안지연 프로 답) ─────────────────────────
@@ -57963,15 +58003,14 @@ async def export_prep_detail(req: Request, pid: int, so: str = ""):
         dm = _doc_meta_get(c, pid, p, sel166) if st166 == "ok" else None   # v5H226z968: 신고 서류 정보(인보이스 헤더블록)
         s165 = _pwf.orders_summary_one(c, pid)   # z1191z165: 머리 줄 고객사·납기·모델 = 수주 기준
         _export_boxes_ensure(c)         # v5H226z970: 박스별 무게(실무=박스 단위 계량)
-        boxes = [dict(r) for r in c.execute(
-            "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no",
-            (pid,))]
+        # z1191z177: 박스 무게 = 고른 수주(수출 수주 하나면 그 수주) · 안 골랐으면 비움(화면에 「수주를 고르세요」)
+        boxes, box_src = (_z177_boxes(c, pid, sel166["id"]) if (st166 == "ok" and sel166) else ([], "pick"))
     try:
         col_prefs = _logi.view_prefs_get(u.get("id"), "export_customs_cols") or "{}"
     except Exception:
         col_prefs = "{}"
     return ctx(req, "export_prep_detail.html", user=u, active="export",
-               p=p, sos=sos, dm=dm, boxes=boxes, can_money=bool(can_view_sales(u)), col_prefs=col_prefs, s165=s165,
+               p=p, sos=sos, dm=dm, boxes=boxes, box_src=box_src, can_money=bool(can_view_sales(u)), col_prefs=col_prefs, s165=s165,
                L166=L166, sel166=(sel166 if st166 == "ok" else None), st166=st166)
 
 
@@ -60704,6 +60743,37 @@ def _export_boxes_ensure(c):
         weight_kg REAL, box_size TEXT,
         updated_by INTEGER, updated_at TEXT,
         PRIMARY KEY(project_id, box_no))""")
+    # z1191z177 (대표 11-27 「수주 기준으로 고쳐서 진행해」): 박스 무게 = 수주마다(같은 관리번호의 다른 수주가 같은 BOX 번호를 써도 안 섞임)
+    #   옛 관리번호 단위 표(export_boxes)는 지우지 않고 「처음 값」으로 보여 주기만(저절로 옮겨 저장하지 않음)
+    c.execute("""CREATE TABLE IF NOT EXISTS export_boxes_so (
+        order_id INTEGER NOT NULL,
+        project_id INTEGER NOT NULL,
+        box_no TEXT NOT NULL,
+        weight_kg REAL, box_size TEXT,
+        updated_by INTEGER, updated_at TEXT,
+        PRIMARY KEY(order_id, box_no))""")
+
+
+def _z177_my_boxes(c, oid):
+    """그 수주 품목에 적힌 박스번호(대문자) — 취소 품목 제외."""
+    return {str(r[0]).strip().upper() for r in c.execute(
+        "SELECT DISTINCT box_no FROM order_items WHERE order_id=? AND COALESCE(unit_status,'')<>'취소' "
+        "AND COALESCE(TRIM(box_no),'')<>''", (oid,)).fetchall()}
+
+
+def _z177_boxes(c, pid, oid):
+    """z1191z177: 수주 하나의 박스 무게 → (줄, 출처) · 출처 'so' = 이 수주로 저장한 값 · 'old' = 아직 없어 옛 관리번호 단위 값 중
+    이 수주 품목 박스번호만(보여 주기만) · 'none' = 없음."""
+    _export_boxes_ensure(c)
+    rows = [dict(r) for r in c.execute(
+        "SELECT box_no, weight_kg, box_size FROM export_boxes_so WHERE order_id=? ORDER BY box_no", (oid,))]
+    if rows:
+        return rows, "so"
+    mine = _z177_my_boxes(c, oid)
+    old = [dict(r) for r in c.execute(
+        "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no", (pid,))]
+    old = [b for b in old if str(b.get("box_no") or "").strip().upper() in mine]
+    return old, ("old" if old else "none")
 
 
 @app.post("/export/prep/{pid:int}/boxes")
@@ -60719,6 +60789,10 @@ async def export_boxes_save(req: Request, pid: int):
     rows = body.get("boxes")
     if not isinstance(rows, list):
         return JSONResponse({"ok": False, "error": "boxes 형식 오류"}, 400)
+    with db_session() as c:   # z1191z177: 어느 수주의 박스인지 — 이 관리번호의 수출 서류 대상 수주만
+        st177, o177, _L177 = _z166_pick(c, pid, str(body.get("so") or ""))
+    if st177 != "ok" or not o177:
+        return JSONResponse({"ok": False, "error": "어느 수주의 박스인지 몰라 저장하지 않았습니다 — 위 「수주별 수출 서류」 표에서 수주를 골라 주세요."}, 400)
     clean, seen = [], set()
     for r in rows[:200]:
         if not isinstance(r, dict):
@@ -60735,13 +60809,13 @@ async def export_boxes_save(req: Request, pid: int):
         clean.append((bn, w, str(r.get("box_size") or "").strip()[:40]))
     with db_session() as c:
         _export_boxes_ensure(c)
-        c.execute("DELETE FROM export_boxes WHERE project_id=?", (pid,))
+        c.execute("DELETE FROM export_boxes_so WHERE order_id=?", (o177["id"],))   # 이 수주 것만 바꿈(다른 수주·옛 표 그대로)
         for bn, w, sz in clean:
             c.execute(
-                "INSERT OR REPLACE INTO export_boxes(project_id, box_no, weight_kg, box_size, updated_by, updated_at) "
-                "VALUES(?,?,?,?,?,datetime('now','localtime'))",
-                (pid, bn, w, sz, u.get("id")))
-    return JSONResponse({"ok": True, "saved": len(clean)})
+                "INSERT OR REPLACE INTO export_boxes_so(order_id, project_id, box_no, weight_kg, box_size, updated_by, updated_at) "
+                "VALUES(?,?,?,?,?,?,datetime('now','localtime'))",
+                (o177["id"], pid, bn, w, sz, u.get("id")))
+    return JSONResponse({"ok": True, "saved": len(clean), "order_no": o177.get("order_no") or ""})
 
 
 def _z968_head_block(ws, title: str, dm: dict, F, thin_border):
@@ -60810,14 +60884,8 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int, so: str = ""):
         _p2, _pl, pl_lines = _export_pl_build(c, pid, _sid)
         _p3, _pl2, _pll, box_list = _export_ship_boxes(c, pid, _sid)
         # v5H226z970: 박스별 무게(사용자 입력) — 있으면 품목별 중량 대신 이걸 사용(실물 관행)
-        _export_boxes_ensure(c)
-        ebx = [dict(r) for r in c.execute(
-            "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no",
-            (pid,))]
-        # z1191z166: 수출 수주가 여럿이면 박스 무게는 이 수주 품목이 담긴 박스만(박스 무게는 관리번호 단위로 적는 표)
-        if (o166.get("n_doc") or 1) > 1:
-            _mybx = {str(l.get("box_no") or "").strip().upper() for l in (pl_lines or []) if str(l.get("box_no") or "").strip()}
-            ebx = [b for b in ebx if str(b.get("box_no") or "").strip().upper() in _mybx]
+        # z1191z177: 박스 무게 = 이 수주로 저장한 값(없으면 옛 관리번호 단위 값 중 이 수주 품목 박스만)
+        ebx, _bsrc177 = _z177_boxes(c, pid, _sid)
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side

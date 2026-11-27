@@ -174,17 +174,31 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
         </div>
 
         <div class="z75-card">
-          <h3>사업부별 <span class="s">{{ s3.period_label }} · 큰 순</span></h3>
+          <h3>사업부별 <span class="s">{{ s3.period_label }} · 큰 순</span>{% if g.biz|selectattr('subs')|list %} <button type="button" id="z179Gb" aria-expanded="false" title="사업부 아래 「└ 소모품」 줄 펼치기·접기(이 컴퓨터에 기억)" style="margin-left:8px;padding:1px 10px;font-size:11.5px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;vertical-align:middle;">▸ 소모품 펼치기</button>{% endif %}</h3>
           {% if g.biz %}
-          <div class="z75-hb">
+          <style>#z179Gbox.c179off .z179-c { display:none; }</style>
+          <div class="z75-hb c179off" id="z179Gbox">
             {% for b in g.biz %}
             <div class="z75-hr" title="{{ b.label }} {{ money(b.v, 'KRW') }}">
               <div class="z75-hn"><a href="/sales/drill?biz={{ b.biz }}&amp;{{ P }}">{{ b.label }}</a></div>
               <div class="z75-ht"><div class="z75-hf" style="width:{{ b.w }}%;"></div></div><span class="z75-hv">{{ b.txt }}<i>{{ ('%.0f'|format(b.pct) ~ '%') if b.pct >= 1 else '1% 미만' }}</i></span>
             </div>
+            {% for x in b.subs if x.label != '장비·제품' %}{# z1191z179: 그 사업부 안 소모품 금액 #}
+            <div class="z75-hr z179-c" style="margin-top:-4px;font-size:12px;color:#64748b;" title="{{ b.label }} 안 {{ x.label }} {{ money(x.v, 'KRW') }}">
+              <div class="z75-hn" style="padding-left:18px;font-weight:500;"><span style="color:#94a3b8;">└</span> <a href="/sales/drill?biz={{ x.biz }}&amp;{{ P }}" style="color:#475569;">{{ x.label }}</a></div>
+              <div></div><span class="z75-hv" style="font-weight:600;color:#64748b;">{{ x.txt }}<i>{{ ('%.0f'|format(x.pct) ~ '%') if x.pct >= 1 else '1% 미만' }}</i></span>
+            </div>
+            {% endfor %}
             {% endfor %}
           </div>
-          <div class="z75-foot">사업부 이름을 누르면 그 사업부의 고객사별 금액이 나옵니다.</div>
+          <div class="z75-foot">소모품은 그 사업부(검사기·자동화) 안에 들어 있고, 「▸ 소모품 펼치기」를 누르면 아래 「└ 소모품」 줄로 그 금액이 보입니다 · 이름을 누르면 고객사별 금액이 나옵니다.</div>
+          <script>(function(){ /* z1191z179 (대표 11-27 「소모품 접기도 넣어줘」): 사업부 아래 「└ 소모품」 줄 접기·펼치기 · 기본 접힘 · 이 컴퓨터에 기억 */
+  var b = document.getElementById('z179Gb'), box = document.getElementById('z179Gbox'); if (!b || !box) return;
+  function set(o){ box.classList.toggle('c179off', !o); b.setAttribute('aria-expanded', o ? 'true' : 'false'); b.textContent = o ? '▾ 소모품 접기' : '▸ 소모품 펼치기'; }
+  var o0 = false; try { o0 = localStorage.getItem('z179c') === '1'; } catch(e){}
+  set(o0);
+  b.addEventListener('click', function(){ var o = b.getAttribute('aria-expanded') !== 'true'; set(o); try { localStorage.setItem('z179c', o ? '1' : '0'); } catch(e){} });
+})();</script>
           {% else %}<div class="z75-empty">이 기간에는 금액이 없습니다</div>{% endif %}
         </div>
       </div>

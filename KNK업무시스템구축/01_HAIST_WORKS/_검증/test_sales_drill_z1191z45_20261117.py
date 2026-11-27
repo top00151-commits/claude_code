@@ -143,7 +143,11 @@ check([r["so"] for r in DCT["rows"]] == ["T-1", "T-4"] and trip(DCT["tot"]) == t
 print("§3 화면")
 P = "mode=year&year=2026&q=1&m=1"
 h = q(cl.get, "/sales?" + P).text
-check('href="/sales/drill?biz=T&amp;mode=year&amp;year=2026' in h, "매출 홈 「사업부별 매출」 사업부 → 깊이 보기")
+# z1191z179 (대표 11-27): 소모품이 있으면 사업부 줄 = 사업부 + 그 소모품(TA) · 없으면 예전처럼 T
+check(('href="/sales/drill?biz=T&amp;mode=year&amp;year=2026' in h) or ('href="/sales/drill?biz=TA&amp;mode=year&amp;year=2026' in h), "매출 홈 「사업부별 매출」 사업부 → 깊이 보기")
+check("📦 소모품</a>" in h and 'href="/sales/drill?biz=CT&amp;' in h and 'href="/sales/drill?biz=TA&amp;' in h, "z1191z179: 검사기 줄 = 소모품 포함 · 아래 「└ 📦 소모품」 줄(소모품만 깊이 보기)")
+_hta = q(cl.get, "/sales/drill?biz=TA&" + P)
+check(_hta.status_code == 200 and "검사기(소모품 포함)" in _hta.text, "z1191z179: 깊이 보기 TA = 검사기 + 소모품(검사기)")
 check(('href="/sales/drill?cust=%s&amp;mode=year' % quote("엘지전자")) in h, "매출 홈 TOP5 고객사 → 그 고객사 매출 내역")
 check('/customers?q=' not in h, "TOP5 고객사 이름이 더는 고객사 등록 화면으로 안 감")
 check('고객사 전체 보기' in h, "TOP5 옆 「고객사 전체 보기」")

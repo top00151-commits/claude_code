@@ -366,6 +366,38 @@ with D.db_session() as c:
     cu = c.execute("SELECT customer_id FROM orders WHERE id=?", (res.get("order_id"),)).fetchone()
 check("customer_required=False(새 관리번호의 추가 품목 전용) = 고객 빈칸으로 저장(처음 고객 안 채움)", res.get("ok") and cu and cu[0] is None, (res, cu and cu[0]))
 
+print("§11 z1191z177 박스 무게 = 수주마다 · 「📦 수출 서류」 단추 = 수주 기준")
+import openpyxl as _ox177
+with D.db_session() as c:
+    M._export_boxes_ensure(c)
+    c.execute("INSERT INTO export_boxes(project_id, box_no, weight_kg, box_size) VALUES(?,?,?,?)", (P, "BOX-1", 10.0, "옛크기1"))
+    c.execute("INSERT INTO export_boxes(project_id, box_no, weight_kg, box_size) VALUES(?,?,?,?)", (P, "BOX-2", 20.0, "옛크기2"))
+st, H = get("/export/prep/%d" % P)
+check("수출 수주 여럿 · 안 고름 = 박스 표 대신 「수주를 고르면 그 수주의 박스 무게」", st == 200 and "그 수주의 박스 무게를 적습니다" in text(H) and 'id="bxTbl"' not in H)
+st, H = get("/export/prep/%d?so=%d" % (P, O2))
+i = H.find('id="bxTbl"'); bx = H[i:H.find("</table>", i)] if i > 0 else ""
+check("고른 수주 = 그 수주 박스 표 · 옛 값은 이 수주 박스(BOX-1)만 · 「⏳ 예전 값」 안내", st == 200 and "M-251122-2" in H and 'value="BOX-1"' in bx and 'value="BOX-2"' not in bx and "예전(관리번호 하나로 적던) 값" in text(H), bx[:300])
+check("통관 표 줄마다 어느 수주인지(data-oid)", ('data-oid="%d"' % O2) in H and ('data-oid="%d"' % O3) in H)
+r = cl.post("/export/prep/%d/boxes" % P, json={"boxes": [{"box_no": "BOX-1", "weight_kg": "12.5", "box_size": "새크기"}]})
+check("수주 안 고르고 저장 = 400 · 저장 안 함", r.status_code == 400 and not r.json().get("ok"), r.text[:200])
+r = cl.post("/export/prep/%d/boxes" % P, json={"boxes": [{"box_no": "BOX-1", "weight_kg": "12.5", "box_size": "새크기"}], "so": str(O2)})
+r2 = cl.post("/export/prep/%d/boxes" % P, json={"boxes": [{"box_no": "BOX-1", "weight_kg": "99", "box_size": "B크기"}], "so": str(O3)})
+with D.db_session() as c:
+    so_rows = sorted((x[0], x[1], x[2]) for x in c.execute("SELECT order_id, box_no, weight_kg FROM export_boxes_so WHERE project_id=?", (P,)))
+    old_rows = sorted((x[0], x[1]) for x in c.execute("SELECT box_no, weight_kg FROM export_boxes WHERE project_id=?", (P,)))
+check("수주마다 저장 — 같은 BOX-1 번호라도 두 수주 따로(12.5 · 99)", r.json().get("ok") and r2.json().get("ok") and so_rows == sorted([(O2, "BOX-1", 12.5), (O3, "BOX-1", 99.0)]), so_rows)
+check("옛 관리번호 단위 표는 그대로(지우지 않음)", old_rows == [("BOX-1", 10.0), ("BOX-2", 20.0)], old_rows)
+st, H = get("/export/prep/%d?so=%d" % (P, O2))
+check("저장 뒤 = 이 수주 값(12.5) · 「예전 값」 안내 없음", 'value="12.5"' in H and "예전(관리번호 하나로 적던) 값" not in text(H))
+r = cl.get("/export/prep/%d/invoice-pl.xlsx?so=%d" % (P, O2))
+wb = _ox177.load_workbook(io.BytesIO(r.content), data_only=True)
+vals = [v for ws in wb.worksheets for row in ws.iter_rows(values_only=True) for v in row if v is not None]
+check("신고용 파일 = 이 수주 박스 무게 12.5(다른 수주 99·옛 10 아님)", r.status_code == 200 and 12.5 in vals and 99 not in vals and 99.0 not in vals, [v for v in vals if isinstance(v, (int, float))][:30])
+st, H = get("/project/%d" % P)
+check("「📦 수출 서류」 단추 = 처음 등록 값이 내수여도 수출 수주가 있으면 보임", ('href="/export/prep/%d" title="수출 통관 입력' % P) in H, "")
+st, H = get("/project/%d" % P3)
+check("수출 수주 없는 관리번호 = 단추 없음", ('href="/export/prep/%d" title="수출 통관 입력' % P3) not in H, "")
+
 print()
 print("결과: 통과 %d · 실패 %d" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)
