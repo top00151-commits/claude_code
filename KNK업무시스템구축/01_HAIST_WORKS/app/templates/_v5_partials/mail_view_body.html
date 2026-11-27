@@ -274,7 +274,7 @@
 </div>
 
 <div class="mv-trans" id="transBox">
-  <div style="font-size:12px;color:var(--mute);margin-bottom:6px;"><b id="transLabel">번역</b> <span id="transStatus"></span></div>
+  <div style="font-size:12px;margin-bottom:6px;display:flex;align-items:center;gap:6px"><b id="transLabel">번역</b> <span id="transStatus"></span><button type="button" class="mv-trans-x" onclick="document.getElementById('transBox').style.display='none'" title="번역 닫기 — 원문만 보기">✕ 닫기</button></div>
   <div style="font-weight:700;margin-bottom:6px;" id="transSubj"></div>
   <div style="white-space:pre-wrap;line-height:1.8;" id="transBody"></div>
 </div>
@@ -371,16 +371,21 @@
   window.translateMail=async function(target){
     var box=document.getElementById('transBox');
     var st=document.getElementById('transStatus');
+    // 11-27 대표 「번역을 눌러도 번역이 안 돼」 — 상자가 본문·이전/다음 단추 밑에 있어 긴 메일에선 화면 밖 → 본문 바로 위로 옮겨 보이게
+    try{ var anc=document.getElementById('mvFrame'); if(anc && anc.style.display==='none'){ anc=document.getElementById('mvText'); }
+      if(!anc){ anc=box.parentNode && box.parentNode.querySelector('.mv-body'); }
+      if(anc && anc.parentNode && box.nextSibling!==anc){ anc.parentNode.insertBefore(box, anc); } }catch(_){ }
     box.style.display='block';
-    st.textContent='번역 중...';
-    document.getElementById('transLabel').textContent=(target==='ko'?'🇰🇷 한국어 번역':'🇻🇳 베트남어 번역');
+    st.textContent='⏳ 번역 중... (몇 초 걸립니다)';
+    document.getElementById('transLabel').textContent=({ko:'🇰🇷 한국어 번역',vi:'🇻🇳 베트남어 번역',en:'🇺🇸 영어 번역'})[target]||'번역';
+    try{ box.scrollIntoView({block:'nearest', behavior:'smooth'}); }catch(_){ }
     document.getElementById('transSubj').textContent='';
     document.getElementById('transBody').textContent='';
     try{
       var fd=new FormData(); fd.append('target',target);
       var r=await fetch('/api/mail/'+MAIL_ID+'/translate',{method:'POST',body:fd});
       var j=await r.json();
-      if(j.ok){ st.textContent=''; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
+      if(j.ok){ st.textContent='✅ 번역 끝 · 아래가 원문'; document.getElementById('transSubj').textContent=j.subject||''; document.getElementById('transBody').textContent=j.body||''; }
       else { st.textContent='⚠ '+(j.message||'번역 실패'); }
     }catch(e){ st.textContent='⚠ 네트워크 오류'; }
   };
