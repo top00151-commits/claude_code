@@ -131,6 +131,7 @@
         <th style="padding:5px 8px;text-align:left;">거래구분</th><th style="padding:5px 8px;text-align:left;">서류</th>
       </tr></thead>
       <tbody>
+      {% set _tcw178 = trade_ccy_warn(p.id) %}{# z1191z178 #}
       {% for o in _L166.orders %}
         {% set _on166 = sel166 and sel166.id == o.id %}
         <tr style="border-top:1px solid #e0e7ff;{% if not o.doc %}color:#94a3b8;background:#fafafa;{% elif _on166 %}background:#fef9c3;{% endif %}">
@@ -140,7 +141,7 @@
           <td style="padding:5px 8px;text-align:right;white-space:nowrap;">{% if can_money %}{{ money(o.total_amount, o.currency) }}{% else %}—{% endif %}</td>
           <td style="padding:5px 8px;text-align:right;">{{ o.n_items }}</td>
           <td style="padding:5px 8px;">{{ o.due_date or '—' }}</td>
-          <td style="padding:5px 8px;">{{ o.trade or '미기재' }}{% if o.why %}<div style="font-size:10.5px;color:#94a3b8;">{{ o.why }}</div>{% endif %}</td>
+          <td style="padding:5px 8px;">{{ o.trade or '미기재' }}{% if o.why %}<div style="font-size:10.5px;color:#94a3b8;">{{ o.why }}</div>{% endif %}{% set _tcw = _tcw178.get(o.id) %}{% set _tcw_small = true %}{% include "_v5_partials/trade_ccy_warn.html" %}</td>
           <td style="padding:5px 8px;">
             {% if o.doc %}
             <span style="display:inline-flex;gap:4px;flex-wrap:wrap;">
@@ -256,6 +257,7 @@
     {% if so.units %}
     {% set _ns.any = true %}
     <div class="ex-sect-h">📄 {{ so.order_no|default('수주') }} <span style="font-weight:500;color:var(--mute);">· {{ so.so_type|default('') }} · {{ so.units|length }}품목</span></div>
+    {% set _tcw = trade_ccy_warn(none, [so.id]).get(so.id) if so.id else none %}{% set _tcw_small = false %}{% include "_v5_partials/trade_ccy_warn.html" %}{# z1191z178 #}
     {# v5H226z947→z1009: 표 자체가 세로+가로 스크롤 박스(thead sticky top:0 로 제목행 고정).
        z1009(대표 지시): 높이=화면 남은 공간 자동 채움(data-knk-fill·모니터 크기 자동 적응). 기존 max-height:calc(100vh-290px) 매직넘버는 노트북에서 flex 눌림으로 1~2줄만 보임 → 폐지. #}
     <div class="tbl-wrap ex-fill" data-knk-fill="grow" style="overflow:auto;border:1px solid #e2e8f0;border-radius:7px;">

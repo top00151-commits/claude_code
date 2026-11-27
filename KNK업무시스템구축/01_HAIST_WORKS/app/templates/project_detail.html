@@ -647,6 +647,14 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           {% set _ord = ([project_orders|last] + project_orders[:-1]) if (project_orders|length > 1) else project_orders %}
         {% endif %}
         
+        {% set _tcw178 = trade_ccy_warn(p.id) %}{# z1191z178: 통화·거래구분 안 맞음(수주마다 · 확인한 것은 회색) #}
+        {% set _tcw178_open = _tcw178.values()|rejectattr('acked')|list %}
+        {% if _tcw178_open %}
+        <div class="tcw178-sum" style="margin:0 0 8px;padding:7px 12px;border:1px solid #facc15;background:#fef9c3;border-radius:8px;color:#713f12;font-size:12.5px;font-weight:700;">
+          ⚠ 통화·거래구분이 안 맞는 수주 {{ _tcw178_open|length }}건 — {% for w in _tcw178_open %}<span style="font-family:Consolas,monospace;">{{ w.order_no }}</span> {{ w.msg|replace('💱 ', '') }}({{ w.items_txt }}){% if not loop.last %} · {% endif %}{% endfor %}
+          <span style="font-weight:500;"> · 👉 아래 그 수주 카드에서 맞는지 보고 「확인했음」(틀렸으면 거래구분·통화를 고쳐 주세요 · 저장은 막지 않습니다){% if _tcw178_open|selectattr('order_id', 'ne', (_ord|first).id)|list %} · 참고·추가 수주는 「📎 참고」를 펼쳐 보세요{% endif %}</span>
+        </div>
+        {% endif %}
         <div class="list-scroll">
         {% set _sq105 = z141_so_status(p.id) if can_money else {} %}{% set _po143so = z143_po(p.id) if can_money else {'proj': {}, 'so': {}} %}{# z1191z143 수주별 고객 발주서 #}{# z1191z105·z141: 수주번호별 견적서 · z1191z160: 여러 장 모두 · 비교·따라가기 없음 #}
         {% for so in _ord %}
@@ -668,6 +676,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             <div class="ref-sos-body">
           {% endif %}
           <div class="so-card{% if _editable %} editable{% endif %}{% if not loop.first %} ref-so{% endif %}" data-soid="{{ so.id }}"{% if _closed117 and _editable %} data-closed117="{{ (so.status or '')|upper }}" data-sono117="{{ so.order_no }}"{% endif %}>
+            {% set _tcw = _tcw178.get(so.id) %}{% set _tcw_can = can_sales %}{% include "_v5_partials/trade_ccy_warn.html" %}{# z1191z178 #}
             <!-- 헤더: 수주번호 + 메타 + 액션 -->
             <div class="so-card-head">
               <div class="so-no">{# v5H226z650(대표 지시): 참고(추가) 수주번호 클릭 시 상태별 이동 — 진행중→작업일정표(해당 관리번호 검색·강조), 완료(출하/송장/수금/취소)→수주 상세(진행 이력) #}

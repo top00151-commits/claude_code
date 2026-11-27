@@ -168,9 +168,76 @@
       } else { tb.style.width = '0'; }
     }
   }
+  // ── z1191z178 (대표 11-27 「통화·거래구분이 안 맞으면 알람」): 저장 응답에 trade_ccy_warn 가 붙어 오면(머리 X-KNK-Trade-Warn)
+  //    화면 오른쪽 아래에 노란 알림 — 저장은 이미 끝남(막지 않음) · 확인 단추 한 번 · 닫기 단추 · 새로고침해도 잠깐(20초) 다시 보임
+  //    (화면 글은 \u 글자 번호로 적음 — 모든 쪽에 실리는 공용 틀이라 쪽 글자 찾기·시험에 섞이지 않게)
+  function tcwEsc(x){ return String(x == null ? '' : x).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]; }); }
+  function tcwShow(list, keep){
+    if(!list || !list.length || !document.body) return;
+    var bx = document.getElementById('knkTcw178');
+    if(!bx){ bx = document.createElement('div'); bx.id = 'knkTcw178'; bx.setAttribute('role', 'alert');
+      bx.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483640;max-width:min(460px,calc(100vw - 32px));background:#fef9c3;border:2px solid #facc15;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:12px 14px 10px;color:#713f12;font-size:13px;line-height:1.55;';
+      document.body.appendChild(bx); }
+    var h = '<div style="display:flex;align-items:flex-start;gap:8px;"><div style="flex:1;font-weight:800;">\u2705 \uC800\uC7A5\uC740 \uB410\uC2B5\uB2C8\uB2E4 \u00B7 \uD83D\uDC49 \uD1B5\uD654\u00B7\uAC70\uB798\uAD6C\uBD84\uC774 \uC548 \uB9DE\uC2B5\uB2C8\uB2E4 \u2014 \uB9DE\uB294\uC9C0 \uD55C \uBC88 \uBD10 \uC8FC\uC138\uC694</div>'
+          + '<button type="button" class="tcw-x" style="border:1px solid #ca8a04;background:#fff;color:#854d0e;border-radius:6px;padding:1px 9px;font-weight:800;cursor:pointer;" title="\uB2EB\uAE30(\uC54C\uB9BC\uB9CC \uB2EB\uD798 \u00B7 \uC218\uC8FC \uCE74\uB4DC\u00B7\uD655\uC778 \uD544\uC694 \uD654\uBA74\uC5D0\uB294 \uB0A8\uC74C)">\u2715 \uB2EB\uAE30</button></div>';
+    for(var i = 0; i < list.length; i++){
+      var w = list[i] || {};
+      h += '<div class="tcw178" data-tcw-oid="' + tcwEsc(w.order_id) + '" data-tcw-sig="' + tcwEsc(w.sig) + '" style="margin-top:7px;padding:6px 9px;background:#fff;border:1px solid #fde68a;border-radius:8px;">'
+         + '<b>\u26A0 ' + tcwEsc(w.msg) + '</b> <span style="font-family:Consolas,monospace;font-weight:700;">' + tcwEsc(w.mgmt_code) + ' \u00B7 \uC218\uC8FC ' + tcwEsc(w.order_no) + '</span>'
+         + '<div>\uD83D\uDC49 ' + tcwEsc(w.items_txt) + '</div><div style="font-size:11.5px;color:#854d0e;">' + tcwEsc(w.hint) + '</div>'
+         + '<button type="button" class="tcw-ack" style="margin-top:3px;padding:1px 10px;border:1px solid #ca8a04;background:#fff;color:#854d0e;border-radius:6px;font-size:11.5px;font-weight:800;cursor:pointer;">\uD655\uC778\uD588\uC74C</button>'
+         + (w.project_id ? ' <a href="/project/' + tcwEsc(w.project_id) + '" style="font-size:11.5px;color:#1d4ed8;font-weight:700;">\uD504\uB85C\uC81D\uD2B8 \uC0C1\uC138 \u2192</a>' : '')
+         + '<span class="tcw-m" style="font-size:11px;margin-left:4px;"></span></div>';
+    }
+    bx.innerHTML = h;
+    if(keep){ try{ sessionStorage.setItem('_knkTcw178', JSON.stringify({l: list, ts: Date.now()})); }catch(e){} }
+  }
+  try{
+    var _tr178 = sessionStorage.getItem('_knkTcw178');
+    if(_tr178){ var _tf178 = JSON.parse(_tr178);
+      if(_tf178 && _tf178.l && (Date.now() - (_tf178.ts||0) < 20000)){ var _sh178 = function(){ tcwShow(_tf178.l, false); };
+        if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _sh178); else setTimeout(_sh178, 60); }
+      else sessionStorage.removeItem('_knkTcw178'); }
+  }catch(e){}
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    var x = t && t.closest && t.closest('#knkTcw178 .tcw-x');
+    if(x){ var bx0 = document.getElementById('knkTcw178'); if(bx0) bx0.parentNode.removeChild(bx0); try{ sessionStorage.removeItem('_knkTcw178'); }catch(_e){} return; }
+    var b = t && t.closest && t.closest('.tcw-ack'); if(!b) return;
+    var box = b.closest('[data-tcw-oid]'); if(!box) return;
+    var oid = box.getAttribute('data-tcw-oid'), sig = box.getAttribute('data-tcw-sig') || '';
+    var m = box.querySelector('.tcw-m'), fd = new FormData(); fd.append('sig', sig);
+    b.disabled = true; if(m){ m.style.color = '#475569'; m.textContent = '\u23F3 \uC800\uC7A5 \uC911\u2026'; }
+    fetch('/api/trade-ccy-ack/' + encodeURIComponent(oid), {method:'POST', body:fd, credentials:'same-origin'})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
+      .then(function(j){
+        b.disabled = false;
+        if(j && j.ok){
+          var all = document.querySelectorAll('[data-tcw-oid="' + oid + '"]');
+          for(var k = 0; k < all.length; k++){
+            var el = all[k]; el.classList.add('ack');
+            el.style.background = '#f8fafc'; el.style.borderColor = '#e2e8f0'; el.style.color = '#64748b';
+            el.innerHTML = '<span style="font-weight:700;">\u2713 \uD655\uC778\uD568(' + tcwEsc(j.by_name || '') + ' ' + tcwEsc(String(j.at || '').slice(0, 10)) + ')</span> <span>'
+                         + tcwEsc(String(j.msg || '').replace('\uD83D\uDCB1 ', '')) + ' \u2014 ' + tcwEsc(j.items_txt || '') + '</span> <span style="color:#166534;font-weight:700;">\u2705 \uC644\uB8CC \u2014 \uC774\uB825\uC5D0 \uB0A8\uACBC\uC2B5\uB2C8\uB2E4</span>';
+          }
+          try{ var st = JSON.parse(sessionStorage.getItem('_knkTcw178') || 'null'); if(st && st.l){ st.l = st.l.filter(function(w){ return String(w.order_id) !== String(oid); }); sessionStorage.setItem('_knkTcw178', JSON.stringify(st)); } }catch(_e){}
+          var n = document.getElementById('tcm178N'); if(n){ n.textContent = Math.max(0, (parseInt(n.textContent, 10) || 1) - 1); }
+        } else if(m){ m.style.color = '#b91c1c'; m.textContent = '\u26A0 \uB05D\uB098\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4 \u2014 ' + ((j && j.message) || '\uC800\uC7A5\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4'); }
+      }).catch(function(){ b.disabled = false; if(m){ m.style.color = '#b91c1c'; m.textContent = '\u26A0 \uC778\uD130\uB137 \uC5F0\uACB0\uC774 \uB04A\uACA8 \uC800\uC7A5\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4'; } });
+  });
+  function tcwSniff(r){
+    try{
+      if(r && r.headers && r.headers.get && r.headers.get('X-KNK-Trade-Warn')){
+        r.clone().json().then(function(j){ if(j && j.trade_ccy_warn && j.trade_ccy_warn.length) tcwShow(j.trade_ccy_warn, true); }).catch(function(){});
+      }
+    }catch(e){}
+    return r;
+  }
+  window.KNKTradeWarn = tcwShow;
+
   if(window.fetch && !window.fetch.__knkWrapped){
     var _origFetch = window.fetch.bind(window);
-    var wrapped = function(){ tbStart(); return _origFetch.apply(this, arguments).finally(tbStop); };
+    var wrapped = function(){ tbStart(); return _origFetch.apply(this, arguments).then(tcwSniff).finally(tbStop); };
     wrapped.__knkWrapped = true;
     window.fetch = wrapped;
   }

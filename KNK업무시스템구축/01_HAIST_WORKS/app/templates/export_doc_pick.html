@@ -67,6 +67,7 @@ tr.dom td { color:#94a3b8; background:#fafafa; }
         <th>발주일</th><th>납기</th><th>거래구분</th><th>서류</th>
       </tr></thead>
       <tbody>
+      {% set _tcw178 = trade_ccy_warn(p.id) %}{# z1191z178 #}
       {% for o in L.orders %}
         <tr class="{% if not o.doc %}dom{% endif %}">
           <td><span class="so">{{ o.order_no or ('SO' ~ o.id) }}</span><div class="gray">{{ p.mgmt_code|default('') }}</div></td>
@@ -76,7 +77,7 @@ tr.dom td { color:#94a3b8; background:#fafafa; }
           <td class="num">{{ o.n_items }}</td>
           <td>{{ o.order_date or '—' }}</td>
           <td>{{ o.due_date or '—' }}</td>
-          <td>{{ o.trade or '미기재' }}{% if o.why %}<div class="gray">{{ o.why }}</div>{% endif %}</td>
+          <td>{{ o.trade or '미기재' }}{% if o.why %}<div class="gray">{{ o.why }}</div>{% endif %}{% set _tcw = _tcw178.get(o.id) %}{% set _tcw_small = true %}{% include "_v5_partials/trade_ccy_warn.html" %}</td>
           <td>
             {% if o.doc %}
             <div class="btns">

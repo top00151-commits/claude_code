@@ -1,0 +1,19 @@
+{# z1191z178 (대표 11-27 「USD 수주인데 22·23호기가 『내수』 · 이런 맞지 않는 상황이 나오면 알람」): 통화·거래구분 안 맞음 한 줄.
+   넘겨 줄 것: _tcw = trade_ccy_warn(...) 의 한 수주 알림(없으면 아무것도 안 그림) · _tcw_small = true 면 표 칸용 작은 꼴.
+   막지 않음 · 값을 고치지 않음 · 「확인했음」 = 공용 knk_busy.html 의 클릭 처리(/api/trade-ccy-ack) — 내용이 바뀌면 다시 노란색. #}
+{% if _tcw %}
+{% set _sm = _tcw_small|default(false) %}
+<div class="tcw178{% if _tcw.acked %} ack{% endif %}" data-tcw-oid="{{ _tcw.order_id }}" data-tcw-sig="{{ _tcw.sig }}"
+     style="{% if _tcw.acked %}background:#f8fafc;border:1px solid #e2e8f0;color:#64748b;{% else %}background:#fef9c3;border:1px solid #facc15;color:#713f12;{% endif %}border-radius:7px;padding:{{ '3px 7px' if _sm else '6px 10px' }};margin:{{ '4px 0 0' if _sm else '6px 0' }};font-size:{{ '11px' if _sm else '12.5px' }};line-height:1.5;">
+  {% if _tcw.acked %}
+  <span class="tcw-ok" style="font-weight:700;">✓ 확인함({{ _tcw.ack.by_name or '—' }} {{ (_tcw.ack.at or '')[:10] }})</span>
+  <span>{{ _tcw.msg|replace('💱 ', '') }} — {{ _tcw.items_txt }}</span>
+  {% else %}
+  <b>⚠ {{ _tcw.msg }}</b>{% if not _sm %} <span style="font-family:Consolas,monospace;font-weight:700;">수주 {{ _tcw.order_no }}</span>{% endif %}
+  <div>👉 {{ _tcw.items_txt }}{% if not _sm %} <span style="color:#854d0e;">· {{ _tcw.hint }}</span>{% endif %}</div>
+  {% if _tcw_can|default(true) %}<button type="button" class="tcw-ack" title="값은 그대로 두고 「맞게 적은 것」으로 확인합니다(누가·언제 남김 · 내용이 바뀌면 다시 알림)"
+          style="margin-top:3px;padding:1px 10px;border:1px solid #ca8a04;background:#fff;color:#854d0e;border-radius:6px;font-size:11.5px;font-weight:800;cursor:pointer;">확인했음</button>{% else %}<span style="font-size:11px;color:#854d0e;">(「확인했음」은 영업 등록 권한이 있는 분이 누릅니다)</span>{% endif %}
+  <span class="tcw-m" style="font-size:11px;margin-left:4px;"></span>
+  {% endif %}
+</div>
+{% endif %}

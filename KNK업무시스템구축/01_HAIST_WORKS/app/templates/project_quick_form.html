@@ -274,6 +274,22 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
           <div class="qf-f c2"><label>거래구분 <span id="qIexHint" style="display:none;font-weight:400;color:var(--qv-ink-3);font-size:11px;">(발주처 기준 · 바꿀 수 있음)</span></label>
             <select name="is_export" id="qIsExport"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option>{% if not ed %}<option value="" id="qIexBlank" hidden>— 고르세요 —</option>{% endif %}</select>
+            <div id="qTcm178" role="status" style="display:none;margin-top:4px;padding:4px 8px;border:1px solid #facc15;background:#fef9c3;color:#713f12;border-radius:6px;font-size:11.5px;font-weight:700;line-height:1.45;"></div>
+            {# z1191z178 (대표 11-27): 통화·거래구분이 안 맞으면 고르는 즉시 노란 알림 — 막지 않음(원화 수출 등 맞는 경우도 있음) · 저장하면 그대로 저장 #}
+            <script>(function(){
+              function z178(){
+                var ie = document.getElementById('qIsExport'), cc = document.getElementById('qCurrency'), bx = document.getElementById('qTcm178');
+                if(!ie || !cc || !bx) return;
+                var c = String(cc.value || 'KRW').toUpperCase(), v = String(ie.value);
+                var t = '';
+                if(v === '0' && c !== 'KRW') t = '⚠ 통화가 ' + c + '(외화)인데 거래구분이 「내수」입니다 — 외화 수주는 보통 「수출」입니다. 맞으면 그대로 저장하세요(막지 않음).';
+                else if(v === '1' && c === 'KRW') t = '⚠ 통화가 KRW(원화)인데 거래구분이 「수출」입니다 — 원화로 받는 수출이면 그대로 저장하세요(막지 않음).';
+                bx.textContent = t; bx.style.display = t ? 'block' : 'none';
+              }
+              window.qTcm178 = z178;
+              document.addEventListener('change', function(e){ var id = e.target && e.target.id; if(id === 'qIsExport' || id === 'qCurrency') z178(); });
+              if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', z178); else setTimeout(z178, 0);
+            })();</script>
           </div>
           <div class="qf-f c6"><label>프로젝트명 <span class="req">*</span> <button type="button" class="qf-gi" data-gk="project_name" title="프로젝트명 — 입력 기준 보기·고치기">ⓘ</button></label>
             {% if not ed %}
@@ -672,6 +688,7 @@ function qToggleFx(){
   var w=document.getElementById('qFxWrap'); if(w) w.style.display=(sel.value!=='KRW')?'flex':'none';
   var cc=document.getElementById('qSemiAmtCur'); if(cc) cc.textContent=sel.value;   /* v5H226z1088: 제품 금액 표기의 통화 코드 동기화 */
   try{ qPaint103(); }catch(e){} try{ qSemiAmtSync(); }catch(e){}   /* z103: 화폐 기호도 새 통화로 */
+  try{ if(window.qTcm178) qTcm178(); }catch(e){}   /* z1191z178: 통화·거래구분 안 맞으면 노란 알림 */
 }
 /* z103 (대표 지시): 화면에 보이는 금액 = 화폐 기호 앞(₩·$·₫ …) · KRW 정수 · 외화 소수 2자리(서버 money() 와 같은 규칙).
    보이는 글자에만 쓴다 — 입력칸 value·서버로 가는 값은 그대로. */

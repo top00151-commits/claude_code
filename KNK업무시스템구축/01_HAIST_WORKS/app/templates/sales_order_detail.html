@@ -68,6 +68,10 @@ body {
   </div>
   {% endif %}
 
+  {# z1191z178 (대표 11-27): 통화·거래구분 안 맞음 — 이 수주의 통화와 품목 줄 거래구분 #}
+  {% set _tcw = trade_ccy_warn(none, [order.id]).get(order.id) %}
+  {% if _tcw %}<div class="section" style="margin-top:14px;">{% include "_v5_partials/trade_ccy_warn.html" %}</div>{% endif %}
+
   {# v5H128: 납품 OVER 자가치유 경고 — shipments 누계 > 수주 수량 #}
   {% if ship_over_warn %}
   <div class="section" style="margin-top:14px;">

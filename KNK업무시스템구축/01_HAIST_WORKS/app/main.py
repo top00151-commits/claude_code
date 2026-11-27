@@ -21608,8 +21608,9 @@ async def sales_order_item_edit(req: Request, iid: int):
         except Exception:
             pass
         _new_ts = _row_ts(c, "order_items", iid)
-    return JSONResponse({"ok": True, "message": "라인 수정 완료", "updated_at": _new_ts,
-                         "board_qty": (_bq_chg117[1] if _bq_chg117 else None), "warn": _warn117})
+    return _tcm178_json({"ok": True, "message": "라인 수정 완료", "updated_at": _new_ts,
+                         "board_qty": (_bq_chg117[1] if _bq_chg117 else None), "warn": _warn117},
+                        _tcm178_warns(item_ids=[iid]) if (u_iex is not None or u_cur) else [])   # z1191z178
 
 
 UNIT_STATUSES = ("진행중", "출하", "취소", "보류")
@@ -22288,7 +22289,7 @@ async def sales_orders_quick_edit(req: Request, oid: int):
             )
         except Exception:
             pass
-    return JSONResponse({"ok": True, "message": "저장 완료"})
+    return _tcm178_json({"ok": True, "message": "저장 완료"}, _tcm178_warns([oid]) if raw_c else [])   # z1191z178
 
 
 @app.post("/sales/orders/{oid:int}/delete")
@@ -42823,7 +42824,7 @@ async def schedule_board_cell(request: Request):
         _out1191 = {"ok": True, "error": "", "value": _r1191.get("value", ""), "scope": "so"}
         if field == "cust":
             _out1191["cust_ok"] = True
-        return JSONResponse(_out1191)
+        return _tcm178_json(_out1191, _tcm178_warns([_so_oid]) if field == "trade" else [])   # z1191z178
     # z1191z152 (대표 11-25 원칙 ①): 수주가 2개 이상인 관리번호의 수주 줄에서 금액 칸 = 프로젝트 금액(다른 수주 합)을 고치게 되어 막고 안내
     if field == "amount" and kind == "project" and _so_oid.isdigit():
         try:
@@ -42937,9 +42938,10 @@ async def schedule_board_bulk_cell(request: Request):
                 cust_results[str(_ref)] = (msg == "matched")
         else:
             failures.append({"ref_id": _ref, "kind": _kind, "error": msg or "실패"})
-    return JSONResponse({"ok": True, "total": len(targets), "ok_count": ok_count,
+    _w178 = _tcm178_warns([k.split(":")[2] for k in ok_keys if k.count(":") == 2]) if field == "trade" else []   # z1191z178
+    return _tcm178_json({"ok": True, "total": len(targets), "ok_count": ok_count,
                         "fail_count": len(failures), "failures": failures[:80],
-                        "ok_keys": ok_keys, "cust_results": cust_results, "field": field, "so_values": so_values})
+                        "ok_keys": ok_keys, "cust_results": cust_results, "field": field, "so_values": so_values}, _w178)
 
 
 @app.post("/sales/schedule/memo")
@@ -43453,6 +43455,8 @@ async def schedule_board_unit_field(request: Request):
                 c.execute(f"UPDATE order_items SET {field}=?, updated_at=datetime('now','localtime') WHERE id=?", (_logi.money_r2(av), iid))   # z1191z56
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
+    if field in ("is_export", "currency"):   # z1191z178: 저장은 그대로 · 그 수주가 통화·거래구분 안 맞으면 알림
+        return _tcm178_json({"ok": True}, _tcm178_warns(item_ids=[iid]))
     return JSONResponse({"ok": True})
 
 
@@ -46751,6 +46755,76 @@ def _z141_so_status(pid):
 tpl.env.globals["z141_so_status"] = _z141_so_status
 
 
+# z1191z178 (대표 11-27 「USD 수주인데 22·23호기가 『내수』 · 이런 맞지 않는 상황이 나오면 알람」):
+#   판정 = project_workflow.trade_ccy_mismatch 한 곳 · 화면(상세 수주 카드·수주 상세·확인 필요·수출 서류) = 이 전역 하나 ·
+#   저장 응답 = _tcm178_json(알림 붙여 돌려줌 · 저장은 그대로) · 값은 저절로 고치지 않음(알림만 · 「확인했음」 한 번).
+def _tcm178_view(pid=None, oids=None):
+    """틀용 — {수주 id: 알림}. pid = 그 관리번호 수주 전부 · oids = 그 수주들만. 확인한 것도 함께(회색 「✓ 확인함」)."""
+    try:
+        with db_session() as c:
+            if oids is not None:
+                return _pwf.trade_ccy_by_order(c, order_ids=[x for x in (oids or []) if x])
+            if pid:
+                return _pwf.trade_ccy_by_order(c, project_ids=[int(pid)])
+    except Exception as _e:
+        print(f"[z1191z178] 통화·거래구분 알림(화면) 실패: {_e}")
+    return {}
+
+
+tpl.env.globals["trade_ccy_warn"] = _tcm178_view
+
+
+def _tcm178_warns(order_ids=None, item_ids=None):
+    """저장 뒤 — 그 수주(또는 품목 줄의 수주)가 통화·거래구분이 안 맞고 아직 「확인했음」 전이면 알림 목록."""
+    try:
+        oids = {int(x) for x in (order_ids or []) if str(x).strip().isdigit()}
+        iids = [int(x) for x in (item_ids or []) if str(x).strip().isdigit()]
+        with db_session() as c:
+            if iids:
+                oids |= {int(r[0]) for r in c.execute("SELECT DISTINCT order_id FROM order_items WHERE id IN (%s)" % ",".join("?" * len(iids)), iids)
+                         if r[0] is not None}
+            if not oids:
+                return []
+            return [{k: w[k] for k in ("order_id", "order_no", "project_id", "mgmt_code", "currency", "kind", "msg", "hint", "items_txt", "n", "sig")}
+                    for w in _pwf.trade_ccy_mismatch(c, order_ids=sorted(oids)) if not w["acked"]]
+    except Exception as _e:
+        print(f"[z1191z178] 통화·거래구분 알림(저장 뒤) 실패: {_e}")
+        return []
+
+
+def _tcm178_json(payload, warns, status_code=200):
+    """저장 응답에 알림을 붙인다(trade_ccy_warn · 머리 X-KNK-Trade-Warn → 공용 knk_busy 가 화면에 노란 알림). 저장 결과는 그대로."""
+    if warns:
+        payload = dict(payload)
+        payload["trade_ccy_warn"] = warns
+    r = JSONResponse(payload, status_code)
+    if warns:
+        r.headers["X-KNK-Trade-Warn"] = str(len(warns))
+    return r
+
+
+@app.post("/api/trade-ccy-ack/{oid}")
+async def api_trade_ccy_ack_z178(request: Request, oid: int):
+    """z1191z178: 통화·거래구분 안 맞음 「확인했음」 — 값은 바꾸지 않음 · 누가·언제 남김(수주 변경 이력 + 프로젝트 이력) ·
+    화면이 본 내용(sig)과 지금 내용이 다르면 저장하지 않고 다시 보라고 돌려줌."""
+    u = get_user(request)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다."}, 401)
+    if not can_use_sales(u):
+        return JSONResponse({"ok": False, "message": "「확인했음」은 영업 등록 권한이 있는 분만 누를 수 있습니다."}, 403)
+    form = await request.form()
+    who = vname_full(u) or u.get("name") or ""
+    with db_session() as c:
+        r = _pwf.trade_ccy_ack_save(c, int(oid), (form.get("sig") or "").strip(), by_id=u.get("id"), by_name=who)
+        if r.get("ok") and r.get("project_id"):
+            try:
+                _logi.log_project_change(c, int(r["project_id"]), u.get("id"), "통화·거래구분 확인", r["msg"].replace("💱 ", ""), "확인했음",
+                                         note=f"z1191z178 수주 {r.get('order_no')} · {r.get('items_txt')} · {who}")
+            except Exception as _e:
+                print(f"[z1191z178] 프로젝트 이력 실패: {_e}")
+    return JSONResponse(r, 200 if r.get("ok") else 409)
+
+
 # z1191z160: 따라가는 견적 금액 ≠ 수주 금액 「확인했음」(/api/quote-so-ack) 없앰
 
 
@@ -47806,9 +47880,18 @@ def _z156_noso_files(c):
     return out
 
 
+def _tcm178_open_n(c):
+    """z1191z178: 통화·거래구분 안 맞음 중 아직 「확인했음」 안 한 수주 수."""
+    try:
+        return sum(1 for w in _pwf.trade_ccy_mismatch(c) if not w["acked"])
+    except Exception as _e:
+        print(f"[z1191z178] 확인 필요 세기 실패: {_e}")
+        return 0
+
+
 def _z154_check_count(c):
     try:
-        return len(_z154_check_rows(c)) + len(_z156_noso_files(c))   # z1191z156: 수주번호 고를 견적서·발주서도
+        return len(_z154_check_rows(c)) + len(_z156_noso_files(c)) + _tcm178_open_n(c)   # z1191z156: 수주번호 고를 견적서·발주서도 · z1191z178: 통화·거래구분 안 맞음(확인 안 한 것)
     except Exception as _e:
         print(f"[z1191z154] 확인 필요 세기 실패: {_e}")
         return 0
@@ -47825,6 +47908,7 @@ async def projects_so_check_z154(request: Request):
     with db_session() as c:
         rows_all = _z154_check_rows(c)
         files156 = _z156_noso_files(c) if can_view_sales(u) else []   # z1191z156: 파일은 금액 볼 권한자만(견적서·발주서 권한과 같음)
+        tcm178 = [w for w in _pwf.trade_ccy_mismatch(c) if not w["acked"]]   # z1191z178: 통화·거래구분 안 맞음(확인 안 한 것만)
     # z1191z158 (대표 11-26 「거르기 단추 넣어줘」): 진행 상태(진행 중 / 출하·끝남)·영업담당으로 거르기 — 보기만(저장 안 함)
     st = (request.query_params.get("st") or "").strip()
     sp = (request.query_params.get("sp") or "").strip()
@@ -47841,7 +47925,7 @@ async def projects_so_check_z154(request: Request):
     n_act = sum(1 for r in rows_all if not _z158_done(r))
     return ctx(request, "so_check_z154.html", user=u, active="sales", rows=rows, n_proj=len({r["pid"] for r in rows}),
                can_up=bool(can_use_sales(u)), po_types=list(_logi.PO_TYPES),
-               files156=files156, can_file156=bool(can_use_sales(u) and can_view_sales(u)),
+               files156=files156, can_file156=bool(can_use_sales(u) and can_view_sales(u)), tcm178=tcm178,
                f158={"st": st, "sp": sp, "n_all": len(rows_all), "n_act": n_act, "n_done": len(rows_all) - n_act,
                      "sales": sorted(sales_cnt.items(), key=lambda x: (-x[1], x[0]))})
 
@@ -47881,7 +47965,7 @@ async def api_so_check_z154(request: Request, oid: int):
                                          note=f"z1191z159 수주 {o[1]} 칸 확인 · 직접 고름 · {who}")
             except Exception as _e:
                 print(f"[z1191z159] 이력 실패: {_e}")
-        return JSONResponse({"ok": True, "shown": val})
+        return _tcm178_json({"ok": True, "shown": val}, _tcm178_warns([int(oid)]))   # z1191z178: 저장은 그대로 · 안 맞으면 알림
     with db_session() as c:
         o = c.execute("SELECT id, order_no, project_id, end_customer, NULLIF(po_type,''), COALESCE(order_date,'') FROM orders "
                       "WHERE id=? AND COALESCE(status,'')<>'CANCELLED'", (int(oid),)).fetchone()

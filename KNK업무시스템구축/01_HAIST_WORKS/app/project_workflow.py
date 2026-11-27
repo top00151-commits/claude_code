@@ -2081,3 +2081,155 @@ def cascade_unit_status_to_project(c, project_id: int,
     except Exception as e:
         print(f"[v5H226x] up-cascade err pid={project_id}: {e}")
         return {"changed": False, "reason": str(e)}
+
+
+# ============================================================
+# z1191z178 (대표 11-27 「023T2602 T-260616-6 은 USD 수주인데 22·23호기가 『내수』로 적혀 있었어 · 이런 맞지 않는 상황이 나오면 알람을 띄워줘」)
+#   통화·거래구분 안 맞음 = 판정 한 곳(모든 화면·저장 응답이 이 함수만 쓴다).
+#   기준 = 수주(orders)의 통화 + 품목 줄(order_items)의 거래구분(is_export 1=수출 · 0=내수 · NULL=미기재).
+#     · 외화(KRW 아님) 수주인데 「내수」 품목 줄이 있음 → 알림
+#     · 원화(KRW) 수주인데 「수출」 품목 줄이 있음 → 알림(원화 수출도 있을 수 있어 막지 않음)
+#     · 취소 수주·취소 품목 줄 제외 · 거래구분 미기재(NULL)는 대상 아님(「수주 칸 확인 필요」가 따로 잡음)
+#   막지 않는다 · 값을 저절로 고치지 않는다(알림만) · 「확인했음」 = 그때의 내용 지문(sig)과 함께 저장 → 내용이 바뀌면 다시 알림.
+# ============================================================
+import hashlib as _hashlib178
+
+TCM_KIND_LABEL = {"fx_dom": "외화 수주 · 내수 품목", "krw_exp": "원화 수주 · 수출 품목"}
+
+
+def trade_ccy_ack_table(c):
+    """「확인했음」 저장 표(없으면 만듦) — 수주 하나에 마지막 확인 한 줄(sig = 확인한 그때의 불일치 내용 지문)."""
+    c.execute("""CREATE TABLE IF NOT EXISTS trade_ccy_ack (
+        order_id INTEGER PRIMARY KEY,
+        sig      TEXT NOT NULL,
+        by_id    INTEGER,
+        by_name  TEXT,
+        at       TEXT DEFAULT (datetime('now','localtime')),
+        note     TEXT)""")
+
+
+def _tcm_sig(order_id, ccy, kind, item_ids) -> str:
+    raw = "%s|%s|%s|%s" % (int(order_id), ccy, kind, ",".join(str(int(x)) for x in sorted(item_ids)))
+    return _hashlib178.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _tcm_items_txt(labels, limit=8) -> str:
+    xs = [x for x in labels if x]
+    if len(xs) <= limit:
+        return " · ".join(xs)
+    return " · ".join(xs[:limit]) + " 외 %d줄" % (len(xs) - limit)
+
+
+def trade_ccy_mismatch(c, order_ids=None, project_ids=None) -> list:
+    """통화·거래구분 안 맞는 수주 목록(읽기만 · 값은 아무것도 바꾸지 않음 — 확인 표가 없으면 만들기만 함).
+
+    order_ids / project_ids 를 주면 그 수주·관리번호만, 둘 다 None 이면 전부.
+    반환 [{order_id, order_no, project_id, mgmt_code, pname, currency, kind('fx_dom'/'krw_exp'), msg, hint,
+           items[호기·품목 이름], item_ids, items_txt, n, sig, acked(bool), ack({by_name, at} 또는 None)}]
+    — 확인했음(ack)은 지금 내용 지문(sig)과 같을 때만 유효(내용이 바뀌면 acked=False 로 다시 알림)."""
+    trade_ccy_ack_table(c)
+    icols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    if "is_export" not in icols:
+        return []
+    ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+    lb_parts = []
+    if "unit_label" in icols:
+        lb_parts.append("NULLIF(TRIM(i.unit_label),'')")
+    if "description" in icols:
+        lb_parts.append("NULLIF(TRIM(i.description),'')")
+    lb = ("COALESCE(" + ", ".join(lb_parts) + ", '')") if lb_parts else "''"
+    ust = "COALESCE(i.unit_status,'')" if "unit_status" in icols else "''"
+    occy = "o.currency" if "currency" in ocols else "NULL"
+    where, args = [], []
+    if order_ids is not None:
+        ids = [int(x) for x in order_ids if str(x).strip().lstrip("-").isdigit()]
+        if not ids:
+            return []
+        where.append("o.id IN (%s)" % ",".join("?" * len(ids)))
+        args += ids
+    if project_ids is not None:
+        ids = [int(x) for x in project_ids if str(x).strip().lstrip("-").isdigit()]
+        if not ids:
+            return []
+        where.append("o.project_id IN (%s)" % ",".join("?" * len(ids)))
+        args += ids
+    # 통화 = 수주 통화(비어 있는 옛 자료만 관리번호 처음 등록 때 통화 → 그것도 없으면 KRW · 상세 수주 카드 표시와 같은 규칙)
+    sql = f"""
+        SELECT o.id AS oid, COALESCE(o.order_no,'') AS order_no, o.project_id AS pid,
+               COALESCE(p.mgmt_code,'') AS mgmt_code, COALESCE(p.name,'') AS pname,
+               UPPER(COALESCE(NULLIF(TRIM({occy}),''), NULLIF(TRIM(p.currency),''), 'KRW')) AS ccy,
+               i.id AS iid, i.is_export AS iex, {lb} AS lbl
+          FROM orders o
+          JOIN order_items i ON i.order_id = o.id
+          LEFT JOIN projects p ON p.id = o.project_id
+         WHERE UPPER(COALESCE(o.status,'')) <> 'CANCELLED'
+           AND {ust} NOT IN ('취소', 'CANCELLED')
+           AND i.is_export IN (0, 1)
+           {(' AND ' + ' AND '.join(where)) if where else ''}
+         ORDER BY COALESCE(p.mgmt_code,''), o.id, i.id"""
+    by = {}
+    for r in c.execute(sql, args).fetchall():
+        oid, ccy, iex = r[0], (r[5] or "KRW"), int(r[7])
+        if ccy != "KRW" and iex == 0:
+            kind = "fx_dom"
+        elif ccy == "KRW" and iex == 1:
+            kind = "krw_exp"
+        else:
+            continue
+        d = by.get(oid)
+        if d is None:
+            d = by[oid] = {"order_id": oid, "order_no": r[1], "project_id": r[2], "mgmt_code": r[3], "pname": r[4],
+                           "currency": ccy, "kind": kind, "items": [], "item_ids": []}
+        if d["kind"] != kind:   # 한 수주는 통화가 하나라 종류도 하나(방어)
+            continue
+        d["item_ids"].append(int(r[6]))
+        d["items"].append((r[8] or "").strip() or ("품목 %d" % len(d["item_ids"])))
+    if not by:
+        return []
+    acks = {}
+    q = ",".join("?" * len(by))
+    for a in c.execute(f"SELECT order_id, sig, by_name, at FROM trade_ccy_ack WHERE order_id IN ({q})", list(by)).fetchall():
+        acks[int(a[0])] = {"sig": a[1], "by_name": a[2] or "", "at": a[3] or ""}
+    out = []
+    for oid, d in by.items():
+        n = len(d["item_ids"])
+        d["n"] = n
+        d["items_txt"] = _tcm_items_txt(d["items"])
+        if d["kind"] == "fx_dom":
+            d["msg"] = "💱 외화(%s) 수주인데 내수 품목 %d줄" % (d["currency"], n)
+            d["hint"] = "외화 수주는 보통 「수출」입니다 — 틀렸으면 작업일정표·수주 카드에서 거래구분(또는 통화)을 고쳐 주세요. 맞으면 「확인했음」."
+        else:
+            d["msg"] = "💱 원화(KRW) 수주인데 수출 품목 %d줄" % n
+            d["hint"] = "원화로 받는 수출도 있습니다 — 맞으면 「확인했음」, 틀렸으면 거래구분(또는 통화)을 고쳐 주세요."
+        d["sig"] = _tcm_sig(oid, d["currency"], d["kind"], d["item_ids"])
+        a = acks.get(oid)
+        d["acked"] = bool(a and a["sig"] == d["sig"])
+        d["ack"] = {"by_name": a["by_name"], "at": a["at"]} if d["acked"] else None
+        out.append(d)
+    return out
+
+
+def trade_ccy_by_order(c, order_ids=None, project_ids=None) -> dict:
+    """{수주 id: 알림} — 화면용(확인한 것도 회색 「✓ 확인함」으로 보이게 함께)."""
+    return {d["order_id"]: d for d in trade_ccy_mismatch(c, order_ids=order_ids, project_ids=project_ids)}
+
+
+def trade_ccy_ack_save(c, order_id, sig, by_id=None, by_name="") -> dict:
+    """「확인했음」 저장 — 지금 내용 지문이 화면이 본 지문과 같을 때만(그 사이 바뀌었으면 다시 보라고 돌려줌).
+    값(통화·거래구분)은 아무것도 바꾸지 않는다. 수주 변경 이력(order_status_history)에 한 줄."""
+    cur = trade_ccy_by_order(c, order_ids=[int(order_id)]).get(int(order_id))
+    if not cur:
+        return {"ok": False, "code": "gone", "message": "지금은 통화·거래구분이 맞습니다(이미 고쳐졌을 수 있음) — 화면을 다시 불러오세요."}
+    if (sig or "") != cur["sig"]:
+        return {"ok": False, "code": "changed", "message": "그 사이 내용이 바뀌었습니다 — 화면을 다시 불러와 새 내용을 보고 확인해 주세요."}
+    c.execute("INSERT OR REPLACE INTO trade_ccy_ack(order_id, sig, by_id, by_name, at, note) VALUES(?,?,?,?,datetime('now','localtime'),?)",
+              (int(order_id), cur["sig"], by_id, (by_name or "")[:80], (cur["msg"] + " · " + cur["items_txt"])[:300]))
+    try:
+        c.execute("INSERT INTO order_status_history(order_id, from_status, to_status, changed_by, note) VALUES(?,?,?,?,?)",
+                  (int(order_id), "", "", by_id,
+                   ("z1191z178 통화·거래구분 안 맞음 「확인했음」: " + cur["msg"].replace("💱 ", "") + " (" + cur["items_txt"] + ") · " + (by_name or ""))[:500]))
+    except Exception as _e:
+        print(f"[z1191z178] 수주 이력 실패: {_e}")
+    at = c.execute("SELECT at FROM trade_ccy_ack WHERE order_id=?", (int(order_id),)).fetchone()
+    return {"ok": True, "by_name": by_name or "", "at": (at[0] if at else ""), "msg": cur["msg"], "items_txt": cur["items_txt"],
+            "order_no": cur["order_no"], "project_id": cur["project_id"]}
