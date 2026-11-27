@@ -12,6 +12,10 @@
   html{height:auto;overflow-y:auto;overflow-x:hidden}
   body{height:auto;min-height:100dvh;overflow:visible}
   html.dlg-open{overflow:hidden}
+  /* 🔴 11-27 2차 대표 「마우스 휠로는 안 움직여 · 좌우 여백이 서로 달라」
+     웍스 틀의 .main 은 「안에서 스크롤하는 칸」(overflow:auto · overscroll-behavior:contain · scrollbar-gutter:stable)이다.
+     새 창에선 이 칸이 스크롤할 게 없는데 contain 때문에 휠이 문서로 넘어가지 못했고, 막대 자리 15px 가 오른쪽에만 비었다 → 평범한 칸으로 */
+  .main.mw-wrap{overflow:visible;overscroll-behavior:auto;scrollbar-gutter:auto;height:auto;min-height:0}
   .mw-wrap{padding:14px 18px 30px}  /* 11-19 창 크기에 맞춤(캡 없음) */
   .mw-wrap .mv-head{background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px}
 </style>

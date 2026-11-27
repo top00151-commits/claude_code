@@ -289,6 +289,15 @@
     .cmp-row{min-height:44px;box-sizing:border-box;padding-top:6px;padding-bottom:6px}
     #cTplBtn{height:28px;border-radius:6px;font-size:13px;padding:0 10px}
     .cmp-sigsel select{height:28px;border-radius:6px}
+    /* 11-27 2차 대표 「위 제목 부분과 보내기 있는 쪽 여백이 너무 달라」 — 전: 상자가 제목 띠에 딱 붙음(위 0px · 좌우 32px)
+       후: 제목 띠 아래도 좌우와 같은 간격 · 새 창은 좌우 20px 로 줄이고 제목 글자·상자 왼쪽 끝을 한 줄로 */
+    .page-head + .cmp-card, .page-head + .form-card{margin-top:var(--content-pad,32px) !important}
+    .form-card + .cmp-card{margin-top:0}
+    html.cmp-win{--content-pad:20px}
+    html.cmp-win .page-head{padding:16px 20px 14px !important}
+    html.cmp-win .cmp-card{margin:20px 20px 20px !important}
+    html.cmp-win .form-card{margin:20px 20px 12px !important}
+    html.cmp-win .form-card + .cmp-card{margin-top:0 !important}
   }
 </style>
 {# 11-23 대표 「새 메일 클릭하면 새 창으로」 — 새 창(주소 win=1)이면 위 머리·도구 줄·경로 숨김 · 끝나면 창 닫기(cmpGo) #}
