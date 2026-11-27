@@ -482,8 +482,7 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
   var isPhone = isIOS || isAnd;
   var andWebView = isAnd && /; wv\)/.test(ua);
   var iosSafari = isIOS && /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|KAKAOTALK|NAVER|Line\//.test(ua);
-  var btn = document.getElementById('mailPhoneBtn');
-  if (btn && isPhone && standalone()) btn.hidden = true;   // 이미 설치된 앱으로 여는 중
+  // ⚠ 단추는 숨기지 않는다 — 이음 메신저도 「설치된 웹 앱」이라 그 안에서 연 메일도 standalone 으로 잡힌다(11-27 대표 휴대폰에서 단추 안 보임)
 
   var STEPS = ['① 휴대폰에서 열기', '② 설치', '③ 홈 화면 아이콘'];
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -535,7 +534,8 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
         p ? [['💻 이 PC에도 설치', function(){ close(); p.prompt(); }]] : []);
       return;
     }
-    if (standalone()) { show(2, '이미 설치된 앱으로 여는 중입니다', '<p>홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 열면 됩니다.</p>', []); return; }
+    var inApp = andWebView || standalone();   // 이음 앱 안(또는 다른 설치 앱 창) — 여기서는 설치 창이 안 뜬다
+    var DONE_NOTE = '<p class="mpd-sub">※ 이미 홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 여신 거라면 설치는 끝난 것입니다.</p>';
     if (p) {   // 안드로이드 크롬(설치 가능) — 바로 설치 창
       p.prompt();
       (p.userChoice || Promise.resolve({})).then(function(c){
@@ -544,18 +544,18 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
       });
       return;
     }
-    if (andWebView) {   // 이음 앱 등 다른 앱 안 — 설치가 안 되는 곳 → 크롬으로
+    if (isAnd && inApp && !p) {   // 이음 앱 등 다른 앱 안 — 설치가 안 되는 곳 → 크롬으로
       show(0, '「크롬에서 열기」를 눌러 주세요',
         '<p>지금은 <b>이음 메신저 앱 안</b>에서 메일을 보고 있어 설치가 되지 않습니다.</p>'
-        + '<ol><li>아래 <b>크롬에서 열기</b>를 누릅니다.</li><li>크롬에서 메일이 열리면 위쪽 <b>📱</b> 단추를 다시 누르고 「설치」.</li></ol>' + LOGIN_NOTE,
+        + '<ol><li>아래 <b>크롬에서 열기</b>를 누릅니다.</li><li>크롬에서 메일이 열리면 위쪽 <b>📱</b> 단추를 다시 누르고 「설치」.</li></ol>' + LOGIN_NOTE + DONE_NOTE,
         [['🌐 크롬에서 열기', function(){ location.href = 'intent://kmail.knknara.co.kr/mail/app?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(APP_URL) + ';end'; }, true]]);
       return;
     }
-    if (isIOS && !iosSafari) {
+    if (isIOS && (!iosSafari || inApp)) {
       show(0, '주소를 복사해 사파리에서 열어 주세요',
         '<p>아이폰은 <b>사파리</b>에서만 홈 화면에 추가할 수 있습니다.</p>'
         + '<ol><li>아래 <b>주소 복사</b>를 누릅니다.</li><li>사파리를 열고 주소 칸에 붙여 넣습니다.</li><li>메일이 열리면 아래쪽 <b>공유(⬆)</b> → <b>홈 화면에 추가</b>.</li></ol>'
-        + '<div class="mpd-url">' + esc(APP_URL) + '</div>' + LOGIN_NOTE,
+        + '<div class="mpd-url">' + esc(APP_URL) + '</div>' + LOGIN_NOTE + DONE_NOTE,
         [['📋 주소 복사', copyUrl, true]]);
       return;
     }
