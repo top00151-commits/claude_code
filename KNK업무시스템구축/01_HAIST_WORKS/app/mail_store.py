@@ -2497,7 +2497,8 @@ def parse_raw_email(raw) -> dict:
 #   읽는 방식을 또 고치면 서버 안에서 바로 다시 읽어 채울 수 있다(reparse_from).
 HDR_KEEP = ("from", "sender", "reply-to", "return-path", "to", "cc", "message-id", "date",
             "x-original-from", "x-sender", "x-original-sender", "resent-from", "envelope-from", "x-envelope-from",
-            "authentication-results")   # 11-27 메일 서버 확인 결과 줄(회사 주소 위조 판정을 운영 자료로 맞추려고 · 메일 내용 아님)
+            "authentication-results",   # 11-27 메일 서버 확인 결과 줄(회사 주소 위조 판정을 운영 자료로 맞추려고 · 메일 내용 아님)
+            "received")   # 11-27 거쳐 온 서버 줄(서버 이름·시각만 · 메일 내용 아님) — 진짜 사내 메일이 늘 같은 길로 오는지 재 보려고
 HDR_MAX = 64 * 1024
 
 
