@@ -46,7 +46,7 @@
       {% if m.direction != 'out' %}<button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="markUnread()" title="● 안 읽음으로 — 목록에서 다시 굵게">●<span class="mv-bt"> 안 읽음</span></button>
       <button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="var f=document.getElementById('mvFu');if(f){f.open=true;var t=document.getElementById('mvTaskDate');if(t)t.focus();}" title="📋 할 일·일정으로 — 날짜를 골라 내 일일카드·달력에">📋<span class="mv-bt"> 할 일</span></button>
       {% if m.lang and m.lang != 'ko' %}<button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="translateMail('ko')" title="🇰🇷 한국어로 번역(다른 말은 「⋯ 더 보기」)">🇰🇷<span class="mv-bt"> 번역</span></button>{% endif %}
-      {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="btn btn-secondary mv-desk mv-quick" title="견적 작성 화면 열기(이 메일 참고)">📝<span class="mv-bt"> 견적 작성</span></a>{% endif %}
+      {# 11-27 대표 「견적 작성」 단추 지움(빈 견적 화면만 열려 메일과 관계없음) #}
       {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="btn btn-secondary mv-desk mv-quick" title="수주 등록 화면 열기(이 메일 참고)">🛒<span class="mv-bt"> 수주 등록</span></a>{% endif %}{% endif %}
       <button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="mvPrint()" title="🖨 인쇄·PDF — 이 메일만(인쇄 대화상자에서 'PDF로 저장')">🖨<span class="mv-bt"> 인쇄</span></button>
       {% if not (win is defined and win) %}<button type="button" class="btn btn-secondary mv-desk mv-quick" onclick="window.mbxOpenWin ? mbxOpenWin(MAIL_ID) : window.open('/mail/'+MAIL_ID+'?win=1','knkmail_'+MAIL_ID,'popup=yes,width=1000,height=880')" title="🗗 이 메일만 새 창으로">🗗<span class="mv-bt"> 새 창</span></button>{% endif %}
@@ -88,7 +88,7 @@
           <button type="button" class="mv-mob" onclick="markUnread()">● 안 읽음으로</button>
           <button type="button" class="mv-mob" onclick="document.getElementById('mvMore').open=false;var f=document.getElementById('mvFu');if(f){f.open=true;var t=document.getElementById('mvTaskDate');if(t)t.focus();}" title="이 메일을 내 할 일(일일카드)로 등록 — 날짜를 고를 수 있음(위 「🚩 기한·알림」)">📋 할 일·일정으로</button>
           {% if sender_contact %}<a href="/contacts/{{ sender_contact.id }}" title="이 보낸사람의 주소록 연락처 보기">📇 {{ sender_contact.name }}{% if sender_contact.company %} · {{ sender_contact.company }}{% endif %} 연락처</a>{% else %}<button type="button" id="mvContactBtn" onclick="mailToContact()" title="서명에서 이름·직급·회사·휴대폰·주소를 읽어 채워 드립니다 — 확인만 하고 저장">📇 주소록에 등록</button>{% endif %}
-          {% if m.category == '견적' %}<a href="/sales/quotes/new" target="_blank" rel="noopener" class="mv-mob" title="견적 작성 화면 열기(이 메일 참고)">📝 견적 작성</a>{% endif %}
+          {# 11-27 대표 「견적 작성」 단추 지움(빈 견적 화면만 열려 메일과 관계없음) #}
           {% if m.category == '발주' %}<a href="/sales/orders" target="_blank" rel="noopener" class="mv-mob" title="수주 등록 화면 열기(이 메일 참고)">🛒 수주 등록</a>{% endif %}
           {% endif %}
           <button type="button" onclick="translateMail('ko')">🇰🇷 한국어로 번역</button>
