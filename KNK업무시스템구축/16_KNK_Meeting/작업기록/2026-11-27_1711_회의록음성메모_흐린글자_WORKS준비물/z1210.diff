@@ -1,0 +1,41 @@
+diff -u -r app_base/app/templates/meeting_form.html app_new/app/templates/meeting_form.html
+--- app_base/app/templates/meeting_form.html	2026-11-27 17:11:40.662615300 +0900
++++ app_new/app/templates/meeting_form.html	2026-11-27 17:30:18.156282900 +0900
+@@ -308,6 +308,9 @@
+   .mf-wrap.recfront #redoTools { order:2; }  /* z1120: 「🎤 이어서 녹음」을 누른 뒤 — 녹음 칸(띠·일시정지·종료)을 맨 위로 */
+   #secLink { order:12; }
+ }
++/* ── 🔆 z1210 흐린 글자 (대표 11-27 · 스킬 knk-text-contrast) ── 결정·할 일 줄의 「빅터AI」 작은 표시:
++   파랑 #2563eb 가 「부드럽게」 테마에서 4.4 : 1 → #1d4ed8(세 테마 모두 5.6 넘음) · 바탕(#eaf1fe)은 그대로 */
++.ri-ai { color:#1d4ed8; }
+ </style>
+ </head>
+ <body>
+diff -u -r app_base/app/templates/meeting_viz.html app_new/app/templates/meeting_viz.html
+--- app_base/app/templates/meeting_viz.html	2026-11-27 17:11:40.664635600 +0900
++++ app_new/app/templates/meeting_viz.html	2026-11-27 17:29:37.485298600 +0900
+@@ -100,6 +100,11 @@
+     .step{flex:1 1 28%}
+   }
+   @media print{ .toolbar,#sheet,.kindsCard{display:none} .wrap{max-width:none} }
++  /* ── 🔆 z1210 흐린 글자 (대표 11-27 · 스킬 knk-text-contrast · 이 화면에서 잰 값) ──
++     한눈에 보기는 웍스 테마 밖(늘 밝은 종이) · 회색 글자 --ink3(#8c959f) 2.7~3.0 : 1 → 글자에만 #5f6873(흰 5.7 · 바탕 5.3 · 옅은 파랑 5.0)
++     · --ink3 색 이름은 그대로(구역 테두리·화살표가 같이 쓴다) · 호박 경고 글자 #9a6700(옅은 파랑 위 4.3) → #805600(옅은 바탕 다섯 가지 모두 5.6 넘음) */
++  .sub,.card h2 small,.loop,.foot{color:#5f6873}
++  .step .w,.tg-und,.tg-chk{color:#805600}
+ </style>
+ </head>
+ <body>
+diff -u -r app_base/app/templates/voice_note_form.html app_new/app/templates/voice_note_form.html
+--- app_base/app/templates/voice_note_form.html	2026-11-27 17:11:40.817219900 +0900
++++ app_new/app/templates/voice_note_form.html	2026-11-27 17:30:18.159294500 +0900
+@@ -91,6 +91,9 @@
+ .vn-captall { margin:8px 14px 0; padding:8px 10px; background:#fff7ed; border:1px solid #fdba74; border-radius:8px;
+   font-size:12.5px; color:#7c2d12; line-height:1.6; }
+ .vn-captall .btn { padding:2px 9px; min-height:0; font-size:12px; vertical-align:baseline; }
++/* ── 🔆 z1210 흐린 글자 (대표 11-27 · 스킬 knk-text-contrast) ── 🖼 이미지 카드(흰 종이 · 색 고정) 안 목록 점(• –):
++   #9ca3af 2.5 : 1 → 카드의 다른 보조 글자와 같은 #6b7280(4.8) · 카드 밖 화면 회색은 공용 테마(z185) 값 그대로 */
++.vni-card .vc-body { --qv-ink-3:#6b7280; }
+ </style>
+ </head>
+ <body>
