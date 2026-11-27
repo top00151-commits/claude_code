@@ -5,6 +5,13 @@
 .mtx { width: 100%; border-collapse: collapse; font-size: 12px; }
 .mtx th, .mtx td { padding: 8px 10px; border: 1px solid var(--line); text-align: center; }
 .mtx th { background: var(--paper-2); color: var(--amber-deep); font-weight: 700; }
+/* z1191z191 A-2 (화면 전수 점검 11-27 · 칸 이름 고정 없음): 표가 넓어(약 934px) 옆 스크롤이 늘 필요하다 → 페이지 스크롤로 칸 이름을 붙일 수 없어
+   고객사 목록(모범)과 같은 「자체 스크롤 상자 + 높이 자동 채움(data-knk-fill)」으로 · 칸 이름(위)·관리코드 칸(왼쪽)을 상자 안에 고정. */
+.mtx-box { margin: 0 var(--content-pad); overflow: auto; max-height: calc(100vh - 220px); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); }   /* 높이 채움 스크립트 전 기본값 */
+.mtx { border-collapse: separate; border-spacing: 0; }
+.mtx thead th { position: sticky; top: 0; z-index: 3; box-shadow: 0 1px 0 var(--line); }
+.mtx td.proj, .mtx th.proj { position: sticky; left: 0; z-index: 2; background: var(--paper-3); }
+.mtx thead th.proj { z-index: 4; background: var(--paper-2); }
 .mtx td.proj { text-align: left; font-weight: 600; }
 .cell { padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 50px; font-weight: 700; }
 .cell-DONE, .cell-완료 { background: var(--success); color: white; }
@@ -25,7 +32,7 @@
     </form>
   </div>
 
-  <div style="margin: 0 var(--content-pad);overflow-x:auto;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);">
+  <div class="mtx-box"{% if matrix %} data-knk-fill{% endif %}>
     {% if matrix %}
     <table class="mtx">
       {# z1191z190 P-4 (화면 전수 점검 11-27): PHASE_DEFS 는 (코드, 이름, 순서) 묶음 값 — 2026-05-02 재작성(36d1674c) 때 phase.label·phase.code 로 읽어
@@ -47,5 +54,7 @@
     </table>
     {% else %}<div class="empty"><div class="ico">📊</div><div class="ttl">진행 데이터 없음</div></div>{% endif %}
   </div>
+  <script>/* z1191z191 A-2: 메뉴로 옮겨 와 본문만 바뀐 때도 상자 높이를 화면 남은 높이로(공용 높이 채움은 처음 열 때만 돈다) */
+  try { window.knkFill && window.knkFill(); } catch (e) {}</script>
   <div style="height: var(--space-7);"></div>
 </main></div></body></html>

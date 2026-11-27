@@ -2,6 +2,14 @@
 <html lang="ko"><head><meta charset="UTF-8"/><title>수출 관리 · KNK</title>
 {% include "_v5_partials/styles.html" %}
 {% include "_export_z85.html" %}
+<style>
+/* z1191z191 A-3 (화면 전수 점검 11-27 · 달마다 인보이스 표·전체 선적 목록 표를 내리면 칸 이름이 사라짐):
+   칸 이름 고정(sticky) — 공용 제목 띠 틀(knk_sticky_head)이 제목 띠 높이만큼 내려 「제목 띠 바로 아래」에 붙인다.
+   감싼 칸의 옆 스크롤(overflow-x:auto)은 고정을 그 칸 안에 가둬서 페이지 스크롤에선 안 붙었다 → 표가 화면보다 넓어지는 휴대폰(767px 이하)만 옆 스크롤.
+   (_export_z85.html 은 다른 수출 화면도 쓰는 공용이라 이 화면에만 둔다) */
+.exb-t thead th { position: sticky; top: 0; z-index: 2; background: var(--knk-bg-surface, #fff); box-shadow: 0 1px 0 var(--line, #e5e7eb); }
+@media (max-width: 767px) { .exb-hs { overflow-x: auto; -webkit-overflow-scrolling: touch; } }
+</style>
 {# z1191z85 (대표 2026-11-20 「안지연 프로 입장에서 … 20년 넘게 수출입 실무를 한 배테랑이 만든 프로그램처럼」):
    첫 화면 = 선적 건 보드. 인보이스 한 장 = 선적 한 건(KNK-YYMMDD-n) — 이미 올린 인보이스로 저절로 생긴다.
    맨 위 = 손이 필요한 일 · 가운데 = 단계별 칸(공이 누구에게 있는지) · 아래 = 달마다 실적 · 지난 선적 · 예전 화면(접음). #}
@@ -74,7 +82,7 @@
 
     <div class="ex-card">
       <div class="ex-h">📊 달마다 인보이스 <small>지난 수출 이력 + 자동 채움 기록 · 금액은 인보이스 TOTAL(USD)</small></div>
-      <div style="overflow-x:auto"><table class="ex-tbl">
+      <div class="exb-hs"><table class="ex-tbl exb-t">
         <thead><tr><th>달</th><th class="num">수책통관</th><th class="num">USD</th><th class="num">일반통관</th><th class="num">USD</th><th class="num">합계 건</th><th class="num">합계 USD</th></tr></thead>
         <tbody>{% for m in mrows %}{% set a = m['수책통관'] %}{% set b = m['일반통관'] %}{% set z = m[''] %}
           <tr><td>{{ m.m }}</td><td class="num">{{ a[0] or '' }}</td><td class="num">{{ "${:,.0f}".format(a[1]) if a[1] else '' }}</td>
@@ -86,7 +94,7 @@
 
     <details class="ex-fold ex-card" style="padding:0;border:0;background:none;">
       <summary>🗂 모든 선적 건 {{ allx|length }}건 <span style="font-size:12px">— 지난 건 {{ n_old }}건 포함(시스템 전에 끝난 일 · 눌러서 기록을 적을 수 있음)</span> <span style="margin-left:auto">▸</span></summary>
-      <div class="ex-card" style="overflow-x:auto"><table class="ex-tbl">
+      <div class="ex-card exb-hs"><table class="ex-tbl exb-t">
         <thead><tr><th>인보이스</th><th>구분</th><th>날짜</th><th class="num">줄</th><th class="num">USD</th><th>단계</th><th>AWB · B/L</th><th>통관</th></tr></thead>
         <tbody>{% for s in allx %}
           <tr class="lnk" onclick="location.href='/export/s/{{ s.invoice_no }}'"><td class="ex-mono">{{ s.invoice_no }}</td>

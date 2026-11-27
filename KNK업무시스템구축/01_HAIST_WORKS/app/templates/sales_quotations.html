@@ -24,7 +24,13 @@ body {
 .qm-bar input[type=search] { padding:6px 10px; border:1px solid var(--qv-line); border-radius:8px; font-size:13px; min-width:220px; }
 .qm-drop { margin-left:auto; display:flex; align-items:center; gap:10px; padding:8px 14px; border:2px dashed #93c5fd; border-radius:10px; background:#f0f7ff; color:#1e3a8a; font-size:13px; cursor:pointer; }
 .qm-drop.over { border-color:#2563eb; background:#dbeafe; }
-.qm-t { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--qv-line); border-radius:10px; overflow:hidden; font-size:13px; }
+.qm-t { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--qv-line); border-radius:10px; font-size:13px; }
+/* z1191z191 A-1 (화면 전수 점검 11-27 · 표 안으로 내리면 칸 이름이 사라짐): 표에 `overflow:hidden` 이 있어 칸 이름의 고정(sticky)이
+   표 안에서만 걸렸다(표 자체는 스크롤하지 않으니 고정이 안 됨) → 빼서 본문 스크롤 기준으로 고정 · 공용 제목 띠 틀(knk_sticky_head)이
+   제목 띠 높이만큼 내려 「제목 띠 바로 아래」에 붙인다. 표 모서리 둥글기는 border-collapse 라 원래도 칸에 적용 안 됨(겉모양 같음).
+   휴대폰(767px 이하): 표 최소 폭(약 684px)이 화면보다 넓어 화면 전체가 옆으로 밀렸다(문서 폭 700) → 표만 옆으로 미는 상자(.qm-hs). */
+.qm-hs { min-width: 0; }
+@media (max-width: 767px) { .qm-hs { overflow-x: auto; -webkit-overflow-scrolling: touch; } }
 .qm-t th { text-align:left; font-size:12px; color:var(--qv-ink-3); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--qv-line); background:#f8faf8; position:sticky; top:0; z-index:1; }
 .qm-t td { padding:7px 10px; border-bottom:1px solid #eef1ee; vertical-align:middle; }
 .qm-t tr.pj td { background:#fafbfa; border-top:1px solid var(--qv-line); }
@@ -142,7 +148,7 @@ tr.qm-paid[hidden] { display:none; }
     </div>
     {% endif %}
     {% if qb.cons %}
-    <table class="qm-t qm-cons">
+    <div class="qm-hs"><table class="qm-t qm-cons">
       <colgroup><col style="width:20%"><col style="width:22%"><col style="width:12%"><col style="width:28%"><col style="width:18%"></colgroup>
       <thead><tr><th>관리번호 · 주문번호</th><th>고객사 · 품목</th><th class="num"{{ ct('quotes.co_total') }}>주문 금액</th><th>상태 · 날짜</th><th>영업담당</th></tr></thead>
       <tbody>
@@ -156,13 +162,13 @@ tr.qm-paid[hidden] { display:none; }
         </tr>
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     {% endif %}
     {% if c.period_hidden %}{# z1191z165b: 찾은 관리번호가 기간 밖이면 말없이 빼지 않고 알림 #}
     <div style="margin:6px 0 10px;padding:8px 12px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px;font-size:13px;color:#92400e;">👉 「{{ qb.q }}」 — 지금 고른 기간 밖에 관리번호 {{ c.period_hidden }}개가 더 있습니다 · <a href="{{ qs(period='all') }}" style="font-weight:700;color:#1d4ed8;">기간 「전체」로 보기</a></div>
     {% endif %}
     {% if qb.rows %}
-    <table class="qm-t">
+    <div class="qm-hs"><table class="qm-t">
       <colgroup><col style="width:16%"><col style="width:13%"><col style="width:9%"><col style="width:26%"><col style="width:12%"><col style="width:24%"></colgroup>
       <thead><tr><th>관리번호 · 수주번호</th><th>고객사 · 호기</th><th class="num"{{ ct('so.total') }}>수주 금액</th><th>견적서(엑셀)</th><th></th><th title="z1191z143: 고객사에서 받은 발주서 — PDF·사진·엑셀 · 칸에 끌어다 놓아도 됩니다 · 여러 장 올려도 모두 남음">고객 발주서</th></tr></thead>
       <tbody>
@@ -201,7 +207,7 @@ tr.qm-paid[hidden] { display:none; }
         {% endfor %}
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     <script>/* z1191z165: 입금 끝난 수주 접기·펼치기(올리기 권한과 상관없이) */
     if (!window.__qmPaid165) { window.__qmPaid165 = 1; document.addEventListener('click', function(e){
       var b = e.target.closest && e.target.closest('.qm-paidbtn'); if (!b) return;
