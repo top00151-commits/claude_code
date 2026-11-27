@@ -115,6 +115,35 @@
   .mail-app-top .install { display:none; border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.16);
     color:#fff; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:8px; cursor:pointer; }
   .mail-app-top .install:hover { background:rgba(255,255,255,.28); }
+  /* 📱 휴대폰 앱 — 🔄 오른쪽(11-27 대표) · 높이는 뒤로·앞으로와 같게 */
+  .mail-app-top .phone { border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.16); color:#fff; font-size:13px; font-weight:700;
+    height:28px; box-sizing:border-box; padding:0 10px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex:none; }
+  .mail-app-top .phone:hover { background:rgba(255,255,255,.30); }
+  .mail-app-top .phone[hidden] { display:none; }
+  html[data-md="v2"] .mail-app-top .phone { color:var(--mt-text); border-color:var(--mt-line,#d0d5dd); background:transparent; }
+  html[data-md="v2"] .mail-app-top .phone:hover { background:var(--mt-hover); }
+  @media(max-width:930px){ .mail-app-top .phone .t { display:none; } }
+  #mailPhoneDlg { position:fixed; inset:0; z-index:3000; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+  #mailPhoneDlg[hidden] { display:none !important; }
+  #mailPhoneDlg .mpd-box { position:relative; background:#fff; color:#0f172a; width:100%; max-width:460px; max-height:calc(100vh - 32px); overflow:auto;
+    border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.3); }
+  #mailPhoneDlg .mpd-head { display:flex; align-items:center; gap:10px; padding:14px 16px; background:#A5282C; color:#fff; border-radius:16px 16px 0 0; }
+  #mailPhoneDlg .mpd-head b { font-size:16px; flex:1; }
+  #mailPhoneDlg .mpd-x { border:1px solid rgba(255,255,255,.6); background:rgba(255,255,255,.15); color:#fff; border-radius:8px; padding:5px 10px; font-size:13px; font-weight:700; cursor:pointer; }
+  #mailPhoneDlg .mpd-flow { display:flex; gap:4px; padding:10px 14px 0; font-size:12px; }
+  #mailPhoneDlg .mpd-flow span { flex:1; text-align:center; padding:6px 2px; border-radius:8px; background:#f1f5f9; color:#64748b; font-weight:600; }
+  #mailPhoneDlg .mpd-flow span.on { background:#A5282C; color:#fff; }
+  #mailPhoneDlg .mpd-flow span.done { background:#dcfce7; color:#166534; }
+  #mailPhoneDlg .mpd-now { margin:10px 14px 0; padding:9px 12px; border-radius:10px; background:#fef3c7; color:#78350f; font-size:13.5px; font-weight:700; }
+  #mailPhoneDlg .mpd-body { padding:10px 16px 4px; font-size:13.5px; line-height:1.7; }
+  #mailPhoneDlg .mpd-body ol { margin:6px 0; padding-left:20px; }
+  #mailPhoneDlg .mpd-qr { display:flex; justify-content:center; margin:6px 0; }
+  #mailPhoneDlg .mpd-qr img { width:200px; height:200px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; }
+  #mailPhoneDlg .mpd-url { text-align:center; font-size:12.5px; color:#475569; word-break:break-all; }
+  #mailPhoneDlg .mpd-sub { color:#64748b; font-size:12.5px; }
+  #mailPhoneDlg .mpd-acts { display:flex; flex-wrap:wrap; gap:8px; padding:10px 16px 16px; }
+  #mailPhoneDlg .mpd-acts button { flex:1 1 140px; border:0; border-radius:10px; padding:11px 12px; font-size:14px; font-weight:800; cursor:pointer; background:#f1f5f9; color:#0f172a; }
+  #mailPhoneDlg .mpd-acts button.pri { background:#A5282C; color:#fff; }
   /* 🔄 새로고침 아이콘 — 업데이트를 바로 적용(서비스워커 갱신·캐시 비움·새로고침). 로그인 정보 왼쪽 (대표 지시 2026-06-14) */
   .mail-app-top .reload { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff;
     width:30px; height:30px; border-radius:50%; cursor:pointer; padding:0; font-size:15px; line-height:1;
@@ -219,10 +248,11 @@
     <a href="/mail/files" data-q="files" title="받은 메일의 첨부파일을 한곳에서"><span class="ic">📎</span><span class="t">첨부 모아 보기</span></a>
   </nav>
   <span class="sp"></span>
-  <button type="button" id="mailInstallBtn" class="install" onclick="mailInstallApp()" title="이 메일을 앱처럼 설치 — 바탕화면/홈 화면 아이콘으로 독립 실행">📲 앱 설치</button>
   <button type="button" class="navbtn mt-hist" id="mailBackBtn" onclick="mailGoBack()" title="뒤로 — 앞 화면으로"><span>←</span><span class="t">뒤로</span></button>
   <button type="button" class="navbtn mt-hist" id="mailFwdBtn" onclick="mailGoFwd()" title="앞으로 — 뒤로 갔던 화면으로 다시"><span class="t">앞으로</span><span>→</span></button>
   <button type="button" id="mailReloadBtn" class="reload" onclick="mailReload()" title="새로고침 — 업데이트를 바로 적용(최신 버전으로 갱신)">🔄</button>
+  {# 11-27 대표 「새로고침 오른쪽에 휴대폰에서 바로 들어갈 수 있게 설치하는 아이콘」 — 설치된 앱 안에서는 숨김(mailPhoneInstall 스크립트) #}
+  <button type="button" id="mailPhoneBtn" class="phone" onclick="mailPhoneInstall()" title="휴대폰에 메일 앱 설치 — 이음 메신저를 거치지 않고 홈 화면 아이콘으로 바로 열기"><span>📱</span><span class="t">휴대폰 앱</span></button>
   {% if user %}{% set _dn = vname(user) or '사용자' %}
   <span class="me" title="현재 로그인한 사용자(접속자) — KNK Eum 자동 로그인">
     <span class="av">{{ _dn[0] }}</span>
@@ -439,6 +469,106 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
       if(f) f.disabled=!navigation.canGoForward; if(b) b.disabled=false; } }catch(e){} }
   fit(); st(); window.addEventListener('resize', fit); window.addEventListener('load', function(){ fit(); st(); });
   try{ if(window.navigation) navigation.addEventListener('navigatesuccess', st); }catch(e){}
+})();
+// 📱 휴대폰 앱(11-27 대표 「휴대폰에서 이음 메신저를 거치지 않고 바로 들어갈 수 있게 설치」)
+//   PC = QR(휴대폰 카메라로 찍기) · 안드로이드 크롬 = 바로 「설치」 창 · 이음 앱 안(안드로이드) = 크롬에서 열기
+//   아이폰 사파리 = 공유 → 홈 화면에 추가 · 아이폰 다른 앱 안 = 주소 복사 → 사파리 · 이미 설치된 앱 안 = 단추 숨김
+(function(){
+  var APP_URL = 'https://kmail.knknara.co.kr/mail/app?install=1';
+  var ua = navigator.userAgent || '';
+  function standalone(){ try{ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }catch(e){ return false; } }
+  var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var isAnd = /Android/i.test(ua);
+  var isPhone = isIOS || isAnd;
+  var andWebView = isAnd && /; wv\)/.test(ua);
+  var iosSafari = isIOS && /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|KAKAOTALK|NAVER|Line\//.test(ua);
+  var btn = document.getElementById('mailPhoneBtn');
+  if (btn && isPhone && standalone()) btn.hidden = true;   // 이미 설치된 앱으로 여는 중
+
+  var STEPS = ['① 휴대폰에서 열기', '② 설치', '③ 홈 화면 아이콘'];
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function dlg(){
+    var d = document.getElementById('mailPhoneDlg');
+    if (!d) {
+      d = document.createElement('div'); d.id = 'mailPhoneDlg'; d.hidden = true;
+      d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true');
+      d.addEventListener('click', function(e){ if (e.target === d) close(); });
+      document.body.appendChild(d);
+    }
+    return d;
+  }
+  function close(){ var d = document.getElementById('mailPhoneDlg'); if (d) d.hidden = true; }
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+  // step = 지금 단계(0·1·2) · now = 지금 하실 일 한 줄 · body = 설명 · acts = [[글, 할 일, 주 단추?]]
+  function show(step, now, body, acts){
+    var d = dlg();
+    var flow = STEPS.map(function(s, i){ return '<span class="' + (i < step ? 'done' : (i === step ? 'on' : '')) + '">' + (i < step ? '✓ ' : '') + s + '</span>'; }).join('');
+    d.innerHTML = '<div class="mpd-box"><div class="mpd-head"><span style="font-size:22px">📱</span><b>휴대폰에 메일 앱 설치</b>'
+      + '<button type="button" class="mpd-x" data-a="x">✕ 닫기</button></div>'
+      + '<div class="mpd-flow">' + flow + '</div>'
+      + '<div class="mpd-now">👉 지금 하실 일: ' + now + '</div>'
+      + '<div class="mpd-body">' + body + '</div>'
+      + '<div class="mpd-acts">' + (acts || []).map(function(a, i){ return '<button type="button" data-i="' + i + '" class="' + (a[2] ? 'pri' : '') + '">' + a[0] + '</button>'; }).join('')
+      + '<button type="button" data-a="x">닫기</button></div></div>';
+    d.querySelectorAll('button').forEach(function(b){
+      b.onclick = function(){ if (b.getAttribute('data-a') === 'x') return close(); var a = (acts || [])[+b.getAttribute('data-i')]; if (a && a[1]) a[1](); };
+    });
+    d.hidden = false;
+  }
+  function copyUrl(){
+    var done = function(){ alert('주소를 복사했습니다.\n사파리를 열고 주소 칸에 붙여 넣어 주세요.'); };
+    try { navigator.clipboard.writeText(APP_URL).then(done, function(){ prompt('아래 주소를 길게 눌러 복사해 주세요', APP_URL); }); }
+    catch(e){ prompt('아래 주소를 길게 눌러 복사해 주세요', APP_URL); }
+  }
+  var LOGIN_NOTE = '<p class="mpd-sub">※ 처음 한 번은 「이음 메신저에 로그인해 주세요」가 나올 수 있습니다 — 「이음 메신저 열기」로 로그인한 뒤 돌아오면 메일이 저절로 열립니다.</p>';
+
+  window.mailPhoneInstall = function(){
+    var p = window.__knkMailInstall;
+    if (!isPhone) {
+      // PC — QR 을 휴대폰 카메라로
+      show(0, '휴대폰 카메라로 아래 QR을 찍어 주세요',
+        '<div class="mpd-qr"><img src="/mail/install-qr.svg" alt="메일 앱 주소 QR"></div>'
+        + '<div class="mpd-url">' + esc(APP_URL.replace('?install=1', '')) + '</div>'
+        + '<ol><li>휴대폰 <b>카메라</b>로 QR을 비추고 뜨는 주소를 누릅니다(안드로이드 = 크롬 · 아이폰 = 사파리로 열림).</li>'
+        + '<li>메일이 열리면 위쪽 <b>📱</b> 단추를 다시 누릅니다 → 안드로이드는 「설치」 · 아이폰은 「공유 → 홈 화면에 추가」.</li>'
+        + '<li>휴대폰 홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 바로 엽니다.</li></ol>' + LOGIN_NOTE,
+        p ? [['💻 이 PC에도 설치', function(){ close(); p.prompt(); }]] : []);
+      return;
+    }
+    if (standalone()) { show(2, '이미 설치된 앱으로 여는 중입니다', '<p>홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 열면 됩니다.</p>', []); return; }
+    if (p) {   // 안드로이드 크롬(설치 가능) — 바로 설치 창
+      p.prompt();
+      (p.userChoice || Promise.resolve({})).then(function(c){
+        window.__knkMailInstall = null;
+        if (c && c.outcome === 'accepted') show(2, '홈 화면의 KNK Eum MAIL 아이콘을 눌러 주세요', '<p>✅ 설치했습니다. 이제 이음 메신저를 거치지 않고 홈 화면 아이콘으로 바로 열립니다.</p>', []);
+      });
+      return;
+    }
+    if (andWebView) {   // 이음 앱 등 다른 앱 안 — 설치가 안 되는 곳 → 크롬으로
+      show(0, '「크롬에서 열기」를 눌러 주세요',
+        '<p>지금은 <b>이음 메신저 앱 안</b>에서 메일을 보고 있어 설치가 되지 않습니다.</p>'
+        + '<ol><li>아래 <b>크롬에서 열기</b>를 누릅니다.</li><li>크롬에서 메일이 열리면 위쪽 <b>📱</b> 단추를 다시 누르고 「설치」.</li></ol>' + LOGIN_NOTE,
+        [['🌐 크롬에서 열기', function(){ location.href = 'intent://kmail.knknara.co.kr/mail/app?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(APP_URL) + ';end'; }, true]]);
+      return;
+    }
+    if (isIOS && !iosSafari) {
+      show(0, '주소를 복사해 사파리에서 열어 주세요',
+        '<p>아이폰은 <b>사파리</b>에서만 홈 화면에 추가할 수 있습니다.</p>'
+        + '<ol><li>아래 <b>주소 복사</b>를 누릅니다.</li><li>사파리를 열고 주소 칸에 붙여 넣습니다.</li><li>메일이 열리면 아래쪽 <b>공유(⬆)</b> → <b>홈 화면에 추가</b>.</li></ol>'
+        + '<div class="mpd-url">' + esc(APP_URL) + '</div>' + LOGIN_NOTE,
+        [['📋 주소 복사', copyUrl, true]]);
+      return;
+    }
+    if (isIOS) {
+      show(1, '아래 공유(⬆) 단추 → 「홈 화면에 추가」',
+        '<ol><li>사파리 아래쪽(또는 위쪽) <b>공유 ⬆</b> 단추를 누릅니다.</li><li>목록을 내려 <b>홈 화면에 추가</b> → 오른쪽 위 <b>추가</b>.</li><li>홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 바로 엽니다.</li></ol>', []);
+      return;
+    }
+    // 안드로이드 크롬인데 설치 창 신호가 없음(이미 설치했거나 아직 준비 전)
+    show(1, '크롬 오른쪽 위 ⋮ → 「앱 설치」 또는 「홈 화면에 추가」',
+      '<ol><li>크롬 오른쪽 위 <b>⋮</b>(점 세 개)를 누릅니다.</li><li><b>앱 설치</b>(또는 <b>홈 화면에 추가</b>)를 누릅니다.</li><li>홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 바로 엽니다.</li></ol>'
+      + '<p class="mpd-sub">메뉴에 「앱 열기」가 보이면 이미 설치된 것입니다 — 홈 화면이나 앱 목록에서 KNK Eum MAIL 을 찾아 주세요.</p>', []);
+  };
 })();
 // 🔄 새로고침 — 업데이트(새 버전·다운로드)를 바로 적용: 서비스워커 갱신 + 모든 캐시 삭제 + 새로고침
 window.mailReload = async function(){

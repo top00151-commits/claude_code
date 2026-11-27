@@ -25346,6 +25346,20 @@ async def mail_icon_png(size: int):
                     headers={"Cache-Control": "public, max-age=604800"})
 
 
+_MAIL_PHONE_QR_CACHE = {}
+
+
+@app.get("/mail/install-qr.svg")
+async def mail_install_qr_svg():
+    # 11-27 대표 「휴대폰에서 바로 들어갈 수 있게 설치」 — PC 화면의 QR(고정 주소 하나뿐 · 사람·메일 정보 없음)
+    #   휴대폰 카메라로 찍으면 크롬/사파리에서 메일 앱 시작 주소가 열리고, 거기서 「설치」/「홈 화면에 추가」.
+    _u = "https://%s/mail/app?install=1" % _mail_site.MAIL_SITE_HOST
+    if _u not in _MAIL_PHONE_QR_CACHE:
+        _MAIL_PHONE_QR_CACHE[_u] = _make_qr_svg(_u, scale=7)
+    return Response(_MAIL_PHONE_QR_CACHE[_u], media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/mail/icon.svg")
 async def mail_icon_svg():
     return Response(_MAIL_PWA_ICON_SVG, media_type="image/svg+xml",
