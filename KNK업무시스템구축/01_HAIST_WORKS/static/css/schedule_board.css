@@ -183,6 +183,8 @@
 body.sched-fs .print-modal { z-index:1150; }
 /* v5H226z363 (대표 지시): 휴대폰에선 보드 높이 제한 해제 → 표 전체가 보이고 페이지가 세로 스크롤(표는 가로 스크롤 유지) */
 @media (max-width:1023px){ .sched-wrap:not(.fs) { max-height:none; } }
+/* z1191z193 M-1 (화면 전수 점검 · 휴대폰 문서 폭 431): 기간 찾기 묶음이 한 줄 고정 → 휴대폰에선 줄바꿈 */
+@media (max-width:767px){ .period-grp { flex-wrap:wrap; max-width:100%; } .period-grp .period-inp { min-width:0; flex:1 1 120px; } }
 /* z279: 고정 px + 좌우 스크롤(엑셀식). 표 폭 = 칸 px 합 (JS가 지정). 한 칸 조정해도 다른 칸 불변. */
 table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:0; }
 .sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid #eee5d4; padding:0; height:30px; overflow:hidden; }

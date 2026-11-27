@@ -11,13 +11,15 @@ body {
   --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
   --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
 }
-.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+.detail-grid { margin: 0 var(--content-pad); display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-4); }
+/* z1191z193 M-1 (화면 전수 점검 · 휴대폰 문서 폭 804 · 폴드 820 에서 852): 칸 폭 `1fr` 최소 = 안 표 폭 → 칸 최소 0 · 표는 상자 안에서 옆으로 */
+.detail-grid > * { min-width: 0; }
 .section-card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
 .def { display: grid; grid-template-columns: 100px 1fr; gap: 10px 14px; font-size: 13px; }
 .def dt { color: var(--qv-ink-3); font-weight: 600; } .def dd { color: var(--qv-ink); }
-@media (max-width: 1280px) { .detail-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1280px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } }
 /* v5H226z46: 1100px 반응형 */
 @media (max-width: 1100px) {
   .detail-grid { gap: var(--space-3); }
@@ -53,7 +55,7 @@ body {
   {% endif %}
 
   <!-- KPI -->
-  <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,1fr);">
+  <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,minmax(0,1fr));">
     {# z1191z161 (대표 11-26): 이 고객사가 1차 고객사로 적힌 수주 기준(관리번호 고객·관리번호 금액은 쓰지 않음) #}
     <div class="kpi-card"><div class="kpi-label">관리번호 (수주 {{ so_rows|length }}건)</div><div class="kpi-num">{{ pjts|length }}</div></div>
     <div class="kpi-card"><div class="kpi-label">진행 중</div><div class="kpi-num">{{ pjts|selectattr('status','in',['진행중','진행'])|list|length }}</div></div>

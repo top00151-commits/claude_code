@@ -21,6 +21,8 @@
 .sc-chip { display:inline-block; padding:3px 11px; border:1px solid #cbd5e1; border-radius:999px; background:#fff; color:#334155; text-decoration:none; font-weight:700; }
 .sc-chip.on { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
 .sc-chip .n { font-weight:400; margin-left:3px; }
+/* z1191z193 M-1 (화면 전수 점검 · 휴대폰에서 표가 화면을 옆으로 밀어냄 — 문서 폭 599): 휴대폰(767 이하)에선 표만 옆으로 미는 상자로(표 자체에 옆 스크롤) */
+@media (max-width:767px){ .sc-t { display:block; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; } }
 </style>
 </head><body>
 <div class="app">{% set active_tab = 'sales' %}

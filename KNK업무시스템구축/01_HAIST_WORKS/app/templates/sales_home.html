@@ -125,7 +125,12 @@ a.z45-all:hover { text-decoration:underline; }
 .kpi.hero .kpi-label, .kpi.hero .kpi-trend { color: rgba(255,255,255,0.85); }
 .kpi.hero .kpi-num { color: white; font-size: 36px; }
 
-.grid-2 { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.grid-2 { margin: var(--space-5) var(--content-pad) 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }
+/* z1191z193 M-1 (화면 전수 점검 11-27 · 휴대폰 문서 폭 455 · 사업부 이름 한 글자씩 꺾임 · 최종매출 잘림): 칸 폭 `1fr`(최소 = 내용 폭)이라
+   안 표의 옆 스크롤 상자가 작동하지 않고 칸이 늘었다 → 칸 최소 0 · 표는 상자 안에서 옆으로. */
+.grid-2 > .card { min-width: 0; }
+/* 휴대폰(767 이하): 표 안 사업부·연도 이름·금액은 꺾지 않음(표만 옆으로 밀어 봄 — 「검/사/기」처럼 한 자씩 꺾이던 것) */
+@media (max-width: 767px) { .grid-2[data-dn="grid-biz-year"] th, .grid-2[data-dn="grid-biz-year"] td, .grid-2 .card h3 button { white-space: nowrap; } }
 .card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: var(--space-5); box-shadow: var(--shadow-sm); }
 .card h3 { font-size: 14px; font-weight: 700; color: var(--qv-ink); margin-bottom: var(--space-3); display: flex; align-items: center; gap: 10px; }
 .card h3::before { content: ""; width: 4px; height: 16px; background: var(--qv-line-3); border-radius: 2px; }
@@ -158,7 +163,7 @@ a.z45-all:hover { text-decoration:underline; }
 .recent-table .code { font-family: monospace; font-weight: 700; color: var(--qv-ink-2); }
 .recent-table .stage-pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; background: var(--qv-surface-3); color: var(--qv-ink-3); }
 
-@media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .kpi.hero { grid-column: span 2; } .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .kpi.hero { grid-column: span 2; } .grid-2 { grid-template-columns: minmax(0, 1fr); } }
 /* v5H226z45: 1100px 이하 반응형 — 작은 노트북/모니터 깨짐 방지 */
 @media (max-width: 1100px) {
   .main > .knk-page-head { padding-top: var(--space-4); padding-bottom: var(--space-2); }

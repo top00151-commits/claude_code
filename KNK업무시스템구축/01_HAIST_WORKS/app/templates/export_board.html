@@ -9,6 +9,20 @@
    (_export_z85.html 은 다른 수출 화면도 쓰는 공용이라 이 화면에만 둔다) */
 .exb-t thead th { position: sticky; top: 0; z-index: 2; background: var(--knk-bg-surface, #fff); box-shadow: 0 1px 0 var(--line, #e5e7eb); }
 @media (max-width: 767px) { .exb-hs { overflow-x: auto; -webkit-overflow-scrolling: touch; } }
+/* z1191z193 M-2 (화면 전수 점검 · 휴대폰에서 표가 화면 깊은 곳): 휴대폰(767 이하)에선 맨 위 요약 숫자 4칸의 작은 설명 줄을 처음부터 접음(숫자는 그대로 보임)
+   — 「▾ 요약 설명 보기」로 펼침(체크 칸 하나 · 스크립트 없음 · 그린 뒤 접지 않음) */
+.exb-sum-tog { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+.exb-sum-lab { display:none; }
+@media (max-width: 767px) {
+  .exb-sum-tog:not(:checked) + .ex-kpis .ex-kpi .s { display:none; }
+  .exb-sum-tog:not(:checked) + .ex-kpis { gap:6px; margin-bottom:4px; }
+  .exb-sum-tog:not(:checked) + .ex-kpis .ex-kpi { padding:8px 10px; }
+  .exb-sum-tog:not(:checked) + .ex-kpis .ex-kpi .n { font-size:20px; margin-top:0; }
+  .exb-sum-lab { display:inline-block; margin:0 0 10px; font-size:12.5px; font-weight:700; color:var(--mute,#64748b); cursor:pointer; }
+  .exb-sum-lab .less { display:none; }
+  .exb-sum-tog:checked ~ .exb-sum-lab .more { display:none; }
+  .exb-sum-tog:checked ~ .exb-sum-lab .less { display:inline; }
+}
 </style>
 {# z1191z85 (대표 2026-11-20 「안지연 프로 입장에서 … 20년 넘게 수출입 실무를 한 배테랑이 만든 프로그램처럼」):
    첫 화면 = 선적 건 보드. 인보이스 한 장 = 선적 한 건(KNK-YYMMDD-n) — 이미 올린 인보이스로 저절로 생긴다.
@@ -41,6 +55,7 @@
     </form>
     {% if err == 'no' %}<div class="ex-alert">인보이스 번호 모양이 이상합니다 — 예) KNK-261125-1</div>{% endif %}
 
+    <input type="checkbox" id="exbSumTog" class="exb-sum-tog" aria-label="요약 설명 보기">
     <div class="ex-kpis">
       <div class="ex-kpi"><div class="l">진행 중인 선적</div><div class="n">{{ live|length }}</div><div class="s">마감 전 · 11-20 전 인보이스는 출고·통관을 적은 건만</div></div>
       <div class="ex-kpi {% if alerts %}hot{% endif %}"><div class="l">손이 필요한 일</div><div class="n">{{ alerts|length }}</div><div class="s">회신 늦음 · 출고/통관/송금 기록 빠짐 · 서류 오류</div></div>
@@ -48,6 +63,7 @@
       <div class="ex-kpi"><div class="l">이번 달({{ cur_m }}) 인보이스</div><div class="n">{{ m1[0] + m2[0] }}건</div><div class="s">수책 {{ m1[0] }} · 일반 {{ m2[0] }} · {{ "${:,.0f}".format(m1[1] + m2[1]) }}</div></div>
       <div class="ex-kpi"><div class="l">올해 인보이스</div><div class="n">{{ ytd.n }}건</div><div class="s">{{ "${:,.0f}".format(ytd.usd) }}</div></div>
     </div>
+    <label for="exbSumTog" class="exb-sum-lab"><span class="more">▾ 요약 설명 보기</span><span class="less">▴ 요약 설명 접기</span></label>
 
     {% if alerts %}
     <div class="ex-card"><div class="ex-h">⚠ 손이 필요한 일 <small>오래 한 실무자가 매일 아침 보는 목록 — 누르면 그 건</small></div>

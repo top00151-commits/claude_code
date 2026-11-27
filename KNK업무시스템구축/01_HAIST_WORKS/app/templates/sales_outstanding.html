@@ -6,6 +6,8 @@
 <style>
 .ar-wrap{padding:0 var(--content-pad,20px) 28px;}
 .ar-lead{font-size:13px;color:var(--knk-text-secondary,#46524B);line-height:1.7;margin:0 0 12px;}
+/* z1191z193 (대표 11-27 「태블릿·좁은 창 미수 목록 위쪽 줄 접기」): 1024px 이하에선 계산 설명 글을 처음부터 한 줄로 접음(CSS 만) · 누르면 펼침/접힘 · 글은 그대로 */
+@media (max-width:1024px){ .ar-lead{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;cursor:pointer;} .ar-lead.open{display:block;} }
 .ar-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px;}
 .ar-kpi{border:1px solid var(--knk-border-subtle,#E2E6E1);border-radius:12px;padding:11px 14px;background:var(--knk-bg-surface,#FAFBF9);}
 .ar-kpi .l{font-size:12px;color:var(--knk-text-muted,#657169);}
@@ -35,7 +37,7 @@
   </header>
   {% set stz_group = 'money' %}{% set stz_cur = '/sales/outstanding' %}{% include "_v5_partials/sales_subtabs_z98.html" %}
   <div class="ar-wrap">
-    <p class="ar-lead">
+    <p class="ar-lead" title="눌러서 펼치기·접기" onclick="this.classList.toggle('open')">
       숫자는 <b>💰 입금 확인과 같은 계산</b>입니다 — 세금계산서 한 장마다 <b>부가세 포함</b>(국내 원화 10% · 수출·외화 0%) 받을 돈에서 받은 돈을 빼고,
       입금 예정일 = 세금계산서 발행일 + 고객사 결제 조건(안 고른 고객사는 기본 발행 후 {{ pay_default_days_z95 }}일).
       입금이 들어온 것은 <b>💰 입금 확인</b>에서 [✅ 입금 확인됨]으로 적습니다.

@@ -46,7 +46,7 @@ body {
     <a href="/projects/ledger" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📒 관리번호대장</a>{# z1191z42 #}
     {% if can_s1_z98(user) %}<a href="/sales/orders" style="padding:9px 20px;font-size:14px;font-weight:700;color:var(--qv-ink-3);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;">📑 수주 목록</a>{% endif %}{# z1191z98: 수주 목록 = 프로젝트 탭(메뉴에서 뺌) #}
     {# z1191z96 (대표 11-22): 「🆕 등록」 탭 뺌 — 등록은 왼쪽 메뉴 한 곳 #}
-    <span style="margin-left:auto;align-self:center;padding-right:4px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span></span>
+    <span class="reg-hint-box-z193" style="margin-left:auto;align-self:center;padding-right:4px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span></span>
   </div>
 
   {# v5H226z155 (대표 지시): 책갈피(탭) + 전체화면 보기 #}
@@ -65,6 +65,23 @@ body {
   .proj-bm.proj-bm-div .bm { font-size:13.5px; padding:8px 16px; }
   .proj-bm.proj-lv2 { margin-left:calc(var(--content-pad) + 18px); padding-left:12px; border-left:3px solid var(--qv-line); }
   .proj-bm.proj-lv2 .bm-lb { min-width:58px; }
+  /* z1191z193: 사업부·상태 단추 접기(1024px 이하) — 체크 칸 하나로 펼침/접힘(스크립트 없음 · 처음부터 접힌 모양) */
+  .proj-flt-tog { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+  .proj-flt-lab { display:none; }
+  @media (max-width:1024px){
+    .proj-flt-z193 { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:0 var(--content-pad) 6px; }
+    .proj-flt-z193 > .proj-bm { margin:0 !important; padding-left:0; border-left:0; }
+    .proj-flt-lab { display:inline-flex; align-items:center; padding:7px 12px; border:1px dashed var(--qv-line); border-radius:20px; font-size:12.5px; font-weight:700; color:var(--qv-ink-2); cursor:pointer; white-space:nowrap; }
+    .proj-flt-lab .pfl-less { display:none; }
+    .proj-flt-tog:not(:checked) + .proj-flt-z193 .proj-bm .bm:not(.on),
+    .proj-flt-tog:not(:checked) + .proj-flt-z193 .proj-bm .bm-sep,
+    .proj-flt-tog:not(:checked) + .proj-flt-z193 .proj-lv2 > .bm-lb:not(:first-child) { display:none; }
+    .proj-flt-tog:checked + .proj-flt-z193 { display:block; }
+    .proj-flt-tog:checked + .proj-flt-z193 > .proj-bm { margin:0 0 8px !important; }
+    .proj-flt-tog:checked + .proj-flt-z193 .pfl-more { display:none; }
+    .proj-flt-tog:checked + .proj-flt-z193 .pfl-less { display:inline; }
+    .proj-flt-tog:focus-visible + .proj-flt-z193 .proj-flt-lab { outline:2px solid var(--knk-red); outline-offset:2px; }
+  }
   .proj-bm.proj-lv2 .bm { padding:4px 11px; font-size:12px; border-radius:8px; background:var(--qv-surface,#fff); }
   .proj-bm.proj-lv2 .bm.on { background:#fff; color:var(--knk-red); border:2px solid var(--knk-red); }
   .proj-bm.proj-lv2 .bm.on b { color:var(--knk-red); }
@@ -91,6 +108,13 @@ body {
   .proj-note-fold[open] .pnf-more { display:none; }
   .proj-note-fold[open] .pnf-t { white-space:normal; }
   .proj-note-fold .pnf-body { margin-top:4px; }
+  /* z1191z193 M-1 (화면 전수 점검 · 휴대폰 문서 폭 450 · 탭 이름이 한 글자씩 세로로): 탭 줄 오른쪽 「＋ 등록은 왼쪽 메뉴 🆕 등록에서」(한 줄 고정)가
+     자리를 차지 → 휴대폰(767 이하)에선 안내를 탭 아래 줄 오른쪽으로(안내는 그대로 · 대표 11-22) · 탭은 줄바꿈 가능 · 탭 이름은 꺾지 않음 */
+  @media (max-width:767px){
+    [data-dn="proj-tabs"] { flex-wrap:wrap; }
+    [data-dn="proj-tabs"] > a, [data-dn="proj-tabs"] > span:not(.reg-hint-box-z193) { white-space:nowrap; padding:9px 12px !important; }
+    [data-dn="proj-tabs"] > .reg-hint-box-z193 { flex:1 0 100%; text-align:right; padding:4px 4px 6px !important; order:9; }
+  }
   #projFsWrap:-webkit-full-screen .tbl th, #projFsWrap:-webkit-full-screen .tbl td { padding:5px 9px !important; font-size:12px !important; }
   #projFsWrap:-webkit-full-screen .proj-intro-note { display:none !important; }
   /* v5H226z255 (대표 지시): 프로젝트 목록 — 헤더행 고정 + 데이터행만 스크롤 (일반·전체화면 공통).
@@ -109,6 +133,10 @@ body {
     <button type="button" class="proj-fs-btn exit" onclick="projToggleFullscreen()">⛶ 전체화면 종료 (Esc)</button>
   </div>
 
+  {# z1191z193 (대표 11-27 「태블릿·좁은 창의 사업부·상태 단추 두 줄은 접어」 · M-2 휴대폰도): 1024px 이하에선 처음부터 접힌 모양(CSS 만 · 그린 뒤 접지 않음)
+     — 지금 고른 단추만 한 줄에 보이고 나머지는 「▾ 사업부·상태」로 펼침 · 고른 값(거르기)은 그대로 · 넓은 창(1025 이상)은 그대로 두 줄 #}
+  <input type="checkbox" id="projFltTog" class="proj-flt-tog" aria-label="사업부·상태 단추 모두 보기">
+  <div class="proj-flt-z193">
   {# v5H226z217 (대표 지시): 사업부별 책갈피 — 탭으로 사업부 선택 (이동 없이 즉시 필터) #}
   <div class="proj-bm proj-bm-div" data-dn="proj-bm-div" style="margin-bottom:8px;">
     <span class="bm-lb">사업부</span>
@@ -134,6 +162,8 @@ body {
     <span class="bm-sep"></span><span class="bm-lb" style="min-width:auto;">보기</span>
     {% if so_check_n %}<a href="/projects/so-check" class="bm" title="PO유형·거래구분이 그 수주번호에 아직 적히지 않은 수주 · 수주번호를 고를 견적서·발주서(z1191z156) — 눌러서 정하기" style="border-color:#fcd34d;color:#92400e;">⚠ 수주 칸 확인 필요 <b>{{ so_check_n }}</b></a>{% endif %}
     <a href="#" data-bm="docs" onclick="projDocs150();return false;" class="bm {% if docs_view %}on{% endif %}" title="관리번호마다 수주번호별 견적서·발주서가 있는지 한눈에 · 원본 받기">📎 견적서·발주서 <b>{{ docs_n }}</b></a>
+  </div>
+  <label for="projFltTog" class="proj-flt-lab"><span class="pfl-more">▾ 사업부·상태 모두 보기</span><span class="pfl-less">▴ 접기</span></label>
   </div>
 
   <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 var(--content-pad) var(--space-4);flex-wrap:wrap;" method="get" action="/projects">

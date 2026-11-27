@@ -72,6 +72,8 @@ button { font-family: inherit; cursor: pointer; }
 .page-date-nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; color: var(--qv-ink-3); }
 .page-date-nav a { color: var(--qv-ink-2); font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .page-date-nav a:hover { background: var(--qv-surface-2); }
+/* z1191z193 M-3 (화면 전수 점검 · 홈 날짜 ‹ › 가 20×24px): 휴대폰(767 이하)에선 손가락 크기(44px) */
+@media (max-width: 767px) { .page-date-nav a { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; } }
 
 /* === 3 탭 === */
 .scope-tabs { display: flex; gap: 0; background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: var(--radius-lg); padding: 6px; margin-bottom: var(--space-5); }

@@ -844,6 +844,19 @@ var CH = {
   .top-icon { width: 32px !important; height: 32px !important; }
   #victorToggleBtn.ai-avatar { width: 32px !important; height: 32px !important; font-size: 12.5px !important; }
 }
+/* z1191z193 M-3 (화면 전수 점검 11-27 · 휴대폰에서 표 안 링크 높이 28px 미만 — /projects 1,390/1,429 · /contacts 1,423/1,444):
+   휴대폰(767 이하)만 표 안 링크의 누르는 칸을 키운다(글자 크기·모양 그대로 · 위아래 여백만) · 줄 누르기 링크(knk-rowlink)는 40px — PC·폴드(768 이상) 그대로 */
+@media (max-width: 767px) {
+  .main .tbl tbody td a:not(.btn):not(.knk-rowlink) { display: inline-block; padding-top: 8px; padding-bottom: 8px; }
+  .main .tbl tbody td a.knk-rowlink { display: block; min-height: 40px; }
+}
+/* z1191z193 M-4 (아이폰만): 입력 칸 글자가 16px 미만이면 누를 때 화면이 저절로 확대됨 → 아이폰·아이패드 사파리에서만(-webkit-touch-callout 은 iOS 만 앎) 16px.
+   갤럭시·PC 는 이 규칙을 모름(화면 그대로) */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
+  }
+}
 /* z1191z190 P-1 (화면 전수 점검 11-27 · 폴드 펼침·태블릿 세로·크롬 옆 패널): 768~1023px 에선 위 규칙이 안 걸려
    「← 이전 페이지」 글자 · 이름 「김정락 대표이사」 · 아이콘 9개가 모두 나와 막대가 867px 를 요구 → 768~866 에서 🚪 가 화면 밖(문서가 옆으로 흔들림).
    이름 길이는 사람마다 달라(베트남 이름·직책) 넘치는 폭이 사람마다 다르다 → 좁은 창 구간(≤1023) 전체에서

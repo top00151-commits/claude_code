@@ -48,6 +48,8 @@ table.list tbody tr:hover { background: var(--qv-surface-2); }
 .pill-cancelled { background: #fee2e2; color: #991b1b; }
 .empty-state { padding: 60px 20px; text-align: center; color: var(--qv-ink-3); background: var(--qv-surface); border: 1px dashed var(--qv-line); border-radius: 12px; margin: 0 32px; }
 .amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+/* z1191z193 M-1 (화면 전수 점검 · 휴대폰에서 표가 화면을 옆으로 밀어냄 — 문서 폭 637): 휴대폰(767 이하)에선 표만 옆으로 미는 상자로(표 자체에 옆 스크롤) */
+@media (max-width:767px){ table.list { display:block; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; } }
 </style>
 </head>
 <body>

@@ -247,7 +247,7 @@ body.so-fs-on { overflow: hidden; }
 .def-amt { min-width: 340px; }
 .proj-info-left { container-type: inline-size; }
 @container (max-width: 760px) { .def { grid-template-columns: 88px 1fr 88px 1fr; } }
-@container (max-width: 470px) { .def { grid-template-columns: 76px 1fr; } }
+@container (max-width: 470px) { .def { grid-template-columns: 76px minmax(0, 1fr); } .def > * { min-width: 0; overflow-wrap: anywhere; } }   /* z1191z193 M-1: 휴대폰 360 문서 폭 408(긴 값이 칸을 밀어냄) → 칸 최소 0 · 긴 값은 줄바꿈 */
 @media (max-width: 900px) { .proj-info-2col { grid-template-columns: 1fr; } .def-amt { min-width: 0; } }
 
 /* v5H226z40: 1100px 이하 반응형 — 작은 모니터/노트북 깨짐 방지 */
