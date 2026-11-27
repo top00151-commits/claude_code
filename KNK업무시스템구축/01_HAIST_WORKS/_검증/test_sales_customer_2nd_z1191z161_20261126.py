@@ -179,6 +179,16 @@ td1 = txt(d1.text)
 check(d1.status_code == 200 and "최종 고객" not in td1 and "청구처" not in td1, "깊이 보기: 「최종 고객」·「청구처」 단추 없음")
 check(td1 == txt(d2.text), "깊이 보기: 옛 주소 ?by=end 는 무시(같은 화면)")
 check("└ 2차 SEV" in td1 and "2차 (그 수주의 장비가" in td1, "깊이 보기: 2차 표")
+# z1191z170 (대표 11-27 「2차 수주건수를 누르면 어떤 수주인지」): TOP5 「수주 N건」 → 그 2차 수주만 · 건수·금액 = TOP5 그 줄
+import urllib.parse as _up
+_m = re.search(r"└ 2차 SEV · 수주 (\d+)건 › (₩[\d,]+) (₩[\d,]+) (₩[\d,]+)", t)
+check(_m is not None and ("c2=SEV" in h), "매출 홈: 「└ 2차 SEV · 수주 N건」이 누르는 연결", _m and _m.group(0))
+_dc = cl.get("/sales/drill?cust=%s&c2=SEV&mode=year&year=2026" % _up.quote(VINA))
+_tc = txt(_dc.text)
+_f = re.search(r"합계 (₩[\d,]+) (₩[\d,]+) (₩[\d,]+)", _tc)
+check(_dc.status_code == 200 and re.search(r"2차 SEV ?가 적힌 수주만", _tc) and _m and re.search(r"수주 %s ?건 ·" % _m.group(1), _tc), "2차로 거른 깊이 보기: 안내 + 수주 건수 = TOP5", _tc[:200])
+check(_m and _f and _f.groups() == _m.groups()[1:], "2차로 거른 깊이 보기 합계 = TOP5 「└ 2차 SEV」 줄(수주·진행·최종)", (_m and _m.groups(), _f and _f.groups()))
+check("2차 거르기 풀기" in _tc, "2차 거르기 풀기 연결")
 da = txt(cl.get("/sales/drill?mode=year&year=2026").text)
 check("└ 2차 SEVT" in da, "고객사 전체 보기에도 「└ 2차」 줄")
 

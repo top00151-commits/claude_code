@@ -33803,11 +33803,22 @@ def _z45_period(qp):
     return mode, sel_year, sel_q, sel_m
 
 
-def _z45_drill(c, lines, biz, cust):
+def _z45_drill(c, lines, biz, cust, c2=""):
     """detail 줄 → 깊이 보기 표. biz·cust 로 거른 뒤
        cust 없으면 고객사별 [{cust, order, prog, final, n}] · cust 있으면 수주별 [{kind, code, so, …}] + 사업부별 소계."""
     # z1191z73: 줄 = (지표, 사업부, 등록명, 원화, 수주 열쇠, 종사업장 시스템명|None) · cust 는 등록명(합산) 또는 시스템명(그 사업장만)
     sel = [x for x in lines if (not biz or x[1] == biz) and (not cust or x[2] == cust or (len(x) > 5 and x[5] == cust))]
+    if c2 and cust:
+        # z1191z170 (대표 11-27 「2차 고객사 수주건수를 클릭하면 어떤 수주건인지」): 그 2차가 적힌 수주만 · 금액 = 그 수주의 2차 몫
+        #   (매출 홈 TOP5 「└ 2차」 줄과 같은 숫자 — 한 수주에 2차가 여럿이면 대수로 나눈 몫)
+        _s2 = []
+        for x in sel:
+            _parts = [w for n, w in (x[6] if len(x) > 6 else ()) if n == c2]
+            if not _parts:
+                continue
+            _w = sum(_parts)
+            _s2.append((x[0], x[1], x[2], _w, x[4], (x[5] if len(x) > 5 else None), ((c2, _w),)))
+        sel = _s2
     tot = {"order": 0.0, "prog": 0.0, "final": 0.0}
     for x in sel:
         tot[x[0]] += x[3]
@@ -33920,15 +33931,16 @@ async def sales_drill_page(request: Request):
     if biz not in SALES3_BIZ:
         biz = ""
     cust = (qp.get("cust") or "").strip()
+    c2 = (qp.get("c2") or "").strip()[:120]   # z1191z170: 2차로 거르기(고객사 안에서만)
     oi_map, _pi = _board_tax_oi_map()
     lines = []
     with db_session() as c:
         rates = _fx_load_rates(c)
         s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines)
         # z1191z161 (대표 11-26): 고객사 = 수주 1차 고객사 하나 — 예전 ?by=end(관리번호 고객 기준) 보기는 없앴다(주소에 남아 있어도 무시)
-        dr = _z45_drill(c, lines, biz, cust)
+        dr = _z45_drill(c, lines, biz, cust, c2 if cust else "")
     year_span = sorted(set(s3.get("year_choices") or []) | {str(date.today().year), str(sel_year)}, reverse=True)
-    return ctx(request, "sales_drill.html", user=u, active="sales", s3=s3, dr=dr, biz=biz, cust=cust,
+    return ctx(request, "sales_drill.html", user=u, active="sales", s3=s3, dr=dr, biz=biz, cust=cust, c2=(c2 if cust else ""),
                biz_label=SALES3_BIZ_LABEL.get(biz, ""), year_span=year_span)
 
 
@@ -46080,11 +46092,24 @@ async def quote_view_z121(req: Request, fid: int):
             except Exception as _e:
                 print(f"[z1191z121] 예전 견적서 읽기 실패 {fid}: {_e}")
                 f["book_err"] = "파일을 찾지 못했습니다"
-    view = _qs121.view_of(book, can_cost) if book else None
+    _lays170, _pw170 = None, False
+    if book and any(not sh.get("lay") for sh in (book.get("sheets") or [])):
+        # z1191z170: 예전에 읽어 둔 견적서 = 모양 없음 → 원본에서 모양만 다시 읽음(저장 안 함 · 비밀번호 파일은 못 읽어 칸 목록으로)
+        try:
+            with open(os.path.join(_z61_dir(), f["stored"] or ""), "rb") as _f170:
+                _raw170 = _f170.read()
+            if not _qr61.office_locked(_raw170, _qr61.ext_of(f["orig_name"] or "")):
+                from starlette.concurrency import run_in_threadpool as _rit170
+                _lays170 = await _rit170(_qs121.layouts_of, _raw170)
+            else:
+                _pw170 = True   # 비밀번호 파일 — 비밀번호를 한 번 더 넣으면 모양까지 읽어 둠
+        except Exception as _e:
+            print(f"[z1191z170] 견적서 모양 다시 읽기 실패 {fid}: {_e}")
+    view = _qs121.view_of(book, can_cost, _lays170) if book else None
     if view is not None and f.get("front_pick") is not None and 0 <= f["front_pick"] < len(view["fronts"]):
         view["front"] = f["front_pick"]
     return ctx(req, "quote_view.html", user=u, active="sales", f=f, view=view, can_cost=can_cost,
-               can_pick=bool(_z63_can_remove(u, f)), err=f.get("book_err") or "")
+               can_pick=bool(_z63_can_remove(u, f)), err=f.get("book_err") or "", need_pw170=_pw170)
 
 
 @app.post("/api/project-quote/{fid}/unlock")

@@ -36,6 +36,13 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
 .qv-tool { display:flex; gap:8px; align-items:center; margin:0 0 8px; font-size:12.5px; color:var(--qv-ink-2); flex-wrap:wrap; }
 .qv-btn { padding:4px 11px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; text-decoration:none; }
 .qv-btn.pri { border-color:#2563eb; background:#2563eb; color:#fff; }
+/* z1191z170: 엑셀 모양 그대로 보기 — 칸 너비·병합·테두리·글꼴·바탕·정렬 = 원본 엑셀 */
+.qv-x { border-collapse:collapse; table-layout:fixed; font-family:"Malgun Gothic","맑은 고딕",sans-serif; font-size:11pt; color:#000; background:#fff; }
+.qv-x td { border:1px dotted #e3e7e3; padding:1px 3px; overflow:hidden; white-space:nowrap; vertical-align:bottom; line-height:1.25; }
+.qv-x tr.off { display:none; }
+.qv-x td:has(> span.ow) { overflow:visible; }
+.qv-x span.ow { display:inline-block; overflow:hidden; white-space:nowrap; vertical-align:bottom; position:relative; z-index:1; }
+.qv-mode { margin-left:auto; }
 .qv-fr { display:flex; gap:10px; align-items:center; padding:6px 8px; border-bottom:1px solid #eef1ee; font-size:13px; }
 @media (max-width:900px){ .qv-meta { grid-template-columns:repeat(2, minmax(0,1fr)); } }
 </style>
@@ -93,12 +100,22 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
     {% for w in fr.warn or [] %}<div class="qv-note">⚠ {{ w }} — 원본 엑셀을 확인해 주세요.</div>{% endfor %}
     {% endif %}
 
+    {% if need_pw170 %}{# z1191z170: 예전에 읽어 둔 비밀번호 견적서 = 엑셀 모양 정보가 없음 #}
+    <form class="qv-note info qv-tool" style="margin-bottom:10px;" onsubmit="return qvUnlock(event)">
+      <span>🔒 비밀번호가 걸린 견적서라 지금은 <b>칸 목록</b>으로 보입니다. 비밀번호를 한 번 더 넣으면 <b>원본 엑셀과 같은 모양</b>으로 보입니다(비밀번호는 저장하지 않음 · 한 번만).</span>
+      <input type="password" id="qvPw" autocomplete="off" placeholder="비밀번호" style="padding:5px 9px;border:1px solid #cbd5e1;border-radius:8px;">
+      <button class="qv-btn pri" type="submit">엑셀 모양으로 보기</button> <span id="qvMsg" style="color:#b91c1c;"></span>
+    </form>
+    {% endif %}
     <div class="qv-tabs" id="qvTabs">
-      {% if fr %}<span class="qv-tab on" data-p="items">📄 견적 항목</span>{% endif %}
-      {% for s in view.sheets %}<span class="qv-tab{% if s.internal %} cost{% endif %}{% if not fr and loop.first %} on{% endif %}" data-p="s{{ s.i }}">{% if s.internal %}🔒 {% endif %}{{ s.title }}</span>{% endfor %}
+      {# z1191z170 (대표 11-27 「엑셀 형태를 유지하면서 보여줘야 헛갈리지 않아」): 처음 화면 = 앞장 시트의 엑셀 모양(있으면) · 「견적 항목」은 옆 책갈피 #}
+      {% set _xl0 = ((view.sheets|selectattr('i', 'equalto', fr.sheet)|selectattr('xl')|list) if fr else []) %}
+      {% set _on = ('s' ~ fr.sheet) if _xl0 else ('items' if fr else ('s' ~ view.sheets[0].i if view.sheets else '')) %}
+      {% if fr %}<span class="qv-tab{% if _on == 'items' %} on{% endif %}" data-p="items">📄 견적 항목</span>{% endif %}
+      {% for s in view.sheets %}<span class="qv-tab{% if s.internal %} cost{% endif %}{% if _on == 's' ~ s.i %} on{% endif %}" data-p="s{{ s.i }}">{% if s.internal %}🔒 {% endif %}{{ s.title }}</span>{% endfor %}
     </div>
     {% if fr %}
-    <div class="qv-pane on" data-p="items">
+    <div class="qv-pane{% if _on == 'items' %} on{% endif %}" data-p="items">
       <table class="qv-it">
         <thead><tr><th style="width:44px;">No.</th><th>품명</th><th>규격</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th></tr></thead>
         <tbody>
@@ -118,15 +135,27 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
     </div>
     {% endif %}
     {% for s in view.sheets %}
-    <div class="qv-pane{% if not fr and loop.first %} on{% endif %}" data-p="s{{ s.i }}">
+    <div class="qv-pane{% if _on == 's' ~ s.i %} on{% endif %}" data-p="s{{ s.i }}">
       {% set sel = s.select %}
       <div class="qv-tool">
         {% if s.internal %}<span style="color:#991b1b;font-weight:700;">🔒 회사 안 원가 정보 — 매입가 볼 권한이 있는 분만 보입니다</span>{% endif %}
         {% if s.cost_cols %}<span style="color:#991b1b;">빨간 칸 = 원가·NEGO·숨긴 열(권한 있는 분만)</span>{% endif %}
         {% if sel %}<label><input type="checkbox" class="qv-only" checked> 적용 항목만 보기(수량이 들어간 {{ s.applied|length }}줄 · 초록)</label>{% endif %}
         <span>{{ s.rows|length }}줄</span>
+        {% if s.xl %}<button type="button" class="qv-btn qv-mode" data-mode="xl" title="엑셀 모양(원본과 같은 칸·테두리) ↔ 칸 목록(모든 칸을 같은 크기로)">📋 칸 목록으로 보기</button>{% endif %}
       </div>
-      <table class="qv-g"{% if sel %} data-sel="1"{% endif %}>
+      {% if s.xl %}{% set x = s.xl %}
+      <style>{% for k, css in x.css %}.qv-x.qx{{ s.i }} .{{ k }}{ {{ css }} }{% endfor %}</style>{# 시트마다 이름 따로(겹치면 다른 시트 색이 섞임) #}
+      <table class="qv-x qx{{ s.i }}" style="width:{{ x.width }}px;">
+        <colgroup>{% for w in x.cols %}<col style="width:{{ w }}px">{% endfor %}</colgroup>
+        {% for xr in x.rows %}{% set ri = xr.r %}
+        <tr style="height:{{ xr.h }}px;" class="{% if sel and ri not in s.applied and s.header_row is not none and ri > s.header_row %}off na{% endif %}">
+          {% for cl in xr.cells %}<td{% if cl.cs > 1 %} colspan="{{ cl.cs }}"{% endif %}{% if cl.rs > 1 %} rowspan="{{ cl.rs }}"{% endif %}{% if cl.k %} class="{{ cl.k }}"{% endif %}>{% if cl.ow %}<span class="ow" style="max-width:{{ cl.ow }}px;">{{ cl.v }}</span>{% else %}{{ money(cl.v) }}{% endif %}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+      <table class="qv-g"{% if sel %} data-sel="1"{% endif %}{% if s.xl %} style="display:none;"{% endif %}>
         {% for r in s.rows %}{% set ri = loop.index0 %}
         <tr class="{% if ri == s.header_row %}h{% elif sel and ri in s.applied %}ap{% elif sel and s.header_row is not none and ri > s.header_row %}off na{% endif %}">
           {% for v in r %}<td class="{% if v is number %}n{% endif %}{% if loop.index0 in s.cost_cols %} cc{% endif %}">{{ money(v) }}</td>{% endfor %}
@@ -146,8 +175,14 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
     document.querySelectorAll('.qv-pane').forEach(function(p){ p.classList.toggle('on', p.dataset.p === t.dataset.p); });
   }); });
   document.querySelectorAll('.qv-only').forEach(function(cb){ cb.addEventListener('change', function(){
-    var tb = cb.closest('.qv-pane').querySelector('table.qv-g');
-    tb.querySelectorAll('tr.na').forEach(function(tr){ tr.classList.toggle('off', cb.checked); });
+    cb.closest('.qv-pane').querySelectorAll('tr.na').forEach(function(tr){ tr.classList.toggle('off', cb.checked); });
+  }); });
+  /* z1191z170: 엑셀 모양 ↔ 칸 목록 */
+  document.querySelectorAll('.qv-mode').forEach(function(b){ b.addEventListener('click', function(){
+    var pn = b.closest('.qv-pane'), xl = b.getAttribute('data-mode') === 'xl';
+    var tx = pn.querySelector('table.qv-x'), tg = pn.querySelector('table.qv-g');
+    if (tx) tx.style.display = xl ? 'none' : ''; if (tg) tg.style.display = xl ? '' : 'none';
+    b.setAttribute('data-mode', xl ? 'list' : 'xl'); b.textContent = xl ? '📋 엑셀 모양으로 보기' : '📋 칸 목록으로 보기';
   }); });
 })();
 async function qvPick(k){

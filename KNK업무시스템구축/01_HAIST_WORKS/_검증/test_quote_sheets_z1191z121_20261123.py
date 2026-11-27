@@ -49,6 +49,36 @@ check("찾기: 권한 없으면 「비밀원가줄」 안 걸림 · 있으면 �
 check("찾기: 선택표는 수량 든 줄만(부품3·부품7 O · 부품5 X)", "부품3" in t0 and "부품7" in t0 and "부품5" not in t0, "")
 check("찾기: 앞장 줄은 다 걸림(검사항목)", "검사항목" in t0, "")
 
+# z1191z170 (대표 11-27 「견적서 보기 = 엑셀 형태 유지」): 칸 너비·병합·테두리·글꼴·바탕·표시 형식
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+wx = openpyxl.Workbook(); sx = wx.active; sx.title = "견적서"
+sx.merge_cells("A1:F1"); sx["A1"] = "견 적 서"; sx["A1"].font = Font(b=True, sz=20, u="single"); sx["A1"].alignment = Alignment(horizontal="center")
+sx.column_dimensions["B"].width = 30; sx.column_dimensions["E"].hidden = True
+sx["A3"] = "작성일 :"; sx["B3"] = 46062; sx["C3"] = 46062; sx["C3"].number_format = 'yyyy". "mm". "dd'
+sx["A5"] = "No."; sx["B5"] = "품명 및 규격"; sx["C5"] = "수량"; sx["D5"] = "단가(KRW)"; sx["F5"] = "금액(KRW)"
+for c in ("A5", "B5", "C5", "D5", "F5"):
+    sx[c].fill = PatternFill("solid", fgColor="D9D9D9"); sx[c].border = Border(bottom=Side(style="medium"))
+sx["A6"] = 1; sx["B6"] = "아주 긴 품명이 옆 빈 칸까지 넘어가 보여야 함"; sx["C6"] = 2; sx["D6"] = 1500000.4; sx["D6"].number_format = "#,##0"; sx["F6"] = 0.335; sx["F6"].number_format = "0.0%"
+sx["E6"] = "숨긴 열 값"
+sx["A8"] = "특이사항: 아주 긴 글자가 옆 빈 칸까지 넘어가 보여야 함"
+bx = io.BytesIO(); wx.save(bx)
+bk = Q.read_book(bx.getvalue()); vx = Q.view_of(bk, False)["sheets"][0]["xl"]
+check("엑셀 모양: 표가 만들어짐(xl)", vx is not None, vx and list(vx))
+_cells = [cl for r in (vx or {}).get("rows", []) for cl in r["cells"]]
+_a1 = [cl for cl in _cells if cl["v"] == "견 적 서"]
+check("병합 A1:F1 = 한 칸(숨긴 열 E 빼고 5칸 colspan)", _a1 and _a1[0]["cs"] == 5, _a1)
+check("숨긴 열 E 는 엑셀처럼 안 보임", all(cl["v"] != "숨긴 열 값" for cl in _cells), "")
+check("칸 너비: B 열(30) = 215px", vx and vx["cols"][1] == 215, vx and vx["cols"][:3])
+_css = dict((k, c) for k, c in (vx or {}).get("css", []))
+check("제목 = 굵게·20pt·밑줄·가운데", any("font-weight:700" in c and "font-size:20.0pt" in c and "underline" in c and "center" in c for c in _css.values()), _css)
+check("머리 줄 = 회색 바탕 + 아래 굵은 줄", any("background:#D9D9D9" in c and "border-bottom:2px solid" in c for c in _css.values()), _css)
+_v = {str(cl["v"]) for cl in _cells}
+check("표시 형식: 일반 46062 = 쉼표 없이 · 날짜 형식 = 2026. 02. 09 · #,##0 = 1,500,000 · 0.0% = 33.5%", {"46062", "2026. 02. 09", "1,500,000", "33.5%"} <= _v, sorted(x for x in _v if x and x[0].isdigit()))
+_long = [cl for cl in _cells if str(cl["v"]).startswith("특이사항")]
+check("긴 글자 = 옆 빈 칸까지 넓이(ow) — 엑셀처럼 잘리지 않음", _long and _long[0]["ow"] > 300, _long)
+_cut = [cl for cl in _cells if str(cl["v"]).startswith("아주 긴 품명")]
+check("옆 칸에 값이 있으면 엑셀처럼 그 칸에서 잘림(넘어가지 않음)", _cut and _cut[0]["ow"] < 216, _cut)
+
 # ①~④ 표본(있을 때만)
 SRC = r"C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\참고자료\기술영업팀\견적서"
 DEC = r"C:\Users\top00\AppData\Local\Temp\claude\6a070250569d191f\253155a4-9ae3-48dd-a684-59fc5743a588\scratchpad\qt_dec"

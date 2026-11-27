@@ -62,7 +62,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
   <div class="page-head" data-dn="page-head">
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <a href="/sales?{{ P }}">매출 홈</a> · <b>매출 깊이 보기</b></div>
-      <h1 class="page-title" data-dn="title"><em>{% if cust %}🏢 {{ cust }}{% if biz %} · {{ biz_label }}{% endif %} — 매출 내역{% elif biz %}{{ biz_label }} — 고객사별 매출{% else %}🏢 고객사별 매출{% endif %}</em></h1>
+      <h1 class="page-title" data-dn="title"><em>{% if cust %}🏢 {{ cust }}{% if c2 %} · 2차 {{ c2 }}{% endif %}{% if biz %} · {{ biz_label }}{% endif %} — 매출 내역{% elif biz %}{{ biz_label }} — 고객사별 매출{% else %}🏢 고객사별 매출{% endif %}</em></h1>
     </div>
   </div>
 
@@ -70,6 +70,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     <a class="dr-back" href="/sales?{{ P }}" data-knk-back>← 매출 홈</a>
     {% if biz %}<input type="hidden" name="biz" value="{{ biz }}">{% endif %}
     {% if cust %}<input type="hidden" name="cust" value="{{ cust }}">{% endif %}
+    {% if c2 %}<input type="hidden" name="c2" value="{{ c2 }}">{% endif %}
     <b>📅 기간</b>
     <select name="mode" id="drMode" aria-label="기간 단위">
       <option value="year"{% if s3.mode=='year' %} selected{% endif %}>연간</option>
@@ -140,7 +141,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
         {% for v in _c2 %}{# z1191z161: 이 고객사 수주의 2차 — 2차가 빈 수주는 줄 없음 #}
         <tr class="z73-ch z161-c2 z161p-d{{ gi }}{% if loop.index > _cut %} z161m-d{{ gi }}{% endif %}"{% if loop.index > _cut %} hidden{% endif %}>
           <td class="n"></td>
-          <td class="dr-dim" style="padding-left:14px;"><span class="z73-br">└</span> 2차 <b>{{ v.name }}</b> · 수주 {{ v.n }}건</td>
+          <td class="dr-dim" style="padding-left:14px;"><span class="z73-br">└</span> 2차 <b>{{ v.name }}</b> · <a class="cu" href="/sales/drill?cust={{ r.cust|urlencode }}&amp;c2={{ v.name|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="2차 {{ v.name }} 수주 {{ v.n }}건 보기">수주 {{ v.n }}건 ›</a></td>
           <td class="r dr-dim">{{ dz(v.order, '') }}</td>
           <td class="r dr-dim">{{ dz(v.prog, '') }}</td>
           <td class="r dr-dim">{{ dz(v.final, '') }}</td>
@@ -170,6 +171,9 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
     {% for s in dr.biz_sub %}{% if not biz or s.biz == biz %}<a href="/sales/drill?cust={{ cust|urlencode }}&amp;biz={{ s.biz }}&amp;{{ P }}"{% if biz == s.biz %} class="on"{% endif %} title="수주 {{ money(s.order, 'KRW') }} · 진행 {{ money(s.prog, 'KRW') }} · 최종 {{ money(s.final, 'KRW') }}">{{ s.label }}</a>{% endif %}{% endfor %}
     {% if biz %}<a href="/sales/drill?biz={{ biz }}&amp;{{ P }}">← {{ biz_label }} 고객사 전체</a>{% endif %}
   </div>
+  {% if c2 %}{# z1191z170: 2차로 거른 보기 #}
+  <div class="dr-note" style="border-color:#bfdbfe;background:#eff6ff;color:#1e3a8a;">🔎 <b>2차 {{ c2 }}</b>가 적힌 수주만 보는 중 · 금액 = 그 수주에서 2차 {{ c2 }} 몫(매출 홈 TOP 5 「└ 2차」 줄과 같은 숫자) · <a href="/sales/drill?cust={{ cust|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" style="font-weight:700;">✕ 2차 거르기 풀기({{ cust }} 수주 전체)</a></div>
+  {% endif %}
   <div class="dr-note">
     수주 <b>{{ dr.rows|length }}</b>건 · 진행매출 순 · 한 줄 = 수주번호 하나(소모품은 발주번호) · 관리번호·수주번호를 누르면 그 프로젝트(소모품) 화면 · 머리글을 누르면 정렬
     <br>수주·출하·발행 날짜가 서로 달라서, 한 수주가 이 기간에 진행매출만(또는 최종매출만) 있을 수 있습니다 · 합계 = 매출 홈 「TOP 5 고객사」의 이 고객사 줄과 같음{% if biz %}({{ biz_label }}만){% endif %}
@@ -180,7 +184,7 @@ a.dr-so:hover { background:#1d4ed8; color:#fff; }
       <thead><tr><th style="cursor:default">2차 (그 수주의 장비가 최종 납품·셋업되는 곳)</th><th class="r c-o"{{ ct('sales.order_rev') }}>수주매출</th><th class="r c-p"{{ ct('sales.ship_rev') }}>진행매출</th><th class="r c-f"{{ ct('sales.final_rev') }}>최종매출</th><th class="r">수주 건수</th></tr></thead>
       <tbody>
       {% for v in dr.c2 %}
-        <tr><td><span class="z73-br">└</span> 2차 <b>{{ v.name }}</b></td>
+        <tr><td><span class="z73-br">└</span> 2차 <a class="cu" href="/sales/drill?cust={{ cust|urlencode }}&amp;c2={{ v.name|urlencode }}{% if biz %}&amp;biz={{ biz }}{% endif %}&amp;{{ P }}" title="2차 {{ v.name }} 수주만 보기"><b>{{ v.name }}</b> ›</a></td>
           <td class="r">{{ dz(v.order, 'c-o') }}</td><td class="r"><b>{{ dz(v.prog, 'c-p') }}</b></td><td class="r">{{ dz(v.final, 'c-f') }}</td><td class="r dr-dim">{{ v.n }}</td></tr>
       {% endfor %}
       </tbody>

@@ -396,7 +396,10 @@ a.z45-all:hover { text-decoration:underline; }
       {%- set _QP = '&mode=' ~ s3.mode ~ '&year=' ~ s3.sel_year ~ '&q=' ~ s3.sel_q ~ '&m=' ~ s3.sel_m -%}{# 자동 이스케이프가 & → &amp; 로 바꾼다 #}
       <div class="card" data-dn="top-customers">
         <h3>TOP 5 고객사 · {{ s3.period_label }} <span style="font-size:11px;color:var(--qv-ink-3);font-weight:600;">(진행매출 순)</span>
-          <a class="z45-all" href="/sales/drill?mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="이 기간 모든 고객사의 수주·진행·최종 매출">고객사 전체 보기 ›</a></h3>
+          <a class="z45-all" href="/sales/drill?mode={{ s3.mode }}&amp;year={{ s3.sel_year }}&amp;q={{ s3.sel_q }}&amp;m={{ s3.sel_m }}" title="이 기간 모든 고객사의 수주·진행·최종 매출">고객사 전체 보기 ›</a>
+          {% if (s3.top_customers or [])|selectattr('c2')|list %}{# z1191z170 (대표 11-27 「2차 고객사 부분 전체 접기 · 필요할 때만 볼 수 있게」): 기본 접힘 · 이 컴퓨터에 기억 #}
+          <button type="button" id="z170C2" aria-expanded="false" title="고객사 아래 「└ 2차」 줄 모두 펼치기·접기(이 컴퓨터에 기억)" style="margin-left:8px;padding:1px 10px;font-size:11.5px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;vertical-align:middle;">▸ 2차 펼치기</button>
+          {% endif %}</h3>
         <div class="z161-note" style="font-size:11.5px;color:#64748b;margin:-2px 0 6px;">고객사 = 세금계산서를 받는 1차 고객사(수주번호마다 적힌 곳) · 「└ 2차」 = 그 수주의 장비가 최종 납품·셋업되는 곳 · 매출 보고서와 같은 기준</div>
         <div class="list-card list-scroll-sm" style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
@@ -406,7 +409,8 @@ a.z45-all:hover { text-decoration:underline; }
               <th{{ ct('sales.ship_rev') }} style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#15803d;">진행매출</th>
               <th{{ ct('sales.final_rev') }} style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--qv-line,#e7e2d4);color:#b45309;">최종매출</th>
             </tr></thead>
-            <tbody id="z161Top">
+            <style>#z161Top.c2off tr.z161-c2, #z161Top.c2off tr.z161-more { display:none; }</style>
+            <tbody id="z161Top" class="c2off">
               {% for c in (s3.top_customers or []) %}{% set ti = loop.index %}
               <tr>
                 <td style="padding:6px 8px;border-bottom:1px solid var(--qv-line,#eef0f4);"><a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}{{ _QP }}" title="{{ c.customer_name }} — 어떤 수주로 이 매출이 났는지 보기" style="font-weight:600;">{{ '%02d'|format(loop.index) }} {{ c.customer_name }} <span class="z45-go">›</span></a>{% if c.children %}<button type="button" class="z73-tg" data-z73="t{{ loop.index }}" aria-expanded="false" title="종사업장(시스템명)별 매출 펼치기" onclick="var o=this.getAttribute('aria-expanded')!=='true';this.setAttribute('aria-expanded',o);this.firstChild.textContent=o?'▾ ':'▸ ';document.querySelectorAll('.z73p-'+this.dataset.z73).forEach(function(x){x.hidden=!o;});" style="margin-left:6px;padding:1px 8px;font-size:11px;font-weight:700;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;"><span>▸ </span>{{ c.children|length }}곳</button>{% endif %}</td>
@@ -425,7 +429,7 @@ a.z45-all:hover { text-decoration:underline; }
               {% set _c2 = c.c2 or [] %}{% set _cut = 4 if _c2|length > 5 else 5 %}
               {% for v in _c2 %}{# z1191z161: 이 고객사 수주의 2차(수주 2차 칸) — 2차가 빈 수주는 줄 없음 #}
               <tr class="z161-c2{% if loop.index > _cut %} z161m-{{ ti }}{% endif %}"{% if loop.index > _cut %} hidden{% endif %} style="font-size:11.5px;color:#64748b;">
-                <td style="padding:3px 8px 4px 26px;border-bottom:1px dashed #e2e8f0;"><span style="color:#94a3b8;">└</span> 2차 <b style="color:#475569;">{{ v.name }}</b> · 수주 {{ v.n }}건</td>
+                <td style="padding:3px 8px 4px 26px;border-bottom:1px dashed #e2e8f0;"><span style="color:#94a3b8;">└</span> 2차 <b style="color:#475569;">{{ v.name }}</b> · <a class="z45-link" href="/sales/drill?cust={{ c.customer_name|urlencode }}&amp;c2={{ v.name|urlencode }}{{ _QP }}" title="{{ c.customer_name }} — 2차 {{ v.name }} 수주 {{ v.n }}건 보기(z1191z170)" style="color:#2563eb;">수주 {{ v.n }}건 ›</a></td>
                 <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ money(v.order, 'KRW') }}</td>
                 <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ money(v.prog, 'KRW') }}</td>
                 <td style="padding:3px 8px;border-bottom:1px dashed #e2e8f0;text-align:right;font-variant-numeric:tabular-nums;">{{ money(v.final, 'KRW') }}</td>
@@ -441,6 +445,13 @@ a.z45-all:hover { text-decoration:underline; }
               {% endfor %}
             </tbody>
           </table>
+          <script>(function(){ /* z1191z170: 2차 전체 접기·펼치기 */
+            var b = document.getElementById('z170C2'), tb = document.getElementById('z161Top'); if (!b || !tb) return;
+            function set(o){ tb.classList.toggle('c2off', !o); b.setAttribute('aria-expanded', o ? 'true' : 'false'); b.textContent = o ? '▾ 2차 전체 접기' : '▸ 2차 펼치기'; }
+            var o0 = false; try { o0 = localStorage.getItem('z170c2') === '1'; } catch(e){}
+            set(o0);
+            b.addEventListener('click', function(){ var o = b.getAttribute('aria-expanded') !== 'true'; set(o); try { localStorage.setItem('z170c2', o ? '1' : '0'); } catch(e){} });
+          })();</script>
         </div>
         {% if s3.cust_tbd %}{# z1191z161: 1차 고객사가 빈 수주 — 관리번호 고객으로 대신하지 않고 따로(합계엔 들어 있음) #}
         <div class="z161-tbd" style="margin-top:6px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e;">
