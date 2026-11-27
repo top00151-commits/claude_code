@@ -15335,7 +15335,7 @@ async def admin_order_dates_audit(req: Request):
             body.append(_tr([_mono(r["mc"]), _esc(r["pname"]), _esc(r["cust"]), _mono(r["sono"]), "<b style='color:#15803d;'>" + _esc(d) + "</b>"]))
         body.append("</tbody></table>")
         if n_of > 600:
-            body.append("<p style='color:#888;'>… 외 " + str(n_of - 600) + "건 (실행 시 전체 처리)</p>")
+            body.append("<p style='color:#666;'>… 외 " + str(n_of - 600) + "건 (실행 시 전체 처리)</p>")
     if projs_fill:
         body.append("<h3 style='margin:18px 0 4px;'>발주일 채울 프로젝트 (" + str(n_pf) + ") — 최초 수주번호 기준</h3>")
         body.append(_thead(("관리번호", "프로젝트", "고객사", "→ 채울 발주일")))
@@ -15343,7 +15343,7 @@ async def admin_order_dates_audit(req: Request):
             body.append(_tr([_mono(r["mc"]), _esc(r["pname"]), _esc(r["cust"]), "<b style='color:#15803d;'>" + _esc(d) + "</b>"]))
         body.append("</tbody></table>")
         if n_pf > 600:
-            body.append("<p style='color:#888;'>… 외 " + str(n_pf - 600) + "건</p>")
+            body.append("<p style='color:#666;'>… 외 " + str(n_pf - 600) + "건</p>")
     if orders_noparse or projs_noparse:
         body.append("<h3 style='margin:18px 0 4px;color:#b45309;'>⚠ 수주번호로 날짜 못 뽑음 (수동 확인 필요)</h3>")
         body.append(_thead(("종류", "관리번호", "프로젝트", "수주번호")))
@@ -15354,13 +15354,13 @@ async def admin_order_dates_audit(req: Request):
         body.append("</tbody></table>")
     if due_empty:
         body.append("<h3 style='margin:22px 0 4px;color:#b91c1c;'>납기일(due_date) 없는 건 — 대표님 직접 입력용 (" + str(n_due) + ")</h3>")
-        body.append("<p style='color:#777;margin:0 0 6px;'>이 목록은 <b>자동으로 채우지 않습니다.</b> 각 건의 납기를 확인해 작업일정표/수주에서 입력해 주세요.</p>")
+        body.append("<p style='color:#666;margin:0 0 6px;'>이 목록은 <b>자동으로 채우지 않습니다.</b> 각 건의 납기를 확인해 작업일정표/수주에서 입력해 주세요.</p>")
         body.append(_thead(("관리번호", "프로젝트", "고객사", "수주번호", "상태", "발주일")))
         for r in due_empty[:800]:
             body.append(_tr([_mono(r["mc"]), _esc(r["pname"]), _esc(r["cust"]), _mono(r["sono"]), _esc(r["st"] or "진행중"), _esc(r["od"])]))
         body.append("</tbody></table>")
         if n_due > 800:
-            body.append("<p style='color:#888;'>… 외 " + str(n_due - 800) + "건</p>")
+            body.append("<p style='color:#666;'>… 외 " + str(n_due - 800) + "건</p>")
     body.append("<p style='margin-top:20px;'><a href='/sales/schedule' style='color:#1d4ed8;'>작업일정표로</a></p></div>")
     return HTMLResponse("".join(body))
 
@@ -15737,7 +15737,7 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
     B.append("<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;"
              "margin:10px 0 18px;line-height:2;'>"
              "<b>소모품 수주매출 합계</b> : <b style='font-size:16px;'>" + _n(total_krw) + " 원</b>"
-             " <span style='color:#777;'>(매출 홈 소모품 '수주매출'과 같아야 정상)</span><br>"
+             " <span style='color:#666;'>(매출 홈 소모품 '수주매출'과 같아야 정상)</span><br>"
              "<b>통화 확인 필요</b> : <b style='color:#b91c1c;'>" + str(len(susp)) + "건 · " + _n(susp_krw) + " 원</b>"
              + (" <span style='color:#b91c1c;'>= 전체의 " + f"{(susp_krw / total_krw * 100):.1f}" + "%</span>"
                 if total_krw else "") + "<br>"
@@ -15751,8 +15751,8 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
     for s in (SRC_P, SRC_C):
         a = src_agg.get(s) or {"cnt": 0, "krw": 0.0}
         pct = (a["krw"] / total_krw * 100) if total_krw else 0
-        B.append(_tr((("<b>" + s + "</b>" + ("  <span style='color:#777;'>(관리번호 4번째 글자 = C 인 프로젝트)</span>"
-                                             if s == SRC_P else "  <span style='color:#777;'>(소모품 발주)</span>")),
+        B.append(_tr((("<b>" + s + "</b>" + ("  <span style='color:#666;'>(관리번호 4번째 글자 = C 인 프로젝트)</span>"
+                                             if s == SRC_P else "  <span style='color:#666;'>(소모품 발주)</span>")),
                       _n(a["cnt"]), "<b>" + _n(a["krw"]) + "</b>", f"{pct:.1f}%")))
     B.append("</tbody></table>")
 
@@ -15780,7 +15780,7 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
                           _n(pk), _n(ck), _esc(cu))))
         B.append("</tbody></table>")
         if len(dup_mc) > 60:
-            B.append("<p style='color:#777;'>… 외 " + str(len(dup_mc) - 60) + "개</p>")
+            B.append("<p style='color:#666;'>… 외 " + str(len(dup_mc) - 60) + "개</p>")
     else:
         B.append("<h3 style='margin:20px 0 4px;'>③ 이중 계상 의심</h3>"
                  "<p style='color:#15803d;font-weight:700;padding:12px;background:#f0fdf4;border-radius:8px;'>"
@@ -15824,7 +15824,7 @@ async def admin_consumable_sales_audit(req: Request, year: str = ""):
     else:
         B.append("<p style='color:#15803d;font-weight:700;padding:12px;background:#f0fdf4;border-radius:8px;'>"
                  "✅ 저장된 합계와 라인 합계가 모두 일치.</p>")
-    B.append("<p style='margin:24px 0;color:#777;'>이 화면은 조회만 합니다. 고칠 대상이 확인되면 알려주세요.</p></div>")
+    B.append("<p style='margin:24px 0;color:#666;'>이 화면은 조회만 합니다. 고칠 대상이 확인되면 알려주세요.</p></div>")
     return HTMLResponse("".join(B))
 
 
@@ -16183,7 +16183,7 @@ async def admin_proj_raw(req: Request, code: str = ""):
             "' placeholder='관리번호 예: 001M2605' style='padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;'>"
             " <button type='submit' style='padding:7px 14px;'>조회</button></form>"]
     if not code:
-        body.append("<p style='color:#888;'>관리번호를 입력하세요.</p></div>")
+        body.append("<p style='color:#666;'>관리번호를 입력하세요.</p></div>")
         return HTMLResponse("".join(body))
     with db_session() as c:
         prow = c.execute("SELECT * FROM projects WHERE UPPER(mgmt_code)=? LIMIT 1", (code,)).fetchone()
@@ -16211,7 +16211,7 @@ async def admin_proj_raw(req: Request, code: str = ""):
         for it in items:
             body.append(f"<tr><td>{it['id']}</td><td>{it['order_id']}</td><td><b>{_esc(it['qty'])}</b></td><td>{_esc(it['unit_price'])}</td><td>{_esc(it['amount'])}</td><td>{_esc(it['unit_label'])}</td></tr>")
         body.append("</table>")
-    body.append("<p style='color:#888;font-size:12px;margin-top:14px;'>읽기전용 — 데이터 변경 없음. 헤더 unit_qty 와 order_items 의 qty 합/줄수가 맞는지 보면 됩니다. "
+    body.append("<p style='color:#666;font-size:12px;margin-top:14px;'>읽기전용 — 데이터 변경 없음. 헤더 unit_qty 와 order_items 의 qty 합/줄수가 맞는지 보면 됩니다. "
                 "<a href='/admin/unit-split'>🧩 완제품 호기 일괄 분할</a></p></div>")
     return HTMLResponse("".join(body))
 

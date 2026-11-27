@@ -43,7 +43,7 @@ body { font-family:"Malgun Gothic","Noto Sans KR",sans-serif; color:#0f172a; bac
       <div class="meta">
         {{ p.name }}<br>
         고객사 {{ pl.cust165 or '—' }}{# z1191z165: 수주 1차 고객사(여럿이면 「외 N곳」) · z1191z166: 수주별이면 그 수주 고객 하나 #} · 총 박스 <b>{{ pl.total_boxes }}</b> · 총 중량 <b>{{ '{:,.2f}'.format(pl.total_weight) }}kg</b> · 품목 {{ pl.n_lines }}<br>
-        <span style="font-size:9pt;color:#94a3b8;">스캔하면 이 출하 건의 품목·박스·통관 정보가 열립니다.</span>
+        <span style="font-size:9pt;color:#475569;">스캔하면 이 출하 건의 품목·박스·통관 정보가 열립니다.</span>
       </div>
     </div>
   </div>
@@ -58,7 +58,7 @@ body { font-family:"Malgun Gothic","Noto Sans KR",sans-serif; color:#0f172a; bac
       <div class="qt">품목 {{ g['items']|length }} · 수량 {{ '{:,.0f}'.format(g.qty) }} · {{ '{:,.2f}'.format(g.weight) }}kg</div>
     </div>
     {% else %}
-    <div style="grid-column:1/-1;color:#94a3b8;font-size:11pt;text-align:center;padding:20px;">박스 구분이 없습니다 — 1단계 통관 입력에서 박스를 지정하면 박스별 라벨이 생성됩니다.</div>
+    <div style="grid-column:1/-1;color:#475569;font-size:11pt;text-align:center;padding:20px;">박스 구분이 없습니다 — 1단계 통관 입력에서 박스를 지정하면 박스별 라벨이 생성됩니다.</div>
     {% endfor %}
   </div>
 </div>

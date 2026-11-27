@@ -20,7 +20,7 @@ body { font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif; 
 .title-ko { font-size:11pt; color:#475569; margin-top:3px; }
 .doc-no { display:inline-block; margin-top:7px; padding:3px 14px; background:#0f172a; color:#fff; font-size:10pt; font-weight:700; letter-spacing:1px; border-radius:3px; font-family:ui-monospace,Consolas,monospace; }
 .exporter-block { margin:10px 0; padding:9px 12px; background:#f7f8fa; border-left:3px solid #0f172a; }
-.exporter-block .role { font-size:8.5pt; color:#64748b; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+.exporter-block .role { font-size:8.5pt; color:#475569; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
 .exporter-block .name { font-size:12pt; font-weight:800; margin-top:2px; }
 .exporter-block .addr { font-size:9.5pt; color:#334155; margin-top:2px; }
 .meta-table { width:100%; border-collapse:collapse; margin:9px 0; font-size:9pt; }
@@ -33,11 +33,11 @@ body { font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif; 
 .lines-tbl td.center { text-align:center; }
 .lines-tbl tbody tr:nth-child(even) td { background:#fafbfc; }
 .lines-tbl tfoot td { background:#f1f5f9; font-weight:700; padding:7px 6px; border-top:2px solid #0f172a; }
-.lines-tbl .empty-row td { text-align:center; color:#94a3b8; padding:18px; font-style:italic; }
+.lines-tbl .empty-row td { text-align:center; color:#475569; padding:18px; font-style:italic; }
 .sig-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:18px; }
 .sig-cell { border:1px solid #cbd5e1; padding:9px 10px; text-align:center; min-height:54px; }
 .sig-cell .role { font-size:8.5pt; font-weight:700; color:#64748b; text-transform:uppercase; padding-bottom:6px; border-bottom:1px dashed #cbd5e1; margin-bottom:14px; }
-.footer-meta { margin-top:12px; padding-top:8px; border-top:1px solid #cbd5e1; font-size:8pt; color:#94a3b8; text-align:center; font-family:ui-monospace,Consolas,monospace; }
+.footer-meta { margin-top:12px; padding-top:8px; border-top:1px solid #cbd5e1; font-size:8pt; color:#475569; text-align:center; font-family:ui-monospace,Consolas,monospace; }
 @media print { body { background:#fff; padding:0; } .actions { display:none; } .sheet { border:none; box-shadow:none; max-width:none; padding:0; } }
 </style>
 </head>
@@ -92,7 +92,7 @@ body { font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif; 
       {% for l in lines|default([]) %}
         <tr>
           <td class="center">{{ loop.index }}</td>
-          <td><b>{{ l.part_name }}</b>{% if l.material_no %} <span style="color:#94a3b8;font-size:7.5pt;">[{{ l.material_no }}]</span>{% endif %}</td>
+          <td><b>{{ l.part_name }}</b>{% if l.material_no %} <span style="color:#475569;font-size:7.5pt;">[{{ l.material_no }}]</span>{% endif %}</td>
           <td>{{ l.spec or '-' }}</td>
           <td class="center">{{ l.origin or '-' }}</td>
           <td class="center" style="font-family:ui-monospace,Consolas,monospace;">{{ l.hs_code or '-' }}</td>

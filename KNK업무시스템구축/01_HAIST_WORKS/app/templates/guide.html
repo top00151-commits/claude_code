@@ -70,7 +70,7 @@
     font-family:var(--font-sans);
     font-size:13px; font-weight:500; color:var(--ink);
   }
-  .guide-bar .search-wrap input::placeholder{ color:var(--ink-4); font-weight:400; }
+  .guide-bar .search-wrap input::placeholder{ color:var(--ink-3); font-weight:400; }  /* z1191z189: --ink-4(4.35) → --ink-3 */
   .guide-bar .search-wrap .count{
     font-family:var(--font-sans);
     font-size:10px; color:var(--ink); font-weight:900; flex-shrink:0;
@@ -242,7 +242,12 @@
   .guide-section.dimmed{ opacity:.25; transition:opacity .2s; }
 
   /* 인쇄 */
-  @media print{ .guide-bar{ display:none; } .guide-wrap{ padding:0; max-width:none; } }
+  @media print{ .guide-bar{ display:none; } .guide-wrap{ padding:0; max-width:none; }
+    /* z1191z189 (대표 11-27 흐린 글자 3차): 인쇄 때 크롬이 흰 글자를 회색으로 바꾸고(배경 그래픽 끔) 표 머리 글자를 검게 바꿔(배경 그래픽 켬)
+       종이에서 안 보이던 곳 — 표 머리·흰 글자 단추를 「흰 종이 + 본문 글자색」으로 (화면 모양은 그대로) */
+    .guide-section table thead tr, .guide-section table thead th{ background:transparent !important; color:var(--ink) !important; border-bottom:2px solid var(--ink) !important; }
+    .guide-wrap a[style*="color:#fff"]{ background:transparent !important; color:var(--ink) !important; border:1px solid var(--ink); }
+  }
 
   /* z452 mobile: 본문 카드 그리드(2·3열) 폰에서 1열 세로 쌓기 (텍스트 카드 짓눌림 방지) */
   @media (max-width:768px){
