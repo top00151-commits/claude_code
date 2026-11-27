@@ -25238,6 +25238,20 @@ async def works_icon_svg():
                     headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/app/install", response_class=HTMLResponse)
+async def works_app_install_z174(req: Request):
+    """z1191z174 (대표 11-27 「휴대폰에서 바로 들어갈 수 있게 설치」): 휴대폰 설치 화면 — 로그인 없이(설치 안내만 · 업무 자료 없음).
+    PC 상단 📲 의 QR 이 이 주소 · 메신저 안 화면이면 「크롬에서 열기」."""
+    return tpl.TemplateResponse(request=req, name="app_install_z174.html", context={})
+
+
+@app.get("/app/install/qr.svg")
+async def works_app_install_qr_z174():
+    """z1191z174: PC 📲 창의 QR = 휴대폰 설치 화면 주소."""
+    return Response(_make_qr_svg(_WORKS_PUBLIC_BASE + "/app/install", 7), media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/app")
 async def works_app_launch(req: Request):
     """설치형 앱 시작 주소 — v5H226z425(대표 지시): 항상 KNK Eum 메신저 SSO 경유(세션 쿠키 지름길 없음)하되,

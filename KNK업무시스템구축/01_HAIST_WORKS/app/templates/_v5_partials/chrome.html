@@ -138,6 +138,8 @@ var CH = {
     {# z1191z112 (대표 11-22 「웍스 화면에도 같은 테마 3가지」): 🎨 화면 테마 고르기 · z1191z170 (대표 11-27): 도움말(❓) 왼쪽으로(밝게·부드럽게·어둡게 · 이 컴퓨터에만 기억) #}
     <a class="top-icon" id="knkThemeBtn" href="javascript:void(0)" onclick="knkThemeToggle(event)" title="{{ i.ch_theme_t }}" aria-haspopup="dialog" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);">🎨</a>
     <a class="top-icon" href="/guide" target="_blank" title="{{ i.ch_help }}">❓</a>
+    {# z1191z174 (대표 11-27 「도움말 오른쪽에 휴대폰에서 앱 설치를 바로 할 수 있는 아이콘」): 휴대폰 = 바로 설치(아이폰 = 홈 화면에 추가 안내) · PC = 휴대폰으로 찍는 QR · 앱으로 열려 있으면 숨김 #}
+    <a class="top-icon" id="knkPhoneAppBtn" href="javascript:void(0)" onclick="knkPhoneApp(event)" title="휴대폰에 WORKS 앱 설치(홈 화면에서 바로 열기)" style="background:var(--knk-bg-subtle, #EAEEE9);">📲</a>
     <a class="top-user" href="/profile">
       <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
       <div>{{ vname(user) }}{% if user.rank %} {{ rank_label(user.rank, lang|default('ko')) }}{% endif %}</div>
@@ -844,6 +846,12 @@ var CH = {
 }
 @media (max-width: 479px) {
   .tb-brand { display: none !important; }   /* 좁은 휴대폰: 로고만 숨김(기능 아님) */
+  /* z1191z174: 도움말 오른쪽 📲 이 늘어 한 줄 넘침(+35점) → 아이콘 32→28 · 간격 6→4(기능 빼지 않음) */
+  #knkTopRight { gap: 4px !important; }
+  .top-icon { width: 28px !important; height: 28px !important; font-size: 15px !important; }
+  #victorToggleBtn.ai-avatar { width: 28px !important; height: 28px !important; font-size: 11.5px !important; }
+  #knkBackBtn { padding: 5px 8px !important; }
+  .top { padding: 0 6px !important; gap: 4px !important; }
 }
 </style>
 
@@ -1844,6 +1852,16 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     return o;
   }
 
+  /* z1191z174: 📲 단추로 연 안내(해제 상태와 상관없이) */
+  window.knkShowInstallHint = function(){
+    var p;
+    try { p = navigator.getInstalledRelatedApps ? navigator.getInstalledRelatedApps() : Promise.resolve([]); }
+    catch(e){ p = Promise.resolve([]); }
+    Promise.resolve(p).catch(function(){ return []; }).then(function(apps){
+      var o = build(!!(apps && apps.length)); if (!o) return;
+      o.hidden = false; document.addEventListener('keydown', onKey, true);
+    });
+  };
   function maybeShow(){
     if (isStandalone()) return;        // 이미 앱으로 설치·실행 중
     if (!isMobile()) return;           // 데스크톱 브라우저 = 안 띄움
@@ -1870,6 +1888,49 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule);
   else schedule();
+})();
+</script>
+
+<style>/* z1191z174: 창 보이기는 CSS 로만(인라인 display 는 hidden 을 이겨 화면 전체 클릭을 막음) */
+#knkPhoneAppPop { position:fixed; inset:0; z-index:3001; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+#knkPhoneAppPop[hidden] { display:none !important; }</style>
+<div id="knkPhoneAppPop" hidden role="dialog" aria-modal="true" aria-label="휴대폰에 WORKS 앱 설치">
+  <div style="background:#fff;border-radius:16px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:linear-gradient(135deg,#a5282c,#7A1D20);color:#fff;">
+      <span style="font-size:24px;">📲</span><b style="font-size:16px;flex:1;">휴대폰에 WORKS 앱 설치</b>
+      <button type="button" onclick="document.getElementById('knkPhoneAppPop').hidden=true" style="border:0;background:rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:5px 10px;font-weight:700;cursor:pointer;">✕ 닫기</button>
+    </div>
+    <div style="padding:14px 18px 18px;font-size:14px;line-height:1.7;color:#1f2937;">
+      <ol style="display:flex;flex-wrap:wrap;gap:4px;list-style:none;padding:0;margin:0 0 8px;font-size:12px;">
+        <li style="padding:2px 9px;border-radius:999px;background:#a5282c;color:#fff;font-weight:700;">1 휴대폰 카메라로 QR 찍기</li>
+        <li style="padding:2px 9px;border-radius:999px;border:1px solid #e2e8f0;color:#94a3b8;">2 「📲 앱 설치」</li>
+        <li style="padding:2px 9px;border-radius:999px;border:1px solid #e2e8f0;color:#94a3b8;">3 홈 화면 아이콘으로 열기</li>
+      </ol>
+      <div style="font-weight:800;color:#1e3a8a;">👉 지금 하실 일: 휴대폰 카메라로 아래 QR 을 찍으세요</div>
+      <div style="text-align:center;margin:10px 0;"><img src="/app/install/qr.svg" alt="휴대폰 설치 화면 QR" style="width:210px;height:210px;"></div>
+      <div style="font-size:12.5px;color:#64748b;">열리는 화면에서 「📲 앱 설치」(아이폰은 사파리 공유 ⬆️ → 「홈 화면에 추가」) · 그다음부터는 홈 화면의 <b>Eum WORKS</b> 아이콘으로 바로 열립니다(메신저를 거치지 않음).<br>주소: <b>works.knknara.co.kr/app/install</b> <button type="button" onclick="try{navigator.clipboard.writeText('https://works.knknara.co.kr/app/install');this.textContent='✅ 복사됨';}catch(e){}" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:1px 8px;font-size:12px;cursor:pointer;">주소 복사</button></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  if (window.__knkPhoneAppBound) return; window.__knkPhoneAppBound = true;
+  function standalone(){ try { if (window.matchMedia('(display-mode: standalone)').matches) return true; } catch(e){} return navigator.standalone === true; }
+  function mobile(){ try { return window.matchMedia('(pointer:coarse)').matches; } catch(e){ return false; } }
+  function sync(){ var b = document.getElementById('knkPhoneAppBtn'); if (b) b.style.display = standalone() ? 'none' : ''; }
+  window.knkPhoneApp = function(ev){
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (mobile()) {   /* 휴대폰: 바로 설치 창(없으면 설치 안내 — 아이폰은 홈 화면에 추가) */
+      var p = window.__knkWorksInstall;
+      if (p) { p.prompt(); (p.userChoice || Promise.resolve()).finally(function(){ window.__knkWorksInstall = null; }); return; }
+      if (window.knkShowInstallHint) { window.knkShowInstallHint(); return; }
+      location.href = '/app/install'; return;
+    }
+    var pop = document.getElementById('knkPhoneAppPop'); if (pop) pop.hidden = false;   /* PC: 휴대폰으로 찍는 QR */
+  };
+  document.addEventListener('keydown', function(e){ var pop = document.getElementById('knkPhoneAppPop'); if (e.key === 'Escape' && pop && !pop.hidden) pop.hidden = true; });
+  document.addEventListener('click', function(e){ var pop = document.getElementById('knkPhoneAppPop'); if (pop && e.target === pop) pop.hidden = true; });
+  sync(); document.addEventListener('knk:navigated', sync);
 })();
 </script>
 

@@ -32,7 +32,7 @@
   window.__knkWorksInstall = null;
   window.addEventListener('beforeinstallprompt', function(e){
     e.preventDefault(); window.__knkWorksInstall = e;
-    var b = document.getElementById('worksInstallBtn'); if (b) b.style.display = '';
+    var b = document.getElementById('worksInstallBtn'); if (b) b.style.display = 'none';   /* z1191z174: 상단 도움말 오른쪽 📲 로 합침(설치 창은 그 단추가 띄움) */
   });
   window.addEventListener('appinstalled', function(){
     window.__knkWorksInstall = null;
