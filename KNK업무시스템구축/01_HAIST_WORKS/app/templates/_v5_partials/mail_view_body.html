@@ -263,6 +263,9 @@
 <details class="mv-quote"><summary title="답장·전달로 딸려 온 이전 메일">▸ 이전 메일 보기</summary><div class="mv-body">{{ body_quote }}</div></details>
 {% else %}<div class="mv-body">{{ m.body_text }}</div>{% endif %}
 {% endif %}
+{# 11-27 대표 「인쇄 때 서명 전체 말고 누구 메일에서 출력했는지만」 — 인쇄에만 나오는 한 줄(화면에는 안 보임) #}
+<div class="mv-printby" id="mvPrintBy">🖨 출력: {{ user.name if user is defined and user else '' }}{% if user is defined and user and user.rank %} {{ user.rank }}{% endif %}{% if user is defined and user and user.team_name %} · {{ user.team_name }}{% endif %} 메일함 · <span id="mvPrintAt"></span></div>
+<style>.mv-printby{display:none}@media print{.mv-printby{display:block !important;margin-top:8px;padding-top:6px;border-top:1px solid #d1d5db;font-size:11px;color:#4b5563}}</style>
 
 
 <div class="mv-nav">
@@ -636,7 +639,47 @@
   var f=document.getElementById('mvFrame');
   function mvBindQuote(){ try{ var d=f.contentDocument||f.contentWindow.document;
     d.querySelectorAll('details.knk-q').forEach(function(x){ if(!x._b){ x._b=1; x.addEventListener('toggle', function(){ setTimeout(mvResize,20); }); } }); }catch(e){} }
-  if(f){ f.addEventListener('load',function(){ mvResize(); mvBindQuote(); }); setTimeout(function(){ mvResize(); mvBindQuote(); },120); }
+  // 11-27 대표 「인쇄 때 서명 전체가 나와 공간만 차지 — 누구 메일인지 알 정보만」
+  //  본문 칸에서 「----- 줄 + 그 뒤가 짧고 연락처(메일·전화·팩스·주소) 글」이면 그 뒤를 서명으로 보고 인쇄에서만 숨김
+  //  → 그 자리에 한 줄(서명 첫 줄 · 메일 주소) · 화면·저장 내용은 그대로 · 못 찾으면 아무것도 안 바꿈
+  function mvSigMark(){ try{ var fr=document.getElementById('mvFrame'); if(!fr) return; var d=fr.contentDocument||fr.contentWindow.document; if(!d||!d.body||d._knkSig) return; d._knkSig=1;
+    var b=d.body, q=b.querySelector('details.knk-q');
+    var KW=/e-?mail|mobile|\btel\b|\bfax\b|homepage|\badd\.|address|www\.|전화|휴대|핸드폰|팩스|주소|홈페이지/ig;
+    var all=[], w=d.createTreeWalker(b, 5 /* 요소+글 */, null), n;
+    while((n=w.nextNode())){ if(q && (n===q || q.contains(n))) break; all.push(n); }
+    var isSep=function(x){ if(x.nodeType===1) return x.tagName==='HR'; var t=(x.nodeValue||'').replace(/\s+/g,''); return t.length>=8 && /^[-_=─━~*·.]+$/.test(t); };
+    var txt=function(i){ var s=''; for(var k=i;k<all.length;k++){ if(all[k].nodeType===3) s+=all[k].nodeValue+'\n'; } return s; };
+    var pick=-1, total=txt(0).length;
+    for(var i=0;i<all.length;i++){ if(!isSep(all[i])) continue;
+      var before=total-txt(i).length; if(before<10) continue;   // 서명 앞에 본문이 있어야
+      var tail=txt(i), tl=tail.replace(/\s+/g,'').length; if(tl>1800 || tl<10) continue;
+      var kw=(tail.match(KW)||[]).length, hasC=/@|\d{2,4}[-.\s)]\d{3,4}[-.\s]\d{4}/.test(tail);
+      if(kw>=2 && hasC){ pick=i; break; } }
+    if(pick<0) return;
+    var tail=txt(pick), lines=tail.split('\n').map(function(s){ return s.replace(/\s+/g,' ').trim(); }).filter(function(s){ return s && !/^[-_=─━~*·.]+$/.test(s.replace(/\s/g,'')); });
+    var first=''; for(var j=0;j<lines.length && j<4;j++){ var s=lines[j]; if(s.length>=2 && s.length<=40 && !/@|\d{3,}/.test(s)){ first=s; break; } }
+    var em=(tail.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/)||[''])[0];
+    var start=all[pick], hide=[];
+    var s2=d.createElement('div'); s2.className='knk-sig-s'; s2.textContent='✂ 서명 줄임'+(first?' — '+first:'')+(em?' · '+em:'');
+    start.parentNode.insertBefore(s2, start);   // 감싸기 전에 자리 잡기(숨김 칸 안으로 들어가지 않게)
+    for(var k=pick;k<all.length;k++){ var x=all[k]; var p=x.parentNode, skip=false;
+      for(var h=0;h<hide.length;h++){ if(hide[h].contains && hide[h]!==x && hide[h].contains(x)){ skip=true; break; } }
+      if(skip) continue;
+      if(x.nodeType===1){ if(q && x.contains(q)) continue; hide.push(x); }
+      else if(/\S/.test(x.nodeValue||'') && !/^(STYLE|SCRIPT|TITLE)$/.test(p.nodeName)){ var sp=d.createElement('span'); p.insertBefore(sp,x); sp.appendChild(x); hide.push(sp); } }
+    hide.forEach(function(x){ x.classList.add('knk-sig-x'); });
+    var st=d.createElement('style'); st.textContent='.knk-sig-s{display:none}@media print{.knk-sig-x{display:none !important}.knk-sig-s{display:block !important;margin:10px 0 0;padding-top:4px;border-top:1px dashed #cbd5e1;font-size:11px;color:#475569}}'
+      +'html.knk-printing .knk-sig-x{display:none !important}html.knk-printing .knk-sig-s{display:block !important;margin:10px 0 0;padding-top:4px;border-top:1px dashed #cbd5e1;font-size:11px;color:#475569}';
+    (d.head||b).appendChild(st);
+  }catch(e){} }
+  function mvPrintMode(on){ try{ var fr=document.getElementById('mvFrame'); var d=fr.contentDocument||fr.contentWindow.document; mvSigMark(); d.documentElement.classList.toggle('knk-printing', on); }catch(e){}
+    if(on){ var a=document.getElementById('mvPrintAt'); if(a){ var t=new Date(), z=function(v){ return (v<10?'0':'')+v; }; a.textContent=t.getFullYear()+'-'+z(t.getMonth()+1)+'-'+z(t.getDate())+' '+z(t.getHours())+':'+z(t.getMinutes()); } }
+    var fr2=document.getElementById('mvFrame'); if(fr2){ fr2.style.height='40px'; } mvResize(); }
+  window.mvPrintMode=mvPrintMode;
+  if(f && !window._mvPrintBound){ window._mvPrintBound=1;
+    window.addEventListener('beforeprint', function(){ if(window.mvPrintMode) window.mvPrintMode(true); });
+    window.addEventListener('afterprint', function(){ if(window.mvPrintMode) window.mvPrintMode(false); }); }
+  if(f){ f.addEventListener('load',function(){ mvResize(); mvBindQuote(); mvSigMark(); }); setTimeout(function(){ mvResize(); mvBindQuote(); mvSigMark(); },120); }
   window.mvWho=function(ev){
     ev.preventDefault(); ev.stopPropagation();
     var p=document.getElementById('mvWhoPop'); if(!p) return false;
@@ -659,12 +702,12 @@ window.mvWait=async function(days){ var id={{ m.id }}, inPane={{ 'true' if pane 
       if(chip){ var e2=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
         var via=chip.classList.contains('via');   // 11-22 내가 든 그룹 = 초록 「나」
         chip.classList.add('grp'); chip.title=(via?'나는 이 그룹 메일로 받았습니다 — ':'')+ad+' = '+(g.name||'')+' 그룹 메일 · '+g.n+'명 — 눌러서 명단';
-        chip.innerHTML='<span class="mv-grp-i"><button type="button" class="mv-grp-b" onclick="mvGrpToggle(this)">'+(via?'<b class="mv-via">나</b>':'')+'<span class="mv-grp-c">👥 '+e2(g.name)+'('+g.n+'명 ▾)</span><span class="mv-grp-m">👥 '+e2(g.name)+' '+g.n+'명 ▾</span></button><span class="mv-grp-p" hidden>'+
+        chip.innerHTML='<span class="mv-grp-i"><button type="button" class="mv-grp-b" onclick="mvGrpToggle(this)">'+(via?'<b class="mv-via">나</b>':'')+'<span class="mv-grp-c">👥 '+e2(g.name)+'('+g.n+'명 ▾)</span><span class="mv-grp-m">👥 '+e2(g.name)+' '+g.n+'명 ▾</span></button><span class="mv-grp-p" hidden>'+'<span class="mv-grp-ad" title="그룹 메일 주소">📧 '+e2(ad)+' · '+e2(g.name)+' '+g.n+'명</span>'+
           g.members.map(function(m){ return '<span title="'+e2(m.email)+'">'+e2(m.disp||m.email)+'</span>'; }).join('')+'</span></span>';
         return; }
       var esc=function(t){ var d=document.createElement('div'); d.textContent=t||''; return d.innerHTML; };
       // 11-21 대표 「메일 내용을 더 많이」 — 넓은 화면: 칩 하나 「👥 이름(N명 ▾)」(주소는 받는 사람 줄에 한 번만 · 칩에는 마우스를 올리면) · 휴대폰: 예전 상자 그대로
-      html+='<div class="mv-grp-i"><span class="mv-grp-t">👥 <b>'+esc(ad)+'</b> = '+esc(g.name)+' 그룹 메일 · <b>'+g.n+'명</b> </span><button type="button" class="mv-grp-b" title="'+esc(ad)+' = '+esc(g.name)+' 그룹 메일 · '+g.n+'명 — 눌러서 명단" onclick="mvGrpToggle(this)"><span class="mv-grp-c">👥 '+esc(g.name)+'('+g.n+'명 ▾)</span><span class="mv-grp-m">명단 ▾</span></button><span class="mv-grp-p"'+(g.n>12?' hidden':'')+'>'+
+      html+='<div class="mv-grp-i"><span class="mv-grp-t">👥 <b>'+esc(ad)+'</b> = '+esc(g.name)+' 그룹 메일 · <b>'+g.n+'명</b> </span><button type="button" class="mv-grp-b" title="'+esc(ad)+' = '+esc(g.name)+' 그룹 메일 · '+g.n+'명 — 눌러서 명단" onclick="mvGrpToggle(this)"><span class="mv-grp-c">👥 '+esc(g.name)+'('+g.n+'명 ▾)</span><span class="mv-grp-m">명단 ▾</span></button><span class="mv-grp-p"'+(g.n>12?' hidden':'')+'>'+'<span class="mv-grp-ad" title="그룹 메일 주소">📧 '+esc(ad)+' · '+esc(g.name)+' '+g.n+'명</span>'+
         g.members.map(function(m){ return '<span title="'+esc(m.email)+'">'+esc(m.disp||m.email)+'</span>'; }).join('')+'</span></div>'; });
     if(html){ box.innerHTML=html; box.hidden=false; } }).catch(function(){}); })();
 window.mvRcMore=function(b){ var p=b.parentNode; var on=!p.classList.contains('all'); p.classList.toggle('all', on); b.textContent= on ? '접기 ▴' : ('외 '+b.getAttribute('data-n')+'명 ▾'); };
