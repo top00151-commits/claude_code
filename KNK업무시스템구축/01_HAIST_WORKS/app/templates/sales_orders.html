@@ -76,6 +76,17 @@ body {
 @media (max-width:1100px) { .split { grid-template-columns:1fr; height:auto; min-height:0; }
                             .split-resizer { display:none; }
                             .list-scroll { max-height:600px; } }
+/* z1191z192 B (대표 결정 2 · 11-27 「좁은 창·휴대폰은 표 먼저, 달력은 접기」): 한 줄로 쌓이는 폭(1100px 이하 · 좁은 창·태블릿·휴대폰)에서
+   달력·임박 납기가 표보다 먼저 나와 표가 3,300px 아래였다 → 표 먼저 · 달력은 접고 「📅 달력·임박 납기 펼치기」로 펼침(이 기기에 기억).
+   목록 상자는 화면 남은 높이를 채우고 최소 300px(태블릿 1024×700 에서 82px 로 줄던 것). 넓은 PC(1101px 이상 · 좌우 2단)는 그대로. */
+.so-cal-tog { display:none; margin:0 var(--content-pad) 8px; padding:8px 14px; border:1px solid #d6cdb6; border-radius:8px; background:#fffdf6;
+              font-size:13px; font-weight:700; color:#7c4a03; cursor:pointer; align-items:center; gap:6px; }
+@media (max-width:1100px) { .so-cal-tog { display:inline-flex; }
+                            .split > .col-left { display:none; order:1; }
+                            .split.so-cal-open > .col-left { display:flex; }
+                            .split > .col-right { order:2; }
+                            .list-scroll { min-height:300px; }
+                            .split.so-cal-open .up-body { max-height:280px; } }   /* 펼쳐도 임박 납기 목록이 길게 늘어 표를 밀지 않게(칸 안에서 스크롤) */
 
 /* 캘린더 */
 .cal-card { background:#fff; border:1px solid #f1e8d4; border-radius:8px; padding:8px 10px; }
@@ -233,6 +244,8 @@ body {
       <div class="sub">{% if _k.get('ar_rc_z98') is not none %}{{ money(_k.get('ar_rc_z98') or 0, 'KRW') }}{% else %}—{% endif %} · 💰 입금 →</div></a>
   </div>
 
+  {# z1191z192 B: 좁은 폭에서 달력·임박 납기 펼치기(넓은 PC 에선 안 보임) #}
+  <button type="button" class="so-cal-tog" id="soCalTog" aria-expanded="false" aria-controls="soSplitLeft">📅 달력·임박 납기 펼치기</button>
   {# 좌우 2단 #}
   {% set _cm = cal_months|default([]) %}
   {% set _nav = cal_nav|default({}) %}
@@ -240,7 +253,7 @@ body {
   {% set _dd = due_date|default('') %}
   <div class="split" data-dn="split">
     {# 좌측: 캘린더 1개월 + 임박납기 #}
-    <div class="col-left" data-dn="split-left" data-dn-tone="purple">
+    <div class="col-left" id="soSplitLeft" data-dn="split-left" data-dn-tone="purple">
       {% if _cm %}
       {% set m = _cm[0] %}
       <div class="cal-card" data-dn="calendar">
@@ -377,6 +390,34 @@ body {
     </div>
   </div>
 
+<script>
+/* z1191z192 B: 좁은 폭 = 표 먼저 · 달력 접기/펼치기(이 기기에 기억) · 목록 상자 화면 남은 높이 채움(넓은 PC 는 좌우 2단 높이 그대로) */
+(function () {
+  var split = document.querySelector('.split'), tog = document.getElementById('soCalTog'), ls = document.querySelector('.list-scroll');
+  if (!split || !tog) return;
+  var KEY = 'knk_so_cal_open_z192', mq = window.matchMedia('(max-width:1100px)');
+  function setOpen(o) {
+    split.classList.toggle('so-cal-open', o);
+    tog.setAttribute('aria-expanded', o ? 'true' : 'false');
+    tog.textContent = o ? '📅 달력·임박 납기 접기' : '📅 달력·임박 납기 펼치기';
+  }
+  function fit() {
+    if (!ls) return;
+    if (mq.matches) { ls.setAttribute('data-knk-fill', ''); ls.setAttribute('data-knk-fill-min', '300'); }
+    else { ls.removeAttribute('data-knk-fill'); ls.removeAttribute('data-knk-fill-min'); ls.style.maxHeight = ''; }
+    try { window.knkFill && window.knkFill(); } catch (e) {}
+  }
+  var saved = null; try { saved = localStorage.getItem(KEY); } catch (e) {}
+  setOpen(saved === '1');
+  tog.addEventListener('click', function () {
+    var o = !split.classList.contains('so-cal-open'); setOpen(o);
+    try { localStorage.setItem(KEY, o ? '1' : '0'); } catch (e) {}
+    fit();
+  });
+  if (mq.addEventListener) mq.addEventListener('change', fit); else if (mq.addListener) mq.addListener(fit);
+  fit(); window.addEventListener('load', fit);
+})();
+</script>
 <script>
 /* v5H226z125 (2026-05-31): 좌우 패널 폭 드래그 조절 (대표 지시).
    핸들을 좌우로 끌면 좌측(달력/예정) 폭 조절 → 저장(localStorage). 더블클릭=기본 430px. */

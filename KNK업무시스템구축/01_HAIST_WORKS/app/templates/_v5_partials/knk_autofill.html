@@ -47,7 +47,9 @@
         } else {
           var topM = el.getBoundingClientRect().top;
           var hM = Math.round(vh - topM - GUTTER_MH);
-          if (hM < FLOOR) hM = FLOOR;
+          /* z1191z192 B-1: 화면마다 최소 높이를 따로(data-knk-fill-min) — 위에 거르기 줄이 많은 화면은 340 이면 상자 아래가 화면 밖(두 번 스크롤) */
+          var fl = parseInt(el.getAttribute('data-knk-fill-min'), 10); if (!(fl > 0)) fl = FLOOR;
+          if (hM < fl) hM = fl;
           el.style.maxHeight = hM + 'px';                   /* height 아님 → 내용 적으면 줄어듦(빈 공간 없음) */
         }
       }
@@ -59,6 +61,8 @@
   window.addEventListener('resize', schedule);
   window.addEventListener('orientationchange', schedule);
   window.addEventListener('load', schedule);
+  /* z1191z192 B: 메뉴로 옮겨 와 본문만 바뀐 때(spa_nav)도 다시 잰다 — 전에는 처음 열 때만 돌아 상자 높이가 기본값(340 또는 화면 규칙)으로 남았다 */
+  document.addEventListener('knk:navigated', function(){ schedule(); setTimeout(schedule, 300); });
   document.addEventListener('fullscreenchange', schedule);
   document.addEventListener('webkitfullscreenchange', schedule);
   /* 접이식 도구모음(신고서류·박스 등) 펼침/접힘 → 표 시작위치 변화 → 재계산 */

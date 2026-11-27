@@ -28,6 +28,20 @@
     background: var(--knk-bg-surface, var(--paper, #FAFBF9));
     box-shadow: 0 1px 0 var(--knk-border-subtle, #E2E6E1);
   }
+  /* z1191z192 B (대표 결정 1 · 11-27 「제목 띠 고정은 그대로 · 높이 통일(안내 줄 접기)」):
+     ① 제목 바로 아래 「글자만 있는 안내 줄」(링크·단추·입력·꾸민 칸이 없는 줄)은 한 줄로 접고 끝에 「…」 — 누르면 펼치고 다시 누르면 접는다(글은 그대로 · 숨김 아님).
+        그리기 전에 정해지게 스크립트 없이 CSS 만으로(knk-smooth-page ④ — 그린 뒤 접으면 줄이 출렁인다) · 이동 경로·날짜 줄(제목 위)은 그대로. */
+  .main .page-head .page-title ~ :is(.page-meta, .page-sub):not(:has(a, button, input, select, textarea, label, [class])),
+  .main .knk-page-head .knk-page-title ~ :is(.knk-page-meta, p):not(:has(a, button, input, select, textarea, label, [class])) {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; cursor: pointer;
+  }
+  .main .page-head .page-title ~ :is(.page-meta, .page-sub).knk-head-open,
+  .main .knk-page-head .knk-page-title ~ :is(.knk-page-meta, p).knk-head-open { display: block; -webkit-line-clamp: unset; }   /* 같은 무게 · 뒤에 있어 이김(강제 표시 안 씀) */
+}
+/* ② 좁은 창(768~1023px): v5_main.css 가 제목 띠를 세로(제목 → 단추 줄)로 쌓아 넓은 창보다 44px 이상 높았다(892 에서 92~253px).
+      넓은 창과 같이 가로 배치 · 자리가 모자랄 때만 단추가 아랫줄로(flex-wrap). 휴대폰(767 이하)은 그대로 세로. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .main .page-head:not(.knk-head-free) { flex-direction: row; flex-wrap: wrap; }   /* 세로 맞춤은 v5_main.css(위쪽 맞춤) 그대로 — 이 틀은 강제 표시를 안 씀(z106 시험) */
 }
 </style>
 <script>
@@ -64,7 +78,8 @@
     var m = document.querySelector('main.main, .main'); if (!m) return;
     var hs = m.querySelectorAll('.knk-page-head, .page-head');   /* 한 화면에 제목 띠가 둘 이상이면 첫 번째만 고정 */
     for (var k = 1; k < hs.length; k++) hs[k].classList.add('knk-head-free');
-    var h = (mq && !mq.matches) ? null : headOf(m), hh = h ? Math.round(h.getBoundingClientRect().height) : 0;
+    var h = (mq && !mq.matches) ? null : headOf(m);
+    var hh = h ? Math.round(h.getBoundingClientRect().height) : 0;
     if (!h) { for (var q = 0; q < stuck.length; q++) { stuck[q].style.top = (parseFloat(stuck[q].getAttribute('data-knk-top0')) || 0) + 'px'; } stuck = []; return; }   /* 고정할 제목이 없으면 아무것도 바꾸지 않음 */
     /* 넓은 화면(1024px 이상): 본문(.main)이 스크롤 → 본문 위 여백(padding-top)만큼 위로 붙임(틈으로 내용이 비치지 않게).
        좁은 화면(1023px 이하 · v5_main.css): 화면 전체(몸통)가 스크롤 → 위 상단바(고정) 바로 아래에 붙임
@@ -95,6 +110,14 @@
       stuck[j].style.top = (mainScrolls ? (t0 + Math.max(0, hh - pt)) : (Math.max(t0, off) + hh)) + 'px';
     }
   }
+  /* z1191z192 B ①: 접힌 안내 줄을 누르면 펼침/접힘(사용자가 누를 때만 · 그린 뒤 저절로 바꾸지 않음) */
+  var FOLD_SEL = '.page-head .page-title ~ .page-meta, .page-head .page-title ~ .page-sub, .knk-page-head .knk-page-title ~ .knk-page-meta, .knk-page-head .knk-page-title ~ p';
+  document.addEventListener('click', function(ev){
+    var e = ev.target && ev.target.closest && ev.target.closest(FOLD_SEL); if (!e || !e.closest('.main')) return;
+    if (ev.target.closest('a, button, input, select, textarea, label')) return;
+    e.classList.toggle('knk-head-open');
+    later();   /* 제목 띠 높이가 바뀌었으니 아래 고정 칸 위치 다시 */
+  });
   var tm = null; function later(){ clearTimeout(tm); tm = setTimeout(fix, 150); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fix); else fix();
   window.addEventListener('load', later); window.addEventListener('resize', later);

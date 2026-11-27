@@ -47,7 +47,7 @@
       <div class="ar-kpi"><div class="l">고객사</div><div class="v">{{ k.n_cust or 0 }}곳 <span style="font-size:12px;color:#b91c1c;">· 지남 {{ k.n_over_cust or 0 }}곳</span></div></div>
       <div class="ar-kpi red"><div class="l">가장 오래 지남</div><div class="v">{{ k.max_over or 0 }}일</div></div>
     </div>
-    <div class="tbl-wrap tbl-sticky" data-dn="ar-table">
+    <div class="tbl-wrap tbl-sticky" data-dn="ar-table" data-knk-fill data-knk-fill-min="220">{# z1191z192 B-1: 화면 남은 높이 채움 #}<script>/* z1191z192: 그리기 전에 상자 높이 정함(그린 뒤 바뀌면 출렁임 · knk-smooth-page) */try{window.knkFill&&window.knkFill();}catch(e){}</script>
       {% if custs %}
       <table class="ar-t">
         <thead><tr>
