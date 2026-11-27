@@ -1917,7 +1917,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   if (window.__knkPhoneAppBound) return; window.__knkPhoneAppBound = true;
   function standalone(){ try { if (window.matchMedia('(display-mode: standalone)').matches) return true; } catch(e){} return navigator.standalone === true; }
   function mobile(){ try { return window.matchMedia('(pointer:coarse)').matches; } catch(e){ return false; } }
-  function sync(){ var b = document.getElementById('knkPhoneAppBtn'); if (b) b.style.display = standalone() ? 'none' : ''; }
+  /* z1191z175 (대표 11-27 「📲 아이콘이 안 보이는데」): PC 에 설치한 WORKS 앱 창에서도 보여야 함(휴대폰 설치 QR) — 휴대폰 앱으로 열렸을 때만 숨김 */
+  function sync(){ var b = document.getElementById('knkPhoneAppBtn'); if (b) b.style.display = (standalone() && mobile()) ? 'none' : ''; }
   window.knkPhoneApp = function(ev){
     if (ev && ev.preventDefault) ev.preventDefault();
     if (mobile()) {   /* 휴대폰: 바로 설치 창(없으면 설치 안내 — 아이폰은 홈 화면에 추가) */
