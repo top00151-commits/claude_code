@@ -76,6 +76,7 @@
           {% if rep.checks_ok %}<span class="rp-ok">✅ 합계 맞춤 — 사업부·구분·고객사·프로젝트 합 = 총합(1원 아래)</span>
           {% else %}<span class="rp-bad">⚠ 합계가 맞지 않습니다 {{ rep.checks }}</span>{% endif %}
           {% if rep.missing_fx %}<span class="rp-bad">⚠ 환율 미입력: {{ rep.missing_fx|join(', ') }} (원화 0 처리)</span>{% endif %}
+          {# z1191z181 ⑤ #}{% if rep.od_fb181 %}<span style="color:#b45309;font-weight:700;" title="{% for x in rep.od_fb181 %}{{ x.so }}({{ x.code }}) 처음 등록 발주일 {{ x.pdate }}{% if not loop.last %} · {% endif %}{% endfor %}">📅 수주 발주일이 빈 수주 {{ rep.od_fb181|length }}건 — 처음 등록 발주일로 셈(금액은 그대로): {% for x in rep.od_fb181[:5] %}<a href="/project/{{ x.pid }}" style="color:inherit;">{{ x.so }}</a>({{ x.pdate }}){% if not loop.last %} · {% endif %}{% endfor %}{% if rep.od_fb181|length > 5 %} 외 {{ rep.od_fb181|length - 5 }}건{% endif %} 👉 수주에 발주일을 넣어 주세요</span>{% endif %}
           {% if rep.fx_fallback %}<span class="rp-bad" style="font-weight:600;">⚠ 기준환율 미입력 달: {% for f in rep.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산){% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
         </div>
       </div>

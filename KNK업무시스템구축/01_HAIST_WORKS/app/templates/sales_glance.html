@@ -133,6 +133,7 @@ body { --g-line:#e2e8f0; --g-ink:#0f172a; --g-ink2:#334155; --g-ink3:#64748b; --
       </select>
       <span>· 금액은 <b>억·만 원</b>으로 줄여 보입니다(마우스를 올리면 정확한 원 단위) · 공급가(부가세 제외) · 외화는 발주한 달 기준환율로 원화</span>
     </div>
+    {% if s3.od_fb181 %}<div class="z75-warn">{# z1191z181 ⑤ #}{% if s3.od_fb181 %}<span style="color:#b45309;font-weight:700;" title="{% for x in s3.od_fb181 %}{{ x.so }}({{ x.code }}) 처음 등록 발주일 {{ x.pdate }}{% if not loop.last %} · {% endif %}{% endfor %}">📅 수주 발주일이 빈 수주 {{ s3.od_fb181|length }}건 — 처음 등록 발주일로 셈(금액은 그대로): {% for x in s3.od_fb181[:5] %}<a href="/project/{{ x.pid }}" style="color:inherit;">{{ x.so }}</a>({{ x.pdate }}){% if not loop.last %} · {% endif %}{% endfor %}{% if s3.od_fb181|length > 5 %} 외 {{ s3.od_fb181|length - 5 }}건{% endif %} 👉 수주에 발주일을 넣어 주세요</span>{% endif %}</div>{% endif %}
     {% if s3.missing_fx or s3.fx_fallback %}
     <div class="z75-warn">⚠ {% if s3.missing_fx %}환율 미입력: {{ s3.missing_fx|join(', ') }}(원화 0으로 계산) {% endif %}{% if s3.fx_fallback %}기준환율 미입력 달: {% for f in s3.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산 중){% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</div>
     {% endif %}

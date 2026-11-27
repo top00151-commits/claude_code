@@ -199,6 +199,21 @@
         if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _sh178); else setTimeout(_sh178, 60); }
       else sessionStorage.removeItem('_knkTcw178'); }
   }catch(e){}
+  // z1191z181: 폼 저장(등록·정보 수정) 뒤 돌아온 주소에 ?tcw178=수주id 가 있으면 서버에 다시 물어(ack 끝난 수주는 서버가 뺌) 같은 노란 상자 ·
+  //   주소의 표시는 바로 지움(새로고침해도 다시 묻지 않음 · 상자는 위 sessionStorage 로 20초 유지)
+  try{
+    var _q181 = (location.search || '').match(/[?&]tcw178=([0-9,]+)/);
+    if(_q181 && window.fetch){
+      try{ var _u181 = location.pathname + location.search.replace(/([?&])tcw178=[0-9,]*&?/, '$1').replace(/[?&]$/, '') + location.hash; history.replaceState(history.state, '', _u181); }catch(_e181){}
+      var _f181 = function(){
+        window.fetch('/api/trade-ccy-warn?oids=' + encodeURIComponent(_q181[1]), {credentials:'same-origin'})
+          .then(function(r){ return r.json(); })
+          .then(function(j){ if(j && j.trade_ccy_warn && j.trade_ccy_warn.length) tcwShow(j.trade_ccy_warn, true); })
+          .catch(function(){});
+      };
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _f181); else setTimeout(_f181, 60);
+    }
+  }catch(e){}
   document.addEventListener('click', function(e){
     var t = e.target;
     var x = t && t.closest && t.closest('#knkTcw178 .tcw-x');

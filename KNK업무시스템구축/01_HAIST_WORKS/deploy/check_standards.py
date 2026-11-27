@@ -1450,10 +1450,12 @@ Z165_TPL_RE = re.compile(r"\b(?:p|proj|project)\.(?:%s)\b" % Z165_FIELDS)
 Z165_PY_RE = re.compile(r"\b(?:p|proj|project|prow|_p0|_pj)\.get\(\s*[\"'](?:%s)[\"']" % Z165_FIELDS)
 # 2026-11-27 규칙 만들 때 센 개수(z1191z165 로 고친 화면은 이미 뺀 뒤) — 늘리지 말 것 · 그 화면을 수주 기준으로 옮기면 줄일 것
 #   main.py 54 = 등록·일괄 내려받기(작업일정표 엑셀·제품 일괄)·옛 수주 칸 채우기 기본값 등 · project_detail/project_form = 등록 정보 화면
-Z165_BASE = {"main.py": 54, "project_detail.html": 18, "project_form.html": 8, "product_bulk_import.html": 4,
-             "po_detail.html": 3, "admin.html": 2, "prod_request_edit.html": 2, "progress_dashboard.html": 2,
-             "docs_board_z150.html": 1, "mail_view_body.html": 1, "po_form.html": 1, "progress_detail.html": 1,
-             "projects.html": 1, "sales_dashboard.html": 1}
+#   z1191z181 (11-27): 99 → 90 — 진행 대시보드·진행 상세·관리자 프로젝트 표(고객·금액)·견적서·발주서 책갈피 고객·제작요청서 묶음 후보(발주일) = 수주 기준 ·
+#     옛 매출 강화 대시(고객 묶음 줄 · 관리번호 아님) = z165-ok · project_detail 18 → 17 = 이미 고쳐져 있던 1곳 숫자 맞춤
+Z165_BASE = {"main.py": 53, "project_detail.html": 17, "project_form.html": 8, "product_bulk_import.html": 4,
+             "po_detail.html": 3, "prod_request_edit.html": 2,
+             "mail_view_body.html": 1, "po_form.html": 1,
+             "projects.html": 1}
 
 
 def check_z165_first_value(files=None, tpl_dir=None, py_files=None):

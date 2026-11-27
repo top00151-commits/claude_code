@@ -13788,8 +13788,13 @@ def progress_matrix(biz_div: str = "", customer: str = "", status: str = "",
         sql += " AND biz_div = ?"
         params.append(biz_div)
     if customer:
-        sql += " AND customer_name LIKE ?"
-        params.append(f"%{customer}%")
+        # z1191z181 (대표 11-27 「남은 처음 등록 값」): 고객사로 찾기 = 수주 1차 고객(정식명·시스템명 · 취소 빼고) —
+        #   수주가 하나도 없는 관리번호만 등록 고객 이름으로.
+        sql += (" AND (id IN (SELECT o.project_id FROM orders o JOIN customers cu ON cu.id=o.customer_id "
+                "WHERE UPPER(COALESCE(o.status,''))<>'CANCELLED' AND (cu.name LIKE ? OR COALESCE(cu.alias,'') LIKE ?)) "
+                "OR (customer_name LIKE ? AND NOT EXISTS (SELECT 1 FROM orders o2 WHERE o2.project_id=projects.id "
+                "AND UPPER(COALESCE(o2.status,''))<>'CANCELLED')))")
+        params += [f"%{customer}%"] * 3
     if status:
         sql += " AND status = ?"
         params.append(status)

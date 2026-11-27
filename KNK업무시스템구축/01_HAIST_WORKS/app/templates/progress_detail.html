@@ -15,7 +15,7 @@
   <div class="page-head">
     <div><div class="crumbs"><a href="/progress">진행</a> · <b>{{ project.mgmt_code|default(project.name) }}</b></div>
     <h1 class="page-title">📊 {{ project.name }}</h1>
-    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">관리코드 <b>{{ project.mgmt_code }}</b> · 고객사 {{ (cust_alias|default({},true)).get(project.customer_id) or project.customer_name|default('—') }}</div></div>
+    <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">관리코드 <b>{{ project.mgmt_code }}</b> · {% set _s181 = z165_so(project.id) %}{# z1191z181: 고객사 = 수주마다 · 수주 없으면 등록 고객 #}{% if _s181.n %}<span title="수주별 1차 고객사: {{ _s181.cust_all or '—' }}{% if _s181.n_cust_missing %} · 고객 미정 수주 {{ _s181.n_cust_missing }}건{% endif %}">고객사 {% if _s181.custs %}{{ _s181.custs[0] }}{% if _s181.custs|length > 1 %} <span style="color:#64748b;font-size:11px;font-weight:400;">외 {{ _s181.custs|length - 1 }}곳</span>{% endif %}{% else %}<span style="color:#b45309;">⚠ 고객 미정(확인 필요)</span>{% endif %}</span>{% else %}고객사 {{ (cust_alias|default({},true)).get(project.customer_id) or project.customer_name|default('—') }}{# z165-ok: 수주 없는 관리번호만 #}{% endif %}</div></div>
     <div style="display:flex;gap:8px;">
       <a class="btn btn-secondary" href="/progress/{{ project.id }}/gantt">📅 Gantt</a>
       <a class="btn btn-secondary" href="/progress/{{ project.id }}/burndown">📉 Burndown</a>

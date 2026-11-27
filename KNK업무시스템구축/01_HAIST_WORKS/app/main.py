@@ -13861,28 +13861,37 @@ async def customers_list(req: Request):
                           COALESCE(cu.is_active, 1) AS is_active,
                           COALESCE(cu.is_overseas, 0) AS is_overseas,
                           COALESCE(cu.tier_score, 0) AS tier_score,
-                          cu.tier_computed_at,
-                          COUNT(DISTINCT p.id) AS proj_count,
-                          COALESCE(SUM(p.order_amount), 0) AS total_amount,
-                          MAX(p.order_date) AS last_order
+                          cu.tier_computed_at
                    FROM customers cu
-                   LEFT JOIN projects p ON p.customer_id = cu.id
-                   GROUP BY cu.id
-                   ORDER BY tier_score DESC, total_amount DESC, cu.name"""
+                   ORDER BY tier_score DESC, cu.name"""
             ).fetchall()
             customers = [dict(r) for r in rows]
-            # z1097b (대표 지시 2026-09-10): 위 SUM 은 통화를 안 본다 — 달러 프로젝트가
+            # z1191z181 (대표 11-27 「남은 처음 등록 값」): 건수·금액·최근 발주 = 수주마다 1차 고객(orders.customer_id · 취소 빼고) —
+            #   관리번호 처음 등록 고객(projects.customer_id)으로 세면 수주 고객이 다른 관리번호가 첫 고객에게 몰렸다.
+            #   수주가 하나도 없는 관리번호(제안·미확정)만 등록 고객으로 센다. 금액 = 수주 금액(발주 달 기준환율 원화 · z1097b).
+            _src181 = [dict(r) for r in c.execute(
+                "SELECT o.customer_id AS cid, o.project_id AS pid, UPPER(COALESCE(NULLIF(TRIM(o.currency),''),'KRW')) AS currency, "
+                "COALESCE(o.total_amount,0) AS order_amount, NULLIF(TRIM(o.order_date),'') AS order_date, NULLIF(TRIM(o.due_date),'') AS due_date "
+                "FROM orders o WHERE o.customer_id IS NOT NULL AND o.project_id IS NOT NULL AND UPPER(COALESCE(o.status,''))<>'CANCELLED' "
+                "UNION ALL "
+                "SELECT p.customer_id, p.id, UPPER(COALESCE(NULLIF(TRIM(p.currency),''),'KRW')), COALESCE(p.order_amount,0), "
+                "NULLIF(TRIM(p.order_date),''), NULLIF(TRIM(p.due_date),'') FROM projects p WHERE p.customer_id IS NOT NULL "
+                "AND NOT EXISTS (SELECT 1 FROM orders o2 WHERE o2.project_id=p.id AND UPPER(COALESCE(o2.status,''))<>'CANCELLED')").fetchall()]
+            _by = {}
+            for _r in _src181:
+                _by.setdefault(_r["cid"], []).append(_r)
+            for _cu in customers:
+                _l181 = _by.get(_cu["id"], [])
+                _cu["proj_count"] = len({x["pid"] for x in _l181})
+                _cu["so_count"] = len(_l181)
+                _cu["total_amount"] = sum(float(x["order_amount"] or 0) for x in _l181)
+                _cu["last_order"] = max([str(x["order_date"])[:10] for x in _l181 if x["order_date"]] or [None])
+            customers.sort(key=lambda x: (-(x.get("tier_score") or 0), -(x.get("total_amount") or 0), x.get("name") or ""))
+            # z1097b (대표 지시 2026-09-10): 위 합은 통화를 안 본다 — 달러 수주가
             #   '원'인 양 더해져 **정렬 순서가 뒤집힌다**(화면에 숫자로 나오지는 않는다).
             #   원화 환산 합계(total_krw)를 따로 만들어 그 기준으로 다시 세운다.
             try:
                 _rt = _fx_load_rates(c)
-                _pr = [dict(r) for r in c.execute(
-                    "SELECT customer_id AS cid, COALESCE(currency,'KRW') AS currency, "
-                    "COALESCE(order_amount,0) AS order_amount, order_date, due_date "
-                    "FROM projects WHERE customer_id IS NOT NULL").fetchall()]
-                _by = {}
-                for _r in _pr:
-                    _by.setdefault(_r["cid"], []).append(_r)
                 for _cu in customers:
                     _bd = _ccy_breakdown(_by.get(_cu["id"], []), "order_amount", "currency",
                                          date_keys=("order_date", "due_date"), rates=_rt)
@@ -14313,7 +14322,9 @@ async def admin_page(req: Request):
                LEFT JOIN customers cu ON p.customer_id=cu.id ORDER BY p.id DESC"""
         ).fetchall()]
         customers = [dict(r) for r in c.execute("SELECT * FROM customers ORDER BY " + _TIER_ORDER_SQL + ", name").fetchall()]
-    return ctx(req, "admin.html",
+    # z1191z181 (대표 11-27 「남은 처음 등록 값」): 프로젝트 표 고객사·수주액 = 수주마다(공용 orders_summary · 화면에 보이는 50건만)
+    _so181 = _z165_so_map([p["id"] for p in projects[:50]])
+    return ctx(req, "admin.html", so165=_so181,
                user=u, teams=teams, users=users, projects=projects, customers=customers,
                active="admin", can_work_patterns=can_view_work_patterns(u))
 
@@ -33156,6 +33167,35 @@ SALES_CCY_ITEM = ("COALESCE(NULLIF(TRIM(oi.currency),''),NULLIF(TRIM(o.currency)
                   "NULLIF(TRIM(p.currency),''))")                                     # 호기 통화(①②③ 공통)
 
 
+def _z181_od_fb(c, sel_year=None, mode="year", sel_q="1", sel_m="1"):
+    """z1191z181 (대표 11-27 「남은 처음 등록 값」 ⑤): 수주매출이 수주 발주일이 아니라 관리번호 처음 등록 발주일로 세어진 수주 —
+    호기·수주 발주일이 모두 비고 관리번호 발주일만 있는 살아 있는 호기(SALES_DD_ORDER 의 마지막 대신 쓰기).
+    계산은 그대로 둔다(금액 합계가 바뀌면 안 됨) — 화면에 「처음 등록 발주일로 셈」을 밝혀 수주에 발주일을 넣게 한다.
+    sel_year 를 주면 그 해·기간(연간/분기/월)에 들어간 것만. 반환 [{oid, so, code, pid, pdate, n}] (관리번호 순)."""
+    out = []
+    try:
+        for r in c.execute(
+                "SELECT o.id, COALESCE(o.order_no,''), COALESCE(p.mgmt_code,''), p.id, substr(TRIM(p.order_date),1,10), COUNT(*) "
+                "FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN projects p ON p.id=o.project_id "
+                "WHERE COALESCE(o.status,'')<>'CANCELLED' AND COALESCE(p.is_archived,0)=0 AND COALESCE(oi.unit_status,'')<>'취소' "
+                "AND NULLIF(TRIM(oi.order_date),'') IS NULL AND NULLIF(TRIM(o.order_date),'') IS NULL "
+                "AND NULLIF(TRIM(p.order_date),'') IS NOT NULL "
+                "GROUP BY o.id ORDER BY p.mgmt_code, o.id").fetchall():
+            pd_ = str(r[4] or "")
+            if sel_year:
+                if pd_[:4] != str(sel_year):
+                    continue
+                try:
+                    if not _sales_period_ok(int(pd_[5:7]), mode, sel_q, sel_m):
+                        continue
+                except Exception:
+                    continue
+            out.append({"oid": r[0], "so": r[1] or ("수주 %d" % r[0]), "code": r[2], "pid": r[3], "pdate": pd_, "n": r[5]})
+    except Exception as _e:
+        print(f"[z1191z181] 처음 등록 발주일로 센 수주 찾기 실패(화면 알림만 생략): {_e}")
+    return out
+
+
 def _z40_period_range(mode, sel, sel_q, sel_m):
     """z1191z40: 매출 홈 ⓘ 설명에 쓰는 기간 — 연간 2026 → '2026-01-01 ~ 2026-12-31' (분기·월도 같은 꼴)."""
     try:
@@ -33590,6 +33630,7 @@ async def sales_dashboard(request: Request):
         rates = _fx_load_rates(c)   # z900: 월 기준환율(각 기준월 원화 환산)
         s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m)
         s3["biz_merged"] = _z179_biz_merged(s3.get("biz_rows"))   # z1191z179: 화면 사업부 줄(소모품 = 그 사업부 안 「└ 소모품」)
+        s3["od_fb181"] = _z181_od_fb(c, s3.get("sel_year"), mode, sel_q, sel_m)   # z1191z181 ⑤: 처음 등록 발주일로 센 수주(계산 그대로 · 화면에 밝힘)
         open_proj = _z40_open_projects(c)   # z1191z40: 진행 프로젝트 = 출하 전 품목이 남은 프로젝트(+ 목록 창)
         # 최근 프로젝트 — 참고 목록(그 프로젝트의 계약금액을 원화 환산해 표시)
         _miss = set()
@@ -33857,6 +33898,7 @@ async def sales_glance_page(request: Request):
             s3 = _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=lines)
             _sales_3way(c, rates, oi_map, "year", sel_year, sel_q, sel_m, ym=ymd)
         open_proj = _z40_open_projects(c)
+        s3["od_fb181"] = _z181_od_fb(c, s3.get("sel_year"), mode, sel_q, sel_m)   # z1191z181 ⑤
     s3["biz_merged"] = _z179_biz_merged(s3.get("biz_rows"))   # z1191z179
     G = _z75_glance(s3, lines, ymd, mode, sel_year, sel_q, sel_m, today)
     _late = [p for p in (open_proj.get("projects") or []) if p.get("due") and p["due"] < today.isoformat()]
@@ -34539,6 +34581,7 @@ def sales_report_z17(request: Request):
     with db_session() as c:
         rates = _fx_load_rates(c)
         rep = _sales_report_z17(c, rates, oi_map, basis, mode, sel_year, sel_q, sel_m)
+        rep["od_fb181"] = _z181_od_fb(c, rep.get("sel_year"), mode, sel_q, sel_m)   # z1191z181 ⑤: 처음 등록 발주일로 센 수주(계산 그대로)
         # z1191z104 (대표 11-22): 상세 줄의 외화 → 원화 칸에 마우스 → 몇 월 기준환율·얼마(화면에 보이는 3,000줄만)
         # z1191z115 (대표 11-23 「발주달로 통일」): 외화 환율 = 어느 기준(계산서·출하·발주)으로 보든 발주 달
         _b104 = "발주 달 기준(외화는 모두 발주 달 환율 · 대표 11-23)"
@@ -46806,6 +46849,76 @@ def _tcm178_json(payload, warns, status_code=200):
     return r
 
 
+# z1191z181 (대표 11-27 「저장 순간 알림이 없는 길 3곳」): 폼 제출(새 관리번호 등록 · 프로젝트 정보 수정)·엑셀 일괄 등록 확정도
+#   저장 뒤 통화·거래구분이 안 맞으면 알림. 판정은 같은 한 곳(project_workflow.trade_ccy_mismatch) · 저장은 막지 않음 ·
+#   「이번 저장으로 새로 생겼거나 내용이 바뀐」 불일치만(저장 전 지문과 비교) · 이미 「확인했음」 한 것은 안 띄움.
+#   폼 제출 = 돌아가는 주소(/project/N)에 ?tcw178=수주id 하나 → 공용 knk_busy 가 /api/trade-ccy-warn 으로 다시 물어 노란 상자.
+_TCW_KEYS181 = ("order_id", "order_no", "project_id", "mgmt_code", "currency", "kind", "msg", "hint", "items_txt", "n", "sig")
+
+
+def _tcm181_snap(pids=None):
+    """저장 전 — 지금 안 맞는 수주 {수주 id: 지문}(확인한 것 포함 · 읽기만). pids=None 이면 전부. 실패하면 None(알림 생략)."""
+    try:
+        with db_session() as c:
+            return {w["order_id"]: w["sig"] for w in _pwf.trade_ccy_mismatch(c, project_ids=pids)}
+    except Exception as _e:
+        print(f"[z1191z181] 통화·거래구분 저장 전 읽기 실패(알림만 생략 · 저장은 그대로): {_e}")
+        return None
+
+
+def _tcm181_new_warns(before, pids=None):
+    """저장 뒤 — 이번 저장으로 새로 생겼거나 내용(지문)이 바뀐 불일치 중 「확인했음」 전인 것."""
+    if before is None:
+        return []
+    try:
+        with db_session() as c:
+            ws = _pwf.trade_ccy_mismatch(c, project_ids=pids)
+        return [{k: w[k] for k in _TCW_KEYS181} for w in ws if not w["acked"] and before.get(w["order_id"]) != w["sig"]]
+    except Exception as _e:
+        print(f"[z1191z181] 통화·거래구분 저장 뒤 읽기 실패(알림만 생략 · 저장은 그대로): {_e}")
+        return []
+
+
+def _tcm181_mark(resp, warns):
+    """폼 제출 응답(상세로 돌아가는 RedirectResponse) — 돌아가는 주소에 tcw178=수주id 를 붙인다. 그 밖의 응답은 그대로."""
+    try:
+        if not warns or not isinstance(resp, RedirectResponse):
+            return resp
+        loc = str(resp.headers.get("location") or "")
+        if not loc.startswith("/project/"):
+            return resp
+        base, hsh = (loc.split("#", 1) + [""])[:2] if "#" in loc else (loc, "")
+        oids = ",".join(str(int(w["order_id"])) for w in warns)
+        base += ("&" if "?" in base else "?") + "tcw178=" + oids
+        resp.headers["location"] = base + (("#" + hsh) if hsh else "")
+    except Exception as _e:
+        print(f"[z1191z181] 돌아가는 주소에 알림 표시 붙이기 실패(저장은 그대로): {_e}")
+    return resp
+
+
+def _tcm181_json_add(resp, warns):
+    """JSON 저장 응답(엑셀 일괄 등록 확정)에 알림 붙이기 — 저장 결과 칸은 그대로."""
+    if not warns or not isinstance(resp, JSONResponse) or resp.status_code != 200:
+        return resp
+    try:
+        import json as _json181
+        payload = _json181.loads(resp.body.decode("utf-8"))
+    except Exception:
+        return resp
+    if not isinstance(payload, dict):
+        return resp
+    return _tcm178_json(payload, warns, resp.status_code)
+
+
+@app.get("/api/trade-ccy-warn")
+async def api_trade_ccy_warn_z181(request: Request, oids: str = ""):
+    """z1191z181: 폼 저장 뒤 돌아온 화면이 묻는 곳 — 그 수주들 중 지금도 안 맞고 「확인했음」 전인 것(읽기만)."""
+    if not get_user(request):
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    ids = [int(x) for x in str(oids or "").split(",") if x.strip().isdigit()][:50]
+    return _tcm178_json({"ok": True}, _tcm178_warns(ids) if ids else [])
+
+
 @app.post("/api/trade-ccy-ack/{oid}")
 async def api_trade_ccy_ack_z178(request: Request, oid: int):
     """z1191z178: 통화·거래구분 안 맞음 「확인했음」 — 값은 바꾸지 않음 · 누가·언제 남김(수주 변경 이력 + 프로젝트 이력) ·
@@ -48095,6 +48208,13 @@ def _z22_set_so_form(pid, shipment_form, exclude_ids=None):
 
 @app.post("/projects/new")
 async def projects_new_submit(request: Request):
+    """z1191z181: 등록(새 관리번호·추가 발주) 저장 뒤 통화·거래구분이 새로 안 맞으면 상세에서 바로 노란 상자(저장은 그대로)."""
+    _b181 = _tcm181_snap() if get_user(request) else None
+    _r181 = await _projects_new_submit_core(request)
+    return _tcm181_mark(_r181, _tcm181_new_warns(_b181))
+
+
+async def _projects_new_submit_core(request: Request):
     """v5H52: project_form.html 의 실제 필드명(name/customer_name 등)과
     정합. 콤마 들어간 KRW 입력값도 자동 정리."""
     _u = get_user(request)
@@ -50197,6 +50317,13 @@ async def projects_import_xlsx(request: Request, xlsx: UploadFile = File(...),
 
 @app.post("/projects/import-confirm")
 async def projects_import_confirm(request: Request):
+    """z1191z181: 엑셀 일괄 등록 확정 뒤 통화·거래구분이 새로 안 맞는 수주 → 응답 trade_ccy_warn(공용 노란 상자 · 저장은 그대로)."""
+    _b181 = _tcm181_snap() if get_user(request) else None
+    _r181 = await _projects_import_confirm_core(request)
+    return _tcm181_json_add(_r181, _tcm181_new_warns(_b181))
+
+
+async def _projects_import_confirm_core(request: Request):
     """미리보기 후 사용자 확정 → 일괄 INSERT (v5H152).
     body JSON: {rows: [{...}, ...]}.
     각 row 는 projects_create_logi 호출. project_type='NEW_EQUIP' 강제."""
@@ -51794,6 +51921,13 @@ async def projects_edit_form(request: Request, pid: int):
 
 @app.post("/projects/{pid}/edit")
 async def projects_edit_submit(request: Request, pid: int):
+    """z1191z181: 정보 수정 저장 뒤 이 관리번호 수주의 통화·거래구분이 새로 안 맞으면 상세에서 바로 노란 상자(저장은 그대로)."""
+    _b181 = _tcm181_snap([pid]) if get_user(request) else None
+    _r181 = await _projects_edit_submit_core(request, pid)
+    return _tcm181_mark(_r181, _tcm181_new_warns(_b181, [pid]))
+
+
+async def _projects_edit_submit_core(request: Request, pid: int):
     """v5H70: 폼 실제 필드명(name/customer_name)과 정합 + 콤마 자동 정리.
     v5H52 의 /projects/new 와 같은 패턴 — edit 도 동일 수정."""
     _u = get_user(request)
@@ -62323,6 +62457,7 @@ async def progress_dashboard_company(req: Request):
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
             """SELECT p.id, p.name, p.mgmt_code, p.status, p.start_date, p.end_date,
+                      p.customer_id, p.customer_name,
                       (SELECT COUNT(*) FROM tasks t WHERE t.project_id=p.id) AS total_t,
                       (SELECT COUNT(*) FROM tasks t WHERE t.project_id=p.id
                           AND t.status='완료') AS done_t,
@@ -62334,8 +62469,11 @@ async def progress_dashboard_company(req: Request):
                WHERE p.status IN ('진행중','진행')
                ORDER BY (p.end_date IS NULL), p.end_date ASC LIMIT 50"""
         ).fetchall()]
+    # z1191z181 (대표 11-27 「남은 처음 등록 값」): 카드 고객사·수주액 = 수주마다(공용 orders_summary) —
+    #   예전 칸은 위 SELECT 에 고객·금액이 없어 늘 「—」·수주액 안 보임이었다. 수주 없는 관리번호만 등록 고객.
+    _so181 = _z165_so_map([r["id"] for r in rows])
     return ctx(req, "progress_dashboard.html", user=u, active="progress",
-               projects=rows)
+               projects=rows, so165=_so181)
 
 
 # =====================================================

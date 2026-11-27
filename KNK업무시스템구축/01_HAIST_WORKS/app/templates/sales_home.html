@@ -303,6 +303,7 @@ a.z45-all:hover { text-decoration:underline; }
       {% if s3.missing_fx %}<span style="color:#b91c1c;font-weight:700;">⚠ 환율 미입력: {{ s3.missing_fx|join(', ') }} (해당 건은 원화 환산 0 처리)</span>{% endif %}
       {# z1164 (대표 결정 2026-10-11): 그 달 기준환율이 없으면 다른 달 환율로 계산 중임을 알린다(9·10월 미입력이 6주 동안 표시 없이 지나감) #}
       {% if s3.fx_fallback %}<span style="color:#b91c1c;font-weight:700;">⚠ 기준환율 미입력 달: {% for f in s3.fx_fallback %}{{ f.ccy }} {{ f.months|join('·') }}({{ f.applied }} 환율로 계산 중){% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
+      {# z1191z181 ⑤ #}{% if s3.od_fb181 %}<span style="color:#b45309;font-weight:700;" title="{% for x in s3.od_fb181 %}{{ x.so }}({{ x.code }}) 처음 등록 발주일 {{ x.pdate }}{% if not loop.last %} · {% endif %}{% endfor %}">📅 수주 발주일이 빈 수주 {{ s3.od_fb181|length }}건 — 처음 등록 발주일로 셈(금액은 그대로): {% for x in s3.od_fb181[:5] %}<a href="/project/{{ x.pid }}" style="color:inherit;">{{ x.so }}</a>({{ x.pdate }}){% if not loop.last %} · {% endif %}{% endfor %}{% if s3.od_fb181|length > 5 %} 외 {{ s3.od_fb181|length - 5 }}건{% endif %} 👉 수주에 발주일을 넣어 주세요</span>{% endif %}
       {% if user.role in ('admin','ceo') %}<a href="/admin/fx-rates" style="margin-left:auto;font-weight:800;color:#b45309;text-decoration:none;">💱 월 기준환율 입력 →</a>{% endif %}
     </div>
 
