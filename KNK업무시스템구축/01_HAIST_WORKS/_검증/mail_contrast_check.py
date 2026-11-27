@@ -45,6 +45,18 @@ RULES = [
     ("어둡게 밝은 상자 안 글자", r'--mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e;', "#56606e", ["#f8fafc", "#fff7ed", "#fff5f5", "#f5f7ff"]),
     ("어둡게 찾기 띠 굵은 글자", r'\.mbx-res b, html\[data-mt="dark"\] \.mbx-res-n\{ color:#f1e3a8; \}', "#f1e3a8", ["#2a2817"]),
     ("서명 미리 보기 흰 종이", r'html\[data-mt\] \.co-pv\{ background:#fff;', None, []),
+    # 11-27 2차 — 옛 디자인(v1) · 관리자 메일 화면
+    ("v2 에만 숫자 원 바탕(v1 흰 원 보호)", r'html\[data-md="v2"\]\[data-mt="dark"\] \.fbadge, html\[data-md="v2"\]\[data-mt="dark"\] \.mf-u', None, []),
+    ("v1 고른 폴더 수 흰 글자", r'html\[data-md="v1"\] \.mbx-fold\.on \.cnt\{ color:inherit !important; \}', "#ffffff", ["#a5282c"]),
+    ("v1 어둡게 이름 원·고른 폴더 수 원", r'\.mbx-fold\.on \.mf-ra\{ color:#ff8a8f !important; \}', "#ff8a8f", ["#1c1f24", "#171a1e"]),
+    ("머리띠 직책 투명도 1", r'\.mail-app-top \.me \.role\{ opacity:1; \}', "#ffffff", ["#b14649"]),
+    ("v1 어둡게 주소록 알약", r'\[data-mt="dark"\] \.mv-ct-inline\{ color:#5b21b6; \}', "#5b21b6", ["#f5f3ff"]),
+    ("어둡게 ⋯ 상자 주황 글자(두 디자인)", r'html\[data-mt="dark"\] \.mv-more-box \.warn, html\[data-mt="dark"\] \.mv-more-box \.mv-fu-row button\.x\{ color:#fdba74; \}', "#fdba74", ["#1c1f24", "#171a1e", "#282d34"]),
+    ("관리자 흰 카드 안 밝은 테마 글자", r'--mt-text:#1d2228; --mt-text2:#3f4652; --mt-mute:#5f6774; --mt-link:#2556c4;', "#5f6774", ["#ffffff", "#f8fafc", "#f8fbff", "#fffbeb", "#eff6ff"]),
+    ("관리자 카드 안 입력·보조 단추 밝은 글자", r'\.btn:not\(\.btn-primary\)\{ color:#e8ebef; \}', "#e8ebef", ["#1c1f24", "#262a30"]),
+    ("관리자 완전삭제 단추", r'\.mp-card \.btn\.danger\{ color:#ff8a8f !important; \}', "#ff8a8f", ["#262a30"]),
+    ("고른 사람 빈 칸 안내", r'\.knkp-chips-empty\{ color:#64748b; \}', "#64748b", ["#ffffff"]),
+    ("회사 서명 틀 미리 보기 흰 종이", r'html\[data-mt\] \.cs-pv\{ background:#fff;', None, []),
 ]
 
 
@@ -54,6 +66,9 @@ def check(theme_txt, contrast_txt):
     pos_c = theme_txt.find('mail_contrast.html')
     if pos_c < 0 or pos_c < pos_v2:
         bad.append("mail_theme.html 이 mail_contrast.html 을 새 디자인 다음에 불러오지 않음")
+    # 이름이 겹치는 상자(.mi-card 아웃룩 가져오기 · .mf-help 폴더 관리 · .mp-card 메일 쓰기)를 관리 화면 표시(:has) 없이 묶으면 그 화면 글자가 묻힘(11-27 2차 실측 1.03)
+    if re.search(r':is\([^)]*\.(mi-card|mf-help|mp-card)[,)]', contrast_txt):
+        bad.append("이름 겹치는 상자를 화면 표시 없이 밝은 글자 묶음에 넣음(.mi-card/.mf-help/.mp-card)")
     for name, pat, fg, bgs in RULES:
         if not re.search(pat, contrast_txt):
             bad.append("빠짐: " + name)
@@ -77,6 +92,10 @@ def main():
         ("보조 글자 되돌림", con.replace("--mt-mute:#5f6774;", "--mt-mute:#6b7380;")),
         ("숫자 원 되돌림", con.replace("background:#cc3a40 !important;", "background:#e0666b !important;")),
         ("투명도 되돌림", con.replace(".mail-app-top a{ opacity:1; }", ".mail-app-top a{ opacity:.92; }")),
+        ("v1 폴더 수 되돌림(보조 글자색)", con.replace('html[data-md="v1"] .mbx-fold.on .cnt{ color:inherit !important; }', '')),
+        ("숫자 원 바탕 v2 한정 풀림", con.replace('html[data-md="v2"][data-mt="dark"] .fbadge, html[data-md="v2"][data-mt="dark"] .mf-u', 'html[data-mt="dark"] .fbadge, html[data-mt="dark"] .mf-u')),
+        ("관리자 카드 글자 토큰 빠짐", con.replace("--mt-text:#1d2228; --mt-text2:#3f4652;", "")),
+        ("이름 겹침 상자 표시 없이", con.replace(":is(.bl-card,.ms-card,", ":is(.bl-card,.mi-card,.ms-card,", 1)),
         ("불러오기 빠짐", None),
     ]
     caught = 0
