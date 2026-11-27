@@ -65,6 +65,7 @@
     <div class="crumbs"><a href="/mail/inbox">메일</a> · 설정·정리</div>
     <h1 class="page-title">⚙ 설정·<em>정리</em></h1>
   </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
+  {% if owner_only %}<div class="alert" style="margin:8px 0;padding:10px 14px;border-radius:10px;background:var(--warn-bg,#fff7e6);color:var(--ink,#333)">📥 메일 받기 설정(바깥 메일 받는 사람·입구 열쇠)은 대표님만 바꿀 수 있습니다.</div>{% endif %}
 
   {# ① 지금 내 메일 — 정리할 것 #}
   <div class="mt-sec">🧹 지금 내 메일 <small>정리할 것이 있으면 숫자가 보이고, 단추 하나로 끝납니다</small></div>
@@ -165,7 +166,7 @@
   <details class="mt-adm"><summary>🔧 관리자 설정 ▸ <small style="font-weight:500;color:var(--mute)">처음 한 번 · 회사 전체에 영향</small></summary>
   <div class="mt-list">
     <a class="mt-row" href="/mail/blocklist"><span class="ic">⛔</span><span class="tx"><span class="t">차단 목록 관리</span><span class="d" style="display:block">회사 전체에서 막을 위험·스팸 주소</span></span><span class="arr">›</span></a>
-    <a class="mt-row" href="/admin/mail-inbound"><span class="ic">📥</span><span class="tx"><span class="t">받기 설정</span><span class="d" style="display:block">메일이 이음웍스로 들어오는 길</span></span><span class="arr">›</span></a>
+    {% if is_inbound_owner %}<a class="mt-row" href="/admin/mail-inbound"><span class="ic">📥</span><span class="tx"><span class="t">받기 설정</span><span class="d" style="display:block">메일이 이음웍스로 들어오는 길</span></span><span class="arr">›</span></a>{% endif %}
     <a class="mt-row" href="/admin/mail-send"><span class="ic">📤</span><span class="tx"><span class="t">보내기 설정</span><span class="d" style="display:block">메일을 내보내는 길(발송망)</span></span><span class="arr">›</span></a>
     <a class="mt-row" href="/admin/mail-fetch"><span class="ic">⤵</span><span class="tx"><span class="t">기존 메일 가져오기</span><span class="d" style="display:block">하이웍스 등 기존 메일을 당겨오기</span></span><span class="arr">›</span></a>
     <a class="mt-row" href="/admin/mail-purge"><span class="ic">💽</span><span class="tx"><span class="t">저장 공간 정리</span><span class="d" style="display:block">휴지통 비우기 · 오래된 메일 완전삭제 · 디스크 정리</span></span><span class="arr">›</span></a>

@@ -451,9 +451,14 @@ finally:
     sys.stdout = _so
 from starlette.testclient import TestClient  # noqa: E402
 
-check("미들웨어 순서(바깥→안): https 강제 → 메일 전용 넘김 → 압축 → 세션",
-      [getattr(x.cls, "__name__", "") for x in m.app.user_middleware] == ["BaseHTTPMiddleware", "Guard", "GZipMiddleware", "SessionMiddleware"],
-      [getattr(x.cls, "__name__", "") for x in m.app.user_middleware])
+def _mw_name(x):   # 11-27 함수형 미들웨어는 함수 이름으로(https 강제 · 메일 저장 요청 출처 확인)
+    fn = (getattr(x, "kwargs", None) or {}).get("dispatch")
+    return getattr(fn, "__name__", "") or getattr(x.cls, "__name__", "")
+
+
+check("미들웨어 순서(바깥→안): https 강제 → 메일 저장 출처 확인 → 메일 전용 넘김 → 압축 → 세션",
+      [_mw_name(x) for x in m.app.user_middleware] == ["_force_https", "_mail_origin_guard", "Guard", "GZipMiddleware", "SessionMiddleware"],
+      [_mw_name(x) for x in m.app.user_middleware])
 # 11-20 고침: 다른 기능의 기동 훅이 뒤에 더해져도(세션 01 z83 `_z83_start_tick` 등) 「DB 먼저 → 메일 입구」 순서만 확인
 _hooks = [f.__name__ for f in m.app.router.on_startup]
 check("기동 훅 순서: startup(DB) → 입구", _hooks[:1] == ["startup"] and "_mail_site_listen_start" in _hooks

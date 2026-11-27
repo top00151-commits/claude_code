@@ -196,6 +196,39 @@ from . import mail_site as _mail_site   # noqa: E402
 app.add_middleware(_mail_site.Guard)
 
 
+# 11-27 메일 저장 요청(POST 등)은 우리 화면에서 온 것만 — 다른 사이트(같은 회사 다른 주소 포함)가 로그인한 직원 브라우저로 시키는 것을 막음.
+#   출처(Origin)가 있으면 웍스·메일 주소(또는 지금 주소·내 PC)일 때만 · 없으면 브라우저가 알린 「다른 사이트에서 옴」만 막음
+#   (PC 가져오기 프로그램·Cloudflare 처럼 브라우저가 아닌 곳은 출처가 없어 그대로).
+_MAIL_POST_PREFIX = ("/mail", "/api/mail", "/admin/mail")
+_MAIL_POST_SKIP = ("/api/mail/inbound",)
+_MAIL_ORIGIN_OK = {"works.knknara.co.kr", "kmail.knknara.co.kr"}
+
+
+def _mail_origin_bad(request) -> bool:
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return False
+    p = request.url.path
+    if not p.startswith(_MAIL_POST_PREFIX) or p.startswith(_MAIL_POST_SKIP):
+        return False
+    org = (request.headers.get("origin") or "").strip()
+    if org and org != "null":
+        from urllib.parse import urlsplit as _us
+        h = (_us(org).hostname or "").lower()
+        own = (request.headers.get("host") or "").split(":")[0].lower()
+        return not (h in _MAIL_ORIGIN_OK or h == own or h in ("localhost", "127.0.0.1"))
+    if org == "null":
+        return True
+    return (request.headers.get("sec-fetch-site") or "").lower() in ("cross-site", "same-site")
+
+
+@app.middleware("http")
+async def _mail_origin_guard(request: Request, call_next):
+    if _mail_origin_bad(request):
+        print("[MAIL-ORIGIN] 다른 사이트에서 온 메일 저장 요청 막음: %s %s" % (request.method, request.url.path[:80]), flush=True)
+        return JSONResponse({"ok": False, "message": "다른 사이트에서 온 요청은 받지 않습니다. 메일 화면에서 다시 해 주세요."}, 403)
+    return await call_next(request)
+
+
 # v5H226z... http→https 강제 전환 (대표 지시 2026-06-04). 메신저와 동일 효과, FastAPI 미들웨어 방식.
 #   DSM 리버스 프록시가 원래 scheme 을 X-Forwarded-Proto 로 정확히 전달함(메신저에서 실측 확인 2026-06-04).
 #   - http 로 들어오면 https 로 301 영구 전환.
@@ -2703,6 +2736,11 @@ def _mail_vacuum_tick():
                             os.remove(os.path.join(data_dir, f))
                         except OSError as e:
                             print("[MAIL-VACUUM] 지난 표시 파일 못 지움 %s: %s" % (f, e), flush=True)
+                try:   # 11-27 기한 지난 큰 파일 지우기(기한 뒤 7일 여유 · 표의 줄은 남김)
+                    _lp = _mailbox.purge_expired_large(db_session)
+                    print("[MAIL-LARGE] 기한 지난 큰 파일 %d개 지움" % _lp, flush=True)
+                except Exception as _e:
+                    print("[MAIL-LARGE] 밤 지우기 실패(다음 밤에 다시): %s" % str(_e)[:160], flush=True)
                 _mail_vacuum_busy_and_run()
     except Exception as e:
         print("[MAIL-VACUUM tick ERR] %s" % str(e)[:200], flush=True)
@@ -24725,13 +24763,26 @@ def _mail_inbound_log(ip, to_addr, from_addr, size, result):
 _MAIL_POC_ADDR = "test@knk-mailtest.com"
 
 
+def _mail_inbound_owner(req):
+    """메일 받기 설정(토큰·바깥 메일 받는 사람)은 대표 한 사람만(11-27) — 관리자라도 안 됨."""
+    u = get_user(req)
+    if not u:
+        return None
+    try:
+        with db_session() as c:
+            return u if _mailbox.default_owner(c) == u["id"] else None
+    except Exception as _e:
+        print("[MAIL-INBOUND] 대표 확인 실패(막음): %s" % str(_e)[:120], flush=True)
+        return None
+
+
 @app.get("/admin/mail-inbound", response_class=HTMLResponse)
 async def admin_mail_inbound_page(req: Request):
-    """메일 받기 설정 (admin/ceo) — 토큰 + 받는 사람 + Cloudflare 연결 안내."""
-    u = require(req, ["admin", "ceo"])
+    """메일 받기 설정 (11-27 대표 한 사람만) — 토큰 + 받는 사람 + Cloudflare 연결 안내."""
+    u = _mail_inbound_owner(req)
     if not u:
         _au = get_user(req)
-        return RedirectResponse(role_home(_au) if _au else "/login", 303)
+        return RedirectResponse(("/mail/tools?owner_only=1" if _au else "/login"), 303)
     with db_session() as c:
         rid = _mailbox.resolve_recipient(c, _MAIL_POC_ADDR)
         rrow = c.execute("SELECT name, role FROM users WHERE id=?", (rid,)).fetchone() if rid else None
@@ -24746,10 +24797,11 @@ async def admin_mail_inbound_page(req: Request):
 
 @app.post("/admin/mail-inbound")
 async def admin_mail_inbound_gen(req: Request):
-    """새 비밀토큰 생성·저장(app_settings). 기존 토큰은 즉시 무효."""
-    u = require(req, ["admin", "ceo"])
+    """새 비밀토큰 생성·저장(app_settings). 기존 토큰은 즉시 무효. 11-27 대표 한 사람만 · 기록 남김."""
+    u = _mail_inbound_owner(req)
     if not u:
-        return RedirectResponse("/login", 303)
+        return JSONResponse({"ok": False, "message": "대표만 바꿀 수 있습니다."}, 403)
+    _mail_inbound_log("", "", "", 0, "토큰 다시 만듦(%s)" % u["id"])
     import secrets
     new_token = secrets.token_urlsafe(32)
     with db_session() as c:
@@ -24763,10 +24815,11 @@ async def admin_mail_inbound_gen(req: Request):
 @app.post("/admin/mail-inbound/bind-me")
 async def admin_mail_inbound_bind(req: Request):
     """받는 사람을 '지금 로그인한 본인' 으로 지정 — 운영 DB 동명 계정 혼동 방지.
-    ① 기본 수신자 설정 ② test@ 별칭 ③ 이미 들어온 test@ 메일을 내 메일함으로 이동."""
-    u = require(req, ["admin", "ceo"])
+    ① 기본 수신자 설정 ② test@ 별칭 ③ 이미 들어온 test@ 메일을 내 메일함으로 이동. 11-27 대표 한 사람만 · 기록 남김."""
+    u = _mail_inbound_owner(req)
     if not u:
-        return RedirectResponse("/login", 303)
+        return JSONResponse({"ok": False, "message": "대표만 바꿀 수 있습니다."}, 403)
+    _mail_inbound_log("", "", "", 0, "받는 사람 바꿈(%s)" % u["id"])
     with db_session() as c:
         c.execute("INSERT INTO app_settings(key, value) VALUES('mail_default_user_id', ?) "
                   "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(u["id"]),))
@@ -25053,7 +25106,10 @@ async def mail_tools_page(req: Request):
             st["sig_n"] = len(_mailbox.get_signatures(c, u["id"]) or [])
         except Exception:
             st["sig_n"] = 1
-    return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n, **st)
+    with db_session() as c:
+        _inb_owner = (_mailbox.default_owner(c) == u["id"])   # 11-27 받기 설정 줄 = 대표에게만
+    return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n,
+               is_inbound_owner=_inb_owner, owner_only=(req.query_params.get("owner_only") == "1"), **st)
 
 
 # ── 메일 = 설치형 앱(PWA) — KNK Eum 처럼 바탕화면/홈 아이콘으로 설치 (대표 지시 2026-06-14) ──
@@ -28880,6 +28936,18 @@ async def mail_large_upload(req: Request):
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     import os as _os, shutil as _sh
+    # 11-27 받기 전에 먼저 — 한 사람 하루 한도 · 서버 남은 공간(파일을 다 받은 뒤 거절하면 그사이 디스크를 씀)
+    with db_session() as c:
+        _dn, _db_ = _mailbox.large_today(c, u["id"])
+    if _dn >= _mailbox.LARGE_DAY_MAX_N or _db_ >= _mailbox.LARGE_DAY_MAX_BYTES:
+        return JSONResponse({"ok": False, "message": "오늘 올릴 수 있는 큰 파일 한도(하루 %d개 · %s)를 다 썼습니다. 내일 다시 올려 주세요."
+                             % (_mailbox.LARGE_DAY_MAX_N, _mailbox.human_size(_mailbox.LARGE_DAY_MAX_BYTES))}, 429)
+    try:
+        from .mail_import_outlook import disk_state as _dstate
+        if not _dstate().get("ok", True):
+            return JSONResponse({"ok": False, "message": "서버 저장 공간이 모자라 지금은 큰 파일을 받을 수 없습니다. 관리자에게 알려 주세요."}, 507)
+    except Exception as _e:
+        print("[MAIL-LARGE] 남은 공간 확인 실패(그대로 받음): %s" % str(_e)[:120], flush=True)
     form = await req.form()
     f = form.get("file")
     if not f or not hasattr(f, "read"):

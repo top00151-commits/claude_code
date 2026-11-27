@@ -2923,6 +2923,43 @@ def register_large_file(c, *, token: str, user_id: int, filename: str, mime: str
     return exp
 
 
+LARGE_DAY_MAX_N = 20                       # 11-27 한 사람 하루 큰 파일 개수
+LARGE_DAY_MAX_BYTES = 3 * 1024 ** 3        # 11-27 한 사람 하루 합계 3GB
+LARGE_PURGE_GRACE_DAYS = 7                 # 기한이 지나고 이만큼 더 지나면 파일을 지움(표의 줄은 남김)
+
+
+def large_today(c, user_id) -> tuple:
+    """오늘(한국시간 날짜) 이 사람이 올린 큰 파일 (개수, 합계 바이트)."""
+    r = c.execute("SELECT COUNT(*), COALESCE(SUM(size),0) FROM mail_large_files "
+                  "WHERE uploaded_by=? AND date(created_at)=date('now','localtime')", (user_id,)).fetchone()
+    return (int(r[0] or 0), int(r[1] or 0))
+
+
+def purge_expired_large(session) -> int:
+    """기한이 지나고 LARGE_PURGE_GRACE_DAYS 일 더 지난 큰 파일을 디스크에서 지움 — 표의 줄은 남김(path 만 비움).
+    큰 파일 보관 폴더 안의 것만 지운다. 반환 = 지운 파일 수."""
+    import shutil
+    root = os.path.realpath(_large_root())
+    with session() as c:
+        rows = c.execute("SELECT id, token, path FROM mail_large_files WHERE expires_at IS NOT NULL "
+                         "AND COALESCE(path,'')<>'' AND datetime('now','localtime') > datetime(expires_at, ?)",
+                         ("+%d days" % LARGE_PURGE_GRACE_DAYS,)).fetchall()
+    n = 0
+    for r in rows:
+        d = os.path.realpath(large_file_dir(r["token"]))
+        if not d.startswith(root + os.sep):
+            print("[MAIL-LARGE] 보관 폴더 밖 경로라 건너뜀: %s" % r["id"], flush=True)
+            continue
+        try:
+            shutil.rmtree(d, ignore_errors=True)
+            with session() as c:
+                c.execute("UPDATE mail_large_files SET path='' WHERE id=?", (r["id"],))
+            n += 1
+        except Exception as _e:
+            print("[MAIL-LARGE] 지우기 실패 %s: %s" % (r["id"], str(_e)[:120]), flush=True)
+    return n
+
+
 def get_large_file(c, token: str):
     """다운로드용 조회. 없으면 None. 만료 시 dict 에 expired=True."""
     r = c.execute(
