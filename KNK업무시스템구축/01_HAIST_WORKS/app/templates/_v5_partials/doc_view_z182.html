@@ -1,0 +1,104 @@
+{# z1191z182 공용 (대표 11-27 「제작요청서를 보는 곳에 확대·축소·한 페이지 보기·인쇄 · 이렇게 작성된 양식을 보이는 곳을 만들 때는 기본으로」 · 운영 스킬 knk-doc-view):
+   작성된 양식(종이 모양) 영역 위에 「－ / ＋ / ↔ 폭 맞춤 / ▣ 한 페이지로 보기 / 100% / 🖨 인쇄(한 장에 맞춤)」 줄을 붙인다.
+   넘길 값: dz_target = 양식 영역 CSS 선택자(예 '#z48Paper') · (선택) dz_print_css = 인쇄 창에만 더할 CSS(예: 휴대폰용 카드 숨기고 표 보이기) · dz_title = 인쇄 창 제목
+   - 확대·축소는 그 영역만(메뉴·단추는 그대로) · 보기 크기 이 컴퓨터에 기억(양식 종류마다 · dz_key)
+   - 인쇄 = 새 창에 그 영역만 담아 A4 한 장(세로·가로 저절로)에 맞춤 · 새 창 「✕ 닫기」 #}
+<div class="dz182-bar" data-dz-target="{{ dz_target }}" data-dz-key="{{ dz_key|default(dz_target) }}" data-dz-title="{{ dz_title|default('') }}" role="toolbar" aria-label="양식 보기 크기">
+  <button type="button" class="dz182-b" data-z="out" title="작게">－</button>
+  <span class="dz182-pct" title="지금 보기 크기">100%</span>
+  <button type="button" class="dz182-b" data-z="in" title="크게">＋</button>
+  <button type="button" class="dz182-b" data-z="w" title="화면 폭에 맞춤">↔ 폭 맞춤</button>
+  <button type="button" class="dz182-b" data-z="p" title="양식 한 장 전체가 화면에 들어오게">▣ 한 페이지로 보기</button>
+  <button type="button" class="dz182-b" data-z="1" title="원래 크기(100%)">100%</button>
+  <button type="button" class="dz182-b pri" data-z="print" title="종이 한 장(A4)에 맞춰 인쇄 — 가로·세로는 저절로 고름">🖨 인쇄(한 장에 맞춤)</button>
+  <textarea class="dz182-pcss" hidden>{{ dz_print_css|default('') }}</textarea>
+</div>
+<style>
+.dz182-bar { display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin:0 0 8px; font-size:12.5px; }
+.dz182-b { padding:4px 11px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.dz182-b.pri { border-color:#2563eb; background:#2563eb; color:#fff; }
+.dz182-pct { min-width:46px; text-align:center; font-weight:700; color:#334155; }
+.dz182-sc { overflow:auto; }
+@media print { .dz182-bar { display:none !important; } }
+</style>
+<script>
+(function(){
+  function setup(bar){
+    if (bar.__dz) return;
+    var tgt = document.querySelector(bar.dataset.dzTarget); if (!tgt) return;   /* 양식이 아직 안 그려졌으면 나중에 다시 */
+    bar.__dz = 1;
+    var KEY = 'dz182:' + (bar.dataset.dzKey || '');
+    /* 양식 영역을 스크롤 칸으로 감쌈(확대해도 화면 밖으로 안 나감) */
+    var sc = tgt.parentElement && tgt.parentElement.classList.contains('dz182-sc') ? tgt.parentElement : null;
+    if (!sc) { sc = document.createElement('div'); sc.className = 'dz182-sc'; tgt.parentNode.insertBefore(sc, tgt); sc.appendChild(tgt); }
+    function natural(){ var z0 = tgt.style.zoom; tgt.style.zoom = 1; var w = tgt.scrollWidth, h = tgt.scrollHeight; tgt.style.zoom = z0; return [w, h]; }
+    function apply(z, mode){
+      z = Math.max(0.2, Math.min(3, z)); tgt.style.zoom = z;
+      bar.dataset.z = z; bar.dataset.mode = mode || '';
+      bar.querySelector('.dz182-pct').textContent = Math.round(z * 100) + '%';
+      try { localStorage.setItem(KEY, mode || String(z)); } catch(e){}
+    }
+    function fit(how){
+      var n = natural(), aw = Math.max(200, sc.clientWidth - 4);
+      var ah = Math.max(200, window.innerHeight - sc.getBoundingClientRect().top - 16);
+      if (how === 'w') return Math.min(2, aw / n[0]);
+      /* 폭이 늘어나는 양식은 줄이면 다시 흘러 높이가 바뀜 → 두 번 맞춤 */
+      var z = Math.min(2, aw / n[0], ah / n[1]);
+      tgt.style.zoom = z; var h2 = tgt.getBoundingClientRect().height;
+      if (h2 > ah) z = z * ah / h2;
+      return z * 0.98;
+    }
+    function printIt(){
+      var css = '';
+      document.querySelectorAll('style').forEach(function(st){ css += st.textContent + '\n'; });
+      var links = ''; document.querySelectorAll('link[rel="stylesheet"]').forEach(function(l){ links += '<link rel="stylesheet" href="' + l.href + '">'; });
+      var extra = (bar.querySelector('.dz182-pcss') || {}).value || '';
+      var w = window.open('', '_blank');
+      if (!w) { alert('팝업이 막혀 인쇄 창을 열지 못했습니다 — 이 사이트의 팝업을 허용해 주세요.'); return; }
+      var clone = tgt.cloneNode(true); clone.style.zoom = 1;
+      w.document.open();
+      w.document.write('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>' + (bar.dataset.dzTitle || document.title || '인쇄') + '</title>' + links
+        + '<style>' + css + '\n html,body{margin:0;padding:0;background:#fff;} .pbar{padding:8px;font:13px sans-serif;} @media print{.pbar{display:none;}} #dzRoot{width:718px;transform-origin:0 0;}\n' + extra + '</style></head>'
+        + '<body><div class="pbar"><button onclick="window.print()">🖨 인쇄</button> <button onclick="window.close()">✕ 닫기</button> <span id="dzInfo"></span></div><div id="dzRoot"></div></body></html>');
+      w.document.close();
+      var root = w.document.getElementById('dzRoot'); root.appendChild(w.document.importNode(clone, true));
+      setTimeout(function(){
+        /* A4 한 장: 세로 718×1047 · 가로 1047×718(96dpi · 여백 10mm) — 더 크게 들어가는 쪽 · 3% 여유 */
+        var hP = root.scrollHeight; root.style.width = '1047px'; var hL = root.scrollHeight; root.style.width = '718px';
+        var sP = Math.min(1, 1047 / hP), sL = Math.min(1, 718 / hL);
+        var land = (1047 * sL) > (718 * sP) * 1.05;   /* 가로로 놓았을 때 글자가 더 크게 나오면 가로 */
+        if (land) root.style.width = '1047px';
+        var s = (land ? sL : sP) * 0.97;
+        root.style.zoom = s;
+        var st = w.document.createElement('style'); st.textContent = '@page{size:A4 ' + (land ? 'landscape' : 'portrait') + ';margin:10mm;}'; w.document.head.appendChild(st);
+        w.document.getElementById('dzInfo').textContent = '종이 A4 ' + (land ? '가로' : '세로') + ' · ' + Math.round(s * 100) + '%';
+        try { w.focus(); w.print(); } catch(e){}
+      }, 400);
+    }
+    var pref = null; try { pref = localStorage.getItem(KEY); } catch(e){}
+    var start = function(){
+      if (!tgt.offsetParent) return false;
+      if (pref === 'w' || pref === 'p') apply(fit(pref), pref);
+      else if (pref && !isNaN(+pref)) apply(+pref, '');
+      else apply(1, '');
+      return true;
+    };
+    if (!start()) { var t = setInterval(function(){ if (start()) clearInterval(t); }, 300); setTimeout(function(){ clearInterval(t); }, 60000); }
+    bar.addEventListener('click', function(e){
+      var b = e.target.closest('[data-z]'); if (!b) return;
+      var z = +bar.dataset.z || 1, k = b.dataset.z;
+      if (k === 'in') apply(Math.round((z + 0.1) * 10) / 10, '');
+      else if (k === 'out') apply(Math.round((z - 0.1) * 10) / 10, '');
+      else if (k === '1') apply(1, '');
+      else if (k === 'w' || k === 'p') apply(fit(k), k);
+      else if (k === 'print') printIt();
+    });
+    window.addEventListener('resize', function(){ var m = bar.dataset.mode; if (m === 'w' || m === 'p') apply(fit(m), m); });
+  }
+  function all(){ document.querySelectorAll('.dz182-bar').forEach(setup); }
+  /* 단추 줄이 양식보다 위에 있어 지금은 양식이 없을 수 있음 → 다 그려진 뒤·화면 바뀐 뒤에도 */
+  all(); setTimeout(all, 0);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', all);
+  document.addEventListener('knk:navigated', all);
+})();
+</script>

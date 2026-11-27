@@ -14831,8 +14831,56 @@ def tax_same_day(c, tier, date, iid=0, kind="", ref_id=0) -> dict:
     return {"ok": True, "customer_id": cid, "items": items, "totals": totals}
 
 
-def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> tuple[bool, str]:
+def _z183_pick_items(c, project_id, iids):
+    """z1191z183 (대표 11-27 「거래명세서 날짜를 쓰면 다른 줄에 입력됨」 → 「진행해」):
+    발행일·세금계산서를 넣을 호기 = **그 줄의 호기(iids)** 만. 줄 호기를 안 보내면 수주가 하나뿐일 때만 그 수주 호기 전체.
+    → (호기 id 목록, 오류 글) · 같은 관리번호의 다른 수주에 같이 들어가던 것(예전 「관리번호 호기 전체」)을 막는다."""
+    rows = c.execute(
+        "SELECT oi.id, o.id, o.order_no FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+        "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(project_id),)).fetchall()
+    if not rows:
+        return [], "이 프로젝트에 수주(SO) 호기가 없어 저장할 수 없습니다"
+    want = {int(x) for x in (iids or []) if str(x).strip().isdigit()}
+    if want:
+        pick = [r for r in rows if int(r[0]) in want]
+        if not pick:
+            return [], "그 줄의 호기를 찾지 못했습니다 — 화면을 새로 고친 뒤 다시 넣어 주세요"
+        return pick, ""
+    if len({int(r[1]) for r in rows}) > 1:
+        return [], "👉 이 관리번호는 수주가 2개 이상입니다 — 다른 수주에 같이 들어가지 않게, 그 수주 줄에서 넣어 주세요"
+    return rows, ""
+
+
+_Z183_LABEL = {"statement_date": "거래명세서 발행일"}
+
+
+def _z183_label(col):
+    if col in _Z183_LABEL:
+        return _Z183_LABEL[col]
+    import re as _re183
+    m = _re183.match(r"tax_invoice_(date|amt|memo)(\d*)$", col or "")
+    if m:
+        return "세금계산서 %s차 %s" % (m.group(2) or "1", {"date": "발행일", "amt": "금액", "memo": "설명"}[m.group(1)])
+    return col
+
+
+def _z183_log(c, project_id, user_id, col, pick, new_val, before):
+    """바꾼 호기마다 전→후 이력(수주번호 · 호기) — 작업일정표에서 바꾼 발행일·세금계산서."""
+    try:
+        for iid, _oid, ono in pick:
+            ov = before.get(int(iid))
+            if ("" if ov is None else str(ov)) == ("" if new_val is None else str(new_val)):
+                continue
+            lab = c.execute("SELECT COALESCE(unit_label,'') FROM order_items WHERE id=?", (int(iid),)).fetchone()
+            log_project_change(c, int(project_id), user_id, _z183_label(col), ov, new_val,
+                               "z1191z183 작업일정표 · 수주 %s · %s" % (ono or "", (lab[0] if lab else "") or ("호기 %s" % iid)))
+    except Exception as _e:
+        print(f"[z1191z183] 이력 남기기 실패 {project_id}: {_e}")
+
+
+def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str, iids=None, user_id=None) -> tuple[bool, str]:
     """일정표 정보칸(기타사항·부서·담당자·납품위치) 원본 수정.
+    z1191z183: 발행일·세금계산서(프로젝트) = iids(그 줄 호기)에만 · 이력.
     화이트리스트(_SCHED_CELL_MAP) 필드만 허용. 반환 (성공, 메시지).
     납품위치(ship_to)는 프로젝트의 경우 '대표 SO(orders 최신)'의 ship_to 를 수정."""
     if ref_kind not in _SCHED_CELL_MAP or not ref_id or not field:
@@ -14971,15 +15019,16 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
                 _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
                 if _col not in _oic:
                     return (False, f"order_items.{_col} 컬럼 없음")
-                _ids = [int(x[0]) for x in c.execute(
-                    "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                    "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(ref_id),)).fetchall()]
-                if not _ids:
-                    return (False, "이 프로젝트에 수주(SO) 호기가 없어 세금계산서를 저장할 수 없습니다")
-                if _ftype in ("date", "text"):   # z1191z29: 설명(글자)도 호기 전체 같은 값
+                _pick183, _err183 = _z183_pick_items(c, ref_id, iids)   # z1191z183: 그 줄 호기에만
+                if _err183:
+                    return (False, _err183)
+                _ids = [int(x[0]) for x in _pick183]
+                _ph = ",".join("?" * len(_ids))
+                _before183 = {int(r[0]): r[1] for r in c.execute(f"SELECT id, {_col} FROM order_items WHERE id IN ({_ph})", _ids).fetchall()}
+                if _ftype in ("date", "text"):   # z1191z29: 설명(글자)도 그 줄 호기 같은 값
                     _store = val or None
-                    _ph = ",".join("?" * len(_ids))
                     c.execute(f"UPDATE order_items SET {_col}=? WHERE id IN ({_ph})", [_store] + _ids)
+                    _z183_log(c, ref_id, user_id, _col, _pick183, _store, _before183)
                 else:
                     _raw = val.replace(",", "").strip()
                     if _raw == "":
@@ -14993,6 +15042,7 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
                         _n = len(_ids); _share = round(_tot / _n, 2); _rem = round(_tot - _share * _n, 2)
                         for _i, _iid in enumerate(_ids):
                             c.execute(f"UPDATE order_items SET {_col}=? WHERE id=?", (_share + (_rem if _i == 0 else 0), _iid))
+                        _z183_log(c, ref_id, user_id, _col, _pick183, _tot, _before183)
             return (True, "")
         # 소모품 = consumable_orders (기존 유지)
         if _ftype in ("date", "text"):   # z1191z29: 설명(글자)
@@ -15020,13 +15070,14 @@ def schedule_cell_update(ref_kind: str, ref_id: int, field: str, value: str) -> 
             _oic = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
             if "statement_date" not in _oic:
                 return (False, "order_items.statement_date 컬럼 없음")
-            _ids = [int(x[0]) for x in c.execute(
-                "SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id "
-                "WHERE o.project_id=? AND COALESCE(o.status,'')<>'CANCELLED' ORDER BY oi.id", (int(ref_id),)).fetchall()]
-            if not _ids:
-                return (False, "이 프로젝트에 수주(SO) 호기가 없어 발행일자를 저장할 수 없습니다")
+            _pick183, _err183 = _z183_pick_items(c, ref_id, iids)   # z1191z183: 그 줄(수주) 호기에만 — 다른 수주에 안 퍼짐
+            if _err183:
+                return (False, _err183)
+            _ids = [int(x[0]) for x in _pick183]
             _ph = ",".join("?" * len(_ids))
+            _before183 = {int(r[0]): r[1] for r in c.execute(f"SELECT id, statement_date FROM order_items WHERE id IN ({_ph})", _ids).fetchall()}
             c.execute(f"UPDATE order_items SET statement_date=? WHERE id IN ({_ph})", [_v] + _ids)
+            _z183_log(c, ref_id, user_id, "statement_date", _pick183, _v, _before183)
         return (True, "")
     col = _SCHED_CELL_MAP[ref_kind].get(field)
     if not col:

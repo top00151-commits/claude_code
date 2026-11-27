@@ -1398,7 +1398,7 @@ function startEdit(td){
     // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
     //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
     fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||''})})
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||'',uids:tr.dataset.uids||''})})
       .then(r=>r.json()).then(j=>{
         _edFree(td);
         if(j.updated_at) tr.dataset.ts=j.updated_at;   // v5H226z409: 다음 편집 기준 갱신
@@ -1418,7 +1418,8 @@ function startEdit(td){
       }).catch(()=>{ td.textContent=cur||'＋'; _edFree(td); toast('⚠ 통신 오류'); });
   };
   _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
-  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+  // z1191z183 (대표 11-27): 날짜를 타자로 넣고 Enter = 달력을 닫고 바로 저장(예전엔 달력이 열린 채라 저장이 미뤄져 안 들어간 것처럼 보였다)
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault(); if(_isDateField(td.dataset.edit) && window.KnkCal && KnkCal.hide){ try{ KnkCal.hide(); }catch(e){} } inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z625 (대표 지시): 작업일정표 고객사 인라인 = 등록 고객사(시스템명) 자동완성 드롭다운.
 //   선택 후에도 '시스템명'으로 표시(정식명으로 안 바뀜)·customer_id 바인딩(같은 상호 종사업장 구분).
@@ -1461,7 +1462,7 @@ function startCustEdit(td, tr){
   function save(opt){
     var sendName = opt ? opt.name : inp.value.trim();   // 서버 저장·세금계산서 기준은 정식 상호
     fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'cust',value:sendName,base_ts:tr.dataset.ts||'',customer_id:(opt?opt.id:''),so_oid:tr.dataset.soid||''})})
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:'cust',value:sendName,base_ts:tr.dataset.ts||'',customer_id:(opt?opt.id:''),so_oid:tr.dataset.soid||'',uids:tr.dataset.uids||''})})
       .then(function(r){return r.json();}).then(function(j){ _edFree(td);
         if(j.updated_at) tr.dataset.ts=j.updated_at;
         if(j.ok){ td.dataset.real=sendName;
@@ -1525,7 +1526,8 @@ function startUnitEdit(td, tr, uids){
     }catch(e){ _edFree(td); td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
   _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
-  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+  // z1191z183 (대표 11-27): 날짜를 타자로 넣고 Enter = 달력을 닫고 바로 저장(예전엔 달력이 열린 채라 저장이 미뤄져 안 들어간 것처럼 보였다)
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault(); if(_isDateField(td.dataset.edit) && window.KnkCal && KnkCal.hide){ try{ KnkCal.hide(); }catch(e){} } inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z974 (대표 지시): 상품(PARTS) 줄 수량 인라인 편집 = '완제품 몇 대분'.
 //   부품 개수와 무관한 사람 입력값 → 그 줄의 SO(orders.unit_qty)로 저장(/sales/orders/{oid}/quick-edit 재사용).
@@ -1551,7 +1553,8 @@ function startPartsQtyEdit(td, tr){
     }catch(e){ _edFree(td); td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
   _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
-  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+  // z1191z183 (대표 11-27): 날짜를 타자로 넣고 Enter = 달력을 닫고 바로 저장(예전엔 달력이 열린 채라 저장이 미뤄져 안 들어간 것처럼 보였다)
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault(); if(_isDateField(td.dataset.edit) && window.KnkCal && KnkCal.hide){ try{ KnkCal.hide(); }catch(e){} } inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z981 (대표 지시): SO 분할 행의 모델명/장비명/기타사항 편집 → 그 수주(quick-edit)에만 저장.
 //   모델명/장비명=orders.model_name/equip_name · 기타사항=그 수주 호기 비고(line_note) 전체 교체.
@@ -1579,7 +1582,8 @@ function startSoTextEdit(td, tr){
     }catch(e){ _edFree(td); td.textContent=origDisp||'＋'; td.classList.toggle('filled',!!origDisp); toast('⚠ 통신 오류'); }
   };
   _bindCellBlur(inp, td.dataset.edit, finish);   // z1132: 달력을 누른 blur 는 기다렸다 마무리
-  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault();inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
+  // z1191z183 (대표 11-27): 날짜를 타자로 넣고 Enter = 달력을 닫고 바로 저장(예전엔 달력이 열린 채라 저장이 미뤄져 안 들어간 것처럼 보였다)
+  inp.addEventListener('keydown',(ev)=>{ if(ev.key==='Enter'){ev.preventDefault(); if(_isDateField(td.dataset.edit) && window.KnkCal && KnkCal.hide){ try{ KnkCal.hide(); }catch(e){} } inp.blur();} else if(ev.key==='Escape'){ev.preventDefault();finish(false);} });
 }
 // v5H226z349 (대표 지시): 선택형 셀(형태=제품/상품/기타) 인라인 드롭다운 편집 — 텍스트 에디터와 동일 저장 경로.
 function startSelectEdit(td, tr, opts){
@@ -1607,7 +1611,7 @@ function startSelectEdit(td, tr, opts){
     // v5H226z1033: 이 줄의 수주번호(so_oid)도 함께 보낸다 — PO유형은 **그 수주에** 저장(줄마다 다를 수 있음).
     //   안 보내면 프로젝트가 고쳐지는데 화면은 수주값을 보여줘 '고쳐도 안 바뀌는' 상태가 된다.
     fetch('/sales/schedule/cell',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||''})})
+      body:JSON.stringify({kind:tr.dataset.kind,ref_id:tr.dataset.ref,field:td.dataset.edit,value:val,base_ts:tr.dataset.ts||'',so_oid:tr.dataset.soid||'',uids:tr.dataset.uids||''})})
       .then(r=>r.json()).then(j=>{
         _edFree(td);
         if(j.updated_at) tr.dataset.ts=j.updated_at;   // v5H226z409: 다음 편집 기준 갱신

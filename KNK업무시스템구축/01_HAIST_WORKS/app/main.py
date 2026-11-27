@@ -42835,7 +42835,9 @@ async def schedule_board_cell(request: Request):
         if _m152:
             return JSONResponse({"ok": False, "error": "👉 이 관리번호는 수주가 2개 이상이라 여기서 금액을 고치면 다른 수주까지 바뀝니다 — 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 고쳐 주세요."}, 400)
     try:
-        ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value)
+        # z1191z183: 발행일·세금계산서 = 그 줄 호기(uids)에만 · 이력에 사람
+        _uids183 = [x for x in str(b.get("uids") or "").split(",") if x.strip().isdigit()]
+        ok, msg = _logi.schedule_cell_update(kind, int(ref_id), field, value, iids=_uids183, user_id=u.get("id"))
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:160]}, 500)
     # v5H226z409: 저장 성공 시 updated_at 버전 증가 + 새 ts 반환(셀 단건만 — bulk 는 base_ts 없어 무영향)
@@ -42927,7 +42929,8 @@ async def schedule_board_bulk_cell(request: Request):
                 failures.append({"ref_id": _ref, "kind": _kind, "so_oid": _soid1191, "error": _r1191.get("error") or "실패"})
             continue
         try:
-            ok, msg = _logi.schedule_cell_update(_kind, _ref, field, value)
+            _uids183 = [x for x in str((t or {}).get("uids") or "").split(",") if x.strip().isdigit()]   # z1191z183: 고른 줄 호기에만
+            ok, msg = _logi.schedule_cell_update(_kind, _ref, field, value, iids=_uids183, user_id=u.get("id"))
         except Exception as e:
             failures.append({"ref_id": _ref, "kind": _kind, "error": str(e)[:120]})
             continue

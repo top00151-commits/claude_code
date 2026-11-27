@@ -165,6 +165,7 @@
         {# z1191z48 (대표 2026-11-17 「소모품 제작요청서는 다른 거 사용 · 여기에도 관리번호·수주번호」): 종이 「소모품 요청서」 배치 —
              고객사/작성자 · 고객사 담당자/내용 · 관리번호/수주번호 · 품목 표[NO·(사진)·모델명·품명·수량·납기·(연결 장비)] · 요청사항.
              사진·연결 장비 칸은 그런 줄이 있을 때만. 웍스에만 있는 값(사업부·형태·거래구분·발주일·납품위치)은 한 줄로. 금액 없음. #}
+        {# z1191z182 (대표 11-27): 작성된 양식 보기 = 확대·축소·한 페이지로 보기·한 장에 맞춘 인쇄(공용 doc_view_z182 · 운영 스킬 knk-doc-view) #}{% set dz_target = '#z48Paper' %}{% set dz_key = 'prod_request_c' %}{% set dz_title = '제작요청서(소모품)' %}{% set dz_print_css = '.z48-desk{display:table !important;width:100%;} .z48-mob,.z48-copy{display:none !important;}' %}{% include "_v5_partials/doc_view_z182.html" %}
         <div id="z48Paper">
         <table class="z48-prs z48-desk">
           <colgroup><col style="width:16%"><col style="width:42%"><col style="width:16%"><col style="width:26%"></colgroup>

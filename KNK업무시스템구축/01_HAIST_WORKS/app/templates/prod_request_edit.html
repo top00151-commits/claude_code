@@ -477,6 +477,7 @@ select.prq-in { appearance:auto; }
           {% elif z48.rev %}<div class="z48-rev">✏️ <b>수정발행 {{ pr.updated_at }}{% if pr.updated_by_name %} · {{ pr.updated_by_name }}{% endif %}</b> — {{ z48.rev }}</div>{% endif %}
           {% set _z48_so %}{% if z48.sel %}{% for o in z48.sel %}{{ o.order_no }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}—{% endif %}{% endset %}
           {# z1191z48e: 호기만(부품 이름 목록 같은 글은 빼고 · 이어진 번호는 묶어서) #}{% set _z48_hogi %}{% for o in z48.sel|selectattr('hogi') %}{{ o.hogi }}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endset %}
+          {# z1191z182 (대표 11-27): 작성된 양식 보기 = 확대·축소·한 페이지로 보기·한 장에 맞춘 인쇄(공용 doc_view_z182 · 운영 스킬 knk-doc-view) #}{% set dz_target = '#z48Paper' %}{% set dz_key = 'prod_request' %}{% set dz_title = '제작요청서' %}{% set dz_print_css = '.z48-desk{display:table !important;width:100%;} .z48-mob,.z48-copy{display:none !important;}' %}{% include "_v5_partials/doc_view_z182.html" %}
           <div id="z48Paper"{% if z48.z51.cx %} class="z51-cxp{% if z48.z51.cx.kind == 'replace' %} z58-rep{% endif %}"{% endif %}>
           <table class="z48-prs z48-desk">
             <colgroup><col style="width:4%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:16%"><col style="width:20%"><col style="width:9%"><col style="width:19%"></colgroup>
