@@ -4,6 +4,15 @@
 {% include "_v5_partials/mail_pwa_head.html" %}
 {% include "_v5_partials/mail_view_styles.html" %}
 <style>
+  /* 11-27 대표 「페이지 전환이 부드럽지 않아」 — 메일 화면끼리 넘어갈 때 하얗게 번쩍 대신 짧게 겹쳐 바뀜 · 왼쪽 폴더 칸·위 띠는 제자리 */
+  @view-transition{ navigation:auto; }
+  .mbx-side{ view-transition-name:mbx-side; }
+  .mail-app-top{ view-transition-name:mail-top; }
+  ::view-transition-old(root),::view-transition-new(root){ animation-duration:.14s; }
+  ::view-transition-old(mbx-side),::view-transition-new(mbx-side),::view-transition-old(mail-top),::view-transition-new(mail-top){ animation:none; }
+  @media (prefers-reduced-motion:reduce){ ::view-transition-old(root),::view-transition-new(root){ animation:none; } }
+</style>
+<style>
   /* ── 전체화면 메일 클라이언트 레이아웃 (대표 지시 2026-06-14: 메뉴 상단·폴더 좌측·경계 드래그) ── */
   .app .main{padding:8px 10px}
   /* 상단 컴팩트 메뉴(검색 + 액션) */
@@ -754,6 +763,15 @@
       <div class="mbx-fold-div"></div>
       <a href="/mail/tools" class="mbx-fold mbx-tools" title="보낸 곳별 정리 · 같은 메일 정리 · 폴더 관리 · 서명 · 스팸함 등 가끔 쓰는 것 모두"><span class="fname">⚙ 설정·정리</span></a>
     </nav>
+    {# 11-27 대표 「폴더를 누르면 목록 창이 번쩍·움직이고 왼쪽 칸이 위로 올라가 — 부드럽게」 — 그리기 전에 바로: 왼쪽 칸 스크롤 그대로 · 접어 둔 묶음 바로 접기 #}
+    <script>(function(){ try{ var side=document.querySelector('.mbx-side'); if(!side) return;
+      var st=JSON.parse(localStorage.getItem('mfClosed')||'{}');
+      side.querySelectorAll('.mf-g').forEach(function(g){ if(st[g.getAttribute('data-g')] && !g.querySelector('.mbx-fold.on')) g.classList.add('closed'); });
+      var o=JSON.parse(sessionStorage.getItem('mbxSideSS')||'null'); sessionStorage.removeItem('mbxSideSS');
+      if(o && Date.now()-o.t<15000){ side.scrollTop=o.y; }
+      side.addEventListener('click', function(ev){ var a=ev.target.closest && ev.target.closest('a[href]'); if(!a || ev.defaultPrevented) return;
+        try{ sessionStorage.setItem('mbxSideSS', JSON.stringify({t:Date.now(), y:side.scrollTop})); }catch(_){ } }, true);
+    }catch(e){} })();</script>
 
     <div class="mbx-gutter" data-g="1" title="끌어서 폭 조절"></div>
 
