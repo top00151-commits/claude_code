@@ -66,6 +66,7 @@ description: KNK 대표 규정(2026-11-27) — 웍스·이음·메일에서 화�
 
 ## 6. 함께 쓰는 운영 스킬
 - `knk-done-status`(보고 첫 줄) · `knk-four-view-verify`(실제 쓰는 순서로 시뮬레이션) · `knk-text-contrast`(색) · `knk-step-flow`(여러 단계 화면)
+- `knk-even-layout`(11-27 추가) — 여백·높이 한 기준 · **틀 없는 새 창은 스크롤 막대·마우스 휠 모두**(휠만 안 되면 `overscroll-behavior:contain` 부터)
 
 ## 7. 적용 기록
 | 날짜 | 화면 | 내용 | 커밋 |
