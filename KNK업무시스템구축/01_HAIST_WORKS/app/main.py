@@ -12780,7 +12780,8 @@ def _z48_project_orders(c, pid):
     """프로젝트의 수주(취소 제외 · 등록 순) — 제작요청서가 가리킬 수 있는 후보."""
     out = []
     for r in c.execute("SELECT id, order_no, COALESCE(po_type,'') AS po_type, COALESCE(unit_label,'') AS unit_label, "
-                       "COALESCE(order_date,'') AS order_date, COALESCE(created_at,'') AS created_at, COALESCE(status,'') AS status "
+                       "COALESCE(order_date,'') AS order_date, COALESCE(created_at,'') AS created_at, COALESCE(status,'') AS status, "
+                       "customer_id "   # z1191z186: 묶음 후보 = 고른 수주의 1차 고객으로 거름
                        "FROM orders WHERE project_id=? ORDER BY id", (pid,)).fetchall():
         d = dict(r)
         if d.get("order_no") and str(d.get("status") or "").upper() != "CANCELLED":
@@ -12846,29 +12847,52 @@ def _z49_bundle_rows(c, pr):
     return rows or [pr]
 
 
-def _z49_candidates(c, p, exclude_pids, limit=60):
+def _z186_order_cids(c, pid, order_ids=None):
+    """z1191z186: 그 관리번호 살아 있는 수주(고른 것만 · 안 주면 전부)의 1차 고객 번호·발주일 → (고객 번호 목록, 발주일 모음)."""
+    rows = [o for o in _z48_project_orders(c, pid) if (not order_ids or int(o["id"]) in {int(x) for x in order_ids})]
+    return sorted({int(o["customer_id"]) for o in rows if o.get("customer_id")}), {str(o.get("order_date") or "")[:10] for o in rows if o.get("order_date")}
+
+
+def _z49_candidates(c, p, exclude_pids, limit=60, cids=None, pods=None):
     """함께 묶을 수 있는 관리번호: 같은 고객사 · 폐기 아님 · 관리번호와 살아 있는 수주가 있음(필수).
-    같은 발주일이면서 제작요청서가 아직 없는 것(suggest)이 맨 앞 → 같은 발주일 → 나머지(최근 순)."""
-    if not p.get("customer_id"):
+    같은 발주일이면서 제작요청서가 아직 없는 것(suggest)이 맨 앞 → 같은 발주일 → 나머지(최근 순).
+    z1191z186 (대표 11-27 「고른 수주의 고객으로 좁혀」): 같은 고객사 = **수주 1차 고객**(관리번호 처음 등록 고객 아님) —
+      cids(고른 수주의 고객) 를 주면 그 고객의 수주가 있는 관리번호만 · 안 주면 이 관리번호 수주 고객 전부(화면이 체크한 수주로 다시 거름) ·
+      수주가 하나도 없는 관리번호만 처음 등록 고객 · 같은 발주일 = 수주 발주일 · 후보마다 cids(그 고객과 같은 수주의 고객)·so_date(그 수주 발주일)."""
+    if cids is None:
+        cids, _pods0 = _z186_order_cids(c, p["id"])
+        if not cids and not _z48_project_orders(c, p["id"]) and p.get("customer_id"):
+            cids, _pods0 = [int(p["customer_id"])], {str(p.get("order_date") or "")[:10]} - {""}
+        if pods is None:
+            pods = _pods0
+    cids = sorted({int(x) for x in (cids or []) if x})
+    if not cids:
         return []
+    pods = {x for x in (pods or set()) if x}
     out = []
-    pod = str(p.get("order_date") or "")[:10]
     _z58_waits = _z58_wait_set(c)
+    _q186 = ",".join("?" * len(cids))
     for r in c.execute("SELECT " + _Z49_PCOLS + ", (SELECT COUNT(*) FROM prod_requests pr WHERE pr.project_id=projects.id AND pr.cancelled_at IS NULL) AS n_pr "
-                       "FROM projects WHERE customer_id=? AND id<>? AND COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
-                       "ORDER BY id DESC LIMIT 300", (p["customer_id"], p["id"])).fetchall():
+                       "FROM projects WHERE id<>? AND COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
+                       "AND id IN (SELECT o.project_id FROM orders o WHERE o.customer_id IN (" + _q186 + ") "
+                       "AND UPPER(COALESCE(o.status,''))<>'CANCELLED') "
+                       "ORDER BY id DESC LIMIT 300", [p["id"]] + cids).fetchall():
         d = dict(r)
         if d["id"] in exclude_pids:
             continue
         orders = _z48_project_orders(c, d["id"])
-        if not orders:
+        _mine186 = [o for o in orders if o.get("customer_id") and int(o["customer_id"]) in cids]
+        if not orders or not _mine186:
             continue
         d["orders"] = orders
+        d["cids"] = sorted({int(o["customer_id"]) for o in _mine186})
+        _ods186 = sorted({str(o.get("order_date") or "")[:10] for o in _mine186 if o.get("order_date")})
+        d["so_date"] = (_ods186[-1] + ((" 외 %d건" % (len(_ods186) - 1)) if len(_ods186) > 1 else "")) if _ods186 else ""
         try:   # z1191z89: 「품목 번호 넣기」 수량 글자(살아 있는 수주 전부)
             d["qty_txt"] = _so_qty_join_z89(list(_so_qty_text_map_z89(c, [o["id"] for o in orders]).values()))
         except Exception:
             d["qty_txt"] = ""
-        d["same_day"] = bool(pod) and str(d.get("order_date") or "")[:10] == pod
+        d["same_day"] = bool(pods) and any(x in pods for x in _ods186)   # z1191z186: 수주 발주일
         d["wait"] = d["id"] in _z58_waits   # z1191z58: 등록 때 「묶어서 발행(기다림)」 고른 관리번호
         d["suggest"] = bool((d["same_day"] or d["wait"]) and not d["n_pr"])
         out.append(d)
@@ -12884,7 +12908,10 @@ def _z49_pick_members(c, pid, bundle_pids, form):
     p = c.execute("SELECT id, customer_id, order_date FROM projects WHERE id=?", (pid,)).fetchone()
     if not p:
         return []
-    ok = {d["id"]: d for d in _z49_candidates(c, dict(p), set(), limit=None)}
+    # z1191z186: 이 요청서에서 고른 수주의 1차 고객과 같은 수주가 있는 관리번호만(화면에서 거른 것을 서버도 다시)
+    _sel186 = [int(x) for x in (form.getlist("order_ids") if hasattr(form, "getlist") else []) if str(x).strip().isdigit()]
+    _cids186, _pods186 = _z186_order_cids(c, pid, _sel186 or None)
+    ok = {d["id"]: d for d in _z49_candidates(c, dict(p), set(), limit=None, cids=(_cids186 if _cids186 else None), pods=_pods186)}
     out, seen = [], set()
     for b in bundle_pids:
         if b == pid or b in seen or b not in ok:
@@ -12952,7 +12979,9 @@ def _z49_view_ctx(c, p, pr, cur_pid):
             if proj:
                 items.append(_z49_item(c, proj, r.get("order_ids") or "", r.get("created_at") or ""))
     try:
-        cands = _z49_candidates(c, p, {i["pid"] for i in items} | {p["id"]})
+        _sel186 = [int(x) for x in str((pr or {}).get("order_ids") or "").split(",") if x.strip().isdigit()] if pr else []
+        _c186, _d186 = _z186_order_cids(c, p["id"], _sel186) if _sel186 else (None, None)
+        cands = _z49_candidates(c, p, {i["pid"] for i in items} | {p["id"]}, cids=(_c186 or None), pods=_d186)
     except Exception as _e49:
         print(f"[z1191z49] 묶을 관리번호 읽기 실패: {_e49}")
         cands = []

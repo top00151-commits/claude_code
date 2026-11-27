@@ -224,7 +224,7 @@ check("38호기" in h6n, "수주 고르는 목록에는 호기 그대로")
 
 print("§3 작성·수정 폼 — 수주 고르기 + 요지")
 hn = q(cl.get, "/project/%d/prod-request/edit?new=1" % P2).text
-boxes = re.findall(r'<input type="checkbox" name="order_ids" value="(\d+)"(?: data-hogi="[^"]*")?( checked)?>\s*<b>([^<]+)</b>', hn)   # z50: 호기 속성
+boxes = re.findall(r'<input type="checkbox" name="order_ids" value="(\d+)"(?: data-hogi="[^"]*")?(?: data-cid="[^"]*")?( checked)?>\s*<b>([^<]+)</b>', hn)   # z50: 호기 속성
 check([b[2] for b in boxes] == ["T-261116-5", "T-260311-5", "T-260202-2", "T-260126-3"] and [b[2] for b in boxes if b[1]] == ["T-261116-5"],
       "새 작성: 수주 4건(취소 뺌) 체크 목록 — 최근 것이 맨 위 · 기본 = 가장 최근 수주", boxes)
 check('name="gist"' in hn and "수주가 4건 있습니다" in hn, "요지 칸 + 안내 글")
@@ -252,7 +252,7 @@ check(CARDS and CARDS[0]["card"]["so_nos"] == ["T-261116-5"], "이음 카드 수
 hv = q(cl.get, "/project/%d/prod-request/edit?prid=%d" % (P2, NEW)).text; rv = cells(hv, "")
 check(rv[:3] == ["028 T 2601", "T-261116-5", "38호기"] and 'class="z48-bdg z48-mod"' in view(hv) and ">MODIFY</span>" in view(hv), "보기: 그 수주·호기 · 구분 MODIFY", rv[:3])
 check('<td colspan="3" class="z48-h">요지</td><td colspan="5" class="z48-gist">적층도 변경으로 신규 가공 진행</td>' in view(hv), "보기: 요지 줄")
-boxes = re.findall(r'<input type="checkbox" name="order_ids" value="(\d+)"(?: data-hogi="[^"]*")?( checked)?>', hv)
+boxes = re.findall(r'<input type="checkbox" name="order_ids" value="(\d+)"(?: data-hogi="[^"]*")?(?: data-cid="[^"]*")?( checked)?>', hv)
 check([int(b[0]) for b in boxes if b[1]] == [A4] and 'name="gist" maxlength="200" value="적층도 변경으로 신규 가공 진행"' in hv, "수정 폼: 저장된 수주 체크 · 요지 채워짐", boxes)
 
 CARDS.clear()

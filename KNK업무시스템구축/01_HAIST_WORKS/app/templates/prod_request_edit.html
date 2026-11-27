@@ -167,6 +167,7 @@ select.prq-in { appearance:auto; }
 .z49-box { border:1px solid var(--line,#eef0f4); border-radius:8px; background:#fff; padding:8px 10px; }
 .z49-sug { background:#fffbeb; border:1px solid #f59e0b; border-radius:7px; padding:7px 10px; font-size:12.5px; color:#92400e; margin:0 0 7px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .z49-sug button { font:inherit; font-size:12px; font-weight:700; cursor:pointer; border:1px solid #c2410c; background:#c2410c; color:#fff; border-radius:6px; padding:3px 10px; }
+.z49-item.z186-off { display:none !important; }   /* z1191z186: 고른 수주의 고객과 다른 후보 */
 .z49-list { display:flex; flex-direction:column; gap:2px; max-height:210px; overflow:auto; margin-top:6px; }
 .z49-item { display:flex; align-items:center; gap:8px; font-size:13px; color:#1f2937; cursor:pointer; padding:3px 2px; border-bottom:1px dashed #eef0f4; flex-wrap:wrap; }
 .z49-item.is-sug { background:#fffbeb; }
@@ -225,12 +226,12 @@ select.prq-in { appearance:auto; }
           <div class="z48-ol">
             {# 최근 수주가 맨 위 — 기본으로 체크되는 것이 스크롤 없이 보이게 #}
             {% for o in z48.orders|reverse %}
-            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}" data-hogi="{{ o.hogi }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
+            <label class="z48-oc"><input type="checkbox" name="order_ids" value="{{ o.id }}" data-hogi="{{ o.hogi }}" data-cid="{{ o.customer_id or '' }}"{% if o.id in z48.sel_ids %} checked{% endif %}> <b>{{ o.order_no }}</b>{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}<span class="z48-od">{{ (o.order_date or o.created_at)[:10] }}</span></label>
             {% endfor %}
           </div>
           <div class="z48-hint">이 관리번호에는 수주가 {{ z48.orders|length }}건 있습니다 — <b>이번 요청서에 해당하는 수주만</b> 체크하세요. 제작요청서와 알림에 그 수주번호만 나갑니다.</div>
           {% elif z48.orders %}
-          <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}" data-hogi="{{ z48.orders[0].hogi }}">
+          <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}" data-hogi="{{ z48.orders[0].hogi }}" data-cid="{{ z48.orders[0].customer_id or '' }}">
           <div class="z48-hint">수주번호 <b style="color:#1d4ed8;">{{ z48.orders[0].order_no }}</b> — 등록된 수주에서 자동으로 들어갑니다.</div>
           {% else %}
           <div class="z48-need">⚠ {{ z48.need_now or '이 관리번호에 등록된 수주가 없습니다 — 수주를 먼저 등록해야 발행할 수 있습니다(수주번호는 필수).' }} <a href="/project/{{ p.id }}">프로젝트 화면에서 수주 등록 →</a></div>
@@ -255,8 +256,8 @@ select.prq-in { appearance:auto; }
             <input class="prq-in" type="text" placeholder="🔍 관리번호 · 모델 · 장비명으로 찾기" oninput="z49Filter(this)" autocomplete="off">
             <div class="z49-list">
               {% for d in z48.cands %}
-              <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-qtytxt="{{ d.qty_txt|default('') }}" data-npr="{{ d.n_pr or 0 }}" data-pid="{{ d.id }}" data-mgmt="{{ d.mgmt_code }}" data-equip="{{ d.equip_name or d.name or '' }}" data-qty="{{ d.unit_qty or 1 }}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
-                <input type="checkbox" name="bundle_pids" value="{{ d.id }}"> <b>{{ d.mgmt_code }}</b> <span>{{ d.equip_name or d.name or '' }}</span>{% if d.model_name %}<span class="z49-d">{{ d.model_name }}</span>{% endif %}<span class="z49-d">발주 {{ (d.order_date or '')[:10] or '—' }}{% if d.n_pr %} · 요청서 있음{% endif %}</span>{% if d.wait %}<span class="z49-d" style="color:#b45309;font-weight:700;">⏳ 묶어서 발행 기다림</span>{% endif %}
+              <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-cids="{{ (d.cids or [])|join(',') }}" data-qtytxt="{{ d.qty_txt|default('') }}" data-npr="{{ d.n_pr or 0 }}" data-pid="{{ d.id }}" data-mgmt="{{ d.mgmt_code }}" data-equip="{{ d.equip_name or d.name or '' }}" data-qty="{{ d.unit_qty or 1 }}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
+                <input type="checkbox" name="bundle_pids" value="{{ d.id }}"> <b>{{ d.mgmt_code }}</b> <span>{{ d.equip_name or d.name or '' }}</span>{% if d.model_name %}<span class="z49-d">{{ d.model_name }}</span>{% endif %}<span class="z49-d">발주 {{ d.so_date or (d.order_date or '')[:10] or '—' }}{% if d.n_pr %} · 요청서 있음{% endif %}</span>{% if d.wait %}<span class="z49-d" style="color:#b45309;font-weight:700;">⏳ 묶어서 발행 기다림</span>{% endif %}
                 {% if d.orders|length > 1 %}
                 <select name="m_order_{{ d.id }}" title="이 관리번호의 어느 수주인지 고릅니다(기본 = 가장 최근)">{% for o in d.orders|reverse %}<option value="{{ o.id }}" data-hogi="{{ o.hogi }}">{{ o.order_no }}{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}</option>{% endfor %}</select>
                 {% else %}
@@ -811,8 +812,23 @@ select.prq-in { appearance:auto; }
     // z1191z49 묶음: 「함께 발주된 것 모두 묶기」 · 찾기
     window.z49CheckSug=function(btn){
       var box=btn.closest('.z49-box'); if(!box) return;
-      box.querySelectorAll('.z49-item.is-sug input[name=bundle_pids]').forEach(function(c){ c.checked=true; });
+      box.querySelectorAll('.z49-item.is-sug:not(.z186-off) input[name=bundle_pids]').forEach(function(c){ c.checked=true; });
     };
+    /* z1191z186 (대표 11-27): 묶음 후보 = 이 요청서에서 고른 수주의 1차 고객과 같은 수주가 있는 관리번호만 — 수주를 바꾸면 다시 거름 */
+    window.z186Sync=function(){
+      document.querySelectorAll('form').forEach(function(f){
+        var items=f.querySelectorAll('.z49-item[data-cids]'); if(!items.length) return;
+        var cids={}, any=false;
+        f.querySelectorAll('input[name=order_ids]').forEach(function(e){ if(e.type!=='checkbox'||e.checked){ var v=e.getAttribute('data-cid')||''; if(v){ cids[v]=1; any=true; } } });
+        items.forEach(function(r){
+          var mine=(r.getAttribute('data-cids')||'').split(',').filter(Boolean), on=!any || mine.some(function(x){ return cids[x]; });
+          r.classList.toggle('z186-off', !on);
+          if(!on){ var cb=r.querySelector('input[name=bundle_pids]'); if(cb && cb.checked){ cb.checked=false; try{ cb.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} } }
+        });
+      });
+    };
+    document.addEventListener('change', function(e){ if(e.target && e.target.name==='order_ids') window.z186Sync(); });
+    setTimeout(window.z186Sync, 0);
     window.z49Filter=function(inp){
       var box=inp.closest('.z49-box'); if(!box) return; var q=(inp.value||'').trim().toLowerCase();
       box.querySelectorAll('.z49-item').forEach(function(r){

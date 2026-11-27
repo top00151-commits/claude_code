@@ -60,8 +60,9 @@ with D.db_session() as c:
         row.update(kw)
         return ins(c, "projects", row)
 
-    def order(pid, no, po, label, created, status="CONFIRMED"):
-        return ins(c, "orders", {"order_no": no, "customer_id": CU, "order_date": created[:10], "due_date": FUT, "total_amount": 1000, "status": status,
+    # z1191z181: 묶음 후보 = 수주 1차 고객·수주 발주일 기준으로 바뀜 → 시험 자료도 실제처럼 수주 고객 = 그 관리번호 고객(cust) · 발주일(od) 맞춤
+    def order(pid, no, po, label, created, status="CONFIRMED", cust=CU, od=None):
+        return ins(c, "orders", {"order_no": no, "customer_id": cust, "order_date": od or created[:10], "due_date": FUT, "total_amount": 1000, "status": status,
                                  "created_at": created, "project_id": pid, "unit_label": label, "unit_qty": 1, "currency": "KRW", "so_type": "EQUIPMENT", "po_type": po})
     A = proj("020T2611", server_path="Z:\\가상전\\TSP\\VPL\\9. 제품자료"); OA = order(A, "T-261113-5", "신규", "1호기", "2026-11-16 09:47:00")
     B = proj("021T2611"); OB = order(B, "T-261113-6", "신규", "1호기", "2026-11-16 09:48:00")
@@ -69,9 +70,9 @@ with D.db_session() as c:
     Dd = proj("023T2611"); OD1 = order(Dd, "T-261113-8", "신규", "1호기", "2026-11-16 09:50:00"); OD2 = order(Dd, "T-261117-3", "추가", "2호기", "2026-11-17 09:00:00")
     E = proj("010T2609", order_date="2026-09-01"); OE = order(E, "T-260901-1", "신규", "1호기", "2026-09-01 10:00:00")       # 같은 고객사 · 다른 날
     F = proj("030T2611")                                                                                                # 같은 날 · 수주 없음 → 못 묶음
-    G = proj("031T2611", cust=CU2); OG = order(G, "T-261113-9", "신규", "1호기", "2026-11-16 10:00:00")                    # 다른 고객사 → 못 묶음
+    G = proj("031T2611", cust=CU2); OG = order(G, "T-261113-9", "신규", "1호기", "2026-11-16 10:00:00", cust=CU2)                    # 다른 고객사 → 못 묶음
     H = proj("032T2611", is_archived=1); OH = order(H, "T-261113-10", "신규", "1호기", "2026-11-16 10:00:00")              # 폐기 → 못 묶음
-    S1 = proj("040T2611", order_date="2026-11-14"); OS1 = order(S1, "T-261114-1", "신규", "1호기", "2026-11-16 11:00:00")  # 따로 발행할 것
+    S1 = proj("040T2611", order_date="2026-11-14"); OS1 = order(S1, "T-261114-1", "신규", "1호기", "2026-11-16 11:00:00", od="2026-11-14")  # 따로 발행할 것
 
 import app.main as M  # noqa: E402
 import app.sso_client as SSO  # noqa: E402
