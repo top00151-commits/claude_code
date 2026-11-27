@@ -6,7 +6,7 @@
 <style>
   /* 11-27 대표 「페이지 전환이 부드럽지 않아」 — 메일 화면끼리 넘어갈 때 하얗게 번쩍 대신 짧게 겹쳐 바뀜 · 왼쪽 폴더 칸·위 띠는 제자리 */
   @view-transition{ navigation:auto; }
-  .mbx-side{ view-transition-name:mbx-side; }
+  .mbx-side{ view-transition-name:mbx-side; overflow-anchor:none; }
   .mail-app-top{ view-transition-name:mail-top; }
   /* 대표 「꿀렁·깜빡임으로 멀미 나」 — 겹치기 움직임도 없이: 새 화면이 다 그려질 때까지 옛 화면을 그대로 두었다가 한 번에 바꿈 */
   ::view-transition-old(root),::view-transition-new(root){ animation:none; }
@@ -776,7 +776,7 @@
       var st=JSON.parse(localStorage.getItem('mfClosed')||'{}');
       side.querySelectorAll('.mf-g').forEach(function(g){ if(st[g.getAttribute('data-g')] && !g.querySelector('.mbx-fold.on')) g.classList.add('closed'); });
       var o=JSON.parse(sessionStorage.getItem('mbxSideSS')||'null'); sessionStorage.removeItem('mbxSideSS');
-      if(o && Date.now()-o.t<15000){ side.scrollTop=o.y; }
+      if(o && Date.now()-o.t<15000){ side.scrollTop=o.y; window._mbxSideKept=1; window._mbxSideY=o.y; }
       side.addEventListener('click', function(ev){ var a=ev.target.closest && ev.target.closest('a[href]'); if(!a || ev.defaultPrevented) return;
         try{ sessionStorage.setItem('mbxSideSS', JSON.stringify({t:Date.now(), y:side.scrollTop})); }catch(_){ } }, true);
     }catch(e){} })();</script>
@@ -1946,7 +1946,9 @@ function mfToggle(ev, key){
       var on=document.querySelector('.mbx-side .mf-g .mbx-fold.on, .mbx-side a.mf-gh.on'), side=document.querySelector('.mbx-side');
       if(on && side){ var a=on.getBoundingClientRect(), b=side.getBoundingClientRect(), tp=side.querySelector('.mbx-side-top');
         var t0=b.top + ((tp && getComputedStyle(tp).position==='sticky') ? tp.offsetHeight : 0);
-        if(!on.closest('.mbx-side-top') && (a.top<t0 || a.bottom>b.bottom)){ side.scrollTop += (a.top-t0) - 40; } }
+        // 11-27 대표 「폴더 누르면 왼쪽 칸이 흔들려」 — 방금 왼쪽 칸에서 눌러 온 경우(자리 그대로 둠)는 굴리지 않음 · 그 밖에도 크게 끌어올리지 않고 보이는 데까지만 조금
+        if(!on.closest('.mbx-side-top') && !(window._mbxSideKept && a.bottom>t0 && a.top<b.bottom)){
+          if(a.top<t0) side.scrollTop -= (t0-a.top) + 8; else if(a.bottom>b.bottom) side.scrollTop += (a.bottom-b.bottom) + 8; } }
     }, 60);
   }catch(e){}
 })();
@@ -1994,5 +1996,11 @@ function mbxVacHide(){
 })();
 </script>
 {% include "_v5_partials/mail_keep_pos.html" %}
-<div id="mbxPaintReady" hidden></div><script>window.mdScanNow && window.mdScanNow();</script>
+<div id="mbxPaintReady" hidden></div><script>/* 11-27 마지막으로 받은 숫자·안내 띠를 그리기 전에 먼저(0.2초 뒤 채워지며 위 띠가 늘어나 목록이 밀리던 것) */
+try{ var _lc=JSON.parse(sessionStorage.getItem('knkmail.lastCounts')||'null'); if(_lc && window.mailCountsApply) window.mailCountsApply(_lc, false, true); }catch(e){}
+window.mdScanNow && window.mdScanNow();
+/* 아이콘으로 바뀐 뒤 위 띠 높이가 달라짐 → 띠·칸 높이 다시 재기(setH·fillH = resize 듣는 곳)를 보이기 전에 */
+try{ window.dispatchEvent(new Event('resize')); }catch(e){}
+/* 11-27 왼쪽 칸 높이가 정해진 뒤(fillH) 다시 한 번 같은 자리 — 처음엔 칸 높이가 달라 끝에서 잘려 흔들렸음 */
+try{ if(window._mbxSideY!=null){ var _sd=document.querySelector('.mbx-side'), _fix=function(){ if(_sd && Math.abs(_sd.scrollTop-window._mbxSideY)>1) _sd.scrollTop=window._mbxSideY; }; _fix(); document.addEventListener('DOMContentLoaded', _fix); window.addEventListener('load', function(){ _fix(); setTimeout(_fix, 0); }); } }catch(e){}</script>
 </body></html>

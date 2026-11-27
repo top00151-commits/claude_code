@@ -343,14 +343,21 @@
   t.addEventListener('scroll', f, {passive:true}); window.addEventListener('resize', f); setTimeout(f, 50); })();
 window.mailCountsRefresh=async function(lite){
   try{ var r=await fetch('/api/mail/counts'+(lite?'?lite=1':''),{headers:{'X-Requested-With':'fetch'}}); if(!r.ok) return; var j=await r.json();
+    // 11-27 대표 「꿀렁·깜빡임」 — 숫자·안내 띠를 다음 화면에서 그리기 전에 먼저 채우려고 마지막 값을 기억(이 브라우저 창 안에서만)
+    try{ var _keep=JSON.parse(sessionStorage.getItem('knkmail.lastCounts')||'{}'); for(var _k in j){ _keep[_k]=j[_k]; } sessionStorage.setItem('knkmail.lastCounts', JSON.stringify(_keep)); }catch(_){}
+    window.mailCountsApply(j, lite);
+    try{ mailNotifyNew(j); }catch(_){}
+  }catch(e){}
+};
+window.mailCountsApply=function(j, lite, cached){
+  try{
     function put(id, n){ var e=document.getElementById(id); if(!e) return; e.textContent = n>999 ? '999+' : String(n||0); e.hidden=!n; }
     put('mtcUnread', j.unread); if(!lite) put('mtcReply', j.reply); put('mtcDrafts', j.drafts); put('mtcSpam', j.spam); put('mtcFlag', j.flag_due);
     document.querySelectorAll('.mt-quick [data-cnt]').forEach(function(e){ var k=e.getAttribute('data-cnt'); if(!(k in j)) return; var n=j[k]||0; e.textContent = n>999 ? '999+' : String(n); e.hidden=!n; });
     // 11-19 2단계 — 창 제목에 안 읽은 숫자 · 새 메일이면 받은편지함에 띠 · (켜 둔 사람만) 바탕화면 알림
     try{ var t=document.title.replace(/^\(\d+\+?\)\s*/,''); document.title=(j.unread? '('+(j.unread>999?'999+':j.unread)+') ' : '')+t; }catch(_){}
-    try{ document.dispatchEvent(new CustomEvent('knkmail:counts',{detail:j})); }catch(_){}
+    if(!cached){ try{ document.dispatchEvent(new CustomEvent('knkmail:counts',{detail:j})); }catch(_){} }   // 기억해 둔 값으로 먼저 채울 때는 「새 메일」 판정 안 함
     try{ mailLinkBand(j); }catch(_){}
-    try{ mailNotifyNew(j); }catch(_){}
   }catch(e){}
 };
 setTimeout(window.mailCountsRefresh, 200);
