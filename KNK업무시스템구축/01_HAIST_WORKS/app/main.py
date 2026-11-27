@@ -26109,6 +26109,196 @@ async def mail_import_outlook_done(req: Request):
     return JSONResponse(dict(_mio.public(t2, _mio.disk_state()), ok=True))
 
 
+# ─── 11-27 대표 「하이웍스 개인 메일함 가져오기」(1번) — 「아웃룩 안 쓰고 하이웍스만 사용하는 직원들이 있어서」 ───
+#   본인 하이웍스 주소·비밀번호를 그 자리에서(비밀번호 저장 안 함 · 이번 가져오기 동안만) · 본인 회사 메일 주소일 때만 · 내 메일함으로만.
+def _mhw_creds(c, u, form):
+    """화면 값 → (주소, 비밀번호, 서버 주소, 안내 글). 안내 글이 있으면 진행하지 않음."""
+    from . import mail_hiworks_folders as _mhw
+    from . import mail_fetch as _mf
+    typed = (form.get("hw_id") or "").strip()
+    use_saved = (form.get("use_saved") or "") == "1"
+    if not typed and use_saved:
+        try:
+            typed = (_mf.get_account(c, u["id"]) or {}).get("username") or ""
+        except Exception:
+            typed = ""
+        if not typed:
+            try:
+                typed = _mail.get_email(c, u["id"]) or ""
+            except Exception:
+                typed = ""
+    addr = _mhw.match_own(c, u["id"], typed)
+    if not addr:
+        return None, None, None, "본인 회사 메일 주소(하이웍스 아이디)만 가져올 수 있습니다. 내 주소를 그대로 넣어 주세요."
+    pw = form.get("hw_pw") or ""
+    if not pw and use_saved:
+        pw = _mhw.saved_password(c, u["id"], addr) or ""
+    if not pw:
+        return None, None, None, "하이웍스 비밀번호를 넣어 주세요(저장하지 않습니다 · 이번 가져오기에만 씁니다)."
+    host = (form.get("host") or "").strip().lower() or _mhw.DEFAULT_HOST
+    import re as _re_mhw
+    if not _re_mhw.fullmatch(r"[a-z0-9.-]+\.hiworks\.com", host):
+        return None, None, None, "서버 주소는 하이웍스 주소(…hiworks.com)만 쓸 수 있습니다. 보통 imaps.hiworks.com 입니다."
+    return addr, pw, host, ""
+
+
+@app.get("/mail/hiworks-folders", response_class=HTMLResponse)
+async def mail_hiworks_folders_page(req: Request):
+    """하이웍스 개인 메일함 가져오기 화면 — 로그인한 직원 누구나 · 내 메일함으로만."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    from . import mail_hiworks_folders as _mhw
+    with db_session() as c:
+        _mhw.ensure(c)
+        own = sorted(_mhw.own_addresses(c, u["id"]))
+        saved_id = ""
+        for a in own:
+            if _mhw.saved_password(c, u["id"], a):
+                saved_id = a
+                break
+        st = _mhw.public(_mhw.latest(c, u["id"]))
+        n_rules = len([x for x in _mhw.rule_candidates(c, u["id"]) if x["status"] != "have"])
+    return ctx(req, "mail_hiworks_folders.html", user=u, active="mail", own=own, has_saved=bool(saved_id),
+               saved_id=saved_id, st=st, n_rules=n_rules, default_host=_mhw.DEFAULT_HOST)
+
+
+@app.post("/mail/hiworks-folders/connect")
+async def mail_hiworks_folders_connect(req: Request):
+    """① 연결·폴더 보기 — 개인 메일함만 · 메일 수. 하이웍스 쪽은 읽기만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_folders as _mhw
+    from starlette.concurrency import run_in_threadpool
+    form = await _mail_form(req)
+    with db_session() as c:
+        addr, pw, host, err = _mhw_creds(c, u, form)
+    if err:
+        return JSONResponse({"ok": False, "message": err}, 400)
+
+    def _run():
+        try:
+            M, used = _mhw.connect(host, _mhw.DEFAULT_PORT, addr, pw)
+        except Exception as e:
+            return {"ok": False, "message": _mhw.friendly_error(e)}
+        try:
+            fl = _mhw.list_folders(M)
+        except Exception as e:
+            return {"ok": False, "message": _mhw.friendly_error(e)}
+        finally:
+            _mhw._logout(M)
+        return {"ok": True, "host": used, "addr": addr, "folders": fl}
+    out = await run_in_threadpool(_run)
+    pw = None
+    print("[MAIL-HW] user=%s 폴더 보기 %s" % (u["id"], "ok" if out.get("ok") else "실패"), flush=True)
+    return JSONResponse(out, 200 if out.get("ok") else 400)
+
+
+@app.post("/mail/hiworks-folders/start")
+async def mail_hiworks_folders_start(req: Request):
+    """③ 가져오기 시작(뒤에서) — 고른 폴더만 · 다시 누르면 이어서(이미 들어간 메일은 건너뜀)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_folders as _mhw
+    from .mail_import_outlook import disk_state as _mhw_disk
+    from starlette.concurrency import run_in_threadpool
+    form = await _mail_form(req)
+    try:
+        want = [str(x) for x in __import__("json").loads(form.get("folders") or "[]")][:200]
+    except Exception:
+        want = []
+    if not want:
+        return JSONResponse({"ok": False, "message": "가져올 폴더를 하나 이상 골라 주세요."}, 400)
+    if not _mhw_disk().get("ok", True):
+        return JSONResponse({"ok": False, "message": "서버 남은 공간이 모자랍니다(빅터에게 알려 주세요)."}, 400)
+    if _mhw.is_running(u["id"]):
+        return JSONResponse({"ok": False, "message": "이미 가져오는 중입니다."}, 400)
+    with db_session() as c:
+        addr, pw, host, err = _mhw_creds(c, u, form)
+    if err:
+        return JSONResponse({"ok": False, "message": err}, 400)
+
+    def _run():
+        try:
+            M, used = _mhw.connect(host, _mhw.DEFAULT_PORT, addr, pw)
+        except Exception as e:
+            return {"ok": False, "message": _mhw.friendly_error(e)}
+        try:
+            fl = [f for f in _mhw.list_folders(M) if f["raw"] in want]   # 하이웍스에 실제 있는 개인 메일함만
+        except Exception as e:
+            return {"ok": False, "message": _mhw.friendly_error(e)}
+        finally:
+            _mhw._logout(M)
+        if not fl:
+            return {"ok": False, "message": "고른 폴더를 하이웍스에서 찾지 못했습니다. 「폴더 다시 보기」를 눌러 주세요."}
+        ok, rid = _mhw.start(db_session, u["id"], addr, pw, used, fl)
+        return {"ok": ok, "message": "" if ok else rid}
+    out = await run_in_threadpool(_run)
+    pw = None
+    if not out.get("ok"):
+        return JSONResponse(out, 400)
+    with db_session() as c:
+        st = _mhw.public(_mhw.latest(c, u["id"]))
+    print("[MAIL-HW] user=%s 가져오기 시작 · 폴더 %d개" % (u["id"], len(want)), flush=True)
+    return JSONResponse({"ok": True, "st": st})
+
+
+@app.get("/mail/hiworks-folders/status")
+async def mail_hiworks_folders_status(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_folders as _mhw
+    with db_session() as c:
+        st = _mhw.public(_mhw.latest(c, u["id"]))
+    return JSONResponse({"ok": True, "st": st})
+
+
+@app.post("/mail/hiworks-folders/stop")
+async def mail_hiworks_folders_stop(req: Request):
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_folders as _mhw
+    with db_session() as c:
+        n = _mhw.stop(c, u["id"])
+    return JSONResponse({"ok": True, "stopped": n})
+
+
+@app.get("/mail/hiworks-folders/rules")
+async def mail_hiworks_folders_rules(req: Request):
+    """④ 규칙 후보(보여 주기만 · 저장 안 함)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_folders as _mhw
+    with db_session() as c:
+        cands = _mhw.rule_candidates(c, u["id"])
+    return JSONResponse({"ok": True, "rules": cands})
+
+
+@app.post("/mail/hiworks-folders/rules")
+async def mail_hiworks_folders_rules_save(req: Request):
+    """④ 확인한 규칙만 저장(체크한 것 · 언제부터 꼭 고름) — 되돌리기는 폴더 정리 화면의 ↺."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from . import mail_hiworks_folders as _mhw
+    form = await _mail_form(req)
+    try:
+        picked = [str(x) for x in __import__("json").loads(form.get("picked") or "[]")][:200]
+    except Exception:
+        picked = []
+    if not picked:
+        return JSONResponse({"ok": False, "message": "저장할 규칙에 체크해 주세요."}, 400)
+    with db_session() as c:
+        out = _mhw.save_rules(c, u["id"], picked, (form.get("when") or "").strip())
+    _mail_folders._CACHE.pop(u["id"], None)
+    return JSONResponse(out, 200 if out.get("ok") else 400)
+
+
 @app.get("/mail/from-outlook", response_class=HTMLResponse)
 async def mail_from_outlook_page(req: Request):
     """11-25 대표 「예전 아웃룩에 남아있는데 어떻게 전달하지?」 — 아웃룩에서 뽑은 CSV(Message-ID·보낸 사람)로 빈 보낸 사람 채우기(관리자 · 내 메일만)."""
