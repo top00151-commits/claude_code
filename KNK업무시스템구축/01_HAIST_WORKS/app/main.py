@@ -22576,7 +22576,8 @@ def _ow_update_z117(c, req, u, oid, so, pid, lines, fname, dry):
 
 
 @app.post("/sales/orders/{oid:int}/overwrite-product")
-async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...), mode: str = Form("replace"), dry: str = Form("")):
+async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFile = File(...), mode: str = Form("replace"), dry: str = Form(""),
+                                         hdr_ok: str = Form("")):
     """v5H226z740 (대표 지시): 상품(수출) 수주 '엑셀 덮어쓰기' — 발행된 관리번호·수주번호(order_no)는
     그대로 두고, 이 수주(SO)의 라인만 업로드한 상품 양식으로 '제자리 교체'.
     삭제 후 재등록(=새 번호) 대신, 같은 수주번호로 내용만 갈아끼움. z738 처리(매입/판매 KRW·모델/장비·한글 상태) 동일."""
@@ -22649,6 +22650,27 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
             #   이제 실제로 쓰는 호기 칸(1~10차 발행일·금액)을 본다 — 교체하면 호기 줄이 지워지며 발행 기록·설명이 함께 사라진다.
             if not _is_add943 and _so_tax_issued_z30(c, oid):
                 return JSONResponse({"ok": False, "tax_issued": True, "message": _Z30_MSG % order_no}, 200)
+            # z1191z187 (대표 11-27 「3번 진행해」): 엑셀 머리 값으로 이 수주의 통화·거래구분·PO유형이 바뀌면 —
+            #   아무것도 바꾸기 전에 바뀔 칸을 보여 주고, 사람이 「확인」(hdr_ok=1)해야 저장(말없이 바꾸지 않음)
+            _cur187 = dict(c.execute("SELECT currency, po_type FROM orders WHERE id=?", (oid,)).fetchone() or {})
+            _new_po187 = str(proj.get("po_type") or "").strip()
+            _chg187 = []
+            if (str(_cur187.get("currency") or "KRW").upper()) != ccy:
+                _chg187.append({"f": "통화", "old": str(_cur187.get("currency") or "KRW").upper(), "new": ccy})
+            # 거래구분 = 그 수주 품목 줄(orders 에는 칸이 없음) — 수출 줄이 있으면 수출 · 품목 줄이 없거나 거래구분이 비었으면 비교 안 함
+            _iex187 = [r[0] for r in c.execute("SELECT is_export FROM order_items WHERE order_id=? AND is_export IS NOT NULL "
+                                               "AND COALESCE(unit_status,'')<>'취소'", (oid,)).fetchall()]
+            _old_ex187 = (1 if any(str(x) == "1" for x in _iex187) else 0) if _iex187 else (1 if is_export == "1" else 0)
+            if _old_ex187 != (1 if is_export == "1" else 0):
+                _chg187.append({"f": "거래구분", "old": "수출" if _old_ex187 else "내수", "new": "수출" if is_export == "1" else "내수"})
+            if _new_po187 and _new_po187 in _logi.PO_TYPES and _new_po187 != str(_cur187.get("po_type") or ""):
+                _chg187.append({"f": "PO유형", "old": str(_cur187.get("po_type") or "") or "(빈칸)", "new": _new_po187})
+            if _chg187 and str(hdr_ok or "").strip() != "1":
+                return JSONResponse({"ok": False, "need_hdr_ok": True, "hdr_changes": _chg187, "order_no": order_no,
+                                     "message": "👉 엑셀 머리 값으로 수주 %s 의 %s 이(가) 바뀝니다 — 확인하면 저장합니다(아직 아무것도 안 바꿈)"
+                                                % (order_no, "·".join(x["f"] for x in _chg187))}, 200)
+            _multi187 = (c.execute("SELECT COUNT(*) FROM orders WHERE project_id=? AND UPPER(COALESCE(status,''))<>'CANCELLED'",
+                                   (pid,)).fetchone()[0] or 0) > 1
             # v5H226z971 (대표 지적): 교체/추가가 변경 이력에 안 남던 문제 → 교체 전 개수 캡처(아래서 이력 1줄 기록)
             _old_cnt971 = c.execute("SELECT COUNT(*) FROM order_items WHERE order_id=?", (oid,)).fetchone()[0]
             # ── 라인 교체(replace): 기존 order_items 삭제 → 새로 INSERT / 추가(add): 삭제 없이 append (order_no·project 유지)
@@ -22781,9 +22803,16 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                             _pset.append("customer_id=?"); _pval.append(_cid943)
                     except Exception:
                         pass
+            if _multi187:
+                # z1191z187: 수주가 2개 이상 = 한 수주의 엑셀로 관리번호(처음 등록 값)의 고객·통화·거래구분 등을 바꾸지 않음
+                _pset, _pval = [], []
             if _pset:
                 _pval.append(pid)
                 c.execute(f"UPDATE projects SET {', '.join(_pset)} WHERE id=?", _pval)
+            if _chg187:
+                for _x187 in _chg187:
+                    _logi.log_project_change(c, pid, u.get("id"), "수주 %s %s" % (order_no, _x187["f"]), _x187["old"], _x187["new"],
+                                             "z1191z187 상품 엑셀 덮어쓰기 · 올린 사람이 바뀌는 칸 확인함")
             # 프로젝트 총액 = 전체 수주 합(추가발주 보존)
             _apply_project_amount(c, pid, exclude_cancelled=True)  # z1097b: 통화별 환산(옛 SUM 은 원화+달러를 그냥 더했다)
             # z1191z122: 엑셀 줄마다 「상태」 칸이 들어오므로 수주 상태를 그 수주 호기에 맞춘다(전엔 안 맞춰 작업일정표=출하·수주 카드=수주)
@@ -22801,7 +22830,7 @@ async def sales_orders_overwrite_product(req: Request, oid: int, xlsx: UploadFil
                     f"부품 {_old_cnt971}개", f"부품 {_new_cnt971}개",
                     f"수주 {order_no} · 엑셀 '{fname}' · 이번 반영 {inserted}건"
                     + ("" if _is_add943 else " · 기존 부품 삭제 후 채움")
-                    + " · 고객사/모델/납기 등 메타는 엑셀값으로 갱신")
+                    + (" · 수주 2개 이상이라 관리번호 머리 칸은 그대로(z1191z187)" if locals().get("_multi187") else " · 고객사/모델/납기 등 메타는 엑셀값으로 갱신"))
             except Exception as _he971:
                 print(f"[z971 history] 이력 기록 실패(업로드는 성공): {_he971}")
     except Exception as e:
@@ -41668,19 +41697,28 @@ async def projects_import_product_template(request: Request, so_id: int = 0):
                             "SELECT * FROM order_items WHERE order_id=? ORDER BY id", (int(so_id),))]
                         _can_pp = can_view_field(u, "purchase_price")
                         _can_sa = can_view_field(u, "sales_amount")
-                        _exp988 = bool(so_d.get("is_export")) or bool(p_d.get("is_export")) or any(
+                        # z1191z187 (대표 11-27 「3번 진행해」): 머리 칸 = **그 수주** 값(관리번호 처음 등록 값 아님)
+                        #   1차 고객 = 수주 customer_id 의 이름 · 2차 = 수주 2차(없으면 빈칸) · PO유형·모델·장비·발주일·납기 = 수주 ·
+                        #   거래구분 = 수주 품목(수출 줄이 있으면 수출) — 품목에 거래구분이 하나도 없을 때만 수주 is_export
+                        _iexs187 = [it.get("is_export") for it in _items988 if it.get("is_export") is not None and str(it.get("is_export")) != ""]
+                        _exp988 = (any(str(x) == "1" for x in _iexs187) if _iexs187 else bool(so_d.get("is_export"))) or any(
                             str(it.get("currency") or "").upper() not in ("", "KRW") for it in _items988)
+                        _cn187 = ""
+                        if so_d.get("customer_id"):
+                            _r187 = c.execute("SELECT name FROM customers WHERE id=?", (so_d["customer_id"],)).fetchone()
+                            _cn187 = (_r187[0] if _r187 else "") or ""
+                        _e2_187 = str(so_d.get("end_customer") or "").strip()
                         _hdr988 = {
                             "관리번호": p_d.get("mgmt_code") or "",
-                            "고객사1*": p_d.get("customer_name") or p_d.get("customer") or "",
-                            "고객사2": p_d.get("secondary_customer") or "",
+                            "고객사1*": _cn187,
+                            "고객사2": ("" if _e2_187 in ("", "없음") else _e2_187),
                             "프로젝트명*": p_d.get("name") or "",
-                            "모델명": p_d.get("model_name") or "",
-                            "장비명": p_d.get("equip_name") or "",
-                            "발주일": str(so_d.get("order_date") or p_d.get("order_date") or "")[:10],
-                            "납기": str(so_d.get("due_date") or p_d.get("due_date") or "")[:10],
+                            "모델명": so_d.get("model_name") or "",
+                            "장비명": so_d.get("equip_name") or "",
+                            "발주일": str(so_d.get("order_date") or "")[:10],
+                            "납기": str(so_d.get("due_date") or "")[:10],
                             "거래구분": ("수출" if _exp988 else "내수"),
-                            "PO유형": p_d.get("po_type") or "",
+                            "PO유형": so_d.get("po_type") or "",
                             "영업담당자": p_d.get("sales") or "",
                         }
                         _rows988 = []
@@ -61041,7 +61079,7 @@ def _export_ci_build(c, pid, so_id=None):
         # z1191z166: 수주별 = 그 수주의 2차만(없으면 비움 · 관리번호 처음 등록 값으로 채우지 않음)
         _final166 = _endv155[0] if len(_endv155) == 1 else ""
     else:
-        _final166 = (_endv155[0] if (len(_endv155) == 1 and not any(e is None for e in _end155)) else (p.get("secondary_customer") or ""))
+        _final166 = (_endv155[0] if (len(_endv155) == 1 and not any(e is None for e in _end155)) else (p.get("secondary_customer") or ""))   # z165-ok: 수주 안 고른 관리번호 전체 보기 · 수주 2차가 하나로 안 모일 때만
     ci = {
         "ci_no": (f"CI-{p.get('mgmt_code') or pid}-{_so_no166}" if so_id is not None else f"CI-{p.get('mgmt_code') or pid}"),
         "so_id": so_id, "so_no": _so_no166,

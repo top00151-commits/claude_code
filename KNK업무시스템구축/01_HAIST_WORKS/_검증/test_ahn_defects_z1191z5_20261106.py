@@ -206,7 +206,13 @@ if fm:
 buf = io.BytesIO(); wb.save(buf)
 ur = q(cl.post, "/sales/orders/%d/overwrite-product" % OB[1]["id"],
        files={"xlsx": ("상품양식.xlsx", buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}, data={"mode": "add"})
-check(ur.status_code == 200 and (ur.json() or {}).get("ok"), "상품 양식 올리기(부품 추가·PO유형=개조) 응답 ok — %s" % ur.text[:100])
+# z1191z187 (대표 11-27): 수주 PO유형이 바뀌면 먼저 「확인 필요」(아무것도 안 바뀜) → 확인(hdr_ok=1) 해야 저장
+_j187 = ur.json() or {}
+check(_j187.get("need_hdr_ok") and any(x.get("f") == "PO유형" and x.get("new") == "개조" for x in _j187.get("hdr_changes") or [])
+      and orders_of(proj("B-상품")["id"])[1].get("po_type") == "추가", "z1191z187: PO유형 바뀜 = 먼저 확인 필요 · 아직 안 바뀜 — %s" % ur.text[:120])
+ur = q(cl.post, "/sales/orders/%d/overwrite-product" % OB[1]["id"],
+       files={"xlsx": ("상품양식.xlsx", buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}, data={"mode": "add", "hdr_ok": "1"})
+check(ur.status_code == 200 and (ur.json() or {}).get("ok"), "상품 양식 올리기(부품 추가·PO유형=개조 · 확인함) 응답 ok — %s" % ur.text[:100])
 PB = proj("B-상품"); OB = orders_of(PB["id"])
 check(PB["po_type"] == "신규", "프로젝트 PO유형은 그대로 '신규'(덮지 않음) — 실제 %r" % PB["po_type"])
 check(OB[1].get("po_type") == "개조", "올린 수주의 PO유형 = 개조 — 실제 %r" % OB[1].get("po_type"))
