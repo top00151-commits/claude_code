@@ -170,7 +170,8 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
   <div class="tbl-wrap tbl-sticky sr-scrollbox">
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
-      <tbody>{% for o in action %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
+      {# z1191z194 S-4: 201번째 건부터 내리면 이어 그림(서버는 모두 보냄 · 건수·합계 그대로 · 거르기·정렬은 모두 붙인 뒤) #}
+      <tbody>{% for o in action %}{% if loop.index0 == 200 %}<template data-knk-rest data-knk-unit="tr.sr-recA">{% endif %}{% include "_v5_partials/_sr_row.html" %}{% if loop.last and loop.length > 200 %}</template><tr class="knk-more-row"><td colspan="7">⬇ 아래에 <b class="knk-more-n">{{ '{:,}'.format(loop.length - 200) }}</b>건 더 있음 — 내리면 이어서 보입니다<button type="button" class="knk-more-all">모두 보기</button></td></tr>{% endif %}{% endfor %}</tbody>
     </table>
   </div>
   {% endif %}
@@ -190,7 +191,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
     {% if inmonth %}
     <table class="tbl" data-sr-table>
       {# z915: 2줄 레이아웃 — 헤더 없음(각 칸에 라벨 내장) #}
-      <tbody>{% for o in inmonth %}{% include "_v5_partials/_sr_row.html" %}{% endfor %}</tbody>
+      <tbody>{% for o in inmonth %}{% if loop.index0 == 200 %}<template data-knk-rest data-knk-unit="tr.sr-recA">{% endif %}{% include "_v5_partials/_sr_row.html" %}{% if loop.last and loop.length > 200 %}</template><tr class="knk-more-row"><td colspan="7">⬇ 아래에 <b class="knk-more-n">{{ '{:,}'.format(loop.length - 200) }}</b>건 더 있음 — 내리면 이어서 보입니다<button type="button" class="knk-more-all">모두 보기</button></td></tr>{% endif %}{% endfor %}</tbody>
     </table>
     {% else %}<div class="empty"><div class="ico">📅</div><div class="ttl">발행완료·수금 대상 없음</div><div style="color:var(--mute);font-size:12px;margin-top:6px;">위 ‘발행 대기’에서 세금계산서 발행·결제조건을 정리하세요.</div></div>{% endif %}
   </div>
@@ -200,8 +201,11 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
   {# 수금 입력 — /sales/receipts(JSON API)로 POST 후 새로고침. .main 안이라 spa_nav 재실행 안전(IIFE). #}
   <script>
   (function(){
-    document.querySelectorAll('form.sr-recv-form').forEach(function(f){
-      f.addEventListener('submit', function(ev){
+    /* z1191z194 S-4: 줄을 나중에 이어 붙여도 동작하게 문서 한 곳에서 받음(예전: 처음 그린 줄에만 붙임) · 화면을 다시 열어도 한 번만 */
+    if (window.__srDeleg194) return; window.__srDeleg194 = 1;
+    document.addEventListener('submit', function(ev){
+      var f = ev.target && ev.target.closest && ev.target.closest('form.sr-recv-form'); if (!f || !document.querySelector('main table[data-sr-table]')) return;
+      (function(ev){
         ev.preventDefault();
         var btn = f.querySelector('button');
         var h = window.KNKBusy ? KNKBusy.btn(btn, '수금 저장 중…') : null;
@@ -213,14 +217,13 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
             else { if(h) h.fail('수금 저장 실패'); else if(btn){ btn.disabled=false; btn.textContent='수금'; } alert((j && j.error) || '수금 저장에 실패했습니다.'); }
           })
           .catch(function(){ if(h) h.fail('네트워크 오류'); else if(btn){ btn.disabled=false; btn.textContent='수금'; } alert('네트워크 오류로 수금 저장에 실패했습니다.'); });
-      });
-    });
+      })(ev);
+    }, true);
     // 부분수금 이력 펼치기/접기
-    document.querySelectorAll('.sr-hist-btn').forEach(function(b){
-      b.addEventListener('click', function(){
-        var row = document.getElementById('hist-' + b.getAttribute('data-hist'));
-        if(row){ if(row.hasAttribute('hidden')) row.removeAttribute('hidden'); else row.setAttribute('hidden',''); }
-      });
+    document.addEventListener('click', function(ev){
+      var b = ev.target && ev.target.closest && ev.target.closest('.sr-hist-btn'); if (!b) return;
+      var row = document.getElementById('hist-' + b.getAttribute('data-hist'));
+      if(row){ if(row.hasAttribute('hidden')) row.removeAttribute('hidden'); else row.setAttribute('hidden',''); }
     });
   })();
   </script>
@@ -272,7 +275,12 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
     }
     sel.addEventListener('change', function(){
       var k = sel.value;
-      tables.forEach(function(t){ sortTable(t.tBodies[0], k); });
+      tables.forEach(function(t){
+        var tb = t.tBodies[0]; if(!tb) return;
+        try { if (window.knkRowsAll) window.knkRowsAll(tb); } catch(e){}   /* z1191z194 S-4: 정렬은 전체 자료에서 */
+        var i = 0; Array.prototype.forEach.call(tb.children, function(r){ if(r.classList.contains('sr-recA')){ if (r.dataset.idx == null || r.dataset.idx === '') r.dataset.idx = 100000 + (i); i++; } });
+        sortTable(tb, k);
+      });
     });
   })();
   </script>
@@ -331,6 +339,7 @@ body[data-sr-th="all"]  .tbl-wrap.sr-scrollbox{max-height:none;}
     function apply(){
       document.querySelectorAll('main table[data-sr-table]').forEach(function(t){
         var tb = t.tBodies[0]; if(!tb) return;
+        try { if (window.knkRowsAll && (curState !== 'all' || (dmode && dmode.value !== 'all'))) window.knkRowsAll(tb); } catch(e){}   /* z1191z194 S-4: 거르기는 전체 자료에서 */
         var vis = 0;
         groups(tb).forEach(function(g){
           var st = g[0].getAttribute('data-state') || '';

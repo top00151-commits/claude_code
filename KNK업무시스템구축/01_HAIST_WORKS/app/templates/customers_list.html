@@ -316,8 +316,10 @@ th.cu-sort.on .cu-arw{ color:var(--brand,#A5282C); }
 </main></div>
 
 <script>
-let cuImportRows = [];
-let _cuFile = null;   // 대표규정(2026-07-28): 확정 후 '엑셀 원본 ↔ 저장값' 대조에 다시 쓸 파일
+/* z1191z194 (화면 전수 점검 · 묶음 P 에서 찾음): 메뉴·뒤로로 이 화면에 다시 오면 본문 스크립트를 다시 돌리는데, 맨 위 `let` 이 「이미 선언됨」 오류를 내
+   안전장치(z1191z9)가 화면 전체를 새로 열었다(번쩍임) → 다시 선언해도 되는 `var` 로(값은 화면마다 처음부터 · 동작 같음) */
+var cuImportRows = [];
+var _cuFile = null;   // 대표규정(2026-07-28): 확정 후 '엑셀 원본 ↔ 저장값' 대조에 다시 쓸 파일
 
 async function uploadCustomersXlsx(file){
   if(!file) return;

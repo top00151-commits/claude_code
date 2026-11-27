@@ -26,6 +26,11 @@
 {% import "_v5_partials/knk_ccy_total.html" as _ccy %}
 {% import "_v5_partials/knk_fx_amt.html" as _fx %}{# z1191z104 #}
 <link rel="stylesheet" href="/static/css/project_detail.css?v={{ APP_VERSION }}" />
+{# z1191z194 S-3 (화면 전수 점검 11-27 · 열린 직후 내용이 아래로 튐 — 밀림 점수 PC 0.365 · 휴대폰 0.553 · 원인 확정):
+   위쪽 「프로젝트 정보」 칸(aside right-rail)은 HTML 맨 뒤(2,300줄 뒤)에 있고 격자(grid-template-areas "info" "main")가 맨 위로 올린다.
+   브라우저는 받는 대로 먼저 그리므로 본문(수주 카드 등)이 먼저 그려지고, 0.1초 뒤 정보 칸이 도착하면 본문 전체가 그만큼 아래로 밀렸다.
+   → 정보 칸까지 받은 뒤 한 번에 그린다(knk-smooth-page 3절 「끝까지 읽고 한 번에 보이기」 · 표시 #pdPaintReady). 표시를 못 찾아도 문서 끝에서 그린다. #}
+<link rel="expect" href="#pdPaintReady" blocking="render">
 {# v5H226z971 (대표 지적): 부품 추가 업로드·전체 교체는 [✏️ 수정](편집 모드) 후에만 — 잠금 상태에선 흐리게(클릭 시 JS 가드가 안내) #}
 <script>
 /* z1191z117 ⑦-1: 작업일정표 수량 = 품목 줄 합으로 맞추기 */
@@ -2568,6 +2573,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       {% endif %}
     </aside>
   </div>
+  <div id="pdPaintReady" hidden></div>{# z1191z194 S-3: 여기까지 받은 뒤 첫 화면 #}
   <div style="height: var(--space-7);"></div>
 
 {# v5H177: 헤더 필드 인라인 편집 (이름/비고/통화·환율/거래구분) #}

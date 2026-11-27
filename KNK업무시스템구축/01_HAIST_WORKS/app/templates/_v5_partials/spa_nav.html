@@ -189,25 +189,78 @@
     } catch(e){ return final; }
   }
 
+  var navA = null;   // z1191z194: 누른 링크(「여는 중」 표시용) — navigate 이름·인자는 그대로(z1191x 시험)
   function navigate(url, push){
-    if (mustFull(url)) { if (push) window.location.assign(url); else window.location.replace(url); return; }   // z1191z9: 뒤로/앞으로도 전체 새로 열기
+    var a = navA; navA = null;
+    if (mustFull(url)) { busyOn(url, a); if (push) window.location.assign(url); else window.location.replace(url); return; }   // z1191z9: 뒤로/앞으로도 전체 새로 열기
+    var my = ++busySeq;                                    // z1191z194: 마지막으로 누른 것만 화면에 적용
+    busyOn(url, a);
     fetch(url, { headers: { 'X-KNK-Partial': '1' }, credentials: 'same-origin' })
       .then(function(r){
+        if (my !== busySeq) return null;                   // 그사이 다른 곳을 누름 — 이 응답은 버림
         var ct = r.headers.get('content-type') || '';
         if (!r.ok || ct.indexOf('text/html') === -1) { fullNav(url); return null; }
         if (r.redirected) { fullNav(afterRedirect(url, r.url)); return null; } // 인증만료 · 권한 없음 등
         return r.text();
       })
-      .then(function(html){ if (html != null) apply(html, url, push); })
-      .catch(function(){ fullNav(url); });
+      .then(function(html){ if (html != null && my === busySeq) apply(html, url, push); })   // 막대 거두기 = 본문을 갈아 끼운 뒤(knk:navigated)
+      .catch(function(){ if (my === busySeq) fullNav(url); });
   }
+
+  /* z1191z194 S-1 (화면 전수 점검 11-27 · 메뉴를 누르면 1~3초 아무 표시가 없어 먹통처럼 보여 두 번 누름):
+     누르는 즉시 ① 맨 위 얇은 진행 막대 + 「여는 중…」 ② 누른 링크를 흐리게(글자·폭은 그대로 — 줄이 출렁이지 않게 · knk-smooth-page)
+     ③ 0.3초가 넘으면 본문을 살짝 흐리게(투명도만 · 자리 그대로) ④ 같은 주소를 또 누르면 한 번만 · 다른 곳을 누르면 마지막 것만 열림.
+     본문을 갈아 끼우면(또는 화면 전체 이동 · 실패) 모두 거둔다. */
+  var busySeq = 0, busyUrl = '', busyA = null, dimT = null;
+  try {
+    var st194 = document.createElement('style');
+    st194.textContent = '#knkNavBar{position:fixed;top:0;left:0;height:3px;width:0;background:var(--knk-red,#A5282C);z-index:2147483000;pointer-events:none;opacity:0;transition:width 8s cubic-bezier(.1,.7,.3,1),opacity .2s}'
+      + '#knkNavBar.on{opacity:1;width:85%}'
+      + '#knkNavBar::after{content:"여는 중…";position:fixed;top:6px;right:12px;font:700 11.5px/1 system-ui,sans-serif;color:#fff;background:var(--knk-red,#A5282C);padding:4px 8px;border-radius:10px;opacity:inherit}'
+      + 'a.knk-nav-busy{opacity:.55;cursor:progress}'
+      + '.main.knk-nav-wait{opacity:.55;transition:opacity .15s;cursor:progress}';
+    document.head.appendChild(st194);
+  } catch(e){}
+  function navBar(){
+    var b = document.getElementById('knkNavBar');
+    if (!b) { b = document.createElement('div'); b.id = 'knkNavBar'; b.setAttribute('role', 'progressbar'); b.setAttribute('aria-label', '여는 중'); document.body.appendChild(b); }
+    return b;
+  }
+  function busyOn(url, a){
+    busyUrl = url;
+    var b = navBar(); b.classList.remove('on'); b.style.transition = 'none'; b.style.width = '0'; void b.offsetWidth; b.style.transition = ''; b.classList.add('on');
+    if (busyA) busyA.classList.remove('knk-nav-busy');
+    busyA = a || null; if (busyA) busyA.classList.add('knk-nav-busy');
+    if (dimT) clearTimeout(dimT);
+    dimT = setTimeout(function(){ var m = document.querySelector('.main'); if (m && busyUrl) m.classList.add('knk-nav-wait'); }, 300);
+    setTimeout(function(){ if (busyUrl === url) busyOff(); }, 15000);   // 15초 넘게 안 오면 거두고 다시 누를 수 있게(먹통 방지)
+  }
+  function busyOff(){
+    busyUrl = '';
+    if (dimT) { clearTimeout(dimT); dimT = null; }
+    var b = document.getElementById('knkNavBar'); if (b) b.classList.remove('on');
+    if (busyA) { busyA.classList.remove('knk-nav-busy'); busyA = null; }
+    var m = document.querySelector('.main'); if (m) m.classList.remove('knk-nav-wait');
+  }
+  window.addEventListener('pageshow', busyOff);   // 뒤로(bfcache)로 돌아온 화면에 막대가 남지 않게
+  document.addEventListener('knk:navigated', busyOff);
+
 
   document.addEventListener('click', function(e){
     if (!e.target || !e.target.closest) return;
     var a = e.target.closest('a[href]');
-    if (!a || !eligible(a, e)) return;
+    if (!a) return;
+    if (!eligible(a, e)) {
+      // z1191z194: 늘 전체 새로 여는 주소(FULL_ONLY 등)도 누르는 즉시 막대만(이동은 브라우저가 · 막지 않음)
+      try {
+        if (!e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && (!a.target || a.target === '_self')
+            && sameOrigin(a.href) && mustFull(a.href) && !a.hasAttribute('download')) busyOn(a.href, a);
+      } catch(_e){}
+      return;
+    }
     e.preventDefault();
-    navigate(a.href, true);
+    if (busyUrl && a.href === busyUrl) return;           // z1191z194: 같은 링크 두 번 누름 → 한 번만
+    navA = a; navigate(a.href, true);
   });
 
   window.addEventListener('popstate', function(){ navigate(location.href, false); });

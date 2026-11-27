@@ -1103,6 +1103,11 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     background:transparent; color:rgba(255,255,255,0.7); border:0;
     font-size:13px; cursor:pointer; white-space:nowrap;
   }
+  /* z1191z194 S-2: 휴대폰에서 띠 글이 한 글자씩 세로로 꺾이던 것(원래부터) — 좁은 화면은 글 한 줄 · 단추는 아랫줄 */
+  @media (max-width: 767px) {
+    #knkUpdateBar { flex-wrap: wrap; width: 92vw; gap: 8px 12px; padding: 12px 14px; font-size: 13.5px; }
+    #knkUpdateBar > span { flex: 1 1 100%; min-width: 0; }
+  }
 </style>
 <script>
 /* z1191z56 (대표 2026-11-18 「달러 소수점 — 지금까지 저장된 값은 그대로 · 앞으로」):
@@ -1318,12 +1323,14 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     document.body.appendChild(bar);
   }
 
-  // 새 버전 감지: 백그라운드면 조용히 갱신 · 보이면 안내 + 유휴 시 자동 갱신
+  // 새 버전 감지 → 띠만 띄운다.
+  // z1191z194 S-2 (대표 결정 6 · 11-27 「배포 뒤 자동 새로 고침 하지 않음 — 띠만 · 누르면 새로 고침」):
+  //   예전엔 9초 손을 안 대거나 탭이 뒤로 가면 저절로 새로 고쳤다(표를 읽다가 번쩍 · 근무시간 하루 25번 배포).
+  //   이제 저절로 새로 고치지 않는다 · 「지금 새로고침」·↻ 를 누를 때만 · 메뉴로 다른 화면에 갈 때 새 판 적용(z1191z126 · spa_nav)은 그대로.
+  //   safeReload·watchIdle 는 부르지 않는다(남겨 두기만 · 다시 켜지 말 것).
   function onNewVersion() {
     pending = true;
-    if (document.hidden) { safeReload(); return; }
     showBanner();
-    watchIdle();
   }
   var idleT = null;
   function watchIdle() {
@@ -1347,9 +1354,9 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   setTimeout(check, 20000);        // 첫 확인: 20초 후
   setInterval(check, 90000);       // 이후 90초마다
   // 탭 상태 변화: 보이게 되면(복귀) 즉시 갱신 · 백그라운드로 가면 조용히 갱신 (둘 다 작업 중이 아닐 때만)
+  //   z1191z194 S-2: 탭을 다시 보거나 뒤로 보내도 저절로 새로 고치지 않음 — 새 판 확인만
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') { if (pending) safeReload(); else check(); }
-    else if (pending) { safeReload(); }
+    if (document.visibilityState === 'visible' && !pending) check();
   });
   // z1191z53: 새 버전이 감지된 뒤 F5·주소창 등으로 떠날 때도 입력 중이던 칸 저장(돌아오면 되살림)
   window.addEventListener('pagehide', function () { if (pending) { try { if (window.knkDraft) knkDraft.save(); } catch (e) {} } });
@@ -1538,6 +1545,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     (function attempt(){
       tries++;
       var last = (tries >= MAXTRY);
+      if (!winDone && tries === 1 && window.knkRowsEnsure) { try { window.knkRowsEnsure(null, wy); } catch(e){} }   // z1191z194 S-4: 큰 목록 이어 그리기 — 돌아갈 깊이만큼 먼저 붙임
       if (!winDone){                              // 창: 문서가 충분히 자랐을 때 적용(마지막 회차엔 그냥 적용)
         var okX = (wx <= 0) || ((document.documentElement.scrollWidth - window.innerWidth) >= wx);
         var okY = (wy <= 0) || ((document.documentElement.scrollHeight - window.innerHeight) >= wy);
@@ -1548,6 +1556,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
         var it = items[i]; if (it.done) continue;
         var el = it.main ? mainEl() : resolveKey(it.k);
         var ok = false;
+        if (el && !it.ens && it.top > 0 && window.knkRowsEnsure) { it.ens = true; try { window.knkRowsEnsure(el, it.top); } catch(e){} }   // z1191z194 S-4
         if (el){
           var okT = (it.top <= 0)  || ((el.scrollHeight - el.clientHeight) >= it.top);
           var okL = (it.left <= 0) || ((el.scrollWidth  - el.clientWidth)  >= it.left);

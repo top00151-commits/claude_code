@@ -184,6 +184,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       </tr></thead>
       <tbody>
       {% for c in contacts %}
+        {% if loop.index0 == 200 %}<template data-knk-rest>{# z1191z194 S-4: 201번째 줄부터 내리면 이어 그림(서버는 모두 보냄 · 찾기는 서버 · 전체 선택은 모두 붙인 뒤) #}{% endif %}
         <tr data-id="{{ c.id }}" onclick="cxRowGo(event, {{ c.id }})" style="cursor:pointer;">
           <td class="cx-chkcol"><input type="checkbox" class="cx-row" data-id="{{ c.id }}" data-mobile="{{ (c.mobile or '')|trim }}" data-mine="{{ 1 if c.mine else 0 }}" data-movable="{{ 1 if c.movable else 0 }}" data-tab="{{ c.tab }}" onclick="event.stopPropagation(); cxSyncSel();"></td>
           <td data-col="name" title="{{ c.name }}"><b>{{ c.name_disp }}</b></td>
@@ -211,6 +212,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
           <td data-col="note" style="font-size:12px;color:var(--mute);" title="{{ c.note|default('', true) }}">{{ c.note|default('—', true) }}</td>
           <td class="center"><button type="button" class="cx-del" title="이 연락처 삭제" onclick="cxDelOne(event, {{ c.id }})">🗑</button></td>
         </tr>
+        {% if loop.last and loop.length > 200 %}</template><tr class="knk-more-row"><td colspan="15">⬇ 아래에 <b class="knk-more-n">{{ '{:,}'.format(loop.length - 200) }}</b>건 더 있음 — 내리면 이어서 보입니다<button type="button" class="knk-more-all">모두 보기</button></td></tr>{% endif %}
       {% endfor %}
       </tbody>
     </table>
@@ -352,10 +354,13 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       var head=document.getElementById('cxAll');
       if(head){ head.checked = (n>0 && n===all.length); head.indeterminate = (n>0 && n<all.length); }
     };
-    window.cxSelAll=function(cb){ rows().forEach(function(x){ x.checked=cb.checked; }); cxSyncSel(); };
+    /* z1191z194 S-4: 전체 선택·「휴대폰 없는 것 고르기」는 아직 안 그린 줄까지 모두 붙인 뒤(전체 자료에서) · 새로 붙은 줄에도 칸 숨김 적용 */
+    function rowsAll(){ try { if (window.knkRowsAll) window.knkRowsAll(TBL); } catch(e){} return rows(); }
+    if (!window.__cxRowsAdded194) { window.__cxRowsAdded194 = 1; document.addEventListener('knk:rows-added', function(ev){ try { if (window.__cxApplyHidden194 && ev.detail && ev.detail.tbody && ev.detail.tbody.closest('#cxTbl')) window.__cxApplyHidden194(); } catch(e){} }); }
+    window.cxSelAll=function(cb){ rowsAll().forEach(function(x){ x.checked=cb.checked; }); cxSyncSel(); };
     window.cxSelectNoMobile=function(){
       var hit=0;
-      rows().forEach(function(x){ var m=(x.getAttribute('data-mobile')||'').trim();
+      rowsAll().forEach(function(x){ var m=(x.getAttribute('data-mobile')||'').trim();
         var on = (m==='' || m==='—'); x.checked=on; if(on) hit++; });
       cxSyncSel();
       if(!hit) alert('휴대폰 번호가 없는 연락처가 없습니다.');
@@ -423,6 +428,7 @@ a.cx-tel:hover { color:#1d4ed8; border-bottom-color:#1d4ed8; }
       }catch(e){ alert('네트워크 오류: '+e.message); cxSyncSel(); }
     };
     applyWidths(); applyHidden(); cxSyncSel();
+    window.__cxApplyHidden194 = applyHidden;   /* z1191z194: 이어 붙인 줄에도 숨긴 칸 그대로 */
   })();
   </script>
 </main></div>

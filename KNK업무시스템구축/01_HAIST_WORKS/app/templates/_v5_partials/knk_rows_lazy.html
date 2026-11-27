@@ -1,0 +1,78 @@
+{# z1191z194 S-4 (대표 결정 7 · 11-27 「큰 목록 = 처음 200줄 + 내리면 이어서 · 찾기·거르기는 전체 자료에서 · N건 더 있음 표시」)
+   큰 목록(프로젝트 · 연락처 · 출하·입금)이 한 번에 모든 줄(연락처 1,467줄×15칸 · 출하·입금 2,735줄)을 그려 화면이 뜬 뒤 0.2~7초 멈췄다.
+   방식 = 서버는 지금처럼 모든 줄을 보낸다(자르지 않음 · 합계·건수·엑셀 그대로). 화면 틀이 201번째 줄부터 <template data-knk-rest> 안에 넣어
+   그리지만 않고(브라우저가 글자·칸 계산을 안 함), 바로 아래 「⬇ N건 더 있음」 줄(서버가 처음부터 그림 — 그린 뒤 줄이 생기지 않게)이 보이면 200개씩 이어 붙인다.
+   · 거르기·정렬·전체 선택처럼 「모든 줄」이 필요한 동작은 그 화면이 먼저 knkRowsAll() 을 불러 남은 줄을 모두 붙인 뒤 한다(전체 자료에서).
+   · 이어 붙이면 'knk:rows-added' 를 알린다(그 화면이 거르기·칸 숨김을 새 줄에도 적용).
+   · 위치 기억(z984)이 깊은 곳으로 돌아갈 때는 knkRowsEnsure(상자, 높이) 로 그만큼 먼저 붙인다.
+   · data-knk-unit="tr.sr-recA" = 한 건이 여러 줄이면 그 건의 첫 줄 표시(건 단위로 끊어 붙임 · 한 건이 둘로 갈라지지 않게).
+   만들 때(템플릿): {% raw %}{% if loop.index0 == 200 %}<template data-knk-rest>{% endif %} … 줄 … {% if loop.last and loop.length > 200 %}</template>{{ knk_more_row(…) }}{% endif %}{% endraw %} #}
+<style>
+tr.knk-more-row > td { padding: 12px 14px !important; text-align: center; background: var(--knk-bg-inset, #F6F7F4); color: var(--knk-text-secondary, #46524B); font-size: 13px; border-top: 1px dashed var(--knk-border-subtle, #E2E6E1); }
+tr.knk-more-row .knk-more-all { margin-left: 8px; padding: 4px 12px; border: 1px solid var(--knk-border-subtle, #E2E6E1); border-radius: 14px; background: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; color: inherit; }
+</style>
+<script>
+(function(){
+  if (window.knkRowsAll) return;
+  var STEP = 200;
+  function units(tpl){
+    var sel = tpl.getAttribute('data-knk-unit'), n = 0, c = tpl.content.children;
+    for (var i = 0; i < c.length; i++) { if (!sel || (c[i].matches && c[i].matches(sel))) n++; }
+    return n;
+  }
+  function moreRow(tpl){ var m = tpl.nextElementSibling; return (m && m.classList && m.classList.contains('knk-more-row')) ? m : null; }
+  function addFrom(tpl, n){
+    if (!tpl || !tpl.parentNode) return 0;
+    var sel = tpl.getAttribute('data-knk-unit'), c = tpl.content, frag = document.createDocumentFragment(), moved = [], u = 0;
+    while (c.firstElementChild) {
+      var r = c.firstElementChild, isStart = !sel || (r.matches && r.matches(sel));
+      if (isStart) { if (u >= n) break; u++; }
+      moved.push(r); frag.appendChild(r);
+    }
+    var tb = tpl.parentNode;
+    tb.insertBefore(frag, tpl);
+    var left = units(tpl), m = moreRow(tpl);
+    if (!left) { if (m) m.remove(); tpl.remove(); }
+    else if (m) { var s = m.querySelector('.knk-more-n'); if (s) s.textContent = left.toLocaleString('ko-KR'); }
+    try { document.dispatchEvent(new CustomEvent('knk:rows-added', { detail: { tbody: tb, rows: moved } })); } catch (e) {}
+    return moved.length;
+  }
+  window.knkRowsAll = function(scope){
+    var ts = (scope || document).querySelectorAll('template[data-knk-rest]'), n = 0;
+    for (var i = 0; i < ts.length; i++) n += addFrom(ts[i], Infinity);
+    return n;
+  };
+  /* 위치 기억(z984): 상자(el)를 px 만큼 내릴 수 있을 때까지 이어 붙임 */
+  window.knkRowsEnsure = function(el, px){
+    var root = (!el || el === document.scrollingElement || el === document.documentElement || el === document.body) ? document : el, guard = 0;
+    var box = (root === document) ? document.scrollingElement : el;
+    while (guard++ < 100) {
+      if ((box.scrollHeight - box.clientHeight) >= px) return;
+      var t = root.querySelector('template[data-knk-rest]'); if (!t) return;
+      addFrom(t, STEP);
+    }
+  };
+  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if (!e.isIntersecting) return;
+      var m = e.target, tpl = m.previousElementSibling;
+      if (tpl && tpl.tagName === 'TEMPLATE') addFrom(tpl, STEP);
+    });
+  }, { rootMargin: '0px 0px 600px 0px' }) : null;
+  function init(){
+    var ms = document.querySelectorAll('tr.knk-more-row');
+    for (var i = 0; i < ms.length; i++) {
+      var m = ms[i]; if (m.__knkObs) continue; m.__knkObs = 1;
+      if (io) io.observe(m);
+    }
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest && ev.target.closest('.knk-more-all'); if (!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var m = b.closest('tr.knk-more-row'), tpl = m && m.previousElementSibling;
+    if (tpl && tpl.tagName === 'TEMPLATE') addFrom(tpl, Infinity);
+  }, true);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  document.addEventListener('knk:navigated', init);
+})();
+</script>
