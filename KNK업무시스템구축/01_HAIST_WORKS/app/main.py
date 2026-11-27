@@ -54232,11 +54232,26 @@ async def po_receive_submit(request: Request, po_id: int):
     return RedirectResponse(f"/po/{po_id}?received={result['count']}", 303)
 
 
+# z1191z195 (대표 11-27 「자재출고 화면은 못 들어가게 비활성화해 · 거기는 나만 들어갈 수 있게」):
+#   재고 출고 화면 전부(/stock/issue · /stock/issues · 승인) = 대표 김정락(users.id 85)만 · 다른 사람은 열기·저장 모두 막음.
+#   대표 역할(role=ceo)이 두 계정이라 역할이 아니라 번호로 가른다(연결 기본 = ID).
+_Z195_STOCK_ISSUE_OWNER = 85
+
+
+def _z195_stock_issue_ok(u):
+    try:
+        return bool(u) and int(u.get("id") or 0) == _Z195_STOCK_ISSUE_OWNER
+    except Exception:
+        return False
+
+
 @app.get("/stock/issue", response_class=HTMLResponse)
 async def stock_issue_form(request: Request, part_id: str = ""):
     u = get_user(request)
     if not u:
         return RedirectResponse("/login", 303)
+    if not _z195_stock_issue_ok(u):   # z1191z195: 대표만
+        return RedirectResponse("/logistics?no_perm=stock_issue", 303)
     # WP-01(P0-04): 출고=재고를 바꾸는 화면 — 조회 권한(can_view) 차단, 쓰기 권한 필수
     if not can_use_logistics(u):
         return RedirectResponse("/home", 303)
@@ -54281,6 +54296,8 @@ async def stock_issue_submit(
     note: str = Form(""),
 ):
     u = get_user(request)
+    if not _z195_stock_issue_ok(u):   # z1191z195: 대표만
+        return RedirectResponse("/logistics?no_perm=stock_issue", 303)
     if not u:
         return RedirectResponse("/login", 303)
     # WP-01(P0-04): 출고 실행=재고 차감 — 조회 권한(can_view)으로 실행되던 구멍 차단
@@ -55779,6 +55796,8 @@ async def stock_issues_page(req: Request):
     u = _s2_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
+    if not _z195_stock_issue_ok(u):   # z1191z195: 대표만
+        return RedirectResponse("/logistics?no_perm=stock_issue", 303)
     with db_session() as c:
         rows = c.execute(
             """SELECT id, part_id, qty, purpose, status, requested_at, issued_at
@@ -55796,6 +55815,8 @@ async def stock_issues_submit(req: Request):
     u = _s2_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, 401)
+    if not _z195_stock_issue_ok(u):   # z1191z195: 대표만
+        return JSONResponse({"error": "권한 없음"}, 403)
     form = await req.form()
     try:
         part_id = int(form.get("part_id") or 0)
@@ -55829,6 +55850,8 @@ async def stock_issues_approve(req: Request, issue_id: int):
       아직 없는 임시 구조다(PENDING→ISSUED 직행). 따라서 **운영에서는 잠근다** — 승인자 지정
       체계와 상태전이 이력은 WP-08에서 정식 구현한다. 잠금을 임시 해제해도
       ①요청자 본인 승인 금지 ②시스템 관리 역할만으로는 승인 불가(승인 권한 분리)를 지킨다."""
+    if not _z195_stock_issue_ok(get_user(req)):   # z1191z195: 대표만
+        return RedirectResponse("/logistics?no_perm=stock_issue", 303)
     from urllib.parse import quote as _q
     if not _wp01_unlocked("KNK_ENABLE_STOCK_ISSUE_APPROVE"):
         return RedirectResponse("/stock/issues?error=" + _q(

@@ -93,7 +93,7 @@ def order_in(html):
 
 
 for url, what in [("/home/2026-10-12", "오늘 업무(fetch_customers)"), ("/daily/2026-10-12", "일일업무(fetch_customers)"),
-                  ("/issues/new", "이슈 등록"), ("/stock/issue", "재고 출고(세션 05 화면 · 대표 「같이 바꿈」)"),
+                  ("/issues/new", "이슈 등록"), 
                   ("/admin/console", "관리자 고객 표")]:   # z1191z83: 예전 관리자 화면 주소
     r = cl.get(url)
     o = order_in(r.text)

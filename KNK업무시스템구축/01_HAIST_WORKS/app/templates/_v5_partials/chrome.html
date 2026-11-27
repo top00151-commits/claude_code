@@ -689,7 +689,7 @@ var CH = {
   {{ a('/changes',       i.ch_m_changes, 'M-00-04') }}
   {{ a('/issues',        i.ch_m_issue,  'M-00-05') }}
   {{ a('/as',            i.ch_m_as,    'M-01-12') }}
-  {{ a('/stock/issues',  i.ch_m_issues, 'M-02-08') }}
+  {% if user and (user.id|int) == 85 %}{{ a('/stock/issues',  i.ch_m_issues, 'M-02-08') }}{% endif %}{# z1191z195: 재고 출고 = 대표만(대표 11-27) #}
   {{ a('/search',        i.ch_m_search,      'M-00-11') }}
   {% endset %}
   <style>

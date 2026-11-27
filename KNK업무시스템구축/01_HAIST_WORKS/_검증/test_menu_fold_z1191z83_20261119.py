@@ -99,9 +99,9 @@ KO = get_all_translations("ko")
 G_HOME, G_SALES, G_LOGI, G_COMMON, G_ADMIN = KO["ch_tab_home"], KO["ch_g_sales"], KO["ch_g_logi"], KO["ch_g_common"], KO["ch_g_admin"]
 
 FOLD_MEMBER = ["/daily", "/now", "/weekly", "/calendar", "/board/company", "/team", "/dept/requests", "/work-orders", "/rnd",
-               "/tickets", "/changes", "/issues", "/as", "/stock/issues", "/search"]
+               "/tickets", "/changes", "/issues", "/as", "/search"]   # z1191z195: 출고 요청(/stock/issues) = 대표(85)만
 FOLD_CEO = ["/daily", "/now", "/weekly", "/calendar", "/board/company", "/team", "/dashboard", "/workflow/team", "/workflow",
-            "/dept/requests", "/work-orders", "/rnd", "/tickets", "/changes", "/issues", "/as", "/stock/issues", "/search"]
+            "/dept/requests", "/work-orders", "/rnd", "/tickets", "/changes", "/issues", "/as", "/search"]   # z1191z195: 시험 계정 id 1 = 대표(85) 아님
 COMMON_NOW = ["/dept/schedule", "/meetings", "/voice-notes", "/contacts", "/notifications"]
 # 바꾸기 전(main 0109fffd) 사이드바에 있던 주소 — 전부 그대로 한 번씩 있어야 한다(지운 것 없음)
 BEFORE_HOME = ["/home", "/daily", "/now", "/board/company", "/team", "/weekly"]
@@ -151,7 +151,7 @@ g, fl, _, _ = parse(render("/logistics", active_tab="logi"))
 chk(hrefs(g, G_LOGI) == ["/logistics", "/parts", "/bom/upload", "/po", "/po/new", "/stock/movements", "/rates",
                          "/catalog", "/materials/requests", "/materials/new-review"],
     "자재·구매 묶음 = 출고 요청만 빠짐 · 실제 %s" % hrefs(g, G_LOGI))
-chk("/stock/issues" in [h for h, _, _ in fl], "출고 요청(준비 중)은 접은 묶음에")
+chk("/stock/issues" not in [h for h, _, _ in fl], "출고 요청 = 대표(85)만 · 다른 사람 메뉴에 없음(z1191z195)")
 g, fl, _, _ = parse(render("/sales", active_tab="sales", role="admin", can_use_sales=1))
 # z1191z98: 입금 대사는 💰 입금 메뉴의 탭(메뉴 줄 없음) · 💰 입금 = 매출 등록 권한(또는 대표·임원) · 🧾 마감 다음
 _h94 = hrefs(g, G_SALES)

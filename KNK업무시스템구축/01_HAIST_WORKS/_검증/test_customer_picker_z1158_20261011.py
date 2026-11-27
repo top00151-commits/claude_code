@@ -90,7 +90,7 @@ def order_in(h):
 
 
 for url, what in [("/home/2026-10-12", "오늘 업무"), ("/daily/2026-10-12", "일일업무"), ("/issues/new", "이슈 등록"),
-                  ("/stock/issue", "재고 출고"), ("/consumables", "소모품"),   # z1191z105: 시스템 견적서 작성 화면 없앰(→ 견적 관리)
+                  ("/consumables", "소모품"),   # z1191z195: /stock/issue = 대표(85)만 → 시험 목록에서 뺌(z195 시험이 확인) · z1191z105: 시스템 견적서 작성 화면 없앰(→ 견적 관리)
                   ("/qc/inspection-reports/new", "품질 보고"), ("/contacts/new", "연락처")]:
     r = cl.get(url)
     o = order_in(r.text)
