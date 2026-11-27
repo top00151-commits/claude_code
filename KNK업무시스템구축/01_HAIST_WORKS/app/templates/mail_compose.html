@@ -276,6 +276,20 @@
     .cmp-actions{gap:7px}
     .cmp-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:11px 8px;font-size:14px}
   }
+  /* ══ 11-27 대표 「위쪽 아이콘들 높이가 다 달라 — 균일하게 · 여백들이 달라 — 웹 디자인이라 생각하고 정리」 ══
+     전: 위 단추 34·36·28·38·36·40px(그림 문자가 줄 높이를 늘림) · 입력 줄 34·44·44·41px · 「보내는 사람」만 이름 시작 위치 다름
+         · 「양식」 단추 30px(나머지 도구 28px) · 서명 고르기 23px
+     후: 위 단추 모두 36px · 입력 줄 모두 44px · 이름표 칸 84px 로 같은 세로줄 · 도구 줄 모두 28px */
+  @media(min-width:641px){
+    .cmp-actions>.btn,.cmp-actions>.cmp-wait{height:36px;box-sizing:border-box;padding-top:0;padding-bottom:0;display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;border-radius:8px;white-space:nowrap}
+    .cmp-actions>.cmp-wait{padding-left:12px;padding-right:6px}
+    .cmp-actions>.cmp-wait select{height:28px}
+    .cmp-from{display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;padding:0 2px;font-size:13px}
+    .cmp-from .cmp-from-l{width:84px;flex:none}
+    .cmp-row{min-height:44px;box-sizing:border-box;padding-top:6px;padding-bottom:6px}
+    #cTplBtn{height:28px;border-radius:6px;font-size:13px;padding:0 10px}
+    .cmp-sigsel select{height:28px;border-radius:6px}
+  }
 </style>
 {# 11-23 대표 「새 메일 클릭하면 새 창으로」 — 새 창(주소 win=1)이면 위 머리·도구 줄·경로 숨김 · 끝나면 창 닫기(cmpGo) #}
 <style>html.cmp-win .mail-app-fixed, html.cmp-win .mail-app-top, html.cmp-win .mail-tools, html.cmp-win .page-head .crumbs{display:none !important} html.cmp-win{--mail-fixed-h:0px}</style>
@@ -314,7 +328,7 @@
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
-    <div class="cmp-from">보내는 사람 &nbsp;<b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</div>
+    <div class="cmp-from"><span class="cmp-from-l">보내는 사람</span> <span><b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</span></div>
     <div class="cmp-row"><label title="받는사람 = 이 메일을 읽고 일을 해 줄 사람(답을 줄 사람)">받는사람<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cTo" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="이름이나 주소를 치면 아래에 고를 사람이 나옵니다 (여러 명은 쉼표)" value="{{ prefill.to }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">📇 주소록</button></div>
     <div class="cmp-row"><label title="참조 = 알고 있어야 할 사람(윗분·관련 부서) — 답할 사람은 아님">참조(CC)<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cCc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>

@@ -6,6 +6,12 @@
 <style>
   /* 메일 새 창(11-19 대표 「더블클릭하면 해당 메일만 새 창으로」) — 웍스 메뉴·폴더 없이 메일만 */
   html,body{background:var(--mt-hover,#f3f4f6)}
+  /* 🔴 11-27 대표 「새 창으로 열었는데 내용 부분에 스크롤이 없어 — 다 볼 수가 없어」
+     공용 styles.html 이 html,body 를 height:100dvh;overflow:hidden 으로 묶고 .main 만 안에서 스크롤하게 한다.
+     새 창은 웍스 틀(.app)이 없어 .main 에 높이가 없으므로 스크롤할 곳이 사라졌다 → 평범한 문서 스크롤로(앱 창 mail_app_head 와 같은 방식) */
+  html{height:auto;overflow-y:auto;overflow-x:hidden}
+  body{height:auto;min-height:100dvh;overflow:visible}
+  html.dlg-open{overflow:hidden}
   .mw-wrap{padding:14px 18px 30px}  /* 11-19 창 크기에 맞춤(캡 없음) */
   .mw-wrap .mv-head{background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px}
 </style>
