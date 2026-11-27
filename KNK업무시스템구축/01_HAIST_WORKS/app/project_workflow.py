@@ -1275,6 +1275,182 @@ def compute_project_display_status_bulk(c, project_ids=None) -> dict:
     return out
 
 
+# ============================================================
+# z1191z165 (대표 11-27 「관리번호에는 고객사가 없다」): 화면·서류·엑셀용 수주 요약 — 한 곳에서만 계산.
+#   관리번호(projects) 하나 아래 수주(orders) 여러 개. 1차 고객사(orders.customer_id → customers)·2차(orders.end_customer)·
+#   PO유형(orders.po_type)·거래구분(order_items.is_export)·통화·금액·발주일·납기·모델명은 **수주마다** 있다.
+#   projects.customer_name/po_type/order_date/currency/order_amount/is_export/model_name 은 「처음 등록 때 값」일 뿐 —
+#   화면에서 「이 관리번호의 값」으로 쓰지 않는다(수주마다 고객이 다른 관리번호 48곳·통화 다른 곳 43곳).
+#   · 취소(CANCELLED) 수주는 뺀다 — 뺀 수는 n_cancelled 로 돌려준다(화면이 「N건 숨김」으로 밝힘).
+#   · 여럿이면 첫 곳 + 「외 N곳」 글자(cust_txt) + 전부(cust_all · 마우스 올리면 보이게).
+#   · 금액은 통화별로만 더한다(by_cur) — 원화 환산은 부르는 쪽이 월 기준환율(발주 달)로.
+#   · 읽기만 한다(아무것도 저장하지 않음).
+# ============================================================
+Z165_CUST_TBD = "⚠ 고객 미정(확인 필요)"
+
+
+def z165_more(names, unit="곳"):
+    """['A','B','C'] → 'A 외 2곳' · 하나면 'A' · 없으면 ''."""
+    xs = [x for x in (names or []) if x not in (None, "")]
+    if not xs:
+        return ""
+    return xs[0] + ((" 외 %d%s" % (len(xs) - 1, unit)) if len(xs) > 1 else "")
+
+
+def _z165_uniq(seq):
+    out = []
+    for x in seq:
+        if x not in (None, "") and x not in out:
+            out.append(x)
+    return out
+
+
+def _z165_empty() -> dict:
+    return {"orders": [], "n": 0, "n_cancelled": 0, "n_paid": 0, "custs": [], "cust_ids": [], "n_cust_missing": 0,
+            "cust_txt": "", "cust_all": "", "custs_formal": [], "cust_txt_formal": "", "cust_all_formal": "", "ends": [], "end_txt": "", "po_types": [], "po_txt": "", "n_po_missing": 0,
+            "forms": [], "form_keys": [],
+            "currencies": [], "by_cur": {}, "amt_txt": "", "order_dates": [], "date_first": "", "date_last": "",
+            "date_txt": "", "due_first": "", "due_last": "", "due_txt": "", "models": [], "model_txt": "",
+            "trades": [], "trade_txt": "", "any_export": False}
+
+
+def orders_summary(c, project_ids=None, order_ids=None) -> dict:
+    """{project_id: 요약} — project_ids=None 이면 모든 관리번호. order_ids 를 주면 그 수주들만(제작요청서·서류가 고른 수주).
+
+    요약 칸
+      orders        : 살아 있는 수주 [{id, order_no, status, customer_id, cust(시스템명 우선), cust_name(정식명), end_customer,
+                      po_type, currency, total_amount, order_date, due_date, model_name, equip_name,
+                      trade('수출'/'내수'/'수출·내수'/''), is_export(1/0/None)}] — 발주일 → 번호 순
+      n / n_cancelled / n_paid
+      custs · cust_txt(「A 외 N곳」) · cust_all(「A · B」) · cust_ids · n_cust_missing(1차 고객 번호 없는 수주 수)
+      ends · end_txt(2차 · 적힌 것만) · po_types · po_txt
+      currencies · by_cur {통화: 합계} · amt_txt(「KRW 1,000 · USD 2,000.00」)
+      order_dates · date_first · date_last · date_txt · due_first · due_last · due_txt
+      models · model_txt · trades · trade_txt · any_export
+    """
+    out: dict = {}
+    try:
+        ocols = {r[1] for r in c.execute("PRAGMA table_info(orders)").fetchall()}
+        icols = {r[1] for r in c.execute("PRAGMA table_info(order_items)").fetchall()}
+    except Exception:
+        return out
+
+    def _col(name, default="NULL"):
+        return ("o.%s" % name) if name in ocols else default
+    sel = ("SELECT o.id, o.project_id, o.order_no, COALESCE(o.status,'') AS status, o.customer_id, "
+           "COALESCE(NULLIF(TRIM(cu.alias),''), NULLIF(TRIM(cu.name),''), '') AS cust, COALESCE(cu.name,'') AS cust_name, "
+           "%s AS end_customer, %s AS po_type, UPPER(COALESCE(NULLIF(TRIM(%s),''),'KRW')) AS currency, "
+           "COALESCE(o.total_amount,0) AS total_amount, COALESCE(o.order_date,'') AS order_date, COALESCE(o.due_date,'') AS due_date, "
+           "%s AS model_name, %s AS equip_name, %s AS so_form, %s AS so_type, %s AS shipment_form, "
+           "(SELECT COALESCE(pp.project_type,'NEW_EQUIP') FROM projects pp WHERE pp.id=o.project_id) AS proj_ptype "
+           "FROM orders o LEFT JOIN customers cu ON cu.id=o.customer_id WHERE o.project_id IS NOT NULL"
+           % (_col("end_customer"), _col("po_type"), _col("currency", "'KRW'"),
+              _col("model_name"), _col("equip_name"), _col("so_form"), _col("so_type"), _col("shipment_form")))
+    if project_ids is not None:
+        _ids = sorted({int(i) for i in project_ids if i not in (None, "")})
+        if not _ids:
+            return out
+        sel += " AND o.project_id IN (%s)" % ",".join(str(i) for i in _ids)
+    if order_ids is not None:
+        _oids = sorted({int(i) for i in order_ids if i not in (None, "")})
+        if not _oids:
+            return out
+        sel += " AND o.id IN (%s)" % ",".join(str(i) for i in _oids)
+    sel += " ORDER BY o.project_id, COALESCE(NULLIF(TRIM(o.order_date),''),'9999'), o.id"
+    rows = [dict(r) for r in c.execute(sel).fetchall()]
+    # 거래구분 = 품목 줄(order_items.is_export) — 취소 품목 빼고
+    trade: dict = {}
+    hogi: dict = {}   # 형태 판정용 호기 수(라벨이 숫자로 시작 — get_project_orders 와 같은 기준)
+    if rows:
+        _live_ids = [r["id"] for r in rows]
+        _ust = "AND COALESCE(unit_status,'')<>'취소' " if "unit_status" in icols else ""
+        _iex = "is_export" if "is_export" in icols else "NULL"
+        _ul = "unit_label" if "unit_label" in icols else "''"
+        for i in range(0, len(_live_ids), 800):
+            _chunk = _live_ids[i:i + 800]
+            for oid, iex, ul in c.execute(
+                    "SELECT order_id, %s, COALESCE(%s,'') FROM order_items WHERE order_id IN (%s) %s"
+                    % (_iex, _ul, ",".join(str(x) for x in _chunk), _ust)).fetchall():
+                trade.setdefault(oid, set()).add(None if iex is None else (1 if str(iex) in ("1", "True", "true") else 0))
+                if re.match(r"^\d+", str(ul or "")):
+                    hogi[oid] = hogi.get(oid, 0) + 1
+    for r in rows:
+        pid = r["project_id"]
+        d = out.setdefault(pid, _z165_empty())
+        st = str(r.get("status") or "").upper()
+        if st == "CANCELLED":
+            d["n_cancelled"] += 1
+            continue
+        if st == "PAID":
+            d["n_paid"] += 1
+        _known = {x for x in (trade.get(r["id"]) or set()) if x is not None}
+        r["is_export"] = (next(iter(_known)) if len(_known) == 1 else None)
+        r["trade"] = ("수출·내수" if len(_known) > 1 else ("수출" if _known == {1} else ("내수" if _known == {0} else "")))
+        r["cust"] = r.get("cust") or ""
+        r["form_label"], r["form_key"] = so_form_label_key(
+            so_form=r.get("so_form"), so_type=r.get("so_type"), shipment_form=r.get("shipment_form"),
+            hogi_n=hogi.get(r["id"], 0), proj_ptype=r.get("proj_ptype"))
+        d["orders"].append(r)
+    for pid, d in out.items():
+        os_ = d["orders"]
+        d["n"] = len(os_)
+        d["custs"] = _z165_uniq([o["cust"] for o in os_ if o.get("customer_id")])
+        d["cust_ids"] = _z165_uniq([o["customer_id"] for o in os_ if o.get("customer_id")])
+        d["n_cust_missing"] = sum(1 for o in os_ if not o.get("customer_id"))
+        d["cust_txt"] = z165_more(d["custs"])
+        d["cust_all"] = " · ".join(d["custs"])
+        # 정식명(세금계산서 받는 이름) — 종이 양식·알림처럼 예전부터 정식명을 쓰던 곳용
+        d["custs_formal"] = _z165_uniq([(o.get("cust_name") or o["cust"]) for o in os_ if o.get("customer_id")])
+        d["cust_txt_formal"] = z165_more(d["custs_formal"])
+        d["cust_all_formal"] = " · ".join(d["custs_formal"])
+        d["ends"] = _z165_uniq([str(o.get("end_customer") or "").strip() for o in os_])
+        d["end_txt"] = z165_more(d["ends"])
+        d["po_types"] = _z165_uniq([str(o.get("po_type") or "").strip() for o in os_])
+        d["po_txt"] = " · ".join(d["po_types"])
+        d["n_po_missing"] = sum(1 for o in os_ if not str(o.get("po_type") or "").strip())
+        d["forms"] = _z165_uniq([o["form_label"] for o in os_])
+        d["form_keys"] = _z165_uniq([o["form_key"] for o in os_])
+        d["currencies"] = _z165_uniq([o["currency"] for o in os_])
+        by_cur: dict = {}
+        for o in os_:
+            by_cur[o["currency"]] = by_cur.get(o["currency"], 0.0) + float(o.get("total_amount") or 0)
+        d["by_cur"] = by_cur
+        d["amt_txt"] = " · ".join("%s %s" % (k, ("{:,.0f}" if k in ("KRW", "VND", "JPY") else "{:,.2f}").format(v))
+                                  for k, v in by_cur.items())
+        _ods = sorted({str(o.get("order_date") or "")[:10] for o in os_ if str(o.get("order_date") or "").strip()})
+        d["order_dates"] = _ods
+        d["date_first"] = _ods[0] if _ods else ""
+        d["date_last"] = _ods[-1] if _ods else ""
+        d["date_txt"] = (_ods[0] if len(_ods) == 1 else ("%s ~ %s" % (_ods[0], _ods[-1]))) if _ods else ""
+        _dds = sorted({str(o.get("due_date") or "")[:10] for o in os_ if str(o.get("due_date") or "").strip()})
+        d["due_first"] = _dds[0] if _dds else ""
+        d["due_last"] = _dds[-1] if _dds else ""
+        d["due_txt"] = (_dds[0] if len(_dds) == 1 else ("%s ~ %s" % (_dds[0], _dds[-1]))) if _dds else ""
+        d["models"] = _z165_uniq([str(o.get("model_name") or "").strip() for o in os_])
+        d["model_txt"] = z165_more(d["models"], "건")
+        _tr = set()
+        for o in os_:
+            if o["trade"] == "수출·내수":
+                _tr |= {"수출", "내수"}
+            elif o["trade"]:
+                _tr.add(o["trade"])
+        d["trades"] = sorted(_tr, key=lambda x: 0 if x == "수출" else 1)
+        d["trade_txt"] = "·".join(d["trades"])
+        d["any_export"] = "수출" in _tr
+    return out
+
+
+def orders_summary_one(c, project_id, order_ids=None) -> dict:
+    """관리번호 하나(또는 그 안의 고른 수주들) 요약 — 수주가 하나도 없으면 빈 요약(n=0)."""
+    try:
+        got = orders_summary(c, [project_id], order_ids=order_ids)
+    except Exception as _e165:
+        print(f"[z1191z165] 수주 요약 실패: {_e165}")
+        got = {}
+    d = got.get(int(project_id)) if project_id not in (None, "") else None
+    return d if d else _z165_empty()
+
+
 def get_project_orders(c, project_id: int) -> list[dict]:
     """프로젝트에 연결된 모든 수주(SO) 목록 — 발주일 순.
     v5H85: 호기별 라인(order_items) 도 함께 fetch → 호기마다 금액이

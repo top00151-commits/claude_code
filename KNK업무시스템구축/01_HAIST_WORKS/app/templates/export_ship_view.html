@@ -21,7 +21,7 @@
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <a href="/export/prep/{{ p.id }}">{{ p.mgmt_code|default('—') }}</a>{% if sel_box %} · <b>{{ sel_box }}</b>{% endif %}</div>
       <h1 class="page-title" data-dn="title">📦 출고 {% if sel_box %}<em>{{ sel_box }}</em>{% else %}<em>내용</em>{% endif %}</h1>
-      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{{ p.name }} · 고객사 {{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }} · 통화 {% set _m155 = z155_so_mix().get(p.id) %}{{ (_m155.ccys|join(' · ')) if (_m155 and _m155.ccys) else p.currency|default('KRW') }}{% if _m155 and _m155.custs|length > 1 %} · <span style="color:#b45309;">수주별 고객 {{ _m155.custs|join(' · ') }}</span>{% endif %}</div>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{{ p.name }} · {% set _s165 = z165_so(p.id) %}{# z1191z165: 고객사·통화 = 수주마다 #}고객사 <span title="수주별 1차 고객사: {{ _s165.cust_all or '—' }}">{{ _s165.cust_txt or '—' }}</span> · 통화 {{ (_s165.currencies|join(' · ')) if _s165.currencies else '—' }}{% if _s165.custs|length > 1 %} · <span style="color:#b45309;">수주별 고객 {{ _s165.custs|join(' · ') }}</span>{% endif %}{% if _s165.n_cancelled %} · <span style="color:#64748b;">취소 수주 {{ _s165.n_cancelled }}건 숨김</span>{% endif %}</div>
     </div>
     <a class="btn" href="/export/ship/{{ p.id }}/qr/print" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">🏷 QR 라벨 인쇄</a>
   </div>

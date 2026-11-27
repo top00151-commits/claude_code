@@ -158,14 +158,14 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
         </tr>
         <tr>
           <td class="pc-k">모델명</td><td class="pc-v" colspan="3">{{ pr.model_name or '—' }}</td>
-          <td class="pc-rc"><span class="pc-po2">{{ pr.po_type or '신규' }}</span></td>
+          <td class="pc-rc"><span class="pc-po2">{{ pr.po_type or '—' }}</span>{# z1191z165: 고른 수주의 PO유형(없으면 「—」 · 「신규」로 채우지 않음) #}</td>
         </tr>
         <tr>
           <td class="pc-k">장비명</td><td class="pc-v" colspan="3">{{ pr.equip_name or '—' }}</td>
           <td class="pc-rc"><span class="pc-st2 pc-st-{{ _stcls }}">{{ pr.status_ko or '—' }}</span></td>
         </tr>
         <tr>
-          <td class="pc-k">고객사</td><td class="pc-v">{{ pr.cust_name or pr.p_customer or '—' }}</td>
+          <td class="pc-k">고객사</td><td class="pc-v"{% if pr.p_customer and pr.p_customer != pr.cust_name %} title="수주별 1차 고객사: {{ pr.p_customer }}"{% endif %}>{{ pr.cust_name or pr.p_customer or '—' }}</td>{# z1191z165: 고른 수주의 1차 고객사 #}
           <td class="pc-k">납품일</td><td class="pc-v">{{ (pr.o_due_date or '—')[:10] }}</td>
           {# z896(대표 지시): 소모품은 부품별 수량 — 총 합산은 헷갈려서 '항목별'로(카드 눌러 라인별 수량 확인). 프로젝트는 기존대로 수량 표시. #}
           <td class="pc-rc pc-qtyv">{% if pr._kind == 'consumable' %}<span title="소모품은 항목별 수량 — 카드를 눌러 라인별 수량 확인">항목별</span>{% else %}수량 {{ pr.qty|int if pr.qty is not none else '—' }}{% endif %}</td>

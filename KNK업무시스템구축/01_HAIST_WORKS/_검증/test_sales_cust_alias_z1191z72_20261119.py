@@ -120,7 +120,9 @@ check('data-cust="삼성전기"' in hs, "고객사 정렬·찾기 값도 시스�
 print("§4 프로젝트 목록 소모품 줄")
 hp = q(cl.get, "/projects").text
 tds = re.findall(r'<td title="정식: ([^"]*)">([^<]*)</td>', hp)
-check(("삼성전기(주)", "삼성전기") in tds and tds.count(("삼성전기(주)", "삼성전기")) == 2, "소모품 줄(정식명으로 적힘)도 프로젝트 줄처럼 「삼성전기」", [x for x in tds if "삼성" in x[0]])
+# z1191z165 (대표 11-27): 수주가 있는 프로젝트 줄은 수주 1차 고객(「수주별 1차 고객사:」 풍선) · 「정식:」 풍선은 수주 없는 줄(소모품·미확정)만
+tds165 = re.findall(r'<td title="수주별 1차 고객사: ([^"]*)">([^<]*)</td>', hp)
+check(tds.count(("삼성전기(주)", "삼성전기")) == 1 and ("삼성전기", "삼성전기") in tds165, "소모품 줄(정식명으로 적힘)도 프로젝트 줄처럼 「삼성전기」", ([x for x in tds if "삼성" in x[0]], tds165))
 check(not any(x[1] in ("삼성전기(주)", "(주) 드림텍") for x in tds), "고객사 칸에 정식명 없음", tds)
 
 print()

@@ -13137,7 +13137,12 @@ def _z48_view_ctx(c, p, pr):
     # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 납기·D-n = 이 요청서가 고른 수주들의 가장 늦은 납기(없으면 프로젝트 납기).
     #   새로 쓸 때(pr 없음)는 예전처럼 프로젝트 납기.
     _due132 = _z132_req_due(c, _z48_ids(pr.get("order_ids") or ""), p.get("due_date")) if pr else str(p.get("due_date") or "")[:10]
+    # z1191z165 (대표 11-27): 종이·카드의 고객사·발주일·모델·거래구분 = 고른 수주(sel)의 값 — 관리번호 처음 등록 때 값 아님
+    _s165 = _pwf.orders_summary_one(c, p["id"], order_ids=[o["id"] for o in sel]) if sel else _pwf._z165_empty()
     return {"orders": orders, "sel": sel, "sel_ids": [o["id"] for o in sel], "kind": kind, "kind_cls": kind_cls,
+            "cust165": _s165["cust_txt_formal"], "cust165_all": _s165["cust_all_formal"], "od165": _s165["date_txt"],   # 종이 = 정식명(예전과 같은 이름 모양)
+            "model165": _s165["model_txt"], "models165": _s165["models"], "trade165": _s165["trade_txt"],
+            "n_cust_missing165": _s165["n_cust_missing"],
             "need": need, "need_now": _Z48_NEED_MSG.get(need, ""), "due": _due132,
             "mg": _z48_mg(p.get("mgmt_code")), "dday": _z48_dday(_due132), "rev": rev,
             "eng": [x.strip() for x in str(p.get("engraving") or "").replace("\r", "").split("\n") if x.strip()]}
@@ -13286,7 +13291,14 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     today = _dt2.now().strftime("%Y-%m-%d")
     now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
     mgmt = p.get("mgmt_code") or "—"
-    model = p.get("model_name") or "—"
+    # z1191z165: 모델 = 고른 수주에 적힌 모델 먼저(수주마다 다름) · 수주에 안 적힌 옛 자료만 처음 등록 때 모델
+    try:
+        with db_session() as _cm165:
+            _mm165 = _pwf.orders_summary_one(_cm165, pid, order_ids=[o["id"] for o in _z48_picked])["models"]
+    except Exception as _em165:
+        print(f"[z1191z165] 제작요청 모델 실패: {_em165}")
+        _mm165 = []
+    model = _pwf.z165_more(_mm165, "건") or p.get("model_name") or "—"   # z165-ok: 수주에 모델이 없을 때만
     pname = p.get("name") or "—"
     qty = p.get("unit_qty") or 1
     # z1191z132 (대표 11-24 「같은 유형 미리 막기」): 납기 = 이 요청서가 고른 수주들(order_ids)의 가장 늦은 납기 ·
@@ -13314,13 +13326,27 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         title = title.replace("📋 제작요청", "📋 제작요청 [묶어서 다시 발행]", 1)
     if cancel_reason:   # z1191z51 취소 발행
         title = f"🚫 제작요청 취소 [{mgmt}{(' 외 %d건' % _z49_n) if _z49_n else ''}] {_z49_bm or model}"
-    cust_disp = p.get("customer_name") or "—"
+    # z1191z165 (대표 11-27): 알림 글·이음 카드의 고객사·PO유형 = 이 요청서가 고른 수주들의 값(묶음이면 구성원 수주까지) —
+    #   관리번호 처음 등록 때 고객·유형이 아님 · 여럿이면 「외 N곳」 · 고른 수주에 고객이 없으면 「—」
+    try:
+        with db_session() as _c165:
+            _s165 = _pwf.orders_summary_one(_c165, pid, order_ids=[o["id"] for o in _z48_picked])
+            _cs165, _pt165 = list(_s165["custs_formal"]), list(_s165["po_types"])   # 알림 = 정식명(예전과 같은 이름 모양)
+            for _m165 in _z49_members:
+                _ms165 = _pwf.orders_summary_one(_c165, _m165["pid"], order_ids=_m165.get("oids132") or [])
+                _cs165 += [x for x in _ms165["custs_formal"] if x not in _cs165]
+                _pt165 += [x for x in _ms165["po_types"] if x not in _pt165]
+    except Exception as _e165:
+        print(f"[z1191z165] 제작요청 알림 수주 값 실패: {_e165}")
+        _cs165, _pt165 = [], []
+    cust_disp = _pwf.z165_more(_cs165) or "—"
+    _po165 = (_pt165[0] + ((" 외 %d" % (len(_pt165) - 1)) if len(_pt165) > 1 else "")) if _pt165 else "—"
     # v5H226z882 (대표 지시): 수정발행 흑백처리·수정사항 diff용 표시항목 스냅샷 + 판정값.
     #   _diff_card = 이음 카드와 동일한 8개 표시항목(수량·납기·발주유형·모델·각인·장비·고객사·수주번호).
     #   _prid_for_card: 수정발행(record=False)은 prid 인자 = 같은 제작요청서 → 흑백·비교 대상. 신규(record=True)는 통보 뒤 백필.
     _diff_card = {
         "qty": (p.get("unit_qty") or 1), "due": due,
-        "po_type": (str(p.get("po_type") or "신규").strip() or "신규"),
+        "po_type": _po165,   # z1191z165: 고른 수주의 PO유형
         "model": model, "engraving": eng, "equip": (p.get("equip_name") or ""),
         "customer": cust_disp, "so_nos": list(_z49_all_so),   # z1191z49: 묶음이면 묶음의 수주번호 전부
     }
@@ -13649,7 +13675,7 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
             "model": model, "engraving": eng, "part_name": pname,
             "equip": (p.get("equip_name") or ""), "biz": _BIZ_KO_MSG.get(_pbiz, ""),
             "biz_code": (str(_pbiz or "").strip().upper()),   # v5H226z907: 카드 사업부별 색상(메신저)
-            "po_type": (str(p.get("po_type") or "신규").strip() or "신규"), "status": _status_ko,
+            "po_type": _po165, "status": _status_ko,   # z1191z165: 고른 수주의 PO유형(관리번호 처음 등록 값 아님)
             "qty": qty, "due": due, "so_nos": so_nos,
             "server_path": spath, "cust_req": cust_req, "note": note,
             "issued_at": now_str, "link": _full_link, "image_count": image_count,
@@ -33984,6 +34010,30 @@ def _z155_so_mix():
 tpl.env.globals["z155_so_mix"] = _z155_so_mix
 
 
+def _z165_so(pid, order_ids=None):
+    """z1191z165 (대표 11-27): 틀에서 쓰는 수주 요약 — 관리번호(또는 고른 수주들)의 1차 고객 「외 N곳」·PO유형·발주일·통화별 금액.
+    공용 계산 = project_workflow.orders_summary(한 곳) · 읽기만 · 매번 새로 셈(캐시 없음 — 방금 고친 수주가 바로 보이게)."""
+    try:
+        with db_session() as c:
+            return _pwf.orders_summary_one(c, pid, order_ids=order_ids)
+    except Exception as _e165:
+        print(f"[z1191z165] 수주 요약(틀) 실패: {_e165}")
+        return _pwf._z165_empty()
+
+
+def _z165_so_map(pids):
+    """여러 관리번호를 한 번에(목록 화면) — {pid: 요약} · 수주 없는 관리번호는 빠짐."""
+    try:
+        with db_session() as c:
+            return _pwf.orders_summary(c, [int(x) for x in (pids or []) if x not in (None, "")])
+    except Exception as _e165:
+        print(f"[z1191z165] 수주 요약(목록) 실패: {_e165}")
+        return {}
+
+
+tpl.env.globals["z165_so"] = _z165_so
+
+
 Z155_TBD = "⚠ 2차 미정(확인 필요)"
 
 # z1191z157: 「KNK VINA」 뒤에 붙는 법인 꼬리(띄어쓰기·점·쉼표 무시) — 이름을 정식 이름으로 바꿔도 같은 VINA
@@ -37277,6 +37327,19 @@ def _z42_ledger_rows(c):
         if d["no"].strip():
             row["sos"].append({"no": d["no"].strip(), "date": d["od"][:10], "st": _Z42_SO_ST.get(d["st"], d["st"] or ""),
                                "cancel": d["st"] == "CANCELLED"})
+    # z1191z165 (대표 11-27): 고객사 칸 = 살아 있는 수주들의 1차 고객사(여럿이면 「외 N곳」 · 찾기·엑셀은 전부) —
+    #   관리번호 처음 등록 때 고객은 수주가 하나도 없을 때만(번호만 받고 수주 전)
+    try:
+        _s165 = _pwf.orders_summary(c, [k[1] for k in out.keys() if k[0] == "P"])
+    except Exception as _e165:
+        print(f"[z1191z165] 관리번호대장 수주 고객 실패: {_e165}")
+        _s165 = {}
+    for (kd, kid), x in out.items():
+        x["cust_all"] = x["cust"]
+        s = _s165.get(kid) if kd == "P" else None
+        if s and s["n"]:
+            x["cust"] = s["cust_txt"] or Z161_CUST_TBD
+            x["cust_all"] = s["cust_all"] or Z161_CUST_TBD
     rows = list(out.values())
     for x in rows:
         live = [s for s in x["sos"] if not s["cancel"]]
@@ -37308,7 +37371,7 @@ def _z66_ledger_pick(biz, year, q):
     rows = [x for x in by_year if (not _biz or x["biz"] == _biz)]
     if _q:
         ql = _q.lower()
-        rows = [x for x in rows if ql in " ".join([x["code"], x["pname"], x["model"], x["equip"], x["cust"], x["sales"],
+        rows = [x for x in rows if ql in " ".join([x["code"], x["pname"], x["model"], x["equip"], x.get("cust_all") or x["cust"], x["sales"],
                                                     x["note"], x["spath"]] + [s["no"] for s in x["sos"]]).lower()]
     return rows, counts, years, _biz, _year, _q
 
@@ -37353,7 +37416,7 @@ def mgmt_ledger_excel(request: Request, biz: str = "", year: str = "", q: str = 
         if x["arch"]:
             dim.append(n - 1)
         data.append([n, x["code"], _Z42_BIZ.get(x["biz"], x["biz"] or "").split(" ", 1)[-1], x["ym"], sos or "",
-                     len([s for s in x["sos"] if not s["cancel"]]), x["model"], x["equip"], x["pname"], x["cust"], x["sales"],
+                     len([s for s in x["sos"] if not s["cancel"]]), x["model"], x["equip"], x["pname"], x.get("cust_all") or x["cust"], x["sales"],
                      x["status"] + (" · 폐기" if x["arch"] else ""), x["spath"], x["note"]])
     wb = KX.new_book("관리번호대장")
     KX.table_sheet(wb.active, "관리번호대장",
@@ -37405,11 +37468,12 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
             conds.append("COALESCE(p.is_archived,0)=0")
             if _q:
                 # z987: 시스템명(alias) 검색 포함 — 화면에 보이는 이름으로 찾아지게 (아래에서 카드에 보이는 글로 한 번 더 거름)
+                # z1191z165 (대표 11-27): 고객사 찾기 = 수주마다 1차 고객사(관리번호 처음 등록 때 고객 아님)
                 conds.append("(p.mgmt_code LIKE ? OR p.name LIKE ? OR p.model_name LIKE ? "
-                             "OR p.equip_name LIKE ? OR cu.name LIKE ? OR cu.alias LIKE ? OR p.customer_name LIKE ? "
+                             "OR p.equip_name LIKE ? "
                              "OR COALESCE(pr.bundle_model,'') LIKE ? "
-                             "OR EXISTS(SELECT 1 FROM orders o WHERE o.project_id = p.id AND o.order_no LIKE ?) OR pr.issued_by_name LIKE ?)")
-                params += [f"%{_q}%"] * 10
+                             "OR p.id IN (" + _Z165_SO_FIND_SQL + ") OR pr.issued_by_name LIKE ?)")
+                params += [f"%{_q}%"] * 9
             if _period == "day":
                 conds.append(f"{_dref} = ?"); params.append(_today)
             elif _period == "week":
@@ -37442,6 +37506,7 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     continue
                 _lead = dict(_lead)
                 _lines, _projs = [], []
+                _c165, _po165 = [], []   # z1191z165: 이 요청서가 고른 수주들의 1차 고객사·PO유형
                 for _m in _z49_bundle_rows(c, _lead):
                     _pj = c.execute("SELECT p.id, p.mgmt_code, p.name, p.model_name, p.equip_name, p.po_type, p.unit_qty, p.due_date, "
                                     "p.customer_name, COALESCE(p.is_archived,0) AS arch, COALESCE(NULLIF(cu.alias,''), cu.name) AS cust "
@@ -37452,6 +37517,10 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     _projs.append(_pj)
                     _sel = _z48_pick_orders(_z48_project_orders(c, _pj["id"]), _m.get("order_ids") or "",
                                             _m.get("created_at") or _lead.get("created_at") or _lead.get("created_date") or "")
+                    if _sel:
+                        _ss165 = _pwf.orders_summary_one(c, _pj["id"], order_ids=[_o["id"] for _o in _sel])
+                        _c165 += [x for x in _ss165["custs"] if x not in _c165]
+                        _po165 += [x for x in _ss165["po_types"] if x not in _po165]
                     if not _sel:
                         _lines.append({"mgmt": _pj.get("mgmt_code") or "", "so": "", "hogi": "", "equip": _pj.get("equip_name") or "",
                                        "qty": _pj.get("unit_qty"), "st": "—", "due": str(_pj.get("due_date") or "")[:10], "_sts": []})
@@ -37484,8 +37553,9 @@ async def prod_requests_list_page(request: Request, q: str = "", period: str = "
                     "mgmt_code": _mgs[0] if _mgs else _mc, "n_mgmt": max(len(_mgs), 1),
                     "order_no": _sos[0] if _sos else "", "n_so": len(_sos),
                     "model_name": _lead.get("bundle_model") or _p0.get("model_name") or "",
-                    "equip_name": _p0.get("equip_name") or "", "po_type": _p0.get("po_type"),
-                    "cust_name": _p0.get("cust"), "p_customer": _p0.get("customer_name"),
+                    # z1191z165: PO유형·고객사 = 고른 수주들의 값(여럿이면 「외 N곳」) — 관리번호 처음 등록 때 값 아님
+                    "equip_name": _p0.get("equip_name") or "", "po_type": (" · ".join(_po165) or None),
+                    "cust_name": _pwf.z165_more(_c165), "p_customer": " · ".join(_c165),
                     "o_due_date": _dues[0] if _dues else "", "qty": (_qty or None),
                     "status_ko": (_board_agg_status(_all_sts) if _all_sts else "—"),
                     "biz": (_mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else ""),
@@ -38448,7 +38518,12 @@ async def prod_request_edit_page(request: Request, pid: int, prid: int = 0):
         _mc = str(p.get("mgmt_code") or "")
         _bd = _mc[3].upper() if (len(_mc) >= 4 and _mc[3].isalpha()) else ""
     _biz_label = _BIZ_LBL.get(_bd, _bd or "—")
-    _export_label = "🚢 수출" if str(p.get("is_export") or "0") in ("1", "True", "true") else "🏠 내수"
+    # z1191z165 (대표 11-27): 거래구분 = 고른 수주의 품목 줄 값(섞이면 「수출·내수」 · 아직 안 적혔으면 「—」) — 관리번호 처음 등록 값 아님
+    try:
+        _t165 = _z48.get("trade165") or ""
+    except Exception:
+        _t165 = ""
+    _export_label = {"수출": "🚢 수출", "내수": "🏠 내수", "수출·내수": "🚢 수출 · 🏠 내수 섞임"}.get(_t165 or "", "⚠ 확인 필요(수주 품목에 거래구분 없음)")
     # v5H226z813 (대표 지시): 수정발행 시 '통보 대상 추가'용 — 활성 인원 있는 부서(팀) + 팀별 인원(본사 먼저·법인 그룹)
     _teams = []
     _team_members = {}
@@ -38689,7 +38764,9 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
                 r["_dmiss"] = ("q" if d["miss_q"] or (not d["sos"] and not d["pqs"]) else "") + ("p" if d["miss_p"] or (not d["sos"] and not d["po"].get("files")) else "")   # z1191z160
     except Exception as _e150:
         print(f"[z1191z150] 견적서·발주서 책갈피 실패: {_e150}")
-    return ctx(request, "projects.html",
+    # z1191z165 (대표 11-27): 목록의 고객사·PO유형·형태·발주일 = 수주마다(공용 orders_summary 한 번에) — 관리번호 처음 등록 때 값 아님
+    _so165 = _z165_so_map([int(r["id"]) for r in rows if r.get("_kind") != "consumable" and r.get("id")])
+    return ctx(request, "projects.html", so165=_so165,
                docs_view=(view == "docs"), docs_n=_docs_n150, docs_sum=_docs_sum150, so_check_n=_so_check_n154,
                user=u, active="sales_projects",
                mine_on=bool(_mine_on and _mine_count), mine_count=_mine_count,
@@ -44677,6 +44754,7 @@ def projects_export_xlsx(request: Request, q: str = "", div: str = "",
                              "customer_name": cr.get("customer_name") or "—", "biz_div": _cb or None,
                              "project_type": "CONSUMABLE", "status": _stl,
                              "order_amount": cr.get("total_amount") or 0, "order_date": cr.get("order_date") or "",
+                             "currency": (cr.get("currency") or "KRW"),   # z1191z165: 원화 칸에 외화가 섞이지 않게(환산)
                              "equip_name": "", "model_name": "", "shipment_form": ""})
         except Exception:
             pass
@@ -44702,15 +44780,51 @@ def projects_export_xlsx(request: Request, q: str = "", div: str = "",
 
     from app import knk_xlsx as KX   # z1191z67: KNK 회사 양식
     _sf_lbl = {"ASSEMBLY": "ASS'Y", "PARTS": "부품", "ETC": "기타"}
+    # z1191z165 (대표 11-27): 「수주액(원)」 = 살아 있는 수주마다 발주 달 월 기준환율로 원화 환산해 더한 값(공용 _ccy_breakdown · 매출과 같은 기준)
+    #   예전엔 projects.order_amount(외화면 외화 숫자)를 통화 표시 없이 원 칸에 넣었다 · 통화별 원금액 칸을 따로 둠 ·
+    #   환율이 없어 못 바꾸면 원 칸은 비우고 「확인」 칸에 적음(반쪽 숫자 금지) · 고객사 = 수주 1차 고객 「외 N곳」 · 취소 수주는 빼고 수를 밝힘.
+    try:
+        with db_session() as _c165:
+            _rates165 = _fx_load_rates(_c165)
+            _so165 = _pwf.orders_summary(_c165, [int(r["id"]) for r in rows if r.get("_kind") != "consumable" and r.get("id")])
+    except Exception as _e165:
+        print(f"[z1191z165] 프로젝트 엑셀 수주 요약 실패: {_e165}")
+        _rates165, _so165 = {}, {}
     COLS = [{"h": "관리코드", "w": 12, "al": "c", "bold": True}, {"h": "프로젝트명", "w": 32, "wrap": True}, {"h": "장비명", "w": 32, "wrap": True},
-            {"h": "모델명", "w": 26, "wrap": True}, {"h": "고객사", "w": 18, "wrap": True}, {"h": "출고형태", "w": 9, "al": "c"},
-            {"h": "상태", "w": 9, "al": "c"}, {"h": "수주액(원)", "w": 15, "al": "r", "fmt": "#,##0"}, {"h": "발주일", "w": 12, "al": "c"}]
+            {"h": "모델명", "w": 26, "wrap": True}, {"h": "고객사", "w": 22, "wrap": True}, {"h": "출고형태", "w": 9, "al": "c"},
+            {"h": "상태", "w": 9, "al": "c"}, {"h": "수주액(원)", "w": 15, "al": "r", "fmt": "#,##0"}, {"h": "발주일", "w": 12, "al": "c"},
+            # 예전 9칸 자리는 그대로(받아 쓰던 엑셀이 안 깨지게) · 새 칸은 뒤에
+            {"h": "수주 수", "w": 7, "al": "c"}, {"h": "수주액(통화별)", "w": 26, "wrap": True}, {"h": "확인", "w": 30, "wrap": True}]
     data = []
     for r in rows:
         _sf = (r.get("shipment_form") or "").upper()
+        _s = _so165.get(int(r["id"])) if (r.get("_kind") != "consumable" and r.get("id")) else None
+        _note = []
+        if _s and _s["n"]:
+            _bd = _ccy_breakdown(_s["orders"], "total_amount", "currency", date_keys=("order_date", "due_date"), rates=_rates165)
+            _cust, _amt_txt, _od, _n = (_s["cust_all"] or "—"), _s["amt_txt"], (_s["date_txt"] or "—"), _s["n"]
+            if _s["n_cust_missing"]:
+                _note.append("1차 고객 미정 수주 %d건" % _s["n_cust_missing"])
+            if _s["n_cancelled"]:
+                _note.append("취소 수주 %d건 뺌" % _s["n_cancelled"])
+        else:   # 수주가 아직 없는 관리번호(미확정)·소모품 = 그 줄 자체 값
+            _one = [{"total_amount": r.get("order_amount") or 0, "currency": (r.get("currency") or "KRW"),
+                     "order_date": r.get("order_date") or ""}]
+            _bd = _ccy_breakdown(_one, "total_amount", "currency", date_keys=("order_date",), rates=_rates165)
+            _cust = r.get("customer_name") or "—"   # z165-ok: 수주가 없을 때만(미확정 · 소모품 줄)
+            _c0 = str(_one[0]["currency"] or "KRW").upper()
+            _amt_txt = ("%s %s" % (_c0, ("{:,.0f}" if _c0 in ("KRW", "VND", "JPY") else "{:,.2f}").format(float(_one[0]["total_amount"] or 0)))
+                        if float(_one[0]["total_amount"] or 0) else "")
+            _od, _n = (r.get("order_date") or "—"), (0 if r.get("_kind") != "consumable" else 1)
+            if r.get("_kind") != "consumable" and r.get("mgmt_code") not in (None, "", "—"):
+                _note.append("수주 없음 — 처음 등록 때 값")
+        _krw = _bd.get("krw")
+        if _krw is None:
+            _note.append("환율 없음(%s) — 원화 칸 비움" % ", ".join("%s %s" % m for m in sorted(_bd.get("missing") or [])))
         data.append([r.get("mgmt_code") or "—", r.get("name") or r.get("project_name") or "—", r.get("equip_name") or "—",
-                     r.get("model_name") or "—", r.get("customer_name") or "—", _sf_lbl.get(_sf, "—") if _sf else "—",
-                     r.get("status") or "—", r.get("order_amount") or 0, r.get("order_date") or "—"])
+                     r.get("model_name") or "—", _cust, _sf_lbl.get(_sf, "—") if _sf else "—",
+                     r.get("status") or "—", (round(_krw) if _krw is not None else None), _od,
+                     _n, _amt_txt or "—", " · ".join(_note)])
     wb = KX.new_book(_div_label, "프로젝트 목록")
     KX.table_sheet(wb.active, "프로젝트 목록 — %s" % _div_label,
                    "사업부 %s · 상태 %s · 기간(발주일) %s · %d건 · 내려받은 시각 %s" % (_div_label, _status_label, _period, len(rows), _z61_now()),
@@ -46311,6 +46425,12 @@ async def api_quotes_z105_cands(req: Request):
                          "amount_txt": (_fmt_money(amt, ccy or "KRW") if amt is not None else "")})
 
 
+# z1191z165: 「고객사·수주번호로 관리번호 찾기」 공용 하위 질의 — 수주마다 1차 고객(정식명·시스템명)·수주번호 · 취소 수주 빼고 · 자리표 ? 3개
+_Z165_SO_FIND_SQL = ("SELECT o.project_id FROM orders o LEFT JOIN customers cu ON cu.id=o.customer_id "
+                     "WHERE o.project_id IS NOT NULL AND UPPER(COALESCE(o.status,''))<>'CANCELLED' "
+                     "AND (o.order_no LIKE ? OR cu.name LIKE ? OR COALESCE(cu.alias,'') LIKE ?)")
+
+
 @app.get("/api/quotes-z105/search")
 async def api_quotes_z105_search(req: Request):
     """관리번호·수주번호·프로젝트명·고객사로 자리 찾기(후보가 없거나 틀렸을 때)."""
@@ -46326,22 +46446,24 @@ async def api_quotes_z105_search(req: Request):
     out = []
     with db_session() as c:
         _z61_table(c)
-        for p in c.execute("SELECT id, mgmt_code, name, customer_name FROM projects WHERE COALESCE(is_archived,0)=0 "
-                           "AND COALESCE(mgmt_code,'')<>'' AND (mgmt_code LIKE ? OR name LIKE ? OR customer_name LIKE ? "
-                           "OR id IN (SELECT project_id FROM orders WHERE order_no LIKE ?)) ORDER BY id DESC LIMIT 8",
-                           (like, like, like, like)).fetchall():
-            _sos156 = c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? "
-                                "AND COALESCE(status,'')<>'CANCELLED' ORDER BY COALESCE(order_date,''), id", (p["id"],)).fetchall()
+        # z1191z165 (대표 11-27 · z164 와 같은 모양): 고객사 찾기·표시 = 수주마다 1차 고객사(관리번호 처음 등록 때 고객 아님)
+        for p in c.execute("SELECT id, mgmt_code, name FROM projects WHERE COALESCE(is_archived,0)=0 "
+                           "AND COALESCE(mgmt_code,'')<>'' AND (mgmt_code LIKE ? OR name LIKE ? "
+                           "OR id IN (" + _Z165_SO_FIND_SQL + ")) ORDER BY id DESC LIMIT 8",
+                           (like, like, like, like, like)).fetchall():
+            _s165 = _pwf.orders_summary_one(c, p["id"])
+            _sos156 = _s165["orders"]
             # z1191z156: 관리번호 줄 = 머리 글만(고를 수 없음) — 견적서는 아래 수주번호에만 붙음
             out.append({"pid": p["id"], "oid": None, "head": True, "has": False,
-                        "label": (p["mgmt_code"] or "") + " · " + (p["name"] or "") + " · " + (p["customer_name"] or "")
+                        "label": (p["mgmt_code"] or "") + " · " + (p["name"] or "") + (" · " + _s165["cust_txt"] if _s165["cust_txt"] else "")
                                  + ("" if _sos156 else " — 수주번호가 아직 없어 붙일 수 없습니다")})
             for o in _sos156:
                 labs = [x[0] for x in c.execute("SELECT unit_label FROM order_items WHERE order_id=? ORDER BY id", (o["id"],))]
                 hs = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE order_id=? AND removed_at IS NULL", (o["id"],)).fetchone()[0]
                 out.append({"pid": p["id"], "oid": o["id"], "has": int(hs or 0),   # z1191z160: 이미 있는 장 수(지우지 않음)
                             "label": "　└ " + _z105_slot_label(p["mgmt_code"] or "", o["order_no"] or "", _z105_units_txt(labs),
-                                                              o["total_amount"], o["currency"], True)})
+                                                              o["total_amount"], o["currency"], True)
+                                     + (" · " + o["cust"] if o.get("cust") else "")})
     return JSONResponse({"ok": True, "items": out[:40]})
 
 
@@ -46783,18 +46905,20 @@ async def api_customer_po_search_z143(req: Request):
     with db_session() as c:
         _po143.table(c)
         has = _z143_has(c)
-        for p in c.execute("SELECT id, mgmt_code, name, customer_name FROM projects WHERE COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
-                           "AND (mgmt_code LIKE ? OR name LIKE ? OR customer_name LIKE ? OR id IN (SELECT project_id FROM orders WHERE order_no LIKE ?)) "
-                           "ORDER BY id DESC LIMIT 8", (like, like, like, like)).fetchall():
-            _sos156 = c.execute("SELECT id, order_no, currency, total_amount FROM orders WHERE project_id=? AND COALESCE(status,'')<>'CANCELLED' "
-                                "ORDER BY COALESCE(order_date,''), id", (p["id"],)).fetchall()
+        # z1191z165 (대표 11-27 · z164 와 같은 모양): 고객사 찾기·표시 = 수주마다 1차 고객사(관리번호 처음 등록 때 고객 아님)
+        for p in c.execute("SELECT id, mgmt_code, name FROM projects WHERE COALESCE(is_archived,0)=0 AND COALESCE(mgmt_code,'')<>'' "
+                           "AND (mgmt_code LIKE ? OR name LIKE ? OR id IN (" + _Z165_SO_FIND_SQL + ")) "
+                           "ORDER BY id DESC LIMIT 8", (like, like, like, like, like)).fetchall():
+            _s165 = _pwf.orders_summary_one(c, p["id"])
+            _sos156 = _s165["orders"]
             # z1191z156: 관리번호 줄 = 머리 글만(고를 수 없음) — 발주서는 아래 수주번호에만 붙음
             out.append({"pid": p["id"], "oid": None, "head": True, "has": 0,
-                        "label": (p["mgmt_code"] or "") + " · " + (p["name"] or "") + (" · " + p["customer_name"] if p["customer_name"] else "")
+                        "label": (p["mgmt_code"] or "") + " · " + (p["name"] or "") + (" · " + _s165["cust_txt"] if _s165["cust_txt"] else "")
                                  + ("" if _sos156 else " — 수주번호가 아직 없어 붙일 수 없습니다")})
             for o in _sos156:
                 out.append({"pid": p["id"], "oid": o["id"], "has": has.get((p["id"], o["id"]), 0),
-                            "label": "　└ " + _z143_slot_label(p["mgmt_code"], o["order_no"], "", o["total_amount"], o["currency"])})
+                            "label": "　└ " + _z143_slot_label(p["mgmt_code"], o["order_no"], "", o["total_amount"], o["currency"])
+                                     + (" · " + o["cust"] if o.get("cust") else "")})
     return JSONResponse({"ok": True, "items": out[:40]})
 
 
@@ -49557,6 +49681,14 @@ def _proj_import_parse_xlsx(file_bytes: bytes, migrate_mode: bool = False, tab_b
                     " (과거 데이터 일괄이관이면 '📦 일괄이관 모드' 체크 후 업로드)")
             _row["_is_warning_only"] = (
                 len(_row["_errors"]) == 1 and bool(_cw) and _row["_errors"][0] == _cw)
+    # z1191z165 (대표 11-27): 추가 발주 줄의 1차 고객사 빈칸 = 미리보기에서부터 「확인 필요」(확정 때도 저장 안 함)
+    #   — 예전엔 관리번호 처음 등록 때 고객이 그 수주에 저장됐다(수주마다 고객이 다른 관리번호 48곳).
+    for _row in out:
+        if _row.get("_followup") and not (_row.get("customer_name") or "").strip():
+            _e165 = "확인 필요 — 고객사를 정해 주세요(추가 발주 줄의 1차 고객사 칸이 비었습니다)"
+            if _e165 not in _row["_errors"]:
+                _row["_errors"].append(_e165)
+            _row["_is_warning_only"] = False
     # v5H226z982b (버그수정): 헤더(3행) 인식 실패 시트 — 파서가 '오류 행'으로 실어 보내 미리보기에서
     #   즉시 보이게 한다. (z978은 이 목록을 확정(import-confirm)에서 참조했는데 파서 지역변수라
     #   NameError → 확정 전체 500. 확정 쪽 참조는 제거하고 여기서 표면화 — z978 취지 유지·더 이른 시점)
@@ -49881,6 +50013,16 @@ async def projects_import_confirm(request: Request):
                     # v5H226z651 (대표 지시): 종사업장 안전연결 — 이름 후보 1개일 때만, 여러 종사업장이면 미연결(임의 선택 금지)
                     with db_session() as c:
                         _ord_cust_id, _ = _logi.resolve_customer_id(c, _row_cust)
+                # z1191z165 (대표 11-27): 추가 발주 줄의 1차 고객사가 비었거나 이름 후보가 여럿·없으면 저장하지 않는다.
+                #   예전엔 order_customer_id=None → add_followup_order 가 관리번호 처음 등록 때 고객을 그 수주에 저장했다
+                #   (수주마다 고객이 다른 관리번호에서 엉뚱한 고객으로 세금계산서·매출이 잡힘). 이 줄만 돌려보내고 다른 줄은 그대로 진행.
+                if _ord_cust_id is None:
+                    failed.append({"row_no": r.get("row_no"), "name": name,
+                                   "error": ("확인 필요 — 고객사를 정해 주세요: "
+                                             + (f"「{_row_cust}」 이름에 맞는 고객사가 여럿이거나 없습니다(고객사 관리의 정식 이름·시스템명으로 적어 주세요)"
+                                                if _row_cust else "추가 발주 줄의 1차 고객사 칸이 비었습니다")
+                                             + " · 이 줄은 저장하지 않았습니다")})
+                    continue
                 _fu_price = unit_price if unit_price > 0 else (amt / max(1, unit_qty))
                 _model = (r.get("model_name") or "").strip()
                 # v5H226z237 (대표 지시): 비고는 엑셀값만 — 자동 '[추가발주] 모델…' 라벨 제거.
@@ -55221,10 +55363,12 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
             for cn in ("ship_to", "unit_qty", "unit_label", "currency"):
                 if cn in ocols:
                     extra.append(f"o.{cn}")
+            # z1191z165 (대표 11-27): 모델명·PO유형 = 그 수주의 값(없으면 화면 「—」) — 관리번호 처음 등록 때 값으로 채우지 않음
             pj_extra = (
                 ", p.id AS project_id, p.mgmt_code AS mgmt_code, "
                 "p.name AS project_name, p.biz_div AS biz_div, "
-                "p.model_name AS model_name, p.po_type AS po_type"
+                + ("NULLIF(TRIM(o.model_name),'') AS model_name, " if "model_name" in ocols else "NULL AS model_name, ")
+                + ("NULLIF(TRIM(o.po_type),'') AS po_type" if "po_type" in ocols else "NULL AS po_type")
             )
             sel_extra = (", " + ", ".join(extra)) if extra else ""
             where_biz = ""
@@ -55234,7 +55378,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
                 params = [biz]
             rows = c.execute(
                 f"""SELECT o.id, o.order_no, o.customer_id,
-                          COALESCE(cu.name, p.customer_name, pcu.name, '-') AS customer_name,
+                          COALESCE(cu.name, '⚠ 고객 미정(확인 필요)') AS customer_name,   -- z1191z165: 수주 1차 고객만(관리번호 처음 등록 때 고객으로 채우지 않음)
                           o.total_amount, o.due_date, o.status,
                           o.order_date,
                           COALESCE(o.tax_invoice_issued,0) AS tax_invoice_issued,
@@ -57602,13 +57746,32 @@ async def export_prep_list(req: Request):
                       (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id
                         WHERE o.project_id=p.id AND oi.origin IS NOT NULL AND TRIM(oi.origin)<>'') AS n_origin
                FROM projects p
-               WHERE COALESCE(p.is_export,0)=1
+               WHERE (
+                   -- z1191z165 (대표 11-27): 대상 = 살아 있는 수주의 품목 중 「수출」이 하나라도 있는 관리번호
+                   --   (관리번호 처음 등록 값이 「내수」라 빠지던 곳 · 수주마다 거래구분이 다름).
+                   --   품목에 거래구분이 하나도 안 적힌 옛 자료만 처음 등록 값(p.is_export)을 따른다(말없이 빠지지 않게).
+                   EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id
+                           WHERE o.project_id=p.id AND UPPER(COALESCE(o.status,''))<>'CANCELLED'
+                             AND COALESCE(oi.unit_status,'')<>'취소' AND oi.is_export=1)
+                   OR (COALESCE(p.is_export,0)=1
+                       AND NOT EXISTS (SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id
+                                       WHERE o.project_id=p.id AND UPPER(COALESCE(o.status,''))<>'CANCELLED'
+                                         AND oi.is_export IS NOT NULL))
+                 )
                  AND COALESCE(p.is_archived,0)=0
                  AND COALESCE(p.status,'') NOT IN ('취소')
                ORDER BY (COALESCE(p.status,'')='출하'), (p.due_date IS NULL), p.due_date ASC, p.id DESC
                LIMIT 300"""
         ).fetchall()
         items = [dict(r) for r in rows]
+        # z1191z165: 고객사·납기 = 수주마다(여럿이면 「외 N곳」) — 관리번호 처음 등록 때 값 아님
+        _s165 = _pwf.orders_summary(c, [it["id"] for it in items])
+        for it in items:
+            s = _s165.get(it["id"])
+            it["cust165"] = (s["cust_txt"] if s else "") or ""
+            it["cust165_all"] = (s["cust_all"] if s else "") or ""
+            it["due165"] = (s["due_txt"] if s else "") or ""
+            it["n_cx165"] = (s["n_cancelled"] if s else 0)
     return ctx(req, "export_prep.html", user=u, active="export", items=items)
 
 
@@ -57633,6 +57796,7 @@ async def export_prep_detail(req: Request, pid: int):
         except Exception:
             sos = []
         dm = _doc_meta_get(c, pid, p)   # v5H226z968: 신고 서류 정보(인보이스 헤더블록)
+        s165 = _pwf.orders_summary_one(c, pid)   # z1191z165: 머리 줄 고객사·납기·모델 = 수주 기준
         _export_boxes_ensure(c)         # v5H226z970: 박스별 무게(실무=박스 단위 계량)
         boxes = [dict(r) for r in c.execute(
             "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no",
@@ -57642,7 +57806,7 @@ async def export_prep_detail(req: Request, pid: int):
     except Exception:
         col_prefs = "{}"
     return ctx(req, "export_prep_detail.html", user=u, active="export",
-               p=p, sos=sos, dm=dm, boxes=boxes, can_money=bool(can_view_sales(u)), col_prefs=col_prefs)
+               p=p, sos=sos, dm=dm, boxes=boxes, can_money=bool(can_view_sales(u)), col_prefs=col_prefs, s165=s165)
 
 
 @app.post("/export/prep/cols")
@@ -59966,6 +60130,25 @@ def _hs_hist_apply_latest(c, expect: int, u) -> tuple:
 # v5H226z463 (대표 지시·수출 2단계): 패킹리스트(PACKING LIST) — 1단계 통관 입력(order_items)에서 생성.
 #   인쇄(A4 HTML)·엑셀(KNK 표준). 데이터 출처 = order_items(품명·규격·원산지·HS·수량·중량·박스·팔레트).
 # ------------------------------------------------------------
+def _z165_doc_vals(c, pid, n_cancelled=0):
+    """z1191z165 (대표 11-27): 수출 서류(PL·CI·신고 서류 정보)의 구매자·발주일·납기 = 그 관리번호의 살아 있는 수주들 값.
+    buyer = 1차 고객 정식명(수주마다 다르면 「A / B」 수주별 전부 — 세관 서류라 「외 N곳」으로 줄이지 않음) ·
+    cust_txt = 화면용 「A 외 N곳」(시스템명) · warn = 화면 알림(인쇄 안 됨)."""
+    s = _pwf.orders_summary_one(c, pid)
+    names = []
+    for o in s["orders"]:
+        nm = (o.get("cust_name") or o.get("cust") or "").strip() if o.get("customer_id") else ""
+        if nm and nm not in names:
+            names.append(nm)
+    warn = []
+    if n_cancelled:
+        warn.append("취소된 수주 %d건은 서류에서 뺐습니다" % n_cancelled)
+    if s["n_cust_missing"]:
+        warn.append("1차 고객사를 아직 안 정한 수주 %d건 — 수주 칸 확인 필요" % s["n_cust_missing"])
+    return {"buyer": " / ".join(names), "cust_txt": s["cust_txt"], "cust_all": s["cust_all"],
+            "order_date": s["date_txt"], "due_date": s["due_txt"], "warn": warn, "n": s["n"]}
+
+
 def _export_pl_build(c, pid):
     """프로젝트의 수출 품목(order_items)으로 PACKING LIST 데이터 구성. (project, pl, lines) 또는 (None,None,None)."""
     prow = c.execute(
@@ -59978,6 +60161,10 @@ def _export_pl_build(c, pid):
         sos = _pwf.get_project_orders(c, pid)
     except Exception:
         sos = []
+    # z1191z165 (대표 11-27): 서류가 다루는 수주 = 살아 있는 수주(취소 수주 품목은 서류에 싣지 않음 · 뺀 수는 화면 알림)
+    _cx165 = [s for s in sos if str(s.get("status") or "").upper() == "CANCELLED"]
+    sos = [s for s in sos if str(s.get("status") or "").upper() != "CANCELLED"]
+    _d165 = _z165_doc_vals(c, pid, len(_cx165))
     lines, so_nos, boxes = [], [], set()
     for so in sos:
         if so.get("order_no"):
@@ -60000,11 +60187,13 @@ def _export_pl_build(c, pid):
             })
     pl = {
         "pl_no": f"PL-{p.get('mgmt_code') or pid}",
-        "buyer": p.get("customer_name") or "-",
+        # z1191z165: 구매자·발주일·납기 = 이 서류가 다루는 수주들의 값(관리번호 처음 등록 때 고객이 아님) · 수주마다 다르면 수주별 전부
+        "buyer": _d165["buyer"] or "-",
+        "cust165": _d165["cust_txt"], "cust165_all": _d165["cust_all"], "warn165": _d165["warn"],
         "order_no": " · ".join(so_nos) if so_nos else (p.get("mgmt_code") or "-"),
         "mgmt_code": p.get("mgmt_code") or "-",
-        "order_date": p.get("order_date") or "",
-        "due_date": p.get("due_date") or "",
+        "order_date": _d165["order_date"],
+        "due_date": _d165["due_date"],
         "total_qty": round(sum(l["qty"] for l in lines), 2),
         "total_weight": round(sum(l["weight_kg"] for l in lines), 2),
         "total_boxes": len(boxes) if boxes else len(lines),
@@ -60029,6 +60218,10 @@ def _export_ci_build(c, pid):
         sos = _pwf.get_project_orders(c, pid)
     except Exception:
         sos = []
+    # z1191z165 (대표 11-27): 취소 수주 품목은 상업송장에 싣지 않음(금액에도 안 들어감) · 뺀 수는 화면 알림
+    _cx165 = [s for s in sos if str(s.get("status") or "").upper() == "CANCELLED"]
+    sos = [s for s in sos if str(s.get("status") or "").upper() != "CANCELLED"]
+    _d165 = _z165_doc_vals(c, pid, len(_cx165))
     ccy = (p.get("currency") or "USD") or "USD"
     lines, so_nos = [], []
     total_qty = total_amt = 0.0
@@ -60073,19 +60266,21 @@ def _export_ci_build(c, pid):
     elif len(_ccys155) > 1:
         _warn155.append("수주 통화가 여러 개(%s) — 합계는 한 통화로 볼 수 없습니다" % ", ".join(_ccys155))
     if len(_buy155) > 1:
-        _warn155.append("수주마다 구매자(1차 고객)가 다릅니다(%s)" % ", ".join(_buy155))
+        _warn155.append("수주마다 구매자(1차 고객)가 다릅니다(%s) — 서류에는 수주별 구매자를 모두 적었습니다" % ", ".join(_buy155))
+    _warn155.extend(_d165["warn"])   # z1191z165: 취소 수주 뺌 · 1차 고객 미정 수주 알림
     if any(e is None for e in _end155):
         _warn155.append("최종 고객(2차)을 아직 안 정한 수주가 있습니다 — 수주 칸 확인 필요")
     ci = {
         "ci_no": f"CI-{p.get('mgmt_code') or pid}",
-        # 인쇄 문서(세관 제출)라 수주마다 다르면 글을 이어 붙이지 않고 예전 값 그대로 + 화면 알림만(ci_warn155 · 인쇄 안 됨)
-        "buyer": (_buy155[0] if len(_buy155) == 1 else (p.get("customer_name") or "-")),
+        # z1191z165 (대표 11-27): 수주마다 다르면 처음 등록 때 고객(틀린 값)을 쓰지 않고 수주별 구매자 전부 + 화면 알림(ci_warn155 · 인쇄 안 됨)
+        "buyer": _d165["buyer"] or "-",
+        "cust165": _d165["cust_txt"], "cust165_all": _d165["cust_all"],
         "final_customer": (_endv155[0] if (len(_endv155) == 1 and not any(e is None for e in _end155)) else (p.get("secondary_customer") or "")),
         "ci_warn155": _warn155,
         "order_no": " · ".join(so_nos) if so_nos else (p.get("mgmt_code") or "-"),
         "mgmt_code": p.get("mgmt_code") or "-",
-        "order_date": p.get("order_date") or "",
-        "due_date": p.get("due_date") or "",
+        "order_date": _d165["order_date"],   # z1191z165: 수주 발주일(여럿이면 첫 ~ 마지막)
+        "due_date": _d165["due_date"],
         "currency": ccy,
         "total_qty": round(total_qty, 2),
         "total_amount": round(total_amt, 2),
@@ -60130,7 +60325,8 @@ def _doc_meta_get(c, pid: int, p: dict | None = None) -> dict:
         import datetime as _dt
         d["invoice_date"] = _dt.date.today().isoformat()
     if not d.get("consignee") and p:
-        d["consignee"] = p.get("customer_name") or ""
+        # z1191z165 (대표 11-27): 받는 곳 기본값 = 수주들의 1차 고객사(정식명 · 여럿이면 수주별 전부) — 관리번호 처음 등록 때 고객 아님 · 미리 채우기만(저장은 사용자가)
+        d["consignee"] = _z165_doc_vals(c, pid, 0)["buyer"]
     d.setdefault("notify", "SAME AS ABOVE")
     if not d.get("notify"):
         d["notify"] = "SAME AS ABOVE"

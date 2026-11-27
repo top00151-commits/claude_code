@@ -98,9 +98,10 @@ else:
 # ② 수출 CI
 with D.db_session() as c:
     p, ci, ln = M._export_ci_build(c, PID)
-check("② CI(세관 문서) 글은 예전 그대로 · 수주마다 다르면 알림만(통화·구매자·최종 고객 미정)",
+# z1191z165 (대표 11-27): 구매자가 수주마다 다르면 처음 등록 고객(틀린 값) 대신 수주별 구매자 전부(「A / B」) + 알림
+check("② CI(세관 문서) 구매자 = 수주별 전부(z165) · 수주마다 다르면 알림(통화·구매자·최종 고객 미정)",
       ci and any("통화" in w for w in ci.get("ci_warn155", [])) and any("구매자" in w for w in ci["ci_warn155"])
-      and any("최종 고객" in w for w in ci["ci_warn155"]) and ci["buyer"] == "KNK VINA" and ci["final_customer"] == "SEV",
+      and any("최종 고객" in w for w in ci["ci_warn155"]) and ci["buyer"] == "KNK VINA / 가상삼성" and ci["final_customer"] == "SEV",
       ci and {k: ci[k] for k in ("buyer", "final_customer", "currency", "ci_warn155")})
 
 # ③ 모아 보기 · 화면 열기만으로 저장 안 함

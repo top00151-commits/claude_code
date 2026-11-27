@@ -137,7 +137,7 @@ a.lg-so.cancel:hover { background:#cbd5e1; color:#475569; }
           <td>{{ x.model or '—' }}</td>
           <td>{{ x.equip or '—' }}</td>
           <td>{{ x.pname or '—' }}</td>
-          <td>{{ x.cust or '—' }}</td>
+          <td{% if x.cust_all and x.cust_all != x.cust %} title="수주별 1차 고객사: {{ x.cust_all }}"{% endif %}>{{ x.cust or '—' }}</td>{# z1191z165: 수주 1차 고객사 「외 N곳」 #}
           <td class="nw">{{ x.sales or '—' }}</td>
           <td class="nw"><span class="lg-st s-{{ x.status }}">{{ x.status }}</span></td>
           <td><div class="lg-path" title="{{ x.spath }}">{{ x.spath or '' }}</div></td>

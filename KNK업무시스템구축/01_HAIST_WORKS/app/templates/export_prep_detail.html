@@ -74,11 +74,14 @@
       <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <b>{{ p.mgmt_code|default('—') }}</b></div>
       <h1 class="page-title" data-dn="title">🚢 {{ p.name }} <em>통관 입력</em></h1>
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
-        고객사 {{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}
-        {% if p.model_name %} · 모델 {{ p.model_name }}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
+        {# z1191z165 (대표 11-27): 고객사·모델·납기 = 수주마다(관리번호에는 고객사가 없다) · 여럿이면 「외 N곳」(마우스 올리면 전부) · 취소 수주는 빼고 그 수를 밝힘 #}
+        {% set _s165 = s165|default(none) or z165_so(p.id) %}
+        고객사 <span title="수주별 1차 고객사: {{ _s165.cust_all or '—' }}">{{ _s165.cust_txt or '—' }}</span>{% if _s165.n_cust_missing %} <span style="color:#b45309;">(고객 미정 수주 {{ _s165.n_cust_missing }}건)</span>{% endif %}
+        {% if _s165.models %} · 모델 <span title="{{ _s165.models|join(' · ') }}">{{ _s165.model_txt }}</span>{% elif p.model_name %} · 모델 {{ p.model_name }} <span style="color:#94a3b8;">(처음 등록 때 값)</span>{# z165-ok #}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
+        {% if _s165.n_cancelled %} · <span style="color:#64748b;">취소 수주 {{ _s165.n_cancelled }}건 숨김</span>{% endif %}
         {% set _ccys155 = (sos|default([], true))|map(attribute='currency')|select|map('upper')|unique|list %}
         · 통화 <b>{{ (_ccys155|join(' · ')) if _ccys155 else p.currency|default('KRW') }}</b>{% if _ccys155|length > 1 %} <span style="color:#b45309;">(수주마다 다름 · 줄마다 그 수주 통화)</span>{% endif %}{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
-        · 납기 {{ p.due_date|default('—') }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b>
+        · 납기 {{ _s165.due_txt or '—' }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">

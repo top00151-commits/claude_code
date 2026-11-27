@@ -40,7 +40,7 @@ body { font-family:"Malgun Gothic","Noto Sans KR",sans-serif; color:#0f172a; bac
       <div class="mgmt">{{ p.mgmt_code|default('—') }}</div>
       <div class="meta">
         {{ p.name }}<br>
-        고객사 {{ p.customer_name|default('—') }} · 총 박스 <b>{{ pl.total_boxes }}</b> · 총 중량 <b>{{ '{:,.2f}'.format(pl.total_weight) }}kg</b> · 품목 {{ pl.n_lines }}<br>
+        고객사 {{ pl.cust165 or '—' }}{# z1191z165: 수주 1차 고객사(여럿이면 「외 N곳」) #} · 총 박스 <b>{{ pl.total_boxes }}</b> · 총 중량 <b>{{ '{:,.2f}'.format(pl.total_weight) }}kg</b> · 품목 {{ pl.n_lines }}<br>
         <span style="font-size:9pt;color:#94a3b8;">스캔하면 이 출하 건의 품목·박스·통관 정보가 열립니다.</span>
       </div>
     </div>

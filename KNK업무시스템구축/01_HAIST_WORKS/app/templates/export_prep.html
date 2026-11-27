@@ -34,9 +34,9 @@
         <tr onclick="location.href='/export/prep/{{ it.id }}'" style="cursor:pointer;">
           <td><span class="mgmt-pill sm{% if not it.mgmt_code %} empty{% endif %}">{{ it.mgmt_code|default('—') }}</span></td>
           <td><b>{{ it.name }}</b></td>
-          <td>{{ (cust_alias|default({},true)).get(it.customer_id) or it.customer_name|default('—') }}</td>
+          <td title="수주별 1차 고객사: {{ it.cust165_all or '—' }}">{{ it.cust165 or '—' }}{# z1191z165: 수주 1차 고객사 #}</td>
           <td class="center" style="font-size:12px;">{{ _form_lbl.get((it.shipment_form or 'ASSEMBLY')|upper, '🏭 완제품') }}</td>
-          <td class="center" style="font-family:monospace;font-size:11.5px;color:var(--mute);">{{ it.due_date|default('—') }}</td>
+          <td class="center" style="font-family:monospace;font-size:11.5px;color:var(--mute);">{{ it.due165 or '—' }}{# z1191z165: 수주 납기 #}</td>
           <td class="center" style="font-weight:700;">{{ it.n_items }}</td>
           <td class="center">
             {% if it.n_items == 0 %}

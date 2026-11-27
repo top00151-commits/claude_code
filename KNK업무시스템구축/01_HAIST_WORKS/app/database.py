@@ -6918,9 +6918,14 @@ def projects_list_logi(q: str = "", biz_div: str = "", stage: str = "",
         #   customer_id 경유로 매칭(연결 안 된 프로젝트는 기존 customer_name LIKE 그대로).
         sql += (" AND (p.mgmt_code LIKE ? OR p.name LIKE ? OR p.customer_name LIKE ? "
                 "OR p.model_name LIKE ? OR p.equip_name LIKE ? OR p.pm_name LIKE ? OR p.sales_name LIKE ? "
-                "OR p.customer_id IN (SELECT c.id FROM customers c WHERE c.name LIKE ? OR COALESCE(c.alias,'') LIKE ?))")
+                "OR p.customer_id IN (SELECT c.id FROM customers c WHERE c.name LIKE ? OR COALESCE(c.alias,'') LIKE ?) "
+                # z1191z165 (대표 11-27): 수주마다 1차 고객사·2차 발주처·모델명도 찾음(관리번호에는 고객이 없다 · 취소 수주 빼고)
+                "OR p.id IN (SELECT o.project_id FROM orders o LEFT JOIN customers c2 ON c2.id=o.customer_id "
+                "WHERE o.project_id IS NOT NULL AND UPPER(COALESCE(o.status,''))<>'CANCELLED' "
+                "AND (c2.name LIKE ? OR COALESCE(c2.alias,'') LIKE ? OR COALESCE(o.end_customer,'') LIKE ? "
+                "OR COALESCE(o.model_name,'') LIKE ? OR COALESCE(o.order_no,'') LIKE ?)))")
         like = f"%{q}%"
-        params += [like] * 9
+        params += [like] * 14
     if biz_div:
         sql += " AND p.biz_div = ?"
         params.append(biz_div)

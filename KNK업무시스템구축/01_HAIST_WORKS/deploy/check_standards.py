@@ -1436,6 +1436,82 @@ def check_date_fallback(files):
     return bad
 
 
+# ── 관리번호(projects) 처음 등록 값을 「이 관리번호의 고객·유형」으로 보여 주기 — z1191z165 (대표 2026-11-27) ──
+#    관리번호 하나 아래 수주 여러 개 · 1차 고객사·2차·PO유형·거래구분·발주일·금액은 **수주마다** 있다.
+#    projects.customer_name/po_type/is_export/secondary_customer/order_amount/order_date 는 「처음 등록 때 값」일 뿐인데
+#    화면·서류·엑셀이 그것을 관리번호 값처럼 보여 줘 수주마다 고객이 다른 48곳·통화 다른 43곳이 틀리게 보였다.
+#    → 공용 project_workflow.orders_summary()(틀에서는 z165_so(pid) · 목록은 so165 지도)를 쓴다.
+#    잡는 것: 틀의 `p.customer_name` 같은 출력 · main.py 의 `p.get("customer_name")` 같은 읽기.
+#    빼는 것: 그 줄에 `z165-ok`(일부러 처음 등록 값을 보여 주는 곳 — 수주가 아직 없는 줄·등록 정보 고치기 칸 등) ·
+#             입력칸(<input>/<textarea>/<option>) 줄 = 프로젝트 등록 정보를 고치는 칸(처음 등록 값 그 자체).
+#    면제(BASELINE "z165"): 규칙 만들기 전부터 있던 곳(파일별 개수) — 늘어나면 새 위반. 그 화면을 손볼 때 수주 기준으로 옮기고 숫자를 줄일 것.
+Z165_FIELDS = "customer_name|po_type|is_export|secondary_customer|order_amount|order_date"
+Z165_TPL_RE = re.compile(r"\b(?:p|proj|project)\.(?:%s)\b" % Z165_FIELDS)
+Z165_PY_RE = re.compile(r"\b(?:p|proj|project|prow|_p0|_pj)\.get\(\s*[\"'](?:%s)[\"']" % Z165_FIELDS)
+# 2026-11-27 규칙 만들 때 센 개수(z1191z165 로 고친 화면은 이미 뺀 뒤) — 늘리지 말 것 · 그 화면을 수주 기준으로 옮기면 줄일 것
+#   main.py 54 = 등록·일괄 내려받기(작업일정표 엑셀·제품 일괄)·옛 수주 칸 채우기 기본값 등 · project_detail/project_form = 등록 정보 화면
+Z165_BASE = {"main.py": 54, "project_detail.html": 18, "project_form.html": 8, "product_bulk_import.html": 4,
+             "po_detail.html": 3, "admin.html": 2, "prod_request_edit.html": 2, "progress_dashboard.html": 2,
+             "docs_board_z150.html": 1, "mail_view_body.html": 1, "po_form.html": 1, "progress_detail.html": 1,
+             "projects.html": 1, "sales_dashboard.html": 1}
+
+
+def check_z165_first_value(files=None, tpl_dir=None, py_files=None):
+    """틀·main.py 에서 관리번호 처음 등록 값(고객·PO유형·거래구분·금액·발주일)을 화면에 쓰는 줄 → [(파일, 줄, 말)]."""
+    bad = []
+    tdir = tpl_dir or TPL
+    for p in sorted(_walk(tdir, (".html",))):
+        rp = p.replace("\\", "/")
+        if "/_legacy" in rp or "_backup" in rp:
+            continue
+        for i, ln in enumerate(_read(p).splitlines(), 1):
+            if "z165-ok" in ln or re.search(r"<(?:input|textarea|option)\b", ln):
+                continue
+            body = re.sub(r"\{#.*?#\}", "", ln)
+            if Z165_TPL_RE.search(body):
+                bad.append((p, i, "관리번호 처음 등록 값을 화면에 씀(%s) → z165_so(p.id)·so165 의 수주 값 · 일부러면 {# z165-ok #}"
+                            % Z165_TPL_RE.search(body).group(0)))
+    pys = py_files if py_files is not None else [os.path.join(ROOT, "app", "main.py")]
+    for p in pys:
+        for i, ln in enumerate(_read(p).splitlines(), 1):
+            s = ln.strip()
+            if s.startswith("#") or "z165-ok" in ln:
+                continue
+            m = Z165_PY_RE.search(ln.split("#", 1)[0] if "#" in ln and "\"" not in ln.split("#", 1)[0] else ln)
+            if m:
+                bad.append((p, i, "관리번호 처음 등록 값을 읽음(%s) → _pwf.orders_summary()/orders_summary_one() · 일부러면 # z165-ok" % m.group(0)))
+    return bad
+
+
+def z165_selftest():
+    """규칙이 실제로 잡는지 — 일부러 어긴 틀·파이썬을 임시 폴더에 만들어 돌려 본다(못 잡으면 위반)."""
+    import tempfile
+    d = tempfile.mkdtemp(prefix="z165chk_")
+    try:
+        t = os.path.join(d, "bad.html")
+        with io.open(t, "w", encoding="utf-8") as f:
+            f.write("<td>{{ p.customer_name }}</td>\n"            # 잡아야 함
+                    "<td>{{ proj.po_type or '신규' }}</td>\n"       # 잡아야 함
+                    "<td>{{ p.customer_name }}{# z165-ok #}</td>\n"  # 빼야 함
+                    "<input name=\"customer_name\" value=\"{{ p.customer_name }}\">\n"   # 빼야 함(등록 정보 고치는 칸)
+                    "{# {{ p.customer_name }} 옛 코드 #}\n"          # 빼야 함(주석)
+                    "<td>{{ o.customer_name }}</td>\n")             # 빼야 함(수주 값)
+        py = os.path.join(d, "bad.py")
+        with io.open(py, "w", encoding="utf-8") as f:
+            f.write('buyer = p.get("customer_name") or "-"\n'      # 잡아야 함
+                    'x = proj.get("po_type")\n'                     # 잡아야 함
+                    'y = p.get("customer_name")   # z165-ok\n'      # 빼야 함
+                    '# z = p.get("customer_name")\n'                # 빼야 함
+                    'w = o.get("customer_name")\n')                 # 빼야 함
+        got = check_z165_first_value(tpl_dir=d, py_files=[py])
+        lines = sorted((os.path.basename(f), l) for f, l, _m in got)
+        want = [("bad.html", 1), ("bad.html", 2), ("bad.py", 1), ("bad.py", 2)]
+        return [] if lines == want else [(t, 1, "z165 자체 시험 실패 — 잡은 줄 %s (맞는 값 %s)" % (lines, want))]
+    finally:
+        import shutil
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def split_baseline(hits, rule):
     """BASELINE 개수 이내면 '기존(면제)', 넘치면 '새 위반'으로 가른다."""
     by_file = {}
@@ -1747,6 +1823,19 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ 본문 앞 스크립트 : 화면 전환(본문만 교체)으로 들어와도 공용 함수가 있음 (chrome.html)")
+
+    z165_self = z165_selftest()
+    for _n165, _c165 in Z165_BASE.items():
+        BASELINE.setdefault(_n165, {})["z165"] = _c165
+    z165_new, z165_old = split_baseline(check_z165_first_value(files), "z165")
+    if z165_self or z165_new:
+        fail += len(z165_self) + len(z165_new)
+        print("  ❌ 관리번호 처음 등록 값 표시 : 새로 %d건%s → 수주 기준(project_workflow.orders_summary · 틀 z165_so) · 일부러면 z165-ok"
+              % (len(z165_new), (" · 자체 시험 실패" if z165_self else "")))
+        for f, l, m in (z165_self + z165_new)[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ 관리번호 처음 등록 값 표시 : 새 위반 없음 (기존 면제 %d건 · 자체 시험 통과)" % z165_old)
 
     wc_new, wc_old = split_baseline(check_wrap_cap(files), "wrapcap")
     if wc_new:
