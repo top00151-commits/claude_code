@@ -18949,7 +18949,7 @@ async def sales_opportunities(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
-        return RedirectResponse(role_home(u), 303)
+        return RedirectResponse(role_home(u) + "?no_perm=sales", 303)   # z1191z198 D: 말없이 홈으로 보내지 않고 「매출영업센터 권한이 없어…」 안내(chrome ?no_perm=sales) · 로그인 풀림은 로그인 화면
     stage_f = (request.query_params.get("stage") or "").strip()
     show_closed = (request.query_params.get("closed") or "") in ("1", "on", "true")
     # z1191z109: 결과 비율 기간(rp = 올해 y · 작년 py · 전체 all) · 비율 칸 숫자를 누르면 그 건들만(res·owner·biz·team·reason)
@@ -39324,7 +39324,7 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z198 D: 말없이 홈으로 보내지 않고 「매출영업센터 권한이 없어…」 안내(chrome ?no_perm=sales) · 로그인 풀림은 로그인 화면
     _mine_on = _mine_pref_z92(u, mine)   # z1191z92 P0-6
     # 2026-07-06 (대표 지시): archived=1 이면 폐기함(폐기된 프로젝트만 표시)
     _only_arch = (str(archived).strip() == "1")
@@ -55939,7 +55939,7 @@ async def sales_quotations_page(req: Request):
     """견적 관리 — z1191z105 (대표 11-22): 관리번호·수주번호별 최종 견적서(엑셀) 올리기·보기."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z198 D: 말없이 홈으로 보내지 않고 「매출영업센터 권한이 없어…」 안내(chrome ?no_perm=sales) · 로그인 풀림은 로그인 화면
     _a105 = _z105_args(req, u)
     return ctx(req, "sales_quotations.html", user=u, active="sales_quotations", tab="quotations",
                qb=_z105_board(u, **_a105), qhits=_z121_search(u, _a105.get("q")))
@@ -56269,7 +56269,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
     v5H166: cal_ym=YYYY-MM 으로 캘린더 표시 월 변경 (기본: 이번달)."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z198 D: 말없이 홈으로 보내지 않고 「매출영업센터 권한이 없어…」 안내(chrome ?no_perm=sales) · 로그인 풀림은 로그인 화면
     biz = (biz or "").upper().strip()
     if biz not in ("", "T", "M", "K", "C"):
         biz = ""
@@ -58574,7 +58574,7 @@ async def sales_outstanding_page(req: Request):
     """z1191z98: 📊 미수 현황(💰 입금 메뉴의 탭) — 고객사별 받을 돈 + 지난 날수 구간. 계산 = 입금 확인과 같은 함수."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z198 D: 말없이 홈으로 보내지 않고 「매출영업센터 권한이 없어…」 안내(chrome ?no_perm=sales) · 로그인 풀림은 로그인 화면
     data = _rc_rows_z94(u)
     custs, kpi = _ar_by_cust_z98(data["rows"])
     return ctx(req, "sales_outstanding.html", user=u, active="sales_outstanding",

@@ -114,15 +114,16 @@ def hit(sb, path, method="get"):
 
 
 home = (303, "/home")
+HOMES = (home, (303, "/home?no_perm=sales"))   # z1191z198 D: 매출 메뉴 화면은 권한 없음 안내값(?no_perm=sales)을 붙여 홈으로
 for sb, want_open in (("J920", False), ("J922", False), ("J921", True), ("J900", True), ("J910", True), ("J930", True)):
     res = {p: hit(sb, p) for p in PAGES}
     if want_open:
-        bad = {p: v for p, v in res.items() if v == home or v[0] >= 500}
+        bad = {p: v for p, v in res.items() if v in HOMES or v[0] >= 500}
         check("3 %s(%s · 매출 %s) — 매출 화면 9곳 열림(홈으로 안 감·오류 없음)" % (sb, U[sb]["role"], "".join(str(U[sb][k]) for k in ("can_view_sales", "can_use_sales"))),
               not bad, bad)
     else:
         res.update({p + " (POST)": hit(sb, p, "post") for p in POSTS})
-        bad = {p: v for p, v in res.items() if not (v == home or (p.endswith("(POST)") and v[0] == 401))}   # 저장 주소는 막히면 401
+        bad = {p: v for p, v in res.items() if not (v in HOMES or (p.endswith("(POST)") and v[0] == 401))}   # 저장 주소는 막히면 401
         check("3 %s(%s · 매출 %s) — 매출 화면 9곳 홈으로(303) · 저장 주소 2곳 401" % (sb, U[sb]["role"], "".join(str(U[sb][k]) for k in ("can_view_sales", "can_use_sales"))),
               not bad, bad)
 a0, a1 = hit("J920", "/sales/alerts/check", "post"), hit("J921", "/sales/alerts/check", "post")

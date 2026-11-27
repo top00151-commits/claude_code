@@ -8,7 +8,7 @@
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main" data-dn="changes-main">
   <div class="page-head" data-dn="changes-pagehead">
-    <div><div class="page-meta">변경 공지 · Change Notice</div><h1 class="page-title">📌 변경 <em>공지</em></h1></div>
+    <div><div class="page-meta">변경 공지</div>{# z1191z198 D (P3 · 제목 위 영어 글씨) #}<h1 class="page-title">📌 변경 <em>공지</em></h1></div>
     <div style="display:flex; gap:8px;"><a class="btn btn-secondary" href="/changes/export.xlsx" title="엑셀 다운로드" >📊 엑셀</a><a class="btn btn-primary" href="/changes/new">＋ 변경 등록</a></div>
   </div>
   <form style="display:flex;gap:10px;align-items:center;padding:14px 18px;background:var(--qv-surface);border:1px solid var(--qv-line);border-radius:var(--radius-lg);margin:0 0 var(--space-4);flex-wrap:wrap;" method="get" action="/changes">
@@ -36,7 +36,7 @@
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="empty"><div class="ico">📌</div><div class="ttl">변경 공지가 없습니다</div></div>{% endif %}
+    {% else %}<div class="empty"><div class="ico">📌</div><div class="ttl">변경 공지가 없습니다</div><div style="margin-top:12px;"><a class="btn btn-primary" href="/changes/new">＋ 첫 변경 공지 등록</a></div>{# z1191z198 D (P3): 빈 화면에서 바로 등록 · 위 「＋ 변경 등록」과 같은 주소 #}</div>{% endif %}
   </div>
   <div style="height: var(--space-7);"></div>
 </main></div></body></html>

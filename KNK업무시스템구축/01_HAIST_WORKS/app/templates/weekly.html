@@ -121,7 +121,8 @@ button { font-family: inherit; cursor: pointer; }
       <div class="kpi-card">
         <div class="lbl">완료율</div>
         <div class="num">{{ rate }}<span style="font-size:14px;color:var(--qv-ink-3);">%</span></div>
-        <div class="delta {% if rate >= 80 %}up{% elif rate >= 50 %}neutral{% else %}down{% endif %}">{% if rate >= 80 %}우수{% elif rate >= 50 %}양호{% else %}미흡{% endif %}</div>
+        {# z1191z198 D (화면 전수 점검): 업무 0건이면 「미흡」이 아니라 「이번 주 업무 없음」 #}
+        <div class="delta {% if total == 0 %}neutral{% elif rate >= 80 %}up{% elif rate >= 50 %}neutral{% else %}down{% endif %}">{% if total == 0 %}이번 주 업무 없음{% elif rate >= 80 %}우수{% elif rate >= 50 %}양호{% else %}미흡{% endif %}</div>
       </div>
       <div class="kpi-card">
         <div class="lbl">누적 공수</div>
@@ -138,7 +139,7 @@ button { font-family: inherit; cursor: pointer; }
     <!-- 빅터 인사이트 -->
     <div class="victor-insight" data-dn="weekly-insight">
       <div class="label">VICTOR'S WEEKLY INSIGHT</div>
-      <h2>이번 주의 키워드 — <span style="color: var(--qv-surface-2);">"{% if rate >= 80 %}가속{% elif delay > 0 %}주의{% elif total == 0 %}준비{% else %}꾸준{% endif %}"</span></h2>
+      <h2>이번 주의 키워드 — <span style="color: var(--qv-surface-2);">"{% if total == 0 %}이번 주 업무 없음{% elif rate >= 80 %}가속{% elif delay > 0 %}주의{% else %}꾸준{% endif %}"</span></h2>
       <p>
         이번 주 {{ user.name }}{% if user.rank %} {{ rank_label(user.rank, lang|default('ko')) }}{% endif %}님은 <b>{{ total }}건 업무</b> 중 <b>{{ done }}건 완료</b>(완료율 {{ rate }}%)·<b>누적 {{ '%.1f'|format(hours) }}h</b>를 기록했습니다.
         {% if delay > 0 %}<b>지연 {{ delay }}건</b> 우선 점검 권장.{% endif %}

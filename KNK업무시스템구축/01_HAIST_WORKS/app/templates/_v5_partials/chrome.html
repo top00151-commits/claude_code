@@ -114,6 +114,7 @@ var CH = {
 
 {# v5H226z849 (대표 지시): '테스트 날짜 변경' 노란 배너 제거 — 더 이상 사용 안 함 #}
 <header class="top" data-dn="top-bar" data-dn-tone="amber">
+  {# z1191z198 D: 그림만 있는 맨 위 단추(📲↻AI🔔🎨❓📲🚪)에 화면 읽기용 이름(aria-label = 마우스 올릴 때 글과 같음) — 모양 그대로 #}
   {# v5H16 — 좌: KNK 로고+탭 / 중앙: HAIST WORKS 큰 타이틀 / 우: 아이콘+사용자 #}
   <button type="button" class="mob-sb-btn" onclick="document.body.classList.toggle('mob-sb-open')" aria-label="{{ i.ch_menu }}">☰</button>
   <a class="tb-brand" href="/home" style="padding:0 var(--space-5);display:flex;align-items:center;height:100%;text-decoration:none;color:inherit;flex-shrink:0;">
@@ -127,24 +128,24 @@ var CH = {
   <div class="tb-headline" style="font-size:27px;font-weight:800;letter-spacing:0.07em;color:var(--knk-red);white-space:nowrap;">KNK Eum WORKS</div>
   <div id="knkTopRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
     {# v5H226z422 (대표 지시): KNK Eum WORKS 앱 설치 — 설치 가능할 때만 노출(beforeinstallprompt). 핸들러는 works_pwa_head.html #}
-    <a class="top-icon" id="worksInstallBtn" href="javascript:void(0)" onclick="worksInstallApp()" title="{{ i.ch_install_t }}" style="display:none;background:var(--knk-red);color:#fff;">📲</a>
+    <a class="top-icon" id="worksInstallBtn" href="javascript:void(0)" onclick="worksInstallApp()" title="{{ i.ch_install_t }}" aria-label="{{ i.ch_install_t }}" role="button" style="display:none;background:var(--knk-red);color:#fff;">📲</a>
     {# v5H226z123: 새로고침 — 배포 후 최신 화면 반영. 새 버전 감지 시 빨강 점 강조 #}
-    <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="{{ i.ch_refresh_t }}" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);position:relative;">↻</a>
+    <a class="top-icon" id="knkRefreshBtn" href="javascript:void(0)" onclick="location.reload()" title="{{ i.ch_refresh_t }}" aria-label="{{ i.ch_refresh_t }}" role="button" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);position:relative;">↻</a>
     {% if _role in ('ceo','admin','leader','executive') %}
     {# v5H226z849 (대표 지시): '테스트 날짜 변경'(🧪) 상단 버튼 제거 — 더 이상 사용 안 함 #}
     {% endif %}
-    <a href="javascript:void(0)" onclick="toggleVictorDock()" title="{{ i.ch_vd_name }} AI {% if ai_on %}{{ i.ch_ai_on }}{% else %}{{ i.ch_ai_off }}{% endif %} {{ i.ch_ai_t }}" id="victorToggleBtn" class="ai-avatar {{ 'on' if ai_on else 'off' }}">AI</a>
-    <a class="top-icon" href="/notifications" title="{{ i.ch_noti }}">🔔</a>
+    <a href="javascript:void(0)" onclick="toggleVictorDock()" title="{{ i.ch_vd_name }} AI {% if ai_on %}{{ i.ch_ai_on }}{% else %}{{ i.ch_ai_off }}{% endif %} {{ i.ch_ai_t }}" aria-label="{{ i.ch_vd_name }} AI {% if ai_on %}{{ i.ch_ai_on }}{% else %}{{ i.ch_ai_off }}{% endif %}" role="button" id="victorToggleBtn" class="ai-avatar {{ 'on' if ai_on else 'off' }}">AI</a>
+    <a class="top-icon" href="/notifications" title="{{ i.ch_noti }}" aria-label="{{ i.ch_noti }}">🔔</a>
     {# z1191z112 (대표 11-22 「웍스 화면에도 같은 테마 3가지」): 🎨 화면 테마 고르기 · z1191z170 (대표 11-27): 도움말(❓) 왼쪽으로(밝게·부드럽게·어둡게 · 이 컴퓨터에만 기억) #}
-    <a class="top-icon" id="knkThemeBtn" href="javascript:void(0)" onclick="knkThemeToggle(event)" title="{{ i.ch_theme_t }}" aria-haspopup="dialog" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);">🎨</a>
-    <a class="top-icon" href="/guide" target="_blank" title="{{ i.ch_help }}">❓</a>
+    <a class="top-icon" id="knkThemeBtn" href="javascript:void(0)" onclick="knkThemeToggle(event)" title="{{ i.ch_theme_t }}" aria-label="{{ i.ch_theme_t }}" role="button" aria-haspopup="dialog" style="background:var(--knk-bg-subtle, #EAEEE9);color:var(--knk-text-muted, #657169);">🎨</a>
+    <a class="top-icon" href="/guide" target="_blank" aria-label="{{ i.ch_help }}" title="{{ i.ch_help }}">❓</a>
     {# z1191z174 (대표 11-27 「도움말 오른쪽에 휴대폰에서 앱 설치를 바로 할 수 있는 아이콘」): 휴대폰 = 바로 설치(아이폰 = 홈 화면에 추가 안내) · PC = 휴대폰으로 찍는 QR · 앱으로 열려 있으면 숨김 #}
-    <a class="top-icon" id="knkPhoneAppBtn" href="javascript:void(0)" onclick="knkPhoneApp(event)" title="휴대폰에 WORKS 앱 설치(홈 화면에서 바로 열기)" style="background:var(--knk-bg-subtle, #EAEEE9);">📲</a>
+    <a class="top-icon" id="knkPhoneAppBtn" href="javascript:void(0)" onclick="knkPhoneApp(event)" title="휴대폰에 WORKS 앱 설치(홈 화면에서 바로 열기)" aria-label="휴대폰에 WORKS 앱 설치" role="button" style="background:var(--knk-bg-subtle, #EAEEE9);">📲</a>
     <a class="top-user" href="/profile">
       <div class="avatar">{{ user.name[0] if user.name else '?' }}</div>
       <div>{{ vname(user) }}{% if user.rank %} {{ rank_label(user.rank, lang|default('ko')) }}{% endif %}</div>
     </a>
-    <a class="top-icon" href="/logout" title="{{ i.ch_logout }}">🚪</a>
+    <a class="top-icon" href="/logout" title="{{ i.ch_logout }}" aria-label="{{ i.ch_logout }}">🚪</a>
   </div>
 </header>
 
@@ -583,8 +584,10 @@ var CH = {
      → 사이드바 맨 위에 허브 전환 버튼을 휴대폰 전용으로 추가 (데스크톱은 상단 탭이 있으므로 숨김) #}
   <div class="mob-hub-tabs">
     <a class="mob-hub{% if _at == 'home' %} on{% endif %}" href="/home">{{ i.ch_hub_home }}</a>
-    <a class="mob-hub{% if _at == 'sales' %} on{% endif %}" href="/sales">{{ i.ch_hub_sales }}</a>
-    <a class="mob-hub{% if _at == 'logi' %} on{% endif %}" href="/logistics">{{ i.ch_hub_logi }}</a>
+    {# z1191z198 D (화면 전수 점검): 허브 단추는 그대로 · 권한이 없는 센터 단추만 안 보임(workspaces_for — 예전엔 누구에게나 보이고 누르면 홈으로 되돌아옴) · 권한 정보가 없으면 예전처럼 다 보임 #}
+    {% set _wsk198 = (workspaces|default([], true))|map(attribute='key')|list %}
+    {% if not _wsk198 or 'sales' in _wsk198 %}<a class="mob-hub{% if _at == 'sales' %} on{% endif %}" href="/sales">{{ i.ch_hub_sales }}</a>{% endif %}
+    {% if not _wsk198 or 'logi' in _wsk198 %}<a class="mob-hub{% if _at == 'logi' %} on{% endif %}" href="/logistics">{{ i.ch_hub_logi }}</a>{% endif %}
   </div>
   {# ─────────── 허브별 메뉴 (상단 탭 선택에 따라 변경) ─────────── #}
   {% if _at == 'sales' %}
@@ -820,6 +823,10 @@ var CH = {
 .vd-msg.vd-ai { background: rgba(165,40,44,0.06); border-left: 3px solid var(--knk-red); line-height: 1.6; white-space: normal; }
 @media (max-width: 1023px) {
   .victor-dock { width: 100%; }
+}
+/* z1191z198 D (화면 전수 점검 · 좁은 창에서 빅터 도크가 가로 90% 이상을 덮음): 좁은 창·폴드·태블릿(768~1023)은 넓은 창과 같은 폭(320px) — 휴대폰(767 이하)은 그대로 전체 폭 · 도크 기능 그대로 */
+@media (min-width:768px) and (max-width:1023px) {   /* 띄어쓰기 없는 꼴 = P-1 맨 위 막대 규칙과 다른 묶음(z190 시험이 그 묶음을 찾음) */
+  .victor-dock { width: 320px; max-width: 100%; }
 }
 /* ── v5H226z1112 (대표 지시 2026-09-18 · 사진 「휴대폰에서 화면 비율이 안 맞는다」) ────────────
    실측 원인: 이 머리줄이 항상 744px 를 요구한다(로고 184 + 오른쪽 묶음 #knkTopRight 509 + 여백).

@@ -28,6 +28,8 @@
 /* z452 mobile: 폼 2열(.field-row)도 폰에서 1열로 — 좁은 화면 입력칸 찌그러짐 방지 */
 @media (max-width: 640px) { .field-row { grid-template-columns: 1fr; } }
 .bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
+/* z1191z198 D (화면 전수 점검 · 좁은 화면에서 숫자 카드가 세로로 하나씩 — 카드 하나가 화면 1/3): 1023px 이하는 2칸(v5_main.css 의 1칸 규칙보다 뒤 · 이 화면만) */
+@media (max-width: 1023px) { .bento[data-dn="profile-kpi"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-auto-rows: auto !important; } }
 </style>
 </head>
 <body>

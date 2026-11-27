@@ -350,8 +350,9 @@ button { font-family: inherit; cursor: pointer; }
       </a>
       {% else %}
       <a class="card clickable" href="/daily">
-        <div class="card-label">미작성 일일업무</div>
-        <div class="card-value" {% if total_my == 0 %}style="color:var(--knk-red);"{% endif %}>{{ 1 if total_my == 0 else 0 }}</div>
+        {# z1191z198 D (화면 전수 점검): 숫자가 아니라 「작성 안 함 / 작성함」(예전: 안 썼으면 1 · 썼으면 0 고정 — 개수처럼 보였다) #}
+        <div class="card-label">오늘 일일업무</div>
+        <div class="card-value" style="font-size:22px;{% if total_my == 0 %}color:var(--knk-red);{% endif %}">{% if total_my == 0 %}작성 안 함{% else %}작성함{% endif %}</div>
         <div class="card-trend {% if total_my == 0 %}alert{% else %}up{% endif %}">{% if total_my == 0 %}16:30 알림{% else %}작성 완료{% endif %}</div>
       </a>
       {% endif %}

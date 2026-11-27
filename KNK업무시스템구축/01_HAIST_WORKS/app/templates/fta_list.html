@@ -158,26 +158,27 @@
           <div class="sub">고객사 전달</div>
         </div>
         <div class="kpi-cell cancel">
-          <div class="l">CANCELLED</div>
+          <div class="l">CANCELLED (취소)</div>
           <div class="v">{{ cancel_n }}<span class="u">건</span></div>
           <div class="sub">취소</div>
         </div>
       </div>
 
       <div class="filter-bar" data-dn="ft:filter">
+        {# z1191z198 D (화면 전수 점검 · 거르기 단추가 영어만): 화면 글은 한국어(베트남어 화면이면 베트남어) · 주소 값(status=DRAFT 등)은 그대로 · 위 숫자 칸 이름과 같은 말 #}
+        {% set _vi198 = (lang|default('ko')) == 'vi' %}
+        {% set _st198 = [('DRAFT', '초안', 'Nháp'), ('ISSUED', '발급', 'Đã cấp'), ('SENT', '전송', 'Đã gửi'), ('CANCELLED', '취소', 'Đã hủy')] %}
         <div class="group">
-          <span class="lbl">상태:</span>
-          <a href="/export/fta" class="{% if not filter_status %}on{% endif %}">전체</a>
-          <a href="/export/fta?status=DRAFT{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'DRAFT' %}on{% endif %}">DRAFT</a>
-          <a href="/export/fta?status=ISSUED{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'ISSUED' %}on{% endif %}">ISSUED</a>
-          <a href="/export/fta?status=SENT{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'SENT' %}on{% endif %}">SENT</a>
-          <a href="/export/fta?status=CANCELLED{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == 'CANCELLED' %}on{% endif %}">CANCELLED</a>
+          <span class="lbl">{{ 'Trạng thái:' if _vi198 else '상태:' }}</span>
+          <a href="/export/fta" class="{% if not filter_status %}on{% endif %}">{{ 'Tất cả' if _vi198 else '전체' }}</a>
+          {% for _c, _ko, _vi in _st198 %}<a href="/export/fta?status={{ _c }}{% if filter_fta_type %}&fta_type={{ filter_fta_type }}{% endif %}" class="{% if filter_status == _c %}on{% endif %}" title="{{ _c }}">{{ _vi if _vi198 else _ko }}</a>
+          {% endfor %}
         </div>
         <div class="group">
-          <span class="lbl">협정:</span>
-          <a href="/export/fta{% if filter_status %}?status={{ filter_status }}{% endif %}" class="{% if not filter_fta_type %}on{% endif %}">전체</a>
+          <span class="lbl">{{ 'Hiệp định:' if _vi198 else '협정:' }}</span>
+          <a href="/export/fta{% if filter_status %}?status={{ filter_status }}{% endif %}" class="{% if not filter_fta_type %}on{% endif %}">{{ 'Tất cả' if _vi198 else '전체' }}</a>
           {% for code, label in FTA_TYPES %}
-            <a href="/export/fta?fta_type={{ code }}{% if filter_status %}&status={{ filter_status }}{% endif %}" class="{% if filter_fta_type == code %}on{% endif %}">{{ code }}</a>
+            <a href="/export/fta?fta_type={{ code }}{% if filter_status %}&status={{ filter_status }}{% endif %}" class="{% if filter_fta_type == code %}on{% endif %}" title="{{ label }}">{{ code }}</a>
           {% endfor %}
         </div>
       </div>
