@@ -189,7 +189,7 @@
     <div class="vn-sec-head">
       <div class="vn-sec-ttl">{{ vnt('📌 정리 (요점 · 할 일)', lang)|safe }}</div>
       <div class="vn-acts">
-        <button class="btn btn-secondary" id="vnSumEdit" type="button">{{ vnt('✏ 고치기', lang)|safe }}</button>
+        <button class="btn btn-secondary" id="vnSumEdit" type="button">{{ vnt('✏ 수정하기', lang)|safe }}</button>
         <button class="btn btn-secondary" id="vnRedo" type="button">{{ vnt('🔄 다시 정리', lang)|safe }}</button>
         {# z1183 (대표 확인 「확인 + 이전 정리 보관」): 다시 정리로 바뀌기 전 정리와 맞바꾼다(한 번 더 누르면 돌아온다) #}
         <button class="btn btn-secondary" id="vnPrev" type="button"{% if not (note and (note.summary_prev or '').strip()) %} hidden{% endif %}

@@ -165,7 +165,7 @@ VI = {
     "잘못 올렸으면 다른 녹음 파일로 바꿉니다 — 받아쓴 원문과 정리를 새 녹음으로 다시 만들고, 지금 정리는 「↩ 이전 정리」로 보관합니다.":
         "Nếu tải nhầm, hãy đổi sang tệp khác — bản gốc đã chép và tổng hợp sẽ làm lại theo ghi âm mới, tổng hợp hiện tại được lưu ở 「↩ Tổng hợp trước」.",
     "📌 정리 (요점 · 할 일)": "📌 Tổng hợp (ý chính · việc cần làm)",
-    "✏ 고치기": "✏ Sửa",
+    "✏ 수정하기": "✏ Sửa",   # z1206 (대표 2026-11-04 「음성메모도 수정하기로 변경」) — 번역은 그대로
     "🔄 다시 정리": "🔄 Tổng hợp lại",
     "정리와 맞바꿉니다": "Đổi chỗ với tổng hợp này",
     "↩ 이전 정리": "↩ Tổng hợp trước",
