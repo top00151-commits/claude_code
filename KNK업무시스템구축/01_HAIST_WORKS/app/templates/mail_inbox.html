@@ -190,6 +190,9 @@
   .mf-ra{display:none;flex:none;font-size:10.5px;font-weight:700;color:#1d4ed8;background:#e0ecff;border-radius:6px;padding:0 6px;line-height:1.75;cursor:pointer;white-space:nowrap}
   .mf-ra:hover{background:#2563eb;color:#fff}
   @media (hover:hover){.mbx-fold:hover .mf-ra,.mbx-fold:focus-within .mf-ra{display:inline-block}}
+  /* 11-27 대표 「✓ 가 숫자 뒤에서 나왔다 안 나왔다 하니 숫자가 움직여 정신없어」 — ✓ 는 숫자 앞(이름 쪽)에 · 숫자 자리는 그대로 */
+  .mbx-fold>.mf-ra{order:1}
+  .mbx-fold>.mf-n,.mbx-fold>.mf-u,.mbx-fold>.fbadge,.mbx-fold>.cnt{order:2}
   .mbx-fold.on .mf-ra{background:var(--mt-surface,#fff);color:var(--knk-red)}
   html[data-mt="dark"] .mf-ra{background:#1e3a66;color:#bfdbfe}
   @media (hover:hover) and (pointer:fine){.mbx-chip-ra{display:none !important}}
