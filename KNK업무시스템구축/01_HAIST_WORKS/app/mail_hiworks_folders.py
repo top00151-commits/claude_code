@@ -28,6 +28,7 @@ import time
 from collections import Counter
 from email.parser import BytesHeaderParser
 
+MHW_ON = False   # 11-27 대표 「우선 비활성화 — 방법이 없어」: 하이웍스에 IMAP 주소가 없음(서버에서 이름 찾기 실패) · 켜려면 True
 DEFAULT_HOST = "imaps.hiworks.com"       # 하이웍스 IMAP(SSL) — 받기 설정 기본값과 같은 계열(pop3s/smtps.hiworks.com)
 ALT_HOSTS = ("imap.hiworks.com",)        # 기본 주소에 닿지 않을 때만 한 번 더(받기 설정 화면의 옛 기본값)
 DEFAULT_PORT = 993
@@ -237,7 +238,8 @@ def friendly_error(e) -> str:
     if "timed out" in low or "timeout" in low:
         return "하이웍스가 답하지 않습니다(시간 초과). 잠시 뒤 다시 해 주세요."
     if "getaddrinfo" in low or "name or service" in low or "nodename" in low or "refused" in low:
-        return "하이웍스 서버 주소에 닿지 못했습니다. 아래 「서버 주소」가 맞는지 확인해 주세요(보통 imaps.hiworks.com)."
+        return ("하이웍스 서버(IMAP 주소)를 찾지 못했습니다 — 비밀번호 문제가 아닙니다. 하이웍스가 이 연결 방식(IMAP)을 열어 두지 않은 것으로 보입니다. "
+                "지금은 가져올 수 없으니 빅터(관리팀)에게 알려 주세요.")
     return "하이웍스에 연결하지 못했습니다(%s). 잠시 뒤 다시 해 주세요." % type(e).__name__
 
 

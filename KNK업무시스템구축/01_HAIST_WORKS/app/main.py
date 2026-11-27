@@ -26178,6 +26178,12 @@ async def mail_hiworks_folders_page(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     from . import mail_hiworks_folders as _mhw
+    if not _mhw.MHW_ON:
+        return HTMLResponse("<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+                            "<body style='font-family:system-ui,Malgun Gothic,sans-serif;padding:24px;line-height:1.7'>"
+                            "<h2>📂 하이웍스 개인 메일함 가져오기 — 지금은 쓰지 않습니다</h2>"
+                            "<p>하이웍스가 이 연결 방식(IMAP)을 열어 두지 않아 폴더를 가져올 수 없습니다. 다른 방법을 찾는 중입니다.</p>"
+                            "<p><a href='/mail/tools'>✕ 닫기 — 설정·정리로 돌아가기</a></p></body>")
     with db_session() as c:
         _mhw.ensure(c)
         own = sorted(_mhw.own_addresses(c, u["id"]))
@@ -26199,6 +26205,8 @@ async def mail_hiworks_folders_connect(req: Request):
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     from . import mail_hiworks_folders as _mhw
+    if not _mhw.MHW_ON:
+        return JSONResponse({"ok": False, "message": "지금은 쓰지 않는 기능입니다(하이웍스가 이 연결 방식을 열어 두지 않음)."}, 400)
     from starlette.concurrency import run_in_threadpool
     form = await _mail_form(req)
     with db_session() as c:
@@ -26231,6 +26239,8 @@ async def mail_hiworks_folders_start(req: Request):
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     from . import mail_hiworks_folders as _mhw
+    if not _mhw.MHW_ON:
+        return JSONResponse({"ok": False, "message": "지금은 쓰지 않는 기능입니다(하이웍스가 이 연결 방식을 열어 두지 않음)."}, 400)
     from .mail_import_outlook import disk_state as _mhw_disk
     from starlette.concurrency import run_in_threadpool
     form = await _mail_form(req)

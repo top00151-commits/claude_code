@@ -79,7 +79,7 @@
     <div class="hw-row"><label class="t" for="hwId">내 하이웍스 주소</label>
       <input type="email" id="hwId" autocomplete="username" value="{{ saved_id or (own[0] if own else '') }}" placeholder="예: 내아이디@knknara.co.kr"></div>
     <div class="hw-row"><label class="t" for="hwPw">하이웍스 비밀번호</label>
-      <input type="password" id="hwPw" autocomplete="current-password" placeholder="{{ '비워 두면 저장된 비밀번호 사용' if has_saved else '하이웍스 로그인 비밀번호' }}"></div>
+      <span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0"><input type="password" id="hwPw" autocomplete="current-password" style="flex:1;min-width:0" placeholder="{{ '비워 두면 저장된 비밀번호 사용' if has_saved else '하이웍스 로그인 비밀번호' }}"><button type="button" id="hwPwEye" onclick="var i=document.getElementById('hwPw'),on=i.type==='password';i.type=on?'text':'password';this.textContent=on?'🙈 숨기기':'👁 보기';this.setAttribute('aria-pressed',on?'true':'false')" aria-pressed="false" title="넣은 비밀번호를 글자로 보기 · 다시 누르면 숨김" style="flex:none;white-space:nowrap;padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#1f2937;font:inherit;font-size:13px;cursor:pointer">👁 보기</button></span></div>
     {% if has_saved %}<div class="hw-row"><label style="font-size:13px"><input type="checkbox" id="hwSaved" checked> 비밀번호를 비워 두면 메일 받기에 저장된 비밀번호를 씁니다</label></div>{% endif %}
     <div class="hw-note">🔒 비밀번호는 <b>저장하지 않습니다</b> — 이번 가져오기 동안만 쓰고 버립니다. <b>본인 회사 메일 주소</b>만 가져올 수 있습니다{% if own %}(내 주소: {{ own|join(', ') }}){% endif %}.</div>
     {% if not own %}<div class="hw-note" style="color:#b91c1c;font-weight:700">⚠ 이음 웍스에 내 회사 메일 주소가 등록되어 있지 않아 가져올 수 없습니다 — 관리팀에 「직원 명부 이메일」 등록을 요청해 주세요.</div>{% endif %}

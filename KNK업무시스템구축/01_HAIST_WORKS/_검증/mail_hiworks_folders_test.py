@@ -33,6 +33,7 @@ try:
     from app import mail_store as ms
     from app import mail_folders as mf
     from app import mail_hiworks_folders as mhw
+    mhw.MHW_ON = True   # 11-27 운영은 꺼 둠(대표 「우선 비활성화」) — 기능 자체는 켠 채로 시험
     from app import mail_import_outlook as mio
 finally:
     sys.stdout = _so
@@ -287,7 +288,7 @@ r = k.get("/mail/hiworks-folders")
 check("화면 열림 200", r.status_code == 200, r.status_code)
 check("화면: 단계 줄·닫기·비밀번호 저장 안 함 안내", all(s in r.text for s in ("연결·폴더 보기", "규칙 확인", "저장하지 않습니다", "hwConnect")) and ("닫기" in r.text or "mail-exit" in r.text), r.text[:300])
 r = k.get("/mail/tools")
-check("메일 도구에 입구", r.status_code == 200 and "/mail/hiworks-folders" in r.text, r.status_code)
+check("메일 도구에 입구 숨김(11-27 비활성화)", r.status_code == 200 and "/mail/hiworks-folders" not in r.text, r.status_code)
 r = k.post("/mail/hiworks-folders/connect", data={"hw_id": "kim@knknara.co.kr", "hw_pw": PW})
 check("남의 주소로 연결 = 거절", r.status_code == 400 and "본인" in r.json().get("message", ""), r.text[:200])
 r = k.post("/mail/hiworks-folders/connect", data={"hw_id": "hong@knknara.co.kr", "hw_pw": PW, "host": "evil.example.com"})
