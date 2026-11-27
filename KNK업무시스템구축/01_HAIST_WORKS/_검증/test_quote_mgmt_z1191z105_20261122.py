@@ -253,5 +253,20 @@ check("없음만: 견적 없는 수주가 없으면 아무 관리번호도 안 �
 r = cl.post("/api/project-quote/read", files={"file": ("사진.png", b"\x89PNG0000", "image/png")}).json()
 check("엑셀 아닌 파일은 안 받음", not r.get("ok"), r)
 
+print("§7 z1191z165b 기간 = 가장 최근 수주 발주일(관리번호 처음 등록 날 아님) · 기간 밖 찾기는 알림")
+cl.get("/sales/quotations?mine=0")
+with D.db_session() as cc:
+    _pid = cc.execute("SELECT id FROM projects WHERE mgmt_code='951M2611'").fetchone()[0]
+    cc.execute("UPDATE projects SET order_date='2020-01-01' WHERE id=?", (_pid,))
+    cc.execute("UPDATE orders SET order_date='2020-01-01' WHERE project_id=?", (_pid,))
+    _o1 = cc.execute("SELECT id FROM orders WHERE project_id=? ORDER BY id LIMIT 1", (_pid,)).fetchone()[0]
+h = cl.get("/sales/quotations?period=1y&q=951M2611").text
+check("수주까지 모두 옛날이면 1년에서 빠지고 「기간 밖에 관리번호 1개」 알림 + 전체 보기 연결", "951M2611</span>" not in h and "기간 밖에 관리번호 1개" in h and "period=all" in h)
+from datetime import date as _dd
+with D.db_session() as cc:
+    cc.execute("UPDATE orders SET order_date=? WHERE id=?", (_dd.today().isoformat(), _o1))
+h = cl.get("/sales/quotations?period=1y&q=951M2611").text
+check("처음 등록은 옛날이어도 최근 수주가 있으면 「최근 1년」에 보임(003M2509 사례)", "951M2611</span>" in h and "기간 밖에" not in h)
+
 print("\n결과: 통과 %d · 실패 %d" % (OK, FAIL))
 sys.exit(1 if FAIL else 0)

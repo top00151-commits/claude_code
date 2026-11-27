@@ -46337,11 +46337,18 @@ def _z105_board(u, q="", mine=False, period="1y", only="", done=False, biz=""):
             files.setdefault((x["project_id"], x["order_id"]), []).append(x)   # z1191z160: 자리마다 여러 장
         po143 = _z143_rows(c)   # z1191z143: 고객 발주서(수주번호 자리마다 · 여러 장)
     rows, cnt = [], {"so": 0, "so_with": 0, "so_none": 0, "pre": 0, "pre_with": 0, "noso": 0, "mine": 0, "done_hidden": 0,
-           "po_so": 0}   # z1191z143 고객 발주서 있는 수주
+           "po_so": 0, "period_hidden": 0}   # z1191z143 고객 발주서 있는 수주 · z1191z165b 기간 밖이라 안 보인 찾기 결과
     bcnt = {k or "all": 0 for k, _l in _Z107_BIZ_TABS}   # z1191z107: 책갈피마다 관리번호 수(다른 거르기는 그대로 적용한 뒤)
     for p in projs:
-        if since and (p["d0"] or "") < since:
-            continue
+        # z1191z165b (대표 11-27 사진 「003M2509 찾으면 안 나옴」): 기간 = 관리번호 처음 등록 날이 아니라 그 아래 가장 최근 수주 발주일
+        #   (처음 등록 2025-11 · 수주 2026-08 인 관리번호가 「최근 1년」에서 통째로 빠지던 것)
+        if since:
+            _dl = max([p["d0"] or ""] + [(o.get("order_date") or "") for o in orders.get(p["id"], [])])
+            if _dl < since:
+                if ql and ql in " ".join([p["mgmt_code"] or "", p["name"] or "", p["sales_name"] or ""]
+                                         + [(o["order_no"] or "") + " " + (o.get("cust") or "") for o in orders.get(p["id"], [])]).lower():
+                    cnt["period_hidden"] += 1   # 찾은 것이 기간 밖이면 화면에 「기간 밖에 N개」 알림
+                continue
         pbiz = _z107_biz(p.get("biz_div"), p.get("mgmt_code"))
         p["biz"] = pbiz
         on_tab = (not biz) or pbiz == biz
