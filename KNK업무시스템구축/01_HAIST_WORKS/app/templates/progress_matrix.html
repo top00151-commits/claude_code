@@ -7,10 +7,11 @@
 .mtx th { background: var(--paper-2); color: var(--amber-deep); font-weight: 700; }
 .mtx td.proj { text-align: left; font-weight: 600; }
 .cell { padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 50px; font-weight: 700; }
-.cell-DONE { background: var(--success); color: white; }
+.cell-DONE, .cell-완료 { background: var(--success); color: white; }
 .cell-PROGRESS, .cell-진행 { background: var(--amber-glow); color: var(--amber-deep); }
 .cell-DELAY, .cell-지연 { background: rgba(165,40,44,0.12); color: var(--knk-red); border: 1px solid var(--knk-red); }
-.cell-NA, .cell-empty { background: var(--paper-2); color: var(--mute); }
+.cell-NA, .cell-empty, .cell-예정, .cell-보류 { background: var(--paper-2); color: var(--mute); }
+.cell small { display: block; font-size: 10.5px; font-weight: 600; opacity: .8; }
 </style></head><body>
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
 <main class="main">
@@ -27,14 +28,18 @@
   <div style="margin: 0 var(--content-pad);overflow-x:auto;background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-lg);">
     {% if matrix %}
     <table class="mtx">
-      <thead><tr><th class="proj" style="text-align:left;">관리코드 / 프로젝트</th>{% for phase in PHASE_DEFS %}<th>{{ phase.label|default(phase.code) }}</th>{% endfor %}</tr></thead>
+      {# z1191z190 P-4 (화면 전수 점검 11-27): PHASE_DEFS 는 (코드, 이름, 순서) 묶음 값 — 2026-05-02 재작성(36d1674c) 때 phase.label·phase.code 로 읽어
+         칸 이름 12개가 빈칸 · 모든 칸이 「—」였다(자료가 있어도). 묶음을 풀어 읽고, 칸에는 그 공정의 상태(예정·진행·완료·지연·보류)와 진척률을 보인다. #}
+      <thead><tr><th class="proj" style="text-align:left;">관리코드 / 프로젝트</th>{% for _code, _label, _ord in PHASE_DEFS %}<th>{{ _label }}</th>{% endfor %}</tr></thead>
       <tbody>
       {% for r in matrix %}
         <tr>
           <td class="proj"><a href="/progress/{{ r.id }}" style="color:var(--amber-deep);font-weight:700;">{{ r.mgmt_code|default('—') }}</a><div style="font-size:11px;color:var(--mute);font-weight:400;">{{ r.name|default('') }}</div></td>
-          {% for phase in PHASE_DEFS %}
-            {% set st = r.phases.get(phase.code) if r.phases else None %}
-            <td><span class="cell cell-{{ st|default('empty') }}">{{ st|default('—') }}</span></td>
+          {% for _code, _label, _ord in PHASE_DEFS %}
+            {% set ph = r.phases.get(_code) if r.phases else None %}
+            {% set st = (ph.status if ph else '') or '' %}
+            {% if ph %}<td><span class="cell cell-{{ st or 'empty' }}">{{ st or '—' }}{% if ph.progress_pct %}<small>{{ ph.progress_pct|int }}%</small>{% endif %}</span></td>
+            {% else %}<td><span class="cell cell-empty">—</span></td>{% endif %}
           {% endfor %}
         </tr>
       {% endfor %}

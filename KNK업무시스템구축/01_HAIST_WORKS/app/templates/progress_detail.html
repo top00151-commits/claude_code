@@ -26,18 +26,22 @@
   <div class="section">
     <h2>단계별 진행</h2>
     <div style="margin: 0 var(--content-pad);">
+      {# z1191z190 P-4: 공정 줄은 DB 칸 이름(phase_code · planned_/actual_ 날짜 · 상태는 한글 예정/진행/완료/지연/보류) — 2026-05-02 재작성 때
+         phase.code·start_date·'DONE' 으로 읽어 공정 이름이 비고 날짜·색이 안 나왔다. #}
       {% for phase in phases|default([]) %}
-      <div class="phase-card {% if phase.status == 'DONE' %}done{% elif phase.status == 'PROGRESS' %}active{% elif phase.status == 'DELAY' %}delay{% endif %}">
+      {% set _st = phase.status or '' %}
+      <div class="phase-card {% if _st in ('DONE','완료') %}done{% elif _st in ('PROGRESS','진행') %}active{% elif _st in ('DELAY','지연') %}delay{% endif %}">
         <div class="phase-num">{{ loop.index }}</div>
         <div>
-          <b>{{ phase.label|default(PHASE_CODE_TO_LABEL.get(phase.code, phase.code)) }}</b>
+          <b>{{ PHASE_CODE_TO_LABEL.get(phase.phase_code, phase.phase_code) }}</b>{% if phase.team_name %} <span style="font-size:12px;color:var(--mute);font-weight:400;">· {{ phase.team_name }}{% if phase.assignee_name %} ({{ phase.assignee_name }}){% endif %}</span>{% endif %}
           {% if phase.note %}<div style="font-size:12px;color:var(--mute);margin-top:2px;">{{ phase.note }}</div>{% endif %}
         </div>
         <div style="font-size:12px;color:var(--mute);">
-          {% if phase.start_date %}🟢 {{ phase.start_date }}{% endif %}
-          {% if phase.end_date %} → {{ phase.end_date }}{% endif %}
+          {% if phase.planned_start or phase.planned_end %}<div>예정 {{ phase.planned_start or '-' }} → {{ phase.planned_end or '-' }}</div>{% endif %}
+          {% if phase.actual_start %}<div>🟢 실제 {{ phase.actual_start }}{% if phase.actual_end %} → {{ phase.actual_end }}{% endif %}</div>{% endif %}
+          {% if phase.progress_pct %}<div>진척 {{ phase.progress_pct|int }}%</div>{% endif %}
         </div>
-        <div><span class="pill {% if phase.status == 'DONE' %}pill-done{% elif phase.status == 'DELAY' %}pill-danger{% elif phase.status == 'PROGRESS' %}pill-progress{% else %}pill-muted{% endif %}">{{ phase.status|status_kr }}</span></div>
+        <div><span class="pill {% if _st in ('DONE','완료') %}pill-done{% elif _st in ('DELAY','지연') %}pill-danger{% elif _st in ('PROGRESS','진행') %}pill-progress{% else %}pill-muted{% endif %}">{{ phase.status|status_kr }}</span></div>
       </div>
       {% else %}<div class="card empty"><div class="ico">📊</div><div class="ttl">단계 정보 없음</div></div>{% endfor %}
     </div>

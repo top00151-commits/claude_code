@@ -1561,15 +1561,18 @@ async def _v5_http_exception_handler(request: Request, exc: _StarletteHTTPExcept
 @app.exception_handler(Exception)
 async def _v5_global_exception_handler(request: Request, exc: Exception):
     import traceback as _tb
+    import secrets as _sec190
     _tb_str = _tb.format_exc()
     _err_msg = f"{type(exc).__name__}: {exc}"
+    # z1191z190 P-5 (화면 전수 점검 11-27): 오류 화면 정리 — 화면에는 오류 번호와 안내만, 자세한 내용은 서버 기록에만.
+    #   오류 번호 = 한국 시각 + 무작위 4자리 · 서버 기록 줄에도 같은 번호 → 직원이 번호만 알려 주면 기록에서 찾는다.
+    _now190 = datetime.utcnow() + timedelta(hours=9)
+    _eid = "E" + _now190.strftime("%m%d-%H%M%S") + "-" + _sec190.token_hex(2).upper()
     print("=" * 70)
-    print(f"[v5H158 GLOBAL EXC] {request.method} {request.url.path}")
+    print(f"[v5H158 GLOBAL EXC] {_eid} {request.method} {request.url.path}")
     print(f"  → {_err_msg}")
     print(_tb_str)
     print("=" * 70)
-    # 사용자에게 친절한 HTML
-    safe_path = str(request.url.path)
     return HTMLResponse(
         f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <title>오류 - KNK</title>
@@ -1577,23 +1580,21 @@ async def _v5_global_exception_handler(request: Request, exc: Exception):
   body {{ font-family: 'Malgun Gothic', sans-serif; padding: 40px; background: #fef9f3; color: #2a2418; line-height: 1.6; }}
   .box {{ max-width: 900px; margin: 0 auto; background: #fff; border: 1px solid #f3d2d2; border-left: 6px solid #c00; border-radius: 10px; padding: 28px 32px; box-shadow: 0 4px 18px rgba(0,0,0,0.05); }}
   h1 {{ color: #c00; margin: 0 0 12px; font-size: 22px; }}
-  .url {{ font-family: monospace; background: #f5f5f5; padding: 4px 10px; border-radius: 4px; font-size: 12.5px; color: #555; }}
-  pre {{ background: #fff3f3; padding: 14px 16px; border: 1px solid #f99; border-radius: 6px; white-space: pre-wrap; word-break: break-all; font-size: 12px; color: #7a1f1f; max-height: 50vh; overflow: auto; margin-top: 14px; }}
-  .actions {{ margin-top: 18px; display: flex; gap: 10px; }}
+  .eid {{ font-family: monospace; background: #f5f5f5; padding: 4px 10px; border-radius: 4px; font-size: 14px; color: #333; font-weight: 700; user-select: all; }}
+  .actions {{ margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }}
   .btn {{ padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 700; text-decoration: none; }}
   .btn-pri {{ background: #b91c1c; color: #fff; }}
   .btn-sec {{ background: #fff; color: #333; border: 1px solid #d6cdb6; }}
   .hint {{ background: #fff7e0; padding: 10px 14px; border-radius: 6px; border-left: 3px solid #d4a574; margin-top: 14px; font-size: 13px; color: #555; }}
+  @media (max-width: 600px) {{ body {{ padding: 16px; }} .box {{ padding: 20px 18px; }} }}
 </style></head><body>
 <div class="box">
-  <h1>⚠ 페이지 오류</h1>
-  <div>요청: <span class="url">{request.method} {safe_path}</span></div>
-  <div class="hint">💡 KNK_시작.bat 검은 창에 더 자세한 정보가 출력됩니다. 캡처해서 빅터에게 전달해주세요.</div>
-  <pre>{_err_msg}
-
-{_tb_str}</pre>
+  <h1>⚠ 화면을 여는 중에 문제가 생겼습니다</h1>
+  <div>잠시 뒤 다시 시도해 주세요. 입력하던 내용이 있었다면 저장되지 않았을 수 있으니 확인해 주세요.</div>
+  <div class="hint">같은 문제가 계속되면 아래 <b>오류 번호</b>를 전산 담당에게 알려 주세요.<br>오류 번호: <span class="eid">{_eid}</span></div>
   <div class="actions">
     <a class="btn btn-sec" href="javascript:history.back()">← 뒤로</a>
+    <a class="btn btn-sec" href="javascript:location.reload()">↻ 다시 시도</a>
     <a class="btn btn-pri" href="/home">🏠 홈</a>
   </div>
 </div>

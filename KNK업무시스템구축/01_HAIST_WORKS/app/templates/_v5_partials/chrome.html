@@ -844,6 +844,15 @@ var CH = {
   .top-icon { width: 32px !important; height: 32px !important; }
   #victorToggleBtn.ai-avatar { width: 32px !important; height: 32px !important; font-size: 12.5px !important; }
 }
+/* z1191z190 P-1 (화면 전수 점검 11-27 · 폴드 펼침·태블릿 세로·크롬 옆 패널): 768~1023px 에선 위 규칙이 안 걸려
+   「← 이전 페이지」 글자 · 이름 「김정락 대표이사」 · 아이콘 9개가 모두 나와 막대가 867px 를 요구 → 768~866 에서 🚪 가 화면 밖(문서가 옆으로 흔들림).
+   이름 길이는 사람마다 달라(베트남 이름·직책) 넘치는 폭이 사람마다 다르다 → 좁은 창 구간(≤1023) 전체에서
+   「이전 페이지」 글자와 이름 글자만 뺀다(← · 동그라미는 그대로 · 누르면 같은 동작). 없애는 단추 0 · 아이콘 크기는 그대로. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  #knkBackBtn > span + span { display: none !important; }
+  .top-user { gap: 0 !important; }
+  .top-user > div:not(.avatar) { display: none !important; }
+}
 @media (max-width: 479px) {
   .tb-brand { display: none !important; }   /* 좁은 휴대폰: 로고만 숨김(기능 아님) */
   /* z1191z174: 도움말 오른쪽 📲 이 늘어 한 줄 넘침(+35점) → 아이콘 32→28 · 간격 6→4(기능 빼지 않음) */
@@ -1408,6 +1417,17 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     return '?' + keep.join('&');
   }
   function key(){ return 'knkpos:' + location.pathname + normSearch(location.search); }
+  /* z1191z190 P-2 (화면 전수 점검 11-27 · 브라우저·휴대폰 「뒤로」에서 목록 위치를 잃음 · 원인 확정):
+     「뒤로」는 주소가 먼저 바뀌고(popstate) 그다음 본문을 갈아 끼운다. 그 사이·그 뒤에 save() 가 「지금 주소」 열쇠로
+     「지금 화면(새로 끼운 맨 위 0)」 값을 써서 돌아갈 화면의 기억을 지웠다. 시험 서버 재현 기록(/customers → /contacts → 뒤로):
+       popstate → 본문 교체 · 화면 스크립트 다시 돌리다 「이미 선언됨」(cuImportRows) → 안전장치(z1191z9)가 전체 새로 열기 →
+       pagehide 의 save() 가 새로 끼운 빈 본문(0) 을 /customers 열쇠로 저장 = removeItem → 새로 열린 화면에 복원할 값 없음.
+     → 기억은 「그 화면을 보기 시작할 때의 열쇠와 본문」에 묶는다(viewKey·viewMain).
+       ① 본문이 바뀌었는데 아직 새 화면 시작(knk:navigated)을 못 받았으면 저장하지 않는다(주소·본문이 어긋난 순간).
+       ② 복원이 끝나기 전에는 저장하지 않는다(맨 위 0 이 복원할 값을 덮지 않게 · 사용자가 직접 굴리면 그때부터 저장).
+     FULL_ONLY 안전장치·전체 새로 열기는 그대로(위치만 지킨다). */
+  var viewKey = key(), viewMain = null, restoring = false;
+  function viewStart(){ viewKey = key(); viewMain = mainEl(); }
   function mainEl(){ return document.querySelector('.main'); }
 
   /* 요소 키: 재방문/재렌더 후 같은 요소를 다시 찾기 위한 문자열 */
@@ -1445,6 +1465,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 
   function save(){
     try {
+      if (restoring) return;                      // z1191z190 ②: 복원 중 — 복원할 값을 0 으로 덮지 않는다
+      if (viewMain && mainEl() !== viewMain) return; // z1191z190 ①: 본문이 바뀌었는데 새 화면 시작 전(주소·본문 어긋남)
       var m = mainEl(); if (m) markDirty(m);      // .main 은 존재하면 항상 포함(구버전 호환·가장 흔한 컨테이너)
       var wx = Math.round(window.scrollX || window.pageXOffset || 0);
       var wy = Math.round(window.scrollY || window.pageYOffset || 0);
@@ -1460,8 +1482,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
       var payload = {};
       if (wx > 0 || wy > 0) payload.w = [wx, wy];
       if (hasE) payload.e = ent;
-      if (payload.w || payload.e) sessionStorage.setItem(key(), JSON.stringify(payload));
-      else sessionStorage.removeItem(key());      // 전체가 비면 삭제
+      if (payload.w || payload.e) sessionStorage.setItem(viewKey, JSON.stringify(payload));
+      else sessionStorage.removeItem(viewKey);    // 전체가 비면 삭제 · z1191z190: 열쇠 = 이 화면을 보기 시작할 때의 주소
     } catch(e){}
   }
   var t = null;
@@ -1474,6 +1496,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 
   var rT = null;                                  // 복원 재시도 타이머(화면 전환 시 중단용)
   function restore(){
+    restoring = false;
     if (location.hash) return;                                     // 앵커 진입 존중
     if (/[?&](focus_ref|focus_so)=/.test(location.search)) return; // 보드 강조 이동 존중
     var v = null; try { v = sessionStorage.getItem(key()); } catch(e){}
@@ -1498,6 +1521,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
     var winDone = (wx <= 0 && wy <= 0);
     if (winDone && !items.length) return;
     var tries = 0;
+    restoring = true;                             // z1191z190 ②: 복원 끝날 때까지 저장 멈춤
     (function attempt(){
       tries++;
       var last = (tries >= MAXTRY);
@@ -1522,7 +1546,7 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
         } else { remain = true; }                 // 아직 못 찾았거나 덜 그려짐 → 재시도
       }
       if ((!winDone || remain) && !last) rT = setTimeout(attempt, STEP);
-      else rT = null;
+      else { rT = null; restoring = false; }
     })();
   }
   /* z984c: 목록 복귀 버튼(a[data-knk-back]) — 직전 화면이 이 버튼과 같은 목록(경로 일치)이면
@@ -1542,7 +1566,9 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   document.addEventListener('knk:navigated', function(){
     if (t)  { clearTimeout(t);  t = null; }  // 이전 화면의 늦은 저장 타이머 취소
     if (rT) { clearTimeout(rT); rT = null; } // 이전 화면의 복원 재시도 중단(새 화면 오염 방지)
+    restoring = false;
     dirtyEls.length = 0;                     // dirty 초기화 — 이전 화면 요소는 버림
+    viewStart();                             // z1191z190: 새 화면 시작 — 이제부터 저장 열쇠·본문 = 이 화면(주소·본문 모두 바뀐 뒤)
     setTimeout(function(){                   // spa_nav 의 주소 갱신·scrollTo(0,0) '이후' 틱에서 실행
       var u = location.pathname + location.search;
       if (u !== curU){ prevU = curU; curU = u; } // 직전 화면 주소 기록(z984c)
@@ -1550,8 +1576,8 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
       restore();
     }, 0);
   });
-  if (document.readyState !== 'loading') setTimeout(restore, 0);
-  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(restore, 0); });
+  if (document.readyState !== 'loading') { viewStart(); setTimeout(restore, 0); }
+  else document.addEventListener('DOMContentLoaded', function(){ viewStart(); setTimeout(restore, 0); });
 })();
 </script>
 
