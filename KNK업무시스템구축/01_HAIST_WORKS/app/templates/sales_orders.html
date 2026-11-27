@@ -332,10 +332,7 @@ body {
       <div class="list-hd" data-dn="list-hd">
         <div class="ttl-l">
           <span>📋 관리번호 리스트 ({{ items|length }}건)</span>
-          {# z1191z194 S-4 (대표 11-27 「말없이 숨기지 않는다」 · z165): 서버가 최근 200건만 보내는데(달력·납기 숫자도 그 200건 기준) 화면에 말이 없었다
-             → 그 사업부 전체 건수보다 적으면 「최근 200건만 · 전체 N건」을 보인다(숫자·목록은 그대로 · 나머지는 엑셀·프로젝트 목록에서) #}
-          {% set _tot194 = (tab_counts|default({})).get(biz if biz in ('T','M','K','C') else 'all', 0) %}
-          {% if not _dd and items|length >= 200 and _tot194 > items|length %}<span class="filter-pill" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;" title="이 목록·달력·납기 숫자는 최근 200건 기준입니다 — 전체는 📊 엑셀 또는 📋 전체 목록(프로젝트)에서">⚠ 최근 {{ items|length }}건만 · 전체 {{ '{:,}'.format(_tot194) }}건</span>{% endif %}
+          {# z1191z197: 서버 200건 제한을 풀어(대표 11-28 「전체 보이게」) 묶음 S 의 「최근 200건만 · 전체 N건」 알림은 지움 #}
           {% if _dd %}<span class="filter-pill">📅 {{ _dd }} 필터<a href="?{% if biz %}biz={{ biz }}{% endif %}">✕</a></span>{% endif %}
         </div>
         <a class="dl" href="/sales/orders/export.xlsx" title="엑셀 다운로드">📊 엑셀</a>
@@ -358,6 +355,7 @@ body {
         </tr></thead>
         <tbody>
         {% for o in items %}
+        {% if loop.index0 == 200 %}<template data-knk-rest>{# z1191z197 (대표 11-28 「전체 보이게」): 서버가 수주 전체를 보냄 · 201번째 줄부터 내리면 이어 그림(묶음 S 공용 knk_rows_lazy) #}{% endif %}
         {# v5H226z253 (대표 지시): 소모품(co) 행은 /consumables/{id} 로 — orders.id 충돌·/project/None 크래시 수정 #}
         <tr onclick="location.href='{% if o.is_co %}/consumables/{{ o.id }}{% else %}/sales/orders/{{ o.id }}{% endif %}'">
           <td>{% if o.mgmt_code %}<a class="mgmt-tag" href="{% if o.is_co %}/consumables/{{ o.id }}{% elif o.project_id %}/project/{{ o.project_id }}{% else %}/sales/orders/{{ o.id }}{% endif %}" onclick="event.stopPropagation();">{{ o.mgmt_code }}</a>{% else %}—{% endif %}</td>
@@ -384,6 +382,7 @@ body {
           <td class="center" style="font-size:10.5px;color:#94a3b8;">{{ o.order_date|default('—') }}</td>
           <td class="center" style="font-size:10.5px;color:#94a3b8;">{{ o.due_date|default('—') }}</td>
         </tr>
+        {% if loop.last and loop.length > 200 %}</template><tr class="knk-more-row"><td colspan="11">⬇ 아래에 <b class="knk-more-n">{{ '{:,}'.format(loop.length - 200) }}</b>건 더 있음 — 내리면 이어서 보입니다<button type="button" class="knk-more-all">모두 보기</button></td></tr>{% endif %}
         {% endfor %}
         </tbody>
       </table>

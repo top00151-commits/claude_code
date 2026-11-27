@@ -521,7 +521,9 @@ button { font-family: inherit; cursor: pointer; }
         <a class="feed-item" href="/team?team_id={{ td.team.id }}">
           <div class="feed-icon">{% if td.signal == 'red' %}🔴{% elif td.signal == 'yellow' %}🟡{% else %}🟢{% endif %}</div>
           <div class="feed-text">
-            <div class="ttl">{{ td.team.name }}</div>
+            {# z1191z197 C-3 (화면 전수 점검 · 「총괄」「구매팀」 2개씩): 자료 중복이 아니라 본사·베트남 법인 부서가 같은 이름(총괄 00/V00 · 구매팀 10/V09 · 설계·소프트웨어·가공·품질·관리팀도)인데
+               화면이 법인을 안 보여 줘 같은 부서가 두 번 나온 것처럼 보였다 → 베트남 법인 부서만 앞에 「베트남 · 」(공용 teamlabel · 본사 이름은 그대로) #}
+            <div class="ttl">{{ teamlabel(td.team.name, td.team.entity) if ((td.team.entity or '')|string|upper) in ('VN', 'VNM') else td.team.name }}</div>
             <div class="body">참여 {{ td.reported }}/{{ td.total_members }}명 · 진행 {{ td.progress }} · 완료 {{ td.done }}{% if td.delay > 0 %} · <b style="color:var(--knk-red);">지연 {{ td.delay }}</b>{% endif %}</div>
             <div class="meta">총 {{ td.total }}건</div>
           </div>

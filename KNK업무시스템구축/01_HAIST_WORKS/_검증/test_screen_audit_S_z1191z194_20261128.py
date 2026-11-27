@@ -52,7 +52,7 @@ sr = tp("sales_shipments_receipts.html")
 check("S-4 출하·입금 수금 입력·이력 = 위임(이어 붙인 줄에서도)", "document.addEventListener('submit'" in sr and "closest('.sr-hist-btn')" in sr and "document.querySelectorAll('form.sr-recv-form').forEach" not in sr)
 check("S-4 출하·입금 정렬·거르기 = 모두 붙인 뒤", sr.count("window.knkRowsAll(tb)") >= 2)
 so = tp("sales_orders.html")
-check("S-4 수주 목록 「최근 200건만 · 전체 N건」 알림", "최근 {{ items|length }}건만 · 전체" in so)
+check("S-4 수주 목록 = 말없이 숨기지 않음(z1191z197 뒤: 서버 전체 + 이어 그리기 · 그 전: 「최근 200건만」 알림)", "최근 {{ items|length }}건만 · 전체" in so or ("{% if loop.index0 == 200 %}<template data-knk-rest>" in so and "loop.length - 200" in so))
 cu = tp("customers_list.html")
 check("고객사 다시 열 때 「이미 선언됨」 없게(var)", "var cuImportRows = [];" in cu and "let cuImportRows" not in cu)
 

@@ -2,169 +2,62 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><!-- z452 mobile -->
-<title>{{ status_code|default('오류') }} — KNK HAIST WORKS</title>
-<!-- v5 H5 풀이식 (2026-04-30 빅터(05) 권고 100%) — Pretendard 사내 호스팅 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{#─────────────────────────────────────────────────────────────────────────────
+  z1191z197 C-1 (화면 전수 점검 11-27): 오류 화면 = 실제 상황 하나만.
+  예전 이 파일은 디자인 견본(404·500·로딩 세 장 + 가짜 전화 「02-3142-XXXX」 · 「보통 5분 이내 복구」 · 가짜 진행률 65%)이 그대로
+  직원 화면에 나왔다(없는 주소·권한 없음 때). → 상황(404 / 403 / 500·502·503) 하나 · 쉬운 안내 · ← 뒤로 · 🏠 홈 · ✕ 닫기.
+  말투는 처리 안 된 오류 화면(main.py P-5 · 「화면을 여는 중에 문제가 생겼습니다」)과 맞춘다. 없는 기능(자동 알림·복구 시간)은 약속하지 않는다.
+  서버가 넘긴 설명(detail)은 한글로 쓴 안내(예: 「게시글 승인 권한이 없습니다」)일 때만 보인다 — 영어 기본 글·내부 내용은 보이지 않는다.
+─────────────────────────────────────────────────────────────────────────────#}
+{% set _c = status_code|default(500)|int %}
+{% set _d = (detail|default('', true))|string %}
+{% set _hangul = namespace(on=false) %}{% for ch in _d %}{% if '가' <= ch <= '힣' %}{% set _hangul.on = true %}{% endif %}{% endfor %}
+{% if _c == 404 %}{% set _ico, _t, _m = '🔎', '찾는 화면이 없습니다', '주소가 바뀌었거나 없어진 화면입니다. 메뉴에서 다시 찾아 주세요.' %}
+{% elif _c == 403 %}{% set _ico, _t, _m = '🔒', '이 화면을 볼 권한이 없습니다', '필요하면 부서 팀장이나 전산 담당에게 권한을 요청해 주세요.' %}
+{% else %}{% set _ico, _t, _m = '⚠', '화면을 여는 중에 문제가 생겼습니다', '잠시 뒤 다시 시도해 주세요. 같은 문제가 계속되면 전산 담당에게 알려 주세요.' %}{% endif %}
+<title>{{ _t }} — KNK Eum WORKS</title>
 <link rel="stylesheet" href="/static/css/v5_tokens.css?v=20260726v5H226z1057">
 <style>
-body { min-height: 100vh; display: grid; place-items: center; padding: var(--space-7); background-image: radial-gradient(circle at 50% 30%, rgba(255,229,184,0.35) 0%, transparent 50%); }
-.gallery { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-5); max-width: 1280px; }
-.error-page {
-  background: var(--paper-3);
-  border-radius: var(--radius-2xl);
-  padding: var(--space-8) var(--space-7);
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-  position: relative;
-  overflow: hidden;
-}
-.error-page::before { content: ""; position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: var(--glow-amber-radial); opacity: 0.4; }
-.error-code {
-  font-size: 88px;
-  font-weight: 800;
-  background: var(--grad-amber);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  margin-bottom: 12px;
-  position: relative;
-  z-index: 1;
-}
-.error-code.danger { background: var(--grad-knk-red); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.error-emoji { font-size: 56px; margin-bottom: 8px; position: relative; z-index: 1; }
-.error-page h2 { font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 10px; position: relative; z-index: 1; }
-.error-page p { font-size: 14px; color: var(--mute); line-height: 1.65; margin-bottom: 24px; position: relative; z-index: 1; }
-.error-actions { display: flex; gap: 10px; justify-content: center; position: relative; z-index: 1; }
-.btn { font-family: inherit; font-size: 13.5px; font-weight: 700; padding: 11px 20px; border-radius: var(--radius-md); border: 0; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn-primary { background: var(--grad-amber); color: white; box-shadow: var(--shadow-amber); }
-.btn-secondary { background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
-
-.error-suggest {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-  text-align: left;
-  position: relative;
-  z-index: 1;
-}
-.error-suggest h4 { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber-deep); font-weight: 700; margin-bottom: 10px; }
-.suggest-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  color: var(--ink);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background var(--t-fast);
-}
-.suggest-link:hover { background: var(--amber-glow); }
-.suggest-link .ico { font-size: 16px; }
-.suggest-link .arrow { margin-left: auto; color: var(--amber-deep); }
-
-/* 빅터 도움말 영역 */
-.victor-help {
-  background: var(--grad-ink);
-  color: white;
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  margin-top: var(--space-4);
-  text-align: left;
-  position: relative;
-  z-index: 1;
-  overflow: hidden;
-}
-.victor-help::before { content: ""; position: absolute; top: -30px; right: -30px; width: 100px; height: 100px; background: var(--glow-amber-strong); opacity: 0.4; }
-.victor-help .label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber-light); font-weight: 700; position: relative; z-index: 1; }
-.victor-help .body { font-size: 12.5px; color: rgba(255,255,255,0.85); margin-top: 6px; line-height: 1.55; position: relative; z-index: 1; }
-
-.title-bar {
-  grid-column: span 3;
-  text-align: center;
-  margin-bottom: var(--space-5);
-}
-.title-bar h1 { font-size: 26px; font-weight: 700; }
-.title-bar h1 em { font-style: normal; background: var(--grad-amber); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.title-bar p { color: var(--mute); margin-top: 6px; font-size: 13px; }
-/* z452 mobile: 3열 갤러리 폰에서 1열 세로 쌓기 + 타이틀바 span 정정 */
-@media (max-width:768px){ .gallery{grid-template-columns:1fr !important;} .title-bar{grid-column:auto !important;} }
+:root { --e-bg:#f4f5f2; --e-card:#fff; --e-ink:#27302B; --e-ink2:#46524B; --e-line:#E2E6E1; --e-red:#A5282C; }
+@media (prefers-color-scheme: dark) { :root { --e-bg:#14171a; --e-card:#1d2125; --e-ink:#e8ebe8; --e-ink2:#b9c0bb; --e-line:#2d3338; } }
+html, body { margin:0; }
+body { min-height:100vh; display:grid; place-items:center; padding:24px 16px; box-sizing:border-box; background:var(--e-bg); color:var(--e-ink);
+       font-family: Pretendard, 'Malgun Gothic', system-ui, sans-serif; }
+.err { position:relative; width:100%; max-width:520px; background:var(--e-card); border:1px solid var(--e-line); border-radius:16px;
+       padding:32px 28px 26px; box-shadow:0 10px 30px rgba(0,0,0,.08); text-align:center; }
+.err .x { position:absolute; top:12px; right:12px; width:36px; height:36px; border:1px solid var(--e-line); border-radius:10px; background:transparent;
+          color:var(--e-ink2); font-size:16px; cursor:pointer; line-height:1; }
+.err .ico { font-size:40px; line-height:1; }
+.err .code { margin-top:10px; font-size:13px; font-weight:700; letter-spacing:.08em; color:var(--e-ink2); }
+.err h1 { margin:6px 0 10px; font-size:22px; line-height:1.35; }
+.err p { margin:0; font-size:14.5px; line-height:1.7; color:var(--e-ink2); }
+.err .detail { margin-top:12px; padding:10px 12px; border-radius:10px; background:rgba(165,40,44,.07); color:var(--e-ink); font-size:13.5px; line-height:1.6; }
+.err .acts { margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.err .acts a, .err .acts button { min-height:44px; padding:0 18px; border-radius:10px; font-size:14px; font-weight:700; text-decoration:none; cursor:pointer;
+       display:inline-flex; align-items:center; gap:6px; border:1px solid var(--e-line); background:transparent; color:var(--e-ink); font-family:inherit; }
+.err .acts .pri { background:var(--e-red); border-color:var(--e-red); color:#fff; }
+.err .path { margin-top:16px; font-size:12px; color:var(--e-ink2); word-break:break-all; }
 </style>
 </head>
 <body>
-<div class="gallery">
-  <div class="title-bar">
-    <h1>G. <em>에러 / 로딩</em> 페이지 — v5 H5</h1>
-    <p>404 / 500 / 로딩 — 에러도 따뜻하게. 브라우저 기본 에러 대체.</p>
+<main class="err" role="alert" aria-labelledby="errTitle">
+  <button type="button" class="x" title="닫기" aria-label="닫기" onclick="knkErrClose()">✕</button>
+  <div class="ico" aria-hidden="true">{{ _ico }}</div>
+  <div class="code">{{ _c }}</div>
+  <h1 id="errTitle">{{ _t }}</h1>
+  <p>{{ _m }}</p>
+  {% if _c in (403, 404) and _hangul.on %}<div class="detail">{{ _d }}</div>{% endif %}
+  <div class="acts">
+    <button type="button" onclick="knkErrBack()">← 뒤로</button>
+    {% if _c >= 500 %}<button type="button" onclick="location.reload()">↻ 다시 시도</button>{% endif %}
+    <a class="pri" href="/home">🏠 홈</a>
   </div>
-
-  <!-- 404 -->
-  <div class="error-page">
-    <div class="error-emoji">🔎</div>
-    <div class="error-code">404</div>
-    <h2>페이지를 찾을 수 없어요</h2>
-    <p>주소가 변경되었거나 페이지가 삭제되었을 수 있습니다.<br>아래에서 자주 찾는 페이지로 이동하세요.</p>
-    <div class="error-actions">
-      <a class="btn btn-secondary" href="#">← 이전</a>
-      <a class="btn btn-primary" href="#">🏠 홈으로</a>
-    </div>
-    <div class="error-suggest">
-      <h4>자주 찾는 페이지</h4>
-      <a class="suggest-link"><span class="ico">📊</span><span>통합 대시보드</span><span class="arrow">→</span></a>
-      <a class="suggest-link"><span class="ico">📋</span><span>견적 목록</span><span class="arrow">→</span></a>
-      <a class="suggest-link"><span class="ico">📝</span><span>일일업무</span><span class="arrow">→</span></a>
-      <a class="suggest-link"><span class="ico">🤖</span><span>빅터에게 물어보기</span><span class="arrow">→</span></a>
-    </div>
-  </div>
-
-  <!-- 500 -->
-  <div class="error-page">
-    <div class="error-emoji">⚠</div>
-    <div class="error-code danger">500</div>
-    <h2>잠시 문제가 발생했어요</h2>
-    <p>서버가 잠시 응답하지 않습니다.<br>잠시 후 다시 시도해주세요.</p>
-    <div class="error-actions">
-      <a class="btn btn-secondary" href="#">↻ 다시 시도</a>
-      <a class="btn btn-primary" href="#">🏠 홈으로</a>
-    </div>
-    <div class="victor-help">
-      <div class="label">VICTOR'S NOTE</div>
-      <div class="body">시스템 관리자에게 자동으로 알림이 전송되었습니다. 보통 5분 이내 복구됩니다.</div>
-    </div>
-    <div class="error-suggest">
-      <h4>긴급 연락</h4>
-      <a class="suggest-link"><span class="ico">📞</span><span>helpdesk · 02-3142-XXXX</span><span class="arrow">→</span></a>
-      <a class="suggest-link"><span class="ico">🎫</span><span>티켓 발행 (관리자)</span><span class="arrow">→</span></a>
-    </div>
-  </div>
-
-  <!-- 로딩 -->
-  <div class="error-page">
-    <div style="position: relative; z-index: 1; margin-bottom: 24px;">
-      <div style="width: 80px; height: 80px; margin: 0 auto; border: 4px solid var(--paper-2); border-top-color: var(--amber); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-    </div>
-    <h2>잠시만요…</h2>
-    <p>데이터를 불러오고 있습니다.<br>대용량 보고서는 최대 10초까지 소요됩니다.</p>
-
-    <!-- 진척 -->
-    <div style="margin-top: 24px; position: relative; z-index: 1;">
-      <div style="height: 6px; background: var(--paper-2); border-radius: 3px; overflow: hidden;">
-        <div style="height: 100%; width: 65%; background: var(--grad-amber); border-radius: 3px; transition: width 0.3s ease;"></div>
-      </div>
-      <div style="font-size: 11px; color: var(--mute); margin-top: 6px; letter-spacing: 0.05em;">65% · 매출 데이터 집계 중…</div>
-    </div>
-
-    <div class="victor-help">
-      <div class="label">DID YOU KNOW?</div>
-      <div class="body">빅터에게 "이번 달 매출 요약해줘" 라고 물으면 <b style="color: var(--amber-glow);">3초 만에</b> 자동 분석 결과를 받을 수 있습니다.</div>
-    </div>
-  </div>
-</div>
-
-<style>
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
+</main>
+<script>
+/* 뒤로 = 앞 화면이 있으면 그리로 · 새 창·새 탭으로 열렸으면(앞 화면 없음) 홈 / ✕ = 새 창이면 창 닫기 · 아니면 뒤로 */
+function knkErrBack(){ if (history.length > 1 && document.referrer) history.back(); else location.href = '/home'; }
+function knkErrClose(){ if (window.opener && !window.opener.closed) { window.close(); return; } knkErrBack(); }
+</script>
 </body>
 </html>

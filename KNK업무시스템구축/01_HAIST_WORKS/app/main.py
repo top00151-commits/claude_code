@@ -13290,6 +13290,11 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
     from datetime import datetime as _dt2
     import json as _json
     by_name = user.get("name") or user.get("login_id") or "—"
+    # z1191z197 C-4 (화면 전수 점검 · 알림에 요청자 이름만): 알림·메신저 글의 요청자 = 이름 표시 규칙(이름 직책 부서 · vname_full) · 저장 값(by_name)은 그대로
+    try:
+        by_disp = vname_full(user) if user.get("name") else by_name
+    except Exception:
+        by_disp = by_name
     uid_self = user.get("id") or -1   # None 이면 'id != NULL' 이 전 행 배제 → -1 로 방어
     with db_session() as c:
         p = c.execute("SELECT id, mgmt_code, name, customer_name, model_name, equip_name, "
@@ -13493,11 +13498,11 @@ def _prod_request_notify_core(pid, cust_req="", note="", team_ids=None, user=Non
         body += f"{_SUB}\n📝 기타 : {note}\n"
     if image_count and image_count > 0:
         body += f"{_SUB}\n📷 참고 이미지 {image_count}장\n"
-    body += f"{_SEP}\n요청자 {by_name} · {now_str}"
+    body += f"{_SEP}\n요청자 {by_disp} · {now_str}"
     if cancel_reason:   # z1191z51: 취소 알림 글 — 사유 · 어떤 품목인지(요청사항은 뺌)
         body = (f"🚫 제작 요청서 취소 · {mgmt}{(' 외 %d건' % _z49_n) if _z49_n else ''} · {_z49_bm or model}\n{_SEP}\n"
                 f"■ 취소 사유 : {cancel_reason}\n{_cust_line}\n{body[_z51_i0:_z51_i1]}{_SEP}\n"
-                f"이 제작요청서는 진행하지 않습니다 · 취소 {by_name} · {now_str}")
+                f"이 제작요청서는 진행하지 않습니다 · 취소 {by_disp} · {now_str}")
     # v5H226z772 (대표 지시): 제작요청서 이미지 열람 — 통보 링크를 '제작요청서' 단독 페이지로(설치앱서도 렌더·이미지 갤러리 포함)
     link = f"/project/{pid}/prod-request/edit"
     sent_to = 0
@@ -19453,7 +19458,7 @@ async def opp_dept_request_create(request: Request, oid: int):
             nbody = (f"부서: {tname}\n영업기회: {o.get('opp_no') or oid}\n"
                      f"요청: {detail or '(상세 없음)'}\n"
                      + (f"희망기한: {due}\n" if due else "")
-                     + f"요청자: {u.get('name') or '—'}")
+                     + f"요청자: {(vname_full(u) if u.get('name') else '—')}")
             _notify_users(c, [leader_id], "opp_request", ntitle, nbody, "/dept/requests")
     flag = "req_ok=1" if had_leader else "req_warn=noleader"
     return RedirectResponse(f"/sales/opportunities/{oid}?{flag}", 303)
@@ -56306,7 +56311,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
                               1 AS is_co
                        FROM consumable_orders co
                        LEFT JOIN customers cu ON cu.id=co.customer_id
-                       ORDER BY co.id DESC LIMIT 200"""
+                       ORDER BY co.id DESC"""   # z1191z197 (대표 11-28 「전체 보이게」): 200건 제한 풀기 — 화면은 200줄씩 이어 그림
                 ).fetchall()
                 items = [dict(r) for r in crows]
             except Exception:
@@ -56343,7 +56348,7 @@ async def sales_orders_page(req: Request, biz: str = "", due_date: str = "", cal
                    LEFT JOIN projects p    ON p.id   = o.project_id
                    LEFT JOIN customers pcu ON pcu.id = p.customer_id
                    {where_biz}
-                   ORDER BY o.id DESC LIMIT 200""",
+                   ORDER BY o.id DESC""",   # z1191z197 (대표 11-28 「전체 보이게」): 200건 제한 풀기 — 위 숫자 칸·달력·임박 납기도 전체 기준
                 params
             ).fetchall()
             items = [dict(r) for r in rows]
@@ -66171,6 +66176,11 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
     co_id = co.get("id")
     sender_id = user.get("id") or -1
     by_name = user.get("name") or user.get("username") or "—"
+    # z1191z197 C-4 (화면 전수 점검 · 알림에 요청자 이름만): 알림·메신저 글의 요청자 = 이름 표시 규칙(이름 직책 부서 · vname_full) · 저장 값(by_name)은 그대로
+    try:
+        by_disp = vname_full(user) if user.get("name") else by_name
+    except Exception:
+        by_disp = by_name
     now_str = _dt2.now().strftime("%Y-%m-%d %H:%M")
     # z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수」): 둘 중 하나라도 없으면 소모품 요청서를 내보내지 않는다
     if not str(co.get("mgmt_code") or "").strip() or not str(co.get("co_no") or "").strip():
@@ -66202,7 +66212,7 @@ def _consumable_notify_send(co, items, team_ids, user_ids, user):
     body += f"■ 일정 : {due} · 수주 {co_no}\n"
     if note:
         body += f"{_SUB}\n📝 기타 : {note}\n"
-    body += f"{_SEP}\n요청자 {by_name} · {now_str}"
+    body += f"{_SEP}\n요청자 {by_disp} · {now_str}"
     link = f"/consumables/{co_id}"
     team_ids = [int(t) for t in (team_ids or []) if str(t).strip().lstrip("-").isdigit()]
     user_ids = [int(x) for x in (user_ids or []) if str(x).strip().lstrip("-").isdigit()]
