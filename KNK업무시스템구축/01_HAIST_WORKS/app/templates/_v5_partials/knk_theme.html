@@ -115,6 +115,230 @@ html[data-kt]:not([data-mt]):not([data-ktm]) .cu-tab.on .n { background:rgba(0,0
 html[data-kt]:not([data-mt]):not([data-ktm]) .card.hero .card-label, html[data-kt]:not([data-mt]):not([data-ktm]) .card.hero .card-trend { color:var(--qv-ink-3); }
 html[data-kt]:not([data-mt]):not([data-ktm]) .card.hero .card-value { color:var(--qv-ink); }
 </style>
+<style id="knk-cfix-z188">
+/* ── 🔆 z1191z188 흐린 글자 고침 2차 (대표 11-27 「진행해」 · 운영 스킬 knk-text-contrast) ──
+   · 1차(z185, 23 장면) 밖 웍스 화면 185 장면 × 폭 6(1440·892·1024·884·412·360) × 테마 3(밝게·부드럽게·어둡게)을 시험 서버(실제 자료 사본)에서 새로 잼.
+   · 1차와 같은 원칙: 흐린 글자색·흐린 글자용 색 이름·투명도·흰 글자가 놓이는 단추 바탕만 바꿈.
+     바탕·면·테두리 색 이름 · 본문 글자 · 배치 · 기능 · 사용자 입력/양식 원래 색(제작요청서 양식 #z48Paper 등)은 그대로.
+   · 메일 화면(세션 15)은 1차와 같이 html[data-mt] · html[data-ktm] 에서 빠짐.
+   · 회색 #566275 = 1차와 같은 값(부드럽게 바탕에서도 4.8 이상). */
+html[data-kt]:not([data-mt]):not([data-ktm]),
+html[data-kt]:not([data-mt]):not([data-ktm]) body {
+  --pq-ink-3:#566275; --pq-ink-4:#566275; --qv-ink-4:#566275; --ink-4:#566275; --mute-2:#566275 !important;
+  /* 상태 호박 글자(경고) --pq-warn #b45309 → #92400e (옅은 노랑 바탕 4.4 → 5.9) */
+  --pq-warn:#92400e;
+  /* 주황 강조 그라데이션(흰 글자 단추·고른 탭) #d4923b→#c2693a 2.6~3.8 → #a85a1d→#9a4f1c 4.9~5.7 */
+  --grad-amber:linear-gradient(135deg, #a85a1d 0%, #9a4f1c 100%) !important; }
+/* 아래 단추 바탕 고침은 밝게·부드럽게만 — 어둡게에서는 원래 바탕이 이미 기준을 넘음(빨강→주황 끝 5.1 · 초록 5.1 · 호박 4.7 · 하늘 4.7 · 초록 그라데이션 5.6) */
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]),
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) body {
+  /* 빨강→주황 단추 그라데이션(--grad-knk-red)의 끝 색 #c2693a(흰 글자 3.8) → #9a4f1c(5.7) — 이 색 이름은 그라데이션에만 쓰임 */
+  --amber-burnt:#9a4f1c; }
+html[data-kt]:not([data-mt]):not([data-ktm]) .knk-kpi__unit,
+html[data-kt]:not([data-mt]):not([data-ktm]) .knk-kpi__sub,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dz-sub { color:#566275; }
+/* 화면에 직접 적힌 흐린 회색 글자 */
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#94a3b8" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #94a3b8" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#94a3b8" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#94a3b8" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #94a3b8" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #94a3b8" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#9ca3af" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #9ca3af" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#9ca3af" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#9ca3af" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #9ca3af" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #9ca3af" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#64748b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #64748b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#64748b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#64748b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #64748b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #64748b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#6b7280" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #6b7280" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#6b7280" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#6b7280" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #6b7280" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #6b7280" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#888" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #888" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#888" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#888" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #888" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #888" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#999" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #999" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#999" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#999" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #999" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #999" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#777" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #777" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#777" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#777" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #777" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #777" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#aaa" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #aaa" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#aaa" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#aaa" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #aaa" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #aaa" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#bbb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #bbb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#bbb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#bbb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #bbb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #bbb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#cbd5e1" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #cbd5e1" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#cbd5e1" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#cbd5e1" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #cbd5e1" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #cbd5e1" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *) { color:#566275 !important; }
+/* 직접 적힌 금색·빨강·파랑·초록·호박 글자(옅은 바탕에서 3.8~4.4) */
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#8a7842" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #8a7842" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#8a7842" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#8a7842" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #8a7842" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #8a7842" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#a07a30" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #a07a30" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#a07a30" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#a07a30" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #a07a30" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #a07a30" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#9c743b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #9c743b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#9c743b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#9c743b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #9c743b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #9c743b" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *) { color:#6e5f2f !important; }
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#dc2626" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #dc2626" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#dc2626" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#dc2626" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #dc2626" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #dc2626" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#ef4444" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #ef4444" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#ef4444" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#ef4444" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #ef4444" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #ef4444" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *) { color:#b91c1c !important; }
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#2563eb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #2563eb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#2563eb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#2563eb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #2563eb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #2563eb" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#3b82f6" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #3b82f6" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#3b82f6" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#3b82f6" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #3b82f6" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #3b82f6" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *) { color:#1d4ed8 !important; }
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#16a34a" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #16a34a" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#16a34a" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#16a34a" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #16a34a" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #16a34a" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#22c55e" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #22c55e" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#22c55e" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#22c55e" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #22c55e" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #22c55e" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *) { color:#14713a !important; }
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#b45309" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #b45309" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#b45309" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#b45309" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #b45309" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #b45309" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#d97706" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #d97706" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#d97706" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#d97706" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #d97706" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #d97706" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color:#c2410c" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="color: #c2410c" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color:#c2410c" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color:#c2410c" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*=";color: #c2410c" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *),
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="; color: #c2410c" i]:not(#z48Paper *):not(.xl-z172 *):not(.qv-x *):not(.z48-copy *) { color:#92400e !important; }
+/* 화면 안내 글·빈 화면 글·보조 글(원래 #64748b · #94a3b8 · #9ca3af) */
+html[data-kt]:not([data-mt]):not([data-ktm]) .pg-common,
+html[data-kt]:not([data-mt]):not([data-ktm]) .gw-ss,
+html[data-kt]:not([data-mt]):not([data-ktm]) .op-intro,
+html[data-kt]:not([data-mt]):not([data-ktm]) .op-toggle,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dr-intro,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dsx-intro,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dsx-legend,
+html[data-kt]:not([data-mt]):not([data-ktm]) .wod-intro,
+html[data-kt]:not([data-mt]):not([data-ktm]) .sk-note,
+html[data-kt]:not([data-mt]):not([data-ktm]) .opt-label,
+html[data-kt]:not([data-mt]):not([data-ktm]) .opt-desc,
+html[data-kt]:not([data-mt]):not([data-ktm]) .prep-prog.none,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dr-dim,
+html[data-kt]:not([data-mt]):not([data-ktm]) .exporter-block .role,
+html[data-kt]:not([data-mt]):not([data-ktm]) .wod-empty,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dr-empty,
+html[data-kt]:not([data-mt]):not([data-ktm]) .rnd-empty,
+html[data-kt]:not([data-mt]):not([data-ktm]) .pmodel,
+html[data-kt]:not([data-mt]):not([data-ktm]) .footer-meta,
+html[data-kt]:not([data-mt]):not([data-ktm]) .footer-line,
+html[data-kt]:not([data-mt]):not([data-ktm]) .dr-tbl .n,
+html[data-kt]:not([data-mt]):not([data-ktm]) .lg-tbl .n,
+html[data-kt]:not([data-mt]):not([data-ktm]) .ch-card .sub,
+html[data-kt]:not([data-mt]):not([data-ktm]) .fx-tbl thead th .u,
+html[data-kt]:not([data-mt]):not([data-ktm]) .op-muted,
+html[data-kt]:not([data-mt]):not([data-ktm]) .gw-cta .hint { color:#566275; }
+/* 금색 보조 글(원래 #8a7842 3.8~4.2) */
+html[data-kt]:not([data-mt]):not([data-ktm]) .ai-hint,
+html[data-kt]:not([data-mt]):not([data-ktm]) .ch-kpi .l,
+html[data-kt]:not([data-mt]):not([data-ktm]) .pc-card .code,
+html[data-kt]:not([data-mt]):not([data-ktm]) .pc-card:not(.consumable):not(.other):not(.lifevalue) .hint,
+html[data-kt]:not([data-mt]):not([data-ktm]) table.op th,
+html[data-kt]:not([data-mt]):not([data-ktm]) .zr-t th { color:#6e5f2f; }
+/* 호박 제목·강조(원래 #b45309) · 달력 일요일·토요일 */
+html[data-kt]:not([data-mt]):not([data-ktm]) .sr-sec-h.carry,
+html[data-kt]:not([data-mt]):not([data-ktm]) .help-banner b { color:#92400e; }
+html[data-kt]:not([data-mt]):not([data-ktm]) .cal-head .dow.sun,
+html[data-kt]:not([data-mt]):not([data-ktm]) .upcoming-date .day.sun { color:#b91c1c; }
+html[data-kt]:not([data-mt]):not([data-ktm]) .cal-head .dow.sat { color:#1d4ed8; }
+/* 흐리게 둔 숫자(투명도 .7~.85) → 1 */
+html[data-kt]:not([data-mt]):not([data-ktm]) .as-tab .cnt,
+html[data-kt]:not([data-mt]):not([data-ktm]) .op-chip .n,
+html[data-kt]:not([data-mt]):not([data-ktm]) .rnd-chip .n,
+html[data-kt]:not([data-mt]):not([data-ktm]) .z57-next-sub,
+html[data-kt]:not([data-mt]):not([data-ktm]) .tab .num { opacity:1; }
+/* 흰 글자가 놓이는 단추·표시 바탕(밝게·부드럽게) */
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) .lg-xls,
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) .mk.done { background:#15803d; }
+html[data-kt]:not([data-mt]):not([data-ktm]) #lgXls > span { opacity:1 !important; color:#fff; }
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) .mk.chg { background:#b45309; }
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) .btn-notify { background:linear-gradient(135deg, #047857, #065f46); }
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) [style*="background:#16a34a" i],
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) [style*="background: #16a34a" i],
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) [style*="background-color:#16a34a" i] { background:#15803d !important; }
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) [style*="background:#0ea5e9" i],
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) [style*="background: #0ea5e9" i],
+html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) [style*="background-color:#0ea5e9" i] { background:#0369a1 !important; border-color:#0369a1 !important; }
+/* 주황 작은 표시(#fb923c)는 어둡게에서도 3.4 라 모든 테마 */
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="background:#fb923c" i],
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="background: #fb923c" i],
+html[data-kt]:not([data-mt]):not([data-ktm]) [style*="background-color:#fb923c" i] { background:#c2410c !important; }
+/* 노랑 형광 강조(<b style=background:#ffff00>) 안 글자 = 본문 글자색(어둡게에서 회색 4.3) */
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="background:#ffff00" i],
+html[data-kt]:not([data-mt]):not([data-ktm]) [style^="background: #ffff00" i] { color:#1f2937; }
+/* 1차(z185) 부작용 바로잡기: 초록 바탕 단추의 border-color 가 글자색 규칙에 걸림 → 흰 글자로 */
+html[data-kt]:not([data-mt]):not([data-ktm]) .main [style*="background:#15803d" i][style*="border-color:#15803d" i] { color:#fff !important; }
+</style>
 <script>
 /* z1191z185: 메일 화면 표시(data-ktm) — 위 글자 고침 묶음이 메일 화면(세션 15)에 닿지 않게 */
 (function(){
