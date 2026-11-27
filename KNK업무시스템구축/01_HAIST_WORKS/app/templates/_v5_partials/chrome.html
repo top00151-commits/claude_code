@@ -1893,14 +1893,24 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
 
 <style>/* z1191z174: 창 보이기는 CSS 로만(인라인 display 는 hidden 을 이겨 화면 전체 클릭을 막음) */
 #knkPhoneAppPop { position:fixed; inset:0; z-index:3001; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
-#knkPhoneAppPop[hidden] { display:none !important; }</style>
+#knkPhoneAppPop[hidden] { display:none !important; }
+#knkPhoneAppPop .pa-in { display:none; } #knkPhoneAppPop.in-app .pa-in { display:block; } #knkPhoneAppPop.in-app .pa-pc { display:none; }</style>
 <div id="knkPhoneAppPop" hidden role="dialog" aria-modal="true" aria-label="휴대폰에 WORKS 앱 설치">
   <div style="background:#fff;border-radius:16px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;">
     <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:linear-gradient(135deg,#a5282c,#7A1D20);color:#fff;">
       <span style="font-size:24px;">📲</span><b style="font-size:16px;flex:1;">휴대폰에 WORKS 앱 설치</b>
       <button type="button" onclick="document.getElementById('knkPhoneAppPop').hidden=true" style="border:0;background:rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:5px 10px;font-weight:700;cursor:pointer;">✕ 닫기</button>
     </div>
-    <div style="padding:14px 18px 18px;font-size:14px;line-height:1.7;color:#1f2937;">
+    <div class="pa-in" style="padding:14px 18px 18px;font-size:14px;line-height:1.75;color:#1f2937;">
+      <div style="font-weight:800;color:#166534;margin-bottom:6px;">✅ WORKS 가 이미 앱으로 열려 있습니다(설치 끝)</div>
+      <div style="font-weight:800;color:#1e3a8a;">👉 홈 화면에 아이콘 두기</div>
+      <ol style="margin:4px 0 8px;padding-left:20px;">
+        <li><b>안드로이드</b>: 휴대폰 앱 목록(화면을 위로 밀기)에서 <b>Eum WORKS</b> 를 길게 누름 → <b>「홈 화면에 추가」</b></li>
+        <li><b>아이폰</b>: 사파리에서 <b>works.knknara.co.kr</b> 열기 → 공유(⬆️) → <b>「홈 화면에 추가」</b></li>
+      </ol>
+      <div style="font-size:12.5px;color:#64748b;">앱 목록에 Eum WORKS 가 없으면 <a href="/app/install" style="font-weight:700;">설치 화면 열기</a> · 그다음부터 홈 화면 아이콘으로 메신저를 거치지 않고 바로 열립니다.</div>
+    </div>
+    <div class="pa-pc" style="padding:14px 18px 18px;font-size:14px;line-height:1.7;color:#1f2937;">
       <ol style="display:flex;flex-wrap:wrap;gap:4px;list-style:none;padding:0;margin:0 0 8px;font-size:12px;">
         <li style="padding:2px 9px;border-radius:999px;background:#a5282c;color:#fff;font-weight:700;">1 휴대폰 카메라로 QR 찍기</li>
         <li style="padding:2px 9px;border-radius:999px;border:1px solid #e2e8f0;color:#94a3b8;">2 「📲 앱 설치」</li>
@@ -1918,16 +1928,23 @@ function _vdEsc(s){ return (s||'').replace(/[&<>"']/g, function(m){return ({'&':
   function standalone(){ try { if (window.matchMedia('(display-mode: standalone)').matches) return true; } catch(e){} return navigator.standalone === true; }
   function mobile(){ try { return window.matchMedia('(pointer:coarse)').matches; } catch(e){ return false; } }
   /* z1191z175 (대표 11-27 「📲 아이콘이 안 보이는데」): PC 에 설치한 WORKS 앱 창에서도 보여야 함(휴대폰 설치 QR) — 휴대폰 앱으로 열렸을 때만 숨김 */
-  function sync(){ var b = document.getElementById('knkPhoneAppBtn'); if (b) b.style.display = (standalone() && mobile()) ? 'none' : ''; }
+  /* z1191z176 (대표 11-27 「휴대폰으로 보고 있는데 안 보여」): 이음 메신저에서 웍스를 열면 휴대폰에서도 「앱 창」으로 열림 → 숨기지 않고 늘 보임 ·
+     앱 창 안에서 누르면 「홈 화면에 아이콘 두는 법」 안내 */
+  function sync(){ var b = document.getElementById('knkPhoneAppBtn'); if (b) b.style.display = ''; }
   window.knkPhoneApp = function(ev){
     if (ev && ev.preventDefault) ev.preventDefault();
+    if (mobile() && standalone()) {   /* 휴대폰인데 이미 앱 창(메신저에서 연 웍스 등) = 설치는 끝 → 홈 화면에 아이콘 두는 법 */
+      var pop0 = document.getElementById('knkPhoneAppPop');
+      if (pop0) { pop0.classList.add('in-app'); pop0.hidden = false; }
+      return;
+    }
     if (mobile()) {   /* 휴대폰: 바로 설치 창(없으면 설치 안내 — 아이폰은 홈 화면에 추가) */
       var p = window.__knkWorksInstall;
       if (p) { p.prompt(); (p.userChoice || Promise.resolve()).finally(function(){ window.__knkWorksInstall = null; }); return; }
       if (window.knkShowInstallHint) { window.knkShowInstallHint(); return; }
       location.href = '/app/install'; return;
     }
-    var pop = document.getElementById('knkPhoneAppPop'); if (pop) pop.hidden = false;   /* PC: 휴대폰으로 찍는 QR */
+    var pop = document.getElementById('knkPhoneAppPop'); if (pop) { pop.classList.remove('in-app'); pop.hidden = false; }   /* PC: 휴대폰으로 찍는 QR */
   };
   document.addEventListener('keydown', function(e){ var pop = document.getElementById('knkPhoneAppPop'); if (e.key === 'Escape' && pop && !pop.hidden) pop.hidden = true; });
   document.addEventListener('click', function(e){ var pop = document.getElementById('knkPhoneAppPop'); if (pop && e.target === pop) pop.hidden = true; });
