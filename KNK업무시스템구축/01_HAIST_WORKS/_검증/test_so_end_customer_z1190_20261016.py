@@ -304,7 +304,7 @@ tp = io.open(os.path.join(ROOT, "app", "templates", "project_detail.html"), enco
 check("DB 마이그레이션 한 줄 · 업무 데이터 UPDATE 없음",
       '("end_customer", "ALTER TABLE orders ADD COLUMN end_customer TEXT")' in db
       and not re.search(r"UPDATE orders SET end_customer", db))
-check("add_followup_order end_customer · 상세 수주 목록 칸", "end_customer: str | None = None) -> dict:" in pw and '"end_customer"):   # z1190' in pw)
+check("add_followup_order end_customer · 상세 수주 목록 칸", ("end_customer: str | None = None) -> dict:" in pw or "end_customer: str | None = None,   # z1190" in pw) and '"end_customer"):   # z1190' in pw)
 check("main: 추가 발주 넘김 · 상품 · 빠른 수정 · z1173 막기 · 일정표 SQL · 줄 규칙 두 곳",
       "end_customer=(form.get(\"secondary_customer\")" in mn and "_end1190" in mn and "_has1190" in mn
       and '("2차 발주처", form.get("end_customer"))' in mn and "AS o_end" in mn

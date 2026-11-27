@@ -144,16 +144,9 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
         <span>{{ s.rows|length }}줄</span>
         {% if s.xl %}<button type="button" class="qv-btn qv-mode" data-mode="xl" title="엑셀 모양(원본과 같은 칸·테두리) ↔ 칸 목록(모든 칸을 같은 크기로)">📋 칸 목록으로 보기</button>{% endif %}
       </div>
-      {% if s.xl %}{% set x = s.xl %}
-      <style>{% for k, css in x.css %}.qv-x.qx{{ s.i }} .{{ k }}{ {{ css }} }{% endfor %}</style>{# 시트마다 이름 따로(겹치면 다른 시트 색이 섞임) #}
-      <table class="qv-x qx{{ s.i }}" style="width:{{ x.width }}px;">
-        <colgroup>{% for w in x.cols %}<col style="width:{{ w }}px">{% endfor %}</colgroup>
-        {% for xr in x.rows %}{% set ri = xr.r %}
-        <tr style="height:{{ xr.h }}px;" class="{% if sel and ri not in s.applied and s.header_row is not none and ri > s.header_row %}off na{% endif %}">
-          {% for cl in xr.cells %}<td{% if cl.cs > 1 %} colspan="{{ cl.cs }}"{% endif %}{% if cl.rs > 1 %} rowspan="{{ cl.rs }}"{% endif %}{% if cl.k %} class="{{ cl.k }}"{% endif %}>{% if cl.ow %}<span class="ow" style="max-width:{{ cl.ow }}px;">{{ cl.v }}</span>{% else %}{{ money(cl.v) }}{% endif %}</td>{% endfor %}
-        </tr>
-        {% endfor %}
-      </table>
+      {% if s.xl %}{# z1191z172: 공용 「엑셀 한 장」(그림·글상자·인쇄 영역 · 확대·축소·한 페이지 · 한 장에 맞춰 인쇄) #}
+      {% set x = s.xl %}{% set xid = s.i %}{% set xsel = sel %}{% set xapplied = s.applied %}{% set xhdr = s.header_row %}
+      {% include "_v5_partials/xl_sheet_z172.html" %}
       {% endif %}
       <table class="qv-g"{% if sel %} data-sel="1"{% endif %}{% if s.xl %} style="display:none;"{% endif %}>
         {% for r in s.rows %}{% set ri = loop.index0 %}
@@ -173,6 +166,7 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
   tabs.forEach(function(t){ t.addEventListener('click', function(){
     tabs.forEach(function(x){ x.classList.toggle('on', x === t); });
     document.querySelectorAll('.qv-pane').forEach(function(p){ p.classList.toggle('on', p.dataset.p === t.dataset.p); });
+    if (window.__xlz172) window.__xlz172();
   }); });
   document.querySelectorAll('.qv-only').forEach(function(cb){ cb.addEventListener('change', function(){
     cb.closest('.qv-pane').querySelectorAll('tr.na').forEach(function(tr){ tr.classList.toggle('off', cb.checked); });
@@ -180,7 +174,7 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
   /* z1191z170: 엑셀 모양 ↔ 칸 목록 */
   document.querySelectorAll('.qv-mode').forEach(function(b){ b.addEventListener('click', function(){
     var pn = b.closest('.qv-pane'), xl = b.getAttribute('data-mode') === 'xl';
-    var tx = pn.querySelector('table.qv-x'), tg = pn.querySelector('table.qv-g');
+    var tx = pn.querySelector('.xl-z172') || pn.querySelector('table.qv-x'), tg = pn.querySelector('table.qv-g');
     if (tx) tx.style.display = xl ? 'none' : ''; if (tg) tg.style.display = xl ? '' : 'none';
     b.setAttribute('data-mode', xl ? 'list' : 'xl'); b.textContent = xl ? '📋 엑셀 모양으로 보기' : '📋 칸 목록으로 보기';
   }); });

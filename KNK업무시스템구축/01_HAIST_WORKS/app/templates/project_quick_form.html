@@ -1410,7 +1410,11 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   // v5H226z621 (대표 지시): 고객사가 등록 목록에서 선택 안 됐으면(적색) 저장 차단
   var _custBad = window.KNKCust && KNKCust.validate(this);
   if(_custBad){ e.preventDefault(); try{ _custBad.focus(); }catch(_e){}
+    if(qIsFollowup()){   /* z1191z166 (대표 11-27): 추가 발주 = 이 수주의 1차 고객사 필수 */
+      err.innerHTML='👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 목록에 없는 새 고객이면 <a href="/customers/new" target="_blank" style="color:#1d4ed8;font-weight:800;">고객사 등록</a>(새 탭) 후 고르세요.';
+    } else {
     err.textContent='고객사를 등록된 목록에서 선택하세요(빨간 칸). 없으면 먼저 고객사를 등록하세요.';
+    }
     err.classList.add('show'); qScrollErr(); return; }
   // v5H226z384: 추가 발주(PO≠신규)는 관리번호+고객사 필수(모델·장비는 기존 프로젝트 상속), 신규는 프로젝트명·고객사·모델·장비 필수
   if(qIsFollowup()){
@@ -1527,6 +1531,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
       po_type_required:'PO유형을 선택하세요.',
       mgmt_not_found:'그 관리번호의 기존 프로젝트가 없습니다 — 검색해서 선택하세요.',
       mgmt_required_followup:'추가 발주는 기존 관리번호를 검색해 선택하세요.',
+      followup_customer_required:'👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 고객사1 칸에서 등록 목록의 고객사를 고르세요(목록에 없으면 고객사 관리에서 먼저 등록). 저장하지 않았습니다 — 적은 값은 그대로 있습니다.',
       mgmt_code_dup:'이미 등록된 관리번호입니다.',
       mgmt_code_format:'관리번호 형식이 올바르지 않습니다.',
       manual_mgmt_invalid:'수동발행 관리번호를 쓸 수 없습니다 — 다시 [검증]하세요.',
@@ -1713,7 +1718,9 @@ function qfShowRestoredBar(d){
   f.addEventListener('input', deb);
   f.addEventListener('change', deb);
   // 등록 제출 시 임시본 삭제 — 단, 클라 검증에서 막힌(preventDefault) 경우엔 보존
-  f.addEventListener('submit', function(e){ if(!e.defaultPrevented) qfClear(); });
+  // z1191z166: 지우기 전에 보낸 값을 이 탭에 잠깐 남김 — 서버가 저장하지 않고 되돌리면(?error=…) 그 값을 되살려 다시 적지 않게
+  f.addEventListener('submit', function(e){ if(!e.defaultPrevented){ try{ var _d166=qfCollect(); if(_d166) sessionStorage.setItem(QF_KEY+'.sent', JSON.stringify(_d166)); }catch(_e){} qfClear(); } });
+  try{ if(new URLSearchParams(location.search).get('error')){ var _s166=sessionStorage.getItem(QF_KEY+'.sent'); if(_s166 && !localStorage.getItem(QF_KEY)) localStorage.setItem(QF_KEY, _s166); } else { sessionStorage.removeItem(QF_KEY+'.sent'); } }catch(e){}
   try{ qfRestore(); }catch(e){ try{ console.warn('[간편폼 임시본 복원 실패]', e); }catch(_){} }
 })();
 // z1191z116 ③ (실무자 시뮬레이션에서 발견): 입력 칸에서 Enter 를 누르면 「＋ 등록」을 안 눌러도 바로 저장됐다(브라우저 기본 동작 —

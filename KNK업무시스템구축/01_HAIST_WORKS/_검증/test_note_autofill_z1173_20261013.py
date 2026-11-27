@@ -192,8 +192,10 @@ with D.db_session() as c:
     _sh = c.execute("SELECT ship_to FROM orders WHERE id=?", (o1["id"],)).fetchone()[0]
 check("   수주 머리 · 납품처='본사' → 저장", st == 200 and j.get("ok") is True and _sh == "본사", (st, j, _sh))
 
+with D.db_session() as _c166:   # z1191z166: 추가 발주 = 1차 고객사 필수(고른 번호)
+    _cu166 = _c166.execute("SELECT id FROM customers WHERE name='가상고객'").fetchone()[0]
 FUP = {"order_date": "2026-10-09", "due_date": "2026-10-20", "total_amount": "1000", "qty": "1", "po_number": "",
-       "so_type": "EQUIPMENT", "currency": "KRW"}
+       "so_type": "EQUIPMENT", "currency": "KRW", "customer_id": str(_cu166)}
 nb = len(orders_of(p1["id"]))
 st, j = jpost("/projects/%d/add-followup-order" % p1["id"], data=dict(FUP, ship_to="306"))
 check("12 추가 발주 · 납품처='306' → 400 · 수주 수 그대로", st == 400 and len(orders_of(p1["id"])) == nb, (st, j))

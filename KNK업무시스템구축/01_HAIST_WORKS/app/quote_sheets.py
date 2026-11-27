@@ -273,6 +273,11 @@ def read_book(raw):
     except Exception as e:
         return {"ok": False, "message": "엑셀을 열지 못했습니다: %s" % str(e)[:120], "fronts": [], "front": None, "sheets": []}
     sheets, fronts = [], []
+    try:   # z1191z172: 그림·글상자(엑셀 도형)
+        _dr172 = drawings_of(raw)
+    except Exception as e:
+        print(f"[z1191z172] 그림·글상자 읽기 실패: {e}")
+        _dr172 = {}
     for si, ws in enumerate(wb.worksheets):
         try:
             rows, hcols, hrows = _grid(ws)
@@ -320,6 +325,7 @@ def read_book(raw):
               "rows": rows, "header_row": hi, "applied": applied}
         try:   # z1191z170: 엑셀 모양(칸 너비·병합·테두리·글꼴·바탕·정렬) — 화면을 엑셀처럼
             sh["lay"] = layout_of_ws(ws, len(rows), max((len(x) for x in rows), default=0))
+            sh["lay"]["dr"] = _dr172.get(ws.title) or []
         except Exception as e:
             print(f"[z1191z170] 시트 모양 읽기 실패 {ws.title}: {e}")
         sheets.append(sh)
@@ -376,7 +382,7 @@ def view_of(book, can_cost, lays=None):
                 if r[i] is not None:
                     width = max(width, i + 1)
                     break
-        _lay = sh.get("lay") or (lays or {}).get(sh["title"])
+        _lay = (lays or {}).get(sh["title"]) or sh.get("lay")   # z1191z172: 원본에서 다시 읽은 모양(그림·글상자 포함)이 있으면 그것
         try:
             _xl = xl_render(rows, _lay, ic) if _lay else None   # 권한 없으면 원가 칸은 엑셀 모양에서도 통째로 뺌
         except Exception as e:
@@ -509,11 +515,16 @@ def _cell_css170(cell):
 
 
 def layout_of_ws(ws, nrows, ncols):
-    """시트 모양 — nrows×ncols 격자(_grid 와 같은 번호) 안만."""
-    try:
-        dw = float(ws.sheet_format.defaultColWidth or 0) or (float(ws.sheet_format.baseColWidth or 8) + 0.43)
+    """시트 모양 — nrows×ncols 격자(_grid 와 같은 번호) 안만.
+    z1191z172: 인쇄 영역이 값보다 넓으면(값 없이 테두리만 있는 금액·비고 칸 등) 인쇄 영역 끝까지."""
+    _pa = _print_area172(ws)
+    if _pa:
+        nrows = max(nrows, min(_pa[2] + 1, MAX_ROWS))
+        ncols = max(ncols, min(_pa[3] + 1, MAX_COLS))
+    try:   # 파일의 칸 폭 = 여백 포함 글자 수(엑셀 기본 64점 = 9.14)
+        dw = float(ws.sheet_format.defaultColWidth or 0) or 9.14
     except Exception:
-        dw = 8.43
+        dw = 9.14
     widths = [dw] * ncols
     hc = set()
     for k, d in ws.column_dimensions.items():
@@ -568,7 +579,7 @@ def layout_of_ws(ws, nrows, ncols):
                 if b:
                     bds[key] = b
     return {"w": [round(x, 2) for x in widths], "h": [round(x, 1) for x in heights], "hc": sorted(hc), "hr": sorted(hr),
-            "m": merges, "css": css, "bd": bds, "nf": nfs, "v": 170}
+            "m": merges, "css": css, "bd": bds, "nf": nfs, "pa": _pa, "nr": nrows, "nc": ncols, "v": 172}
 
 
 def layouts_of(raw):
@@ -576,10 +587,16 @@ def layouts_of(raw):
     import openpyxl
     out = {}
     wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
+    try:
+        _dr172 = drawings_of(raw)
+    except Exception as e:
+        print(f"[z1191z172] 그림·글상자 읽기 실패: {e}")
+        _dr172 = {}
     for ws in wb.worksheets:
         try:
             rows, _hc, _hr = _grid(ws)
             out[ws.title] = layout_of_ws(ws, len(rows), max((len(x) for x in rows), default=0))
+            out[ws.title]["dr"] = _dr172.get(ws.title) or []
         except Exception as e:
             print(f"[z1191z170] 시트 모양 읽기 실패 {ws.title}: {e}")
     return out
@@ -637,19 +654,25 @@ def fmt_num170(v, nf):
 
 
 def _px_w170(w):
-    return int(round(float(w) * 7 + 5))
+    # z1191z172: 파일의 칸 폭은 여백이 이미 들어 있는 값 → 엑셀 화면 점 수 = 폭 × 7(기본 9.14 = 64점)
+    return max(1, int(round(float(w) * 7)))
 
 
 def xl_render(rows, lay, hide_cols=()):
     """값 격자 + 모양 → 화면 표(보이는 줄·칸만 · 병합은 colspan/rowspan). 모양이 없으면 None."""
     if not lay or not rows:
         return None
-    nr = len(rows)
-    nc = max((len(r) for r in rows), default=0)
+    nr = max(len(rows), int(lay.get("nr") or 0))
+    nc = max(max((len(r) for r in rows), default=0), int(lay.get("nc") or 0))
+    rows = [list(r) + [None] * (nc - len(r)) for r in rows] + [[None] * nc for _ in range(nr - len(rows))]
     if not nc:
         return None
     hc = set(lay.get("hc") or []) | set(hide_cols or [])
     hr = set(lay.get("hr") or [])
+    pa = lay.get("pa")   # z1191z172: 인쇄 영역이 있으면 그 안만(엑셀 「한 페이지」와 같은 범위)
+    if pa:
+        hr |= {r for r in range(nr) if r < pa[0] or r > pa[2]}
+        hc |= {c for c in range(nc) if c < pa[1] or c > pa[3]}
     vis_c = [c for c in range(nc) if c not in hc]
     vis_r = [r for r in range(nr) if r not in hr]
     if not vis_c or not vis_r:
@@ -726,13 +749,254 @@ def xl_render(rows, lay, hide_cols=()):
             st = css.get("%d,%d" % (r, cl["c"]), "")
             if "pre-wrap" in st or "text-align:center" in st or "text-align:right" in st:
                 continue
-            ow = _px_w170(W[cl["c"]] if cl["c"] < len(W) else 8.43)
+            ow = _px_w170(W[cl["c"]] if cl["c"] < len(W) else 9.14)
             for nx in cells[ii + 1:]:
                 if nx["v"] is not None or nx["cs"] != 1 or nx["rs"] != 1:
                     break
-                ow += _px_w170(W[nx["c"]] if nx["c"] < len(W) else 8.43)
+                ow += _px_w170(W[nx["c"]] if nx["c"] < len(W) else 9.14)
             cl["ow"] = ow - 6
         out_rows.append({"r": r, "h": int(round((H[r] if r < len(H) else 15) * 4 / 3)), "cells": cells})
-    cols = [_px_w170(W[c] if c < len(W) else 8.43) for c in vis_c]
-    return {"cols": cols, "width": sum(cols), "rows": out_rows,
+    cols = [_px_w170(W[c] if c < len(W) else 9.14) for c in vis_c]
+    # z1191z172: 그림·글상자 자리(px) — 칸 번호 + 오프셋(EMU ÷ 9525) · 숨긴/영역 밖 칸은 폭 0
+    dw0 = W[-1] if W else 9.14
+    def cw(c):
+        if c in hc or (pa and (c < pa[1] or c > pa[3])):
+            return 0
+        return _px_w170(W[c] if c < len(W) else 9.14)
+    def rh(r):
+        if r in hr or (pa and (r < pa[0] or r > pa[2])):
+            return 0
+        return int(round((H[r] if r < len(H) else 15) * 4 / 3))
+    _cx, _ry = {}, {}
+    def colx(c):
+        if c not in _cx:
+            _cx[c] = sum(cw(i) for i in range(c))
+        return _cx[c]
+    def rowy(r):
+        if r not in _ry:
+            _ry[r] = sum(rh(i) for i in range(r))
+        return _ry[r]
+    def at(p):
+        c, co, r, ro = p
+        return colx(c) + min(co / 9525.0, cw(c)), rowy(r) + min(ro / 9525.0, rh(r))
+    tw = sum(cols)
+    th = sum(rh(r) for r in vis_r)
+    y_top = rowy(vis_r[0]) if vis_r else 0
+    x_left = colx(vis_c[0]) if vis_c else 0
+    ovs = []
+    for d in lay.get("dr") or []:
+        try:
+            if d.get("abs"):
+                x0, y0 = d["abs"][0] / 9525.0, d["abs"][1] / 9525.0
+            else:
+                x0, y0 = at(d["from"])
+            if d.get("to"):
+                x1, y1 = at(d["to"])
+            elif d.get("ext"):
+                x1, y1 = x0 + d["ext"][0] / 9525.0, y0 + d["ext"][1] / 9525.0
+            else:
+                continue
+            x0, x1, y0, y1 = x0 - x_left, x1 - x_left, y0 - y_top, y1 - y_top
+            if x1 <= 0 or y1 <= 0 or x0 >= tw or y0 >= th or x1 - x0 < 2 or y1 - y0 < 2:
+                continue
+            o = {"k": d["k"], "x": round(x0, 1), "y": round(y0, 1), "w": round(x1 - x0, 1), "h": round(y1 - y0, 1)}
+            # 세로 자리 = 화면에 실제로 그려진 줄 기준으로 다시 맞춤(글자 때문에 줄이 엑셀보다 높아질 수 있어서) — [줄, 오프셋, 끝 줄, 끝 오프셋 | 높이]
+            if d.get("from"):
+                _f = d["from"]
+                _ryv = [_f[2], round(min(_f[3] / 9525.0, rh(_f[2])), 1)]
+                if d.get("to"):
+                    _ryv += [d["to"][2], round(min(d["to"][3] / 9525.0, rh(d["to"][2])), 1)]
+                else:
+                    _ryv += [-1, round(y1 - y0, 1)]
+                o["ry"] = _ryv
+            if d["k"] == "img":
+                l, t, r_, b = d.get("crop") or [0, 0, 0, 0]
+                fw, fh = max(0.01, 1 - l - r_), max(0.01, 1 - t - b)
+                o.update(src="data:%s;base64,%s" % (d["mime"], d["b64"]), iw=round(o["w"] / fw, 1), ih=round(o["h"] / fh, 1),
+                         il=round(-l * o["w"] / fw, 1), it=round(-t * o["h"] / fh, 1))
+            elif d["k"] == "sp":
+                o.update(txt=d.get("txt"), fill=d.get("fill"), line=d.get("line"))
+            ovs.append(o)
+        except Exception as e:
+            print(f"[z1191z172] 그림 자리 계산 실패: {e}")
+    return {"cols": cols, "width": tw, "height": th, "rows": out_rows, "ov": ovs,
             "css": [(k, s) for s, k in classes.items()]}
+
+
+
+# ── z1191z172 (대표 11-27 「아직 엑셀에 표현된 정보를 모두 가지고 오지 못하고 있어」) ──
+# 엑셀 그림(로고·명함 등)·글상자(「최종 제작금액 …」 같은 도형 글)·인쇄 영역을 읽어 같은 자리에 그린다.
+_NS172 = {"xdr": "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
+          "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+          "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+_IMG_MAX172 = 3 * 1024 * 1024
+_IMG_TOT172 = 8 * 1024 * 1024
+
+
+def _rels172(z, path):
+    """그 파일의 관계(rels) → {rId: 대상 전체 경로}."""
+    import posixpath
+    from xml.etree import ElementTree as ET
+    d, b = posixpath.split(path)
+    rp = posixpath.join(d, "_rels", b + ".rels")
+    out = {}
+    try:
+        root = ET.fromstring(z.read(rp))
+    except Exception:
+        return out
+    for el in root:
+        tid, tgt = el.get("Id"), el.get("Target") or ""
+        if el.get("TargetMode") == "External":
+            continue
+        full = posixpath.normpath(posixpath.join(d, tgt)) if not tgt.startswith("/") else tgt.lstrip("/")
+        out[tid] = full
+    return out
+
+
+def _anchor172(el):
+    """from/to(칸 번호·EMU 오프셋) 또는 from+ext."""
+    def pt(node):
+        if node is None:
+            return None
+        g = lambda k: int((node.findtext("xdr:" + k, default="0", namespaces=_NS172) or "0").strip() or 0)
+        return [g("col"), g("colOff"), g("row"), g("rowOff")]
+    fr = pt(el.find("xdr:from", _NS172))
+    to = pt(el.find("xdr:to", _NS172))
+    ext = el.find("xdr:ext", _NS172)
+    ex = [int(ext.get("cx") or 0), int(ext.get("cy") or 0)] if ext is not None else None
+    if fr is None:
+        pos = el.find("xdr:pos", _NS172)
+        if pos is None or ex is None:
+            return None
+        return {"abs": [int(pos.get("x") or 0), int(pos.get("y") or 0)], "ext": ex}
+    return {"from": fr, "to": to, "ext": ex}
+
+
+def _clr172(node):
+    if node is None:
+        return None
+    s = node.find("a:srgbClr", _NS172)
+    if s is not None and s.get("val"):
+        return "#" + s.get("val")[-6:]
+    s = node.find("a:schemeClr", _NS172)
+    if s is not None:
+        m = {"tx1": "#000000", "bg1": "#FFFFFF", "dk1": "#000000", "lt1": "#FFFFFF", "accent1": "#4472C4", "accent2": "#ED7D31",
+             "accent6": "#70AD47", "tx2": "#44546A"}
+        return m.get(s.get("val") or "")
+    return None
+
+
+def _shape_text172(sp):
+    body = sp.find("xdr:txBody", _NS172)
+    if body is None:
+        return None
+    paras = []
+    for p in body.findall("a:p", _NS172):
+        ppr = p.find("a:pPr", _NS172)
+        algn = (ppr.get("algn") if ppr is not None else None) or "l"
+        runs = []
+        for r in list(p):
+            tag = r.tag.split("}")[-1]
+            if tag not in ("r", "fld"):
+                continue
+            t = r.findtext("a:t", default="", namespaces=_NS172)
+            rp = r.find("a:rPr", _NS172)
+            st = {}
+            if rp is not None:
+                if rp.get("sz"):
+                    st["sz"] = round(int(rp.get("sz")) / 100.0, 1)
+                if rp.get("b") == "1":
+                    st["b"] = 1
+                if rp.get("i") == "1":
+                    st["i"] = 1
+                c = _clr172(rp.find("a:solidFill", _NS172))
+                if c:
+                    st["c"] = c
+            runs.append({"t": t, **st})
+        paras.append({"al": {"ctr": "center", "r": "right", "just": "justify"}.get(algn, "left"), "runs": runs})
+    if not any(r["t"].strip() for p in paras for r in p["runs"]):
+        return None
+    bp = body.find("a:bodyPr", _NS172)
+    anc = (bp.get("anchor") if bp is not None else None) or "t"
+    return {"paras": paras, "va": {"ctr": "center", "b": "flex-end"}.get(anc, "flex-start")}
+
+
+def drawings_of(raw):
+    """원본 엑셀(zip) → {시트 이름: [그림·글상자 …]} · 인쇄 영역은 openpyxl 쪽에서."""
+    import zipfile, base64, posixpath
+    from xml.etree import ElementTree as ET
+    out = {}
+    try:
+        z = zipfile.ZipFile(io.BytesIO(raw))
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+    except Exception:
+        return out
+    wrels = _rels172(z, "xl/workbook.xml")
+    tot = [0]
+    for sh in wb.iter("{%s}sheet" % "http://schemas.openxmlformats.org/spreadsheetml/2006/main"):
+        title = sh.get("name")
+        spath = wrels.get(sh.get("{%s}id" % _NS172["r"]))
+        if not spath:
+            continue
+        srels = _rels172(z, spath)
+        items = []
+        for _rid, dpath in srels.items():
+            if "/drawings/" not in dpath or not dpath.endswith(".xml"):
+                continue
+            try:
+                droot = ET.fromstring(z.read(dpath))
+            except Exception:
+                continue
+            drels = _rels172(z, dpath)
+            for anc in list(droot):
+                a = _anchor172(anc)
+                if not a:
+                    continue
+                pic = anc.find("xdr:pic", _NS172)
+                if pic is not None:
+                    blip = pic.find(".//a:blip", _NS172)
+                    mp = drels.get(blip.get("{%s}embed" % _NS172["r"])) if blip is not None else None
+                    if not mp:
+                        continue
+                    try:
+                        data = z.read(mp)
+                    except Exception:
+                        continue
+                    if len(data) > _IMG_MAX172 or tot[0] + len(data) > _IMG_TOT172:
+                        items.append({"k": "img_big", **a})
+                        continue
+                    tot[0] += len(data)
+                    ext = posixpath.splitext(mp)[1].lower().lstrip(".")
+                    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "bmp": "image/bmp",
+                            "emf": "image/emf", "wmf": "image/wmf"}.get(ext, "image/png")
+                    sr = pic.find(".//a:srcRect", _NS172)
+                    crop = [int(sr.get(k) or 0) / 100000.0 for k in ("l", "t", "r", "b")] if sr is not None else [0, 0, 0, 0]
+                    items.append({"k": "img", "mime": mime, "b64": base64.b64encode(data).decode("ascii"), "crop": crop, **a})
+                    continue
+                sp = anc.find("xdr:sp", _NS172)
+                if sp is not None:
+                    txt = _shape_text172(sp)
+                    sppr = sp.find("xdr:spPr", _NS172)
+                    fill = _clr172(sppr.find("a:solidFill", _NS172)) if sppr is not None else None
+                    ln = sppr.find("a:ln", _NS172) if sppr is not None else None
+                    lc = _clr172(ln.find("a:solidFill", _NS172)) if ln is not None else None
+                    if txt or fill or lc:
+                        items.append({"k": "sp", "txt": txt, "fill": fill, "line": lc, **a})
+        if items:
+            out[title] = items
+    return out
+
+
+def _print_area172(ws):
+    """인쇄 영역 첫 범위 → [r0, c0, r1, c1](0부터) · 없으면 None."""
+    try:
+        pa = ws.print_area
+        if not pa:
+            return None
+        first = (pa if isinstance(pa, str) else pa[0]).split(",")[0]
+        rng = first.split("!")[-1].replace("$", "")
+        from openpyxl.utils.cell import range_boundaries
+        c0, r0, c1, r1 = range_boundaries(rng)
+        return [r0 - 1, c0 - 1, r1 - 1, c1 - 1]
+    except Exception:
+        return None

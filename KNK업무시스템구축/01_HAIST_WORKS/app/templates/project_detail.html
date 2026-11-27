@@ -235,7 +235,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           <input type="number" id="fup_qty" min="1" max="100" value="1" oninput="recalcFollowupTotal()" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
           <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
+        {# z1191z166 (대표 11-27): 추가 발주 = 1차 고객사(세금계산서 받는 곳) 필수 · 관리번호 처음 고객으로 채우지 않음(빈칸에서 시작 · 사람이 고름) #}
+        <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">1차 고객사 <b style="color:#dc2626;">*</b> <span style="font-weight:400;">(이 수주의 세금계산서를 받는 곳 · 등록 목록에서 선택)</span></label>
+          <input type="text" id="fup_cust" data-cust-picker data-cust-name="fup_customer_name" data-cust-id="fup_customer_id" data-cust-required="1" placeholder="고객사명·시스템명 입력 → 목록 선택" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;">
+          <div style="font-size:11px; color:var(--mute); margin-top:3px;">목록에 없는 새 고객이면 <a href="/customers/new" target="_blank" style="color:#1d4ed8;font-weight:700;">고객사 등록</a>(새 탭)에서 먼저 등록한 뒤 여기서 고르세요.</div></div>
       </div>
+      <div id="fup_err" style="display:none; margin:-2px 0 10px; padding:8px 11px; border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; border-radius:7px; font-size:12.5px; font-weight:700;"></div>
       <!-- v5H131: 단가 × 수량 = 총액 라이브 표시 + 안내 -->
       <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -365,6 +370,16 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     // z1171 (대표 「0을 적으면 무상」): 0 은 적었을 때만(무상) 통과 — 비어 있으면 아직 안 적은 것
     if (unit < 0 || (unit === 0 && unitRaw.trim() === '')) { alert('1대 단가를 입력하세요 (무상이면 0)'); return; }
     if (qty < 1 || qty > 100) { alert('수량은 1~100 사이 정수'); return; }
+    // z1191z166: 1차 고객사 필수 — 화면에서 먼저 확인(서버도 막음) · 창은 닫지 않아 적은 값은 그대로
+    var _fe166 = document.getElementById('fup_err');
+    var _cid166 = ((document.querySelector('#followupOrderModal input[data-cust-h="fup_customer_id"]') || {}).value || '').trim();
+    var _cin166 = document.getElementById('fup_cust');
+    if (!_cid166 || (_cin166 && _cin166.getAttribute('data-cust-ok') !== '1')) {
+      if (_fe166) { _fe166.innerHTML = '👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 목록에 없으면 <a href="/customers/new" target="_blank" style="color:#1d4ed8;">고객사 등록</a> 후 고르세요.'; _fe166.style.display = 'block'; }
+      try { if (_cin166) { _cin166.classList.add('knkcust-bad'); _cin166.focus(); } } catch (e) {}
+      return;
+    }
+    if (_fe166) _fe166.style.display = 'none';
     const fd = new FormData();
     fd.append('order_date', document.getElementById('fup_order_date').value);
     fd.append('due_date', document.getElementById('fup_due_date').value);
@@ -376,6 +391,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     // v5H178: 통화 + 납품처 전달
     fd.append('currency', document.getElementById('fup_currency').value || 'KRW');
     fd.append('ship_to', document.getElementById('fup_ship_to').value || '');
+    fd.append('customer_id', _cid166);   // z1191z166: 고른 고객사 번호
     const r = await fetch('/projects/{{ p.id }}/add-followup-order', {method:'POST', body:fd});
     const j = await r.json();
     if (j.ok) {
@@ -384,6 +400,8 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         : '';
       alert(`＋ 추가 발주 완료\n\n관리번호: ${j.mgmt_code} (유지)\n신규 수주번호: ${j.so_no}${detail}`);
       (window.knkLeaveOk=true, location.reload());
+    } else if (j.need_customer && _fe166) {   // z1191z166: 서버도 막음 — 창은 그대로(적은 값 유지)
+      _fe166.textContent = j.message || '👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다'; _fe166.style.display = 'block';
     } else { alert('실패: ' + j.message); }
   }
   </script>

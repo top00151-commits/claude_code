@@ -294,14 +294,20 @@ check("PL 품목 줄 = 살아 있는 수주 4줄(취소 수주 품목 뺌) · �
 check("CI 구매자 = 수주별 전부 · 알림에 「취소된 수주 1건」", ci["buyer"] == BUY and any("취소된 수주 1건" in w for w in ci["ci_warn155"]), (ci["buyer"], ci["ci_warn155"]))
 check("CI 금액 = 살아 있는 수주 품목 합(취소 99,999 안 섞임)", round(ci["total_amount"], 2) == round(100000000 + 50000 + 30000 + 20000000, 2), ci["total_amount"])
 check("신고 서류 받는 곳(consignee) 기본값 = 수주 고객(처음 등록 고객 아님)", dm["consignee"] == BUY, dm["consignee"])
+# z1191z166: PL·CI 화면 = 수주별 — so 없이(수출 수주 여럿) = 고르기 화면 · so 를 주면 그 수주 구매자 하나
 st, H = get("/export/prep/%d/packing-list" % P)
-check("PL 인쇄 화면 = 구매자 수주별 · 취소 알림(인쇄 안 됨 칸)", st == 200 and "SAMSUNG INDIA ELECTRONICS" in H and "취소된 수주 1건" in H, st)
-st, H = get("/export/prep/%d/invoice" % P)
-check("CI 인쇄 화면 열림 · 구매자 수주별", st == 200 and "KNK VINA CO LTD" in H, st)
+check("PL so 없음 = 수주 고르기 화면 · 취소 수주 뺀 수 밝힘", st == 200 and "어느 수주의 서류인지" in text(H) and "취소된 수주 1건" in text(H), st)
+st, H = get("/export/prep/%d/packing-list?so=%d" % (P, O2))
+check("PL so=O2 = 구매자 SAMSUNG INDIA 하나", st == 200 and "SAMSUNG INDIA ELECTRONICS" in H and "KNK VINA CO LTD" not in H, st)
+st, H = get("/export/prep/%d/invoice?so=%d" % (P, O3))
+check("CI so=O3 = 구매자 KNK VINA 하나", st == 200 and "KNK VINA CO LTD" in H and "SAMSUNG INDIA ELECTRONICS" not in H, st)
+# z1191z166 (대표 11-27 「수출 서류는 수주별」): 수출 수주가 여럿 → so 없이 = 고르기 화면 · so 를 주면 그 수주 고객·통화만
 st, H = get("/export/ship/%d" % P)
-check("출고 보기 머리 = 고객 「외 3곳」 · 통화 KRW·USD · 취소 숨김", st == 200 and "삼성전자 외 3곳" in text(H) and "KRW · USD" in text(H) and "취소 수주 1건 숨김" in text(H), text(H)[:400])
-st, H = get("/export/ship/%d/qr/print" % P)
-check("QR 라벨 고객 = 「삼성전자 외 3곳」", st == 200 and "삼성전자 외 3곳" in text(H), st)
+check("출고 보기(so 없음 · 수출 수주 여럿) = 수주 고르기 화면 · 취소 수주 안 보임", st == 200 and "어느 수주의 서류인지" in text(H) and "T-260801-9" not in text(H), text(H)[:400])
+st, H = get("/export/ship/%d?so=%d" % (P, O2))
+check("출고 보기(so=O2) 머리 = 그 수주 고객 SAMSUNG INDIA · 통화 USD", st == 200 and "SAMSUNG INDIA" in text(H) and "통화 USD" in text(H) and "외 3곳" not in text(H), text(H)[:400])
+st, H = get("/export/ship/%d/qr/print?so=%d" % (P, O2))
+check("QR 라벨 고객 = 그 수주 고객(SAMSUNG INDIA)", st == 200 and "SAMSUNG INDIA" in text(H) and "외 3곳" not in text(H), st)
 
 # ─────────────────────────────────────────
 print("§9 제작요청서")

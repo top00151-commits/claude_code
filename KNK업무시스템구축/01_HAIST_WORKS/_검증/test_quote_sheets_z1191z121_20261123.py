@@ -68,16 +68,51 @@ _cells = [cl for r in (vx or {}).get("rows", []) for cl in r["cells"]]
 _a1 = [cl for cl in _cells if cl["v"] == "견 적 서"]
 check("병합 A1:F1 = 한 칸(숨긴 열 E 빼고 5칸 colspan)", _a1 and _a1[0]["cs"] == 5, _a1)
 check("숨긴 열 E 는 엑셀처럼 안 보임", all(cl["v"] != "숨긴 열 값" for cl in _cells), "")
-check("칸 너비: B 열(30) = 215px", vx and vx["cols"][1] == 215, vx and vx["cols"][:3])
+check("칸 너비: B 열(30) = 210px(엑셀: 폭 × 7)", vx and vx["cols"][1] == 210, vx and vx["cols"][:3])
 _css = dict((k, c) for k, c in (vx or {}).get("css", []))
 check("제목 = 굵게·20pt·밑줄·가운데", any("font-weight:700" in c and "font-size:20.0pt" in c and "underline" in c and "center" in c for c in _css.values()), _css)
 check("머리 줄 = 회색 바탕 + 아래 굵은 줄", any("background:#D9D9D9" in c and "border-bottom:2px solid" in c for c in _css.values()), _css)
 _v = {str(cl["v"]) for cl in _cells}
 check("표시 형식: 일반 46062 = 쉼표 없이 · 날짜 형식 = 2026. 02. 09 · #,##0 = 1,500,000 · 0.0% = 33.5%", {"46062", "2026. 02. 09", "1,500,000", "33.5%"} <= _v, sorted(x for x in _v if x and x[0].isdigit()))
 _long = [cl for cl in _cells if str(cl["v"]).startswith("특이사항")]
-check("긴 글자 = 옆 빈 칸까지 넓이(ow) — 엑셀처럼 잘리지 않음", _long and _long[0]["ow"] > 300, _long)
+check("긴 글자 = 옆 빈 칸까지 넓이(ow) — 엑셀처럼 잘리지 않음", _long and _long[0]["ow"] > 290, _long)
 _cut = [cl for cl in _cells if str(cl["v"]).startswith("아주 긴 품명")]
-check("옆 칸에 값이 있으면 엑셀처럼 그 칸에서 잘림(넘어가지 않음)", _cut and _cut[0]["ow"] < 216, _cut)
+check("옆 칸에 값이 있으면 엑셀처럼 그 칸에서 잘림(넘어가지 않음)", _cut and _cut[0]["ow"] < 211, _cut)
+
+# z1191z172 (대표 11-27 「엑셀에 표현된 정보를 모두」): 그림·글상자·인쇄 영역
+from openpyxl.drawing.image import Image as _XImg
+import base64 as _b64
+_png = _b64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")
+wy = openpyxl.Workbook(); sy = wy.active; sy.title = "견적서"
+sy["A1"] = "견적서"; sy["B3"] = "값"; sy["H20"] = None
+sy.cell(row=20, column=8).border = Border(right=Side(style="thin"))   # 값 없는 칸(테두리만) — 인쇄 영역 안
+sy.print_area = "A1:H20"
+_im = _XImg(io.BytesIO(_png)); _im.width, _im.height = 120, 40; sy.add_image(_im, "C5")
+by = io.BytesIO(); wy.save(by)
+# 글상자: openpyxl 은 도형을 못 만들어 zip 안 drawing1.xml 에 직접 넣음
+import zipfile as _zf
+zin = _zf.ZipFile(io.BytesIO(by.getvalue())); bz = io.BytesIO(); zout = _zf.ZipFile(bz, "w", _zf.ZIP_DEFLATED)
+for it in zin.infolist():
+    data = zin.read(it.filename)
+    if it.filename.endswith("drawings/drawing1.xml"):
+        A = ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+        sp = ('<twoCellAnchor><from><col>0</col><colOff>0</colOff><row>10</row><rowOff>0</rowOff></from>'
+              '<to><col>6</col><colOff>0</colOff><row>13</row><rowOff>0</rowOff></to>'
+              '<sp macro="" textlink=""><nvSpPr><cNvPr id="9" name="TextBox 9"/><cNvSpPr txBox="1"/></nvSpPr>'
+              '<spPr><a:prstGeom' + A + ' prst="rect"/></spPr><txBody><a:bodyPr' + A + '/><a:p' + A + '><a:r><a:rPr sz="2000" b="1">'
+              '<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:rPr><a:t>최종 제작금액 : KRW 205,500,000</a:t></a:r></a:p></txBody></sp><clientData/></twoCellAnchor>')
+        t = data.decode("utf-8"); i = t.rfind("</wsDr>"); data = (t[:i] + sp + t[i:]).encode("utf-8")
+    zout.writestr(it, data)
+zout.close()
+bk2 = Q.read_book(bz.getvalue()); x2 = Q.view_of(bk2, False)["sheets"][0]["xl"]
+check("인쇄 영역 A1:H20 = 값 없는 칸까지 8열·20줄", x2 and len(x2["cols"]) == 8 and len(x2["rows"]) == 20, x2 and (len(x2["cols"]), len(x2["rows"])))
+_ov = (x2 or {}).get("ov") or []
+_img = [o for o in _ov if o["k"] == "img"]
+check("그림(로고 등) = C5 자리 · 크기 120×40 · 그림 자료", _img and _img[0]["src"].startswith("data:image/png;base64,") and abs(_img[0]["w"] - 120) < 2 and abs(_img[0]["h"] - 40) < 2 and abs(_img[0]["x"] - 2 * 64) < 2, _img and {k: _img[0][k] for k in ("x", "y", "w", "h")})
+_sp = [o for o in _ov if o["k"] == "sp"]
+check("글상자 = 글자·20pt·굵게·빨강 · 11번째 줄부터(줄 자리 ry)", _sp and _sp[0]["txt"]["paras"][0]["runs"][0]["t"].startswith("최종 제작금액") and _sp[0]["txt"]["paras"][0]["runs"][0].get("sz") == 20.0 and _sp[0]["txt"]["paras"][0]["runs"][0].get("c") == "#FF0000" and _sp[0]["ry"][0] == 10 and _sp[0]["ry"][2] == 13, _sp and _sp[0])
+_l = Q.layouts_of(bz.getvalue())["견적서"]
+check("예전에 읽어 둔 견적서용 모양 다시 읽기(layouts_of)에도 그림·글상자·인쇄 영역", len(_l.get("dr") or []) == 2 and _l.get("pa") == [0, 0, 19, 7], (len(_l.get("dr") or []), _l.get("pa")))
 
 # ①~④ 표본(있을 때만)
 SRC = r"C:\Users\top00\JR\Claude 코드\KNK업무시스템구축\참고자료\기술영업팀\견적서"

@@ -271,6 +271,12 @@ def fup(pg, price):
                                    document.getElementById('fup_due_date').value='2026-10-15';
                                    document.getElementById('fup_total_amount').value=pr;
                                    document.getElementById('fup_qty').value='1'; }""", price) if has else None
+            # z1191z166 (대표 11-27): 추가 발주 = 1차 고객사 필수 — 창을 보이게 하고 고객사 칸에서 목록을 골라 둔다(사람이 하는 그대로)
+            if has and pg.evaluate("!!document.getElementById('fup_cust')"):
+                pg.evaluate("document.getElementById('followupOrderModal').style.display='flex'")
+                pg.type("#fup_cust", "가상고객", delay=30)
+                pg.wait_for_selector("#followupOrderModal .knkcust-it", timeout=6000)
+                pg.dispatch_event("#followupOrderModal .knkcust-it >> nth=0", "mousedown")
             break
         except Exception:
             pg.wait_for_timeout(1000)

@@ -197,16 +197,17 @@ nb = len(orders_of(P1["id"]))
 with contextlib.redirect_stdout(io.StringIO()):
     r = cl.post("/projects/%d/add-followup-order" % P1["id"],
                 data={"order_date": "2026-10-14", "due_date": "2026-10-28", "total_amount": "3000", "qty": "1",
-                      "po_number": "", "so_type": "EQUIPMENT", "currency": "USD", "ship_to": ""})
+                      "po_number": "", "so_type": "EQUIPMENT", "currency": "USD", "ship_to": "",
+                      "customer_id": str(CUST["VINA"])})   # z1191z166: 추가 발주 = 1차 고객사 필수(고른 번호)
 os_ = orders_of(P1["id"])
 its = items_of(os_[-1]["id"]) if len(os_) > nb else []
-check("8 상세 「＋ 추가 발주」 창 → 예전 그대로(발주처·거래구분 칸 없음 = 프로젝트 상속)",
+check("8 상세 「＋ 추가 발주」 창 → 고른 1차 고객 저장 · 거래구분 칸 없음 = 상속(z1191z166: 고객은 필수)",
       r.status_code == 200 and len(os_) == nb + 1 and os_[-1]["customer_id"] == CUST["VINA"]
       and len(its) == 1 and its[0].get("is_export") is None, (r.status_code, len(os_) - nb, [i.get("is_export") for i in its]))
 with D.db_session() as c:
-    r9 = PW.add_followup_order(c, P1["id"], order_date="2026-10-15", total_amount=10, qty=1)
+    r9 = PW.add_followup_order(c, P1["id"], order_date="2026-10-15", total_amount=10, qty=1, order_customer_id=CUST["VINA"])   # z1191z166
     try:
-        r10 = PW.add_followup_order(c, P1["id"], order_date="2026-10-15", total_amount=10, qty=1, is_export=0)
+        r10 = PW.add_followup_order(c, P1["id"], order_date="2026-10-15", total_amount=10, qty=1, is_export=0, order_customer_id=CUST["VINA"])
     except TypeError as _te:   # 고치기 전 코드엔 매개변수가 없다 — 시험은 멈추지 않고 실패로 적는다
         r10 = {"ok": False, "message": str(_te)}
 i9 = items_of(r9.get("order_id")) if r9.get("ok") else []

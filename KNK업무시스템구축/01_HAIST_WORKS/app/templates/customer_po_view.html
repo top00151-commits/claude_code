@@ -63,9 +63,14 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
     <div class="qv-tabs" id="pvTabs">{% for s in view.sheets %}<span class="qv-tab{% if loop.first %} on{% endif %}" data-p="s{{ s.i }}">{{ s.title }}</span>{% endfor %}</div>
     {% for s in view.sheets %}
     <div class="qv-pane{% if loop.first %} on{% endif %}" data-p="s{{ s.i }}">
+      {% if s.xl %}{# z1191z172 (대표 11-27 「발주서 부분도 적용」): 원본 엑셀 모양 · 확대·축소·한 페이지 · 한 장에 맞춰 인쇄 #}
+      {% set x = s.xl %}{% set xid = s.i %}{% set xsel = false %}
+      {% include "_v5_partials/xl_sheet_z172.html" %}
+      {% else %}
       <table class="qv-g">
         {% for r in s.rows %}<tr class="{% if loop.index0 == s.header_row %}h{% endif %}">{% for v in r %}<td class="{% if v is number %}n{% endif %}">{{ num(v) }}</td>{% endfor %}</tr>{% endfor %}
       </table>
+      {% endif %}
     </div>
     {% endfor %}
     {% else %}
@@ -80,6 +85,7 @@ body { --qv-line:var(--knk-border-subtle,#E2E6E1); --qv-ink:var(--knk-text-prima
   tabs.forEach(function(t){ t.addEventListener('click', function(){
     tabs.forEach(function(x){ x.classList.toggle('on', x === t); });
     document.querySelectorAll('.qv-pane').forEach(function(p){ p.classList.toggle('on', p.dataset.p === t.dataset.p); });
+    if (window.__xlz172) window.__xlz172();
   }); });
 })();
 </script>

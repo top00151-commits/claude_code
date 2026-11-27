@@ -22865,6 +22865,10 @@ async def admin_note_sweep_clear(request: Request):
     return RedirectResponse(f"/admin/note-sweep?v={_q978(_val)}&done={cleared}", 303)
 
 
+_Z166_FU_CUST_MSG = ("👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. "
+                     "목록에 없는 새 고객이면 [고객사 등록](/customers/new)에서 먼저 등록한 뒤 고르세요 (저장하지 않았습니다 · 적은 값은 그대로 있습니다)")
+
+
 @app.post("/projects/{pid:int}/add-followup-order")
 async def projects_add_followup(req: Request, pid: int):
     """추가 발주 — 동일 관리번호 + 신규 수주번호 발행 (KNK 추적 표준)."""
@@ -22903,13 +22907,23 @@ async def projects_add_followup(req: Request, pid: int):
     _af1173 = _z1173_autofill_guard(u, [("비고", note), ("납품처", ship_to), ("PO 번호", po_number)])   # z1173: 브라우저가 저절로 채운 로그인 ID(사번) 막기
     if _af1173:
         return JSONResponse({"ok": False, "message": _z1173_autofill_msg(_af1173)}, 400)
+    # z1191z166 (대표 11-27): 추가 발주 = 1차 고객사(세금계산서 받는 곳)를 고른 번호로만 — 없으면 저장하지 않고 안내
+    #   (예전엔 관리번호 처음 등록 때 고객을 저절로 넣었다 · 이름만 온 것은 연결하지 않는다)
+    _cid166 = (form.get("customer_id") or "").strip()
+    _cust166 = None
+    if _cid166.isdigit():
+        with db_session() as c:
+            _r166 = c.execute("SELECT id FROM customers WHERE id=?", (int(_cid166),)).fetchone()
+        _cust166 = int(_r166[0]) if _r166 else None
+    if not _cust166:
+        return JSONResponse({"ok": False, "need_customer": True, "message": _Z166_FU_CUST_MSG}, 400)
     with db_session() as c:
         res = _pwf.add_followup_order(c, pid, order_date=order_date,
                                         total_amount=total, due_date=due_date,
                                         created_by=u.get("id"),
                                         po_number=po_number, note=note, qty=qty,
                                         so_type=so_type, currency=currency,
-                                        ship_to=ship_to)
+                                        ship_to=ship_to, order_customer_id=_cust166)
     return JSONResponse(res)
 
 
@@ -46093,7 +46107,7 @@ async def quote_view_z121(req: Request, fid: int):
                 print(f"[z1191z121] 예전 견적서 읽기 실패 {fid}: {_e}")
                 f["book_err"] = "파일을 찾지 못했습니다"
     _lays170, _pw170 = None, False
-    if book and any(not sh.get("lay") for sh in (book.get("sheets") or [])):
+    if book and any(not sh.get("lay") or "dr" not in sh["lay"] for sh in (book.get("sheets") or [])):
         # z1191z170: 예전에 읽어 둔 견적서 = 모양 없음 → 원본에서 모양만 다시 읽음(저장 안 함 · 비밀번호 파일은 못 읽어 칸 목록으로)
         try:
             with open(os.path.join(_z61_dir(), f["stored"] or ""), "rb") as _f170:
@@ -47116,7 +47130,18 @@ async def customer_po_view_z143(req: Request, fid: int):
         except Exception as _e:
             print(f"[z1191z143] 읽어 둔 발주서 풀기 실패 {fid}: {_e}")
     f.pop("book_gz", None)
-    view = _qs121.view_of(book, True) if book else None   # 고객 발주서 = 회사 안 원가 칸 없음 → 그대로
+    _lays172 = None
+    if book and any(not sh.get("lay") or "dr" not in sh["lay"] for sh in (book.get("sheets") or [])):
+        # z1191z172 (대표 11-27 「발주서 부분도 적용」): 예전에 읽어 둔 엑셀 발주서 = 모양 없음 → 원본에서 모양만 다시 읽음(저장 안 함)
+        try:
+            with open(os.path.join(_z143_dir(), f.get("stored") or ""), "rb") as _f172:
+                _raw172 = _f172.read()
+            if not _qr61.office_locked(_raw172, _po143.ext_of(f.get("orig_name") or "")):
+                from starlette.concurrency import run_in_threadpool as _rit172
+                _lays172 = await _rit172(_qs121.layouts_of, _raw172)
+        except Exception as _e:
+            print(f"[z1191z172] 발주서 모양 다시 읽기 실패 {fid}: {_e}")
+    view = _qs121.view_of(book, True, _lays172) if book else None   # 고객 발주서 = 회사 안 원가 칸 없음 → 그대로
     st = _po143.slot_status(sib)   # z1191z160: 같은 수주 발주서 모두(최근 위) · 최종·이전 구분 없음
     return ctx(req, "customer_po_view.html", user=u, active="sales", f=f, view=view, st=st,
                can_rm=bool(_z63_can_remove(u, f)), can_up=bool(can_use_sales(u) and can_view_sales(u)))
@@ -48183,6 +48208,12 @@ async def projects_new_submit(request: Request):
                 with db_session() as _ccx:
                     _fu_cust_id, _fu_creason = _logi.resolve_customer_id(
                         _ccx, (customer or "").strip(), picked_id=form.get("customer_id"))
+            # z1191z166 (대표 11-27): 1차 고객사를 못 정했으면(빈칸 · 이름 후보 여럿·없음) 저장하지 않고 되돌린다
+            #   (예전엔 미지정 → 관리번호 처음 등록 때 고객이 그 수주에 저장 · 적은 값은 화면 임시본으로 남음)
+            if not _fu_cust_id:
+                from urllib.parse import quote as _q166
+                return _err_redirect("followup_customer_required",
+                                     ("cust=" + _q166((customer or "").strip())) if (customer or "").strip() else "")
             # v5H226z436 (대표 지시): 형태=상품 + PO=추가 → 부품(pk_*)을 '기존 프로젝트'의 PARTS 수주로 저장.
             #   신규 등록 z430 과 동일 패턴: 빈 PARTS SO(PARTS_EXPORT) + 부품마다 order_items(품명·모델=규격·수량·단가).
             #   → 002M2509 같은 기존 프로젝트 상세 PACKING LIST 에 그대로 나타남. (이전엔 부품 무시되고 EQUIPMENT SO만 생겼음)
@@ -48626,8 +48657,12 @@ async def projects_new_submit(request: Request):
                     else:
                         _so_t, _exp = "EQUIPMENT", True
                     try:
+                        # z1191z166: 같은 등록 화면에서 고른 고객사(이 새 관리번호의 첫 수주와 같은 고객)를 명시로 넘긴다
+                        _np166 = _cpi.execute("SELECT customer_id FROM projects WHERE id=?", (int(new_pid),)).fetchone()
                         _r = _pwf.add_followup_order(
-                            _cpi, int(new_pid), order_date=form.get("order_date", ""),
+                            _cpi, int(new_pid), order_customer_id=((_np166[0] if _np166 else None) or None),
+                            customer_required=False,   # 고객 미등록 신규 고객 등록도 첫 수주와 같게(같은 화면 값)
+                            order_date=form.get("order_date", ""),
                             total_amount=_pr, due_date=form.get("due_date", ""),
                             created_by=_u.get("id") or 0, po_number=form.get("customer_po", ""),
                             note=f"[추가품목] {_nm}{(' / 모델: ' + _md) if _md else ''}",
@@ -57876,7 +57911,7 @@ async def export_prep_list(req: Request):
 
 
 @app.get("/export/prep/{pid:int}", response_class=HTMLResponse)
-async def export_prep_detail(req: Request, pid: int):
+async def export_prep_detail(req: Request, pid: int, so: str = ""):
     """수출 건 1개의 '상품별 통관 입력' 화면 — 그 프로젝트의 모든 SO 품목(order_items)."""
     u = _export_guard(req)
     if not u:
@@ -57895,7 +57930,9 @@ async def export_prep_detail(req: Request, pid: int):
             sos = _pwf.get_project_orders(c, pid)
         except Exception:
             sos = []
-        dm = _doc_meta_get(c, pid, p)   # v5H226z968: 신고 서류 정보(인보이스 헤더블록)
+        # z1191z166 (대표 11-27): 서류는 수주별 — 수주 목록·서류 대상 판정 · 신고 서류 정보 = 고른 수주(하나뿐이면 그 수주)
+        st166, sel166, L166 = _z166_pick(c, pid, so)
+        dm = _doc_meta_get(c, pid, p, sel166) if st166 == "ok" else None   # v5H226z968: 신고 서류 정보(인보이스 헤더블록)
         s165 = _pwf.orders_summary_one(c, pid)   # z1191z165: 머리 줄 고객사·납기·모델 = 수주 기준
         _export_boxes_ensure(c)         # v5H226z970: 박스별 무게(실무=박스 단위 계량)
         boxes = [dict(r) for r in c.execute(
@@ -57906,7 +57943,8 @@ async def export_prep_detail(req: Request, pid: int):
     except Exception:
         col_prefs = "{}"
     return ctx(req, "export_prep_detail.html", user=u, active="export",
-               p=p, sos=sos, dm=dm, boxes=boxes, can_money=bool(can_view_sales(u)), col_prefs=col_prefs, s165=s165)
+               p=p, sos=sos, dm=dm, boxes=boxes, can_money=bool(can_view_sales(u)), col_prefs=col_prefs, s165=s165,
+               L166=L166, sel166=(sel166 if st166 == "ok" else None), st166=st166)
 
 
 @app.post("/export/prep/cols")
@@ -60230,11 +60268,11 @@ def _hs_hist_apply_latest(c, expect: int, u) -> tuple:
 # v5H226z463 (대표 지시·수출 2단계): 패킹리스트(PACKING LIST) — 1단계 통관 입력(order_items)에서 생성.
 #   인쇄(A4 HTML)·엑셀(KNK 표준). 데이터 출처 = order_items(품명·규격·원산지·HS·수량·중량·박스·팔레트).
 # ------------------------------------------------------------
-def _z165_doc_vals(c, pid, n_cancelled=0):
+def _z165_doc_vals(c, pid, n_cancelled=0, order_ids=None):
     """z1191z165 (대표 11-27): 수출 서류(PL·CI·신고 서류 정보)의 구매자·발주일·납기 = 그 관리번호의 살아 있는 수주들 값.
     buyer = 1차 고객 정식명(수주마다 다르면 「A / B」 수주별 전부 — 세관 서류라 「외 N곳」으로 줄이지 않음) ·
     cust_txt = 화면용 「A 외 N곳」(시스템명) · warn = 화면 알림(인쇄 안 됨)."""
-    s = _pwf.orders_summary_one(c, pid)
+    s = _pwf.orders_summary_one(c, pid, order_ids=order_ids)   # z1191z166: order_ids = 그 수주 서류만
     names = []
     for o in s["orders"]:
         nm = (o.get("cust_name") or o.get("cust") or "").strip() if o.get("customer_id") else ""
@@ -60249,8 +60287,118 @@ def _z165_doc_vals(c, pid, n_cancelled=0):
             "order_date": s["date_txt"], "due_date": s["due_txt"], "warn": warn, "n": s["n"]}
 
 
-def _export_pl_build(c, pid):
-    """프로젝트의 수출 품목(order_items)으로 PACKING LIST 데이터 구성. (project, pl, lines) 또는 (None,None,None)."""
+# ------------------------------------------------------------
+# z1191z166 (대표 11-27 「수출 서류는 수주(구매자)별로」): PL·CI·엑셀·신고 서류·출고 QR = 수주 하나씩.
+#   관리번호 아래 수주마다 구매자(1차 고객)·통화·발주일·납기가 달라 한 장에 섞으면 세관 서류가 틀린다.
+#   · 서류 대상 수주 = 살아 있는 품목 중 수출(order_items.is_export=1)이 있는 수주 · 내수 수주 = 「내수 — 수출 서류 없음」
+#   · 품목 거래구분이 하나도 안 적힌 옛 수주만 처음 등록 값(projects.is_export)을 따른다(z165 와 같은 규칙 · 말없이 빠지지 않게)
+#   · 주소 ?so=<수주 id> · 수주 1개(또는 수출 수주 1개)면 so 없이도 그 수주로 · 2개 이상이면 「어느 수주의 서류인지」 고르기 화면
+#   · 읽기만 한다(아무것도 저장하지 않음)
+# ------------------------------------------------------------
+def _z166_iex(v):
+    if v is None or str(v).strip() == "":
+        return None
+    return 1 if str(v).strip() in ("1", "True", "true") else 0
+
+
+def _z166_doc_orders(c, pid):
+    """관리번호의 살아 있는 수주마다 수출 서류 대상인지 → {"orders", "doc", "n_cancelled", "p_is_export"}.
+    수주 칸: id·order_no·buyer(정식명 · 1차 고객 없으면 '')·cust(시스템명)·customer_id·currency·total_amount·n_items(서류에 들어갈 품목 수)·
+             order_date·due_date·end_customer·trade·doc(서류 대상)·why(안내 글)·seq(서류 대상 안 순번)·n_doc(서류 대상 수)."""
+    prow = c.execute("SELECT COALESCE(is_export,0) FROM projects WHERE id=?", (pid,)).fetchone()
+    p_iex = 1 if (prow and _z166_iex(prow[0]) == 1) else 0
+    s = _pwf.orders_summary_one(c, pid)
+    ids = [int(o["id"]) for o in s["orders"]]
+    cnt = {}
+    if ids:
+        for oid, iex, n in c.execute(
+                "SELECT order_id, is_export, COUNT(*) FROM order_items WHERE order_id IN (%s) "
+                "AND COALESCE(unit_status,'')<>'취소' GROUP BY order_id, is_export" % ",".join(str(i) for i in ids)).fetchall():
+            k = _z166_iex(iex)
+            cnt.setdefault(oid, {})
+            cnt[oid][k] = cnt[oid].get(k, 0) + n
+    out = []
+    for o in s["orders"]:
+        tr = o.get("trade") or ""
+        if tr in ("수출", "수출·내수"):
+            doc, why = True, ("수출·내수 품목이 섞임 — 수출 품목만 서류에" if tr == "수출·내수" else "")
+        elif tr == "내수":
+            doc, why = False, ""   # 서류 칸에 「내수 — 수출 서류 없음」
+        else:
+            doc = bool(p_iex)
+            why = ("품목 거래구분이 비어 있어 처음 등록 값(수출)으로 봄 — 수주 칸 확인 필요" if p_iex
+                   else "품목 거래구분이 비어 있음(처음 등록 값 내수) — 수출 서류 없음")
+        cc = cnt.get(o["id"], {})
+        n_all = sum(cc.values())
+        out.append({
+            "id": int(o["id"]), "order_no": o.get("order_no") or "",
+            "buyer": ((o.get("cust_name") or o.get("cust") or "").strip() if o.get("customer_id") else ""),
+            "cust": o.get("cust") or "", "customer_id": o.get("customer_id"),
+            "currency": (o.get("currency") or "KRW").upper(), "total_amount": float(o.get("total_amount") or 0),
+            "n_items": (n_all - cc.get(0, 0)) if tr == "수출·내수" else n_all,
+            "order_date": str(o.get("order_date") or "")[:10], "due_date": str(o.get("due_date") or "")[:10],
+            "end_customer": o.get("end_customer"), "status": o.get("status") or "",
+            "trade": tr, "doc": doc, "why": why,
+        })
+    docs = [x for x in out if x["doc"]]
+    for i, x in enumerate(docs, 1):
+        x["seq"] = i
+    for x in out:
+        x.setdefault("seq", 0)
+        x["n_doc"] = len(docs)
+    return {"orders": out, "doc": docs, "n_cancelled": s["n_cancelled"], "p_is_export": p_iex}
+
+
+def _z166_pick(c, pid, so=""):
+    """주소의 so(수주 id) → (상태, 수주, 목록).
+    상태 'ok' = 그 수주로 서류 · 'pick' = 고르기 화면(수출 수주 2개 이상 · so 없음) ·
+         'domestic' = 고른 수주가 내수(같은 관리번호에 다른 수주가 있음) · 'bad' = 이 관리번호의 살아 있는 수주가 아님 · 'none' = 수주 없음."""
+    L = _z166_doc_orders(c, pid)
+    live = L["orders"]
+    raw = str(so or "").strip()
+    if raw:
+        try:
+            sid = int(raw)
+        except ValueError:
+            return "bad", None, L
+        o = next((x for x in live if x["id"] == sid), None)
+        if not o:
+            return "bad", None, L
+        if o["doc"] or len(live) == 1:
+            return "ok", o, L
+        return "domestic", o, L
+    if len(live) == 1:
+        return "ok", live[0], L
+    if len(L["doc"]) == 1:
+        return "ok", L["doc"][0], L
+    return ("none" if not live else "pick"), None, L
+
+
+def _z166_units(so, so_id):
+    """서류에 싣는 품목 줄 — so_id 없으면 예전 그대로(그 수주 품목 전부).
+    so_id 가 있으면(수주별 서류) 취소 품목 빼고 · 수출·내수가 섞인 수주는 수출(또는 미기재) 품목만."""
+    units = list(so.get("units") or [])
+    if so_id is None:
+        return units
+    units = [u for u in units if str(u.get("unit_status") or "") != "취소"]
+    _kn = {_z166_iex(u.get("is_export")) for u in units} - {None}
+    if len(_kn) > 1:
+        units = [u for u in units if _z166_iex(u.get("is_export")) != 0]
+    return units
+
+
+def _z166_pick_page(req, u, c, pid, state, L, want="", so_bad=""):
+    """「어느 수주의 서류인지 골라 주세요」 화면 — 관리번호는 늘 함께. c = 열린 DB(읽기만)."""
+    prow = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
+    if not prow:
+        return RedirectResponse("/export/prep", 303)
+    return ctx(req, "export_doc_pick.html", user=u, p=dict(prow), L=L, state=state, want=want, so_bad=so_bad,
+               can_money=bool(can_view_sales(u)))
+
+
+def _export_pl_build(c, pid, so_id=None):
+    """프로젝트의 수출 품목(order_items)으로 PACKING LIST 데이터 구성. (project, pl, lines) 또는 (None,None,None).
+    z1191z166: so_id = 그 수주 하나만(품목·구매자·발주일·납기 · 서류 번호에 수주번호) · None 이면 예전처럼 살아 있는 수주 전부."""
     prow = c.execute(
         """SELECT id, mgmt_code, name, customer_id, customer_name, currency, order_date, due_date, secondary_customer
            FROM projects WHERE id=?""", (pid,)).fetchone()
@@ -60264,12 +60412,16 @@ def _export_pl_build(c, pid):
     # z1191z165 (대표 11-27): 서류가 다루는 수주 = 살아 있는 수주(취소 수주 품목은 서류에 싣지 않음 · 뺀 수는 화면 알림)
     _cx165 = [s for s in sos if str(s.get("status") or "").upper() == "CANCELLED"]
     sos = [s for s in sos if str(s.get("status") or "").upper() != "CANCELLED"]
-    _d165 = _z165_doc_vals(c, pid, len(_cx165))
+    if so_id is not None:   # z1191z166: 그 수주 하나만
+        sos = [s for s in sos if s.get("id") == so_id]
+        _d165 = _z165_doc_vals(c, pid, 0, order_ids=[so_id])
+    else:
+        _d165 = _z165_doc_vals(c, pid, len(_cx165))
     lines, so_nos, boxes = [], [], set()
     for so in sos:
         if so.get("order_no"):
             so_nos.append(so["order_no"])
-        for u in (so.get("units") or []):
+        for u in _z166_units(so, so_id):
             _bx = (u.get("box_no") or "").strip()
             if _bx:
                 boxes.add(_bx)
@@ -60285,8 +60437,11 @@ def _export_pl_build(c, pid):
                 "box_no": _bx,
                 "pallet_size": u.get("pallet_size") or "",
             })
+    _so_no166 = (so_nos[0] if so_nos else ("SO%s" % so_id)) if so_id is not None else ""
     pl = {
-        "pl_no": f"PL-{p.get('mgmt_code') or pid}",
+        # z1191z166: 수주별 서류 = 번호에 수주번호(같은 관리번호의 두 서류 번호가 겹치지 않게)
+        "pl_no": (f"PL-{p.get('mgmt_code') or pid}-{_so_no166}" if so_id is not None else f"PL-{p.get('mgmt_code') or pid}"),
+        "so_id": so_id, "so_no": _so_no166,
         # z1191z165: 구매자·발주일·납기 = 이 서류가 다루는 수주들의 값(관리번호 처음 등록 때 고객이 아님) · 수주마다 다르면 수주별 전부
         "buyer": _d165["buyer"] or "-",
         "cust165": _d165["cust_txt"], "cust165_all": _d165["cust_all"], "warn165": _d165["warn"],
@@ -60302,7 +60457,7 @@ def _export_pl_build(c, pid):
     return p, pl, lines
 
 
-def _export_ci_build(c, pid):
+def _export_ci_build(c, pid, so_id=None):
     """프로젝트의 수출 품목(order_items)으로 COMMERCIAL INVOICE(상업송장) 데이터 구성.
     (project, ci, lines) 또는 (None,None,None). PL과 달리 '금액(단가·금액·통화)' 중심 — 품목명세 포함.
     v5H226z946 (대표 지시): 기존 CI(총액만) → 품목별 명세(품명·수량·인보이스 단가·금액) 추가.
@@ -60321,7 +60476,11 @@ def _export_ci_build(c, pid):
     # z1191z165 (대표 11-27): 취소 수주 품목은 상업송장에 싣지 않음(금액에도 안 들어감) · 뺀 수는 화면 알림
     _cx165 = [s for s in sos if str(s.get("status") or "").upper() == "CANCELLED"]
     sos = [s for s in sos if str(s.get("status") or "").upper() != "CANCELLED"]
-    _d165 = _z165_doc_vals(c, pid, len(_cx165))
+    if so_id is not None:   # z1191z166: 그 수주 하나만 = 한 통화
+        sos = [s for s in sos if s.get("id") == so_id]
+        _d165 = _z165_doc_vals(c, pid, 0, order_ids=[so_id])
+    else:
+        _d165 = _z165_doc_vals(c, pid, len(_cx165))
     ccy = (p.get("currency") or "USD") or "USD"
     lines, so_nos = [], []
     total_qty = total_amt = 0.0
@@ -60329,7 +60488,7 @@ def _export_ci_build(c, pid):
         if so.get("order_no"):
             so_nos.append(so["order_no"])
         _so_ccy = (so.get("currency") or ccy)
-        for u in (so.get("units") or []):
+        for u in _z166_units(so, so_id):
             qty = float(u.get("qty") or 0)
             # 인보이스 단가/금액(USD) 우선 — 없으면 판매단가/금액 폴백
             up = u.get("invoice_unit_price_usd")
@@ -60370,12 +60529,19 @@ def _export_ci_build(c, pid):
     _warn155.extend(_d165["warn"])   # z1191z165: 취소 수주 뺌 · 1차 고객 미정 수주 알림
     if any(e is None for e in _end155):
         _warn155.append("최종 고객(2차)을 아직 안 정한 수주가 있습니다 — 수주 칸 확인 필요")
+    _so_no166 = (so_nos[0] if so_nos else ("SO%s" % so_id)) if so_id is not None else ""
+    if so_id is not None:
+        # z1191z166: 수주별 = 그 수주의 2차만(없으면 비움 · 관리번호 처음 등록 값으로 채우지 않음)
+        _final166 = _endv155[0] if len(_endv155) == 1 else ""
+    else:
+        _final166 = (_endv155[0] if (len(_endv155) == 1 and not any(e is None for e in _end155)) else (p.get("secondary_customer") or ""))
     ci = {
-        "ci_no": f"CI-{p.get('mgmt_code') or pid}",
+        "ci_no": (f"CI-{p.get('mgmt_code') or pid}-{_so_no166}" if so_id is not None else f"CI-{p.get('mgmt_code') or pid}"),
+        "so_id": so_id, "so_no": _so_no166,
         # z1191z165 (대표 11-27): 수주마다 다르면 처음 등록 때 고객(틀린 값)을 쓰지 않고 수주별 구매자 전부 + 화면 알림(ci_warn155 · 인쇄 안 됨)
         "buyer": _d165["buyer"] or "-",
         "cust165": _d165["cust_txt"], "cust165_all": _d165["cust_all"],
-        "final_customer": (_endv155[0] if (len(_endv155) == 1 and not any(e is None for e in _end155)) else (p.get("secondary_customer") or "")),
+        "final_customer": _final166,
         "ci_warn155": _warn155,
         "order_no": " · ".join(so_nos) if so_nos else (p.get("mgmt_code") or "-"),
         "mgmt_code": p.get("mgmt_code") or "-",
@@ -60411,18 +60577,50 @@ def _doc_meta_ensure(c):
         lc_no TEXT, payment TEXT, issuing_bank TEXT,
         incoterms TEXT, remarks TEXT,
         updated_by INTEGER, updated_at TEXT)""")
+    # z1191z166 (대표 11-27): 수주별 신고 서류 정보 — 옛 관리번호 단위 표(export_doc_meta)는 지우지 않고 「처음 값」으로만 읽는다
+    c.execute("""CREATE TABLE IF NOT EXISTS export_doc_meta_so (
+        order_id INTEGER PRIMARY KEY, project_id INTEGER,
+        invoice_no TEXT, invoice_date TEXT,
+        consignee TEXT, notify TEXT,
+        port_loading TEXT, final_dest TEXT,
+        carrier TEXT, sailing_date TEXT,
+        lc_no TEXT, payment TEXT, issuing_bank TEXT,
+        incoterms TEXT, remarks TEXT,
+        updated_by INTEGER, updated_at TEXT)""")
 
 
-def _doc_meta_get(c, pid: int, p: dict | None = None) -> dict:
-    """프로젝트 수출 서류 정보 — 없으면 실물 관행 기본값으로 채운 dict(저장 전 프리필)."""
+def _doc_meta_get(c, pid: int, p: dict | None = None, so: dict | None = None) -> dict:
+    """프로젝트 수출 서류 정보 — 없으면 실물 관행 기본값으로 채운 dict(저장 전 프리필).
+    z1191z166: so(_z166_doc_orders 의 수주 한 줄)를 주면 그 수주 값(export_doc_meta_so) ·
+      수주 값이 아직 없으면 옛 관리번호 단위 값을 「처음 값」으로 보여 준다(복사 저장 안 함 · _src='old') ·
+      수출 수주가 여럿이면 Invoice No 끝에 -순번(겹치지 않게 · 저장 전 미리 채우기)."""
+    import datetime as _dt
     _doc_meta_ensure(c)
-    row = c.execute("SELECT * FROM export_doc_meta WHERE project_id=?", (pid,)).fetchone()
-    d = dict(row) if row else {}
+    if so:
+        row = c.execute("SELECT * FROM export_doc_meta_so WHERE order_id=?", (int(so["id"]),)).fetchone()
+        if row:
+            d = dict(row)
+            d["_src"] = "so"
+        else:
+            old = c.execute("SELECT * FROM export_doc_meta WHERE project_id=?", (pid,)).fetchone()
+            d = dict(old) if old else {}
+            d["_src"] = "old" if old else "new"
+            if old and (so.get("n_doc") or 1) > 1 and d.get("invoice_no"):
+                d["invoice_no"] = "%s-%s" % (d["invoice_no"], so.get("seq") or 1)
+        if not d.get("invoice_no"):
+            d["invoice_no"] = "KNK-" + _dt.date.today().strftime("%y%m%d") + "-" + str(so.get("seq") or 1)
+        if not d.get("consignee"):
+            d["consignee"] = so.get("buyer") or ""
+        # 받는 곳 첫 줄에 이 수주 구매자 이름이 없으면 알림(막지 않음 · 입력 실수 찾기)
+        _b166 = (so.get("buyer") or "").strip()
+        d["_consignee_warn"] = bool(_b166 and _b166.lower() not in (d.get("consignee") or "").lower())
+        d["order_id"] = int(so["id"])
+    else:
+        row = c.execute("SELECT * FROM export_doc_meta WHERE project_id=?", (pid,)).fetchone()
+        d = dict(row) if row else {}
     if not d.get("invoice_no"):
-        import datetime as _dt
         d["invoice_no"] = "KNK-" + _dt.date.today().strftime("%y%m%d") + "-1"
     if not d.get("invoice_date"):
-        import datetime as _dt
         d["invoice_date"] = _dt.date.today().isoformat()
     if not d.get("consignee") and p:
         # z1191z165 (대표 11-27): 받는 곳 기본값 = 수주들의 1차 고객사(정식명 · 여럿이면 수주별 전부) — 관리번호 처음 등록 때 고객 아님 · 미리 채우기만(저장은 사용자가)
@@ -60451,16 +60649,21 @@ async def export_doc_meta_save(req: Request, pid: int):
     cols = ("invoice_no", "invoice_date", "consignee", "notify", "port_loading", "final_dest",
             "carrier", "sailing_date", "lc_no", "payment", "issuing_bank", "incoterms", "remarks")
     vals = [(form.get(k) or "").strip() for k in cols]
+    _so166 = (form.get("so") or req.query_params.get("so") or "").strip()
     with db_session() as c:
         _doc_meta_ensure(c)
+        # z1191z166 (대표 11-27): 수주별로 저장 — 어느 수주인지 모르면 저장하지 않는다(옛 관리번호 단위 표는 그대로 둠)
+        st166, o166, _L166 = _z166_pick(c, pid, _so166)
+        if st166 != "ok":
+            return JSONResponse({"ok": False, "error": "어느 수주의 서류 정보인지 골라 주세요 — 수주별로 저장합니다(저장하지 않았습니다)"}, 400)
         c.execute(
-            f"INSERT INTO export_doc_meta(project_id,{','.join(cols)},updated_by,updated_at) "
-            f"VALUES(?,{','.join('?' * len(cols))},?,datetime('now','localtime')) "
-            f"ON CONFLICT(project_id) DO UPDATE SET "
+            f"INSERT INTO export_doc_meta_so(order_id,project_id,{','.join(cols)},updated_by,updated_at) "
+            f"VALUES(?,?,{','.join('?' * len(cols))},?,datetime('now','localtime')) "
+            f"ON CONFLICT(order_id) DO UPDATE SET project_id=excluded.project_id, "
             + ", ".join(f"{k}=excluded.{k}" for k in cols)
             + ", updated_by=excluded.updated_by, updated_at=excluded.updated_at",
-            [pid] + vals + [u.get("id")])
-    return JSONResponse({"ok": True})
+            [o166["id"], pid] + vals + [u.get("id")])
+    return JSONResponse({"ok": True, "order_id": o166["id"], "order_no": o166["order_no"]})
 
 
 # v5H226z970 (대표 지시): 박스별 무게·크기 — 실무는 부품별이 아니라 '박스 단위'로 계량
@@ -60560,7 +60763,7 @@ def _z968_head_block(ws, title: str, dm: dict, F, thin_border):
 
 
 @app.get("/export/prep/{pid:int}/invoice-pl.xlsx")
-async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
+async def export_prep_invoice_pl_xlsx(req: Request, pid: int, so: str = ""):
     """신고용 Invoice&PL 실물 양식(시트 2장) — 베트남 전달·수출/수입신고에 그대로 사용.
     INVOICE: B관리번호 D규격 F수량 H단가 I금액(USD) K원산지 M CATEGORY N HS code O Tên hàng.
     PACKING LIST: B관리번호 D규격 F수량 I Gross(kg) + 우측 박스 요약(NO/SIZE/G/W)."""
@@ -60568,17 +60771,25 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        p, ci, lines = _export_ci_build(c, pid)
+        st166, o166, L166 = _z166_pick(c, pid, so)   # z1191z166: 수주별
+        if st166 != "ok":
+            return _z166_pick_page(req, u, c, pid, st166, L166, "invoice-pl", so)
+        _sid = o166["id"]
+        p, ci, lines = _export_ci_build(c, pid, _sid)
         if not p:
             return RedirectResponse("/export/prep", 303)
-        dm = _doc_meta_get(c, pid, p)
-        _p2, _pl, pl_lines = _export_pl_build(c, pid)
-        _p3, _pl2, _pll, box_list = _export_ship_boxes(c, pid)
+        dm = _doc_meta_get(c, pid, p, o166)
+        _p2, _pl, pl_lines = _export_pl_build(c, pid, _sid)
+        _p3, _pl2, _pll, box_list = _export_ship_boxes(c, pid, _sid)
         # v5H226z970: 박스별 무게(사용자 입력) — 있으면 품목별 중량 대신 이걸 사용(실물 관행)
         _export_boxes_ensure(c)
         ebx = [dict(r) for r in c.execute(
             "SELECT box_no, weight_kg, box_size FROM export_boxes WHERE project_id=? ORDER BY box_no",
             (pid,))]
+        # z1191z166: 수출 수주가 여럿이면 박스 무게는 이 수주 품목이 담긴 박스만(박스 무게는 관리번호 단위로 적는 표)
+        if (o166.get("n_doc") or 1) > 1:
+            _mybx = {str(l.get("box_no") or "").strip().upper() for l in (pl_lines or []) if str(l.get("box_no") or "").strip()}
+            ebx = [b for b in ebx if str(b.get("box_no") or "").strip().upper() in _mybx]
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side
@@ -60700,7 +60911,7 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
     buf.seek(0)
     from urllib.parse import quote
     import datetime as _dt
-    fn = f"Invoice&packinglist_VN({_dt.date.today().strftime('%y%m%d')})_{mgmt or pid}.xlsx"
+    fn = f"Invoice&packinglist_VN({_dt.date.today().strftime('%y%m%d')})_{mgmt or pid}_{ci.get('so_no') or ''}.xlsx"   # z1191z166: 수주번호
     return StreamingResponse(
         buf, media_type=_XLSX_MIME,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
@@ -60709,29 +60920,35 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int):
 
 
 @app.get("/export/prep/{pid:int}/packing-list", response_class=HTMLResponse)
-async def export_prep_packing_print(req: Request, pid: int):
-    """PACKING LIST 인쇄(A4) — 1단계 통관 입력 데이터로 생성."""
+async def export_prep_packing_print(req: Request, pid: int, so: str = ""):
+    """PACKING LIST 인쇄(A4) — 1단계 통관 입력 데이터로 생성. z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        p, pl, lines = _export_pl_build(c, pid)
+        st166, o166, L166 = _z166_pick(c, pid, so)
+        if st166 != "ok":
+            return _z166_pick_page(req, u, c, pid, st166, L166, "packing-list", so)
+        p, pl, lines = _export_pl_build(c, pid, o166["id"])
     if not p:
         return RedirectResponse("/export/prep", 303)
     import datetime as _dt
     today = _dt.date.today().isoformat()
     return ctx(req, "export_prep_packing_print.html", user=u,
-               p=p, pl=pl, lines=lines, today=today, pid=pid)
+               p=p, pl=pl, lines=lines, today=today, pid=pid, so166=o166)
 
 
 @app.get("/export/prep/{pid:int}/packing-list.xlsx")
-async def export_prep_packing_xlsx(req: Request, pid: int):
-    """PACKING LIST 엑셀(KNK 표준) — 1단계 통관 입력 데이터로 생성."""
+async def export_prep_packing_xlsx(req: Request, pid: int, so: str = ""):
+    """PACKING LIST 엑셀(KNK 표준) — 1단계 통관 입력 데이터로 생성. z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        p, pl, lines = _export_pl_build(c, pid)
+        st166, o166, L166 = _z166_pick(c, pid, so)
+        if st166 != "ok":
+            return _z166_pick_page(req, u, c, pid, st166, L166, "packing-list.xlsx", so)
+        p, pl, lines = _export_pl_build(c, pid, o166["id"])
     if not p:
         return RedirectResponse("/export/prep", 303)
     try:
@@ -60771,7 +60988,7 @@ async def export_prep_packing_xlsx(req: Request, pid: int):
         ws.cell(trow, ci).fill = PatternFill("solid", fgColor="F1F5F9")
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     from urllib.parse import quote
-    fn = f"PACKING_LIST_{pl['mgmt_code']}.xlsx"
+    fn = f"PACKING_LIST_{pl['mgmt_code']}_{pl.get('so_no') or ''}.xlsx"   # z1191z166: 수주번호
     return StreamingResponse(
         buf, media_type=_XLSX_MIME,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
@@ -60780,29 +60997,35 @@ async def export_prep_packing_xlsx(req: Request, pid: int):
 
 
 @app.get("/export/prep/{pid:int}/invoice", response_class=HTMLResponse)
-async def export_prep_invoice_print(req: Request, pid: int):
-    """COMMERCIAL INVOICE 인쇄(A4) — 통관 입력 + 인보이스(USD) 금액으로 품목명세 생성. (v5H226z946)"""
+async def export_prep_invoice_print(req: Request, pid: int, so: str = ""):
+    """COMMERCIAL INVOICE 인쇄(A4) — 통관 입력 + 인보이스(USD) 금액으로 품목명세 생성. (v5H226z946) z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        p, ci, lines = _export_ci_build(c, pid)
+        st166, o166, L166 = _z166_pick(c, pid, so)
+        if st166 != "ok":
+            return _z166_pick_page(req, u, c, pid, st166, L166, "invoice", so)
+        p, ci, lines = _export_ci_build(c, pid, o166["id"])
     if not p:
         return RedirectResponse("/export/prep", 303)
     import datetime as _dt
     today = _dt.date.today().isoformat()
     return ctx(req, "export_prep_invoice_print.html", user=u,
-               p=p, ci=ci, lines=lines, today=today, pid=pid)
+               p=p, ci=ci, lines=lines, today=today, pid=pid, so166=o166)
 
 
 @app.get("/export/prep/{pid:int}/invoice.xlsx")
-async def export_prep_invoice_xlsx(req: Request, pid: int):
-    """COMMERCIAL INVOICE 엑셀(품목명세 포함). (v5H226z946)"""
+async def export_prep_invoice_xlsx(req: Request, pid: int, so: str = ""):
+    """COMMERCIAL INVOICE 엑셀(품목명세 포함). (v5H226z946) z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        p, ci, lines = _export_ci_build(c, pid)
+        st166, o166, L166 = _z166_pick(c, pid, so)
+        if st166 != "ok":
+            return _z166_pick_page(req, u, c, pid, st166, L166, "invoice.xlsx", so)
+        p, ci, lines = _export_ci_build(c, pid, o166["id"])
     if not p:
         return RedirectResponse("/export/prep", 303)
     try:
@@ -60841,7 +61064,7 @@ async def export_prep_invoice_xlsx(req: Request, pid: int):
         ws.cell(trow, cix).fill = PatternFill("solid", fgColor="F1F5F9")
     buf = io.BytesIO(); wb.save(buf); buf.seek(0)
     from urllib.parse import quote
-    fn = f"COMMERCIAL_INVOICE_{ci['mgmt_code']}.xlsx"
+    fn = f"COMMERCIAL_INVOICE_{ci['mgmt_code']}_{ci.get('so_no') or ''}.xlsx"   # z1191z166: 수주번호
     return StreamingResponse(
         buf, media_type=_XLSX_MIME,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fn)}",
@@ -60857,9 +61080,10 @@ async def export_prep_invoice_xlsx(req: Request, pid: int):
 _EXPORT_QR_BASE = "https://works.knknara.co.kr"  # 스캔용 공개 도메인(LIVE 고정)
 
 
-def _export_ship_boxes(c, pid):
-    """프로젝트의 수출 품목을 박스별로 묶음. (p, pl, lines, box_list) — box_list=[{box,items,qty,weight}]."""
-    p, pl, lines = _export_pl_build(c, pid)
+def _export_ship_boxes(c, pid, so_id=None):
+    """프로젝트의 수출 품목을 박스별로 묶음. (p, pl, lines, box_list) — box_list=[{box,items,qty,weight}].
+    z1191z166: so_id = 그 수주 품목만 · None = 살아 있는 수주 전부(옛 라벨 「?b=박스」 찾기용)."""
+    p, pl, lines = _export_pl_build(c, pid, so_id)
     if not p:
         return None, None, None, None
     boxes = {}
@@ -60872,35 +61096,56 @@ def _export_ship_boxes(c, pid):
     return p, pl, lines, list(boxes.values())
 
 
+def _z166_so_q(so) -> str:
+    """QR 주소에 붙일 수주 번호(숫자만) — 없으면 ''(옛 라벨과 같은 주소)."""
+    raw = str(so or "").strip()
+    return raw if raw.isdigit() else ""
+
+
 @app.get("/export/ship/{pid:int}/qr.svg")
-async def export_ship_qr_svg(req: Request, pid: int, scale: int = 6):
-    """출하 건 QR(SVG) — 스캔하면 그 건의 출고 내용 화면(/export/ship/{pid})으로."""
+async def export_ship_qr_svg(req: Request, pid: int, scale: int = 6, so: str = ""):
+    """출하 건 QR(SVG) — 스캔하면 그 건의 출고 내용 화면(/export/ship/{pid})으로.
+    z1191z166: so 를 주면 그 수주 출고 화면(/export/ship/{pid}?so=…) · 옛 라벨(so 없음)도 그대로 열린다."""
     u = _export_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, status_code=403)
-    svg = _make_qr_svg(f"{_EXPORT_QR_BASE}/export/ship/{pid}", scale=scale)
+    _sq = _z166_so_q(so)
+    svg = _make_qr_svg(f"{_EXPORT_QR_BASE}/export/ship/{pid}" + (f"?so={_sq}" if _sq else ""), scale=scale)
     return Response(content=svg, media_type="image/svg+xml")
 
 
 @app.get("/export/ship/{pid:int}/box-qr.svg")
-async def export_ship_box_qr_svg(req: Request, pid: int, b: str = "", scale: int = 6):
-    """박스 QR(SVG) — 스캔하면 그 박스 내용(/export/ship/{pid}?b=...)으로."""
+async def export_ship_box_qr_svg(req: Request, pid: int, b: str = "", scale: int = 6, so: str = ""):
+    """박스 QR(SVG) — 스캔하면 그 박스 내용(/export/ship/{pid}?b=...)으로.
+    z1191z166: so 를 주면 「?so=…&b=…」(그 수주 품목만) · 옛 라벨 「?b=…」 는 관리번호 전체에서 그 박스를 찾는다."""
     u = _export_guard(req)
     if not u:
         return JSONResponse({"error": "권한 없음"}, status_code=403)
     from urllib.parse import quote as _q
-    svg = _make_qr_svg(f"{_EXPORT_QR_BASE}/export/ship/{pid}?b={_q(b or '')}", scale=scale)
+    _sq = _z166_so_q(so)
+    svg = _make_qr_svg(f"{_EXPORT_QR_BASE}/export/ship/{pid}?" + (f"so={_sq}&" if _sq else "") + f"b={_q(b or '')}", scale=scale)
     return Response(content=svg, media_type="image/svg+xml")
 
 
 @app.get("/export/ship/{pid:int}", response_class=HTMLResponse)
-async def export_ship_view(req: Request, pid: int, b: str = ""):
-    """출하 건 / 박스 내용 조회 (QR 스캔 착지 화면). b 주면 그 박스만."""
+async def export_ship_view(req: Request, pid: int, b: str = "", so: str = ""):
+    """출하 건 / 박스 내용 조회 (QR 스캔 착지 화면). b 주면 그 박스만.
+    z1191z166: so = 그 수주만 · 옛 박스 라벨(so 없이 b 만)은 관리번호 전체에서 그 박스를 찾는다(이미 붙인 라벨 그대로 읽힘) ·
+      so·b 둘 다 없고 수출 수주가 여럿이면 고르기 화면."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/login?next=/export/ship/%d" % pid, 303)
+        _nx = "/export/ship/%d" % pid + (("?" + str(req.url.query)) if req.url.query else "")
+        from urllib.parse import quote as _qn166
+        return RedirectResponse("/login?next=" + _qn166(_nx, safe=""), 303)
+    o166 = None
     with db_session() as c:
-        p, pl, lines, box_list = _export_ship_boxes(c, pid)
+        if (b or "").strip() and not str(so or "").strip():
+            p, pl, lines, box_list = _export_ship_boxes(c, pid)   # 옛 라벨 — 관리번호 전체에서 박스 찾기
+        else:
+            st166, o166, L166 = _z166_pick(c, pid, so)
+            if st166 != "ok":
+                return _z166_pick_page(req, u, c, pid, st166, L166, "ship", so)
+            p, pl, lines, box_list = _export_ship_boxes(c, pid, o166["id"])
     if not p:
         return RedirectResponse("/export/prep", 303)
     sel_box = (b or "").strip()
@@ -60912,21 +61157,24 @@ async def export_ship_view(req: Request, pid: int, b: str = ""):
                 break
     return ctx(req, "export_ship_view.html", user=u, p=p, pl=pl,
                lines=lines, box_list=box_list, sel_box=sel_box, sel_items=sel_items,
-               can_money=bool(can_view_sales(u)))
+               can_money=bool(can_view_sales(u)), so166=o166)
 
 
 @app.get("/export/ship/{pid:int}/qr/print", response_class=HTMLResponse)
-async def export_ship_qr_print(req: Request, pid: int):
-    """출고 QR 라벨 인쇄 — 출하 건 대표 QR(큰) + 박스별 QR 라벨 격자."""
+async def export_ship_qr_print(req: Request, pid: int, so: str = ""):
+    """출고 QR 라벨 인쇄 — 출하 건 대표 QR(큰) + 박스별 QR 라벨 격자. z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
         return RedirectResponse("/home", 303)
     with db_session() as c:
-        p, pl, lines, box_list = _export_ship_boxes(c, pid)
+        st166, o166, L166 = _z166_pick(c, pid, so)
+        if st166 != "ok":
+            return _z166_pick_page(req, u, c, pid, st166, L166, "qr", so)
+        p, pl, lines, box_list = _export_ship_boxes(c, pid, o166["id"])
     if not p:
         return RedirectResponse("/export/prep", 303)
     return ctx(req, "export_ship_qr_print.html", user=u, p=p, pl=pl,
-               box_list=box_list, pid=pid)
+               box_list=box_list, pid=pid, so166=o166)
 
 
 @app.get("/export/orders/new", response_class=HTMLResponse)

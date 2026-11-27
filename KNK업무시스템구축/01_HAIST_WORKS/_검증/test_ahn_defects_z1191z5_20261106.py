@@ -143,7 +143,8 @@ check(OA[1].get("po_type") == "추가" and OA[2].get("po_type") == "개조", "�
 with D.db_session() as c:
     import app.project_workflow as PWF
     r0 = q(PWF.add_followup_order, c, PA["id"], order_date="2026-11-05", total_amount=10, due_date="2026-11-30",
-           created_by=ADMIN["id"], note="", qty=1, model_name="  ", equip_name=None)
+           created_by=ADMIN["id"], note="", qty=1, model_name="  ", equip_name=None,
+           order_customer_id=PA.get("customer_id"))   # z1191z166: 추가 발주 = 1차 고객사 필수
     so_blank = dict(c.execute("SELECT * FROM orders WHERE id=?", (r0["order_id"],)).fetchone())
 check(so_blank.get("model_name") is None and so_blank.get("equip_name") is None, "모델·장비를 비우면 수주에 적지 않음(NULL = 프로젝트 대표값)")
 

@@ -19,11 +19,11 @@
 <main class="main" data-dn="main" data-dn-tone="amber">
   <div class="page-head" data-dn="page-head">
     <div>
-      <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <a href="/export/prep/{{ p.id }}">{{ p.mgmt_code|default('—') }}</a>{% if sel_box %} · <b>{{ sel_box }}</b>{% endif %}</div>
+      <div class="crumbs" data-dn="crumb">{% set _q166 = ('so=' ~ so166.id ~ '&') if so166|default(none) else '' %}<a href="/export/prep">출하 전 수출 정리</a> · <a href="/export/prep/{{ p.id }}">{{ p.mgmt_code|default('—') }}</a>{% if pl.so_no %} · 수주 <b>{{ pl.so_no }}</b>{% endif %}{% if sel_box %} · <b>{{ sel_box }}</b>{% endif %}</div>
       <h1 class="page-title" data-dn="title">📦 출고 {% if sel_box %}<em>{{ sel_box }}</em>{% else %}<em>내용</em>{% endif %}</h1>
-      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{{ p.name }} · {% set _s165 = z165_so(p.id) %}{# z1191z165: 고객사·통화 = 수주마다 #}고객사 <span title="수주별 1차 고객사: {{ _s165.cust_all or '—' }}">{{ _s165.cust_txt or '—' }}</span> · 통화 {{ (_s165.currencies|join(' · ')) if _s165.currencies else '—' }}{% if _s165.custs|length > 1 %} · <span style="color:#b45309;">수주별 고객 {{ _s165.custs|join(' · ') }}</span>{% endif %}{% if _s165.n_cancelled %} · <span style="color:#64748b;">취소 수주 {{ _s165.n_cancelled }}건 숨김</span>{% endif %}</div>
+      <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">{{ p.name }} · {% set _s165 = z165_so(p.id, [so166.id] if so166|default(none) else none) %}{# z1191z165: 고객사·통화 = 수주마다 #}고객사 <span title="수주별 1차 고객사: {{ _s165.cust_all or '—' }}">{{ _s165.cust_txt or '—' }}</span> · 통화 {{ (_s165.currencies|join(' · ')) if _s165.currencies else '—' }}{% if _s165.custs|length > 1 %} · <span style="color:#b45309;">수주별 고객 {{ _s165.custs|join(' · ') }}</span>{% endif %}{% if _s165.n_cancelled %} · <span style="color:#64748b;">취소 수주 {{ _s165.n_cancelled }}건 숨김</span>{% endif %}</div>
     </div>
-    <a class="btn" href="/export/ship/{{ p.id }}/qr/print" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">🏷 QR 라벨 인쇄</a>
+    <a class="btn" href="/export/ship/{{ p.id }}/qr/print{% if so166|default(none) %}?so={{ so166.id }}{% endif %}" target="_blank" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">🏷 QR 라벨 인쇄</a>
   </div>
 
   {% if sel_box and sel_items %}
@@ -48,9 +48,9 @@
       </tbody>
     </table>
   </div>
-  <div style="margin-top:6px;"><a href="/export/ship/{{ p.id }}" style="color:#1d4ed8;font-weight:700;text-decoration:none;">← 출하 건 전체 보기</a></div>
+  <div style="margin-top:6px;"><a href="/export/ship/{{ p.id }}{% if so166|default(none) %}?so={{ so166.id }}{% endif %}" style="color:#1d4ed8;font-weight:700;text-decoration:none;">← 출하 건 전체 보기</a>{% if not so166|default(none) %} <span style="font-size:11.5px;color:var(--mute);">(옛 라벨 — 관리번호 전체에서 이 박스를 찾았습니다)</span>{% endif %}</div>
   {% elif sel_box %}
-  <div class="sv-card" style="text-align:center;color:var(--mute);">박스 '{{ sel_box }}' 를 찾지 못했습니다. <a href="/export/ship/{{ p.id }}">전체 보기</a></div>
+  <div class="sv-card" style="text-align:center;color:var(--mute);">박스 '{{ sel_box }}' 를 찾지 못했습니다. <a href="/export/ship/{{ p.id }}{% if so166|default(none) %}?so={{ so166.id }}{% endif %}">전체 보기</a></div>
   {% else %}
   {# 출하 건 전체 #}
   <div class="sv-card">
@@ -65,7 +65,7 @@
   <div class="sv-card">
     <div style="font-weight:800;font-size:13.5px;margin-bottom:9px;">📦 박스 목록 <span style="font-weight:500;color:var(--mute);font-size:12px;">(누르면 그 박스 내용)</span></div>
     {% for g in box_list %}
-      <a class="sv-box" href="/export/ship/{{ p.id }}?b={{ g.box|urlencode }}">
+      <a class="sv-box" href="/export/ship/{{ p.id }}?{{ _q166 }}b={{ g.box|urlencode }}">
         <span class="bn">{{ g.box }}</span>
         <span style="font-size:12.5px;color:var(--mute);">품목 {{ g['items']|length }} · 수량 {{ '{:,.0f}'.format(g.qty) }} · {{ '{:,.2f}'.format(g.weight) }}kg</span>
       </a>

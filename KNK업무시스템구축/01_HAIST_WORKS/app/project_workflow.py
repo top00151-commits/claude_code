@@ -266,7 +266,8 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
                         is_export: int | None = None,   # z1186: 이 수주의 거래구분(0 내수·1 수출) — None=예전처럼 프로젝트 값 상속
                         model_name: str | None = None,   # z1191z5: 이 수주의 모델명(안지연 프로 신고 ② — 추가 발주 때 적은 값이 버려졌다)
                         equip_name: str | None = None,   # z1191z5: 이 수주의 장비명(비우면 안 적음 = 프로젝트 대표값)
-                        end_customer: str | None = None) -> dict:   # z1190: 이 수주의 2차 발주처(최종 고객) — None=미지정
+                        end_customer: str | None = None,   # z1190: 이 수주의 2차 발주처(최종 고객) — None=미지정
+                        customer_required: bool = True) -> dict:   # z1191z166: 1차 고객사 필수(없으면 저장 안 함)
     """추가 발주 — 동일 관리번호로 신규 SO만 발행 (KNK 표준).
 
     v5H131: qty 파라미터 추가 (1~100). N대 일괄 등록 시 N개 호기 라인 자동 생성.
@@ -334,11 +335,16 @@ def add_followup_order(c, project_id: int, order_date: str | None = None,
     if not mgmt_code:
         return {"ok": False,
                 "message": "관리번호가 발급되지 않은 프로젝트입니다. 먼저 '수주 확정'을 실행하세요."}
-    customer_id = proj.get("customer_id")
-    # v5H226z202 (대표 지시): 한 프로젝트에 발주처(구매대행사) 여러 곳 가능 →
-    #   호출자가 발주처를 지정하면 그 SO의 customer_id 로 사용(프로젝트 고객 상속 대신).
-    if order_customer_id is not None:
-        customer_id = order_customer_id
+    # z1191z166 (대표 11-27): 1차 고객사(세금계산서 받는 곳) = 부르는 쪽이 고른 번호만.
+    #   예전엔 지정이 없으면 관리번호 처음 등록 때 고객(projects.customer_id)을 그 수주에 넣었다 — 수주마다 고객이 다른
+    #   관리번호에서 엉뚱한 고객으로 세금계산서·매출이 잡혀 없앴다. 고객이 없으면 저장하지 않는다.
+    #   (customer_required=False 는 같은 등록 화면에서 고른 고객을 그대로 넘기는 「새 관리번호의 추가 품목」만 — 그 화면 고객이 미등록이면 첫 수주처럼 빈칸)
+    customer_id = order_customer_id
+    if customer_id in (None, "", 0) and customer_required:
+        return {"ok": False, "need_customer": True,
+                "message": "👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다 (저장하지 않았습니다)"}
+    if customer_id in ("", 0):
+        customer_id = None
     biz_div = proj.get("biz_div") or "T"
 
     if order_date:

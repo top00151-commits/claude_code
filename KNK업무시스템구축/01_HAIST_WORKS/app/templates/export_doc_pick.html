@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>수출 서류 — 수주 고르기 · {{ p.mgmt_code|default('') }}</title>
+{# z1191z166 (대표 11-27 「수출 서류는 수주(구매자)별로」): 수출 수주가 2개 이상인 관리번호에서 so 없이 서류를 열면 섞어 만들지 않고 이 화면.
+   수주번호·구매자·통화·금액·품목 수·납기 · 줄마다 PL / CI / 엑셀 단추 · 내수 수주는 회색 「내수 — 수출 서류 없음」 · 관리번호는 늘 함께. 읽기만. #}
+<style>
+* { box-sizing:border-box; }
+body { margin:0; font-family:"Malgun Gothic","Noto Sans KR",-apple-system,sans-serif; color:#0f172a; background:#f1f5f9; font-size:13px; }
+.wrap { padding:18px 16px 40px; }   /* 표준: 화면 폭 꽉(시트여백) */
+.top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+h1 { font-size:18px; margin:0 0 4px; }
+.sub { color:#475569; font-size:12.5px; }
+.card { background:#fff; border:1px solid #e2e8f0; border-radius:11px; padding:14px 16px; margin-top:12px; }
+.msg { padding:9px 13px; border-radius:9px; font-size:12.5px; margin-top:10px; }
+.msg.todo { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+.msg.bad { background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c; }
+.tbl-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:12.5px; }
+th, td { border-bottom:1px solid #e2e8f0; padding:8px 9px; text-align:left; vertical-align:middle; }
+th { background:#f8fafc; font-size:11.5px; color:#475569; white-space:nowrap; }
+td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+tr.dom td { color:#94a3b8; background:#fafafa; }
+.so { font-family:ui-monospace,Consolas,monospace; font-weight:800; }
+.btns { display:flex; gap:4px; flex-wrap:wrap; }
+.btns a { display:inline-block; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; text-decoration:none; border:1px solid; white-space:nowrap; }
+.b-pl { background:#0f172a; color:#fff; border-color:#0f172a; }
+.b-ci { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.b-x  { background:#fff; color:#047857; border-color:#047857; }
+.b-vn { background:#b91c1c; color:#fff; border-color:#b91c1c; }
+.b-qr { background:#fff; color:#1d4ed8; border-color:#1d4ed8; }
+.btns a.want { outline:3px solid #fbbf24; outline-offset:1px; }
+.gray { color:#94a3b8; font-size:12px; }
+.back { display:inline-block; padding:6px 14px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px; font-size:13px; font-weight:700; text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>📄 수출 서류 — 어느 수주의 서류인지 골라 주세요</h1>
+      <div class="sub">관리번호 <b>{{ p.mgmt_code|default('—') }}</b> · {{ p.name }} · 수출 서류(패킹리스트·인보이스·신고용 파일·출고 QR)는 <b>수주(구매자)마다 따로</b> 만듭니다.</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <a class="back" href="/export/prep/{{ p.id }}">← 통관 입력</a>
+      {% set close_fallback = '/export/prep/' ~ p.id %}{% include "_v5_partials/knk_close_btn.html" %}
+    </div>
+  </div>
+
+  {% from "_v5_partials/step_z156.html" import z156_steps %}
+  {{ z156_steps('z166flow', ['수주 고르기', '서류 열기(PL·CI·엑셀)', '인쇄·보내기'], 1,
+                ('⚠ 이 관리번호에는 살아 있는 수주가 없습니다 — 수주를 먼저 확인하세요' if state == 'none' else '👉 지금 하실 일 — 아래 표에서 서류를 만들 수주 줄의 단추를 누르세요')) }}
+
+  {% if state == 'domestic' %}
+  <div class="msg todo">👉 고른 수주는 <b>내수</b>라 수출 서류가 없습니다 — 아래에서 수출 수주를 골라 주세요.</div>
+  {% elif state == 'bad' %}
+  <div class="msg bad">⚠ 주소의 수주({{ so_bad }})는 이 관리번호의 살아 있는 수주가 아닙니다(취소됐거나 다른 관리번호) — 아래에서 다시 골라 주세요.</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>수주번호</th><th>구매자(1차 고객)</th><th>통화</th><th class="num">수주 금액</th><th class="num">품목 수</th>
+        <th>발주일</th><th>납기</th><th>거래구분</th><th>서류</th>
+      </tr></thead>
+      <tbody>
+      {% for o in L.orders %}
+        <tr class="{% if not o.doc %}dom{% endif %}">
+          <td><span class="so">{{ o.order_no or ('SO' ~ o.id) }}</span><div class="gray">{{ p.mgmt_code|default('') }}</div></td>
+          <td>{% if o.customer_id %}<b>{{ o.cust or o.buyer }}</b>{% if o.buyer and o.buyer != o.cust %}<div class="gray">{{ o.buyer }}</div>{% endif %}{% else %}<span style="color:#b45309;font-weight:700;">⚠ 1차 고객 미정 — 수주 칸 확인 필요</span>{% endif %}</td>
+          <td><b>{{ o.currency }}</b></td>
+          <td class="num">{% if can_money %}{{ money(o.total_amount, o.currency) }}{% else %}<span class="gray" title="매출 금액 열람 권한이 있는 분만 보입니다">—</span>{% endif %}</td>
+          <td class="num">{{ o.n_items }}</td>
+          <td>{{ o.order_date or '—' }}</td>
+          <td>{{ o.due_date or '—' }}</td>
+          <td>{{ o.trade or '미기재' }}{% if o.why %}<div class="gray">{{ o.why }}</div>{% endif %}</td>
+          <td>
+            {% if o.doc %}
+            <div class="btns">
+              <a class="b-pl{% if want == 'packing-list' %} want{% endif %}" href="/export/prep/{{ p.id }}/packing-list?so={{ o.id }}" target="_blank">📦 PL</a>
+              <a class="b-x{% if want == 'packing-list.xlsx' %} want{% endif %}" href="/export/prep/{{ p.id }}/packing-list.xlsx?so={{ o.id }}">PL 엑셀</a>
+              <a class="b-ci{% if want == 'invoice' %} want{% endif %}" href="/export/prep/{{ p.id }}/invoice?so={{ o.id }}" target="_blank">🧾 CI</a>
+              <a class="b-x{% if want == 'invoice.xlsx' %} want{% endif %}" href="/export/prep/{{ p.id }}/invoice.xlsx?so={{ o.id }}">CI 엑셀</a>
+              <a class="b-vn{% if want == 'invoice-pl' %} want{% endif %}" href="/export/prep/{{ p.id }}/invoice-pl.xlsx?so={{ o.id }}">📄 신고용</a>
+              <a class="b-qr{% if want in ('qr', 'ship') %} want{% endif %}" href="/export/ship/{{ p.id }}/qr/print?so={{ o.id }}" target="_blank">🏷 QR</a>
+              <a class="b-qr{% if want == 'ship' %} want{% endif %}" href="/export/ship/{{ p.id }}?so={{ o.id }}">출고 보기</a>
+            </div>
+            {% else %}
+            <span class="gray">내수 — 수출 서류 없음</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="gray">살아 있는 수주가 없습니다.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if L.n_cancelled %}<div class="gray" style="margin-top:8px;">취소된 수주 {{ L.n_cancelled }}건은 목록·서류에서 뺐습니다.</div>{% endif %}
+  </div>
+</div>
+</body>
+</html>

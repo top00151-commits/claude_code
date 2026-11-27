@@ -43,10 +43,12 @@ body { font-family: "Malgun Gothic", "Noto Sans KR", -apple-system, sans-serif; 
 <body>
 <div class="actions">
   <button class="print-btn" onclick="window.print()">🖨 인쇄 / Print</button>
-  <a class="xlsx-btn" href="/export/prep/{{ pid }}/packing-list.xlsx">📥 엑셀</a>
+  {% set _q166 = ('?so=' ~ so166.id) if so166|default(none) else '' %}{# z1191z166: 수주별 서류 #}
+  <a class="xlsx-btn" href="/export/prep/{{ pid }}/packing-list.xlsx{{ _q166 }}">📥 엑셀</a>
   <a class="back-btn" href="/export/prep/{{ pid }}">← 돌아가기</a>
   {# z1191z149: 새 탭으로 열린 인쇄 화면 = 창 닫기 #}{% set close_fallback = '/export/prep/' ~ pid %}{% include "_v5_partials/knk_close_btn.html" %}
 </div>
+{% if so166|default(none) %}<div class="actions" style="display:block;margin-top:6px;padding:7px 12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:8px;color:#3730a3;font-size:12.5px;text-align:left;">📄 수주 <b>{{ pl.so_no }}</b> 의 패킹리스트입니다 (관리번호 {{ pl.mgmt_code }}){% if so166.n_doc > 1 %} · 이 관리번호의 다른 수출 수주 {{ so166.n_doc - 1 }}건은 따로 만듭니다 — <a href="/export/prep/{{ pid }}/packing-list" style="color:#3730a3;font-weight:700;">다른 수주 고르기</a>{% endif %}</div>{% endif %}
 {% if pl.warn165 %}{# z1191z165: 취소 수주 뺌·고객 미정 수주 알림(인쇄에는 안 나옴) #}
 <div class="actions" style="display:block;margin-top:6px;padding:8px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#92400e;font-size:12.5px;">⚠ 확인 — {{ pl.warn165|join(' · ') }}</div>
 {% endif %}
