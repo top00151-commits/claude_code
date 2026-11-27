@@ -202,9 +202,9 @@ check("5분 안엔 다시 안 함(잠김 기록 쏟아짐 방지)", "_old" not i
 with _db.db_session() as _c:   # 5분 지난 것처럼 → 열린 묶음 없는 연결에서 지움 · 확정
     _mfo._OLD_TRY[0] = 0
     _mfo.ensure_count_indexes(_c)
-    _ix = sorted(x[0] for x in _c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_mail_cover','idx_mail_cov_d','idx_mail_cov_x','idx_mail_fdpin')").fetchall())
+    _ix = sorted(x[0] for x in _c.execute("SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_mail_cover','idx_mail_cov_d','idx_mail_cov_d2','idx_mail_cov_x','idx_mail_fdpin')").fetchall())
     _pl = " / ".join(r[3] for r in _c.execute("EXPLAIN QUERY PLAN SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=0 AND COALESCE(snooze_until,'')<>''", (1,)).fetchall())
-check("세기 색인 셋(idx_mail_cov_d · idx_mail_cov_x · idx_mail_fdpin) · 1차 idx_mail_cover 는 지움", _ix == ["idx_mail_cov_d", "idx_mail_cov_x", "idx_mail_fdpin"], _ix)
+check("세기 색인 셋(idx_mail_cov_d2 · idx_mail_cov_x · idx_mail_fdpin) · 1차 idx_mail_cover·11-27 전 idx_mail_cov_d 는 지움", _ix == ["idx_mail_cov_d2", "idx_mail_cov_x", "idx_mail_fdpin"], _ix)
 check("다시 알림 세기 = 덮는 색인만 봄(본문 안 읽음)", "COVERING INDEX" in _pl, _pl)
 
 

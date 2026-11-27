@@ -661,6 +661,12 @@
 
   {# ── 3분할 본문 ── #}
   <div class="mbx-split{{ ' has-lh' if box=='in' else ' np' }}">
+    {# 11-27 「페이지가 열릴 때 느려」 — 촘촘한 줄(dense · 이 컴퓨터 기억 · 고른 적 없으면 촘촘)을 목록 줄을 읽기 **전에** 붙임.
+       전에는 화면 끝의 보기 방식(apply)이 다 읽은 뒤 붙여 목록 200줄을 한 번 더 계산했음(CPU 느린 PC 에서 0.2~0.3초).
+       규칙은 apply 와 같음(900px 이하 = 안 붙임) · apply 는 그대로 다시 돌아 같은 값이면 아무것도 안 바꿈 #}
+    <script>(function(){ var me=document.currentScript; try{ var s=me.parentNode;
+      if(!window.matchMedia('(max-width:900px)').matches){ var d=''; try{ d=localStorage.getItem('knkmail.dense')||''; }catch(e){}
+        if(d!=='normal') s.classList.add('dense'); } }catch(e){} try{ me.remove(); }catch(e){} })();</script>
 
     {# 좌: 메일함 + 분류 + 거래처 폴더 + 보기 (대표 지시: 분류 폴더 왼쪽) #}
     <nav class="mbx-side" aria-label="메일함·폴더">

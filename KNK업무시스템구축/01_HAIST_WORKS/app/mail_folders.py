@@ -759,11 +759,14 @@ COUNT_INDEXES = (
     # 읽으려고 메일마다 본문까지 읽던 것을 색인만 보고 끝나게(덮는 색인). 받은 메일(direction)로 거르는 질의와
     # 지운 것(is_deleted)으로만 거르는 질의가 둘 다 있어 앞 칸 순서가 다른 둘.
     # 4만 통 가짜 자료 실측: 메일 열기 2,238 → 196ms(1차) · 목록은 아래 기록 참고.
-    ("idx_mail_cov_d", "CREATE INDEX IF NOT EXISTS idx_mail_cov_d ON mail_messages(user_id, direction, is_deleted, " + _COVER_COLS + ")"),
+    # 11-27 대표 「페이지가 열릴 때 너무 느려」 — 새 메일이 오면 폴더 나누기를 다시 하는데, 그 질의가 「받은 때 부서」(fd_team)
+    #   칸만 색인에 없어 메일마다 본문 뒤까지 읽었음 → 끝에 fd_team 을 더한 새 색인(cov_d2)으로 바꿈(옛 cov_d 는 새 것이 생긴 뒤 지움).
+    #   2.6만 통 가짜 자료 실측: 그 질의 164 → 51ms · 새 메일 뒤 받은편지함 922 → (기록 참고) · 만드는 시간 0.8초.
+    ("idx_mail_cov_d2", "CREATE INDEX IF NOT EXISTS idx_mail_cov_d2 ON mail_messages(user_id, direction, is_deleted, " + _COVER_COLS + ", fd_team)"),
     ("idx_mail_cov_x", "CREATE INDEX IF NOT EXISTS idx_mail_cov_x ON mail_messages(user_id, is_deleted, direction, " + _COVER_COLS + ")"),
     ("idx_mail_fdpin", "CREATE INDEX IF NOT EXISTS idx_mail_fdpin ON mail_messages(user_id, fd_pin)"),
 )
-_OLD_COUNT_INDEXES = ("idx_mail_cover",)   # 11-26 1차(칸이 모자람) → 새 둘이 생긴 뒤 지움(같은 일을 두 번 저장하지 않게)
+_OLD_COUNT_INDEXES = ("idx_mail_cover", "idx_mail_cov_d")   # 11-26 1차(칸이 모자람) · 11-27 cov_d(→cov_d2) → 새 것이 생긴 뒤 지움(같은 일을 두 번 저장하지 않게)
 _COUNT_IDX_OK = set()
 _OLD_TRY = [0.0]
 

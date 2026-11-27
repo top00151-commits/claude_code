@@ -3024,6 +3024,24 @@ def mail_ai_enabled_for(user) -> bool:
     return True
 
 
+def _ctx_groupware_settings() -> dict:
+    """ctx 의 그룹웨어 주소 3가지 — 새 키(groupware_*) 먼저, 비었으면 옛 키(hiworks_*), 둘 다 없으면 빈 값(get_setting 과 같은 규칙).
+    11-27: 한 번에 읽음(DB 한 번 열기). 읽기 실패면 get_setting 처럼 빈 값."""
+    keys = ("groupware_approval_url", "hiworks_approval_url", "groupware_mail_url", "hiworks_mail_url",
+            "groupware_domain", "hiworks_domain")
+    import sqlite3 as _sq3
+    vals = {}
+    try:
+        with db_session() as _gc:
+            for r in _gc.execute("SELECT key, value FROM app_settings WHERE key IN (%s)" % ",".join("?" * len(keys)), keys).fetchall():
+                if r["value"] is not None:
+                    vals[r["key"]] = r["value"]
+    except _sq3.OperationalError:
+        vals = {}
+    return {k: (vals.get("groupware_" + k, "") or vals.get("hiworks_" + k, "") or "").strip()
+            for k in ("approval_url", "mail_url", "domain")}
+
+
 def ctx(request, name, **kwargs):
     # 사용자 언어 결정
     user = kwargs.get("user")
@@ -3048,6 +3066,9 @@ def ctx(request, name, **kwargs):
 
     _today_iso = fake_today_iso(request)   # v5H226z849 (대표 지시): 항상 실제 today (테스트 날짜 변경 기능 제거)
 
+    # 11-27 (메일 「페이지 열릴 때 느려」) 그룹웨어 주소 6칸을 한 번에 읽음 — 전에는 칸마다 DB 를 새로 열어 12번(화면마다 약 40ms).
+    #   값·우선순위는 그대로(새 키 → 옛 hiworks 키 → 빈 값).
+    _gw = _ctx_groupware_settings()
     base = {
         "categories": CATEGORIES,
         "statuses": STATUSES,
@@ -3069,13 +3090,13 @@ def ctx(request, name, **kwargs):
         # 외부 그룹웨어 URL (admin 설정에서 변경 가능)
         # v5H226z110 (2026-05-30): hiworks_* → groupware_* 키 전환, 하드코딩 제거
         # 구 키 fallback 유지 (마이그레이션 호환)
-        "groupware_approval_url": (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip(),
-        "groupware_mail_url":     (get_setting("groupware_mail_url",     "") or get_setting("hiworks_mail_url",     "") or "").strip(),
-        "groupware_domain":       (get_setting("groupware_domain",       "") or get_setting("hiworks_domain",       "") or "").strip(),
+        "groupware_approval_url": _gw["approval_url"],
+        "groupware_mail_url":     _gw["mail_url"],
+        "groupware_domain":       _gw["domain"],
         # 구 변수명도 임시 유지 (템플릿 호환, 추후 deprecate)
-        "hiworks_approval_url": (get_setting("groupware_approval_url", "") or get_setting("hiworks_approval_url", "") or "").strip(),
-        "hiworks_mail_url":     (get_setting("groupware_mail_url",     "") or get_setting("hiworks_mail_url",     "") or "").strip(),
-        "hiworks_domain":       (get_setting("groupware_domain",       "") or get_setting("hiworks_domain",       "") or "").strip(),
+        "hiworks_approval_url": _gw["approval_url"],
+        "hiworks_mail_url":     _gw["mail_url"],
+        "hiworks_domain":       _gw["domain"],
         # Victor 도크 맥락 칩 (제안 #08)
         "victor_chips":         _victor_chips_for_path(str(request.url.path) if hasattr(request, "url") else ""),
         # C안 v2 §2-4 — 워크스페이스 스위처 (uppercase + lowercase 양쪽 노출)
@@ -25054,10 +25075,12 @@ def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unr
                 except Exception:
                     pass
         unread_n = _mail_unread(c, u["id"])
-        cat_counts = _mailbox.category_counts(c, u["id"])
+        # 11-27 「페이지가 열릴 때 느려」 — 분류별 숫자(category_counts)는 화면 어디에도 안 쓰여 세지 않음(2.6만 통 70ms 아낌)
+        cat_counts = {}
         drafts_n = _mailbox.count_drafts(c, u["id"])
         # C1 거래처 폴더 — 보낸사람→연락처→거래처 매핑 집계(전체·거래처별·미분류). 매핑은 이메일 정확일치만.
-        folders = _mailbox.customer_folder_counts(c, u["id"])
+        #   11-27: 폴더 나무(mf)가 있으면 화면은 「거래처 폴더」 줄을 안 그리고 전체 통수만 씀 → 그것만 셈
+        folders = _mailbox.customer_folder_counts(c, u["id"], total_only=bool(mf))
     # B1 대화 묶기: 같은 제목(RE/FW 접두 제거) 받은 메일을 한 대화로(기본 ON). thread=0 이면 평면 목록.
     thread_on = bool(thread)
     threads = _mailbox.group_threads(mails) if thread_on else None

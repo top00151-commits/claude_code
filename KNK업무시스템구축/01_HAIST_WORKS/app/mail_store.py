@@ -1163,6 +1163,14 @@ def list_inbox(c, user_id: int, *, category: str = "", q: str = "",
     _order = ("flag_due ASC, received_at DESC, id DESC" if flagged else
               ("CASE WHEN COALESCE(snooze_until,'')<>'' THEN 0 ELSE 1 END, snooze_until ASC, snooze_back DESC, id DESC" if snoozed
                else "received_at DESC, id DESC"))
+    # 11-27 대표 「폴더를 누르면 느려」 — 폴더(fd_keys·senders)는 거르는 칸이 모두 덮는 색인(idx_mail_cov_*)에 있어
+    #   그 색인만 보고 이 쪽 번호(200통)를 먼저 고른 뒤 그 번호의 줄만 읽는다. 전에는 받은 때 순서로 메일 줄을 하나씩
+    #   (본문 뒤 칸까지) 읽으며 폴더 것을 찾아 폴더가 작을수록 메일함 전체를 읽었음(2.6만 통 가짜 자료 192 → 15ms).
+    #   고른 메일·순서는 같다(같은 조건 · 같은 정렬 · 번호가 끝 기준이라 순서가 하나로 정해짐).
+    if fd_keys is not None or senders is not None:
+        where = ("id IN (SELECT id FROM mail_messages WHERE " + where + " ORDER BY " + _order + " LIMIT ? OFFSET ?)")
+        args = [*args, limit, offset]
+        limit, offset = -1, 0
     rows = c.execute(
         f"""SELECT id, direction, from_email, from_name, to_email, cc, subject, category, lang,
                    is_read, is_starred, received_at, COALESCE(risk_level,0) AS risk_level,
@@ -1508,15 +1516,19 @@ def group_threads(mails: list) -> list:
     return [groups[k] for k in order]
 
 
-def customer_folder_counts(c, user_id: int) -> dict:
+def customer_folder_counts(c, user_id: int, total_only: bool = False) -> dict:
     """받은편지함을 보낸사람→연락처→거래처 매핑으로 거래처별 집계 (C1 폴더, 2026-06-14).
     매핑 ① 이메일 '정확일치(소문자)' ② (2026-11-17) 정확일치가 없으면 같은 회사 주소(@ 뒤)가 한 거래처만 가리킬 때
     — 둘 이상이면 묶지 않음(추측 금지 [[feedback-data-connectivity]]). 미매핑=미분류. 목록 거르기(list_inbox cust=)와 같은 규칙.
-    반환: {total, total_unread, unclassified, unclassified_unread, customers:[{id,name,cnt,unread,by_domain}]}."""
+    반환: {total, total_unread, unclassified, unclassified_unread, customers:[{id,name,cnt,unread,by_domain}]}.
+    (11-27) total_only = 전체 통수만(받은편지함에 폴더 나무가 있으면 화면이 「거래처 폴더」 줄을 안 그려 total 만 씀 — 거래처별 셈 생략)."""
     tot = c.execute(
         "SELECT COUNT(*) AS n, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) AS u "
         "FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0",
         (user_id,)).fetchone()
+    if total_only:
+        return {"total": (tot["n"] or 0) if tot else 0, "total_unread": (tot["u"] or 0) if tot else 0,
+                "unclassified": 0, "unclassified_unread": 0, "customers": [], "total_only": True}
     exact, dom_map = {}, {}
     try:
         for r in c.execute("SELECT lower(email) AS e, customer_id AS cid FROM shared_contacts "
