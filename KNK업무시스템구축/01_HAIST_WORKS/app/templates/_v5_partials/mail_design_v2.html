@@ -211,6 +211,8 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
     d.querySelectorAll('button').forEach(function(b){ if(b.getAttribute('data-d')===cur) b.classList.add('on');
       b.onclick=function(){ try{ localStorage.setItem('knkmail.design', b.getAttribute('data-d')); }catch(e){} location.reload(); }; });
     document.body.appendChild(d); }
+  // 11-27 대표 「깜빡임으로 멀미」 — 그림 문자→아이콘 바꾸기를 화면을 그리기 전에(본문 끝 인라인에서 부름) · 아래 DOMContentLoaded 는 남은 것만(두 번 해도 같음)
+  window.mdScanNow=function(){ try{ scan(document.body); }catch(e){} };
   document.addEventListener('DOMContentLoaded', function(){ sw(); scan(document.body);
     if(!on()) return; var q=[], busy=false;
     new MutationObserver(function(ms){ ms.forEach(function(m){ m.addedNodes.forEach(function(x){ q.push(x); }); });

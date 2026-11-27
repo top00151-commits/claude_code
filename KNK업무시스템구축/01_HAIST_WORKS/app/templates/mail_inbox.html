@@ -8,10 +8,12 @@
   @view-transition{ navigation:auto; }
   .mbx-side{ view-transition-name:mbx-side; }
   .mail-app-top{ view-transition-name:mail-top; }
-  ::view-transition-old(root),::view-transition-new(root){ animation-duration:.14s; }
+  /* 대표 「꿀렁·깜빡임으로 멀미 나」 — 겹치기 움직임도 없이: 새 화면이 다 그려질 때까지 옛 화면을 그대로 두었다가 한 번에 바꿈 */
+  ::view-transition-old(root),::view-transition-new(root){ animation:none; }
   ::view-transition-old(mbx-side),::view-transition-new(mbx-side),::view-transition-old(mail-top),::view-transition-new(mail-top){ animation:none; }
-  @media (prefers-reduced-motion:reduce){ ::view-transition-old(root),::view-transition-new(root){ animation:none; } }
 </style>
+{# 화면을 끝까지 읽고(아이콘 바꾸기 포함) 나서 한 번에 보이기 — 반쯤 그린 화면·아이콘 바뀌는 깜빡임 없이 #}
+<link rel="expect" href="#mbxPaintReady" blocking="render">
 <style>
   /* ── 전체화면 메일 클라이언트 레이아웃 (대표 지시 2026-06-14: 메뉴 상단·폴더 좌측·경계 드래그) ── */
   .app .main{padding:8px 10px}
@@ -1986,4 +1988,5 @@ function mbxVacHide(){
 })();
 </script>
 {% include "_v5_partials/mail_keep_pos.html" %}
+<div id="mbxPaintReady" hidden></div><script>window.mdScanNow && window.mdScanNow();</script>
 </body></html>
