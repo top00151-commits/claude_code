@@ -133,3 +133,5 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
   @media(max-width:640px){ .mt-cards{ grid-template-columns:1fr; } .mt-pv{ height:60px; } }
 </style>
 {% if mail_design_preview|default(false) %}{% include "_v5_partials/mail_design_v2.html" %}{% endif %}
+{# 11-27 🔆 글자 또렷하게(이음 v1039·v1040 기준을 메일에) — 새 디자인 다음에 와서 덮음 #}
+{% include "_v5_partials/mail_contrast.html" %}

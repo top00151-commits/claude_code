@@ -1,0 +1,86 @@
+{# 🔆 메일 화면 글자 또렷하게 — 11-27 대표 「V1040, V1039 이 두가지를 세션15 메일에 적용」(이음 v1039 다크 · v1040 모든 테마 흐린 글자 네 곳과 같은 방법)
+   기준: 글자 명암비 4.5:1 이상(큰 글자 3:1) — 메일 시험 서버 화면을 테마 셋(밝게·부드럽게·어둡게) × PC 1280·892 · 휴대폰 390 으로 띄워 픽셀 바탕으로 재서 정한 값(이음 값 복사 아님)
+   바꾸는 것 = 흐린 글자색 · 숫자 원 바탕 · 투명도 · 밝은 상자 안 글자색 · 흐린 보조 글자 토큰(--mt-mute) · 입력 안내 글자
+   안 바꾸는 것 = 바탕·면·선 토큰 · 배치 · 기능 · 받은 메일 본문(#mvFrame 안 · 보낸 사람이 정한 색)
+   이 조각은 mail_theme.html 맨 끝(새 디자인 v2 다음)에 들어와 같은 무게의 규칙을 덮는다. #}
+<style>
+  /* ── v1040 ③ 흐린 보조 글자·입력 안내 글자(테마마다 따로 잼) ── */
+  /* 밝게: 보조 글자 #6b7380 → #5f6774 (흰 면 4.8→5.7 · 고른 줄 #e9eef7 4.1→4.9 · 옆 칸 #f7f8fa 4.5→5.4) */
+  html[data-md="v2"][data-mt="clear"]{ --mt-mute:#5f6774; }
+  /* 입력 안내 글자: 웍스 공용 #c3bdaf(밝게 흰 칸 1.9 · 부드럽게 1.5) → 테마 보조 글자색 */
+  html[data-mt="clear"] input::placeholder, html[data-mt="clear"] textarea::placeholder,
+  html[data-mt="clear"] input::-webkit-input-placeholder, html[data-mt="clear"] textarea::-webkit-input-placeholder{ color:#5f6774 !important; opacity:1; }
+  html[data-mt="soft"] input::placeholder, html[data-mt="soft"] textarea::placeholder,
+  html[data-mt="soft"] input::-webkit-input-placeholder, html[data-mt="soft"] textarea::-webkit-input-placeholder{ color:#465365 !important; opacity:1; }
+
+  /* ── v1040 ④ 투명도로 흐리게 둔 글자 ── */
+  /* 머리띠 단추 전체 투명도 .92 → 안 읽은 수(파랑·빨강 원) 4.1·4.0 → 1(5.2·4.8) */
+  html[data-mt] .mail-app-top a{ opacity:1; }
+  /* 폴더 옆 메일 수 투명도 .6(2.2~3.3) → 1 · 색은 보조 글자 */
+  html[data-mt] .mbx-fold .cnt, html[data-mt] .mbx-fold.on .cnt{ opacity:1; color:var(--mt-mute) !important; }
+
+  /* 「오늘 챙길 메일」 0건 칩 투명도 .45(2.0~2.4) → 1 · 색은 보조 글자(0 이라는 정보도 읽혀야 함) */
+  html[data-mt] .mbx-day-i.zero{ opacity:1; color:var(--mt-mute); }
+
+  /* ── v1040 ② 노랑·주황 글자(밝은 테마) ── */
+  /* 「보내기 설정(발송망) 아직 안 돼 있어」 — 웍스 --amber-deep #b8843a(밝게 3.0 · 부드럽게 2.1) */
+  html[data-mt="clear"] [style*="--amber-deep"], html[data-mt="clear"] [style*="--amber-deep"] b{ color:#92400e !important; }
+  html[data-mt="soft"] [style*="--amber-deep"], html[data-mt="soft"] [style*="--amber-deep"] b{ color:#7c3d06 !important; }
+  /* 부드럽게: 「회신」 꼬리표 글자 #a15c07(3.4) → #6f4100(5.6) */
+  html[data-md="v2"][data-mt="soft"]{ --md-warn:#6f4100; }
+  html[data-mt="soft"] .co-note{ color:#7c3d06; }
+  html[data-mt="soft"] .gn-n small{ color:#1a49a6; }
+  html[data-mt="dark"] .gn-n small{ color:var(--mt-link); }
+  html[data-mt="soft"] .mf-n b{ color:#1a49a6; }
+  html[data-mt="dark"] .mf-n b{ color:var(--mt-link); }
+
+  /* ── 페이지 머리(설정·양식 등 하위 화면) — 웍스 글자 토큰이 메일 테마를 안 따라감(어둡게 제목 1.2 · 길 표시 3.2) ── */
+  html[data-mt="soft"], html[data-mt="dark"]{ --knk-text-primary:var(--mt-text); --knk-text-secondary:var(--mt-text2); --knk-text-muted:var(--mt-mute); }
+
+  /* ── 가져오기 단계 번호 원(흰 글자 on #cbd2db 1.5) → 바탕 #5f6774(5.7) ── */
+  html[data-mt] .mi-fs .n{ background:#5f6774; }
+  html[data-mt] .mi-fs.past .n{ background:#15803d; }
+  html[data-mt] .mi-fs.cur .n{ background:#fff; }
+
+  /* ── 서명 미리 보기 = 받는 사람이 보는 흰 종이(메일 본문·쓰는 칸과 같은 규칙) — 서명 글자색은 그대로 ── */
+  html[data-mt] .co-pv{ background:#fff; color:#111827; border-radius:6px; box-shadow:0 0 0 6px #fff; }   /* 그림자로 종이 테두리만 넓힘(자리·크기 그대로) */
+
+  /* ════ 어둡게(v1039 기준) ════ */
+  /* 1·8 빨강을 글자에 쓰는 곳 → 글자용 밝은 빨강(어두운 면 5.5~8) */
+  html[data-mt="dark"] .mail-tools .mt-sync, html[data-mt="dark"] .mt-card b .ck{ color:#ff8a8f; }
+  /* 오른쪽 클릭 메뉴 「삭제」(#b91c1c 2.6) · 휴대폰 「쓰기」 둥근 단추(빨강 위 파란 링크색 3.4) · 휴대폰 지금 폴더 칩(#1d4ed8 2.6) */
+  html[data-mt="dark"] .mbx-ctx .i.red{ color:#ff8a8f; }
+  html[data-mt="dark"] .mbx-fab{ color:#fff; }
+  html[data-mt="dark"] .mail-link-band a{ color:#fff; }   /* 「연결하기 →」 빨강 단추 위 파란 링크색(3.4) → 흰 글자 */
+  html[data-mt="dark"] .mv-fd-cur{ color:var(--mt-link); }
+  /* 오른쪽 클릭 메뉴 줄에 마우스를 올리면 바탕이 밝은 남색(#eef2ff)인데 글자는 어두운 테마 밝은 글자 → 그 줄만 진한 글자 */
+  html[data-mt="dark"] .mbx-ctx .i:hover, html[data-mt="dark"] .mbx-ctx .i.hl{ color:#111827; }
+  html[data-mt="dark"] .mbx-ctx .i.red:hover, html[data-mt="dark"] .mbx-ctx .i.red.hl{ color:#b91c1c; }
+  html[data-mt="dark"] .mbx-ctx .i:hover kbd, html[data-mt="dark"] .mbx-ctx .i.hl kbd{ color:#56606e; }
+  /* 숫자 원·이름 원(흰 글자 on #e0666b 3.3) → 바탕 #cc3a40(4.9) */
+  html[data-mt="dark"] .fbadge, html[data-mt="dark"] .mf-u, html[data-mt="dark"] .mail-app-top .me .av{ background:#cc3a40 !important; }
+  /* 6 진한 빨강·갈색 단추 글자 */
+  html[data-mt="dark"] .mf-btn.del{ color:#fca5a5; border-color:#7a2e33; }
+  html[data-mt="dark"] .cl-btn.mute{ color:#fdba74; border-color:#7c2d12; }
+  /* 2 파랑·남색·갈색 고정 글자 */
+  html[data-mt="dark"] .gn-newbtn, html[data-mt="dark"] .mbx-fold.mf-k, html[data-mt="dark"] .mbx-fold.mf-k .fname{ color:var(--mt-link) !important; }
+  html[data-mt="dark"] .co-lg{ color:#a5b4fc; }
+  html[data-mt="dark"] .gn-subj .h{ color:#f0c27a; }
+  html[data-mt="dark"] .co-note{ color:#fdba74; }
+  /* 찾기 결과 띠 안 굵은 글자(#422006 on 어두운 노랑 1.0) · 찾은 글자 표시(노랑 바탕 위 밝은 글자 1.1) */
+  html[data-mt="dark"] .mbx-res b, html[data-mt="dark"] .mbx-res-n{ color:#f1e3a8; }
+  html[data-mt="dark"] mark.mbx-hl{ color:#1f2937; }
+  /* 3 밝은 상자 안에 어두운 테마 글자색이 내려간 곳 → 그 상자 안에서만 밝은 테마 글자색 */
+  html[data-mt="dark"] .hp-btn,
+  html[data-mt="dark"] .gn-rb,
+  html[data-mt="dark"] .mi-pick label:has(input:checked),
+  html[data-mt="dark"] .co-card > .co-h, html[data-mt="dark"] .co-card > .co-d{
+    --mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e; --mute:#56606e; --ink:#111827; color:#111827; }
+  html[data-mt="dark"] #sigDefBar{ color:#111827; }
+  html[data-mt="dark"] .co-card > .co-d, html[data-mt="dark"] #sigDefMsg,
+  html[data-mt="dark"] .mi-pick label:has(input:checked) small{ color:#56606e !important; }
+  /* 5 스크립트가 직접 넣은 초록 글자(rgb(21,128,61) 어두운 초록 칸 3.1) */
+  html[data-mt="dark"] [style^="color:#b91c1c" i], html[data-mt="dark"] [style*=";color:#b91c1c" i], html[data-mt="dark"] [style*="; color:#b91c1c" i]{ color:#ff8a8f !important; }   /* 화면 글 속 진한 빨강 글자(2.6) */
+  html[data-mt="dark"] [style*="background:#fffbeb" i]{ color:#713f12; }   /* 화면 글 속 노란 표시 상자 안 글자 */
+  html[data-mt="dark"] [style^="color: rgb(21, 128, 61)"], html[data-mt="dark"] [style*="; color: rgb(21, 128, 61)"], html[data-mt="dark"] [style^="color:#15803d" i], html[data-mt="dark"] [style*=";color:#15803d" i]{ color:#4ade80 !important; }
+</style>
