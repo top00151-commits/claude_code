@@ -7,17 +7,17 @@
 /* === Quiet Tone 토큰 추가 (KNK 빨강은 액센트로만 보존) === */
 :root {
   /* 차가운 중성 — 눈 피로 ↓ */
-  --qv-surface: #ffffff;
-  --qv-surface-2: #f7f8fa;
-  --qv-surface-3: #eef0f4;
-  --qv-surface-inset: #fafbfc;
-  --qv-line: #eef0f4;
-  --qv-line-2: #e2e8f0;
-  --qv-line-3: #cbd5e1;
-  --qv-ink: #0f172a;          /* default: 잉크 검정 */
-  --qv-ink-2: #334155;
-  --qv-ink-3: #64748b;
-  --qv-ink-4: #94a3b8;
+  --qv-surface: var(--knk-bg-surface);
+  --qv-surface-2: var(--knk-bg-inset);
+  --qv-surface-3: var(--knk-bg-subtle);
+  --qv-surface-inset: var(--knk-bg-inset);
+  --qv-line: var(--knk-border-subtle);
+  --qv-line-2: var(--knk-border-subtle);
+  --qv-line-3: var(--knk-border-default);
+  --qv-ink: var(--knk-text-primary);          /* default: 잉크 검정 */
+  --qv-ink-2: var(--knk-text-secondary);
+  --qv-ink-3: var(--knk-text-muted);
+  --qv-ink-4: var(--knk-text-disabled);
   /* KNK 빨강은 그대로 - 단 사용을 제한 */
 }
 
@@ -25,7 +25,7 @@
 body[data-accent="navy"]      { --qv-ink: #0c2340; }
 body[data-accent="green"]     { --qv-ink: #064e3b; }
 body[data-accent="charcoal"]  { --qv-ink: #1f1f1f; }
-body[data-accent="default"]   { --qv-ink: #0f172a; }
+body[data-accent="default"]   { --qv-ink: var(--knk-text-primary); }
 
 /* === 베이스 컬러 전환 위젯 (좌측 하단 floating) === */
 .knk-accent-switcher {

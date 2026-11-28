@@ -58,7 +58,7 @@ body {
 .field-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 24px; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mute); cursor: pointer; }
 .check input { accent-color: var(--amber); width: 16px; height: 16px; }
-.link { font-size: 13px; color: var(--amber-deep); text-decoration: none; font-weight: 600; }
+.link { font-size: 13px; color: var(--knk-warning); text-decoration: none; font-weight: 600; }
 
 .btn-primary { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%); color: white; border: 0; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 22px rgba(212,146,59,0.32); font-family: inherit; }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(212,146,59,0.42); }

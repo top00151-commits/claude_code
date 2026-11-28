@@ -46,14 +46,14 @@
       {% endif %}
 
       {% if not ocr_ready %}
-      <div style="background:#fff3cd; border:1px solid var(--amber); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12.5px; line-height:1.6;">
+      <div style="background:#fff3cd; border:1px solid var(--knk-warning); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12.5px; line-height:1.6;">
         ⚠ 글자 자동 인식(OCR) 엔진이 서버에 아직 설치되지 않았습니다.
         사진은 저장되지만 자동 채움은 안 됩니다 — 아래 칸에 <b>직접 입력</b>해 주세요.
         <br><span style="color:var(--mute);">(전산 담당자: 서버에 Tesseract OCR + Korean 설치 필요)</span>
       </div>
       {% else %}
         {% if not korean_ready %}
-        <div style="background:#fff3cd; border:1px solid var(--amber); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12.5px;">
+        <div style="background:#fff3cd; border:1px solid var(--knk-warning); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12.5px;">
           ⚠ 한국어 인식 데이터가 없어 한글 인식이 제한됩니다.
           <button type="button" class="btn btn-primary" style="padding:4px 12px;font-size:12px;margin-left:8px;" id="installKoBtn" onclick="installKo()">⬇ 한국어 데이터 설치 (28MB)</button>
           <span id="installKoRes" style="margin-left:8px;font-size:11.5px;"></span>

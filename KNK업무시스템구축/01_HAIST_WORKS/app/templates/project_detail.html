@@ -1295,7 +1295,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {% set _is_semi_add = (not _is_parts_add) and (not _is_co) and (so.form_key == 'semi' or (p.shipment_form or '')|upper == 'SEMI') %}{# z1191z4c #}
             <div class="add-unit-card">
               <div class="row">
-                <span style="font-weight:700;color:var(--amber-deep);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% elif _is_semi_add %}＋ 품목 추가{% else %}＋ 호기 추가{% endif %}</span>
+                <span style="font-weight:700;color:var(--knk-warning);">{% if _is_parts_add %}＋ 부품 추가{% elif _is_co %}＋ 항목 추가{% elif _is_semi_add %}＋ 품목 추가{% else %}＋ 호기 추가{% endif %}</span>
                 {% if _is_parts_add %}
                 <input type="text" name="label" placeholder="품명 (예: CYLINDER)" style="flex:1;min-width:160px;" title="부품 품명">
                 <input type="number" name="qty" min="1" max="9999" value="1" style="width:70px;text-align:center;" title="수량">
@@ -2187,7 +2187,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               <td>{% with ptype=cp.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
               <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ cp.customer_name }}</span>{% endif %}</td>
               <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
-              <td style="font-family:inherit;font-size:11px;color:var(--amber-deep);">{{ cp.latest_so_no|default('—') }}</td>
+              <td style="font-family:inherit;font-size:11px;color:var(--knk-warning);">{{ cp.latest_so_no|default('—') }}</td>
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ cp.last_so_date|default('—') }}</td>
               <td class="num" style="font-weight:700;">{% if can_sales_amt %}{{ money(cp.total_so_amount|default(0), cp.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
             </tr>
@@ -2317,7 +2317,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         {# v5H226z649 (대표 지시): 1·2·3열 줄 맞춤 — 필드는 단일 3열 .def 하나로(완전 정렬), 수주번호는 오른쪽 .def-sono 로 분리(세로 나열) #}
         <div class="proj-grid-wrap">
         <dl class="def">
-          <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--amber-deep);">{{ p.mgmt_code|default('—') }}</dd>
+          <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--knk-warning);">{{ p.mgmt_code|default('—') }}</dd>
           <dt>고객사{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% endif %}</dt>{% if _hso %}<dd title="이 수주의 발주처 — 비어 있으면 프로젝트 고객">{{ (((cust_alias|default({},true)).get(_hso.customer_id) or _hso.so_customer) if _hso.customer_id else ((cust_alias|default({},true)).get(p.customer_id) or p.customer_name)) or '—' }}</dd>{% else %}<dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}{% set _oth1191 = (project_orders or [])|selectattr('customer_id')|rejectattr('customer_id', 'equalto', p.customer_id)|map(attribute='customer_id')|unique|list %}{% if _oth1191 %} <span class="cust-oth1191" style="font-size:11px;color:#64748b;font-weight:500;" title="이 관리번호의 다른 발주처(수주별) — 수주 카드 「🏢 발주처」에서 고칩니다">외 {{ _oth1191|length }}곳 ({% for _c1191 in _oth1191 %}{{ (cust_alias|default({},true)).get(_c1191) or ((project_orders|selectattr('customer_id', 'equalto', _c1191)|first).so_customer) or '—' }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}{# z1191c: 수주번호 기준 — 다른 발주처가 있으면 외 n곳 #}</dd>{% endif %}{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
           {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 값은 **프로젝트 기본값**이다 — 수주마다 자기 값이 있으면 그게 우선.
              이걸 '이 관리번호의 PO유형' 하나로 읽고 [프로젝트 정보 수정]에서 고쳐, 수주 4건이 통째로 바뀐 사고가 났다.

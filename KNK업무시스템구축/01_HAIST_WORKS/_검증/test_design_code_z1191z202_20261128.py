@@ -3,7 +3,8 @@
 r"""z1191z202 시험 — 디자인을 코드로(대표 2026-11-28) 0·1·2·5·6단계
 
   §1 0단계 파일 — static/img/brand/ 19개 = 스킬 knk-brand 원본과 같음 · 나눔스퀘어 woff 4개(wOFF 머리) + OFL.txt
-  §2 1단계 토큰 — v5_tokens.css 한 곳 · 옛 knk-foundation.css 값과 하나도 다르지 않음(모양 변화 0) · 옛 이름 옛 값 그대로
+  §2 1·3단계 토큰 — v5_tokens.css 한 곳 · 새 기준 값 = 견본 값이 모든 화면(:root) · 옛 이름·--qv-* 가 새 이름을 가리킴 · 글꼴 나눔스퀘어
+     · 테마(부드럽게 -soft · 흐린 글자 고침 묶음 옛 값 고정 없음) · 흐린 글자 명암 ≥4.5 (z1191z203 3단계에서 바꿈)
   §3 2단계 공용 모양 — knk-components.css 의 .k-* (색 숫자 0) · 공용 머리 styles.html 이 부름
   §4 5단계 검사기 지금 코드 통과 + 일부러 어긴 코드 7가지가 실제로 잡힘(브랜드 값 · 다른 파일 회사 색 · 정의 두 곳 · 새 #색 ·
      로고 다른 경로 · 빨간 「KNK」 흉내 · 로고 파일 바꿈 · 없는 글꼴 파일 · 바깥 주소 글꼴)
@@ -73,41 +74,76 @@ for f in ("NanumSquareL.woff", "NanumSquareR.woff", "NanumSquareB.woff", "NanumS
 ofl = io.open(os.path.join(fdir, "OFL.txt"), encoding="utf-8").read() if os.path.isfile(os.path.join(fdir, "OFL.txt")) else ""
 check("OFL.txt = 저작권자 · 라이선스 이름 · 주소", "NAVER Corporation" in ofl and "SIL Open Font License, Version 1.1" in ofl and "https://openfontlicense.org" in ofl)
 
-print("§2 1단계 — 기준 값 한 곳 · 옛 값 그대로")
+print("§2 1·3단계 — 기준 값 한 곳 · 새 기준 값이 모든 화면(z1191z203)")
 tok = rd("static/css/v5_tokens.css")
 fnd = rd("static/css/knk-foundation.css")
 check("knk-foundation.css 에 --knk-* 정의 없음(한 곳)", not re.search(r"(?<![\w(-])--knk-[a-z0-9-]+\s*:", re.sub(r"/\*.*?\*/", "", fnd, flags=re.S)))
 check("knk-foundation.css 에 .knk-num 남음", ".knk-num { font-variant-numeric: tabular-nums; }" in fnd)
-# 옛 foundation 값(z998 Sage · 2026-07-18 고정) — 옮긴 뒤에도 하나도 다르면 안 된다
-OLD = {"--knk-bg-page": "#F3F5F2", "--knk-bg-surface": "#FAFBF9", "--knk-bg-subtle": "#EAEEE9", "--knk-bg-inset": "#F6F7F4",
-       "--knk-bg-hover": "#E8EFEA", "--knk-bg-selected": "#DCE9E1", "--knk-text-primary": "#27302B", "--knk-text-secondary": "#46524B",
-       "--knk-text-muted": "#657169", "--knk-text-disabled": "#8B958E", "--knk-text-inverse": "#FFFFFF", "--knk-border-subtle": "#E2E6E1",
-       "--knk-border-default": "#D4DAD4", "--knk-border-strong": "#B9C2BB", "--knk-brand": "#A5282C", "--knk-brand-hover": "#8B1F23",
-       "--knk-brand-subtle": "#F6ECEC", "--knk-focus": "#3E6F89", "--knk-focus-subtle": "#EDF3F6", "--knk-success": "#2F6B4F",
-       "--knk-success-subtle": "#EDF5F0", "--knk-info": "#2E5F8A", "--knk-info-subtle": "#EEF3F7", "--knk-warning": "#875A1B",
-       "--knk-warning-subtle": "#F7F2E8", "--knk-danger": "#A33A3E", "--knk-danger-subtle": "#F7ECEC", "--knk-radius-control": "6px",
-       "--knk-radius-card": "8px", "--knk-radius-modal": "10px", "--knk-radius-pill": "999px", "--knk-h-control": "36px",
-       "--knk-h-control-sm": "32px", "--knk-h-row": "40px", "--knk-h-row-dense": "36px", "--knk-sp-1": "4px", "--knk-sp-12": "48px",
-       "--knk-shadow-modal": "0 20px 48px rgba(15,23,42,.18)"}
+# 3단계(z1191z203 · 대표 11-28 「A로 올려」) — 새 기준 값(견본 knk-standard.css · 회사 색 = brand.json)이 모든 화면(:root)
+NEW = {"--knk-brand": "var(--knk-brand-red)", "--knk-brand-hover": "#8E2227", "--knk-brand-subtle": "#FBEFEF", "--knk-focus": "var(--knk-brand-red)",
+       "--knk-bg-page": "#F4F4F5", "--knk-bg-surface": "#FFFFFF", "--knk-bg-subtle": "#EEEEF0", "--knk-bg-inset": "#F8F8F9", "--knk-bg-hover": "#F4F4F6",
+       "--knk-bg-selected": "#FBEFEF", "--knk-text-primary": "var(--knk-brand-ink)", "--knk-text-secondary": "#58595B", "--knk-text-muted": "#656769",
+       "--knk-text-disabled": "#A1A2A5", "--knk-border-subtle": "#E6E6E8", "--knk-border-default": "#D7D7DA", "--knk-border-strong": "#B8B9BC",
+       "--knk-success": "#2F6B4F", "--knk-info": "#2E5F8A", "--knk-warning": "#8A5A00", "--knk-warning-subtle": "#FBF4E4", "--knk-danger": "#C4320A",
+       "--knk-danger-subtle": "#FDF0EA"}
+ci_sel, ci = CS._css_block_sel(tok, ".knk-ci")
+check("새 기준 값 묶음 선택자 = :root, .knk-ci (모든 화면)", ci_sel == ":root, .knk-ci", ci_sel)
+diff = {k: (v, CS._decl(ci or "", k)) for k, v in NEW.items() if (CS._decl(ci or "", k) or "").upper() != v.upper()}
+check("새 기준 값 %d개 = 견본 knk-standard.css 값(회사 색은 brand.json)" % len(NEW), not diff, diff)
 rb = CS._css_block(tok, ":root")
-check("v5_tokens.css 첫 :root 에 기준 값 묶음", rb is not None and "--knk-brand-red" in rb)
-diff = {k: (v, CS._decl(rb, k)) for k, v in OLD.items() if (CS._decl(rb, k) or "").upper() != v.upper()}
-check("지금 쓰는 --knk-* %d개 = 옛 foundation 값 그대로" % len(OLD), not diff, diff)
-OLDNAME = {"--ink": "#2D2520", "--mute": "#8B7C6E", "--line": "#ECE0CB", "--paper": "#FBF5EC", "--paper-2": "#F5EBD9", "--knk-red": "#A5282C", "--amber": "#D4923B"}
-d2 = {k: v for k, v in OLDNAME.items() if not re.search(r"(?m)^\s*" + re.escape(k) + r":\s*" + re.escape(v) + r";", tok)}
-check("옛 이름(--ink·--mute·--line·--paper·--knk-red·--amber) 옛 값 그대로", not d2, d2)
+check("v5_tokens.css 첫 :root 에 회사 색 묶음", rb is not None and "--knk-brand-red" in rb)
+dup = sorted(set(re.findall(r"(--knk-[\w-]+)\s*:", rb or "")) & set(re.findall(r"(--knk-[\w-]+)\s*:", ci or "")) - {"--knk-action", "--knk-action-hover", "--knk-action-subtle"})
+check("색 값은 한 곳 — 첫 :root 와 새 기준 값 묶음에 겹친 색 이름 없음(var 로 이은 --knk-action 3개 제외)", not dup, dup)
+KEEP = {"--knk-radius-control": "6px", "--knk-radius-card": "8px", "--knk-radius-modal": "10px", "--knk-h-control": "36px", "--knk-h-control-sm": "32px",
+        "--knk-h-row": "40px", "--knk-sp-1": "4px", "--knk-sp-12": "48px"}
+check("크기·여백·모서리는 그대로", all((CS._decl(rb, k) or "") == v for k, v in KEEP.items()))
+OLDNAME = {"--ink": "--knk-text-primary", "--ink-soft": "--knk-text-secondary", "--mute": "--knk-text-muted", "--mute-2": "--knk-text-disabled",
+           "--line": "--knk-border-subtle", "--line-strong": "--knk-border-default", "--paper": "--knk-bg-page", "--paper-2": "--knk-bg-inset",
+           "--paper-3": "--knk-bg-surface", "--knk-red": "--knk-brand", "--amber": "--knk-brand", "--amber-deep": "--knk-brand-hover",
+           "--amber-glow": "--knk-brand-subtle", "--success": "--knk-success", "--warn": "--knk-warning", "--danger": "--knk-danger", "--info": "--knk-info",
+           "--grad-amber": "--knk-brand", "--grad-knk-red": "--knk-brand"}
+d2 = {k: v for k, v in OLDNAME.items() if not re.search(r"(?m)^\s*" + re.escape(k) + r":\s*var\(" + re.escape(v) + r"\);", tok)}
+check("옛 이름 %d개가 새 이름을 가리킴(문서 3단계 표)" % len(OLDNAME), not d2, d2)
 check("기준 값 묶음이 맨 위(Pretendard @font-face 보다 먼저)", tok.index("--knk-brand-red") < tok.index("font-family: 'Pretendard'"))
 check("나눔스퀘어 @font-face 4개(300·400·700·800 · swap)", all(re.search(r"NanumSquare%s\.woff'\) format\('woff'\);\s*font-weight: %d;[^}]*font-display: swap" % (n, w), tok)
                                                      for n, w in (("L", 300), ("R", 400), ("B", 700), ("EB", 800))))
-check("화면 글꼴(* · body)은 그대로 Pretendard — 나눔스퀘어는 --knk-font 에만", re.search(r"\* \{ font-family: 'Pretendard'", tok) is not None
-      and "NanumSquare" not in re.sub(r"(--knk-font[\w-]*:[^;]+;|@font-face \{[^}]+\}|/\*.*?\*/)", "", tok, flags=re.S))
-ci = CS._css_block(tok, ".knk-ci")
-check(".knk-ci = 새 기준 값(회사 빨강·먹색·위험 색)", ci and CS._decl(ci, "--knk-brand") == "var(--knk-brand-red)"
-      and CS._decl(ci, "--knk-text-primary") == "var(--knk-brand-ink)" and CS._decl(ci, "--knk-danger") == "#C4320A")
+check("화면 글꼴(* · body · --font-family) = 나눔스퀘어 먼저", re.search(r"\* \{ font-family: 'NanumSquare', 'Pretendard'", tok) is not None
+      and re.search(r"body \{ font-family: 'NanumSquare', 'Pretendard'", tok) is not None and "--font-family:     'NanumSquare', 'Pretendard'," in tok)
+qv = rd("app/templates/_v5_partials/design_quiet_v3.html")
+check("상단바·표·카드 색 --qv-* 11개 = var(--knk-*)", len(re.findall(r"(?m)^\s*--qv-[\w-]+: var\(--knk-[\w-]+\);", qv)) == 11)
+th = rd("app/templates/_v5_partials/knk_theme.html")
+base = th[th.index("html[data-kt] {"):th.index("}", th.index("html[data-kt] {"))]
+check("테마 기본 배색이 --knk-* 를 덮지 않음(새 기준 값이 그대로 보임)", not re.search(r"--knk-[\w-]+\s*:", base))
+check("흐린 글자 고침 묶음에 옛 회색·초록·호박 고정 값 없음", "--mute:#566275" not in th and "--success:#4d6e33" not in th and "--amber-deep:#8a5d1f" not in th)
+soft = re.search(r'html\[data-kt="soft"\] \{([^}]*)\}', th).group(1)
+check("부드럽게 = 바탕·옅은 칸·흐린 글자 한 단계(--knk-*-soft)", "--knk-bg-page:var(--knk-bg-page-soft)" in soft and "--knk-text-muted:var(--knk-text-muted-soft)" in soft and "brightness(.93)" in soft)
+
+
+def _lum(h):
+    h = h.lstrip("#"); v = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    v = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in v]
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]
+
+
+def _cr(a, b, k=1.0):
+    def sc(h):
+        h = h.lstrip("#"); return "#" + "".join("%02X" % round(int(h[i:i + 2], 16) * k) for i in (0, 2, 4))
+    x, y = _lum(sc(a)), _lum(sc(b))
+    return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+
+
+mut, mut_s = CS._decl(ci, "--knk-text-muted"), CS._decl(rb, "--knk-text-muted-soft")
+pg_s, sub_s = CS._decl(rb, "--knk-bg-page-soft"), CS._decl(rb, "--knk-bg-subtle-soft")
+r1 = [round(_cr(mut, b), 2) for b in ("#FFFFFF", CS._decl(ci, "--knk-bg-page"), CS._decl(ci, "--knk-bg-inset"))]
+r2 = [round(_cr(mut_s, b, 0.93), 2) for b in ("#FFFFFF", pg_s, sub_s)]
+check("흐린 글자 명암 ≥4.5 — 밝게(흰·바탕·표 머리) %s" % r1, min(r1) >= 4.5)
+check("부드럽게 흐린 글자 명암 ≥4.5 — 밝기 0.93(흰·바탕·옅은 칸) %s" % r2, min(r2) >= 4.5)
+check("(대조) 부드럽게에 견본 흐린 글자(#6D6F71)를 쓰면 4.5 아래 — 그래서 -soft 를 둠", _cr("#6D6F71", pg_s, 0.93) < 4.5)
+check("흐린 글자가 옅은 칸(--knk-bg-subtle) 위에서도 ≥4.5 (z203 실측 미달 62곳 고친 값)", _cr(mut, CS._decl(ci, "--knk-bg-subtle")) >= 4.5)
 sty = rd("app/templates/_v5_partials/styles.html")
 check("공용 머리: v5_tokens.css 를 배포마다 새로(APP_VERSION) · foundation·components 그대로", "/static/css/v5_tokens.css?v={{ APP_VERSION }}" in sty
       and "knk-foundation.css?v={{ APP_VERSION }}" in sty and "knk-components.css?v={{ APP_VERSION }}" in sty)
-check("v5_tokens 가 foundation 보다 먼저 불림(옛 순서와 같은 값이라 덮기 없음)", sty.index("v5_tokens.css") < sty.index("knk-foundation.css"))
+check("v5_tokens 가 foundation 보다 먼저 불림(foundation 엔 --knk-* 없음)", sty.index("v5_tokens.css") < sty.index("knk-foundation.css"))
 
 print("§3 2단계 — 공용 모양 .k-*")
 comp = rd("static/css/knk-components.css")
@@ -185,6 +221,20 @@ try:
     got = CS.check_brand_tokens(root=t, brand_path=BRAND)
     check("어김③ 다른 CSS 가 --knk-* 를 또 정함(정의 두 곳) → ⑤-1 잡힘", any("extra.css" in f and "한 곳" in m for f, _l, m in got), got[:3])
     check("어김④ 화면이 회사 회색을 다른 값(#6D6F71)으로 다시 적음 → ⑤-1 잡힘", any("x_brand.html" in f and "--knk-brand-gray" in m for f, _l, m in got), got[:3])
+finally:
+    shutil.rmtree(t, ignore_errors=True)
+t = mini_root()
+try:
+    edit(t, "static/css/v5_tokens.css", ":root, .knk-ci {", ".knk-ci {")
+    got = CS.check_brand_tokens(root=t, brand_path=BRAND)
+    check("어김⑭ 새 기준 값을 다시 .knk-ci 안에만(3단계 되돌림) → ⑤-1 잡힘", any(":root 를 포함" in m for _f, _l, m in got), got[:2])
+finally:
+    shutil.rmtree(t, ignore_errors=True)
+t = mini_root()
+try:
+    edit(t, "static/css/v5_tokens.css", "  --knk-brand-ink:      #414042;", "  --knk-brand-ink:      #414042;" + chr(10) + "  --knk-brand:          #A5282C;")
+    got = CS.check_brand_tokens(root=t, brand_path=BRAND)
+    check("어김⑮ 첫 :root 에 옛 웍스 빨강 #A5282C 를 남김 → ⑤-1 잡힘", any("옛 웍스 빨강" in m for _f, _l, m in got), got[:2])
 finally:
     shutil.rmtree(t, ignore_errors=True)
 # ⑤-2

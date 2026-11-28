@@ -1682,6 +1682,22 @@ def _css_block(src, selector):
     return s[i:j - 1]
 
 
+def _css_block_sel(src, needle):
+    """선택자 목록에 needle 이 든 첫 블록 → (선택자, 몸통). 없으면 (None, None)."""
+    s = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    m = re.search(r"(?m)^([^{}\n]*" + re.escape(needle) + r"(?![\w-])[^{}\n]*)\{", s)
+    if not m:
+        return None, None
+    i, depth, j = m.end(), 1, m.end()
+    while j < len(s) and depth:
+        if s[j] == "{":
+            depth += 1
+        elif s[j] == "}":
+            depth -= 1
+        j += 1
+    return m.group(1).strip(), s[i:j - 1]
+
+
 def _decl(body, name):
     m = re.search(r"(?<![\w-])" + re.escape(name) + r"\s*:\s*([^;]+);", body or "")
     return m.group(1).strip() if m else None
@@ -1717,16 +1733,19 @@ def check_brand_tokens(root=None, brand_path=None):
             bad.append((tok, 0, "%s = %s · brand.json colors.%s.screen = %s (값은 brand.json 에서만)" % (name, got or "없음", key, want)))
     red = colors["red"]["screen"].upper()
     old_red = ((brand.get("before_ci") or {}).get("works_red") or "").upper()
-    cur = (_decl(rootb, "--knk-brand") or "").upper()
-    if cur not in (red, old_red, "VAR(--KNK-BRAND-RED)"):
-        bad.append((tok, 0, "--knk-brand = %s · 회사 빨강(%s) 또는 새 CI 전 웍스 빨강(%s)만 됨" % (cur or "없음", red, old_red)))
-    ci = _css_block(src, ".knk-ci")
+    # 3단계(z1191z203): 새 기준 값 묶음 = 선택자 `:root, .knk-ci` — 모든 화면이 회사 빨강을 쓴다
+    ci_sel, ci = _css_block_sel(src, ".knk-ci")
     if ci is None:
         bad.append((tok, 0, ".knk-ci(새 기준 값) 묶음이 없다"))
     else:
         v = (_decl(ci, "--knk-brand") or "").upper()
         if v not in (red, "VAR(--KNK-BRAND-RED)"):
-            bad.append((tok, 0, ".knk-ci 의 --knk-brand = %s · 회사 빨강 %s 이어야 함" % (v or "없음", red)))
+            bad.append((tok, 0, "새 기준 값 묶음(%s)의 --knk-brand = %s · 회사 빨강 %s 이어야 함" % (ci_sel, v or "없음", red)))
+        if ":root" not in ci_sel:
+            bad.append((tok, 0, "새 기준 값 묶음 선택자가 %s — 3단계 뒤에는 :root 를 포함해야 함(모든 화면)" % ci_sel))
+    cur = (_decl(rootb, "--knk-brand") or "").upper()
+    if cur and cur not in (red, "VAR(--KNK-BRAND-RED)"):
+        bad.append((tok, 0, "첫 :root 에 --knk-brand = %s 가 남음 · 3단계 뒤에는 회사 빨강(%s)만(옛 웍스 빨강 %s 금지)" % (cur, red, old_red)))
     # 다른 파일이 회사 색 이름을 다른 값으로 다시 적으면 잡는다
     for p in list(_walk(os.path.join(root, "app", "templates"), (".html",))) + list(_walk(os.path.join(root, "static", "css"), (".css",))):
         if os.path.basename(p) == TOKEN_FILE:
@@ -1876,7 +1895,7 @@ COLOR_BASE = {
     'app/templates/_v5_partials/_components.html': 42, 'app/templates/_v5_partials/_sr_row.html': 6,
     'app/templates/_v5_partials/ar_baseline_notice_z92.html': 8, 'app/templates/_v5_partials/bulk_import.html': 77,
     'app/templates/_v5_partials/chrome.html': 111, 'app/templates/_v5_partials/customer_picker.html': 12,
-    'app/templates/_v5_partials/debug_overlay.html': 21, 'app/templates/_v5_partials/design_quiet_v3.html': 69,
+    'app/templates/_v5_partials/debug_overlay.html': 21, 'app/templates/_v5_partials/design_quiet_v3.html': 57,
     'app/templates/_v5_partials/design_v2.html': 47, 'app/templates/_v5_partials/doc_view_z182.html': 8,
     'app/templates/_v5_partials/docs_board_z150.html': 22, 'app/templates/_v5_partials/docs_chips.html': 21,
     'app/templates/_v5_partials/dragdrop.html': 9, 'app/templates/_v5_partials/guide_v5_design.html': 15,
@@ -1888,7 +1907,7 @@ COLOR_BASE = {
     'app/templates/_v5_partials/knk_md_lite.html': 5, 'app/templates/_v5_partials/knk_popup_close_guard.html': 3,
     'app/templates/_v5_partials/knk_rowflag.html': 16, 'app/templates/_v5_partials/knk_rows_lazy.html': 5,
     'app/templates/_v5_partials/knk_sticky_head.html': 2, 'app/templates/_v5_partials/knk_tax_multi.html': 45,
-    'app/templates/_v5_partials/knk_tax_sameday.html': 18, 'app/templates/_v5_partials/knk_theme.html': 266,
+    'app/templates/_v5_partials/knk_tax_sameday.html': 18, 'app/templates/_v5_partials/knk_theme.html': 205,
     'app/templates/_v5_partials/login_v5_design.html': 2, 'app/templates/_v5_partials/mail_app_head.html': 121,
     'app/templates/_v5_partials/mail_contrast.html': 78, 'app/templates/_v5_partials/mail_design_v2.html': 35,
     'app/templates/_v5_partials/mail_inbox_rows.html': 3, 'app/templates/_v5_partials/mail_move_ask.html': 43,

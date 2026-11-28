@@ -10,11 +10,12 @@
    기준 문서: HAIST WORKS디자인변경/2026-11-28_화면기준표_KNK브랜드/2026-11-28_1121_세션01_넘김_v2_디자인을_코드로.md
    층:  ① 브랜드 원본 00_스킬규정/knk-brand/brand.json  →  ② 이 묶음(--knk-*)  →  ③ knk-components.css(.k-*)
         →  ④ 화면  ·  ⑤ deploy/check_standards.py 가 ①=② 를 본다  ·  ⑥ /admin/design-kit 이 ②③ 을 그대로 그린다
-   ⚠ 「모양 변화 0」 단계(0·1·2): 지금 화면이 쓰는 이름은 지금 값 그대로 둔다.
-      · 지금 쓰는 --knk-* (옛 knk-foundation.css 에서 그대로 옮김) = 아래 A 묶음 — 값 그대로
-      · 새 기준 값(견본 knk-standard.css · 회사 색 = brand.json) = 아래 C 묶음 `.knk-ci` 범위에서만
-        (디자인 견본 화면이 씀). 3단계(대표 「올려」 뒤)에 C 값을 :root 로 올리고 옛 이름(--ink·--paper·--knk-red·--amber…)을
-        새 이름으로 잇는다.
+   ★ 3단계(z1191z203 · 대표 11-28 「A로 올려」): 새 기준 값(견본 knk-standard.css · 회사 색 = brand.json) = 아래 C 묶음이
+      `:root, .knk-ci` 로 모든 화면에 적용 · 옛 이름(--ink·--paper·--line·--mute·--knk-red·--amber…)은 아래 옛 :root 에서
+      새 이름을 가리킴 · 상단바·표·카드 --qv-* 는 _v5_partials/design_quiet_v3.html·knk_theme.html 에서 새 이름을 가리킴.
+      · A 묶음 = C 에 없는 값(크기·여백·모서리·그림자 일부)만 남김 — 색은 C 한 곳.
+      · 부드럽게 테마는 --knk-*-soft 3개(바탕 한 단계 짙게 · 흐린 글자 진하게 — 밝기 0.93 에서도 4.5:1 이상)를 씀(knk_theme.html).
+      · 화면 글꼴 = 나눔스퀘어(아래 * · body · --font-family).
    ⛔ 화면에 색 숫자를 직접 적지 않는다 — 필요하면 여기에 이름을 더하고 /admin/design-kit 에 보이게.
    ============================================================ */
 
@@ -35,41 +36,13 @@
   --knk-pattern-w:      265px;     /* 패턴 한 칸(이음매 없음) 265 × 159 */
   --knk-pattern-h:      159px;
 
-  /* ── A. 지금 화면이 쓰는 --knk-* (옛 knk-foundation.css z998 Sage 값 그대로 · 3단계 전까지 바꾸지 않음) ── */
-  --knk-bg-page:        #F3F5F2;
-  --knk-bg-surface:     #FAFBF9;
-  --knk-bg-subtle:      #EAEEE9;
-  --knk-bg-inset:       #F6F7F4;
-  --knk-bg-hover:       #E8EFEA;
-  --knk-bg-selected:    #DCE9E1;
-  --knk-text-primary:   #27302B;
-  --knk-text-secondary: #46524B;
-  --knk-text-muted:     #657169;
-  --knk-text-disabled:  #8B958E;
-  --knk-text-inverse:   #FFFFFF;
-  --knk-border-subtle:  #E2E6E1;
-  --knk-border-default: #D4DAD4;
-  --knk-border-strong:  #B9C2BB;
-  --knk-brand:          #A5282C;   /* 새 CI 전 웍스 빨강(brand.json before_ci.works_red) → 3단계에 #AE2025 */
-  --knk-brand-hover:    #8B1F23;
-  --knk-brand-subtle:   #F6ECEC;
-  --knk-focus:          #3E6F89;
+  /* ── A. C 묶음에 없는 값(옛 knk-foundation.css 에서 옮긴 크기·여백·모서리·그림자 · focus-subtle) ── */
   --knk-focus-subtle:   #EDF3F6;
-  --knk-success:        #2F6B4F;
-  --knk-success-subtle: #EDF5F0;
-  --knk-info:           #2E5F8A;
-  --knk-info-subtle:    #EEF3F7;
-  --knk-warning:        #875A1B;
-  --knk-warning-subtle: #F7F2E8;
-  --knk-danger:         #A33A3E;
-  --knk-danger-subtle:  #F7ECEC;
   --knk-radius-control: 6px;
   --knk-radius-card:    8px;
   --knk-radius-modal:   10px;
   --knk-radius-pill:    999px;
   --knk-shadow-popover: 0 8px 24px rgba(15,23,42,.12);
-  --knk-shadow-modal:   0 20px 48px rgba(15,23,42,.18);
-  --knk-shadow-toast:   0 8px 24px rgba(15,23,42,.16);
   --knk-sp-1: 4px;  --knk-sp-2: 8px;   --knk-sp-3: 12px; --knk-sp-4: 16px;
   --knk-sp-5: 20px; --knk-sp-6: 24px;  --knk-sp-8: 32px; --knk-sp-10: 40px; --knk-sp-12: 48px;
   --knk-h-control:     36px;
@@ -77,7 +50,7 @@
   --knk-h-row:         40px;
   --knk-h-row-dense:   36px;
 
-  /* ── 새 이름(지금 어느 화면도 안 씀 → 모양 변화 없음) ── */
+  /* ── z202 때 더한 이름 ── */
   --knk-action:          var(--knk-brand);         /* 주 단추·링크·고른 책갈피 */
   --knk-action-hover:    var(--knk-brand-hover);
   --knk-action-subtle:   var(--knk-brand-subtle);
@@ -92,13 +65,16 @@
   --knk-shadow-neutral-modal: 0 20px 48px rgba(20,20,22,.18);   /* 3단계에 --knk-shadow-modal 로 */
   --knk-shadow-neutral-toast: 0 8px 24px rgba(20,20,22,.16);
   --knk-scrim:           rgba(20,20,22,.36);       /* 확인 창 뒤 어둡게 */
+  --knk-bg-page-soft:     #EEEEF0;                  /* 부드럽게 테마 바탕(= 새 bg-subtle 값 · 한 단계 짙게) */
+  --knk-bg-subtle-soft:   #E6E6E8;                  /* 부드럽게 테마 옅은 칸(= 새 border-subtle 값) */
+  --knk-text-muted-soft:  #5F6163;                  /* 부드럽게 테마 흐린 글자(밝기 0.93 에서 바탕 5.1·옅은 칸 4.75 — #6D6F71 은 4.18 로 미달) */
   --knk-font:      'NanumSquare', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif;
   --knk-font-head: 'NanumSquare', 'Pretendard', 'Malgun Gothic', '맑은 고딕', sans-serif;   /* 제목 = 굵기 800(ExtraBold) */
 }
 
-/* ── C. 새 기준 값 (견본 knk-standard.css 2026-11-28 · 회사 색 = brand.json) — `.knk-ci` 안에서만 ──
-   3단계 시험 판은 이 값을 :root 로 올려 찍는다(커밋하지 않음). var() 로 이은 이름은 여기서 다시 적어야 새 값을 따른다. */
-.knk-ci {
+/* ── C. 새 기준 값 (견본 knk-standard.css 2026-11-28 · 회사 색 = brand.json) — 모든 화면(3단계 z203) ──
+   var() 로 이은 이름(--knk-action·--knk-text-primary 등)은 이 묶음에서 다시 적어야 새 값을 따른다. */
+:root, .knk-ci {
   --knk-brand:          var(--knk-brand-red);   /* = brand.json colors.red.screen (#AE2025) */
   --knk-brand-hover:    #8E2227;
   --knk-brand-subtle:   #FBEFEF;
@@ -114,7 +90,7 @@
   --knk-bg-selected:    #FBEFEF;
   --knk-text-primary:   var(--knk-brand-ink);   /* #414042 */
   --knk-text-secondary: #58595B;
-  --knk-text-muted:     #6D6F71;
+  --knk-text-muted:     #656769;   /* z203: 견본 #6D6F71 → #656769 — 옅은 칸(#EEEEF0) 위 4.35 → 4.9 (웍스 218화면 실측에서 미달 62곳) */
   --knk-text-disabled:  #A1A2A5;
   --knk-text-inverse:   #FFFFFF;
   --knk-border-subtle:  #E6E6E8;
@@ -158,56 +134,56 @@
   font-style: normal;
 }
 
-* { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif; }
-body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif; }
+* { font-family: 'NanumSquare', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif; }
+body { font-family: 'NanumSquare', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif; }
 
 :root {
   /* ============ 1. 색상 토큰 ============ */
 
   /* 배경 그라데이션 (5단계) */
-  --paper:           #FBF5EC;   /* 베이스 크림 — body */
-  --paper-2:         #F5EBD9;   /* 보조 카드 배경 */
-  --paper-3:         #FFFFFF;   /* 콘텐츠 카드 (가장 밝음) */
-  --paper-warm:      #F7F1E5;   /* 따뜻한 변형 */
-  --warm-tan:        #E8D5B7;   /* 워밍 액센트 배경 */
+  --paper:           var(--knk-bg-page);   /* 베이스 크림 — body */
+  --paper-2:         var(--knk-bg-inset);   /* 보조 카드 배경 */
+  --paper-3:         var(--knk-bg-surface);   /* 콘텐츠 카드 (가장 밝음) */
+  --paper-warm:      var(--knk-bg-inset);   /* 따뜻한 변형 */
+  --warm-tan:        var(--knk-border-default);   /* 워밍 액센트 배경 */
 
   /* 잉크 (텍스트) */
-  --ink:             #2D2520;   /* 메인 텍스트 — 따뜻한 검정 */
-  --ink-soft:        #4A3D2E;   /* 보조 텍스트 */
-  --mute:            #8B7C6E;   /* 라벨·메타 */
-  --mute-2:          #B8AC9C;   /* 비활성·placeholder */
+  --ink:             var(--knk-text-primary);   /* 메인 텍스트 — 따뜻한 검정 */
+  --ink-soft:        var(--knk-text-secondary);   /* 보조 텍스트 */
+  --mute:            var(--knk-text-muted);   /* 라벨·메타 */
+  --mute-2:          var(--knk-text-disabled);   /* 비활성·placeholder */
 
   /* 앰버 (메인 액센트) */
-  --amber:           #D4923B;   /* 메인 앰버 */
-  --amber-light:     #F0C880;   /* 보조 라이트 */
-  --amber-glow:      #FFE5B8;   /* 호버·하이라이트 */
-  --amber-deep:      #B8843A;   /* 강조·라벨 */
-  --amber-burnt:     #C2693A;   /* 그라데이션 끝점 (KNK 레드 방향) */
+  --amber:           var(--knk-brand);   /* 메인 앰버 */
+  --amber-light:     var(--knk-brand-subtle);   /* 보조 라이트 */
+  --amber-glow:      var(--knk-brand-subtle);   /* 호버·하이라이트 */
+  --amber-deep:      var(--knk-brand-hover);   /* 강조·라벨 */
+  --amber-burnt:     var(--knk-brand);   /* 그라데이션 끝점 (KNK 레드 방향) */
 
   /* 분할선 */
-  --line:            #ECE0CB;   /* 기본 보더 */
-  --line-strong:     #D4DDDC;   /* 강한 분할 */
-  --line-soft:       #F4ECDB;   /* 미세 호버 */
+  --line:            var(--knk-border-subtle);   /* 기본 보더 */
+  --line-strong:     var(--knk-border-default);   /* 강한 분할 */
+  --line-soft:       var(--knk-border-subtle);   /* 미세 호버 */
 
   /* 브랜드 */
-  --knk-red:         #A5282C;   /* KNK 레드 — VIP·CTA·경고 */
-  --knk-red-soft:    #C25A5E;   /* 다크모드용 변형 (예비) */
+  --knk-red:         var(--knk-brand);   /* KNK 레드 — VIP·CTA·경고 */
+  --knk-red-soft:    var(--knk-brand);   /* 다크모드용 변형 (예비) */
 
   /* 상태 색 */
-  --success:         #7A9B5C;   /* 양호·완료 */
-  --warn:            #C97D3F;   /* 주의·검토 필요 */
-  --danger:          var(--knk-red);  /* 위험·긴급 (KNK red 재사용) */
-  --info:            #5C8A9B;   /* 정보·알림 */
+  --success:         var(--knk-success);   /* 양호·완료 */
+  --warn:            var(--knk-warning);   /* 주의·검토 필요 */
+  --danger:          var(--knk-danger);  /* 위험·긴급 (KNK red 재사용) */
+  --info:            var(--knk-info);   /* 정보·알림 */
 
   /* 그라데이션 */
-  --grad-amber:      linear-gradient(135deg, var(--amber) 0%, var(--amber-burnt) 100%);
-  --grad-amber-soft: linear-gradient(135deg, var(--amber-light) 0%, var(--amber-glow) 100%);
-  --grad-ink:        linear-gradient(135deg, var(--ink) 0%, #4A3D2E 100%);
-  --grad-knk-red:    linear-gradient(135deg, var(--knk-red) 0%, var(--amber-burnt) 100%);
+  --grad-amber:      var(--knk-brand);
+  --grad-amber-soft: var(--knk-brand-subtle);
+  --grad-ink:        var(--knk-text-primary);
+  --grad-knk-red:    var(--knk-brand);
 
   /* 글로우 (radial gradient) */
-  --glow-amber-radial: radial-gradient(circle, var(--amber-glow) 0%, transparent 65%);
-  --glow-amber-strong: radial-gradient(circle, var(--amber) 0%, transparent 60%);
+  --glow-amber-radial: none;
+  --glow-amber-strong: none;
 
   /* ============ 2. 알리아스 (이전 sage 호환) ============ */
   /* v4 발주서의 alias 레이어 정신 — 이전 토큰을 H5로 매핑 */
@@ -255,13 +231,13 @@ body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD G
   --shadow-md:       0 8px 24px rgba(212,146,59,0.10);                      /* 호버 */
   --shadow-lg:       0 12px 28px rgba(212,146,59,0.14);                     /* 강조 카드 */
   --shadow-xl:       0 20px 48px rgba(212,146,59,0.18);                     /* 모달 */
-  --shadow-amber:    0 4px 14px rgba(212,146,59,0.25);                      /* 앰버 그림자 (CTA 버튼) */
-  --shadow-amber-lg: 0 8px 22px rgba(212,146,59,0.32);                      /* 강한 앰버 글로우 */
-  --shadow-knk-red:  0 8px 24px rgba(165,40,44,0.18);                       /* KNK red 강조 */
+  --shadow-amber:    var(--knk-shadow-toast);                      /* 앰버 그림자 (CTA 버튼) */
+  --shadow-amber-lg: var(--knk-shadow-modal);                      /* 강한 앰버 글로우 */
+  --shadow-knk-red:  var(--knk-shadow-toast);                       /* KNK red 강조 */
   --shadow-inset:    inset 0 0 0 1px var(--line);                           /* 카드 내부 보더 효과 */
 
   /* ============ 6. 타이포그래피 ============ */
-  --font-family:     'Pretendard', -apple-system, BlinkMacSystemFont,
+  --font-family:     'NanumSquare', 'Pretendard', -apple-system, BlinkMacSystemFont,
                      'Segoe UI', Roboto, sans-serif;
   --font-mono:       'Courier New', Consolas, monospace;
   --font-serif:      'Cormorant Garamond', 'Pretendard', serif; /* 매거진 변형 시 */

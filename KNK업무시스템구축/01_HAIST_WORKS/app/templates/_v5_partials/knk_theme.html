@@ -27,20 +27,13 @@
    · 부드럽게 = 밝게 배색 + 화면 밝기 낮춤(바탕도 한 단계 짙게) / 어둡게 = 밝게 배색을 뒤집음 → 배색 관계가 세 테마 모두 같음
      (중립 회색이라 뒤집어도 초록·베이지 기운이 생기지 않음)
    · 제목 띠 = 바탕과 같은 색 + 아래 가는 선 → 폭이 달라도 상자 가장자리가 안 보임(계단 없음) */
-html[data-kt] {
-  --knk-bg-page:#f3f4f6; --knk-bg-surface:#ffffff; --knk-bg-subtle:#eef0f3; --knk-bg-inset:#f9fafb; --knk-bg-hover:#f1f3f6; --knk-bg-selected:#e7eefb;
-  --knk-text-primary:#111827; --knk-text-secondary:#374151; --knk-text-muted:#5f6876; --knk-text-disabled:#9ca3af;
-  --knk-border-subtle:#e5e7eb; --knk-border-default:#d5d9df; --knk-border-strong:#a8b0bb;
-  --knk-brand-subtle:#fbeeee; --knk-focus-subtle:#eef4fb;
-  --knk-success-subtle:#edf7f1; --knk-info-subtle:#eef4fb; --knk-warning-subtle:#fcf5e8; --knk-danger-subtle:#fcefef;
-  --qv-surface:#ffffff; --qv-surface-2:#f9fafb; --qv-surface-3:#f1f3f6; --qv-surface-inset:#f9fafb;
-  --qv-line:#eef0f3; --qv-line-2:#e5e7eb; --qv-line-3:#d5d9df; --qv-ink:#111827; --qv-ink-2:#374151; --qv-ink-3:#5f6876; --qv-ink-4:#9ca3af;
-  --paper:#f3f4f6; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f9fafb; --warm-tan:#e5e7eb;
-  --ink:#111827; --ink-soft:#374151; --mute:#5f6876; --mute-2:#9ca3af; --line:#e5e7eb; --line-strong:#d5d9df; --line-soft:#f1f3f6; }
+html[data-kt] {  /* z1191z203 3단계: 테마 기본 배색 = 새 기준 값(v5_tokens.css :root) — --knk-* 는 덮지 않고 --qv-*·옛 이름을 잇기만 */
+  --qv-surface:var(--knk-bg-surface); --qv-surface-2:var(--knk-bg-inset); --qv-surface-3:var(--knk-bg-subtle); --qv-surface-inset:var(--knk-bg-inset); --qv-line:var(--knk-border-subtle); --qv-line-2:var(--knk-border-subtle); --qv-line-3:var(--knk-border-default); --qv-ink:var(--knk-text-primary); --qv-ink-2:var(--knk-text-secondary); --qv-ink-3:var(--knk-text-muted); --qv-ink-4:var(--knk-text-disabled);
+  --paper:var(--knk-bg-page); --paper-2:var(--knk-bg-inset); --paper-3:var(--knk-bg-surface); --paper-warm:var(--knk-bg-inset); --warm-tan:var(--knk-border-default); --ink:var(--knk-text-primary); --ink-soft:var(--knk-text-secondary); --mute:var(--knk-text-muted); --mute-2:var(--knk-text-disabled); --line:var(--knk-border-subtle); --line-strong:var(--knk-border-default); --line-soft:var(--knk-border-subtle); }
 /* 부드럽게: 바탕을 한 단계 더 짙게(카드와 대비는 유지) + 화면 전체 밝기를 낮춰 흰 칸 눈부심을 줄임 */
-html[data-kt="soft"] { --knk-bg-page:#e8ebef; --paper:#e8ebef; --paper-2:#e8ebef; --knk-bg-subtle:#e6e9ed; filter:brightness(.93); }
+html[data-kt="soft"] { --knk-bg-page:var(--knk-bg-page-soft); --paper:var(--knk-bg-page-soft); --paper-2:var(--knk-bg-page-soft); --knk-bg-subtle:var(--knk-bg-subtle-soft); --knk-text-muted:var(--knk-text-muted-soft); filter:brightness(.93); }
 /* 어둡게: 밝게 배색을 화면 전체에서 뒤집음(직접 적힌 색도 따라옴) · 사진·그림·로고·KNK 빨강 바탕은 다시 뒤집어 원래 색 */
-html[data-kt="dark"] { filter:invert(.9) hue-rotate(180deg); background:#f3f4f6; }
+html[data-kt="dark"] { filter:invert(.9) hue-rotate(180deg); background:var(--knk-bg-page); }
 html[data-kt="dark"] img, html[data-kt="dark"] video, html[data-kt="dark"] canvas, html[data-kt="dark"] picture,
 html[data-kt="dark"] iframe, html[data-kt="dark"] [style*="background-image"], html[data-kt="dark"] .knk-kt-keep { filter:invert(1) hue-rotate(180deg); }
 html[data-kt="dark"] .knk-kt-keep img, html[data-kt="dark"] .knk-kt-keep video, html[data-kt="dark"] .knk-kt-keep canvas { filter:none; }
@@ -74,9 +67,9 @@ html[data-kt] .main .knk-page-head, html[data-kt] .main .page-head { background:
 
 /* ② 흐린 회색 글자용 색 이름 — 화면마다 body 에 #64748b 로 다시 적어 둔 곳이 많아 body 에서 한 번 더 */
 html[data-kt]:not([data-mt]):not([data-ktm]), html[data-kt]:not([data-mt]):not([data-ktm]) body {
-  --qv-ink-3:#566275; --knk-text-muted:#566275; --mute:#566275 !important; --g-ink3:#566275;
+  --qv-ink-3:var(--knk-text-muted); --mute:var(--knk-text-muted) !important; --g-ink3:var(--knk-text-muted);
   /* 상태 색: 글자로도 바탕으로도 쓰임 — 초록 글자 3.1 → 5.1 · 흰 글자 on 초록 3.1 → 5.6 / 호박 글자 3.3 → 5.0 */
-  --success:#4d6e33 !important; --amber-deep:#8a5d1f !important; }
+  --success:var(--knk-success) !important; --amber-deep:var(--knk-brand-hover) !important; }
 
 /* ③ 입력 안내 글자(placeholder) — #c3bdaf 1.6~1.9 → #6b665c 4.6~5.7 (같은 따뜻한 회색 계열) */
 html[data-kt]:not([data-mt]):not([data-ktm]) input::placeholder, html[data-kt]:not([data-mt]):not([data-ktm]) textarea::placeholder { color:#6b665c !important; opacity:1 !important; }
@@ -106,6 +99,8 @@ html[data-kt]:not([data-mt]):not([data-ktm]) .band-find > .band-tag { background
 html[data-kt]:not([data-mt]):not([data-ktm]) .so-pill .en { opacity:1; }
 html[data-kt]:not([data-mt]):not([data-ktm]) .qm-bt.zero { opacity:1; color:#566275; }
 html[data-kt]:not([data-mt]):not([data-ktm]) .qm-bt.zero .n { color:#566275; }
+/* z1191z203: 「준비 중」 카드(화면에 opacity:.6 직접 적음 · 자재 홈·재고 화면) — 새 먹색 #414042 에서 3.35 로 미달 → 투명도 1(「(준비 중)」 글자로 상태를 알림) */
+html[data-kt]:not([data-mt]):not([data-ktm]) a.action-card[style*="opacity:.6"] { opacity:1 !important; }
 
 /* ① 숫자 원 바탕 — 고른 책갈피 안 흰 숫자(옅은 분홍 원 4.2 → 진한 원) */
 html[data-kt]:not([data-mt]):not([data-ktm]) .cu-tab.on .n { background:rgba(0,0,0,.18); }
@@ -124,16 +119,16 @@ html[data-kt]:not([data-mt]):not([data-ktm]) .card.hero .card-value { color:var(
    · 회색 #566275 = 1차와 같은 값(부드럽게 바탕에서도 4.8 이상). */
 html[data-kt]:not([data-mt]):not([data-ktm]),
 html[data-kt]:not([data-mt]):not([data-ktm]) body {
-  --pq-ink-3:#566275; --pq-ink-4:#566275; --qv-ink-4:#566275; --ink-4:#566275; --mute-2:#566275 !important;
+  --pq-ink-3:var(--knk-text-muted); --pq-ink-4:var(--knk-text-muted); --qv-ink-4:var(--knk-text-muted); --ink-4:var(--knk-text-muted); --mute-2:var(--knk-text-muted) !important;
   /* 상태 호박 글자(경고) --pq-warn #b45309 → #92400e (옅은 노랑 바탕 4.4 → 5.9) */
   --pq-warn:#92400e;
   /* 주황 강조 그라데이션(흰 글자 단추·고른 탭) #d4923b→#c2693a 2.6~3.8 → #a85a1d→#9a4f1c 4.9~5.7 */
-  --grad-amber:linear-gradient(135deg, #a85a1d 0%, #9a4f1c 100%) !important; }
+  --grad-amber:var(--knk-brand) !important; }
 /* 아래 단추 바탕 고침은 밝게·부드럽게만 — 어둡게에서는 원래 바탕이 이미 기준을 넘음(빨강→주황 끝 5.1 · 초록 5.1 · 호박 4.7 · 하늘 4.7 · 초록 그라데이션 5.6) */
 html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]),
 html[data-kt]:not([data-mt]):not([data-ktm]):not([data-kt="dark"]) body {
   /* 빨강→주황 단추 그라데이션(--grad-knk-red)의 끝 색 #c2693a(흰 글자 3.8) → #9a4f1c(5.7) — 이 색 이름은 그라데이션에만 쓰임 */
-  --amber-burnt:#9a4f1c; }
+  --amber-burnt:var(--knk-brand); }
 html[data-kt]:not([data-mt]):not([data-ktm]) .knk-kpi__unit,
 html[data-kt]:not([data-mt]):not([data-ktm]) .knk-kpi__sub,
 html[data-kt]:not([data-mt]):not([data-ktm]) .dz-sub { color:#566275; }

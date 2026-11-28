@@ -4,7 +4,7 @@
 <style>
 .mtx { width: 100%; border-collapse: collapse; font-size: 12px; }
 .mtx th, .mtx td { padding: 8px 10px; border: 1px solid var(--line); text-align: center; }
-.mtx th { background: var(--paper-2); color: var(--amber-deep); font-weight: 700; }
+.mtx th { background: var(--paper-2); color: var(--knk-warning); font-weight: 700; }
 /* z1191z191 A-2 (화면 전수 점검 11-27 · 칸 이름 고정 없음): 표가 넓어(약 934px) 옆 스크롤이 늘 필요하다 → 페이지 스크롤로 칸 이름을 붙일 수 없어
    고객사 목록(모범)과 같은 「자체 스크롤 상자 + 높이 자동 채움(data-knk-fill)」으로 · 칸 이름(위)·관리코드 칸(왼쪽)을 상자 안에 고정. */
 .mtx-box { margin: 0 var(--content-pad); overflow: auto; max-height: calc(100vh - 220px); background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); }   /* 높이 채움 스크립트 전 기본값 */
@@ -15,7 +15,7 @@
 .mtx td.proj { text-align: left; font-weight: 600; }
 .cell { padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 50px; font-weight: 700; }
 .cell-DONE, .cell-완료 { background: var(--success); color: white; }
-.cell-PROGRESS, .cell-진행 { background: var(--amber-glow); color: var(--amber-deep); }
+.cell-PROGRESS, .cell-진행 { background: var(--knk-warning-subtle); color: var(--knk-warning); }
 .cell-DELAY, .cell-지연 { background: rgba(165,40,44,0.12); color: var(--knk-red); border: 1px solid var(--knk-red); }
 .cell-NA, .cell-empty, .cell-예정, .cell-보류 { background: var(--paper-2); color: var(--mute); }
 .cell small { display: block; font-size: 10.5px; font-weight: 600; opacity: .8; }

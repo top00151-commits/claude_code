@@ -6,8 +6,8 @@
   디자인 기준 = 살아 있는 견본 (z1191z202 · 대표 2026-11-28 「꼭 코드로 디자인을 정리하게」)
   · 이 화면은 static/css/v5_tokens.css 의 --knk-* 와 static/css/knk-components.css 의 .k-* 를 「그대로」 그린다.
     색 칸은 var() 로 칠하고, 옆 숫자는 화면에서 읽은 값(getComputedStyle) — 손으로 적은 값이 아니다.
-  · 새 기준 값은 .knk-ci 안에서만 켜진다(3단계 「올려」 전까지 다른 화면 모양 변화 0). 그래서 본문 전체를 .knk-ci 로 감쌌다.
-  · 맨 아래 「옛 공용 모양」 칸만 .knk-ci 밖 = 지금 다른 화면이 실제로 쓰는 값.
+  · z1191z203 3단계(대표 11-28 「A로 올려」): 새 기준 값이 모든 화면(:root)에 켜짐. 본문의 .knk-ci 는 테마(부드럽게·어둡게)와 상관없는 「기준 값 그대로」를 보여 주려고 남김.
+  · 「화면(테마)」 칸 = 지금 고른 테마에서 다른 화면이 실제로 쓰는 값.
   · 기준 문서: HAIST WORKS디자인변경/2026-11-28_화면기준표_KNK브랜드/2026-11-28_1121_세션01_넘김_v2_디자인을_코드로.md
   · 회사 색·로고·패턴 원본: 00_스킬규정/knk-brand (brand.json · assets) — 그림은 static/img/brand/ 로 복사한 원본
 ═══════════════════════════════════════════════════════════════════════════#}
@@ -67,7 +67,7 @@
       <p style="margin:12px 0 0;"><span class="k-auto"><i></i><span id="dkFontState">글꼴 확인 중…</span></span></p>
     </section>
 
-    <div class="k-note warning"><b>👉 아직 다른 화면은 옛 값입니다.</b><span>새 기준 값은 이 화면(<code>.knk-ci</code> 안)에서만 켜져 있습니다. 모든 화면에 적용(3단계)은 전·후 화면을 대표께 보여 드리고 「올려」를 받은 뒤입니다.</span></div>
+    <div class="k-note success"><b>✅ 모든 화면에 적용됨</b><span>3단계(11-28 대표 「A로 올려」) — 옛 색 이름(--ink·--paper·--line·--amber…)과 상단바·표·카드 색(--qv-*)이 이 기준 값을 가리키고, 화면 글꼴은 나눔스퀘어입니다. 화면에 직접 적은 색은 4단계에서 옮깁니다.</span></div>
 
     <section class="k-card"><div class="k-card-h"><h2 class="k-h2"><span class="k-tri"><i></i><i></i><i></i></span>1. 회사 색 — brand.json</h2></div>
       <div class="k-card-b"><p>값은 <code>brand.json</code> 한 곳에서만 정합니다(검사기 ⑤-1 이 <code>v5_tokens.css</code> 와 같은지 봄). 빨강 채운 단추는 한 화면에 하나 · 위험·지연은 따로 정한 위험 색 + 글자.</p>
@@ -75,8 +75,8 @@
       </div></section>
 
     <section class="k-card"><div class="k-card-h"><h2 class="k-h2"><span class="k-tri"><i></i><i></i><i></i></span>2. 기준 색 — --knk-*</h2></div>
-      <div class="k-card-b"><p>「새 값」 = 이 견본(<code>.knk-ci</code>) · 「지금 화면」 = 다른 화면에 실제로 쓰이는 값(테마 덮기 포함). 글자 색은 흰 바탕·화면 바탕에 대한 명암비(4.5 이상이면 보통 글자 가능).</p>
-        <div class="k-scroll"><table class="k-table" id="dkTokTable"><thead><tr><th>이름</th><th>색</th><th>새 값</th><th>지금 화면</th><th class="num">흰 바탕</th><th class="num">화면 바탕</th><th>쓰는 곳</th></tr></thead><tbody></tbody></table></div>
+      <div class="k-card-b"><p>「기준 값」 = 테마와 상관없는 값(<code>.knk-ci</code>) · 「화면(테마)」 = 지금 고른 테마에서 실제로 쓰이는 값(부드럽게는 바탕·흐린 글자가 한 단계 다름). 글자 색은 흰 바탕·화면 바탕에 대한 명암비(4.5 이상이면 보통 글자 가능).</p>
+        <div class="k-scroll"><table class="k-table" id="dkTokTable"><thead><tr><th>이름</th><th>색</th><th>기준 값</th><th>화면(테마)</th><th class="num">흰 바탕</th><th class="num">화면 바탕</th><th>쓰는 곳</th></tr></thead><tbody></tbody></table></div>
       </div></section>
 
     <section class="k-card"><div class="k-card-h"><h2 class="k-h2"><span class="k-tri"><i></i><i></i><i></i></span>3. 글자 — 나눔스퀘어</h2></div>
@@ -265,10 +265,10 @@
       </ul></div></section>
   </div>
 
-  {# ── .knk-ci 밖 = 지금 다른 화면이 쓰는 값 ── #}
+  {# ── 옛 공용 모양(.knk-*) — 자재 화면이 씀 ── #}
   <div style="padding:0 clamp(16px,3vw,32px) 40px;">
     <section class="k-card"><div class="k-card-h"><h2 class="k-h2">16. 옛 공용 모양 (.knk-*) — 지금 값</h2></div>
-      <div class="k-card-b"><p style="margin:0 0 12px;font-size:13px;color:var(--knk-text-muted);">자재 화면(세션 05 · parts·suppliers)이 쓰는 옛 모양입니다. 새 화면에는 위의 <code>.k-*</code> 를 씁니다. 이 칸은 <code>.knk-ci</code> 밖이라 지금 다른 화면과 같은 색으로 그려집니다.</p>
+      <div class="k-card-b"><p style="margin:0 0 12px;font-size:13px;color:var(--knk-text-muted);">자재 화면(세션 05 · parts·suppliers)이 쓰는 옛 모양입니다. 새 화면에는 위의 <code>.k-*</code> 를 씁니다. 이 칸은 <code>.knk-ci</code> 밖이라 지금 고른 테마 색으로 그려집니다.</p>
         <div class="k-row">
           <button type="button" class="knk-btn knk-btn--primary">저장</button>
           <button type="button" class="knk-btn knk-btn--secondary">엑셀 내보내기</button>
@@ -283,7 +283,7 @@
 (function(){
   var root = document.getElementById('dkRoot');
   if (!root) return;
-  var probe = document.querySelector('main.main') || document.body;   /* .knk-ci 밖 = 지금 다른 화면 값 */
+  var probe = document.querySelector('main.main') || document.body;   /* .knk-ci 밖 = 지금 고른 테마에서 화면이 쓰는 값 */
   function val(el, n){ return (getComputedStyle(el).getPropertyValue(n) || '').trim(); }
   function rgbOf(c){
     var d = document.createElement('i'); d.style.color = c; root.appendChild(d);

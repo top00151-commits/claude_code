@@ -562,7 +562,8 @@ const COL_KEYS = ['code','so_no','name','model','equip','note','qty'{% if can_sa
 const COL_LABELS = {code:'관리번호',so_no:'수주번호',name:'프로젝트명',model:'모델명',equip:'장비명',note:'기타사항',qty:'수량',price:'단가',amount:'금액',trade:'거래구분',po:'PO유형',form:'형태',cust:'고객사1',cust2:'고객사2',dept:'부서',owner:'담당자',contact:'연락처',ship:'납품위치',order_date:'발주일',due_date:'납품일',statement:'거래명세서',tax_inv1:'세금계산서',stage:'단계',sales_owner:'영업담당자'};
 // z279: 값은 '실제 폭(px)'. (이전 비율값도 그대로 px로 해석돼 호환됨.) 한 칸 조정해도 다른 칸 불변.
 // z1191z4e: 수량 기본 폭 48 → 84px — 수량 옆 단위(대·EA·SET·식·건·대분)가 들어가게(직접 조절한 폭은 그대로)
-const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:84,price:96,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:124,stage:150,sales_owner:96};
+const COL_DEFAULTS = {code:108,so_no:90,name:170,model:120,equip:140,note:130,qty:84,price:104,amount:112,trade:60,po:60,form:62,cust:130,cust2:130,dept:72,owner:78,contact:100,ship:120,order_date:92,due_date:92,statement:100,tax_inv1:124,stage:150,sales_owner:96};
+// z1191z203: 단가 96 → 104 — 나눔스퀘어 숫자가 조금 넓어 「₩232,000,000」 이 5px 잘림(시험 서버 실측). 사람이 늘이거나 줄인 폭(저장된 값)은 그대로.
 const DATE_W_DEFAULT = 40;          // 날짜 칸 기본 폭(px)
 const LAST_DAY = {{ days|length }};
 let COLS = {};
