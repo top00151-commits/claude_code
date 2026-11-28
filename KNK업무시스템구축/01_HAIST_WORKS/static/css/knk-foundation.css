@@ -8,65 +8,9 @@
    원칙: ① 신규 코드는 시맨틱 토큰(--knk-*)만 사용 ② !important 금지
         ③ 이 파일은 :root 변수 선언 + .knk-num 뿐 — knk- 미사용 화면 영향 0
    ============================================================================ */
-:root {
-  /* Background — Soft Neutral Sage */
-  --knk-bg-page:        #F3F5F2;
-  --knk-bg-surface:     #FAFBF9;
-  --knk-bg-subtle:      #EAEEE9;
-  --knk-bg-inset:       #F6F7F4;
-  --knk-bg-hover:       #E8EFEA;   /* 표 행 hover (§6.4) */
-  --knk-bg-selected:    #DCE9E1;   /* 선택 행·셀 (§6.4) */
-
-  /* Text */
-  --knk-text-primary:   #27302B;
-  --knk-text-secondary: #46524B;
-  --knk-text-muted:     #657169;   /* Surface 위 4.91:1 — 일반 글자 가능·11px 라벨은 Secondary 권장 */
-  --knk-text-disabled:  #8B958E;   /* 실제 비활성 상태 전용(읽어야 하는 글자 금지) */
-  --knk-text-inverse:   #FFFFFF;
-
-  /* Border */
-  --knk-border-subtle:  #E2E6E1;
-  --knk-border-default: #D4DAD4;
-  --knk-border-strong:  #B9C2BB;
-
-  /* Brand & Focus — 포커스는 브랜드 빨강과 분리(입력 중 vs 오류 구분) */
-  --knk-brand:          #A5282C;
-  --knk-brand-hover:    #8B1F23;
-  --knk-brand-subtle:   #F6ECEC;
-  --knk-focus:          #3E6F89;
-  --knk-focus-subtle:   #EDF3F6;
-
-  /* State — 옅은 배경(subtle) + 진한 글자 짝 (색+문구 병행 원칙) */
-  --knk-success:        #2F6B4F;
-  --knk-success-subtle: #EDF5F0;
-  --knk-info:           #2E5F8A;
-  --knk-info-subtle:    #EEF3F7;
-  --knk-warning:        #875A1B;
-  --knk-warning-subtle: #F7F2E8;
-  --knk-danger:         #A33A3E;   /* ⚠브랜드 빨강과 1.1:1(색만으론 구분 불가) — 문구+아이콘 병행 절대 규칙 */
-  --knk-danger-subtle:  #F7ECEC;
-
-  /* Radius (§7.1) */
-  --knk-radius-control: 6px;    /* 입력·버튼·필터 칩 */
-  --knk-radius-card:    8px;    /* 카드·폼 섹션·팝오버 */
-  --knk-radius-modal:   10px;
-  --knk-radius-pill:    999px;  /* 상태 배지 */
-
-  /* Shadow (§7.3) — 기본 카드는 그림자 없음 */
-  --knk-shadow-popover: 0 8px 24px rgba(15,23,42,.12);
-  --knk-shadow-modal:   0 20px 48px rgba(15,23,42,.18);
-  --knk-shadow-toast:   0 8px 24px rgba(15,23,42,.16);
-
-  /* Space (§6.1) — 4px 배수만 */
-  --knk-sp-1: 4px;  --knk-sp-2: 8px;   --knk-sp-3: 12px; --knk-sp-4: 16px;
-  --knk-sp-5: 20px; --knk-sp-6: 24px;  --knk-sp-8: 32px; --knk-sp-10: 40px; --knk-sp-12: 48px;
-
-  /* Control 크기 (§6.3) */
-  --knk-h-control:     36px;
-  --knk-h-control-sm:  32px;
-  --knk-h-row:         40px;
-  --knk-h-row-dense:   36px;
-}
+/* z1191z202 (대표 2026-11-28 「디자인을 코드로」): 여기 있던 :root 의 --knk-* 는 값 그대로 static/css/v5_tokens.css 로 옮겼다
+   (--knk-* 정의는 그 한 곳 · 두 곳에 두면 값이 갈라진다 — 검사기 deploy/check_standards.py ⑤-1 이 본다).
+   이 파일은 .knk-num 만 남긴다(공용 머리 _v5_partials/styles.html 이 계속 불러옴). */
 
 /* 숫자 표기(§5.3·22.4장) — 금액·수량·백분율·날짜 열에 부여 */
 .knk-num { font-variant-numeric: tabular-nums; }

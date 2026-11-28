@@ -1644,6 +1644,367 @@ def check_spa_head_scripts(_files=None):
     return bad
 
 
+
+# ── 디자인 = 코드 (z1191z202 · 대표 2026-11-28 「꼭 코드로 디자인을 정리하게」) ──────────────────────────
+#    기준 문서: HAIST WORKS디자인변경/2026-11-28_화면기준표_KNK브랜드/2026-11-28_1121_세션01_넘김_v2_디자인을_코드로.md 5단계
+#    ⑤-1 브랜드 값 일치 — v5_tokens.css 의 회사 색이 00_스킬규정/knk-brand/brand.json 과 같은가 · --knk-* 정의는 v5_tokens.css 한 곳
+#    ⑤-2 새 직접 색 금지 — 화면·CSS 에 #색 숫자가 늘면 실패(지금 개수 = 면제 COLOR_BASE · 줄어들기만)
+#    ⑤-3 로고는 파일로만 — static/img/brand/ 는 스킬 원본과 같은 파일 · 로고 <img> 는 그 폴더 · 「KNK」 빨간 글씨 흉내 금지
+#    ⑤-4 글꼴 파일 있음 — @font-face 가 가리키는 파일이 실제로 있는가(Pretendard 처럼 없는 파일 부르기 재발 방지 · 외부 주소 금지)
+BRAND_TOKENS = {"--knk-brand-red": "red", "--knk-brand-gray": "gray", "--knk-brand-black": "black", "--knk-brand-ink": "ink"}
+TOKEN_FILE = "v5_tokens.css"          # --knk-* 를 정하는 한 곳(⑤-2 직접 색 세기에서도 뺀다 — 색 숫자가 있어야 하는 곳)
+BRAND_DIR_REL = "static/img/brand"
+
+
+def _brand_json_path(root=None):
+    """brand.json 자리: 환경변수 KNK_BRAND_JSON → 모노레포 <저장소>/00_스킬규정/knk-brand/brand.json"""
+    root = root or ROOT
+    env = os.environ.get("KNK_BRAND_JSON")
+    if env:
+        return env
+    return os.path.join(os.path.dirname(os.path.dirname(root)), "00_스킬규정", "knk-brand", "brand.json")
+
+
+def _css_block(src, selector):
+    """`selector {` 로 시작하는 첫 블록 몸통(주석 지움). 없으면 None."""
+    s = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    m = re.search(r"(?m)^\s*" + re.escape(selector) + r"\s*\{", s)
+    if not m:
+        return None
+    i, depth = m.end(), 1
+    j = i
+    while j < len(s) and depth:
+        if s[j] == "{":
+            depth += 1
+        elif s[j] == "}":
+            depth -= 1
+        j += 1
+    return s[i:j - 1]
+
+
+def _decl(body, name):
+    m = re.search(r"(?<![\w-])" + re.escape(name) + r"\s*:\s*([^;]+);", body or "")
+    return m.group(1).strip() if m else None
+
+
+def check_brand_tokens(root=None, brand_path=None):
+    """⑤-1 — 회사 색 값이 brand.json 과 같은가 · --knk-* 정의가 한 곳인가."""
+    import json
+    root = root or ROOT
+    bad = []
+    bp = brand_path or _brand_json_path(root)
+    tok = os.path.join(root, "static", "css", TOKEN_FILE)
+    try:
+        brand = json.load(io.open(bp, encoding="utf-8"))
+        colors = brand["colors"]
+    except Exception as e:
+        return [(bp, 0, "brand.json 을 읽지 못함(%s) — 회사 색 원본 없이 검사할 수 없다" % e.__class__.__name__)]
+    src = _read(tok)
+    if not src:
+        return [(tok, 0, "v5_tokens.css 없음")]
+    rootb = None
+    for mm in re.finditer(r"(?m)^:root\s*\{", re.sub(r"/\*.*?\*/", lambda x: " " * len(x.group(0)), src, flags=re.S)):
+        body = _css_block(src[mm.start():], ":root")
+        if body and "--knk-brand-red" in body:
+            rootb = body
+            break
+    if rootb is None:
+        return [(tok, 0, "v5_tokens.css 의 :root 에 --knk-brand-red 가 없다(회사 색 이름 묶음이 빠짐)")]
+    for name, key in BRAND_TOKENS.items():
+        want = colors[key]["screen"].upper()
+        got = (_decl(rootb, name) or "").upper()
+        if got != want:
+            bad.append((tok, 0, "%s = %s · brand.json colors.%s.screen = %s (값은 brand.json 에서만)" % (name, got or "없음", key, want)))
+    red = colors["red"]["screen"].upper()
+    old_red = ((brand.get("before_ci") or {}).get("works_red") or "").upper()
+    cur = (_decl(rootb, "--knk-brand") or "").upper()
+    if cur not in (red, old_red, "VAR(--KNK-BRAND-RED)"):
+        bad.append((tok, 0, "--knk-brand = %s · 회사 빨강(%s) 또는 새 CI 전 웍스 빨강(%s)만 됨" % (cur or "없음", red, old_red)))
+    ci = _css_block(src, ".knk-ci")
+    if ci is None:
+        bad.append((tok, 0, ".knk-ci(새 기준 값) 묶음이 없다"))
+    else:
+        v = (_decl(ci, "--knk-brand") or "").upper()
+        if v not in (red, "VAR(--KNK-BRAND-RED)"):
+            bad.append((tok, 0, ".knk-ci 의 --knk-brand = %s · 회사 빨강 %s 이어야 함" % (v or "없음", red)))
+    # 다른 파일이 회사 색 이름을 다른 값으로 다시 적으면 잡는다
+    for p in list(_walk(os.path.join(root, "app", "templates"), (".html",))) + list(_walk(os.path.join(root, "static", "css"), (".css",))):
+        if os.path.basename(p) == TOKEN_FILE:
+            continue
+        s = re.sub(r"/\*.*?\*/", "", _read(p), flags=re.S)
+        for name, key in BRAND_TOKENS.items():
+            for m in re.finditer(r"(?<![\w(-])" + re.escape(name) + r"\s*:\s*(#[0-9a-fA-F]{3,8})", s):
+                if m.group(1).upper() != colors[key]["screen"].upper():
+                    bad.append((p, s[:m.start()].count("\n") + 1, "%s 를 %s 로 다시 적음 · brand.json = %s" % (name, m.group(1), colors[key]["screen"])))
+    # --knk-* 정의 = static/css 안에서는 v5_tokens.css 한 곳(테마 조각 knk_theme 같은 템플릿의 테마별 덮기는 별개)
+    for p in _walk(os.path.join(root, "static", "css"), (".css",)):
+        if os.path.basename(p) == TOKEN_FILE:
+            continue
+        s = re.sub(r"/\*.*?\*/", "", _read(p), flags=re.S)
+        m = re.search(r"(?<![\w(-])(--knk-(?!red\b|red-)[a-z0-9-]+)\s*:", s)
+        if m:
+            bad.append((p, s[:m.start()].count("\n") + 1, "%s 를 이 파일에서 정함 — --knk-* 는 %s 한 곳에서만" % (m.group(1), TOKEN_FILE)))
+    return bad
+
+
+HEX_RE = re.compile(r"(?<![\w&#/.?=-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])")
+
+
+def _strip_comments_keep_lines(s):
+    keep = lambda x: "\n" * x.group(0).count("\n")
+    s = re.sub(r"/\*.*?\*/", keep, s, flags=re.S)
+    s = re.sub(r"\{#.*?#\}", keep, s, flags=re.S)
+    s = re.sub(r"<!--.*?-->", keep, s, flags=re.S)
+    s = re.sub(r"""(?i)\bhref\s*=\s*(["'])#[^"']*\1""", "href=''", s)   # 쪽 안 이동 주소(href="#add")는 색이 아님
+    return s
+
+
+def check_direct_colors(files):
+    """⑤-2 — 화면·CSS 의 #색 숫자(주석 뺌). 면제 = COLOR_BASE(파일 이름별 지금 개수) · 늘면 새 위반."""
+    hits = []
+    for p in files:
+        if not p.lower().endswith((".html", ".css")) or os.path.basename(p) == TOKEN_FILE:
+            continue
+        s = _strip_comments_keep_lines(_read(p))
+        for m in HEX_RE.finditer(s):
+            hits.append((p, s[:m.start()].count("\n") + 1, "직접 적은 색 %s → var(--knk-*) (값이 없으면 v5_tokens.css 에 이름을 더하고 /admin/design-kit 에 보이게)" % m.group(0)))
+    return hits
+
+
+def _brand_src_dir(root=None):
+    return os.path.join(os.path.dirname(_brand_json_path(root)), "assets")
+
+
+LOGO_IMG_RE = re.compile(r"<img\b[^>]*>", re.I)
+LOGO_HINT_RE = re.compile(r"logo|symbol|심볼|로고|\balt\s*=\s*[\"'][^\"']*\bKNK\b", re.I)
+LOGO_URL_RE = re.compile(r"url\(\s*[\"']?([^)\"']*logo[^)\"']*)", re.I)
+KNK_TEXT_RE = re.compile(r"color\s*:\s*(?:#a5282c|#ae2025|#ae2b30|var\(--knk-(?:red|brand)[\w-]*[^)]*\))[^<>]{0,120}>\s*KNK\s*<", re.I)
+
+
+def check_logo_files(files, root=None):
+    """⑤-3 — ① static/img/brand/ 파일 = 스킬 원본과 바이트까지 같음 ② 로고 <img>·url() = static/img/brand/ ③ 「KNK」 빨간 글씨 흉내.
+    ① 은 바로 위반 · ②③ 은 면제(파일 이름별 지금 개수 · rule "logo") 넘으면 위반."""
+    root = root or ROOT
+    fixed, hits = [], []
+    bdir = os.path.join(root, *BRAND_DIR_REL.split("/"))
+    src = _brand_src_dir(root)
+    if os.path.isdir(bdir):
+        for f in sorted(os.listdir(bdir)):
+            p = os.path.join(bdir, f)
+            cands = [os.path.join(src, "pattern", f), os.path.join(src, "logo", "svg", f), os.path.join(src, "logo", "png", f)]
+            orig = next((c for c in cands if os.path.exists(c)), None)
+            if not orig:
+                fixed.append((p, 0, "스킬 knk-brand 원본에 없는 그림 — 로고·패턴은 원본 파일만(다시 그리기 금지)"))
+            elif open(orig, "rb").read() != open(p, "rb").read():
+                fixed.append((p, 0, "스킬 원본(%s)과 내용이 다름 — 원본을 그대로 복사" % os.path.relpath(orig, os.path.dirname(src))))
+    for p in files:
+        if not p.lower().endswith((".html", ".css")):
+            continue
+        s = _strip_comments_keep_lines(_read(p))
+        if p.lower().endswith(".html"):
+            for m in LOGO_IMG_RE.finditer(s):
+                tag = m.group(0)
+                if not LOGO_HINT_RE.search(tag):
+                    continue
+                sm = re.search(r"\bsrc\s*=\s*[\"']([^\"']*)", tag, re.I)
+                if sm and sm.group(1).startswith("/" + BRAND_DIR_REL + "/"):
+                    continue
+                hits.append((p, s[:m.start()].count("\n") + 1, "로고 그림이 %s 가 아님 → /%s/ (스킬 knk-brand 원본 복사)" % ((sm.group(1) if sm else "src 없음")[:60], BRAND_DIR_REL)))
+            for m in KNK_TEXT_RE.finditer(s):
+                hits.append((p, s[:m.start()].count("\n") + 1, "「KNK」 글자를 빨간 글씨로 흉내 → 로고 파일(<img src=\"/%s/knk-symbol_full.svg\">)" % BRAND_DIR_REL))
+        for m in LOGO_URL_RE.finditer(s):
+            if not m.group(1).startswith("/" + BRAND_DIR_REL + "/"):
+                hits.append((p, s[:m.start()].count("\n") + 1, "로고 그림 url(%s) → /%s/" % (m.group(1)[:60], BRAND_DIR_REL)))
+    return fixed, hits
+
+
+FONTFACE_RE = re.compile(r"@font-face\s*\{(.*?)\}", re.S | re.I)
+
+
+def check_font_files(files, root=None):
+    """⑤-4 — @font-face 의 url() 마다 파일이 실제로 있는가(외부 주소 금지 · local() 은 괜찮음)."""
+    root = root or ROOT
+    bad = []
+    for p in files:
+        if not p.lower().endswith((".html", ".css")):
+            continue
+        s = _strip_comments_keep_lines(_read(p))
+        for fm in FONTFACE_RE.finditer(s):
+            ln = s[:fm.start()].count("\n") + 1
+            for um in re.finditer(r"url\(\s*[\"']?([^)\"']+)[\"']?\s*\)", fm.group(1)):
+                u = um.group(1).strip()
+                if re.match(r"(?i)^(https?:)?//", u):
+                    bad.append((p, ln, "@font-face 가 바깥 주소 %s 를 부름 — 글꼴 파일은 static/fonts/ 에 두고 /static/… 로" % u[:80]))
+                    continue
+                if u.startswith("data:"):
+                    continue
+                path = u.split("?")[0].split("#")[0]
+                if path.startswith("/static/"):
+                    fp = os.path.join(root, *path.lstrip("/").split("/"))
+                else:
+                    fp = os.path.normpath(os.path.join(os.path.dirname(p), *path.split("/")))
+                if not os.path.isfile(fp):
+                    bad.append((p, ln, "@font-face 글꼴 파일 없음: %s — 없는 파일을 부르면 화면이 오래 「읽는 중」(z1057 사고)" % u[:80]))
+    return bad
+
+
+def split_by_path(hits, base, root=None):
+    """⑤-2·⑤-3 면제 = 파일 「경로」별 개수(이름이 같은 다른 화면 — home.html · workflow/home.html — 이 섞이지 않게)."""
+    root = root or ROOT
+    by = {}
+    for f, l, m in hits:
+        by.setdefault(os.path.relpath(f, root).replace("\\", "/"), []).append((f, l, m))
+    new, old = [], 0
+    for rel, rows in by.items():
+        keep = base.get(rel, 0)
+        old += min(len(rows), keep)
+        if len(rows) > keep:
+            new.extend(rows[keep:])
+    return new, old
+
+
+# ⑤-2 · ⑤-3 면제 — 2026-11-28 규칙 만들 때 센 개수(파일 경로별 · 주석 뺌). ⚠ 늘리지 말 것 — 그 화면을 손볼 때 var(--knk-*) · 로고 파일로 옮기고 숫자를 줄일 것.
+COLOR_BASE = {
+    'app/templates/_admin_z83.html': 25, 'app/templates/_contact_styles.html': 4, 'app/templates/_export_price_z86.html': 33,
+    'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 24, 'app/templates/_legacy_admin_v4.html': 26,
+    'app/templates/_legacy_daily_v4.html': 1, 'app/templates/_legacy_guide_v4.html': 30,
+    'app/templates/_legacy_home_v4.html': 48, 'app/templates/_legacy_home_v5alias.html': 4,
+    'app/templates/_legacy_login_v4.html': 45, 'app/templates/_legacy_logistics_home_v4.html': 8,
+    'app/templates/_legacy_parts_v4.html': 2, 'app/templates/_legacy_po_detail_v4.html': 8,
+    'app/templates/_legacy_po_form_v4.html': 2, 'app/templates/_legacy_sales_home_v4.html': 3,
+    'app/templates/_legacy_weekly_v4.html': 8, 'app/templates/_page_header_healing.html': 1,
+    'app/templates/_v5_partials/_components.html': 42, 'app/templates/_v5_partials/_sr_row.html': 6,
+    'app/templates/_v5_partials/ar_baseline_notice_z92.html': 8, 'app/templates/_v5_partials/bulk_import.html': 77,
+    'app/templates/_v5_partials/chrome.html': 111, 'app/templates/_v5_partials/customer_picker.html': 12,
+    'app/templates/_v5_partials/debug_overlay.html': 21, 'app/templates/_v5_partials/design_quiet_v3.html': 69,
+    'app/templates/_v5_partials/design_v2.html': 47, 'app/templates/_v5_partials/doc_view_z182.html': 8,
+    'app/templates/_v5_partials/docs_board_z150.html': 22, 'app/templates/_v5_partials/docs_chips.html': 21,
+    'app/templates/_v5_partials/dragdrop.html': 9, 'app/templates/_v5_partials/guide_v5_design.html': 15,
+    'app/templates/_v5_partials/keep30_fold.html': 1, 'app/templates/_v5_partials/keep30_js.html': 24,
+    'app/templates/_v5_partials/knk_ai_busy.html': 16, 'app/templates/_v5_partials/knk_busy.html': 37,
+    'app/templates/_v5_partials/knk_calc_tip.html': 4, 'app/templates/_v5_partials/knk_ccy_total.html': 4,
+    'app/templates/_v5_partials/knk_close_btn.html': 3, 'app/templates/_v5_partials/knk_datepicker.html': 39,
+    'app/templates/_v5_partials/knk_fx_tip.html': 7, 'app/templates/_v5_partials/knk_line_edit.html': 6,
+    'app/templates/_v5_partials/knk_md_lite.html': 5, 'app/templates/_v5_partials/knk_popup_close_guard.html': 3,
+    'app/templates/_v5_partials/knk_rowflag.html': 16, 'app/templates/_v5_partials/knk_rows_lazy.html': 5,
+    'app/templates/_v5_partials/knk_sticky_head.html': 2, 'app/templates/_v5_partials/knk_tax_multi.html': 45,
+    'app/templates/_v5_partials/knk_tax_sameday.html': 18, 'app/templates/_v5_partials/knk_theme.html': 266,
+    'app/templates/_v5_partials/login_v5_design.html': 2, 'app/templates/_v5_partials/mail_app_head.html': 121,
+    'app/templates/_v5_partials/mail_contrast.html': 78, 'app/templates/_v5_partials/mail_design_v2.html': 35,
+    'app/templates/_v5_partials/mail_inbox_rows.html': 3, 'app/templates/_v5_partials/mail_move_ask.html': 43,
+    'app/templates/_v5_partials/mail_popx.html': 3, 'app/templates/_v5_partials/mail_pwa_head.html': 1,
+    'app/templates/_v5_partials/mail_theme.html': 159, 'app/templates/_v5_partials/mail_theme_cards.html': 16,
+    'app/templates/_v5_partials/mail_tour.html': 13, 'app/templates/_v5_partials/mail_view_body.html': 24,
+    'app/templates/_v5_partials/mail_view_styles.html': 280, 'app/templates/_v5_partials/page_path_guide.html': 4,
+    'app/templates/_v5_partials/photo_viewer.html': 5, 'app/templates/_v5_partials/po_rows.html': 21,
+    'app/templates/_v5_partials/po_script.html': 2, 'app/templates/_v5_partials/product_bulk_import.html': 76,
+    'app/templates/_v5_partials/project_type_pill.html': 10, 'app/templates/_v5_partials/prq_default_rcpt.html': 17,
+    'app/templates/_v5_partials/quote_fill.html': 56, 'app/templates/_v5_partials/quote_rows.html': 34,
+    'app/templates/_v5_partials/reg_tabs.html': 9, 'app/templates/_v5_partials/sales_subtabs_z98.html': 5,
+    'app/templates/_v5_partials/so_calendar.html': 50, 'app/templates/_v5_partials/so_pipeline.html': 15,
+    'app/templates/_v5_partials/so_status_pill.html': 18, 'app/templates/_v5_partials/so_type_pill.html': 10,
+    'app/templates/_v5_partials/spa_nav.html': 3, 'app/templates/_v5_partials/step_z156.html': 13,
+    'app/templates/_v5_partials/trade_ccy_warn.html': 11, 'app/templates/_v5_partials/works_pwa_head.html': 3,
+    'app/templates/_v5_partials/xl_sheet_z172.html': 6, 'app/templates/_z75_tabs.html': 12, 'app/templates/admin.html': 15,
+    'app/templates/admin_ai_settings.html': 42, 'app/templates/admin_customer_health.html': 55,
+    'app/templates/admin_field_access.html': 4, 'app/templates/admin_fx_rates.html': 21,
+    'app/templates/admin_handover.html': 4, 'app/templates/admin_home.html': 3,
+    'app/templates/admin_mail_blocklist.html': 10, 'app/templates/admin_mail_fetch.html': 15,
+    'app/templates/admin_mail_inbound.html': 18, 'app/templates/admin_mail_purge.html': 7,
+    'app/templates/admin_mail_send.html': 27, 'app/templates/admin_person.html': 11,
+    'app/templates/admin_reset_demo.html': 70, 'app/templates/admin_sso_key.html': 29, 'app/templates/admin_staff.html': 1,
+    'app/templates/admin_sync_employees.html': 54, 'app/templates/admin_test_data.html': 33,
+    'app/templates/admin_user_form.html': 4, 'app/templates/admin_users_perms.html': 19,
+    'app/templates/admin_work_manual.html': 26, 'app/templates/admin_work_pattern_detail.html': 33,
+    'app/templates/admin_work_patterns.html': 25, 'app/templates/app_install_z174.html': 27,
+    'app/templates/as_detail.html': 12, 'app/templates/as_form.html': 3, 'app/templates/as_list.html': 14,
+    'app/templates/bank_recon.html': 14, 'app/templates/bom_tools.html': 19, 'app/templates/bom_upload.html': 26,
+    'app/templates/bom_upload_report.html': 19, 'app/templates/calendar.html': 27, 'app/templates/catalog.html': 13,
+    'app/templates/catalog_cart.html': 3, 'app/templates/consumable_detail.html': 93,
+    'app/templates/consumable_form_upload.html': 115, 'app/templates/consumable_prod_request.html': 92,
+    'app/templates/consumables.html': 29, 'app/templates/contact_detail.html': 19,
+    'app/templates/contact_import_vcf.html': 10, 'app/templates/contact_mail.html': 1,
+    'app/templates/contacts_list.html': 72, 'app/templates/contacts_scan.html': 15, 'app/templates/customer_detail.html': 28,
+    'app/templates/customer_form.html': 51, 'app/templates/customer_po_view.html': 31,
+    'app/templates/customers_list.html': 46, 'app/templates/daily.html': 37, 'app/templates/dashboard.html': 1,
+    'app/templates/dept_requests.html': 69, 'app/templates/dept_schedule.html': 135,
+    'app/templates/dept_stage_work.html': 40, 'app/templates/design_samples.html': 151, 'app/templates/error.html': 12,
+    'app/templates/error_simple.html': 11, 'app/templates/export_bl_customs.html': 10,
+    'app/templates/export_bl_print.html': 38, 'app/templates/export_board.html': 3, 'app/templates/export_ci.html': 10,
+    'app/templates/export_ci_print.html': 37, 'app/templates/export_doc_pick.html': 37, 'app/templates/export_home.html': 18,
+    'app/templates/export_hs_dict.html': 46, 'app/templates/export_hs_fill.html': 106,
+    'app/templates/export_order_detail.html': 15, 'app/templates/export_order_form.html': 10,
+    'app/templates/export_pl.html': 10, 'app/templates/export_pl_print.html': 38, 'app/templates/export_prep.html': 7,
+    'app/templates/export_prep_detail.html': 190, 'app/templates/export_prep_invoice_print.html': 46,
+    'app/templates/export_prep_packing_print.html': 46, 'app/templates/export_rules.html': 17,
+    'app/templates/export_ship.html': 2, 'app/templates/export_ship_qr_print.html': 22,
+    'app/templates/export_ship_view.html': 13, 'app/templates/fta_form.html': 10, 'app/templates/fta_list.html': 24,
+    'app/templates/fta_print.html': 62, 'app/templates/fx_rates.html': 28, 'app/templates/guide.html': 32,
+    'app/templates/guide_work_orders.html': 31, 'app/templates/home.html': 14, 'app/templates/interp_check.html': 40,
+    'app/templates/issue_detail.html': 22, 'app/templates/issue_form.html': 21, 'app/templates/login.html': 2,
+    'app/templates/logistics_home.html': 27, 'app/templates/mail_account.html': 21, 'app/templates/mail_autoreply.html': 15,
+    'app/templates/mail_cleanup.html': 19, 'app/templates/mail_company_sig.html': 18, 'app/templates/mail_compose.html': 274,
+    'app/templates/mail_files.html': 14, 'app/templates/mail_folders.html': 51,
+    'app/templates/mail_folders_general.html': 38, 'app/templates/mail_from_outlook.html': 18,
+    'app/templates/mail_groups.html': 32, 'app/templates/mail_help_print.html': 13,
+    'app/templates/mail_hiworks_folders.html': 37, 'app/templates/mail_hiworks_move.html': 56,
+    'app/templates/mail_import_outlook.html': 37, 'app/templates/mail_inbox.html': 290, 'app/templates/mail_kinds.html': 19,
+    'app/templates/mail_rules.html': 11, 'app/templates/mail_settings.html': 6, 'app/templates/mail_signature.html': 17,
+    'app/templates/mail_storage.html': 21, 'app/templates/mail_templates.html': 23, 'app/templates/mail_tools.html': 35,
+    'app/templates/mail_view_win.html': 2, 'app/templates/mail_waiting.html': 14,
+    'app/templates/materials_new_review.html': 19, 'app/templates/materials_request_detail.html': 28,
+    'app/templates/materials_requests.html': 21, 'app/templates/meeting_doc.html': 53, 'app/templates/meeting_form.html': 65,
+    'app/templates/meeting_viz.html': 38, 'app/templates/meetings.html': 29, 'app/templates/mgmt_ledger.html': 61,
+    'app/templates/notifications.html': 9, 'app/templates/part_detail.html': 15, 'app/templates/part_form.html': 34,
+    'app/templates/part_qr_print.html': 21, 'app/templates/parts.html': 28, 'app/templates/parts_dedup.html': 16,
+    'app/templates/parts_import.html': 46, 'app/templates/parts_reclassify.html': 27, 'app/templates/po_detail.html': 27,
+    'app/templates/po_form.html': 28, 'app/templates/po_list.html': 33, 'app/templates/po_qr_print.html': 28,
+    'app/templates/po_receive.html': 22, 'app/templates/presales_activity_dashboard.html': 41,
+    'app/templates/prod_request_edit.html': 218, 'app/templates/prod_requests_list.html': 79,
+    'app/templates/profile.html': 1, 'app/templates/progress_dashboard.html': 2, 'app/templates/progress_detail.html': 2,
+    'app/templates/project_baseline.html': 21, 'app/templates/project_bom.html': 33,
+    'app/templates/project_detail.html': 301, 'app/templates/project_form.html': 109,
+    'app/templates/project_new_chooser.html': 117, 'app/templates/project_quick_form.html': 231,
+    'app/templates/project_unit_candidates.html': 18, 'app/templates/project_unit_status_sync.html': 27,
+    'app/templates/project_units.html': 39, 'app/templates/projects.html': 44, 'app/templates/qc_report_form.html': 21,
+    'app/templates/qc_report_list.html': 10, 'app/templates/qc_report_print.html': 73, 'app/templates/qms_capa.html': 20,
+    'app/templates/qms_dashboard.html': 20, 'app/templates/qms_pareto.html': 19, 'app/templates/qms_recurrence.html': 18,
+    'app/templates/quotation_print.html': 21, 'app/templates/quote_view.html': 53, 'app/templates/rates.html': 21,
+    'app/templates/rates_alerts.html': 20, 'app/templates/rates_cost_sim.html': 20, 'app/templates/rates_dashboard.html': 18,
+    'app/templates/rates_history.html': 18, 'app/templates/rnd_detail.html': 43, 'app/templates/rnd_list.html': 34,
+    'app/templates/sales_aging.html': 12, 'app/templates/sales_dashboard.html': 12, 'app/templates/sales_drill.html': 59,
+    'app/templates/sales_flow_guide.html': 18, 'app/templates/sales_fx_gain.html': 30, 'app/templates/sales_glance.html': 40,
+    'app/templates/sales_home.html': 155, 'app/templates/sales_opportunities.html': 76,
+    'app/templates/sales_opportunity_form.html': 99, 'app/templates/sales_order_detail.html': 21,
+    'app/templates/sales_orders.html': 150, 'app/templates/sales_outstanding.html': 19,
+    'app/templates/sales_production.html': 12, 'app/templates/sales_quotations.html': 136,
+    'app/templates/sales_quote_detail.html': 12, 'app/templates/sales_quote_form.html': 18,
+    'app/templates/sales_receipts_check.html': 73, 'app/templates/sales_report.html': 40,
+    'app/templates/sales_shipments_receipts.html': 75, 'app/templates/schedule_board.html': 141,
+    'app/templates/share_audio.html': 5, 'app/templates/so_check_z154.html': 43, 'app/templates/stock_abc.html': 21,
+    'app/templates/stock_adjust.html': 27, 'app/templates/stock_adjustment.html': 32, 'app/templates/stock_audit.html': 26,
+    'app/templates/stock_audits.html': 23, 'app/templates/stock_balances.html': 26, 'app/templates/stock_fifo.html': 21,
+    'app/templates/stock_issue.html': 25, 'app/templates/stock_issues.html': 25, 'app/templates/stock_movements.html': 26,
+    'app/templates/stock_qc.html': 24, 'app/templates/stock_receipts.html': 26, 'app/templates/stock_reorder.html': 24,
+    'app/templates/stock_safety.html': 26, 'app/templates/stock_turnover.html': 23, 'app/templates/supplier_form.html': 27,
+    'app/templates/suppliers.html': 24, 'app/templates/suppliers_import.html': 40, 'app/templates/voice_note_form.html': 34,
+    'app/templates/voice_notes.html': 12, 'app/templates/wo_form.html': 25, 'app/templates/wo_list.html': 14,
+    'app/templates/wo_print.html': 63, 'app/templates/work_orders.html': 43, 'app/templates/workflow/home.html': 16,
+    'app/templates/workflow/ic_pairs.html': 15, 'app/templates/workflow/my.html': 17,
+    'app/templates/workflow/node_detail.html': 46, 'app/templates/workflow/project.html': 45,
+    'app/templates/workflow/scenarios.html': 17, 'app/templates/workflow/team.html': 11,
+    'app/templates/workflow/wizard.html': 14, 'static/css/knk-components.css': 3, 'static/css/project_detail.css': 99,
+    'static/css/schedule_board.css': 317, 'static/css/v5_base.css': 22, 'static/css/v5_form.css': 1,
+    'static/css/v5_login.css': 2, 'static/css/v5_main.css': 14
+}   # __COLOR_BASE__
+LOGO_BASE = {
+    'app/templates/_legacy_login_v4.html': 1, 'app/templates/_v5_partials/chrome.html': 1,
+    'app/templates/_v5_partials/guide_v5_design.html': 1, 'app/templates/_v5_partials/login_v5_design.html': 1,
+    'app/templates/_v5_partials/print_v5_design.html': 1, 'app/templates/login.html': 2, 'app/templates/meeting_doc.html': 1,
+    'app/templates/voice_note_form.html': 1
+}    # __LOGO_BASE__
+
+
 def main():
     changed_only = "--changed" in sys.argv
     files = collect(changed_only)
@@ -1857,6 +2218,47 @@ def main():
     else:
         print("  ✅ 매출 날짜·통화 : 일정표와 같은 규칙(호기 → 수주 → 프로젝트 · 빈 글자 = 빈칸) · 환율 대체 표시")
 
+
+    # ── 디자인 = 코드 (z1191z202) ──
+    br_bad = check_brand_tokens()
+    if br_bad:
+        fail += len(br_bad)
+        print("  ❌ ⑤-1 브랜드 값 일치 : %d건 → 값은 00_스킬규정/knk-brand/brand.json 에서만 · --knk-* 정의는 static/css/v5_tokens.css 한 곳" % len(br_bad))
+        for f, l, m in br_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f) if os.path.isabs(f) and f.startswith(ROOT) else f, l, m))
+    else:
+        print("  ✅ ⑤-1 브랜드 값 일치 : v5_tokens.css 회사 색 4 = brand.json · --knk-* 정의 한 곳")
+    hx_all = check_direct_colors(files)
+    hx_new, hx_old = split_by_path(hx_all, COLOR_BASE)
+    _by = {}
+    for f, l, m in hx_all:
+        _k = _rel(f)
+        _by[_k] = _by.get(_k, 0) + 1
+    hx_down = sorted(n for n, c in COLOR_BASE.items() if _by.get(n, 0) < c) if not changed_only else []
+    if hx_new:
+        fail += len(hx_new)
+        print("  ❌ ⑤-2 새 직접 색 : 새로 %d건 → var(--knk-*) (기존 면제 %d건)" % (len(hx_new), hx_old))
+        for f, l, m in hx_new[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ ⑤-2 새 직접 색 : 새로 0건 (기존 면제 %d건%s)" % (hx_old, (" · 줄어든 파일 %d개 → COLOR_BASE 숫자를 내려 주세요: %s" % (len(hx_down), ", ".join(hx_down[:8]))) if hx_down else ""))
+    lg_fixed, lg_hits = check_logo_files(files)
+    lg_new, lg_old = split_by_path(lg_hits, LOGO_BASE)
+    if lg_fixed or lg_new:
+        fail += len(lg_fixed) + len(lg_new)
+        print("  ❌ ⑤-3 로고는 파일로만 : %d건 → static/img/brand/ = 스킬 knk-brand 원본 그대로 · 로고 <img> 는 그 폴더" % (len(lg_fixed) + len(lg_new)))
+        for f, l, m in (lg_fixed + lg_new)[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ ⑤-3 로고는 파일로만 : static/img/brand/ = 원본과 같음 · 새 위반 없음 (기존 면제 %d건)" % lg_old)
+    ff_bad = check_font_files(files)
+    if ff_bad:
+        fail += len(ff_bad)
+        print("  ❌ ⑤-4 글꼴 파일 : %d건 → @font-face 는 static/fonts/ 에 실제로 있는 파일만" % len(ff_bad))
+        for f, l, m in ff_bad[:20]:
+            print("       %s:%s  %s" % (_rel(f), l, m))
+    else:
+        print("  ✅ ⑤-4 글꼴 파일 : @font-face 가 부르는 파일 모두 있음")
     print("=" * 72)
     if fail:
         print("결과: 위반 %d건 — 고치거나, 정당한 사유면 ALLOW 에 사유와 함께 추가하세요." % fail)

@@ -1,0 +1,7 @@
+NanumSquare (나눔스퀘어) — NanumSquareL/R/B/EB.woff
+
+Copyright © 2016 NAVER Corporation. All rights reserved. Font designed by Sandoll Communications Inc.
+(위 줄 = 글꼴 파일 안 저작권 정보(name 표 0번)를 그대로 옮김)
+
+License: SIL Open Font License, Version 1.1
+https://openfontlicense.org

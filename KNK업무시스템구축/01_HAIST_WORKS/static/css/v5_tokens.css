@@ -6,6 +6,135 @@
    ============================================================ */
 
 /* ============================================================
+   ★ KNK 디자인 기준 값(토큰) — 한 곳 (z1191z202 · 대표 2026-11-28 「꼭 코드로 디자인을 정리」)
+   기준 문서: HAIST WORKS디자인변경/2026-11-28_화면기준표_KNK브랜드/2026-11-28_1121_세션01_넘김_v2_디자인을_코드로.md
+   층:  ① 브랜드 원본 00_스킬규정/knk-brand/brand.json  →  ② 이 묶음(--knk-*)  →  ③ knk-components.css(.k-*)
+        →  ④ 화면  ·  ⑤ deploy/check_standards.py 가 ①=② 를 본다  ·  ⑥ /admin/design-kit 이 ②③ 을 그대로 그린다
+   ⚠ 「모양 변화 0」 단계(0·1·2): 지금 화면이 쓰는 이름은 지금 값 그대로 둔다.
+      · 지금 쓰는 --knk-* (옛 knk-foundation.css 에서 그대로 옮김) = 아래 A 묶음 — 값 그대로
+      · 새 기준 값(견본 knk-standard.css · 회사 색 = brand.json) = 아래 C 묶음 `.knk-ci` 범위에서만
+        (디자인 견본 화면이 씀). 3단계(대표 「올려」 뒤)에 C 값을 :root 로 올리고 옛 이름(--ink·--paper·--knk-red·--amber…)을
+        새 이름으로 잇는다.
+   ⛔ 화면에 색 숫자를 직접 적지 않는다 — 필요하면 여기에 이름을 더하고 /admin/design-kit 에 보이게.
+   ============================================================ */
+
+/* 나눔스퀘어 — 로고 안내서 지정 글꼴(대표 결정 11-28) · 파일 = static/fonts/nanumsquare/ (SIL OFL 1.1 · OFL.txt)
+   한 이름 'NanumSquare' 에 굵기 300·400·700·800. 이름을 부르는 곳(--knk-font)이 쓰일 때만 내려받는다.
+   ⚠ 지금은 견본 화면(.knk-ci)만 부른다 — 모든 화면 적용은 3단계와 함께. */
+@font-face { font-family: 'NanumSquare'; src: url('/static/fonts/nanumsquare/NanumSquareL.woff') format('woff');  font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'NanumSquare'; src: url('/static/fonts/nanumsquare/NanumSquareR.woff') format('woff');  font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'NanumSquare'; src: url('/static/fonts/nanumsquare/NanumSquareB.woff') format('woff');  font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'NanumSquare'; src: url('/static/fonts/nanumsquare/NanumSquareEB.woff') format('woff'); font-weight: 800; font-style: normal; font-display: swap; }
+
+:root {
+  /* ── B. 회사 원본 색 (brand.json colors.*.screen 과 같아야 함 — 검사기 ⑤-1) · 스킬 knk-brand.css 와 같은 이름 ── */
+  --knk-brand-red:      #AE2025;   /* KNK 빨강 · 인쇄 C36 M100 Y100 K0 */
+  --knk-brand-gray:     #727171;   /* KNK 회색 · K70 · 로고 글자용(화면 흐린 글자는 --knk-text-muted) */
+  --knk-brand-black:    #231F20;   /* KNK 검정 · K100 · 로고 검정판 */
+  --knk-brand-ink:      #414042;   /* 먹색 · 화면 제목·본문 글자 */
+  --knk-pattern-w:      265px;     /* 패턴 한 칸(이음매 없음) 265 × 159 */
+  --knk-pattern-h:      159px;
+
+  /* ── A. 지금 화면이 쓰는 --knk-* (옛 knk-foundation.css z998 Sage 값 그대로 · 3단계 전까지 바꾸지 않음) ── */
+  --knk-bg-page:        #F3F5F2;
+  --knk-bg-surface:     #FAFBF9;
+  --knk-bg-subtle:      #EAEEE9;
+  --knk-bg-inset:       #F6F7F4;
+  --knk-bg-hover:       #E8EFEA;
+  --knk-bg-selected:    #DCE9E1;
+  --knk-text-primary:   #27302B;
+  --knk-text-secondary: #46524B;
+  --knk-text-muted:     #657169;
+  --knk-text-disabled:  #8B958E;
+  --knk-text-inverse:   #FFFFFF;
+  --knk-border-subtle:  #E2E6E1;
+  --knk-border-default: #D4DAD4;
+  --knk-border-strong:  #B9C2BB;
+  --knk-brand:          #A5282C;   /* 새 CI 전 웍스 빨강(brand.json before_ci.works_red) → 3단계에 #AE2025 */
+  --knk-brand-hover:    #8B1F23;
+  --knk-brand-subtle:   #F6ECEC;
+  --knk-focus:          #3E6F89;
+  --knk-focus-subtle:   #EDF3F6;
+  --knk-success:        #2F6B4F;
+  --knk-success-subtle: #EDF5F0;
+  --knk-info:           #2E5F8A;
+  --knk-info-subtle:    #EEF3F7;
+  --knk-warning:        #875A1B;
+  --knk-warning-subtle: #F7F2E8;
+  --knk-danger:         #A33A3E;
+  --knk-danger-subtle:  #F7ECEC;
+  --knk-radius-control: 6px;
+  --knk-radius-card:    8px;
+  --knk-radius-modal:   10px;
+  --knk-radius-pill:    999px;
+  --knk-shadow-popover: 0 8px 24px rgba(15,23,42,.12);
+  --knk-shadow-modal:   0 20px 48px rgba(15,23,42,.18);
+  --knk-shadow-toast:   0 8px 24px rgba(15,23,42,.16);
+  --knk-sp-1: 4px;  --knk-sp-2: 8px;   --knk-sp-3: 12px; --knk-sp-4: 16px;
+  --knk-sp-5: 20px; --knk-sp-6: 24px;  --knk-sp-8: 32px; --knk-sp-10: 40px; --knk-sp-12: 48px;
+  --knk-h-control:     36px;
+  --knk-h-control-sm:  32px;
+  --knk-h-row:         40px;
+  --knk-h-row-dense:   36px;
+
+  /* ── 새 이름(지금 어느 화면도 안 씀 → 모양 변화 없음) ── */
+  --knk-action:          var(--knk-brand);         /* 주 단추·링크·고른 책갈피 */
+  --knk-action-hover:    var(--knk-brand-hover);
+  --knk-action-subtle:   var(--knk-brand-subtle);
+  --knk-bg-white:        #FFFFFF;
+  --knk-focus-ring:      #EBC3C5;                  /* 입력칸 초점 바깥 줄 */
+  --knk-brand-line:      #F0D3D4;                  /* 고른 띠 아래 선 */
+  --knk-btn-danger-line: #EFC7B8;                  /* 위험 단추 테두리 */
+  --knk-info-line:       #CFDCEA;  --knk-info-text:    #22496B;
+  --knk-success-line:    #C7DFD1;  --knk-success-text: #24553E;
+  --knk-warning-line:    #EBD9AE;  --knk-warning-text: #6B4600;
+  --knk-danger-line:     #F1CDBE;  --knk-danger-text:  #9A2806;
+  --knk-shadow-neutral-modal: 0 20px 48px rgba(20,20,22,.18);   /* 3단계에 --knk-shadow-modal 로 */
+  --knk-shadow-neutral-toast: 0 8px 24px rgba(20,20,22,.16);
+  --knk-scrim:           rgba(20,20,22,.36);       /* 확인 창 뒤 어둡게 */
+  --knk-font:      'NanumSquare', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif;
+  --knk-font-head: 'NanumSquare', 'Pretendard', 'Malgun Gothic', '맑은 고딕', sans-serif;   /* 제목 = 굵기 800(ExtraBold) */
+}
+
+/* ── C. 새 기준 값 (견본 knk-standard.css 2026-11-28 · 회사 색 = brand.json) — `.knk-ci` 안에서만 ──
+   3단계 시험 판은 이 값을 :root 로 올려 찍는다(커밋하지 않음). var() 로 이은 이름은 여기서 다시 적어야 새 값을 따른다. */
+.knk-ci {
+  --knk-brand:          var(--knk-brand-red);   /* = brand.json colors.red.screen (#AE2025) */
+  --knk-brand-hover:    #8E2227;
+  --knk-brand-subtle:   #FBEFEF;
+  --knk-action:         var(--knk-brand);
+  --knk-action-hover:   var(--knk-brand-hover);
+  --knk-action-subtle:  var(--knk-brand-subtle);
+  --knk-focus:          var(--knk-brand-red);
+  --knk-bg-page:        #F4F4F5;
+  --knk-bg-surface:     #FFFFFF;
+  --knk-bg-subtle:      #EEEEF0;
+  --knk-bg-inset:       #F8F8F9;
+  --knk-bg-hover:       #F4F4F6;
+  --knk-bg-selected:    #FBEFEF;
+  --knk-text-primary:   var(--knk-brand-ink);   /* #414042 */
+  --knk-text-secondary: #58595B;
+  --knk-text-muted:     #6D6F71;
+  --knk-text-disabled:  #A1A2A5;
+  --knk-text-inverse:   #FFFFFF;
+  --knk-border-subtle:  #E6E6E8;
+  --knk-border-default: #D7D7DA;
+  --knk-border-strong:  #B8B9BC;
+  --knk-success:        #2F6B4F;
+  --knk-success-subtle: #EDF5F0;
+  --knk-info:           #2E5F8A;
+  --knk-info-subtle:    #EEF3F7;
+  --knk-warning:        #8A5A00;
+  --knk-warning-subtle: #FBF4E4;
+  --knk-danger:         #C4320A;   /* 회사 빨강과 헷갈리지 않게 주황빛 빨강 · 늘 글자와 함께 */
+  --knk-danger-subtle:  #FDF0EA;
+  --knk-shadow-modal:   var(--knk-shadow-neutral-modal);
+  --knk-shadow-toast:   var(--knk-shadow-neutral-toast);
+}
+/* ============ 기준 값 끝 ============ */
+
+
+/* ============================================================
    Pretendard 폰트 — 사내 호스팅 (2026-04-30 빅터(05) 결재 ⑤)
    외부자산 0건 정책 부합 / SIL OFL 1.1 자유 라이선스
    순서: local() 시스템 설치 → 시스템 폰트 폴백
