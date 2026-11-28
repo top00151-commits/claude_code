@@ -1,6 +1,8 @@
 {# 메일 '앱(독립 창)' 모드 헤더 — KNK Eum 등에서 ?app=1 로 별도 창 실행 시 사용.
    WORKS 사이드바 대신 슬림 메일 상단바 + 본문 전체폭. ?app=0 으로 WORKS 전체화면 복귀. #}
 {% include "_v5_partials/mail_theme.html" %}
+{# 11-28 대표 지시(감사팀 전달) — 앱 모드는 chrome.html 대신 이 머리를 써서 공용 달력(KnkCal · 일요일 시작 · 한국 K·베트남 V 휴일)이 안 불려 브라우저 기본 달력이 떴음 → 여기서도 한 번 부름(겹쳐 불러도 KnkCal 이 한 번만 돎) #}
+{% include "_v5_partials/knk_datepicker.html" ignore missing %}
 <style>
   body .app { display:block !important; min-width:auto !important; height:auto !important; overflow:visible !important; }
   body .main { width:100% !important; grid-column:auto !important; padding-right:0 !important; overflow:visible !important; }

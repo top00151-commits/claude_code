@@ -22,6 +22,8 @@
 </head><body>
 <main class="main mw-wrap" data-dn="main">
   {% include "_v5_partials/mail_fs.html" %}
+  {# 11-28 새 창도 웍스 틀(chrome.html)이 없어 공용 달력이 안 불림 → 기한·할 일 날짜 칸에 KnkCal #}
+  {% include "_v5_partials/knk_datepicker.html" ignore missing %}
   <script>window.KNK_MAIL_WIN=1;</script>
   {% include "_v5_partials/mail_new_win.html" %}
   {% include "_v5_partials/mail_popx.html" %}
