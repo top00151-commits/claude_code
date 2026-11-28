@@ -214,9 +214,9 @@ check("수주 칸 확인: 견적서 2장 있는 1호기에도 붙음(409 막기 
 
 print("§7 그대로인 것")
 rmv = q(cl.post, "/api/project-quote/remove/%d" % LQ).json()
-check("견적서 빼기 그대로(그 파일만 · 다른 2장 남음)", rmv.get("ok") and rows("SELECT orig_name FROM project_quote_files WHERE order_id=? ORDER BY id", O1) == [(n,) for n in QN])
+check("견적서 빼기 그대로(그 파일만 · 다른 2장 남음)", rmv.get("ok") and rows("SELECT orig_name FROM project_quote_files WHERE order_id=? AND removed_at IS NULL ORDER BY id", O1) == [(n,) for n in QN])   # z1191z201: 뺀 줄은 30일 보관(목록에서만 빠짐)
 rmp = q(cl.post, "/api/customer-po/remove/%d" % PF[1][0]).json()
-check("발주서 빼기 그대로(그 파일만 · 다른 1장 남음)", rmp.get("ok") and rows("SELECT orig_name FROM project_po_files WHERE order_id=?", O1) == [(PN[0],)])
+check("발주서 빼기 그대로(그 파일만 · 다른 1장 남음)", rmp.get("ok") and rows("SELECT orig_name FROM project_po_files WHERE order_id=? AND removed_at IS NULL", O1) == [(PN[0],)])   # z1191z201
 FAKE["fields"] = {}
 j = q(cl.post, "/api/project-quote/attach/%d" % P, files={"file": ("안고름.xlsx", XL, "application/vnd.ms-excel")}).json()
 check("수주 2개인데 안 고르면 여전히 멈춤(견적서)", (not j.get("ok")) and j.get("need_so") and rows("SELECT COUNT(*) FROM project_quote_files WHERE orig_name='안고름.xlsx'")[0][0] == 0, j)

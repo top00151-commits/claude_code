@@ -215,17 +215,19 @@ fp1 = os.path.join(TMP, "project_quotes", st1)
 s_, j = rm(F1)
 with D.db_session() as c:
     n1 = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE id=?", (F1,)).fetchone()[0]
-check(s_ == 200 and j["ok"] and n1 == 0 and not os.path.exists(fp1), "기술영업팀이 뺌 → 줄·파일 바로 지움(30일 보관 없음)", (s_, n1, os.path.exists(fp1)))
+# z1191z201 (대표 11-28 「보관했다가 삭제해」): z64 「바로 지움」 → 줄·파일 30일 보관(표시만) — 기대값 바꿈
+check(s_ == 200 and j["ok"] and n1 == 1 and os.path.exists(fp1), "기술영업팀이 뺌 → 목록에서 빠짐 · 줄·파일은 30일 보관(z1191z201)", (s_, n1, os.path.exists(fp1)))
 h = hist(P)
-check(h[-1]["changed_by"] == UT["id"] and h[-1]["old_value"] == "가영업이 올린 견적서.png" and h[-1]["new_value"] == "" and "빼기 · 마기술" in h[-1]["note"],
-      "이력: 「견적서 파일: 가영업이 올린 … → (빈칸)」 · 「빼기 · 마기술」", h[-1])
+check(h[-1]["changed_by"] == UT["id"] and h[-1]["old_value"] == "가영업이 올린 견적서.png" and h[-1]["new_value"] == "" and "견적서 빼기" in h[-1]["note"] and "마기술" in h[-1]["note"],   # z1191z201: 「빼기 · 30일 보관 뒤(날) 완전 삭제 · 누가」
+      "이력: 「견적서 파일: 가영업이 올린 … → (빈칸)」 · 「빼기 … 마기술」", h[-1])
 as_(UA)
 hd = q(cl.get, "/project/%d" % P).text
 check("가영업이 올린 견적서.png</a>" not in hd and "라영업이 올린 견적서.pdf</a>" in q(cl.get, "/project/%d" % P2).text, "상세 목록에서 사라짐(다른 견적서는 그대로)")
 check(q(cl.get, "/projects/%d/quote-files/%d" % (P, F1)).status_code == 404, "뺀 파일 주소는 404")
 s_, j = rm(F1)
 check(s_ == 404 and len(hist(P)) == len(h), "두 번 빼면 「이미 뺐을 수 있습니다」 · 이력 늘지 않음", j)
-check(q(cl.post, "/api/project-quote/restore/%d" % F2).status_code in (404, 405) and "z63-undo" not in hd and "되돌리기" not in hd, "되돌리기 없음(주소·단추 모두)")
+# z1191z201 (대표 11-28 「넣어」): 30일 안 「되살리기」가 생김 — 권한은 빼기와 같음(남의 것 403) · 옛 z63 「되돌리기」 단추는 없음
+check(q(cl.post, "/api/project-quote/restore/%d" % F2).status_code == 403 and "z63-undo" not in hd and "되돌리기" not in hd, "옛 되돌리기 단추 없음 · 되살리기 권한 = 빼기와 같음(남의 것 403 · z1191z201)")
 F3 = attach(P, "가영업 두번째 견적서.pdf")
 
 print("§4 견적 올리는 화면마다 빼기")
@@ -252,7 +254,8 @@ hd2 = q(cl.get, "/project/%d" % P2).text
 hd = q(cl.get, "/project/%d" % P).text
 with D.db_session() as c:
     gone = c.execute("SELECT COUNT(*) FROM project_quote_files WHERE id=?", (F2,)).fetchone()[0] == 0
-check(gone and not os.path.exists(os.path.join(TMP, "project_quotes", st2)) and "라영업이 올린 견적서.pdf</a>" not in hd2, "숨겨 둔 것은 상세를 열 때 파일·줄 지움(대표 PP1-1.png 같은 경우)")
+# z1191z201: 화면을 여는 것만으로는 지우지 않음(z64 「열 때 지움」 없앰) — 목록에서만 빠지고 줄·파일은 30일 보관 뒤 밤 정리
+check((not gone) and os.path.exists(os.path.join(TMP, "project_quotes", st2)) and "라영업이 올린 견적서.pdf</a>" not in hd2, "숨겨 둔 것은 목록에서 빠짐 · 상세를 열어도 지우지 않음(30일 보관 · z1191z201)")
 none_hidden = re.search(r'<div class="z63-none" style="[^"]*display:none;[^"]*">등록된 견적서가 없습니다.</div>', hd)
 check(none_hidden and "가영업 두번째 견적서.pdf</a>" in hd, "견적서가 남아 있으면 「등록된 견적서가 없습니다.」는 숨김")
 as_(UT)
@@ -265,7 +268,7 @@ P0, _ = reg(model="TP-64", quote_tok="")
 h0 = q(cl.get, "/project/%d" % P0).text; e0 = q(cl.get, "/projects/%d/quick-edit" % P0).text
 check("등록된 견적서가 없습니다." in h0 and 'class="z63-have"' in e0 and "등록된 견적서가 없습니다." in e0,
       "처음부터 없을 때도 상세·수정 화면에 「등록된 견적서가 없습니다.」")
-check(any("빼기 · 마기술" in x["note"] for x in hist(P)), "지워도 이력(누가 뺐는지)은 남음")
+check(any("빼기" in x["note"] and "마기술" in x["note"] for x in hist(P)), "빼도 이력(누가 뺐는지)은 남음")
 
 print()
 print("결과: ✅ %d · ❌ %d" % (OK, FAIL))

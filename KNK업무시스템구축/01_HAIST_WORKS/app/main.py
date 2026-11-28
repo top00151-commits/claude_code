@@ -1955,6 +1955,11 @@ def startup():
     _start_tier_refresh_scheduler()
     # OPS-P1-A2 (B2 안 채택): 일일 미작성자 시스템 알림 스케줄러 시작
     _start_daily_reminder_scheduler()
+    # z1191z201 (대표 11-28 「보관했다가 삭제해」): 뺀 견적서·고객 발주서 30일 지난 것 밤 정리(매일 22:30 · 금지 시간 피함)
+    try:
+        _start_keep30_scheduler_z201()
+    except Exception as _e:
+        print(f"[z1191z201] 정리 시계 시작 실패: {_e}")
     # z1191z100 (대표 11-22 「수금 알림은 평일 9시, 안지연 프로만 받게 켜줘」) — 끄는 길: 환경변수 KNK_RUN_AR_ALERT=0
     try:
         # z1191z101: 기본 = 운영 DB(/opt/knk_haist/) 에서만 켬 · KNK_RUN_AR_ALERT=1 이면 어디서나 켬 · =0 이면 끔
@@ -39486,7 +39491,7 @@ def projects_list_page(request: Request, q: str = "", biz_div: str = "",
             _z61_table(_c150)
             _po143.table(_c150)
             _has150 = {x[0] for x in _c150.execute("SELECT DISTINCT project_id FROM project_quote_files WHERE removed_at IS NULL AND project_id IS NOT NULL")}
-            _has150 |= {x[0] for x in _c150.execute("SELECT DISTINCT project_id FROM project_po_files WHERE project_id IS NOT NULL")}
+            _has150 |= {x[0] for x in _c150.execute("SELECT DISTINCT project_id FROM project_po_files WHERE project_id IS NOT NULL AND removed_at IS NULL")}   # z1191z201
             _docs_n150 = sum(1 for x in _pids150 if x in _has150)
             if view == "docs":
                 _docs150 = _z150_docs(_c150, _pids150)
@@ -46221,9 +46226,10 @@ def _z61_cleanup(c):
     """등록 안 하고 3일 지난 파일 지우기(행+파일)."""
     from datetime import datetime as _d61, timedelta as _td61
     cut = (_d61.strptime(_z61_now(), "%Y-%m-%d %H:%M") - _td61(days=3)).strftime("%Y-%m-%d %H:%M")
-    # z1191z64 (대표 「30일 보관도 하지마」): 뺀 것은 날짜 상관없이 바로 지움(z63 때 빼 둔 것 포함)
-    rows = c.execute("SELECT id, stored FROM project_quote_files WHERE (project_id IS NULL AND created_at < ?) "
-                     "OR removed_at IS NOT NULL", (cut,)).fetchall()
+    # z1191z201 (대표 11-28 「보관했다가 삭제해」 — z64 「바로 지움」을 뒤집음): 뺀 것은 여기서 지우지 않는다
+    #   → 30일 보관 뒤 밤 정리(_z201_purge · 쓰는 곳을 센 뒤)만 지움. 여기는 등록 안 한 임시 파일(3일)만.
+    rows = c.execute("SELECT id, stored FROM project_quote_files WHERE project_id IS NULL AND created_at < ? "
+                     "AND removed_at IS NULL", (cut,)).fetchall()
     for r in rows:
         try:
             fp = os.path.join(_z61_dir(), r[1] or "")
@@ -46483,6 +46489,7 @@ tpl.env.globals["z62_can_upload"] = lambda u: bool(u) and can_use_sales(u) and c
 #   → 「빼기는 올린사람 또는 관리자 기술영업팀 인원(등록,빼기할때 항상 누가 했는지 이력 남길것)」 → 「견적은 관리자는 빼자」):
 #   뺄 수 있는 사람 = 올린 사람 · 기술영업팀(관리자·대표 계정은 남의 것 못 뺌)
 #   빼기 = 화면에서 숨김(removed_at·누가) + 프로젝트 변경 이력(누가) · 파일은 30일 보관 뒤 지움 · 「되돌리기」도 같은 사람들 · 이력
+#   (z64 11-18 「바로 지움」 → z1191z201 11-28 「보관했다가 삭제해」로 다시 30일 보관 · 아래 z201 묶음)
 def _z63_is_tech_sales(u):
     try:
         tid = (u or {}).get("team_id")
@@ -46509,35 +46516,20 @@ def _z63_can_remove(u, row):
 tpl.env.globals["z63_can_remove"] = _z63_can_remove
 
 
-def _z64_drop(c, fid, stored):
-    """견적서 파일·줄을 바로 지움(되돌릴 수 없음 — 대표 「되돌리기 기능은 삭제 · 30일 보관도 하지마」)."""
-    try:
-        fp = os.path.join(_z61_dir(), stored or "")
-        if stored and os.path.isfile(fp):
-            os.remove(fp)
-    except Exception as _e:
-        print(f"[z1191z64] 견적서 파일 지우기 실패 {stored}: {_e}")
-    c.execute("DELETE FROM project_quote_files WHERE id=?", (fid,))
-
-
 @app.post("/api/project-quote/remove/{fid}")
 async def api_project_quote_remove(req: Request, fid: int):
-    """z1191z63·z64: 견적서 빼기 — 올린 사람·기술영업팀만 · 파일·줄 바로 지움 · 변경 이력에 누가(이름·번호)."""
+    """z1191z63·z201: 견적서 빼기 — 올린 사람·기술영업팀만 · 목록에서 바로 빠짐(표시만) · 파일·줄은 30일 보관 뒤 밤 정리 · 변경 이력에 누가."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     with db_session() as c:
         _z61_table(c)
-        r = c.execute("SELECT id, project_id, orig_name, stored, by_id FROM project_quote_files WHERE id=?", (fid,)).fetchone()
-        if not r or r["project_id"] is None:
+        r = c.execute("SELECT id, project_id, order_id, orig_name, stored, by_id, removed_at FROM project_quote_files WHERE id=?", (fid,)).fetchone()
+        if not r or r["project_id"] is None or r["removed_at"]:
             return JSONResponse({"ok": False, "message": "그 견적서를 찾지 못했습니다(이미 뺐을 수 있습니다)."}, 404)
         if not _z63_can_remove(u, dict(r)):
             return JSONResponse({"ok": False, "message": "견적서는 올린 사람과 기술영업팀만 뺄 수 있습니다."}, 403)
-        who = vname_full(u) or u.get("name")
-        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (r["project_id"], u.get("id"), "견적서 파일", r["orig_name"], "", f"z1191z63 견적서 빼기 · {who}"))
-        _z64_drop(c, r["id"], r["stored"])
-    return JSONResponse({"ok": True})
+        return JSONResponse(_z201_mark(c, "quote", dict(r), u))
 
 
 @app.get("/api/project-quote/{tok}")
@@ -46597,8 +46589,7 @@ def _z61_quote_files(pid):
     try:
         with db_session() as c:
             _z61_table(c)
-            for _r64 in c.execute("SELECT id, stored FROM project_quote_files WHERE project_id=? AND removed_at IS NOT NULL", (int(pid),)).fetchall():
-                _z64_drop(c, _r64["id"], _r64["stored"])   # z1191z64: z63 때 숨겨 둔 것 → 바로 지움
+            # z1191z201: 뺀 것(removed_at)은 목록에서만 빠짐 — 화면을 여는 것만으로 지우지 않음(z64 「열 때 바로 지움」 없앰)
             out = []
             # z1191z156: 수주번호마다 붙은 견적서 전부(수주 발주일 순) · 수주를 안 고른 옛 것(order_id 없음)은 맨 위에 ⚠ 로
             for r in c.execute("SELECT f.id, f.order_id, f.orig_name, f.size, f.by_id, f.by_name, f.created_at, f.read_json, o.order_no "
@@ -47617,7 +47608,7 @@ def _z143_rows(c, pid=None):
     """{(관리번호 id, 수주 id 또는 None): [발주서 줄(id 오름차순)]} — 자리에 붙은 것만."""
     _po143.table(c)
     sql = ("SELECT id, project_id, order_id, orig_name, kind, size, by_id, by_name, created_at, amount, currency, amount_label, "
-           "book_err FROM project_po_files WHERE project_id IS NOT NULL")   # z1191z160: amt_ack_* 안 씀
+           "book_err FROM project_po_files WHERE project_id IS NOT NULL AND removed_at IS NULL")   # z1191z160: amt_ack_* 안 씀 · z1191z201: 뺀 것 빼고
     args = ()
     if pid:
         sql += " AND project_id=?"
@@ -47658,7 +47649,7 @@ def _z143_slot_label(code, order_no, pname, amt, ccy):
 
 def _z143_has(c):
     return {(r[0], r[1]): r[2] for r in c.execute(
-        "SELECT project_id, order_id, COUNT(*) FROM project_po_files WHERE project_id IS NOT NULL GROUP BY project_id, order_id")}
+        "SELECT project_id, order_id, COUNT(*) FROM project_po_files WHERE project_id IS NOT NULL AND removed_at IS NULL GROUP BY project_id, order_id")}   # z1191z201
 
 
 def _z143_cands(c, text):
@@ -47717,7 +47708,7 @@ def _z143_slot_name(p, so):
 
 def _z143_nprev(c, pid, oid, not_id=None):
     """그 자리(수주)에 붙은 발주서 수(not_id 빼고) — z1191z160: 「이전 발주서」가 아니라 같은 수주의 다른 발주서 수."""
-    sql = "SELECT COUNT(*) FROM project_po_files WHERE project_id=? AND " + ("order_id=?" if oid else "order_id IS NULL")
+    sql = "SELECT COUNT(*) FROM project_po_files WHERE removed_at IS NULL AND project_id=? AND " + ("order_id=?" if oid else "order_id IS NULL")   # z1191z201
     args = [pid] + ([oid] if oid else [])
     if not_id:
         sql += " AND id<>?"
@@ -47874,23 +47865,19 @@ async def api_customer_po_place_z143(req: Request):
 
 @app.post("/api/customer-po/remove/{fid}")
 async def api_customer_po_remove_z143(req: Request, fid: int):
-    """발주서 빼기 — 올린 사람·기술영업팀(견적서 z63 규칙) · 파일·줄 바로 지움 · 변경 이력에 누가(z1191z160: 같은 수주의 다른 발주서는 그대로)."""
+    """발주서 빼기 — 올린 사람·기술영업팀(견적서 z63 규칙) · 목록에서 바로 빠짐(표시만) · 파일·줄은 30일 보관 뒤 밤 정리(z1191z201)
+    · 변경 이력에 누가(z1191z160: 같은 수주의 다른 발주서는 그대로)."""
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "error": "login_required"}, 401)
     with db_session() as c:
         _po143.table(c)
-        r = c.execute("SELECT id, project_id, order_id, orig_name, stored, by_id FROM project_po_files WHERE id=?", (fid,)).fetchone()
-        if not r or r["project_id"] is None:
+        r = c.execute("SELECT id, project_id, order_id, orig_name, stored, by_id, removed_at FROM project_po_files WHERE id=?", (fid,)).fetchone()
+        if not r or r["project_id"] is None or r["removed_at"]:
             return JSONResponse({"ok": False, "message": "그 발주서를 찾지 못했습니다(이미 뺐을 수 있습니다)."}, 404)
         if not _z63_can_remove(u, dict(r)):
             return JSONResponse({"ok": False, "message": "발주서는 올린 사람과 기술영업팀만 뺄 수 있습니다."}, 403)
-        who = vname_full(u) or u.get("name") or ""
-        c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
-                  (r["project_id"], u.get("id"), "고객 발주서", r["orig_name"], "", f"z1191z143 고객 발주서 빼기 · {who}"))
-        c.execute("DELETE FROM project_po_files WHERE id=?", (fid,))
-        _z143_drop_file(r["stored"])
-    return JSONResponse({"ok": True})
+        return JSONResponse(_z201_mark(c, "po", dict(r), u))
 
 
 # z1191z160 (대표 11-26 「검토하는 기능을 빼줘」): 엑셀 발주서 금액 ≠ 수주 금액 「확인했음」(/api/customer-po/ack) 없앰
@@ -47901,7 +47888,7 @@ def _z143_file_row(c, fid):
     _po143.table(c)
     r = c.execute("SELECT f.*, p.mgmt_code, p.name AS pname, p.customer_name AS pcust, o.order_no, o.total_amount AS o_amt, o.currency AS o_ccy "
                   "FROM project_po_files f LEFT JOIN projects p ON p.id=f.project_id LEFT JOIN orders o ON o.id=f.order_id "
-                  "WHERE f.id=? AND f.project_id IS NOT NULL", (fid,)).fetchone()
+                  "WHERE f.id=? AND f.project_id IS NOT NULL AND f.removed_at IS NULL", (fid,)).fetchone()   # z1191z201: 뺀 것 = 없는 것
     return dict(r) if r else None
 
 
@@ -47918,7 +47905,7 @@ async def customer_po_view_z143(req: Request, fid: int):
         if not f:
             return PlainTextResponse("발주서를 찾지 못했습니다(뺐을 수 있습니다).", status_code=404)
         sib = [dict(r) for r in c.execute(
-            "SELECT id, orig_name, kind, by_name, created_at, amount, currency FROM project_po_files WHERE project_id=? AND "
+            "SELECT id, orig_name, kind, by_name, created_at, amount, currency FROM project_po_files WHERE removed_at IS NULL AND project_id=? AND "
             + ("order_id=?" if f["order_id"] else "order_id IS NULL") + " ORDER BY id",
             ((f["project_id"], f["order_id"]) if f["order_id"] else (f["project_id"],))).fetchall()]
     book = None
@@ -47955,7 +47942,7 @@ async def customer_po_file_z143(req: Request, fid: int):
     with db_session() as c:
         _po143.table(c)
         r = c.execute("SELECT f.orig_name, f.stored, p.mgmt_code, o.order_no FROM project_po_files f JOIN projects p ON p.id=f.project_id "
-                      "LEFT JOIN orders o ON o.id=f.order_id WHERE f.id=? AND f.project_id IS NOT NULL", (fid,)).fetchone()
+                      "LEFT JOIN orders o ON o.id=f.order_id WHERE f.id=? AND f.project_id IS NOT NULL AND f.removed_at IS NULL", (fid,)).fetchone()   # z1191z201
     fp = os.path.join(_z143_dir(), (r["stored"] if r else "") or "")
     if not r or not r["stored"] or not os.path.isfile(fp):
         return PlainTextResponse("발주서 파일을 찾지 못했습니다.", status_code=404)
@@ -47965,6 +47952,247 @@ async def customer_po_file_z143(req: Request, fid: int):
     return FileResponse(fp, media_type=_po143.MIME.get(ext, "application/octet-stream"), headers={
         "Content-Disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{_uq143(_z150_fname(r['mgmt_code'], r['order_no'], '발주서', r['orig_name'] or ('po' + ext)))}",   # z1191z150
         "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
+
+# ═══ z1191z201 (대표 11-28 「보관했다가 삭제해.. 삭제할때 안내문도 붙이고..」 → 「넣어」(30일 안 되살리기)):
+#   견적서·고객 발주서 「빼기」 = 표시만(removed_at·누가) → 모든 목록·고르기·찾기·zip·수주 칸 확인에서 바로 빠짐 · 파일·줄은 30일 보관
+#   · 30일 지난 것 = 밤 정리(_z201_purge · 매일 22:30 한국시간 · 월 02:00~07:30 NAS 백업·평일 08:50~09:30 피함)
+#     지우기 전에 같은 파일을 쓰는 다른 줄을 센다 → 있으면 지우지 않고 남김(기록만)
+#   · 30일 안 = 그 파일을 뺄 수 있는 사람(_z63_can_remove 그대로)이 화면 「뺀 파일」·빼기 완료 창에서 「되살리기」 · 이력 남김
+#   · 규칙 = 00_스킬규정/knk-safe-delete 2절 「보관 후 삭제」·4절 안내문
+Z201_KEEP_DAYS = 30            # 보관 기간 — 이 한 곳만
+Z201_PURGE_AT = (22, 30)       # 밤 정리 시각(한국시간)
+_Z201_KIND = {"quote": ("project_quote_files", "견적서 파일", "견적서"), "po": ("project_po_files", "고객 발주서", "고객 발주서")}
+
+
+def _z201_dir(kind):
+    return _z61_dir() if kind == "quote" else _z143_dir()
+
+
+def _z201_parse(ts):
+    from datetime import datetime as _d201
+    try:
+        return _d201.strptime(str(ts or "")[:16], "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+
+def _z201_cut(now_kst=None):
+    """이 시각보다 먼저 뺀 것 = 30일 보관 끝(되살릴 수 없음 · 밤 정리 대상) — 「YYYY-MM-DD HH:MM」(한국시간)."""
+    k = now_kst if now_kst is not None else _kst_wall_now()
+    return (k - timedelta(days=Z201_KEEP_DAYS)).strftime("%Y-%m-%d %H:%M")
+
+
+def _z201_purge_day(removed_at):
+    """뺀 시각 → 완전히 지워지는 날(그 날 밤 22:30 정리 · 뺀 시각 + 30일이 22:30 넘으면 다음 날)."""
+    t = _z201_parse(removed_at)
+    if not t:
+        return None
+    d = t + timedelta(days=Z201_KEEP_DAYS)
+    if (d.hour, d.minute) >= Z201_PURGE_AT:
+        d = d + timedelta(days=1)
+    return d.date()
+
+
+def _z201_md(d):
+    return f"{d.month}월 {d.day}일" if d else ""
+
+
+tpl.env.globals["z201_keep_days"] = Z201_KEEP_DAYS
+
+
+def _z201_mark(c, kind, r, u):
+    """빼기 = 표시만 · 이력(누가) · 돌려주는 글 = 결과 첫 줄(knk-done-status)."""
+    tbl, field, label = _Z201_KIND[kind]
+    now = _z61_now()
+    who = vname_full(u) or u.get("name") or ""
+    c.execute(f"UPDATE {tbl} SET removed_at=?, removed_by=?, removed_by_name=? WHERE id=? AND removed_at IS NULL",
+              (now, u.get("id"), who, r["id"]))
+    day = _z201_md(_z201_purge_day(now))
+    c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+              (r["project_id"], u.get("id"), field, r["orig_name"], "",
+               f"z1191z201 {label} 빼기 · 30일 보관 뒤({day}) 완전 삭제 · {who}"))
+    return {"ok": True, "kind": kind, "fid": r["id"], "name": r["orig_name"], "purge_on": day,
+            "message": f"✅ 완료 — 「{r['orig_name']}」을 뺐습니다. 30일 보관 뒤({day}) 완전히 지워집니다."}
+
+
+def _z201_restore(c, kind, fid, u):
+    """30일 안에 뺀 것 되살리기 — (응답 dict, 상태 번호). removed_at 비움 · 이력(누가).
+    권한 = 그 파일을 뺄 수 있는 사람(_z63_can_remove) · 없는 것/30일 지나 지워진 것 404 · 이미 살아 있는 것 = 그대로 ok."""
+    tbl, field, label = _Z201_KIND[kind]
+    r = c.execute(f"SELECT id, project_id, orig_name, by_id, removed_at FROM {tbl} WHERE id=? AND project_id IS NOT NULL", (int(fid),)).fetchone()
+    if not r:
+        return {"ok": False, "message": f"그 {label}를 찾지 못했습니다(30일이 지나 완전히 지워졌을 수 있습니다)."}, 404
+    if not _z63_can_remove(u, dict(r)):
+        return {"ok": False, "message": f"{label}는 올린 사람과 기술영업팀만 되살릴 수 있습니다."}, 403
+    if not r["removed_at"]:
+        return {"ok": True, "kind": kind, "fid": r["id"], "name": r["orig_name"], "already": True,
+                "message": f"✅ 완료 — 「{r['orig_name']}」은 이미 목록에 있습니다."}, 200
+    if r["removed_at"] < _z201_cut():
+        return {"ok": False, "message": f"30일 보관이 끝나 되살릴 수 없습니다(「{r['orig_name']}」)."}, 404
+    c.execute(f"UPDATE {tbl} SET removed_at=NULL, removed_by=NULL, removed_by_name=NULL WHERE id=?", (r["id"],))
+    who = vname_full(u) or u.get("name") or ""
+    c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+              (r["project_id"], u.get("id"), field, "", r["orig_name"], f"z1191z201 {label} 되살림 · {who}"))
+    return {"ok": True, "kind": kind, "fid": r["id"], "name": r["orig_name"],
+            "message": f"✅ 완료 — 「{r['orig_name']}」을 되살렸습니다."}, 200
+
+
+def _z201_restore_api(kind):
+    async def _h(req: Request, fid: int):
+        u = get_user(req)
+        if not u:
+            return JSONResponse({"ok": False, "error": "login_required"}, 401)
+        with db_session() as c:
+            _z61_table(c)
+            _po143.table(c)
+            out, code = _z201_restore(c, kind, fid, u)
+        return JSONResponse(out, code)
+    return _h
+
+
+app.post("/api/project-quote/restore/{fid}")(_z201_restore_api("quote"))
+app.post("/api/customer-po/restore/{fid}")(_z201_restore_api("po"))
+
+
+@app.get("/api/keep30/ask")
+async def api_keep30_ask_z201(req: Request):
+    """빼기 묻는 창(안내문)에 넣을 값 — 파일 이름 · 이어진 수주 · 완전 삭제 날(지금 빼면). 보기만(저장 안 함) · 뺄 수 있는 것만 돌려줌."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "error": "login_required"}, 401)
+    kind = (req.query_params.get("kind") or "").strip()
+    if kind not in _Z201_KIND:
+        return JSONResponse({"ok": False, "message": "알 수 없는 요청입니다."}, 400)
+    ids = [int(x) for x in (req.query_params.get("ids") or "").split(",") if x.strip().isdigit()][:50]
+    tbl = _Z201_KIND[kind][0]
+    items = []
+    with db_session() as c:
+        _z61_table(c)
+        _po143.table(c)
+        for fid in ids:
+            r = c.execute(f"SELECT f.id, f.project_id, f.order_id, f.orig_name, f.by_id, o.order_no FROM {tbl} f "
+                          "LEFT JOIN orders o ON o.id=f.order_id WHERE f.id=? AND f.project_id IS NOT NULL AND f.removed_at IS NULL",
+                          (fid,)).fetchone()
+            if r and _z63_can_remove(u, dict(r)):
+                items.append({"fid": r["id"], "name": r["orig_name"], "so_no": r["order_no"] or ""})
+    return JSONResponse({"ok": True, "items": items, "keep_days": Z201_KEEP_DAYS, "purge_on": _z201_md(_z201_purge_day(_z61_now()))})
+
+
+def _z201_removed(kind, pid, oid=None):
+    """화면 「30일 안에 뺀 파일」 — 그 관리번호(oid 주면 그 수주)에서 30일 안에 뺀 것(최근 위)."""
+    if kind not in _Z201_KIND or not pid:
+        return []
+    tbl = _Z201_KIND[kind][0]
+    try:
+        with db_session() as c:
+            _z61_table(c)
+            _po143.table(c)
+            sql = (f"SELECT f.id, f.project_id, f.order_id, f.orig_name, f.by_id, f.removed_at, f.removed_by_name, o.order_no FROM {tbl} f "
+                   "LEFT JOIN orders o ON o.id=f.order_id WHERE f.project_id=? AND f.removed_at IS NOT NULL AND f.removed_at >= ?")
+            args = [int(pid), _z201_cut()]
+            if oid:
+                sql += " AND f.order_id=?"
+                args.append(int(oid))
+            out = []
+            for r in c.execute(sql + " ORDER BY f.removed_at DESC, f.id DESC", args).fetchall():
+                x = dict(r)
+                x["purge_on"] = _z201_md(_z201_purge_day(x["removed_at"]))
+                out.append(x)
+            return out
+    except Exception as _e:
+        print(f"[z1191z201] 뺀 파일 목록 실패 {kind} pid={pid}: {_e}")
+        return []
+
+
+tpl.env.globals["z201_removed"] = _z201_removed
+
+
+def _z201_quiet(now_kst=None):
+    """밤 정리를 하면 안 되는 시간 — 월 02:00~07:30(NAS 백업) · 평일 08:50~09:30(대표·직원 출근 시간)."""
+    k = now_kst if now_kst is not None else _kst_wall_now()
+    if _nas_quiet_now(k):
+        return "NAS 백업 시간(월 02:00~07:30)"
+    if k.weekday() < 5 and (8, 50) <= (k.hour, k.minute) < (9, 30):
+        return "평일 08:50~09:30"
+    return ""
+
+
+def _z201_purge(now_kst=None):
+    """30일 보관 끝난 견적서·고객 발주서 지우기(파일+줄) — 같은 파일을 다른 줄이 쓰면 남김. 금지 시간이면 아무것도 안 함.
+    돌려주는 값 = {"skip": 이유} 또는 {kind: {"del": n, "kept": n}}."""
+    k = now_kst if now_kst is not None else _kst_wall_now()
+    why = _z201_quiet(k)
+    if why:
+        print(f"[z1191z201] 30일 지난 견적서·발주서 정리 — {why}라 건너뜀")
+        return {"skip": why}
+    cut = _z201_cut(k)
+    res = {}
+    with db_session() as c:
+        _z61_table(c)
+        _po143.table(c)
+        _z121_table(c)
+        for kind, (tbl, field, label) in _Z201_KIND.items():
+            n_del, n_kept = 0, 0
+            for r in c.execute(f"SELECT id, project_id, orig_name, stored FROM {tbl} WHERE removed_at IS NOT NULL AND removed_at < ?",
+                               (cut,)).fetchall():
+                uses = c.execute(f"SELECT COUNT(*) FROM {tbl} WHERE stored=? AND id<>?", (r["stored"] or "", r["id"])).fetchone()[0] if r["stored"] else 0
+                if uses:
+                    n_kept += 1
+                    print(f"[z1191z201] {label} {r['id']} 「{r['orig_name']}」 — 같은 파일을 쓰는 줄 {uses}개라 지우지 않고 남김")
+                    continue
+                try:
+                    fp = os.path.join(_z201_dir(kind), r["stored"] or "")
+                    if r["stored"] and os.path.isfile(fp):
+                        os.remove(fp)
+                except Exception as _e:
+                    print(f"[z1191z201] {label} 파일 지우기 실패 {r['stored']}: {_e} — 줄은 남김(다음 밤에 다시)")
+                    n_kept += 1
+                    continue
+                if kind == "quote":
+                    c.execute("DELETE FROM project_quote_text WHERE file_id=?", (r["id"],))
+                c.execute(f"DELETE FROM {tbl} WHERE id=?", (r["id"],))
+                c.execute("INSERT INTO project_history(project_id, changed_by, field, old_value, new_value, note) VALUES(?,?,?,?,?,?)",
+                          (r["project_id"], None, field, r["orig_name"], "", f"z1191z201 {label} 30일 보관 끝 · 완전 삭제(시스템)"))
+                n_del += 1
+            res[kind] = {"del": n_del, "kept": n_kept}
+    print(f"[z1191z201] 30일 지난 견적서·발주서 정리 — {res}")
+    return res
+
+
+def _z201_secs_until_next(now_kst=None):
+    k = now_kst if now_kst is not None else _kst_wall_now()
+    t = k.replace(hour=Z201_PURGE_AT[0], minute=Z201_PURGE_AT[1], second=0, microsecond=0)
+    if t <= k:
+        t = t + timedelta(days=1)
+    return max(60.0, (t - k).total_seconds())
+
+
+def _z201_tick():
+    import threading as _th
+    try:
+        if _nas_quiet_now():   # 이중 안전 — 22:30 이라 걸리지 않지만 계산이 어긋나도 안 돎(_z201_purge 안에서도 다시 봄)
+            print("[z1191z201] NAS 백업 시간 — 이번 밤 정리 건너뜀")
+        else:
+            _z201_purge()
+    except Exception as _e:
+        print(f"[z1191z201] 밤 정리 실패(다음 밤에 다시): {_e}")
+    t = _th.Timer(max(_z201_secs_until_next(), _nas_quiet_wait_secs()), _z201_tick)
+    t.daemon = True
+    t.start()
+
+
+def _start_keep30_scheduler_z201():
+    """startup 1회 — 다음 22:30(한국시간) 예약 · 끄는 길: KNK_RUN_KEEP30=0."""
+    import threading as _th
+    if os.environ.get("KNK_RUN_KEEP30", "1").strip().lower() in ("0", "false", "no", "off"):
+        print("[z1191z201] KNK_RUN_KEEP30=0 — 견적서·발주서 30일 정리 꺼짐")
+        return
+    d = max(_z201_secs_until_next(), _nas_quiet_wait_secs())   # NAS 백업 시간(월 02:00~07:30)엔 예약도 그 뒤로
+    print(f"[z1191z201] 견적서·발주서 30일 정리 시계 시작 — {int(d // 60)}분 뒤(매일 22:30 한국시간)")
+    t = _th.Timer(d, _z201_tick)
+    t.daemon = True
+    t.start()
 
 
 # ═══ z1191z150 (대표 11-25 10시 「등록한 견적서·발주서를 어디서 보는 게 편한지 … 프로젝트 목록에 책갈피 하나 만들어 한꺼번에 ·
@@ -48024,7 +48252,7 @@ def _z150_docs(c, pids):
     po = {}
     for ch in _chunks(pids):
         for r in c.execute("SELECT id, project_id, order_id, orig_name, kind, size, by_id, by_name, created_at, amount, currency, amount_label, "
-                           "book_err FROM project_po_files WHERE project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():
+                           "book_err FROM project_po_files WHERE removed_at IS NULL AND project_id IN (%s) ORDER BY id" % ",".join("?" * len(ch)), ch).fetchall():   # z1191z201
             po.setdefault((r["project_id"], r["order_id"]), []).append(dict(r))
     for pid in pids:
         own, pqs = {}, []
@@ -48079,7 +48307,7 @@ async def project_docs_zip_z150(req: Request, pid: int):
             return PlainTextResponse("프로젝트를 찾지 못했습니다.", status_code=404)
         d = _z150_docs(c, [int(pid)]).get(int(pid))
         qstored = {r["id"]: r["stored"] for r in c.execute("SELECT id, stored FROM project_quote_files WHERE project_id=? AND removed_at IS NULL", (int(pid),)).fetchall()}
-        pstored = {r["id"]: r["stored"] for r in c.execute("SELECT id, stored FROM project_po_files WHERE project_id=?", (int(pid),)).fetchall()}
+        pstored = {r["id"]: r["stored"] for r in c.execute("SELECT id, stored FROM project_po_files WHERE project_id=? AND removed_at IS NULL", (int(pid),)).fetchall()}   # z1191z201
     code = pr["mgmt_code"] or ("P%d" % pr["id"])
     plan, seen = [], set()   # (zip 안 경로, 실제 파일, 설명)
 
@@ -48520,7 +48748,7 @@ def _z156_noso_files(c):
     for kind, sql in (("quote", "SELECT f.id, f.project_id, f.orig_name, f.by_name, f.created_at FROM project_quote_files f "
                                 "WHERE f.project_id IS NOT NULL AND f.order_id IS NULL AND f.removed_at IS NULL ORDER BY f.id"),
                       ("po", "SELECT f.id, f.project_id, f.orig_name, f.by_name, f.created_at FROM project_po_files f "
-                             "WHERE f.project_id IS NOT NULL AND f.order_id IS NULL ORDER BY f.id")):
+                             "WHERE f.project_id IS NOT NULL AND f.order_id IS NULL AND f.removed_at IS NULL ORDER BY f.id")):   # z1191z201
         for r in c.execute(sql).fetchall():
             x = dict(r)
             x["kind"] = kind
@@ -48676,7 +48904,7 @@ async def api_so_check_file_z156(request: Request, kind: str, fid: int):
         _z61_table(c)
         _po143.table(c)
         r = c.execute(f"SELECT id, project_id, orig_name FROM {tbl} WHERE id=? AND project_id IS NOT NULL AND order_id IS NULL"
-                      + (" AND removed_at IS NULL" if kind == "quote" else ""), (int(fid),)).fetchone()
+                      + " AND removed_at IS NULL", (int(fid),)).fetchone()   # z1191z201: 발주서도 뺀 것은 빼고
         if not r:
             return JSONResponse({"ok": False, "message": "그 파일을 찾지 못했습니다(이미 수주번호를 골랐거나 뺐을 수 있습니다) — 화면을 다시 불러오세요."}, 409)
         oid, err = _z156_pick(c, r["project_id"], form.get("order_id"), need_explicit=True)

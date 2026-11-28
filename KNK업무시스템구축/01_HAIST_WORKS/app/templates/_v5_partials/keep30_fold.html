@@ -1,0 +1,18 @@
+{# z1191z201 (대표 11-28 「넣어」): 견적서·발주서 칸 아래 「30일 안에 뺀 파일 N건 · 되살리기」 — 기본 접힘 · 평소 목록에는 안 보임
+   변수: k30_kind('quote'·'po') · k30_pid · k30_oid(없으면 그 관리번호 모두) · 30일 지나 지워진 것은 안 보임
+   되살리기 단추 = 그 파일을 뺄 수 있는 사람만(z63_can_remove 그대로) #}
+{% set _k30 = z201_removed(k30_kind, k30_pid, (k30_oid or none)) %}
+{% include "_v5_partials/keep30_js.html" %}
+{% if _k30 %}
+<details class="z201-fold" data-kind="{{ k30_kind }}">
+  <summary>🗂 30일 안에 뺀 파일 {{ _k30|length }}건 · 되살리기</summary>
+  {% for r in _k30 %}
+  <div class="z201-row">
+    <span class="nm">📄 {{ r.orig_name }}</span>
+    {% if r.order_no %}<span>· {{ r.order_no }}</span>{% endif %}
+    <span>· 뺀 사람 {{ r.removed_by_name or '—' }} · 뺀 날 {{ (r.removed_at or '')[:10] }} · <b style="color:#b91c1c;">{{ r.purge_on }} 완전 삭제</b></span>
+    {% if z63_can_remove(user, r) %}<button type="button" class="z201-rs" data-kind="{{ k30_kind }}" data-fid="{{ r.id }}" data-name="{{ r.orig_name }}">↺ 되살리기</button>{% endif %}
+  </div>
+  {% endfor %}
+</details>
+{% endif %}

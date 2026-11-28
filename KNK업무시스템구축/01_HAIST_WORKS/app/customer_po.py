@@ -42,6 +42,11 @@ def table(c):
         amt_ack_by INTEGER, amt_ack_name TEXT, amt_ack_at TEXT)""")
     c.execute("CREATE INDEX IF NOT EXISTS ix_ppo_project ON project_po_files(project_id)")
     c.execute("CREATE INDEX IF NOT EXISTS ix_ppo_order ON project_po_files(order_id)")
+    # z1191z201 (대표 11-28 「보관했다가 삭제해.. 삭제할때 안내문도 붙이고..」): 빼기 = 표시만(removed_at·누가) · 30일 보관 뒤 밤에 지움
+    _cols = {r[1] for r in c.execute("PRAGMA table_info(project_po_files)").fetchall()}
+    for _cn, _ct in (("removed_at", "TEXT"), ("removed_by", "INTEGER"), ("removed_by_name", "TEXT")):
+        if _cn not in _cols:
+            c.execute(f"ALTER TABLE project_po_files ADD COLUMN {_cn} {_ct}")
 
 
 # ── 엑셀 발주서 금액 읽기(AI 없음) — 합계 글자 옆(오른쪽 또는 아래) 숫자 ──

@@ -3,7 +3,8 @@
    z1191z160 (대표 11-26 「검토하는 기능을 빼줘 · 발주서·견적서가 여러 개 등록될 수 있게」): 여러 장 모두 같은 자격(「최종」·「이전 발주서」 없음 · 최근 위)
    · 엑셀은 읽은 금액을 보여 주기만(수주 금액과 비교·「확인했음」 없음)
    변수: po_pid · po_oid(없으면 관리번호 칸 = 수주번호를 골라 올림) · po_s(customer_po.slot_status = {files, st}) · po_otxt(쓰지 않음 · 옛 부르는 곳 호환)
-   쓰는 곳: 프로젝트 상세 「고객 발주서」 칸 · 수주 상세 「📄 고객 발주서」 #}
+   쓰는 곳: 프로젝트 상세 「고객 발주서」 칸 · 수주 상세 「📄 고객 발주서」
+   z1191z201: 🗑 빼기 = 목록에서 바로 빠짐 · 30일 보관 뒤 완전 삭제 · 그 전엔 아래 「뺀 파일」에서 되살리기 #}
 {% set _pfs = (po_s.files if (po_s and po_s.files) else []) %}
 {% set _proj156 = (po_oid is none) %}{# z1191z156: 관리번호 칸(프로젝트 상세) = 수주번호를 골라 올림 · 여기 보이는 발주서 = 수주번호를 안 고른 옛 것뿐 #}
 <div class="z143-box" data-pid="{{ po_pid }}" data-oid="{{ po_oid or '' }}" style="margin-top:4px;">
@@ -22,6 +23,8 @@
   {% if not _pfs %}
   <div style="font-size:12px;color:#64748b;">{% if _proj156 %}수주번호마다 올린 발주서는 아래 「수주별 견적·발주서」 표와 수주 카드에서 봅니다.{% else %}등록된 고객 발주서가 없습니다.{% endif %}</div>
   {% endif %}
+  {# z1191z201: 「30일 안에 뺀 파일」(접힘) — 수주 칸 = 그 수주 · 프로젝트 칸 = 그 관리번호의 발주서 모두 #}
+  {% set k30_kind = 'po' %}{% set k30_pid = po_pid %}{% set k30_oid = po_oid %}{% include "_v5_partials/keep30_fold.html" %}
   {% if z62_can_upload(user) %}
   {% if _proj156 %}{# z1191z156: 수주번호를 골라 그 수주에만 #}
   {% set _ps156 = po_sos or [] %}

@@ -73,7 +73,8 @@ check("자리 후보에 「이미 있는 발주서 수」(z1191z160: 함께 남�
 
 # 6 권한·안전(코드)
 src = open(os.path.join(ROOT, "app", "main.py"), encoding="utf-8").read()
-blk = src[src.index("# ═══ z1191z143"):min(src.index("# z1191z59 (대표 2026-11-18"), src.find("# ═══ z1191z150") if "# ═══ z1191z150" in src else len(src))]   # z1191z150 블록(견적서·발주서 모아 보기)은 따로
+blk = src[src.index("# ═══ z1191z143"):min(src.index("# z1191z59 (대표 2026-11-18"), src.find("# ═══ z1191z150") if "# ═══ z1191z150" in src else len(src),
+                                         src.find("# ═══ z1191z201") if "# ═══ z1191z201" in src else len(src))]   # z1191z150 블록(견적서·발주서 모아 보기)·z1191z201 블록(견적서·발주서 30일 보관 공용)은 따로
 check("올리기·붙이기·찾기 = can_use_sales·can_view_sales", blk.count("if not (can_use_sales(u) and can_view_sales(u)):") >= 3)
 check("z1191z160: 발주서 금액 「확인했음」 주소 없음", '@app.post("/api/customer-po/ack/' not in src and "amt_ack_by=?" not in blk)
 check("보기·내려받기 = can_view_sales · 빼기 = 올린 사람·기술영업팀(z63)", blk.count("if not can_view_sales(u):") >= 2 and "_z63_can_remove(u, dict(r))" in blk)

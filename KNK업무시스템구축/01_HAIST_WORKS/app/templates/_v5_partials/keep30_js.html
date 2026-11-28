@@ -1,0 +1,129 @@
+{# z1191z201 (대표 11-28 「보관했다가 삭제해.. 삭제할때 안내문도 붙이고..」 → 「넣어」(30일 안 되살리기)):
+   견적서·고객 발주서 「🗑 빼기」 공용 창 — 문서에 한 번만(여러 곳에서 include 해도 한 번)
+   · window.z201.remove(kind, [{fid, name}], {where, onRemoved(item), onClose()}) — 안내문(묻는 창) → 빼기 → 완료 창([↺ 되살리기] · ✕ 닫기)
+   · 「30일 안에 뺀 파일」 줄의 .z201-rs 단추 = 되살리기
+   · 창 = 화면 안 「✕ 닫기」(knk-screen-exit) · 단추 높이 하나(knk-even-layout) · Esc·바깥 누르기 = 닫기
+   · 결과 첫 줄 = ✅ 완료 / 👉 남은 일(knk-done-status) #}
+<style>
+.z201-ov { position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
+.z201-bx { background:#fff; color:#0f172a; border-radius:12px; width:min(480px,100%); max-height:calc(100vh - 32px); display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,.3); overflow:hidden; }
+.z201-hd { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #e2e8f0; font-size:14px; font-weight:800; }
+.z201-hd span { flex:1; min-width:0; }
+.z201-bd { padding:12px 16px; font-size:13px; line-height:1.6; overflow:auto; overscroll-behavior:contain; }
+.z201-bd ul { margin:6px 0 0; padding-left:18px; }
+.z201-bd .nm { font-weight:800; word-break:break-all; }
+.z201-bd .ok { color:#166534; font-weight:800; }
+.z201-bd .bad { color:#b91c1c; font-weight:800; }
+.z201-ft { display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:1px solid #e2e8f0; flex-wrap:wrap; }
+.z201-b { height:34px; padding:0 14px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.z201-b.r { border-color:#fecaca; color:#b91c1c; } .z201-b.r.on { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+.z201-b.g { border-color:#86efac; color:#166534; }
+.z201-b:disabled { opacity:.55; cursor:default; }
+.z201-fold { margin-top:6px; font-size:12px; color:#475569; }
+.z201-fold > summary { cursor:pointer; color:#64748b; font-weight:700; }
+.z201-fold .z201-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; padding:6px 9px; border:1px dashed #cbd5e1; border-radius:8px; background:#f8fafc; }
+.z201-fold .z201-row .nm { font-weight:700; color:#334155; word-break:break-all; }
+.z201-fold .z201-rs { margin-left:auto; padding:2px 10px; border:1px solid #86efac; background:#fff; color:#166534; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; }
+</style>
+<script>(function(){
+  if (window.z201) return;
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  var LB = {quote:'견적서', po:'고객 발주서'};
+  var RM = {quote:'/api/project-quote/remove/', po:'/api/customer-po/remove/'};
+  var RS = {quote:'/api/project-quote/restore/', po:'/api/customer-po/restore/'};
+  function post(url){ return fetch(url,{method:'POST',credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }).catch(function(){ return {ok:false, message:'인터넷 연결이 끊겼습니다'}; }); }
+  var cur = null;
+  function close(){ if (!cur) return; var c = cur; cur = null; document.removeEventListener('keydown', onKey); if (c.ov.parentNode) c.ov.parentNode.removeChild(c.ov); if (c.onClose) c.onClose(); }
+  function onKey(e){ if (e.key === 'Escape' && cur && !cur.busy) close(); }
+  /* 창 하나 — title · body(html) · 단추들 [{t, cls, fn}] · onClose */
+  function open(title, body, btns, onClose){
+    if (cur) { cur.onClose = null; close(); }
+    var ov = document.createElement('div'); ov.className = 'z201-ov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML = '<div class="z201-bx"><div class="z201-hd"><span>' + esc(title) + '</span><button type="button" class="z201-b z201-x">✕ 닫기</button></div>'
+      + '<div class="z201-bd"></div><div class="z201-ft"></div></div>';
+    ov.querySelector('.z201-bd').innerHTML = body;
+    var ft = ov.querySelector('.z201-ft');
+    (btns || []).forEach(function(b){ var e = document.createElement('button'); e.type = 'button'; e.className = 'z201-b ' + (b.cls || ''); e.textContent = b.t; e.addEventListener('click', function(){ b.fn(e); }); ft.appendChild(e); });
+    ov.querySelector('.z201-x').addEventListener('click', function(){ if (!cur || !cur.busy) close(); });
+    ov.addEventListener('click', function(ev){ if (ev.target === ov && cur && !cur.busy) close(); });
+    document.body.appendChild(ov);
+    cur = {ov: ov, onClose: onClose, busy: false};
+    document.addEventListener('keydown', onKey);
+    var last = ft.lastChild; if (last) try { last.focus(); } catch (e) {}
+    return cur;
+  }
+  function inForm(el){ return !!(el && el.closest && el.closest('form')); }
+  /* 되살린 뒤 — 쓰던 칸이 있는 수정 화면(form 안)은 다시 불러오지 않고 안내만 · 그 밖은 닫을 때 다시 불러옴 */
+  /* fm = 수정 화면(form 안)에서 눌렀는지 — 빼기 때 정해 둠(빼면 그 줄이 화면에서 없어져 나중엔 알 수 없음) */
+  function restore(kind, items, srcEl, fm){
+    if (fm == null) fm = inForm(srcEl);
+    var c = cur; if (c) c.busy = true;
+    var ok = [], bad = [];
+    return items.reduce(function(p, it){ return p.then(function(){ return post(RS[kind] + it.fid).then(function(j){ if (j && j.ok) ok.push(j.name || it.name); else bad.push((it.name || '') + ' — ' + ((j && j.message) || '되살리지 못했습니다')); }); }); }, Promise.resolve())
+      .then(function(){
+        if (c) c.busy = false;
+        var first = !bad.length ? (ok.length === 1 ? '✅ 완료 — 「' + ok[0] + '」을 되살렸습니다' : '✅ 완료 — ' + ok.length + '장을 되살렸습니다')
+                                : '👉 남은 일 — ' + ok.length + '장은 되살렸고 ' + bad.length + '장은 못 되살렸습니다';
+        var body = '<div class="' + (bad.length ? 'bad' : 'ok') + '">' + esc(first) + '</div>'
+          + (ok.length > 1 ? '<ul>' + ok.map(function(n){ return '<li class="nm">' + esc(n) + '</li>'; }).join('') + '</ul>' : '')
+          + (bad.length ? '<ul>' + bad.map(function(n){ return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '')
+          + (ok.length ? '<div style="margin-top:6px;">목록에 다시 보입니다' + (fm ? ' — 이 수정 화면은 저장한 뒤(또는 다시 열면) 목록에 보입니다.' : '.') + '</div>' : '');
+        open('↺ ' + LB[kind] + ' 되살리기', body, [{t:'✕ 닫기', fn: function(){ close(); }}], (ok.length && !fm) ? function(){ location.reload(); } : null);
+      });
+  }
+  function remove(kind, items, opts){
+    opts = opts || {};
+    var fm = inForm(opts.src);
+    items = (items || []).filter(function(x){ return x && x.fid; });
+    if (!items.length) return;
+    fetch('/api/keep30/ask?kind=' + encodeURIComponent(kind) + '&ids=' + items.map(function(x){ return x.fid; }).join(','), {credentials:'same-origin'})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }).catch(function(){ return {ok:false, message:'인터넷 연결이 끊겼습니다'}; })
+      .then(function(a){
+        if (!a || !a.ok) { open('🗑 ' + LB[kind] + ' 빼기', '<div class="bad">👉 남은 일 — ' + esc((a && a.message) || '안내를 불러오지 못했습니다') + ' — 다시 해 보세요.</div>', [{t:'✕ 닫기', fn: function(){ close(); }}]); return; }
+        var its = a.items || [];
+        if (!its.length) { open('🗑 ' + LB[kind] + ' 빼기', '<div class="bad">👉 뺄 수 있는 ' + LB[kind] + '가 없습니다(이미 뺐거나, 올린 사람·기술영업팀만 뺄 수 있습니다).</div>', [{t:'✕ 닫기', fn: function(){ close(); }}]); return; }
+        var sos = {}; its.forEach(function(x){ if (x.so_no) sos[x.so_no] = 1; }); var son = Object.keys(sos);
+        var body = (its.length === 1 ? '<div>「<span class="nm">' + esc(its[0].name) + '</span>」 ' + LB[kind] + '를 뺍니다.</div>'
+                                     : '<div>' + LB[kind] + ' <b>' + its.length + '장</b>을 뺍니다.</div><ul>' + its.map(function(x){ return '<li class="nm">' + esc(x.name) + '</li>'; }).join('') + '</ul>')
+          + (son.length ? '<div style="margin-top:6px;">이 ' + LB[kind] + '는 수주 ' + son.length + '건(' + esc(son.join(', ')) + ')에 붙어 있습니다.</div>' : '')
+          + '<ul>'
+          + '<li>목록에서 <b>바로 빠집니다</b>(다른 직원 화면에서도 바로 빠집니다).</li>'
+          + '<li>파일은 <b>30일 동안 보관</b>한 뒤 <b>' + esc(a.purge_on) + '</b>에 완전히 지워집니다.</li>'
+          + '<li>그 전에는 ' + esc(opts.where || '이 화면 아래 「뺀 파일」') + '에서 되살릴 수 있습니다.</li>'
+          + '<li>누가 뺐는지는 프로젝트 변경 이력에 남습니다.</li>'
+          + '</ul>';
+        open('🗑 ' + LB[kind] + ' 빼기', body, [
+          {t:'취소', fn: function(){ close(); }},
+          {t:'🗑 빼기' + (its.length > 1 ? '(' + its.length + '장)' : ''), cls:'r on', fn: function(btn){
+            btn.disabled = true; cur.busy = true; btn.textContent = '⏳ 빼는 중…';
+            var done = [], bad = [];
+            its.reduce(function(p, it){ return p.then(function(){ return post(RM[kind] + it.fid).then(function(j){
+                if (j && j.ok) { done.push({fid: it.fid, name: j.name || it.name, purge_on: j.purge_on}); if (opts.onRemoved) try { opts.onRemoved(it); } catch (e) {} }
+                else bad.push(it.name + ' — ' + ((j && j.message) || '빼지 못했습니다')); }); }); }, Promise.resolve())
+              .then(function(){
+                cur.busy = false;
+                var day = (done[0] && done[0].purge_on) || a.purge_on;
+                var first = !bad.length ? (done.length === 1 ? '✅ 완료 — 「' + done[0].name + '」을 뺐습니다. 30일 보관 뒤(' + day + ') 완전히 지워집니다.'
+                                                             : '✅ 완료 — ' + done.length + '장을 뺐습니다. 30일 보관 뒤(' + day + ') 완전히 지워집니다.')
+                                        : '👉 남은 일 — ' + done.length + '장은 뺐고 ' + bad.length + '장은 못 뺐습니다.';
+                var b2 = '<div class="' + (bad.length ? 'bad' : 'ok') + '">' + esc(first) + '</div>'
+                  + (done.length > 1 ? '<ul>' + done.map(function(x){ return '<li class="nm">' + esc(x.name) + '</li>'; }).join('') + '</ul>' : '')
+                  + (bad.length ? '<ul>' + bad.map(function(n){ return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '')
+                  + (done.length ? '<div style="margin-top:6px;">잘못 뺐으면 아래 「↺ 되살리기」 — 30일 안에는 ' + esc(opts.where || '이 화면 아래 「뺀 파일」') + '에서도 됩니다.</div>' : '');
+                var bs = [];
+                if (done.length) bs.push({t:'↺ 되살리기' + (done.length > 1 ? '(' + done.length + '장)' : ''), cls:'g', fn: function(b){ b.disabled = true; restore(kind, done, opts.src, fm); }});
+                bs.push({t:'✕ 닫기', fn: function(){ close(); }});
+                open('🗑 ' + LB[kind] + ' 빼기', b2, bs, done.length ? opts.onClose : null);
+              });
+          }}
+        ]);
+      });
+  }
+  window.z201 = {remove: remove, restore: restore};
+  document.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.z201-rs');
+    if (!b) return;
+    b.disabled = true;
+    restore(b.getAttribute('data-kind'), [{fid: b.getAttribute('data-fid'), name: b.getAttribute('data-name')}], b);
+  });
+})();</script>
