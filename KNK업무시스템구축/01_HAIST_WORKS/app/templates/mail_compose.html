@@ -1325,6 +1325,7 @@ function abPut(target){
      ③ 누르면 10초 뒤에 나감 — 그 사이 「↺ 보내기 취소」(지메일 방식 · 그 동안 실제로는 안 나감)
      ④ 같은 메일 두 번 안 나가게(보내기 표 send_token — 네트워크 오류 뒤 다시 눌러도 안전) */
   var OUR_DOMAINS=['knknara.co.kr'];
+  var MAIL_FREE={{ (mail_free_domains|default([]))|tojson }};   // 11-28 개인 메일 주소 목록(서버 한 곳 · mail_guard·mail_store 와 같음)
   var SEND_DELAY=10;
   var SEND_TOKEN=(window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2));
   var ADDR_RE=/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
@@ -1389,9 +1390,16 @@ function abPut(target){
     var _ph=cmpLeftPh(); if(_ph.length) W.push({ic:'📝', t:'양식의 빈칸을 아직 안 채웠습니다: '+_ph.slice(0,6).join(' '), d:'노란 칸을 채워 주세요(본문에서 Tab 키로 차례로 이동).'});
     var _defOnly=!!(window.cmpDefUntouched && cmpDefUntouched());   // 11-26 기본 양식(인사말·끝인사)만 있고 하실 말씀이 없음
     if((!own || _defOnly) && !isFwd) W.push({ic:'📝', t:'본문이 비어 있습니다', d:_defOnly ? '기본 양식(인사말·끝인사)만 들어 있습니다 — 하실 말씀을 써 주세요.' : '서명만 들어 있습니다.'});
-    if(attCount()===0 && (ATT_WORDS.test(own) || ATT_WORDS.test(subj))) W.push({ic:'📎', t:'「첨부」라고 쓰셨는데 붙인 파일이 없습니다', d:'파일을 붙이려면 「고치기」 → 아래 「📎 첨부」.'});
+    // 11-28 대표 「3가지 모두 해」 ① — 회신·전달 제목(RE:·FW:)의 「첨부」는 원래 메일 말이라 첨부 잊음으로 보지 않음(괜한 알림 줄이기)
+    var subjOwn=/^\s*(re|fwd?|fw|회신|답장|전달)\s*[:：]/i.test(subj) ? '' : subj;
+    if(attCount()===0 && (ATT_WORDS.test(own) || ATT_WORDS.test(subjOwn))) W.push({ic:'📎', t:'「첨부」라고 쓰셨는데 붙인 파일이 없습니다', d:'파일을 붙이려면 「고치기」 → 아래 「📎 첨부」.'});
+    // 11-28 ① 회사 밖 개인 메일 주소(지메일·네이버 등)가 회사 주소와 함께 섞임 → 회사 자료가 개인 메일로 나가는지 한 번 더(막지 않음 · 「그래도 보내기」)
+    var priv=all.filter(function(p){ return !isOurs(p.addr) && MAIL_FREE.indexOf((p.addr.split('@')[1]||'').toLowerCase())>=0; });
+    if(priv.length && priv.length<all.length) W.push({ic:'@', t:'받는 사람에 회사 밖 개인 메일 주소가 섞여 있습니다('+priv.length+'명)',
+      d:'회사 자료가 개인 메일(지메일·네이버 등)로 나가도 되는지 확인해 주세요 — 맞으면 「그래도 보내기」.', who:[priv.slice(0,6).map(who).join(', ')+(priv.length>6?' 외 '+(priv.length-6)+'명':'')]});
     var dom={}, order=[];
-    all.forEach(function(p){ if(isOurs(p.addr)) return; var d=(p.addr.split('@')[1]||'').toLowerCase(); if(!dom[d]){ dom[d]=[]; order.push(d); } dom[d].push(who(p)); });
+    all.forEach(function(p){ if(isOurs(p.addr)) return; var d=(p.addr.split('@')[1]||'').toLowerCase(); if(priv.length && MAIL_FREE.indexOf(d)>=0) return;   // 개인 메일은 위 알림 하나로
+      if(!dom[d]){ dom[d]=[]; order.push(d); } dom[d].push(who(p)); });
     if(order.length>=2) W.push({ic:'🏢', t:'받는 회사가 '+order.length+'곳입니다 — 한 메일에 여러 회사가 섞여 있습니다', d:'다른 회사에 갈 내용(견적·가격)이 아닌지 확인해 주세요.',
       who:order.map(function(d){ return d+' : '+dom[d].join(', '); })});
     if(all.length>=10) W.push({ic:'👥', t:'받는 사람이 '+all.length+'명입니다', d:'맞는지 한 번 더 확인해 주세요.'});

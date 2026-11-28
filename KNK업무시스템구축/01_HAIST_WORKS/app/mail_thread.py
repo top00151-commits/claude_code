@@ -67,8 +67,45 @@ def thread_of(c, uid, m, res=None) -> dict:
         by[fl] = by.get(fl, 0) + 1
         items.append({"id": r["id"], "at": (r["at"] or "")[5:16], "who": who[:40], "sj": (r["sj"] or "")[:90],
                       "folder": fl, "cur": r["id"] == m.get("id"), "out": r["direction"] == "out"})
+    # 11-28 대표 「3가지 모두 해」 ② 대화 흐름 — 받은(아래)·보낸(위) 메일을 사선으로 이어 한 줄로 · 마지막이 받은 메일이면 「내 답장 아직」(회색)
+    #   실제 메일 순서로만 셈(지어낸 값 없음) · 읽기만
+    last = items[-1] if items else None
+    n_out = sum(1 for x in items if x["out"])
+    flow = {"pending": bool(last and not last["out"]),            # 대화 마지막 메일이 받은 메일 = 아직 내가 답하지 않음
+            "last_at": (last or {}).get("at", ""), "n_in": len(items) - n_out, "n_out": n_out}
     if len(items) > MAX_ITEMS:   # 이 메일 둘레만
         ci = next((i for i, x in enumerate(items) if x["cur"]), 0)
         s0 = max(0, min(ci - MAX_ITEMS // 2, len(items) - MAX_ITEMS))
         items = items[s0:s0 + MAX_ITEMS]
-    return {"n": len(rows), "by": sorted(by.items(), key=lambda x: -x[1]), "rows": items}
+    flow["dots"] = flow_dots(items, flow["pending"] and bool(items) and bool(last) and items[-1]["id"] == last["id"])
+    return {"n": len(rows), "by": sorted(by.items(), key=lambda x: -x[1]), "rows": items, "flow": flow}
+
+
+FLOW_MAX = 12          # 한 줄에 그리는 점 수(넘으면 마지막 12통 · 지금 보는 메일이 빠지면 앞에서 줄임)
+FLOW_STEP = 18         # 점 사이 가로 간격(px)
+FLOW_LO, FLOW_HI = 16, 4   # 받은 메일 점 높이 · 보낸 메일 점 높이(사선이 N 처럼)
+
+
+def flow_dots(items, pending) -> dict:
+    """대화 흐름 그림 자리 — 화면은 이 숫자로 SVG 만 그린다(색은 CSS 이름).
+    반환 {"w", "dots":[{x,y,out,cur,id}], "lines":[{x1,y1,x2,y2}], "wait": {x1,y1,x2,y2,x,y} 또는 None, "more": 앞에 줄인 수}"""
+    seq = list(items)
+    more = 0
+    if len(seq) > FLOW_MAX:
+        ci = next((i for i, x in enumerate(seq) if x["cur"]), len(seq) - 1)
+        s0 = max(0, min(ci - FLOW_MAX // 2, len(seq) - FLOW_MAX))
+        more = s0
+        seq = seq[s0:s0 + FLOW_MAX]
+    dots, lines = [], []
+    for i, x in enumerate(seq):
+        d = {"x": 6 + i * FLOW_STEP, "y": FLOW_HI if x["out"] else FLOW_LO, "out": x["out"], "cur": x["cur"], "id": x["id"],
+             "t": ("%s · %s" % (x["at"], "내가 보냄" if x["out"] else (x["who"] or "받음")))}
+        if dots:
+            lines.append({"x1": dots[-1]["x"], "y1": dots[-1]["y"], "x2": d["x"], "y2": d["y"]})
+        dots.append(d)
+    wait = None
+    if pending and dots and seq and seq[-1] is items[-1]:
+        lx = dots[-1]["x"] + FLOW_STEP
+        wait = {"x1": dots[-1]["x"], "y1": dots[-1]["y"], "x2": lx, "y2": FLOW_HI, "x": lx, "y": FLOW_HI}
+    w = (wait["x"] if wait else (dots[-1]["x"] if dots else 0)) + 6
+    return {"w": w, "dots": dots, "lines": lines, "wait": wait, "more": more}

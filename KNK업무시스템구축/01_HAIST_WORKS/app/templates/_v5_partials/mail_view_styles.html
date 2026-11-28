@@ -73,6 +73,23 @@
   html[data-mt="dark"] .mv-thr-list li.cur .f{color:#8ab4f8}
   html[data-mt="dark"] .mv-thr-list li.out .w{color:#9be3b0}
   @media(max-width:640px){.mv-thr-list li a{grid-template-columns:62px minmax(0,1fr) auto}.mv-thr-list .w{display:none}}
+  /* 11-28 ② 대화 흐름 — 같은 대화 줄 안 작은 그림(받은 = 아래 빈 점 · 보낸 = 위 찬 점 · 사선으로 이음 · 회색 점선 = 내 답장 아직) · 색 = 메일 테마 이름만 */
+  .mv-flow{display:inline-flex;align-items:center;gap:4px;margin-left:6px;vertical-align:middle;font-weight:500}
+  .mv-flow-svg{display:block;flex:none;overflow:visible}
+  .mv-flow-svg .ln{stroke:var(--md-mark,var(--knk-brand));stroke-width:1.6;stroke-linecap:round}
+  .mv-flow-svg .wait{stroke:var(--mt-mute,var(--knk-text-muted));stroke-width:1.4;stroke-dasharray:2.5 2.5}
+  .mv-flow-svg circle.i{fill:var(--mt-surface,var(--knk-bg-surface));stroke:var(--md-mark,var(--knk-brand));stroke-width:1.5}
+  .mv-flow-svg circle.o{fill:var(--md-mark,var(--knk-brand));stroke:var(--md-mark,var(--knk-brand));stroke-width:1.5}
+  .mv-flow-svg circle.cur{stroke:var(--mt-text,var(--knk-text-primary));stroke-width:1.8}
+  .mv-flow-svg circle.w{fill:var(--mt-surface,var(--knk-bg-surface));stroke:var(--mt-mute,var(--knk-text-muted));stroke-width:1.4;stroke-dasharray:2 2}
+  .mv-flow-wait{font-size:11.5px;color:var(--mt-mute,var(--knk-text-muted));white-space:nowrap}
+  .mv-flow-more{font-size:11px;color:var(--mt-mute,var(--knk-text-muted))}
+  @media(max-width:640px){.mv-flow-svg{max-width:120px}}
+  /* 11-28 ③ 보낸 사람 카드 숫자 */
+  .mv-who-n{display:flex;flex-direction:column;gap:2px;padding:2px 11px 6px;font-size:12.5px;color:var(--mt-text2,var(--knk-text-secondary));border-bottom:1px solid var(--mt-line,var(--knk-border-subtle));margin-bottom:4px;white-space:normal;max-width:340px}
+  .mv-who-n .r{display:block;line-height:1.6}
+  .mv-who-n .v{color:var(--mt-text,var(--knk-text-primary));font-variant-numeric:tabular-nums}
+  .mv-who-n small,.mv-who-n .s{color:var(--mt-mute,var(--knk-text-muted));font-size:11.5px}
   @media print{.mv-ct-inline{display:none}}
   .mv-badge{font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}
   .mv-ai{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#1e3a8a;white-space:pre-wrap;line-height:1.75}

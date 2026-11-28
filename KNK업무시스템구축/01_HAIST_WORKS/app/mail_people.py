@@ -179,3 +179,36 @@ def my_role(m: dict, mine: set) -> str:
     if cc & mine:
         return "cc"
     return "bcc" if (to or cc) else ""
+
+
+# ─── 11-28 대표 「3가지 모두 해」 ③ 읽기 「보낸 사람 카드」 숫자 ───
+_RE_WHO_ADDR = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+
+def who_counts(c, uid, e, d, with_dom):
+    """11-28 대표 「3가지 모두 해」 ③ 보낸 사람 카드 숫자 — 내 메일함의 실제 메일로만 셈(지운 메일·스팸함 뺌 · 읽기만).
+    반환 {"p_in","p_out","p_last_in","p_last_out","d_in","d_out"} — d_* 는 with_dom 일 때만(회사 주소)."""
+    out = {"p_in": 0, "p_out": 0, "p_last_in": "", "p_last_out": "", "d_in": None, "d_out": None}
+    r = c.execute("SELECT COUNT(*), MAX(COALESCE(received_at, created_at)) FROM mail_messages WHERE user_id=? AND direction='in' "
+                  "AND is_deleted=0 AND COALESCE(is_blocked,0)=0 AND lower(from_email)=?", (uid, e)).fetchone()
+    out["p_in"], out["p_last_in"] = int(r[0] or 0), (r[1] or "")[:10]
+    if with_dom:
+        r = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND is_deleted=0 "
+                      "AND COALESCE(is_blocked,0)=0 AND lower(from_email) LIKE ?", (uid, "%@" + d)).fetchone()
+        out["d_in"] = int(r[0] or 0)
+    # 보낸 메일 = 받는 사람·참조 칸에 그 주소(회사)가 「정확히」 든 것만(han@ 이 khan@ 에 걸리지 않게 주소를 하나씩 봄)
+    p_out, d_out, last = 0, 0, ""
+    key = ("@" + d) if with_dom else e
+    for row in c.execute("SELECT lower(COALESCE(to_email,'')) || ',' || lower(COALESCE(cc,'')) AS a, COALESCE(sent_at, created_at, '') AS at "
+                         "FROM mail_messages WHERE user_id=? AND direction='out' AND is_deleted=0 "
+                         "AND instr(lower(COALESCE(to_email,'')) || ',' || lower(COALESCE(cc,'')), ?) > 0", (uid, key)).fetchall():
+        addrs = [x.lower() for x in _RE_WHO_ADDR.findall(row[0] or "")]
+        if e in addrs:
+            p_out += 1
+            last = max(last, (row[1] or "")[:10])
+        if with_dom and any(a.rsplit("@", 1)[-1] == d for a in addrs):
+            d_out += 1
+    out["p_out"], out["p_last_out"] = p_out, last
+    if with_dom:
+        out["d_out"] = d_out
+    return out

@@ -21,6 +21,8 @@
     <div class="mv-hwho">
       <div class="mv-hname">{% if who_info is defined and who_info %}<span class="mv-who-wrap"><a href="#" class="mv-who" onclick="return mvWho(event)" title="이 사람·이 회사 메일 모아 보기">{{ pp.disp if (pp is defined and pp and pp.disp) else (m.from_name or m.from_email) }}</a> &lt;{{ m.from_email }}&gt;<span class="mv-who-pop" id="mvWhoPop" hidden>
       <span class="mv-who-h">{{ pp.disp if (pp is defined and pp and pp.disp) else who_info.name }}{% if who_info.co_name %} · {{ who_info.co_name }}{% endif %}</span>
+      {# 11-28 대표 「3가지 모두 해」 ③ 보낸 사람 카드 — 이 사람·이 회사와 주고받은 메일 수(내 메일함 실제 메일만 · 지운 메일·스팸함 뺌) · 누를 때 부름 #}
+      <span class="mv-who-n" id="mvWhoN" data-id="{{ m.id }}" aria-live="polite">⏳ 세는 중…</span>
       <a href="{{ who_info.who_href }}">✉ 이 사람과 주고받은 메일 모두</a>
       {% if who_info.co_href %}<a href="{{ who_info.co_href }}">🏢 {{ who_info.co_name }} 메일 모두</a>{% endif %}
       <a href="{{ who_info.compose_href }}" onclick="var p=document.getElementById('mvWhoPop'); if(p) p.hidden=true; return window.mailNewWin ? mailNewWin(event,'{{ who_info.compose_href.split('?',1)[1] }}') : true" title="이 사람에게 메일 쓰기 — 새 창으로">✏️ 이 사람에게 메일 쓰기</a>
@@ -122,7 +124,7 @@
     {# 11-22 밤 대표 「메일 규칙을 쉽게 — 너가 사용자라면」 3 — 같은 대화(제목 같은 메일 · RE·FW 뺌)를 폴더가 달라도 한눈에(옮기지 않음) #}
     {% if m.thread %}
     <details class="mv-thr">
-      <summary title="제목이 같은 메일(앞의 RE:·FW: 등은 뺌)을 시간 순서로 — 회신은 보낸 사람 자리(직원 = 부서 폴더)에 그대로 두고 여기서 한눈에">💬 같은 대화 {{ m.thread.n }}통 <small>· {% for l, n in m.thread.by %}{{ l }} {{ n }}{{ ' · ' if not loop.last else '' }}{% endfor %}</small> ▾</summary>
+      <summary title="제목이 같은 메일(앞의 RE:·FW: 등은 뺌)을 시간 순서로 — 회신은 보낸 사람 자리(직원 = 부서 폴더)에 그대로 두고 여기서 한눈에">💬 같은 대화 {{ m.thread.n }}통 <small>· {% for l, n in m.thread.by %}{{ l }} {{ n }}{{ ' · ' if not loop.last else '' }}{% endfor %}</small>{% set _fl = m.thread.flow %}{% if _fl and _fl.dots and _fl.dots.dots %}{# 11-28 대표 「3가지 모두 해」 ② 대화 흐름 — 받은 메일(아래 점)·내가 보낸 메일(위 점)을 사선으로 이어 한 줄로(로고 N = 연결) · 마지막이 받은 메일이면 회색 점선 「내 답장 아직」 · 실제 메일 순서로만 #}{% set _d = _fl.dots %}<span class="mv-flow" title="대화 흐름 — 아래 점 = 받은 메일 · 위 점 = 내가 보낸 메일 · 큰 점 = 지금 보는 메일{{ ' · 회색 점선 = 내 답장 아직' if _d.wait else '' }}">{% if _d.more %}<span class="mv-flow-more">+{{ _d.more }}</span>{% endif %}<svg class="mv-flow-svg" width="{{ _d.w }}" height="20" viewBox="0 0 {{ _d.w }} 20" aria-hidden="true">{% for l in _d.lines %}<line class="ln" x1="{{ l.x1 }}" y1="{{ l.y1 }}" x2="{{ l.x2 }}" y2="{{ l.y2 }}"/>{% endfor %}{% if _d.wait %}<line class="wait" x1="{{ _d.wait.x1 }}" y1="{{ _d.wait.y1 }}" x2="{{ _d.wait.x2 }}" y2="{{ _d.wait.y2 }}"/><circle class="w" cx="{{ _d.wait.x }}" cy="{{ _d.wait.y }}" r="3"/>{% endif %}{% for d in _d.dots %}<circle class="{{ 'o' if d.out else 'i' }}{{ ' cur' if d.cur else '' }}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ 4.5 if d.cur else 3 }}"><title>{{ d.t }}</title></circle>{% endfor %}</svg>{% if _fl.pending %}<span class="mv-flow-wait">내 답장 아직</span>{% endif %}</span>{% endif %} ▾</summary>
       <ol class="mv-thr-list">
         {% for x in m.thread.rows %}
         <li class="{{ 'cur' if x.cur else '' }}{{ ' out' if x.out else '' }}"><a href="/mail/{{ x.id }}" onclick="if(!{{ 'true' if x.cur else 'false' }} && typeof loadPane==='function' && document.getElementById('readPane')){ loadPane({{ x.id }}); return false; }{% if x.cur %} return false;{% endif %}">
@@ -688,7 +690,20 @@
   window.mvWho=function(ev){
     ev.preventDefault(); ev.stopPropagation();
     var p=document.getElementById('mvWhoPop'); if(!p) return false;
-    p.hidden=!p.hidden; return false;
+    p.hidden=!p.hidden; if(!p.hidden) mvWhoCard(); return false;
+  };
+  /* 11-28 ③ 보낸 사람 카드 숫자 — 처음 열 때 한 번만 서버에 물음(읽기만) · 못 세면 그렇게 밝힘(지어낸 숫자 없음) */
+  window.mvWhoCard=function(){
+    var n=document.getElementById('mvWhoN'); if(!n || n.dataset.done) return; n.dataset.done='1';
+    fetch('/api/mail/'+n.dataset.id+'/who-card',{credentials:'same-origin'}).then(function(r){ return r.json(); }).then(function(j){
+      if(!j || !j.ok){ n.textContent='메일 수를 세지 못했습니다'; return; }
+      function md(s){ return s ? (s.slice(5).replace('-','/')) : ''; }
+      var h='<span class="r"><b>이 사람</b> · 받은 <b class="v">'+j.p_in+'</b>통 · 내가 보낸 <b class="v">'+j.p_out+'</b>통</span>';
+      if(j.p_last_in || j.p_last_out) h+='<span class="r s">마지막'+(j.p_last_in?' 받음 '+md(j.p_last_in):'')+(j.p_last_out?' · 보냄 '+md(j.p_last_out):'')+'</span>';
+      if(j.dom) h+='<span class="r"><b>이 회사 @'+j.dom.replace(/[<>&"]/g,'')+'</b> · 받은 <b class="v">'+j.d_in+'</b>통 · 내가 보낸 <b class="v">'+j.d_out+'</b>통</span>';
+      h+='<span class="r s">내 메일함 기준 · 지운 메일·스팸함은 뺌</span>';
+      n.innerHTML=h;
+    }).catch(function(){ n.textContent='메일 수를 세지 못했습니다(네트워크)'; n.dataset.done=''; });
   };
   if(!window._mvWhoBound){ window._mvWhoBound=true;
     document.addEventListener('click', function(ev){ var p=document.getElementById('mvWhoPop'); if(p && !p.hidden && !p.contains(ev.target)) p.hidden=true; }); }
