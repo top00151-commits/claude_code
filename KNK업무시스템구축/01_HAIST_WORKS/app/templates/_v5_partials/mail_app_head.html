@@ -19,153 +19,153 @@
   .mail-app-fixed { position:sticky; top:0; z-index:60; }
   .mail-app-fixed .mail-app-top { position:static; }
   /* 늘 보이는 도구 줄 — 매일 쓰는 곳으로 바로 */
-  .mail-tools { display:flex; align-items:center; gap:2px; padding:4px 12px; background:var(--mt-surface,#fff); border-bottom:1px solid var(--line,#e5e7eb);
+  .mail-tools { display:flex; align-items:center; gap:2px; padding:4px 12px; background:var(--mt-surface,var(--knk-mail-c-white)); border-bottom:1px solid var(--line,var(--knk-mail-c-gray-09));
                 box-shadow:0 2px 6px rgba(0,0,0,.05); overflow-x:auto; scrollbar-width:none; }
   .mail-tools::-webkit-scrollbar { height:0; }
   /* 11-19 3단계 — 좁은 화면: 오른쪽에 메뉴가 더 있으면 끝을 흐리게(옆으로 밀면 더 있다는 표시) */
-  .mail-tools.more { -webkit-mask-image:linear-gradient(to right,#000 82%,transparent); mask-image:linear-gradient(to right,#000 82%,transparent); }
+  .mail-tools.more { -webkit-mask-image:linear-gradient(to right,var(--knk-mail-c-black) 82%,transparent); mask-image:linear-gradient(to right,var(--knk-mail-c-black) 82%,transparent); }
   .mail-tools a, .mail-tools button { display:inline-flex; align-items:center; gap:5px; height:34px; padding:0 10px; border-radius:8px; border:0; background:none;
-                font:inherit; font-size:13px; color:var(--mt-text,#1f2937); text-decoration:none; white-space:nowrap; cursor:pointer; flex:none; }
-  .mail-tools a:hover, .mail-tools button:hover { background:var(--mt-hover,#f1f3f5); }
-  .mail-tools .new { background:var(--knk-red,#b91c1c); color:#fff; font-weight:700; padding:0 13px; margin-right:6px; }
-  .mail-tools .new:hover { background:var(--knk-red,#b91c1c); filter:brightness(.95); }
-  .mail-tools .on { background:#fdecec; color:var(--knk-red,#b91c1c); font-weight:700; }
+                font:inherit; font-size:13px; color:var(--mt-text,var(--knk-mail-c-gray-83)); text-decoration:none; white-space:nowrap; cursor:pointer; flex:none; }
+  .mail-tools a:hover, .mail-tools button:hover { background:var(--mt-hover,var(--knk-mail-c-gray-05)); }
+  .mail-tools .new { background:var(--knk-red,var(--knk-mail-c-red-58)); color:var(--knk-mail-c-white); font-weight:700; padding:0 13px; margin-right:6px; }
+  .mail-tools .new:hover { background:var(--knk-red,var(--knk-mail-c-red-58)); filter:brightness(.95); }
+  .mail-tools .on { background:var(--knk-mail-c-red-04); color:var(--knk-red,var(--knk-mail-c-red-58)); font-weight:700; }
   .mail-tools .ic { font-size:15px; }
-  .mail-tools .bd { min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#2563eb; color:#fff; font-size:11px; font-weight:700;
+  .mail-tools .bd { min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--knk-mail-c-blue-47); color:var(--knk-mail-c-white); font-size:11px; font-weight:700;
                 display:inline-flex; align-items:center; justify-content:center; }
-  .mail-tools .bd.r { background:#dc2626; }
-  .mail-tools .bd.g { background:var(--mt-line,#e5e7eb); color:var(--mt-text2,#374151); }
+  .mail-tools .bd.r { background:var(--knk-mail-c-red-49); }
+  .mail-tools .bd.g { background:var(--mt-line,var(--knk-mail-c-gray-09)); color:var(--mt-text2,var(--knk-mail-c-blue-73-2)); }
   .mail-tools .bd[hidden] { display:none; }
-  .mail-tools .sep { width:1px; height:20px; background:var(--mt-line,#e5e7eb); margin:0 4px; flex:none; }
+  .mail-tools .sep { width:1px; height:20px; background:var(--mt-line,var(--knk-mail-c-gray-09)); margin:0 4px; flex:none; }
   .mail-tools .sp { flex:1; min-width:8px; }
-  .mail-tools .sw.on { background:#e8f6ec; color:#15803d; }
+  .mail-tools .sw.on { background:var(--knk-mail-c-green-06); color:var(--knk-mail-c-green-71); }
   /* 11-22 글자 크기 − 🔠 글자 100% ＋ */
   .mail-tools .mt-fs { display:inline-flex; align-items:center; gap:0; flex:none; }
-  .mail-tools .mt-fs .fs-b { min-width:26px; padding:0 6px; font-size:17px; font-weight:800; color:var(--mt-text2,#374151); justify-content:center; }
+  .mail-tools .mt-fs .fs-b { min-width:26px; padding:0 6px; font-size:17px; font-weight:800; color:var(--mt-text2,var(--knk-mail-c-blue-73-2)); justify-content:center; }
   .mail-tools .mt-fs .fs-b:disabled { opacity:.3; cursor:default; background:none; }
   .mail-tools .mt-fs .fs-pct { font-weight:700; font-size:12px; }   /* 몇 % 인지는 좁은 화면에서도 늘 보임 */
   /* 11-23 대표 「글자 크기를 칸별로 · 읽기 칸 자리(보기)마다 따로」 — 가운데 🔠 를 누르면 뜨는 작은 창 */
-  .mail-fs-pop { position:fixed; z-index:80; width:min(340px,calc(100vw - 24px)); background:var(--mt-surface,#fff); color:var(--mt-text,#111827);
-    border:1px solid var(--mt-line,#e5e7eb); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.22); padding:14px 14px 12px; font-size:13px; }
+  .mail-fs-pop { position:fixed; z-index:80; width:min(340px,calc(100vw - 24px)); background:var(--mt-surface,var(--knk-mail-c-white)); color:var(--mt-text,var(--knk-mail-c-gray-89));
+    border:1px solid var(--mt-line,var(--knk-mail-c-gray-09)); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.22); padding:14px 14px 12px; font-size:13px; }
   .mail-fs-pop[hidden] { display:none; }
   .mail-fs-pop h4 { margin:0 0 2px; font-size:14px; }
-  .mail-fs-pop .sub { color:var(--mt-mute,#6b7280); font-size:11.5px; margin-bottom:8px; line-height:1.5; }
+  .mail-fs-pop .sub { color:var(--mt-mute,var(--knk-mail-c-gray-54)); font-size:11.5px; margin-bottom:8px; line-height:1.5; }
   .mail-fs-pop .fr { display:flex; align-items:center; gap:6px; padding:6px 4px; border-radius:8px; }
-  .mail-fs-pop .fr:hover { background:var(--mt-hover,#f1f3f5); }
+  .mail-fs-pop .fr:hover { background:var(--mt-hover,var(--knk-mail-c-gray-05)); }
   .mail-fs-pop .fr .nm { flex:1; min-width:0; font-weight:600; }
-  .mail-fs-pop .fr .nm small { display:block; font-weight:400; color:var(--mt-mute,#6b7280); font-size:11px; }
-  .mail-fs-pop .fr button { width:30px; height:28px; border:1px solid var(--mt-line,#e5e7eb); border-radius:7px; background:var(--mt-surface,#fff); color:inherit;
+  .mail-fs-pop .fr .nm small { display:block; font-weight:400; color:var(--mt-mute,var(--knk-mail-c-gray-54)); font-size:11px; }
+  .mail-fs-pop .fr button { width:30px; height:28px; border:1px solid var(--mt-line,var(--knk-mail-c-gray-09)); border-radius:7px; background:var(--mt-surface,var(--knk-mail-c-white)); color:inherit;
     font-size:16px; font-weight:800; cursor:pointer; line-height:1; padding:0; }
-  .mail-fs-pop .fr button:hover:not(:disabled) { background:var(--mt-hover,#f1f3f5); }
+  .mail-fs-pop .fr button:hover:not(:disabled) { background:var(--mt-hover,var(--knk-mail-c-gray-05)); }
   .mail-fs-pop .fr button:disabled { opacity:.3; cursor:default; }
   .mail-fs-pop .fr b { min-width:44px; text-align:center; font-size:13px; }
-  .mail-fs-pop .fr b.chg { color:#1d4ed8; }
-  .mail-fs-pop .ft { display:flex; gap:6px; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed var(--mt-line,#e5e7eb); }
-  .mail-fs-pop .ft button { border:1px solid var(--mt-line,#e5e7eb); background:var(--mt-surface,#fff); color:inherit; border-radius:8px; padding:5px 11px; cursor:pointer; font:inherit; font-size:12.5px; }
-  .mail-fs-pop .ft button:hover { background:var(--mt-hover,#f1f3f5); }
+  .mail-fs-pop .fr b.chg { color:var(--knk-mail-c-blue-52); }
+  .mail-fs-pop .ft { display:flex; gap:6px; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed var(--mt-line,var(--knk-mail-c-gray-09)); }
+  .mail-fs-pop .ft button { border:1px solid var(--mt-line,var(--knk-mail-c-gray-09)); background:var(--mt-surface,var(--knk-mail-c-white)); color:inherit; border-radius:8px; padding:5px 11px; cursor:pointer; font:inherit; font-size:12.5px; }
+  .mail-fs-pop .ft button:hover { background:var(--mt-hover,var(--knk-mail-c-gray-05)); }
   /* 창 줄에 마우스를 올리면 그 칸을 파란 테로 알려 줌 */
-  html.mfs-hl-side .mbx-side, html.mfs-hl-list .mbx-listcol, html.mfs-hl-read #readPane, html.mfs-hl-read .mv-zoom { outline:3px solid #3b82f6; outline-offset:-3px; }
-  .mail-tools a.drop-on, .mail-tools .drop-on { background:#dbeafe !important; box-shadow:inset 0 0 0 2px #2563eb; }
-  .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:var(--mt-surface,#fff); border:1px solid var(--mt-line,#e5e7eb); border-radius:12px;
-                box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:var(--mt-text,#1f2937); }
+  html.mfs-hl-side .mbx-side, html.mfs-hl-list .mbx-listcol, html.mfs-hl-read #readPane, html.mfs-hl-read .mv-zoom { outline:3px solid var(--knk-mail-c-blue-40); outline-offset:-3px; }
+  .mail-tools a.drop-on, .mail-tools .drop-on { background:var(--knk-mail-c-blue-07) !important; box-shadow:inset 0 0 0 2px var(--knk-mail-c-blue-47); }
+  .mail-help { position:fixed; z-index:80; right:16px; top:96px; width:min(420px,calc(100vw - 32px)); background:var(--mt-surface,var(--knk-mail-c-white)); border:1px solid var(--mt-line,var(--knk-mail-c-gray-09)); border-radius:12px;
+                box-shadow:0 12px 32px rgba(0,0,0,.16); padding:14px 16px; font-size:13px; line-height:1.75; color:var(--mt-text,var(--knk-mail-c-gray-83)); }
   .mail-help[hidden] { display:none; }
   .mail-help h4 { margin:0 0 6px; font-size:14px; }
   .mail-help-act { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
-  .mail-help-act button, .mail-help-act a { border:1px solid var(--mt-line,#e5e7eb); background:var(--mt-surface,#fff); color:inherit; border-radius:8px; padding:5px 11px;
+  .mail-help-act button, .mail-help-act a { border:1px solid var(--mt-line,var(--knk-mail-c-gray-09)); background:var(--mt-surface,var(--knk-mail-c-white)); color:inherit; border-radius:8px; padding:5px 11px;
                 cursor:pointer; font:inherit; font-size:12.5px; text-decoration:none; }
-  .mail-help-act button:hover, .mail-help-act a:hover { background:var(--mt-hover,#f1f3f5); }
-  .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid var(--mt-line,#d1d5db); border-bottom-width:2px; border-radius:5px; padding:0 5px;
-                font-family:inherit; font-size:11.5px; background:var(--mt-panel,#f9fafb); }
+  .mail-help-act button:hover, .mail-help-act a:hover { background:var(--mt-hover,var(--knk-mail-c-gray-05)); }
+  .mail-help kbd { display:inline-block; min-width:18px; text-align:center; border:1px solid var(--mt-line,var(--knk-mail-c-gray-16-3)); border-bottom-width:2px; border-radius:5px; padding:0 5px;
+                font-family:inherit; font-size:11.5px; background:var(--mt-panel,var(--knk-mail-c-gray-02-2)); }
   @media(max-width:1180px){ .mail-tools .t { display:none; } .mail-tools .new .t, .mail-tools .mt-sync .t { display:inline; } }
   /* 11-23 대표 「아웃룩처럼 보내기/받기」 — 새 메일 바로 받기 단추 · 받는 동안 그림이 돎 · 결과는 오른쪽 위 작은 알림 */
-  .mail-tools .mt-sync { font-weight:700; color:var(--knk-red,#b91c1c); border:1px solid var(--mt-line,#e5e7eb) !important; margin-right:4px; flex:none; }
+  .mail-tools .mt-sync { font-weight:700; color:var(--knk-red,var(--knk-mail-c-red-58)); border:1px solid var(--mt-line,var(--knk-mail-c-gray-09)) !important; margin-right:4px; flex:none; }
   .mail-tools .mt-sync:disabled { opacity:.75; cursor:progress; }
   .mail-tools .mt-sync.spin .ic { display:inline-flex; animation:mailReloadSpin .9s linear infinite; }
   .mail-sync-msg { position:fixed; top:calc(var(--mail-fixed-h,90px) + 8px); right:16px; z-index:75; max-width:min(440px,calc(100vw - 32px));
-    background:#1f2937; color:#fff; font-size:13px; line-height:1.45; padding:9px 14px; border-radius:9px; box-shadow:0 6px 18px rgba(0,0,0,.18); }
-  .mail-sync-msg.warn { background:#9a3412; }
+    background:var(--knk-mail-c-gray-83); color:var(--knk-mail-c-white); font-size:13px; line-height:1.45; padding:9px 14px; border-radius:9px; box-shadow:0 6px 18px rgba(0,0,0,.18); }
+  .mail-sync-msg.warn { background:var(--knk-mail-c-orange-66); }
   .mail-sync-msg[hidden] { display:none; }
   /* 11-23 전 직원 — 하이웍스 받기를 아직 안 켠 사람 · 지난 메일 가져오는 중 */
   .mail-link-band { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 16px; font-size:13px; line-height:1.5;
-    background:#fff7ed; color:#9a3412; border-bottom:1px solid #fed7aa; }
-  .mail-link-band a { color:#fff; background:var(--knk-red,#b91c1c); padding:4px 12px; border-radius:7px; font-weight:700; text-decoration:none; white-space:nowrap; }
-  .mail-link-band.imp { background:#eff6ff; color:#1e3a8a; border-bottom-color:#bfdbfe; }
+    background:var(--knk-mail-c-amber-04); color:var(--knk-mail-c-orange-66); border-bottom:1px solid var(--knk-mail-c-orange-17); }
+  .mail-link-band a { color:var(--knk-mail-c-white); background:var(--knk-red,var(--knk-mail-c-red-58)); padding:4px 12px; border-radius:7px; font-weight:700; text-decoration:none; white-space:nowrap; }
+  .mail-link-band.imp { background:var(--knk-mail-c-blue-03-2); color:var(--knk-mail-c-blue-67); border-bottom-color:var(--knk-mail-c-blue-13); }
   .mail-link-band[hidden] { display:none; }
-  html[data-mt="dark"] .mail-link-band { background:#3b2410; color:#fed7aa; border-bottom-color:#9a3412; }
-  html[data-mt="dark"] .mail-link-band.imp { background:#1e293b; color:#bfdbfe; border-bottom-color:#334155; }
+  html[data-mt="dark"] .mail-link-band { background:var(--knk-mail-c-orange-85); color:var(--knk-mail-c-orange-17); border-bottom-color:var(--knk-mail-c-orange-66); }
+  html[data-mt="dark"] .mail-link-band.imp { background:var(--knk-mail-c-blue-83); color:var(--knk-mail-c-blue-13); border-bottom-color:var(--knk-mail-c-blue-73); }
   /* 「새 메일」은 위 도구 줄 한 곳만(목록 위 명령 줄·왼쪽 「메일 쓰기」 큰 단추는 앱 화면에서 숨김 — 같은 단추 셋은 헷갈림) */
   .mbx-cmd .c.new, .mbx-side .mbx-write { display:none !important; }
   /* 고정된 위(머리+도구 줄) 바로 아래에 붙는 줄 — 메일 쓰기 「📤 보내기」 단추줄(z1168 「끝까지 안 내려가도 보내기」)이 가려지지 않게 */
   .cmp-actions-top { top:var(--mail-fixed-h,0px) !important; }
   .mail-app-top { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-                  background:var(--knk-red,#b91c1c); color:#fff; padding:9px 16px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+                  background:var(--knk-red,var(--knk-mail-c-red-58)); color:var(--knk-mail-c-white); padding:9px 16px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   .mail-app-top .brand { font-weight:800; font-size:15px; margin-right:8px; }
-  .mail-app-top a { color:#fff; text-decoration:none; font-size:13px; opacity:.92; padding:5px 10px; border-radius:7px; }
+  .mail-app-top a { color:var(--knk-mail-c-white); text-decoration:none; font-size:13px; opacity:.92; padding:5px 10px; border-radius:7px; }
   .mail-app-top a:hover { background:rgba(255,255,255,.16); opacity:1; }
   .mail-app-top .sp { flex:1; }
   /* 접속자(로그인 사용자) 정보 — 누가 로그인했는지 표시 (대표 지시 2026-06-14) */
   .mail-app-top .me { display:inline-flex; align-items:center; gap:7px; font-size:12.5px;
     background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.28);
     padding:4px 11px; border-radius:999px; white-space:nowrap; }
-  .mail-app-top .me .av { width:20px; height:20px; border-radius:50%; background:var(--mt-surface,#fff);
-    color:var(--knk-red,#b91c1c); font-weight:800; font-size:11px; display:inline-flex;
+  .mail-app-top .me .av { width:20px; height:20px; border-radius:50%; background:var(--mt-surface,var(--knk-mail-c-white));
+    color:var(--knk-red,var(--knk-mail-c-red-58)); font-weight:800; font-size:11px; display:inline-flex;
     align-items:center; justify-content:center; }
   .mail-app-top .me b { font-weight:700; }
   .mail-app-top .me .role { opacity:.85; }
   .mail-app-top .me .addr { opacity:.8; font-size:11.5px; }
   /* 📲 앱 설치 버튼 — KNK Eum 처럼 설치형 앱으로 (대표 지시 2026-06-14). 설치 가능할 때만 노출 */
   .mail-app-top .install { display:none; border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.16);
-    color:#fff; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:8px; cursor:pointer; }
+    color:var(--knk-mail-c-white); font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:8px; cursor:pointer; }
   .mail-app-top .install:hover { background:rgba(255,255,255,.28); }
   /* 📱 휴대폰 앱 — 🔄 오른쪽(11-27 대표) · 높이는 뒤로·앞으로와 같게 */
-  .mail-app-top .phone { border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.16); color:#fff; font-size:13px; font-weight:700;
+  .mail-app-top .phone { border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.16); color:var(--knk-mail-c-white); font-size:13px; font-weight:700;
     height:28px; box-sizing:border-box; padding:0 10px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex:none; }
   .mail-app-top .phone:hover { background:rgba(255,255,255,.30); }
   .mail-app-top .phone[hidden] { display:none; }
-  html[data-md="v2"] .mail-app-top .phone { color:var(--mt-text); border-color:var(--mt-line,#d0d5dd); background:transparent; }
+  html[data-md="v2"] .mail-app-top .phone { color:var(--mt-text); border-color:var(--mt-line,var(--knk-mail-c-gray-16-2)); background:transparent; }
   html[data-md="v2"] .mail-app-top .phone:hover { background:var(--mt-hover); }
   @media(max-width:930px){ .mail-app-top .phone .t { display:none; } }
   #mailPhoneDlg { position:fixed; inset:0; z-index:3000; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
   #mailPhoneDlg[hidden] { display:none !important; }
-  #mailPhoneDlg .mpd-box { position:relative; background:#fff; color:#0f172a; width:100%; max-width:460px; max-height:calc(100vh - 32px); overflow:auto;
+  #mailPhoneDlg .mpd-box { position:relative; background:var(--knk-mail-c-white); color:var(--knk-mail-c-blue-89); width:100%; max-width:460px; max-height:calc(100vh - 32px); overflow:auto;
     border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.3); }
-  #mailPhoneDlg .mpd-head { display:flex; align-items:center; gap:10px; padding:14px 16px; background:#A5282C; color:#fff; border-radius:16px 16px 0 0; }
+  #mailPhoneDlg .mpd-head { display:flex; align-items:center; gap:10px; padding:14px 16px; background:var(--knk-brand); color:var(--knk-mail-c-white); border-radius:16px 16px 0 0; }
   #mailPhoneDlg .mpd-head b { font-size:16px; flex:1; }
-  #mailPhoneDlg .mpd-x { border:1px solid rgba(255,255,255,.6); background:rgba(255,255,255,.15); color:#fff; border-radius:8px; padding:5px 10px; font-size:13px; font-weight:700; cursor:pointer; }
+  #mailPhoneDlg .mpd-x { border:1px solid rgba(255,255,255,.6); background:rgba(255,255,255,.15); color:var(--knk-mail-c-white); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:700; cursor:pointer; }
   #mailPhoneDlg .mpd-flow { display:flex; gap:4px; padding:10px 14px 0; font-size:12px; }
-  #mailPhoneDlg .mpd-flow span { flex:1; text-align:center; padding:6px 2px; border-radius:8px; background:#f1f5f9; color:#64748b; font-weight:600; }
-  #mailPhoneDlg .mpd-flow span.on { background:#A5282C; color:#fff; }
-  #mailPhoneDlg .mpd-flow span.done { background:#dcfce7; color:#166534; }
-  #mailPhoneDlg .mpd-now { margin:10px 14px 0; padding:9px 12px; border-radius:10px; background:#fef3c7; color:#78350f; font-size:13.5px; font-weight:700; }
+  #mailPhoneDlg .mpd-flow span { flex:1; text-align:center; padding:6px 2px; border-radius:8px; background:var(--knk-mail-c-gray-04); color:var(--knk-mail-c-gray-53); font-weight:600; }
+  #mailPhoneDlg .mpd-flow span.on { background:var(--knk-brand); color:var(--knk-mail-c-white); }
+  #mailPhoneDlg .mpd-flow span.done { background:var(--knk-mail-c-green-07); color:var(--knk-mail-c-green-76); }
+  #mailPhoneDlg .mpd-now { margin:10px 14px 0; padding:9px 12px; border-radius:10px; background:var(--knk-mail-c-yellow-11); color:var(--knk-mail-c-orange-74-2); font-size:13.5px; font-weight:700; }
   #mailPhoneDlg .mpd-body { padding:10px 16px 4px; font-size:13.5px; line-height:1.7; }
   #mailPhoneDlg .mpd-body ol { margin:6px 0; padding-left:20px; }
   #mailPhoneDlg .mpd-qr { display:flex; justify-content:center; margin:6px 0; }
-  #mailPhoneDlg .mpd-qr img { width:200px; height:200px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; }
-  #mailPhoneDlg .mpd-url { text-align:center; font-size:12.5px; color:#475569; word-break:break-all; }
-  #mailPhoneDlg .mpd-sub { color:#64748b; font-size:12.5px; }
+  #mailPhoneDlg .mpd-qr img { width:200px; height:200px; border:1px solid var(--knk-mail-c-gray-09); border-radius:10px; background:var(--knk-mail-c-white); }
+  #mailPhoneDlg .mpd-url { text-align:center; font-size:12.5px; color:var(--knk-mail-c-gray-65); word-break:break-all; }
+  #mailPhoneDlg .mpd-sub { color:var(--knk-mail-c-gray-53); font-size:12.5px; }
   #mailPhoneDlg .mpd-acts { display:flex; flex-wrap:wrap; gap:8px; padding:10px 16px 16px; }
-  #mailPhoneDlg .mpd-acts button { flex:1 1 140px; border:0; border-radius:10px; padding:11px 12px; font-size:14px; font-weight:800; cursor:pointer; background:#f1f5f9; color:#0f172a; }
-  #mailPhoneDlg .mpd-acts button.pri { background:#A5282C; color:#fff; }
+  #mailPhoneDlg .mpd-acts button { flex:1 1 140px; border:0; border-radius:10px; padding:11px 12px; font-size:14px; font-weight:800; cursor:pointer; background:var(--knk-mail-c-gray-04); color:var(--knk-mail-c-blue-89); }
+  #mailPhoneDlg .mpd-acts button.pri { background:var(--knk-brand); color:var(--knk-mail-c-white); }
   /* 🔄 새로고침 아이콘 — 업데이트를 바로 적용(서비스워커 갱신·캐시 비움·새로고침). 로그인 정보 왼쪽 (대표 지시 2026-06-14) */
-  .mail-app-top .reload { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff;
+  .mail-app-top .reload { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:var(--knk-mail-c-white);
     width:30px; height:30px; border-radius:50%; cursor:pointer; padding:0; font-size:15px; line-height:1;
     display:inline-flex; align-items:center; justify-content:center; }
   .mail-app-top .reload:hover { background:rgba(255,255,255,.30); }
   .mail-app-top .reload.spin { animation:mailReloadSpin .7s linear infinite; }
   @keyframes mailReloadSpin { to { transform:rotate(360deg); } }
   /* ← 이전 페이지 버튼 — 새로고침 왼쪽 (대표 지시 2026-06-14) */
-  .mail-app-top .navbtn { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff;
+  .mail-app-top .navbtn { border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:var(--knk-mail-c-white);
     font-size:12.5px; font-weight:600; padding:5px 11px; border-radius:8px; cursor:pointer; line-height:1; white-space:nowrap; }
   .mail-app-top .navbtn:hover { background:rgba(255,255,255,.30); }
   /* 11-23 대표 「메일함 글자를 누르면 첫 화면 · 오른쪽에 자주 쓰는 메뉴 7개 · ← 이전을 크게(이름표 높이 · 가로 2배) · 뒤로/앞으로 두 개」 */
-  .mail-app-top a.brand { padding:3px 6px; opacity:1; color:#fff; font-weight:800; font-size:15px; white-space:nowrap; }
+  .mail-app-top a.brand { padding:3px 6px; opacity:1; color:var(--knk-mail-c-white); font-weight:800; font-size:15px; white-space:nowrap; }
   .mail-app-top a.brand:hover { background:rgba(255,255,255,.16); }
   .mail-app-top .mt-quick { display:flex; align-items:center; gap:2px; margin-left:10px; min-width:0; flex-wrap:nowrap; }
   .mail-app-top .mt-quick a { display:inline-flex; align-items:center; gap:5px; font-size:13px; padding:5px 9px; border-radius:8px; white-space:nowrap; position:relative; }
   .mail-app-top .mt-quick a.on { background:rgba(255,255,255,.22); font-weight:700; opacity:1; }
-  .mail-app-top .mt-quick .bd { min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:#2563eb; color:#fff; font-size:10.5px; font-weight:700;
+  .mail-app-top .mt-quick .bd { min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:var(--knk-mail-c-blue-47); color:var(--knk-mail-c-white); font-size:10.5px; font-weight:700;
     display:inline-flex; align-items:center; justify-content:center; line-height:1; }
-  .mail-app-top .mt-quick .bd.r { background:#dc2626; }
+  .mail-app-top .mt-quick .bd.r { background:var(--knk-mail-c-red-49); }
   .mail-app-top .mt-quick .bd[hidden] { display:none; }
   .mail-app-top .navbtn.mt-hist { min-width:120px; height:28px; box-sizing:border-box; font-size:14px; font-weight:700; padding:0 12px;
     display:inline-flex; align-items:center; justify-content:center; gap:6px; }
@@ -199,7 +199,7 @@
   }
   /* 11-21 마 묶음 6-3 — 오른쪽에 메뉴가 더 있으면 「›」(누르면 옆으로 넘김 · 밀어도 됨) */
   .mail-tools .mt-more{display:none;position:sticky;right:0;flex:none;height:34px;min-width:28px;padding:0 6px;margin-left:auto;border:0;border-radius:8px;
-    background:var(--mt-surface,#fff);box-shadow:-8px 0 10px var(--mt-surface,#fff);color:var(--knk-red,#b91c1c);font-size:20px;font-weight:800;cursor:pointer}
+    background:var(--mt-surface,var(--knk-mail-c-white));box-shadow:-8px 0 10px var(--mt-surface,var(--knk-mail-c-white));color:var(--knk-red,var(--knk-mail-c-red-58));font-size:20px;font-weight:800;cursor:pointer}
   .mail-tools.more .mt-more{display:inline-flex;align-items:center;justify-content:center}
   .mail-tools.more{-webkit-mask-image:none;mask-image:none}
   /* 11-21 대표 「메뉴가 중복되는 게 많아 공간만 차지 · 받은 메일을 한 번에 더 많이」 — 넓은 화면(901px~)
@@ -223,15 +223,15 @@
     #mailTools.mt-inbox .mt-in-l .btn{height:32px;padding:0 12px;display:inline-flex;align-items:center;white-space:nowrap}
     #mailTools.mt-inbox .mt-in-l .mbx-more>summary{height:32px;box-sizing:border-box;display:inline-flex;align-items:center}
     #mailTools.mt-inbox .mt-in-day{flex:0 1 auto;gap:4px;overflow:hidden}
-    #mailTools.mt-inbox a.mt-day-i{height:28px;padding:0 9px;border-radius:999px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;font-size:12.5px;font-weight:600;gap:3px}
+    #mailTools.mt-inbox a.mt-day-i{height:28px;padding:0 9px;border-radius:999px;border:1px solid var(--knk-mail-c-blue-13);background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67);font-size:12.5px;font-weight:600;gap:3px}
     #mailTools.mt-inbox a.mt-day-i b{font-size:13.5px}
     #mailTools.mt-inbox a.mt-day-i em{font-style:normal;font-size:11.5px;font-weight:700}
-    #mailTools.mt-inbox a.mt-day-i.red{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
-    #mailTools.mt-inbox a.mt-day-i.warn{border-color:#fdba74;background:#fff7ed;color:#9a3412}
+    #mailTools.mt-inbox a.mt-day-i.red{border-color:var(--knk-mail-c-red-11);background:var(--knk-mail-c-red-03);color:var(--knk-mail-c-red-58)}
+    #mailTools.mt-inbox a.mt-day-i.warn{border-color:var(--knk-mail-c-orange-28);background:var(--knk-mail-c-amber-04);color:var(--knk-mail-c-orange-66)}
     #mailTools.mt-inbox a.mt-day-i:hover{filter:brightness(.97)}
-    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i{background:#1e293b;border-color:#334155;color:#bfdbfe}
-    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i.red{background:#3f1d1d;border-color:#7f1d1d;color:#fecaca}
-    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i.warn{background:#3b2410;border-color:#9a3412;color:#fed7aa}
+    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i{background:var(--knk-mail-c-blue-83);border-color:var(--knk-mail-c-blue-73);color:var(--knk-mail-c-blue-13)}
+    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i.red{background:var(--knk-mail-c-red-82);border-color:var(--knk-mail-c-red-69);color:var(--knk-mail-c-red-11)}
+    html[data-mt="dark"] #mailTools.mt-inbox a.mt-day-i.warn{background:var(--knk-mail-c-orange-85);border-color:var(--knk-mail-c-orange-66);color:var(--knk-mail-c-orange-17)}
     #mailTools.mt-inbox .mt-in .mbx-foldbtn{height:32px}
   }
   /* 좁은 노트북(1500px 아래)은 오늘 챙길 칩을 그림+숫자만(뜻은 마우스를 올리면) */
@@ -239,23 +239,23 @@
 </style>
 <div class="mail-app-fixed">
 <div class="mail-app-top">
-  <a class="brand" href="/mail/inbox" title="메일 첫 화면(받은편지함)으로">{% if mail_ci or mail_ci_preview|default(false) %}<img class="m-ci-logo" src="/static/img/brand/knk-symbol_full.svg" alt="KNK">이음메일{% else %}📧 HAIST WORKS 메일함{% endif %}</a>
+  <a class="brand" href="/mail/inbox" title="메일 첫 화면(받은편지함)으로">{% if mail_ci or mail_ci_preview|default(false) %}<img class="m-ci-logo" src="/static/img/brand/knk-symbol_full.svg" alt="KNK">이음메일{% else %}{{ mi('mail') }} HAIST WORKS 메일함{% endif %}</a>
   {# 11-23 대표 「오른쪽으로 가장 자주 사용할 메뉴 7개」 — 숫자는 아래 도구 줄과 같이 바로바로 #}
   <nav class="mt-quick" aria-label="자주 쓰는 메뉴">
-    <a href="/mail/inbox" data-q="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" data-cnt="unread" hidden></span></a>
-    <a href="/mail/inbox?unread=1" data-q="unread" title="안 읽은 메일만"><span class="ic">✉</span><span class="t">안 읽은 메일</span></a>
-    <a href="/mail/inbox?star=1" data-q="star" title="⭐ 중요 표시한 메일"><span class="ic">⭐</span><span class="t">중요</span></a>
+    <a href="/mail/inbox" data-q="in" title="받은편지함"><span class="ic">{{ mi('inbox') }}</span><span class="t">받은편지함</span><span class="bd" data-cnt="unread" hidden></span></a>
+    <a href="/mail/inbox?unread=1" data-q="unread" title="안 읽은 메일만"><span class="ic">{{ mi('mail') }}</span><span class="t">안 읽은 메일</span></a>
+    <a href="/mail/inbox?star=1" data-q="star" title="⭐ 중요 표시한 메일"><span class="ic">{{ mi('star') }}</span><span class="t">중요</span></a>
     <a href="/mail/inbox?reply=1" data-q="reply" title="회신이 필요해 보이는 메일(추정)"><span class="ic">↩</span><span class="t">회신 필요</span><span class="bd r" data-cnt="reply" hidden></span></a>
     <a href="/mail/waiting" data-q="wait" title="내가 보내고 답을 기다리는 메일"><span class="ic">⏳</span><span class="t">답 기다림</span><span class="bd" data-cnt="wait" hidden></span></a>
-    <a href="/mail/sent" data-q="sent" title="보낸편지함"><span class="ic">📤</span><span class="t">보낸편지함</span></a>
-    <a href="/mail/files" data-q="files" title="받은 메일의 첨부파일을 한곳에서"><span class="ic">📎</span><span class="t">첨부 모아 보기</span></a>
+    <a href="/mail/sent" data-q="sent" title="보낸편지함"><span class="ic">{{ mi('send') }}</span><span class="t">보낸편지함</span></a>
+    <a href="/mail/files" data-q="files" title="받은 메일의 첨부파일을 한곳에서"><span class="ic">{{ mi('paperclip') }}</span><span class="t">첨부 모아 보기</span></a>
   </nav>
   <span class="sp"></span>
   <button type="button" class="navbtn mt-hist" id="mailBackBtn" onclick="mailGoBack()" title="뒤로 — 앞 화면으로"><span>←</span><span class="t">뒤로</span></button>
   <button type="button" class="navbtn mt-hist" id="mailFwdBtn" onclick="mailGoFwd()" title="앞으로 — 뒤로 갔던 화면으로 다시"><span class="t">앞으로</span><span>→</span></button>
-  <button type="button" id="mailReloadBtn" class="reload" onclick="mailReload()" title="새로고침 — 업데이트를 바로 적용(최신 버전으로 갱신)">🔄</button>
+  <button type="button" id="mailReloadBtn" class="reload" onclick="mailReload()" title="새로고침 — 업데이트를 바로 적용(최신 버전으로 갱신)">{{ mi('refresh-cw') }}</button>
   {# 11-27 대표 「새로고침 오른쪽에 휴대폰에서 바로 들어갈 수 있게 설치하는 아이콘」 — 설치된 앱 안에서는 숨김(mailPhoneInstall 스크립트) #}
-  <button type="button" id="mailPhoneBtn" class="phone" onclick="mailPhoneInstall()" title="휴대폰에 메일 앱 설치 — 이음 메신저를 거치지 않고 홈 화면 아이콘으로 바로 열기"><span>📱</span><span class="t">휴대폰 앱</span></button>
+  <button type="button" id="mailPhoneBtn" class="phone" onclick="mailPhoneInstall()" title="휴대폰에 메일 앱 설치 — 이음 메신저를 거치지 않고 홈 화면 아이콘으로 바로 열기"><span>{{ mi('smartphone') }}</span><span class="t">휴대폰 앱</span></button>
   {% if user %}{% set _dn = vname(user) or '사용자' %}
   <span class="me" title="현재 로그인한 사용자(접속자) — KNK Eum 자동 로그인">
     <span class="av">{{ _dn[0] }}</span>
@@ -266,54 +266,54 @@
 {# 11-19 대표 「메일함 줄과 검색 줄 사이에 기본으로 쓰는 도구·메뉴 아이콘 — 고정」: 매일 가는 곳 + 자주 쓰는 도구 · 지금 화면은 빨갛게 · 숫자는 바로바로 #}
 {% set _mt_in = (mail_tools_inbox is defined and mail_tools_inbox) %}
 <nav class="mail-tools{{ ' mt-inbox' if _mt_in else '' }}" id="mailTools" aria-label="메일 도구">
-  <a class="new" href="/mail/compose" onclick="return mailNewWin(event)" title="새 메일 쓰기 — 새 창으로 (N)"><span class="ic">✏️</span><span class="t">새 메일</span></a>
-  <button type="button" class="mt-sync" id="mtSync" onclick="mailSyncNow()" title="보내기/받기 (F9) — 새 메일을 지금 바로 받아 옵니다 · 가만히 두어도 몇 분마다 저절로 받습니다"><span class="ic">🔃</span><span class="t">보내기/받기</span></button>
+  <a class="new" href="/mail/compose" onclick="return mailNewWin(event)" title="새 메일 쓰기 — 새 창으로 (N)"><span class="ic">{{ mi('square-pen') }}</span><span class="t">새 메일</span></a>
+  <button type="button" class="mt-sync" id="mtSync" onclick="mailSyncNow()" title="보내기/받기 (F9) — 새 메일을 지금 바로 받아 옵니다 · 가만히 두어도 몇 분마다 저절로 받습니다"><span class="ic">{{ mi('arrow-down-up') }}</span><span class="t">보내기/받기</span></button>
   {# 11-21 대표 「메뉴가 중복 · 공간만 차지」 — 받은편지함(넓은 화면)은 찾기 칸·오늘 챙길 숫자를 이 줄에(받은편지함이 넘겨 줌 · mail_inbox.html) #}
   {% if _mt_in %}{{ mail_tools_inbox }}{% endif %}
-  <a class="mt-nav" href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
-  <a class="mt-nav" href="/mail/inbox?star=1" data-k="star" data-drop="star" data-dname="중요" title="⭐ 중요 표시한 메일 — 메일을 끌어 여기에 놓으면 중요 표시"><span class="ic">⭐</span><span class="t">중요</span></a>
+  <a class="mt-nav" href="/mail/inbox" data-k="in" title="받은편지함"><span class="ic">{{ mi('inbox') }}</span><span class="t">받은편지함</span><span class="bd" id="mtcUnread" hidden></span></a>
+  <a class="mt-nav" href="/mail/inbox?star=1" data-k="star" data-drop="star" data-dname="중요" title="⭐ 중요 표시한 메일 — 메일을 끌어 여기에 놓으면 중요 표시"><span class="ic">{{ mi('star') }}</span><span class="t">중요</span></a>
   <a class="mt-nav" href="/mail/inbox?reply=1" data-k="reply" title="회신이 필요해 보이는 메일(추정)"><span class="ic">↩</span><span class="t">회신 필요</span><span class="bd r" id="mtcReply" hidden></span></a>
-  <a class="mt-nav" href="/mail/inbox?flag=1" data-k="flag" title="🚩 기한을 정한 메일 — 빨간 숫자 = 오늘까지(지난 것 포함)"><span class="ic">🚩</span><span class="t">기한</span><span class="bd r" id="mtcFlag" hidden></span></a>
+  <a class="mt-nav" href="/mail/inbox?flag=1" data-k="flag" title="🚩 기한을 정한 메일 — 빨간 숫자 = 오늘까지(지난 것 포함)"><span class="ic">{{ mi('flag') }}</span><span class="t">기한</span><span class="bd r" id="mtcFlag" hidden></span></a>
   <span class="sep mt-nav"></span>
-  <a class="mt-nav" href="/mail/sent" data-k="sent" title="보낸편지함"><span class="ic">📤</span><span class="t">보낸편지함</span></a>
-  <a class="mt-nav" href="/mail/drafts" data-k="draft" title="쓰다가 저장한 메일"><span class="ic">📝</span><span class="t">임시보관함</span><span class="bd g" id="mtcDrafts" hidden></span></a>
-  <a class="mt-nav" href="/mail/inbox?arc=1" data-k="arc" data-drop="archive" data-dname="보관함" title="📦 보관함 — 메일을 끌어 여기에 놓으면 보관"><span class="ic">📦</span><span class="t">보관함</span></a>
-  <a class="mt-nav" href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">🗑</span><span class="t">휴지통</span></a>
-  <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">🚫</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
+  <a class="mt-nav" href="/mail/sent" data-k="sent" title="보낸편지함"><span class="ic">{{ mi('send') }}</span><span class="t">보낸편지함</span></a>
+  <a class="mt-nav" href="/mail/drafts" data-k="draft" title="쓰다가 저장한 메일"><span class="ic">{{ mi('file-pen') }}</span><span class="t">임시보관함</span><span class="bd g" id="mtcDrafts" hidden></span></a>
+  <a class="mt-nav" href="/mail/inbox?arc=1" data-k="arc" data-drop="archive" data-dname="보관함" title="📦 보관함 — 메일을 끌어 여기에 놓으면 보관"><span class="ic">{{ mi('archive') }}</span><span class="t">보관함</span></a>
+  <a class="mt-nav" href="/mail/trash" data-k="trash" data-drop="delete" data-dname="휴지통" title="휴지통 — 메일을 끌어 여기에 놓으면 휴지통으로"><span class="ic">{{ mi('trash-2') }}</span><span class="t">휴지통</span></a>
+  <a class="mt-nav" href="/mail/blocked" data-k="blocked" title="스팸·피싱으로 보여 저절로 옮긴 메일"><span class="ic">{{ mi('ban') }}</span><span class="t">스팸함</span><span class="bd g" id="mtcSpam" hidden></span></a>
   <span class="sp"></span>
   {% if mail_tools_view is defined and mail_tools_view %}{{ mail_tools_view }}{% endif %}
-  <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">🎨</span><span class="t">테마</span></button>
-  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 모든 칸 한 단계(가장 작게 80%) · 내 계정에 기억" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsPanel(event)" title="글자 크기 — 양옆 −·＋ = 모든 칸 함께(80%~145%) · 가운데를 누르면 칸별로(폴더·목록·읽기 칸) · 내 계정에 기억(새로고침·업데이트해도 그대로)"><span class="ic">🔠</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 모든 칸 한 단계(가장 크게 145%) · 내 계정에 기억" aria-label="글자 크게">＋</button></span>
-  <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">⚙</span><span class="t">설정·정리</span></a>
-  <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">❔</span><span class="t">도움말</span></button>
+  <button type="button" id="mtThemeBtn" onclick="mailThemeToggle(event)" title="화면 테마 — ☀️ 밝게 · 🌤 부드럽게 · 🌙 어둡게 (이 컴퓨터에 기억)"><span class="ic">{{ mi('palette') }}</span><span class="t">테마</span></button>
+  <span class="mt-fs" role="group" aria-label="글자 크기"><button type="button" class="fs-b" id="mtFsDn" onclick="mailFsStep(-1)" title="글자 작게 — 모든 칸 한 단계(가장 작게 80%) · 내 계정에 기억" aria-label="글자 작게">−</button><button type="button" class="sw" id="mtBigTop" onclick="mailFsPanel(event)" title="글자 크기 — 양옆 −·＋ = 모든 칸 함께(80%~145%) · 가운데를 누르면 칸별로(폴더·목록·읽기 칸) · 내 계정에 기억(새로고침·업데이트해도 그대로)"><span class="ic">{{ mi('type') }}</span><span class="t">글자</span><b class="fs-pct" id="mtFsPct">100%</b></button><button type="button" class="fs-b" id="mtFsUp" onclick="mailFsStep(1)" title="글자 크게 — 모든 칸 한 단계(가장 크게 145%) · 내 계정에 기억" aria-label="글자 크게">＋</button></span>
+  <a href="/mail/tools" data-k="tools" title="⚙ 설정·정리 — 정리할 것·서명·폴더·보기 방식"><span class="ic">{{ mi('settings') }}</span><span class="t">설정·정리</span></a>
+  <button type="button" onclick="mailHelpToggle(event)" title="쓰는 법 · 단축키"><span class="ic">{{ mi('circle-help') }}</span><span class="t">도움말</span></button>
   <button type="button" class="mt-more" onclick="var t=document.getElementById('mailTools');t.scrollBy({left:Math.max(160,t.clientWidth*.7),behavior:'smooth'})" title="메뉴가 더 있습니다 — 눌러서 옆으로(밀어도 됩니다)" aria-label="메뉴 더 보기">›</button>
 </nav>
 <div class="mail-link-band" id="mailLinkBand" hidden></div>
 </div>
 <div class="mail-sync-msg" id="mailSyncMsg" hidden role="status" aria-live="polite"></div>
 <div class="mail-fs-pop" id="mailFsPop" hidden role="dialog" aria-label="칸별 글자 크기">
-  <h4>🔠 칸별 글자 크기</h4>
+  <h4>{{ mi('type') }} 칸별 글자 크기</h4>
   <div class="sub">칸마다 따로 키우고 줄입니다(80%~145%) · 읽기 칸은 <b>보기 자리마다 따로</b> 기억(오른쪽·아래·크게·따로 연 메일) · <b>내 계정에 기억</b>(새로고침·업데이트해도 마지막 값)</div>
   <div id="mailFsRows"></div>
   <div class="ft"><button type="button" onclick="mailFsSet(0)" title="모든 칸·모든 보기 자리를 100%로">↺ 모두 보통(100%)</button><button type="button" onclick="mailFsPanel()">닫기</button></div>
 </div>
 <div class="mail-theme-pop" id="mailThemePop" hidden role="dialog" aria-label="화면 테마 고르기">
-  <h4>🎨 화면 테마</h4>
+  <h4>{{ mi('palette') }} 화면 테마</h4>
   <div class="sub">누르면 바로 바뀝니다 · 이 컴퓨터에 기억 · 메일 본문은 보낸 사람 모양(흰 종이) 그대로 · 「부드럽게」만 살짝 낮춤</div>
   {% include "_v5_partials/mail_theme_cards.html" %}
 </div>
 <div class="mail-help" id="mailHelp" hidden>
-  <h4>❔ 메일 쓰는 법</h4>
+  <h4>{{ mi('circle-help') }} 메일 쓰는 법</h4>
   · 메일을 <b>한 번</b> 누르면 옆 칸에서 읽기 · <b>두 번(더블클릭)</b> 누르면 새 창<br>
   · 메일 위에서 <b>오른쪽 클릭</b> = 답장·전달·중요·보관·폴더로·삭제 메뉴<br>
-  · 메일을 <b>끌어서</b> 왼쪽 폴더나 위 ⭐ 중요 · 📦 보관함 · 🗑 휴지통에 놓으면 옮겨짐(아래 안내에서 ↺ 되돌리기)<br>
-  · 네모(☐)로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
-  · 위 「🗔 읽기창보기」 = 읽기 칸 오른쪽·아래·끄기<br>
-  · 맨 위 「🔃 보내기/받기」(또는 <kbd>F9</kbd>) = 새 메일을 지금 바로 받기(가만히 두어도 몇 분마다 저절로 받음)<br>
+  · 메일을 <b>끌어서</b> 왼쪽 폴더나 위 {{ mi('star') }} 중요 · {{ mi('archive') }} 보관함 · {{ mi('trash-2') }} 휴지통에 놓으면 옮겨짐(아래 안내에서 ↺ 되돌리기)<br>
+  · 네모({{ mi('square') }} )로 여러 통 고른 뒤 목록 위 단추로 한꺼번에<br>
+  · 위 「{{ mi('panel-right') }} 읽기창보기」 = 읽기 칸 오른쪽·아래·끄기<br>
+  · 맨 위 「{{ mi('arrow-down-up') }} 보내기/받기」(또는 <kbd>F9</kbd>) = 새 메일을 지금 바로 받기(가만히 두어도 몇 분마다 저절로 받음)<br>
   <b>단축키</b> <kbd>↑</kbd><kbd>↓</kbd> 다음 메일 · <kbd>R</kbd> 답장 · <kbd>Shift</kbd>+<kbd>R</kbd> 전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd> 전달 · <kbd>Delete</kbd> 삭제 · <kbd>E</kbd> 보관 · <kbd>U</kbd> 읽음↔안 읽음 · <kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요 · <kbd>N</kbd> 새 메일
-  <div style="margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb"><b>📱 휴대폰에서</b> 메일을 누르면 크게 열림 · 열린 메일 위 단추로 답장·전달·삭제·보관 · 「🚩 기한·알림」 · 도구 줄은 옆으로 밀면 더 있음(스팸함·설정·도움말)</div>
+  <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--knk-mail-c-gray-09)"><b>{{ mi('smartphone') }} 휴대폰에서</b> 메일을 누르면 크게 열림 · 열린 메일 위 단추로 답장·전달·삭제·보관 · 「{{ mi('flag') }} 기한·알림」 · 도구 줄은 옆으로 밀면 더 있음(스팸함·설정·도움말)</div>
   {# 11-20 3단계 ⑨ — 처음 안내 다시 보기 · 인쇄용 설명서 #}
-  <div class="mail-help-act"><button type="button" onclick="mailTourOpen(event)">🎓 처음 안내 다시 보기</button><a href="/mail/help" target="_blank" rel="noopener">🖨 설명서(인쇄용)</a>
+  <div class="mail-help-act"><button type="button" onclick="mailTourOpen(event)">{{ mi('graduation-cap') }} 처음 안내 다시 보기</button><a href="/mail/help" target="_blank" rel="noopener">{{ mi('printer') }} 설명서(인쇄용)</a>
     <span style="flex:1"></span><button type="button" onclick="mailHelpToggle()">닫기</button></div>
 </div>
 {% include "_v5_partials/mail_tour.html" %}
@@ -375,7 +375,7 @@ window.mailLinkBand=function(j){
   var b=document.getElementById('mailLinkBand'); if(!b || !j || j.linked===undefined) return;
   var skip=location.pathname.indexOf('/mail/account')===0 || document.documentElement.classList.contains('cmp-win');
   var html='', imp=false;
-  if(!skip && j.linked===false) html='📮 <b>하이웍스 메일을 아직 연결하지 않았습니다</b> — 연결하면 내 회사 메일을 여기서 받고 내 주소로 보낼 수 있습니다(처음 한 번 · 2분) <a href="/mail/account">연결하기 →</a>';
+  if(!skip && j.linked===false) html=''+mdI('mailbox')+' <b>하이웍스 메일을 아직 연결하지 않았습니다</b> — 연결하면 내 회사 메일을 여기서 받고 내 주소로 보낼 수 있습니다(처음 한 번 · 2분) <a href="/mail/account">연결하기 →</a>';
   else if(!skip && j.importing){ html='⏳ <b>지난 메일을 가져오는 중</b>입니다 — 최근 것부터 차례로 들어옵니다(몇 분마다 · 메일이 많으면 몇 시간)'; imp=true; }
   var was=!b.hidden;
   b.innerHTML=html; b.classList.toggle('imp', imp); b.hidden=!html;
@@ -515,7 +515,7 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
   function show(step, now, body, acts){
     var d = dlg();
     var flow = STEPS.map(function(s, i){ return '<span class="' + (i < step ? 'done' : (i === step ? 'on' : '')) + '">' + (i < step ? '✓ ' : '') + s + '</span>'; }).join('');
-    d.innerHTML = '<div class="mpd-box"><div class="mpd-head"><span style="font-size:22px">📱</span><b>휴대폰에 메일 앱 설치</b>'
+    d.innerHTML = '<div class="mpd-box"><div class="mpd-head"><span style="font-size:22px">'+mdI('smartphone')+'</span><b>휴대폰에 메일 앱 설치</b>'
       + '<button type="button" class="mpd-x" data-a="x">✕ 닫기</button></div>'
       + '<div class="mpd-flow">' + flow + '</div>'
       + '<div class="mpd-now">👉 지금 하실 일: ' + now + '</div>'
@@ -542,7 +542,7 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
         '<div class="mpd-qr"><img src="/mail/install-qr.svg" alt="메일 앱 주소 QR"></div>'
         + '<div class="mpd-url">' + esc(APP_URL.replace('?install=1', '')) + '</div>'
         + '<ol><li>휴대폰 <b>카메라</b>로 QR을 비추고 뜨는 주소를 누릅니다(안드로이드 = 크롬 · 아이폰 = 사파리로 열림).</li>'
-        + '<li>메일이 열리면 위쪽 <b>📱</b> 단추를 다시 누릅니다 → 안드로이드는 「설치」 · 아이폰은 「공유 → 홈 화면에 추가」.</li>'
+        + '<li>메일이 열리면 위쪽 <b>'+mdI('smartphone')+'</b> 단추를 다시 누릅니다 → 안드로이드는 「설치」 · 아이폰은 「공유 → 홈 화면에 추가」.</li>'
         + '<li>휴대폰 홈 화면의 <b>KNK Eum MAIL</b> 아이콘으로 바로 엽니다.</li></ol>' + LOGIN_NOTE,
         p ? [['💻 이 PC에도 설치', function(){ close(); p.prompt(); }]] : []);
       return;
@@ -560,7 +560,7 @@ window.mailGoFwd = function(){ try{ history.forward(); }catch(e){} };
     if (isAnd && inApp && !p) {   // 이음 앱 등 다른 앱 안 — 설치가 안 되는 곳 → 크롬으로
       show(0, '「크롬에서 열기」를 눌러 주세요',
         '<p>지금은 <b>이음 메신저 앱 안</b>에서 메일을 보고 있어 설치가 되지 않습니다.</p>'
-        + '<ol><li>아래 <b>크롬에서 열기</b>를 누릅니다.</li><li>크롬에서 메일이 열리면 위쪽 <b>📱</b> 단추를 다시 누르고 「설치」.</li></ol>' + LOGIN_NOTE + DONE_NOTE,
+        + '<ol><li>아래 <b>크롬에서 열기</b>를 누릅니다.</li><li>크롬에서 메일이 열리면 위쪽 <b>'+mdI('smartphone')+'</b> 단추를 다시 누르고 「설치」.</li></ol>' + LOGIN_NOTE + DONE_NOTE,
         [['🌐 크롬에서 열기', function(){ location.href = 'intent://kmail.knknara.co.kr/mail/app?install=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(APP_URL) + ';end'; }, true]]);
       return;
     }
