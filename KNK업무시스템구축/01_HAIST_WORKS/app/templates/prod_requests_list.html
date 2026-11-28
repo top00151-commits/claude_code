@@ -7,7 +7,7 @@
 <style>
 /* v5H226z762 (대표 지시): 제작요청서목록 — 발행된 제작요청서 모아보기 */
 /* v5H226z770 (대표 지시): 업무카드 형태 + 기간(일/주/월/년) 분류. 카드 클릭 → 독립 편집(수정발행) 페이지 */
-body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
+body { --qv-line:var(--knk-border-subtle); --qv-ink-3:var(--knk-text-muted); }
 .prq-tabs { display:flex; gap:4px; margin:0 var(--content-pad) var(--space-4); border-bottom:2px solid var(--qv-line); }
 .prq-tabs a, .prq-tabs span { padding:9px 20px; font-size:14px; font-weight:700; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-2px; }
 .prq-tabs .on { font-weight:800; color:var(--knk-red); border-bottom-color:var(--knk-red); }
@@ -17,11 +17,11 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 .prq-filter { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 var(--content-pad) var(--space-3); }
 .prq-flabel { font-size:11.5px; font-weight:800; color:var(--qv-ink-3); margin-right:2px; }
 .prq-filter .pp, .prq-filter .pf { padding:7px 15px; font-size:13px; font-weight:700; text-decoration:none; border-radius:999px;
-  border:1px solid var(--qv-line); background:#fff; color:#475569; white-space:nowrap; }
-.prq-filter .pp:hover { border-color:#fca5a5; color:var(--knk-red); }
-.prq-filter .pf:hover { border-color:#c4b5fd; color:#6d28d9; }
-.prq-filter .pp.on { background:var(--knk-red); border-color:var(--knk-red); color:#fff; }
-.prq-filter .pf.on { background:#6d28d9; border-color:#6d28d9; color:#fff; }
+  border:1px solid var(--qv-line); background:var(--knk-bg-surface); color:var(--knk-text-secondary); white-space:nowrap; }
+.prq-filter .pp:hover { border-color:var(--knk-danger-line); color:var(--knk-red); }
+.prq-filter .pf:hover { border-color:var(--knk-cat-violet-line); color:var(--knk-cat-violet); }
+.prq-filter .pp.on { background:var(--knk-red); border-color:var(--knk-red); color:var(--knk-text-inverse); }
+.prq-filter .pf.on { background:var(--knk-cat-violet); border-color:var(--knk-cat-violet); color:var(--knk-text-inverse); }
 
 .prq-search { display:flex; gap:8px; margin:0 var(--content-pad) var(--space-3); flex-wrap:wrap; }
 .prq-search input[type=text] { flex:1; min-width:200px; padding:9px 12px; border:1px solid var(--qv-line); border-radius:8px; font-size:14px; }
@@ -29,53 +29,53 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
 /* v5H226z791 (대표 지시): 수주(호기)당 1장 · 핵심 10필드만 · 카드 작게(한 화면에 많이) */
 .prq-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; margin:0 var(--content-pad) 28px; }
 /* v5H226z809 (대표 지시): 외곽을 '카드 느낌'으로 — 은은한 그림자(입체)·둥근 모서리·호버 떠오름 */
-.prq-card { display:block; text-decoration:none; color:inherit; background:#fff;
-  border:1px solid #e8ebf1; border-left:4px solid var(--knk-red); border-radius:14px; padding:5px; overflow:hidden;
+.prq-card { display:block; text-decoration:none; color:inherit; background:var(--knk-bg-surface);
+  border:1px solid var(--knk-border-subtle); border-left:4px solid var(--knk-red); border-radius:14px; padding:5px; overflow:hidden;
   box-shadow:0 1px 3px rgba(16,24,40,.06), 0 5px 14px rgba(16,24,40,.06);
   transition:box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
-.prq-card:hover { box-shadow:0 10px 22px rgba(16,24,40,.12), 0 4px 8px rgba(16,24,40,.06); transform:translateY(-3px); border-color:#fca5a5; }
+.prq-card:hover { box-shadow:0 10px 22px rgba(16,24,40,.12), 0 4px 8px rgba(16,24,40,.06); transform:translateY(-3px); border-color:var(--knk-danger-line); }
 .pc-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:5px; }
 .pc-mgmt { font-size:14px; font-weight:800; color:var(--knk-red); letter-spacing:.2px; }
 .pc-st { font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px; white-space:nowrap; }
-.pc-st-done { color:#15803d; background:#dcfce7; border:1px solid #86efac; }
-.pc-st-prog { color:#b45309; background:#fef3c7; border:1px solid #fcd34d; }
-.pc-st-cancel { color:#991b1b; background:#fee2e2; border:1px solid #fca5a5; }
-.pc-st-hold { color:#475569; background:#f1f5f9; border:1px solid #cbd5e1; }
-.pc-st-na { color:#94a3b8; background:#f8fafc; border:1px solid #e2e8f0; }
+.pc-st-done { color:var(--knk-success); background:var(--knk-success-subtle); border:1px solid var(--knk-success-line); }
+.pc-st-prog { color:var(--knk-warning); background:var(--knk-warning-subtle); border:1px solid var(--knk-warning-line); }
+.pc-st-cancel { color:var(--knk-danger); background:var(--knk-danger-subtle); border:1px solid var(--knk-danger-line); }
+.pc-st-hold { color:var(--knk-text-secondary); background:var(--knk-bg-subtle); border:1px solid var(--knk-border-default); }
+.pc-st-na { color:var(--knk-text-muted); background:var(--knk-bg-inset); border:1px solid var(--knk-border-subtle); }
 /* v5H226z807 (대표 지시): 제작요청 카드 = 스펙시트 표(배치·항목 통일). 이음 대화방 카드와 동일 항목 */
 .pc-tbl { width:100%; border-collapse:collapse; table-layout:fixed; }
 .pc-tbl col.pc-l { width:58px; }
 .pc-tbl col.pc-r { width:64px; }
-.pc-tbl td { border-right:1px solid #edf0f5; border-bottom:1px solid #edf0f5; padding:6px 9px; font-size:12.5px; word-break:break-word; }
+.pc-tbl td { border-right:1px solid var(--knk-border-subtle); border-bottom:1px solid var(--knk-border-subtle); padding:6px 9px; font-size:12.5px; word-break:break-word; }
 .pc-tbl tr td:last-child { border-right:none; }
 .pc-tbl tr:last-child td { border-bottom:none; }
-.pc-tbl td.pc-k { background:#f6f8fb; color:var(--qv-ink-3); font-weight:700; font-size:11px; white-space:nowrap; }
-.pc-tbl td.pc-v { color:#1f2937; font-weight:700; }
+.pc-tbl td.pc-k { background:var(--knk-bg-inset); color:var(--qv-ink-3); font-weight:700; font-size:11px; white-space:nowrap; }
+.pc-tbl td.pc-v { color:var(--knk-text-primary); font-weight:700; }
 .pc-tbl td.pc-rc { text-align:center; white-space:nowrap; }
 /* v5H226z1019: 소모품 배지가 '소모품·검사기'로 길어져 고정폭(64px) 칸에서 잘리던 문제 — 칸 안에서 줄바꿈 허용(어절 유지). */
-.pc-biz { display:inline-block; max-width:100%; font-size:10.5px; font-weight:800; color:#5b21b6; background:#f3e8ff; border:1px solid #ddd6fe; border-radius:6px; padding:1px 6px; white-space:normal; word-break:keep-all; line-height:1.18; }
-.pc-po2 { display:inline-block; font-size:10.5px; font-weight:800; color:#1d4ed8; background:#e0edff; border:1px solid #bfdbfe; border-radius:6px; padding:1px 6px; }
+.pc-biz { display:inline-block; max-width:100%; font-size:10.5px; font-weight:800; color:var(--knk-cat-violet); background:var(--knk-cat-violet-subtle); border:1px solid var(--knk-cat-violet-line); border-radius:6px; padding:1px 6px; white-space:normal; word-break:keep-all; line-height:1.18; }
+.pc-po2 { display:inline-block; font-size:10.5px; font-weight:800; color:var(--knk-info); background:var(--knk-info-subtle); border:1px solid var(--knk-info-line); border-radius:6px; padding:1px 6px; }
 /* v5H226z907 (대표 지시): 카드 사업부별 색상 — 왼쪽 띠 + 사업부 뱃지 톤 (검사기 파랑·자동화 보라·라이프밸류 로즈·기타 슬레이트·소모품 앰버) */
-.prq-card[data-biz="T"] { border-left-color:#2563eb; } .prq-card[data-biz="T"] .pc-biz { color:#1e40af; background:#dbeafe; border-color:#93c5fd; }
-.prq-card[data-biz="M"] { border-left-color:#7c3aed; } .prq-card[data-biz="M"] .pc-biz { color:#5b21b6; background:#ede9fe; border-color:#c4b5fd; }
-.prq-card[data-biz="L"] { border-left-color:#e11d48; } .prq-card[data-biz="L"] .pc-biz { color:#9f1239; background:#ffe4e6; border-color:#fda4af; }
-.prq-card[data-biz="E"] { border-left-color:#64748b; } .prq-card[data-biz="E"] .pc-biz { color:#334155; background:#f1f5f9; border-color:#cbd5e1; }
-.prq-card[data-biz="C"] { border-left-color:#d97706; } .prq-card[data-biz="C"] .pc-biz { color:#92400e; background:#fef3c7; border-color:#fcd34d; }
+.prq-card[data-biz="T"] { border-left-color:var(--knk-cat-orange); } .prq-card[data-biz="T"] .pc-biz { color:var(--knk-cat-orange); background:var(--knk-cat-orange-subtle); border-color:var(--knk-cat-orange-line); }
+.prq-card[data-biz="M"] { border-left-color:var(--knk-info); } .prq-card[data-biz="M"] .pc-biz { color:var(--knk-info); background:var(--knk-info-subtle); border-color:var(--knk-info-line); }
+.prq-card[data-biz="L"] { border-left-color:var(--knk-brand); } .prq-card[data-biz="L"] .pc-biz { color:var(--knk-brand-hover); background:var(--knk-brand-subtle); border-color:var(--knk-brand-line); }
+.prq-card[data-biz="E"] { border-left-color:var(--knk-border-strong); } .prq-card[data-biz="E"] .pc-biz { color:var(--knk-text-secondary); background:var(--knk-bg-subtle); border-color:var(--knk-border-default); }
+.prq-card[data-biz="C"] { border-left-color:var(--knk-success); } .prq-card[data-biz="C"] .pc-biz { color:var(--knk-success-text); background:var(--knk-success-subtle); border-color:var(--knk-success-line); }
 .pc-st2 { display:inline-block; font-size:10.5px; font-weight:800; border-radius:6px; padding:1px 6px; }
-.pc-qtyv { color:#1f2937; font-weight:800; font-size:11.5px; }
+.pc-qtyv { color:var(--knk-text-primary); font-weight:800; font-size:11.5px; }
 /* z1191z55 (대표 11-18): 카드 = 제작요청서 한 장 · 수주가 둘 이상(묶음 발행 등)이면 카드 안에 줄로 */
-.pc-more { display:inline-block; margin-left:3px; padding:0 5px; border-radius:5px; background:#eef2ff; color:#4338ca; font-size:10.5px; font-weight:800; white-space:nowrap; }
-.pc-lines { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:4px; border-top:1px dashed #dbe1ea; }
-.pc-lines td { padding:4px 6px; font-size:11.5px; color:#334155; border-bottom:1px solid #f1f4f8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pc-lines td.l-m { width:74px; font-weight:800; color:#1f2937; }
+.pc-more { display:inline-block; margin-left:3px; padding:0 5px; border-radius:5px; background:var(--knk-cat-violet-subtle); color:var(--knk-cat-violet); font-size:10.5px; font-weight:800; white-space:nowrap; }
+.pc-lines { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:4px; border-top:1px dashed var(--knk-border-subtle); }
+.pc-lines td { padding:4px 6px; font-size:11.5px; color:var(--knk-text-secondary); border-bottom:1px solid var(--knk-border-subtle); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pc-lines td.l-m { width:74px; font-weight:800; color:var(--knk-text-primary); }
 .pc-lines td.l-s { width:96px; }
 .pc-lines td.l-q { width:44px; text-align:right; }
 .pc-lines td.l-t { width:52px; text-align:center; }
-.pc-lines td.l-more { text-align:center; color:#6d28d9; font-weight:700; }
-.pc-lines .l-h { color:#64748b; font-size:10.5px; }
+.pc-lines td.l-more { text-align:center; color:var(--knk-cat-violet); font-weight:700; }
+.pc-lines .l-h { color:var(--knk-text-muted); font-size:10.5px; }
 .pc-nw { white-space:nowrap; }
-.pc-metarow { display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--qv-line); font-size:11.5px; color:#475569; }
-.pc-metarow b { color:#1f2937; }
+.pc-metarow { display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--qv-line); font-size:11.5px; color:var(--knk-text-secondary); }
+.pc-metarow b { color:var(--knk-text-primary); }
 
 .prq-empty { margin:40px var(--content-pad); text-align:center; color:var(--qv-ink-3); }
 @media (max-width:768px){
@@ -95,7 +95,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   <div class="page-head" data-dn="page-head">
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <a href="/projects">프로젝트</a> · <b>제작요청서목록</b></div>
-      <h1 class="page-title" data-dn="title"><em>📋 제작요청서목록</em></h1>
+      <h1 class="page-title" data-dn="title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span><em>제작요청서목록</em></h1>
     </div>
   </div>
 
@@ -139,7 +139,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   </form>
 
   <div style="margin:0 var(--content-pad) var(--space-3); font-size:12.5px; color:var(--qv-ink-3);">
-    <b style="color:#6d28d9;">{{ biz_label_cur }}</b> · <b style="color:#334155;">{{ period_label }}</b> · 제작요청서 <b>{{ rows|length }}</b>장 · 수주 <b>{{ n_so_total }}</b>건{% if rows|length >= 300 %} <span style="color:#b45309;">(최근 300건만 표시 — 사업부·기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드 = 제작요청서 한 장(묶음 발행이면 한 묶음 · 수주는 그 요청서가 가리키는 것만) · 누르면 <b style="color:#9a3412;">제작요청서(수정·발행)</b> 화면으로 이동합니다.
+    <b style="color:var(--knk-cat-violet);">{{ biz_label_cur }}</b> · <b style="color:var(--knk-text-secondary);">{{ period_label }}</b> · 제작요청서 <b>{{ rows|length }}</b>장 · 수주 <b>{{ n_so_total }}</b>건{% if rows|length >= 300 %} <span style="color:var(--knk-warning);">(최근 300건만 표시 — 사업부·기간·검색으로 좁혀 보세요)</span>{% endif %} · 카드 = 제작요청서 한 장(묶음 발행이면 한 묶음 · 수주는 그 요청서가 가리키는 것만) · 누르면 <b style="color:var(--knk-warning);">제작요청서(수정·발행)</b> 화면으로 이동합니다.
   </div>
 
   {% if rows %}
@@ -151,7 +151,7 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
       <table class="pc-tbl">
         <colgroup><col class="pc-l"><col><col class="pc-l"><col><col class="pc-r"></colgroup>
         <tr>
-          <td class="pc-k">관리번호</td><td class="pc-v"><span class="pc-nw">{{ pr.mgmt_code or '—' }}</span>{% if (pr.n_mgmt or 1) > 1 %}<span class="pc-more" title="묶음 발행 — 관리번호 {{ pr.n_mgmt }}개">외 {{ pr.n_mgmt - 1 }}건</span>{% endif %}{% if pr.pr_cancelled %} <span title="취소한 제작요청서" style="display:inline-block;margin-left:4px;padding:0 6px;border-radius:5px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;">🚫 취소</span>{% endif %}</td>
+          <td class="pc-k">관리번호</td><td class="pc-v"><span class="pc-nw">{{ pr.mgmt_code or '—' }}</span>{% if (pr.n_mgmt or 1) > 1 %}<span class="pc-more" title="묶음 발행 — 관리번호 {{ pr.n_mgmt }}개">외 {{ pr.n_mgmt - 1 }}건</span>{% endif %}{% if pr.pr_cancelled %} <span title="취소한 제작요청서" style="display:inline-block;margin-left:4px;padding:0 6px;border-radius:5px;background:var(--knk-danger-subtle);color:var(--knk-danger);font-size:11px;font-weight:800;">🚫 취소</span>{% endif %}</td>
           <td class="pc-k">수주번호</td><td class="pc-v"><span class="pc-nw">{{ pr.order_no or '—' }}</span>{% if (pr.n_so or 0) > 1 %}<span class="pc-more" title="이 요청서가 가리키는 수주 {{ pr.n_so }}건">외 {{ pr.n_so - 1 }}건</span>{% endif %}</td>
           {# z1019: 소모품 배지 '소모품·검사기'는 좁은 칸에서 가운뎃점 기준 딱 2줄로(소모품/검사기) — 관리번호칸 침범 없이 온전 표시 #}
           <td class="pc-rc">{% if pr.biz_label %}<span class="pc-biz">{% for _bp in pr.biz_label.split('·') %}<span style="display:block;">{{ _bp }}</span>{% endfor %}</span>{% else %}—{% endif %}</td>
@@ -187,11 +187,11 @@ body { --qv-line:#eef0f4; --qv-ink-3:#64748b; }
   {% else %}
   <div class="prq-empty">
     <div style="font-size:40px;margin-bottom:10px;">📋</div>
-    <div style="font-size:15px;font-weight:700;color:#334155;">{% if q or period %}조건에 맞는 제작요청서가 없습니다{% else %}발행된 제작요청서가 없습니다{% endif %}</div>
+    <div style="font-size:15px;font-weight:700;color:var(--knk-text-secondary);">{% if q or period %}조건에 맞는 제작요청서가 없습니다{% else %}발행된 제작요청서가 없습니다{% endif %}</div>
     {% if q or period %}<div style="margin-top:8px;font-size:13px;">기간을 <b>전체</b>로 바꾸거나 검색어를 지워 보세요.</div>
     <div style="margin-top:14px;"><a class="btn btn-secondary" href="/prod-requests">전체 보기</a></div>
-    {% else %}<div style="margin-top:8px;font-size:13px;">프로젝트 등록 시 <b style="color:#9a3412;">「📋 제작요청 발행」</b>을 체크하면 요청사항이 여기에 기록됩니다.</div>
-    <div style="margin-top:14px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span></div>{% endif %}
+    {% else %}<div style="margin-top:8px;font-size:13px;">프로젝트 등록 시 <b style="color:var(--knk-warning);">「📋 제작요청 발행」</b>을 체크하면 요청사항이 여기에 기록됩니다.</div>
+    <div style="margin-top:14px;"><span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span></div>{% endif %}
   </div>
   {% endif %}
 </main>

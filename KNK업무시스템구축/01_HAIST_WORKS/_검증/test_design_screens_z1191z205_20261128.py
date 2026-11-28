@@ -167,5 +167,19 @@ check("제목 앞 세 줄 — 영업 기회 양식·소모품 상세(소모품 �
       and T3 not in cu and T3 not in pf)
 
 
+# ── 11. 6판 — 소모품 제작요청서 · 제작요청서 목록 · 일괄 등록 창 2 ──
+for rel in ("app/templates/consumable_prod_request.html", "app/templates/prod_requests_list.html", "app/templates/_v5_partials/bulk_import.html", "app/templates/_v5_partials/product_bulk_import.html"):
+    check("6판 직접 색 0 · 면제값 줄 뺌: %s" % rel, hexes(rel) == [] and rel not in C.COLOR_BASE)
+pl = rd("app/templates/prod_requests_list.html")
+check("제작요청서 목록 카드 사업부 색 = 다른 화면과 같은 뜻 이름(검사기 주황·자동화 정보·라이프밸류 빨강·소모품 완료)",
+      '.prq-card[data-biz="T"] { border-left-color:var(--knk-cat-orange); }' in pl and '.prq-card[data-biz="M"] { border-left-color:var(--knk-info); }' in pl
+      and '.prq-card[data-biz="L"] { border-left-color:var(--knk-brand); }' in pl and '.prq-card[data-biz="C"] { border-left-color:var(--knk-success); }' in pl)
+check("소모품 제작요청서 엑셀 양식 머리 칸 = --knk-xl-head-blue/rose", "background:var(--knk-xl-head-blue)" in rd("app/templates/consumable_prod_request.html") and "background:var(--knk-xl-head-rose)" in rd("app/templates/consumable_prod_request.html"))
+check("제목 앞 세 줄 — 소모품 제작요청서·제작요청서 목록(📋 대신)", '<h1 class="page-title">' + T3 + "소모품 제작요청서 <span" in rd("app/templates/consumable_prod_request.html")
+      and '<h1 class="page-title" data-dn="title">' + T3 + "<em>제작요청서목록</em></h1>" in pl)
+
+check("엑셀 양식 머리 칸 글자 = --knk-brand-black 로 정함(어둡게 테마에서 4.02 → 기준 위 · 두 제작요청서 화면)",
+      all(rd(f).count("); color:var(--knk-brand-black); font-weight:700;") == 2 for f in ("app/templates/consumable_prod_request.html", "app/templates/prod_request_edit.html")))
+
 print("결과: %d 통과 / %d 실패" % (ok, fail))
 sys.exit(1 if fail else 0)
