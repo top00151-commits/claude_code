@@ -529,9 +529,24 @@
     META.forEach(function(m){ var el = $(m[0]); if(el) o[m[1]] = (el.value || '').replace(/\s+/g, ' ').trim(); });
     return o;
   }
+  // z1218 (대표 2026-11-28): 참여자 「[회사]이름」·「【회사】이름」 → 「회사 · 이름」 — 내보내기에만(입력 칸·저장 글자 그대로)
+  //   회의록(서버 _mtg_doc_ext_split · 회의 화면 coSplit)과 같은 규칙: 맨 앞 괄호만 · 괄호 안이나 이름이 비면 그대로 · 둥근 괄호는 안 봄
+  function vnCoSplit(t){
+    var P = [['[', ']'], ['【', '】']];
+    for (var i = 0; i < P.length; i++){
+      if (t.charAt(0) === P[i][0]){ var k = t.indexOf(P[i][1], 1);
+        if (k > 1){ var co = t.slice(1, k).trim(), nm = t.slice(k + 1).trim(); if (co && nm) return co + ' · ' + nm; } }
+    }
+    return null;
+  }
+  function vnCoPeople(txt){
+    var parts = String(txt || '').split(/\s*[,，]\s*/), hit = false;
+    var out = parts.map(function(x){ var y = vnCoSplit(x.trim()); if (y){ hit = true; return y; } return x; });
+    return hit ? out.join(', ') : txt;          // 나눌 사람이 없으면 적은 글 그대로
+  }
   function metaRows(){
     var v = metaVals(), out = [];
-    META.forEach(function(m){ if(v[m[1]]) out.push([m[2], v[m[1]]]); });
+    META.forEach(function(m){ if(v[m[1]]) out.push([m[2], m[1] === 'meta_people' ? vnCoPeople(v[m[1]]) : v[m[1]]]); });
     return out;
   }
   META.forEach(function(m){
