@@ -622,7 +622,7 @@ check("머리띠 높이·글자 자리·바탕색 = 받은편지함 실측값(�
       and "body{background:#f3f5f2" in pg and "min-height:calc(100% - 48px)" in pg)
 _head_css = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_app_head.html"), encoding="utf-8").read()
 check("받은편지함 머리띠가 그 실측의 바탕 그대로다(안쪽 여백 9px 16px · 글자 15px/800 · 폰 8px 10px/14px — 바뀌면 「여는 중」 화면도 맞출 것)",
-      "background:var(--knk-red,#b91c1c); color:#fff; padding:9px 16px;" in _head_css
+      "background:var(--knk-red,var(--knk-mail-c-red-58)); color:var(--knk-mail-c-white); padding:9px 16px;" in _head_css   # 11-28 4단계: 색은 메일 색판 이름(값 같음)
       and ".mail-app-top .brand { font-weight:800; font-size:15px;" in _head_css
       and ".mail-app-top{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:4px;padding:8px 10px}" in _head_css
       and ".mail-app-top .brand{font-size:14px;" in _head_css)
@@ -722,6 +722,8 @@ finally:
 
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 _env = Environment(loader=FileSystemLoader(os.path.join(ROOT, "app", "templates")))
+from app.mail_icons import mi as _mi, mi_ref as _mi_ref, mi_sprite as _mi_sprite  # noqa: E402  11-28 4단계 선 아이콘(앱 전역 값과 같게)
+_env.globals.update(mi=_mi, mi_ref=_mi_ref, mi_sprite=_mi_sprite)
 _head = _env.get_template("_v5_partials/mail_app_head.html")
 h_admin, h_staff = _head.render(is_admin=True, user=None), _head.render(is_admin=False, user=None)
 check("걸린 시간 표시는 관리자 화면에만(🔄 단추 설명글) · 직원 화면에는 스크립트 자체가 없다",

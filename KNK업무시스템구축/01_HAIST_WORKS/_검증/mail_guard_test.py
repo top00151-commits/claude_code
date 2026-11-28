@@ -193,7 +193,10 @@ h0 = ms.sanitize_html_for_view('<p><a href="https://ok.example/">go</a></p>', 1,
 check("의심 메일 보기 = 링크 막힘 · 보통 메일 보기 = 링크 그대로", "<a" not in h and "<script" not in h and '<a href="https://ok.example/">' in h0, (h, h0))
 
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
-t = Environment(loader=FileSystemLoader(os.path.join(ROOT, "app", "templates")), autoescape=True).get_template("_v5_partials/mail_view_body.html")
+from app.mail_icons import mi as _mi, mi_ref as _mi_ref, mi_sprite as _mi_sprite  # noqa: E402  11-28 4단계 선 아이콘(앱 전역 값과 같게)
+_genv = Environment(loader=FileSystemLoader(os.path.join(ROOT, "app", "templates")), autoescape=True)
+_genv.globals.update(mi=_mi, mi_ref=_mi_ref, mi_sprite=_mi_sprite)
+t = _genv.get_template("_v5_partials/mail_view_body.html")
 
 
 class M(dict):

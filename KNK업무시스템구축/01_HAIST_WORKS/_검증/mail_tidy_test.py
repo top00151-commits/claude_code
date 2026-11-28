@@ -10,6 +10,7 @@
   ⑥ 인쇄 = 메일만(읽기 칸이면 메일만 창 → 저절로 인쇄 · 단추·메뉴는 인쇄에서 뺌)
   ⑦ 스팸함 숫자 = 실제 통수(300통 한도 아님) · 보관하면 「회신 필요에서도 빠짐」 알림 · 휴지통 찾기 안내
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -51,7 +52,7 @@ def check(name, cond, extra=""):
 
 
 def rd(f):
-    return open(os.path.join(ROOT, "app", "templates", f), encoding="utf-8").read()
+    return _mail_ico.ico(open(os.path.join(ROOT, "app", "templates", f), encoding="utf-8").read())   # 11-28 4단계: {{ mi('이름') }} → [i:이름]
 
 
 print("== ① 대화 묶기 ==")
@@ -78,20 +79,20 @@ check("여러 통 띠의 삭제 = 묻지 않고 휴지통 + 되돌리기(mbxCmd)
 check("읽기 칸 🗑 삭제 = 목록과 같은 길(되돌리기)", "if(IN_PANE && window.mbxCmd && !window.KNK_MAIL_WIN){ return window.mbxCmd('delete', [String(id)]); }" in vb)
 
 print("== ③ 이름 통일 ==")
-check("「🔕 다시 안 받기(나만 · 스팸함으로)」 — 경고 상자·⋯·오른쪽 클릭 같게", vb.count("🔕 다시 안 받기(나만 · 스팸함으로)") == 2 and "🔕 다시 안 받기(나만 · 스팸함으로)" in inbox
-      and "🚫 스팸함으로 · 다시 안 받기" not in vb and "이 사람 다시 안 받기'" not in inbox)
-check("관리자 = 「⛔ 회사 전체 차단(관리자)」 두 곳 같게", vb.count("⛔ 회사 전체 차단(관리자)") == 2 and "🚫 이 발신 차단" not in vb)
+check("「🔕 다시 안 받기(나만 · 스팸함으로)」 — 경고 상자·⋯·오른쪽 클릭 같게", vb.count("[i:bell-off] 다시 안 받기(나만 · 스팸함으로)") == 2 and "🔕 다시 안 받기(나만 · 스팸함으로)" in inbox   # 오른쪽 클릭 메뉴 글(스크립트) — 보이기 전에 mdFix 가 아이콘으로
+      and "[i:ban] 스팸함으로 · 다시 안 받기" not in vb and "🚫 스팸함으로 · 다시 안 받기" not in vb and "이 사람 다시 안 받기'" not in inbox)
+check("관리자 = 「⛔ 회사 전체 차단(관리자)」 두 곳 같게", vb.count("[i:octagon-x] 회사 전체 차단(관리자)") == 2 and "[i:ban] 이 발신 차단" not in vb)
 cl = rd("mail_cleanup.html")
 check("보낸 곳별 정리: 「⭐ 중요」(별표 아님) · 「← 받은편지함」", "별표" not in cl and "⭐ 중요 표시한 메일은 남" in cl and "← 받은편지함" in cl)
 check("돌아가기 단추 「← 받은편지함」(폴더·규칙)", "← 메일함" not in rd("mail_folders.html") and "← 메일함" not in rd("mail_rules.html"))
-check("「📮 내 회사 주소 연결」(쓰기 화면·계정 화면 같은 이름)", "📮 내 계정" not in rd("mail_compose.html") and "📮 내 회사 주소 연결" in rd("mail_compose.html")
-      and "📮 내 <em>회사 주소 연결</em>" in rd("mail_account.html"))
+check("「📮 내 회사 주소 연결」(쓰기 화면·계정 화면 같은 이름)", "[i:mailbox] 내 계정" not in rd("mail_compose.html") and "[i:mailbox] 내 회사 주소 연결" in rd("mail_compose.html")
+      and "[i:mailbox] 내 <em>회사 주소 연결</em>" in rd("mail_account.html"))
 check("「🏷 메일 종류 규칙」(설정 줄과 같은 이름)", "메일 자동분류 규칙" not in rd("mail_rules.html") and "종류 규칙" in rd("mail_rules.html"))
-check("🛒 수주 등록(📦 보관과 그림 안 겹침)", "🛒 수주 등록" in vb and "📦 수주 등록" not in vb)
+check("🛒 수주 등록(📦 보관과 그림 안 겹침)", "[i:shopping-cart] 수주 등록" in vb and "[i:archive] 수주 등록" not in vb)
 
 print("== ④ 낡은 안내·영어 ==")
-check("「📁 이 폴더로」 → 「📁 다른 폴더로…」", "「📁 이 폴더로」" not in rd("mail_folders.html") and "「📁 다른 폴더로…」" in rd("mail_folders.html"))
-check("보낸편지함 빈 안내 = 「위 ✏️ 새 메일」", "왼쪽 <b>✏️ 메일 쓰기</b>" not in inbox and "위 <b>✏️ 새 메일</b>" in inbox)
+check("「📁 이 폴더로」 → 「📁 다른 폴더로…」", "「[i:folder] 이 폴더로」" not in rd("mail_folders.html") and "「[i:folder] 다른 폴더로…」" in rd("mail_folders.html"))
+check("보낸편지함 빈 안내 = 「위 ✏️ 새 메일」", "왼쪽 <b>[i:square-pen] 메일 쓰기</b>" not in inbox and "위 <b>[i:square-pen] 새 메일</b>" in inbox)
 cp = rd("mail_compose.html")
 check("NAS · 발송망(Cloudflare/AWS SMTP) 말 없음(쓰기 화면)", "NAS" not in cp.split("<script")[0] and "Cloudflare/AWS SMTP" not in cp, [x for x in ("NAS", "Cloudflare") if x in cp.split("<script")[0]])
 check("「AI 키」 말 없음", "AI 키" not in inbox)
@@ -102,7 +103,7 @@ print("== ⑤ 단축키·도움말 ==")
 check("단축키 S = 중요(Insert 도)", "'Insert':'star','s':'star','S':'star'" in inbox and "{k:'S'}" in inbox)
 check("명령 줄 읽음 그림 ◐(새 메일 ✉ 와 안 겹침)", "◐ <span class=\"t\">읽음·안 읽음</span>" in inbox)
 hd = rd("_v5_partials/mail_app_head.html")
-check("도움말: S 단축키 · 휴대폰 쓰는 법", "<kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요" in hd and "📱 휴대폰에서" in hd)
+check("도움말: S 단축키 · 휴대폰 쓰는 법", "<kbd>S</kbd>(또는 <kbd>Insert</kbd>) 중요" in hd and "[i:smartphone] 휴대폰에서" in hd)
 check("도구 줄 「옆으로 밀면 더」 흐림 표시", ".mail-tools.more" in hd and "t.classList.toggle('more'" in hd)
 
 print("== ⑥ 인쇄 = 메일만 ==")

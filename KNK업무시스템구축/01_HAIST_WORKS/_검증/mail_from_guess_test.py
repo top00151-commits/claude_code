@@ -189,7 +189,7 @@ check("메일 보기 = 🔎 추정 표시(근거 글)", g1.get("from_guess") == 
 check("원래 주소가 있던 메일엔 추정 표시 없음", not g81.get("from_guess"), g81.get("from_guess"))
 check("응답은 숫자만", not re.search(r"@|임태훈", r.text), r.text[:200])
 tpl = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_view_body.html"), encoding="utf-8").read()
-check("메일 보기 화면에 「🔎 추정 주소」 글", "🔎 추정 주소 · {{ m.from_guess }}" in tpl)
+check("메일 보기 화면에 「🔎 추정 주소」 글", "{{ mi('search') }} 추정 주소 · {{ m.from_guess }}" in tpl)
 r = k.post("/mail/from-guess", data={"undo": "1"})
 with _db.db_session() as c:
     back = {x["id"]: (x["from_email"], x["from_name"]) for x in c.execute("SELECT id, from_email, from_name FROM mail_messages").fetchall()}

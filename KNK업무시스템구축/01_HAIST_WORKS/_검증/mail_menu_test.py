@@ -80,7 +80,9 @@ m.get_user = lambda req: _U["v"]
 def client(port=5051, host="works.knknara.co.kr"):
     k = TestClient(m.app, base_url="http://127.0.0.1:%d" % port, raise_server_exceptions=False, follow_redirects=False)
     k.headers.update({"host": host, "x-forwarded-proto": "https"})
-    return k
+    # 11-28 4단계: 단추·폴더 이름 그림 문자 → 선 아이콘 — 화면 글을 [i:이름] 으로 읽어 같은 뜻(아이콘 이름까지)을 확인
+    from _mail_ico import IcoClient
+    return IcoClient(k)
 
 
 def side(h):
@@ -97,16 +99,16 @@ try:
     check("받은편지함 200", r.status_code == 200, r.status_code)
     check("왼쪽 맨 위 「✏️ 메일 쓰기」", sd.find('class="mbx-write"') >= 0 and sd.find('class="mbx-write"') < sd.find("받은편지함"), sd[:300])
     check("빨리 보기: 받은편지함 → ⭐ 중요 → ↩ 회신 필요 (순서)",
-          0 < sd.find("📥 받은편지함") < sd.find("⭐ 중요") < sd.find("↩ 회신 필요"), (sd.find("📥 받은편지함"), sd.find("⭐ 중요"), sd.find("↩ 회신 필요")))
-    check("메일함(11-18 2단계 아웃룩·하이웍스 이름): 보낸편지함 · 임시보관함 · 휴지통", "📤 보낸편지함" in sd and "📝 임시보관함" in sd and ">즐겨찾기</div>" in sd and ">메일함</div>" in sd and "🗑 휴지통" in sd)
-    check("「쓰다 만 메일」 이름 없음 → 「임시보관함」(익숙한 이름 · 11-18 2단계) · 「📦 보관함」과 따로", "쓰다 만 메일" not in h and "📦 보관함" in sd)
-    check("폴더가 빨리 보기 아래 · ⚙ 설정·정리는 맨 아래", sd.find("↩ 회신 필요") < sd.find("📁 폴더") < sd.find("⚙ 설정·정리"), (sd.find("📁 폴더"), sd.find("⚙ 설정·정리")))
+          0 < sd.find("[i:inbox] 받은편지함") < sd.find("[i:star] 중요") < sd.find("↩ 회신 필요"), (sd.find("[i:inbox] 받은편지함"), sd.find("[i:star] 중요"), sd.find("↩ 회신 필요")))
+    check("메일함(11-18 2단계 아웃룩·하이웍스 이름): 보낸편지함 · 임시보관함 · 휴지통", "[i:send] 보낸편지함" in sd and "[i:file-pen] 임시보관함" in sd and ">즐겨찾기</div>" in sd and ">메일함</div>" in sd and "[i:trash-2] 휴지통" in sd)
+    check("「쓰다 만 메일」 이름 없음 → 「임시보관함」(익숙한 이름 · 11-18 2단계) · 「📦 보관함」과 따로", "쓰다 만 메일" not in h and "[i:archive] 보관함" in sd)
+    check("폴더가 빨리 보기 아래 · ⚙ 설정·정리는 맨 아래", sd.find("↩ 회신 필요") < sd.find("[i:folder] 폴더") < sd.find("[i:settings] 설정·정리"), (sd.find("[i:folder] 폴더"), sd.find("[i:settings] 설정·정리")))
     check("⚙ 설정·정리 → /mail/tools", 'href="/mail/tools"' in sd)
     check("메일 종류(분류) 칸 없음 — ?cat= 링크·「분류」 머리 없음", "?cat=" not in sd and '>분류</div>' not in sd)
-    check("보기 칸(⭐ 별표·● 안읽음·💬 대화묶기) 왼쪽에서 빠짐", "⭐ 별표" not in sd and "● 안읽음" not in sd and "💬 대화묶기" not in sd)
+    check("보기 칸(⭐ 별표·● 안읽음·💬 대화묶기) 왼쪽에서 빠짐", "⭐ 별표" not in sd and "[i:star] 별표" not in sd and "● 안읽음" not in sd and "💬 대화묶기" not in sd and "[i:message-square] 대화묶기" not in sd)
     check("보낸 곳별 정리·차단목록 관리 → 왼쪽에서 빠짐(설정·정리 안)", "/mail/cleanup" not in sd and "/mail/blocklist" not in sd)
-    check("🚫 스팸함은 왼쪽 「내 메일」에 늘 보임(11-18 대표 「스팸은 자동으로 걸러」 — 아웃룩처럼)", 'href="/mail/blocked"' in sd and "🚫 스팸함" in sd and sd.find("🗑 휴지통") < sd.find("🚫 스팸함") < sd.find("📁 폴더"))
-    check("「일반」 + 「🧹 일반 정리하기」는 그대로", ">일반</span>" in sd and "🧹 일반 정리하기" in sd)
+    check("🚫 스팸함은 왼쪽 「내 메일」에 늘 보임(11-18 대표 「스팸은 자동으로 걸러」 — 아웃룩처럼)", 'href="/mail/blocked"' in sd and "[i:ban] 스팸함" in sd and sd.find("[i:trash-2] 휴지통") < sd.find("[i:ban] 스팸함") < sd.find("[i:folder] 폴더"))
+    check("「일반」 + 「🧹 일반 정리하기」는 그대로", ">일반</span>" in sd and "[i:eraser] 일반 정리하기" in sd)
 
     print("== 2. 위 도구줄 · 찾기 · 거르기 ==")
     top = h[h.find('class="mbx-topbar"'):h.find('</form>', h.find('class="mbx-topbar"'))]  # 찾기 줄(폰 전용 떠 있는 쓰기 단추 앞)
@@ -119,7 +121,7 @@ try:
     check("날짜는 「▾ 자세히」 안(늘 보이지 않음)", "<details class=\"mbx-more\"" in top and 'name="df"' in top and "▾ 자세히" in top)
     check("첨부 체크박스(숫자만 보이던 것) 없음", 'type="checkbox" name="att"' not in top)
     ch = h[h.find('class="mbx-chips"'):h.find('class="mbx-chips"') + 2000]
-    check("목록 위 거르기: 전체 · ● 안 읽음 · 📎 첨부 · 💬 대화로 묶기", all(x in ch for x in (">전체</a>", "● 안 읽음", "📎 첨부", "💬 대화로 묶기")))
+    check("목록 위 거르기: 전체 · ● 안 읽음 · 📎 첨부 · 💬 대화로 묶기", all(x in ch for x in (">전체</a>", "● 안 읽음", "[i:paperclip] 첨부", "[i:message-square] 대화로 묶기")))
     check("폰: 떠 있는 「✏️ 쓰기」", 'class="mbx-fab"' in h)
     r2 = k.get("/mail/inbox?unread=1&att=1&thread=0")
     check("거르기 겹쳐 쓰기 200", r2.status_code == 200)
@@ -167,7 +169,7 @@ try:
     check("⚙ 설정·정리에도 「화면 테마」 카드 셋(같은 설정)", 'id="mtThemeRow"' in _tt and _tt.count('class="mt-card"') == 6, _tt.count('class="mt-card"'))
     check("메일 본문·쓰는 칸은 어느 테마에서나 흰 종이(받는 사람 모양 그대로)",
           "html[data-mt] .mv-frame{ background:#fff !important" in hk and "html[data-mt] .cmp-editor{ background:#fff !important; color:#111 !important; }" in hk)
-    check("화면 글 속 고정 색 = 테마 값(없으면 원래 색) — 기본 모양 그대로", "var(--mt-surface,#fff)" in hk and "var(--mt-surface,#fffdf5)" in hk)
+    check("화면 글 속 고정 색 = 테마 값(없으면 원래 색) — 기본 모양 그대로", "var(--mt-surface,var(--knk-mail-c-white))" in hk and "var(--mt-surface,var(--knk-mail-c-yellow-02))" in hk and "--knk-mail-c-white:#ffffff;" in hk)
     check("새 창(더블클릭)도 같은 테마", "knkmail.theme" in km.get("/mail/%d?win=1" % M_CUST).text)
     check("칸 구분선 또렷하게(11-19 대표 「구분선이 잘 안 보여」): 테마마다 경계선·손잡이 줄 색 · 칸 사이 줄 양쪽 선 · 스크롤 막대 회색",
           # 11-22 밤 새 디자인(mail_design_v2 · 테마 조각 뒤에 붙음)이 밝게 테마 선 색을 한 번 더 정함 → 테마 3가지 정의 부분만 센다
@@ -196,21 +198,21 @@ try:
     act = p[p.find('class="mv-actions"'):p.find('id="mvMore"')]
     more = p[p.find('id="mvMore"'):p.find("</details>", p.find('id="mvMore"'))]
     # 11-21 대표 「메뉴 중복 · 메일 내용을 더 많이」 — 중요·보관·삭제 단추는 그림만(뜻은 title·aria-label) → 「🗑 삭제」 글자 대신 그림 단추+뜻으로 확인
-    check("밖: 답장 · 전체답장 · 전달 · 중요 · 삭제", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "↪ 전달", 'id="mvStarBtn"', 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>')), act[:500])
+    check("밖: 답장 · 전체답장 · 전달 · 중요 · 삭제", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "↪ 전달", 'id="mvStarBtn"', 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">[i:trash-2]</button>')), act[:500])
     # 11-26 대표 「메뉴 중 가장 많이 사용할 것들은 맡기기 오른쪽으로」 — 안 읽음·할 일·인쇄는 PC 빠른 단추(mv-quick · 휴대폰은 메뉴 안 mv-mob) · 다시 안 받기는 메뉴 안 그대로
     _qk = "".join(seg for seg in act.split("<") if "mv-quick" in seg)
     check("밖: 안 읽음·할 일·인쇄 = PC 빠른 단추(mv-quick)만 · 다시 안 받기는 밖에 없음", "muteSender()" not in act and "markUnread()" in _qk and "mvPrint()" in _qk
           and act.count("markUnread()") == 1 and act.count("mvPrint()") == 1, _qk[:300])
     check("⋯ 메뉴 안 안 읽음·인쇄 = 휴대폰에서만(mv-mob)", 'class="mv-mob" onclick="markUnread()"' in more and 'class="mv-mob" onclick="mvPrint()"' in more)
     check("⋯ 더 보기 안: 안 읽음 · 할 일·일정(→ 🚩 상자) · 주소록 · 번역 3 · 인쇄 · 다시 안 받기",
-          all(x in more for x in ("markUnread()", "📋 할 일·일정으로", 'id="mvContactBtn"', "translateMail('ko')", "translateMail('vi')", "translateMail('en')", "mvPrint()", "muteSender()")), more[:600])
+          all(x in more for x in ("markUnread()", "[i:clipboard-list] 할 일·일정으로", 'id="mvContactBtn"', "translateMail('ko')", "translateMail('vi')", "translateMail('en')", "mvPrint()", "muteSender()")), more[:600])
     check("「↩ 답장 쓰기」(회신 띠) 중복 없음", "↩ 답장 쓰기" not in p)
     check("제목 옆 「일반」 꼬리표 없음", 'class="mv-badge"' not in p)
-    check("「☆ 중요 표시」 처음 상태(11-21 그림 단추 ☆ + 뜻)", 'aria-label="중요 표시">☆</button>' in act and "☆ 중요 표시" in act)
+    check("「☆ 중요 표시」 처음 상태(11-21 그림 단추 ☆ + 뜻)", 'aria-label="중요 표시">[i:star]</button>' in act and "☆ 중요 표시" in act and 'mv-star"' in act)
     j = k.post("/mail/%d/star" % M_CUST).json()
     p2 = k.get("/mail/%d/pane" % M_CUST).text
     check("중요 표시 → 읽기 화면 「⭐ 중요」 · 왼쪽 ⭐ 중요 목록에 나옴",
-          j.get("ok") and j.get("starred") and 'aria-label="중요">⭐</button>' in p2 and 'data-mail-id="%d"' % M_CUST in k.get("/mail/inbox?star=1").text, j)
+          j.get("ok") and j.get("starred") and 'aria-label="중요">[i:star]</button>' in p2 and 'mv-star on"' in p2 and 'data-mail-id="%d"' % M_CUST in k.get("/mail/inbox?star=1").text, j)
     pf = k.get("/mail/%d" % M_CUST).text
     check("풀페이지 읽기도 200 · ← 목록 단추", "← 목록" in pf and 'id="mvMore"' in pf)
     check("남의 메일 중요 표시 못 함", k.post("/mail/%d/star" % M_OTHER).status_code in (403, 404) or not k.post("/mail/%d/star" % M_OTHER).json().get("ok"))
@@ -231,7 +233,7 @@ try:
     check("직원: 관리자 칸·차단 목록 관리 안 보임", "/admin/mail-" not in th2 and "/mail/blocklist" not in th2 and 'href="/mail/cleanup"' in th2)
     check("직원도 처음부터 「케이엔케이」 부서 폴더(11-24) → 일반 정리하기 보임", "/mail/folders/general" in th2)
     h2 = k.get("/mail/inbox").text
-    check("직원 받은편지함 200 · 「📁 폴더」(케이엔케이 부서) · 대표 고객사 폴더 없음 · 분류 칸 없음(11-24)", "📁 폴더" in side(h2) and "1.고객사" not in side(h2) and "?cat=" not in side(h2))
+    check("직원 받은편지함 200 · 「📁 폴더」(케이엔케이 부서) · 대표 고객사 폴더 없음 · 분류 칸 없음(11-24)", "[i:folder] 폴더" in side(h2) and "1.고객사" not in side(h2) and "?cat=" not in side(h2))
     _U["v"] = {"id": OWN, "role": "ceo", "name": "시험대표", "team_id": None, "team_name": ""}
 
     print("== 7. 다른 메일함 ==")

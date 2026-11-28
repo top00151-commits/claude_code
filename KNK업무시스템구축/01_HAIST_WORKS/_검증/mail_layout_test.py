@@ -41,6 +41,10 @@ from starlette.testclient import TestClient  # noqa: E402
 P = F = 0
 
 
+from app.mail_icons import mi as _mi  # noqa: E402  11-28 4단계: 그림 문자 대신 선 아이콘(서버가 그린 SVG 를 그대로 대조)
+MI = lambda n: str(_mi(n))
+
+
 def check(name, cond, extra=""):
     global P, F
     if cond:
@@ -159,7 +163,7 @@ check("오른쪽 클릭 · 단축키 · 끌어 놓기 그대로",
       and "addEventListener('dragstart'" in h and "addEventListener('drop'" in h)
 check("이동 ▾ 메뉴에 「↺ 「이 메일만」 옮김 풀기」(11-22 내 규칙·자동 분류를 따라감)", "↺ 「이 메일만」 옮김 풀기" in h)
 ha = T(km.get("/mail/inbox?arc=1"))
-check("보관함에서는 선택 막대 「📥 받은편지함으로」", 'data-cmd="archive" title="받은편지함으로 되돌리기 (E)">📥' in ha)
+check("보관함에서는 선택 막대 「📥 받은편지함으로」", 'data-cmd="archive" title="받은편지함으로 되돌리기 (E)">' + MI('inbox') in ha)
 
 print("== ④ 거르기 줄 · 날짜 머리 ==")
 ch = seg(h, '<div class="mbx-chips">', '<div class="mbx-newbar"')
@@ -167,7 +171,7 @@ check("거르기: 전체 · 안 읽음 · 첨부 · 대화로 묶기 그대로 �
       all(x in ch for x in (">전체</a>", "● 안 읽음", "📎 첨부", "💬 대화로 묶기")) and "🔕 광고·알림 빼기" not in ch)
 _hq = T(km.get("/mail/inbox?q=" + "가짜"))
 _chq = seg(_hq, '<div class="mbx-chips">', '<div class="mbx-newbar"')
-check("찾기 등 다른 보기에서는 「🔕 광고·알림 빼기」 그대로(data-ic)", "🔕 광고·알림 빼기" in _chq and 'data-ic="🔕"' in _chq)
+check("찾기 등 다른 보기에서는 「🔕 광고·알림 빼기」 그대로(data-ic)", MI('bell-off') + " 광고·알림 빼기" in _chq and 'class="mbx-chip ic-n' in _chq)
 check("종류 셋 → 「🏷 종류 ▾」 하나(링크 셋 그대로 안에)", 'id="mbxKindDd"' in ch and "mbxKindToggle(event)" in ch and ch.count("mbx-chip kind") == 3
       and all(("cat=" + x) in ch.replace("&amp;", "&") for x in ("견적", "발주", "세금계산서")))
 check("좁은 화면은 예전 칩 셋(종류 ▾ 단추 숨김 · 상자 = display:contents)", ".mbx-kinddd{display:contents}" in h and ".mbx-kindbtn{display:none}" in h)
@@ -176,7 +180,8 @@ check("🗔 읽기창보기(11-23 대표 「보기를 테마 옆으로 · 이름
       'id="mbxViewDd"' not in ch and tb.find('<span class="sp"></span>') < tb.find('id="mbxViewDd"') < tb.find('id="mtThemeBtn"')
       and '<span class="t">읽기창보기</span>' in tb and "mbxPopAt(" in h and "#mailTools .mbx-viewmenu{position:fixed" in h
       and "@media(max-width:900px){ #mailTools .mbx-viewdd{display:none} }" in h and h.count('id="mbxViewDd"') == 1)
-check("목록 칸이 좁으면 긴 칩은 그림만(글자는 남김 · data-ic)", '@container mbxlc (max-width:560px)' in h and 'data-ic="💬"' in ch and 'data-ic="📎"' in ch)
+check("목록 칸이 좁으면 긴 칩은 그림만(글자는 남김 · data-ic)", '@container mbxlc (max-width:560px)' in h and '.mbx-chips .ic-n:not(.mbx-kindbtn.on) .md-i{width:14px;height:14px}' in h
+      and MI('message-square') + " 대화로 묶기" in ch and MI('paperclip') + " 첨부" in ch)
 check("날짜 머리 얇게 · 거르기 줄 바로 아래 붙음", ".mbx-list>.mbx-day{display:block;margin:0;padding:0 12px" in h and "--mbx-day-top" in h)
 
 print("== ⑤ 목록 줄 촘촘하게 / 보통 ==")
@@ -204,13 +209,13 @@ check("그룹 명단 API 그대로(2명)", j.get("ok") and j["info"]["grp-lay" +
 act = p[p.find('class="mv-actions"'):p.find('id="mvMore"')]
 # 11-28 M-5 휴대폰 짧은 이름 — 「✅ 확인<span class="mv-bt-l"> 답장</span>」(넓은 화면은 「확인 답장」 그대로 · 휴대폰은 「확인」)
 check("단추 글자: 답장 · 전체답장 · 확인 답장 · 전달", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", '✅ 확인<span class="mv-bt-l"> 답장</span>', "↪ 전달")))
-check("중요·보관·삭제 = 그림만 + 뜻(title·aria-label)", 'id="mvStarBtn"' in act and 'aria-label="중요 표시">☆</button>' in act and 'aria-label="보관">📦</button>' in act
-      and 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>' in act)
-check("기한·알림 · 더 보기 = 넓은 화면 그림만(휴대폰 글자 · 11-28 휴대폰은 「기한」)", '🚩<span class="mv-bt"> 기한<span class="mv-bt-l">·알림</span></span> ▾' in p and '⋯<span class="mv-bt"> 더 보기</span>' in p)
-check("중요·보관 눌렀을 때 바뀌는 글자도 그림(mvStar·mvArchive)", "b.textContent = j.starred ? '⭐' : '☆';" in p and "b.textContent = on ? '📥' : '📦';" in p)
+check("중요·보관·삭제 = 그림만 + 뜻(title·aria-label)", 'id="mvStarBtn"' in act and 'aria-label="중요 표시">' + MI('star') + '</button>' in act and 'aria-label="보관">' + MI('archive') + '</button>' in act
+      and 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">' + MI('trash-2') + '</button>' in act)
+check("기한·알림 · 더 보기 = 넓은 화면 그림만(휴대폰 글자 · 11-28 휴대폰은 「기한」)", MI('flag') + '<span class="mv-bt"> 기한<span class="mv-bt-l">·알림</span></span> ▾' in p and '⋯<span class="mv-bt"> 더 보기</span>' in p)
+check("중요·보관 눌렀을 때 바뀌는 글자도 그림(mvStar·mvArchive)", "b.classList.toggle('on', !!j.starred);" in p and "b.innerHTML = mdI(on ? 'inbox' : 'archive')" in p)
 # 11-26 대표 「많이 쓰는 메뉴 = 맡기기 오른쪽으로」 — PC 전용 단추(mv-desk)에 빠른 단추(mv-quick)가 더해짐
 check("휴대폰: 중요·보관·삭제는 「⋯ 더 보기」 안 그대로", p.count('class="mv-mob') >= 3 and p.count("mv-desk") - p.count("mv-quick") == 3, (p.count("mv-desk"), p.count("mv-quick")))
-check("📝 요약 = 한 줄로 접고 누르면 펼침(내용 그대로)", 'id="mvAi"' in p and 'class="mv-ai-h"' in p and "📝 요약" in p and "11월 28일까지 견적 회신 요청." in p)
+check("📝 요약 = 한 줄로 접고 누르면 펼침(내용 그대로)", 'id="mvAi"' in p and 'class="mv-ai-h"' in p and MI('file-pen') + " 요약" in p and "11월 28일까지 견적 회신 요청." in p)
 check("📅 본문 날짜 띠 그대로", 'id="mvDates"' in p)
 rp_in = p.find('id="mvReply"')
 check("회신 필요(추정) 판정 있으면 띠 그대로(머리 아래)", 'class="mv-reply on lv' in p and rp_in > p.find('class="mv-chips"') and p.rfind("</div>", 0, rp_in) > 0 and 'id="mvDates"' in p)
@@ -226,7 +231,7 @@ check("넓은 화면만 머리 세 줄(641px~) · 휴대폰 규칙 그대로", "
 check("인쇄 때 요약은 펼친 채", ".mv-ai.mv-ai-f .mv-ai-b{display:block !important}" in sty)
 r = km.post("/mail/%d/star" % M_PLAIN).json()
 p2 = T(km.get("/mail/%d/pane" % M_PLAIN))
-check("중요 표시 저장 그대로 → 읽기 칸 ⭐", r.get("ok") and r.get("starred") and 'aria-label="중요">⭐</button>' in p2, r)
+check("중요 표시 저장 그대로 → 읽기 칸 ⭐", r.get("ok") and r.get("starred") and 'mv-star on"' in p2 and 'aria-label="중요">' + MI('star') + '</button>' in p2, r)
 
 print("== ⑦ 표준 ==")
 for t in ("mail_inbox.html", "_v5_partials/mail_app_head.html", "_v5_partials/mail_view_styles.html"):

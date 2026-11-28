@@ -2,6 +2,7 @@
 """메일 화면 3단계 시험 — 📦 보관함 · 여러 통 한 번에 · 「이 메일만」 폴더 · 이전·다음 · 오래된 메일 보관 · 쓰기(넓게·단추 한 줄·📇 주소록)
 가짜 직원·가짜 메일·임시 DB(운영 무접촉 · 실제 메일 없음). 대표 지시 2026-11-18 「3단계 진행해」.
 사용: py -3.13 _검증/mail_stage3_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -144,7 +145,7 @@ try:
 
     print("== 1. 📦 보관 ==")
     h = k.get("/mail/inbox?thread=0").text
-    check("왼쪽 「📦 보관함」 · 처음엔 숫자 없음", 'href="/mail/inbox?arc=1"' in h and "📦 보관함</span></a>" in h)
+    check("왼쪽 「📦 보관함」 · 처음엔 숫자 없음", 'href="/mail/inbox?arc=1"' in h and "[i:archive] 보관함</span></a>" in h)
     r = k.post("/mail/%d/archive" % ids["s2"], data={"on": "1"}).json()
     h = k.get("/mail/inbox?thread=0").text
     check("보관 → 받은편지함에서 빠짐", r.get("ok") and not has(h, ids["s2"]) and has(h, ids["s1"]), r)
@@ -152,8 +153,8 @@ try:
         rr = c.execute("SELECT is_archived, is_read, is_deleted FROM mail_messages WHERE id=?", (ids["s2"],)).fetchone()
     check("보관 = 지우지 않음 · 읽음으로", (rr["is_archived"], rr["is_read"], rr["is_deleted"]) == (1, 1, 0), dict(rr))
     ha = k.get("/mail/inbox?arc=1&thread=0").text
-    check("📦 보관함에 나옴 · 띠 「보관함」 · 왼쪽 숫자 1", has(ha, ids["s2"]) and "📦 <b>보관함</b>" in ha and re.search(r"📦 보관함</span><span class=\"cnt\">1</span>", ha) is not None)
-    check("보관함 목록에 「📦 보관」 표시", "📦 보관</span>" in ha)
+    check("📦 보관함에 나옴 · 띠 「보관함」 · 왼쪽 숫자 1", has(ha, ids["s2"]) and "[i:archive]<b>보관함</b>" in ha and re.search(r"\[i:archive\] 보관함</span><span class=\"cnt\">1</span>", ha) is not None)
+    check("보관함 목록에 「📦 보관」 표시", "[i:archive] 보관</span>" in ha)
     check("보관함 선택 띠는 「📥 받은편지함으로」", "mbxBulk('unarchive')" in ha and "mbxBulk('archive')" not in ha)
     hs = k.get("/mail/inbox?thread=0&q=샘플").text
     check("찾기에는 보관한 메일도 나옴", has(hs, ids["s2"]))
@@ -163,7 +164,7 @@ try:
     p = k.get("/mail/%d/pane" % ids["s2"]).text
     check("읽기 화면: 보관한 메일은 「📥 받은편지함으로」", 'id="mvArcBtn"' in p and "📥 받은편지함으로" in p)
     p1 = k.get("/mail/%d/pane" % ids["s1"]).text
-    check("읽기 화면: 보통 메일은 「📦 보관」", 'id="mvArcBtn"' in p1 and ">📦 보관</button>" in p1)
+    check("읽기 화면: 보통 메일은 「📦 보관」", 'id="mvArcBtn"' in p1 and ">[i:archive] 보관</button>" in p1)
     with _db.db_session() as c:
         sc = mr.scan(c, OWN)
     check("회신 필요에서 보관한 메일은 뺌", ids["s2"] not in sc, list(sc.keys()))
@@ -209,7 +210,7 @@ try:
     row = re.search(r'<a [^>]*data-mail-id="%d"[^>]*>.*?</a>' % ids["s1"], h, re.S)
     check("목록 꼬리표 = 옮긴 폴더(파트론)", row and ">파트론</span>" in row.group(0), row and row.group(0)[-400:])
     p = k.get("/mail/%d/pane" % ids["s1"]).text
-    check("읽기 화면: 📁 파트론 · 「이 메일만 옮김」 · ↺ 자동으로", "📁 파트론" in p and "이 메일만 옮김" in p and "mailPinUndo()" in p)
+    check("읽기 화면: 📁 파트론 · 「이 메일만 옮김」 · ↺ 자동으로", "[i:folder] 파트론" in p and "이 메일만 옮김" in p and "mailPinUndo()" in p)
     # 11-22 대표 「옮길 때 지금부터만 / 지난 메일도 — 꼭 물어보고 고르게」 → 공용 묻는 창(mail_move_ask)
     check("읽기 화면: 폴더 고르면 묻는 창(지금부터 오는 메일만 / 지난 메일도 모두 / 고른 메일만)", 'id="mvFolderSel"' in p and "mailMoveAsk({ids:[MAIL_ID], key:key" in p)
     j = k.post("/mail/%d/pin" % ids["s1"], data={"folder_id": 0}).json()
@@ -244,7 +245,7 @@ try:
     print("== 6. 쓰기 화면 · 📇 주소록 ==")
     cp = k.get("/mail/compose").text
     check("보내기 단추 한 번(위 한 줄 · 늘 붙어 있게)", cp.count("onclick=\"sendMail()\"") == 1 and 'id="cSendBtn"' in cp and "position:sticky" in cp)
-    check("받는 사람·참조 옆 「📇 주소록」", cp.count("📇 주소록</button>") == 2 and "abOpen('cTo')" in cp and "abOpen('cCc')" in cp)
+    check("받는 사람·참조 옆 「📇 주소록」", cp.count("[i:contact] 주소록</button>") == 2 and "abOpen('cTo')" in cp and "abOpen('cCc')" in cp)
     check("쓰기 칸 넓게 — 11-19 대표 「모니터 비율에 자동」: 1120px 캡 없앰 → 모니터 폭 꽉", "max-width:1120px" not in cp and "padding:18px;margin:0 var(--content-pad,32px) 24px}" in cp)
     em = [x["email"] for x in k.get("/api/mail/contacts?browse=1").json()["items"]]
     check("주소록 고르기: 전사 공개·내 개인·내 부서 공유는 보임", {"all@pub.example", "mine@priv.example", "dept@team.example"} <= set(em), em)

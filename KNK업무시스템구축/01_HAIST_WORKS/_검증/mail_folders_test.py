@@ -7,6 +7,7 @@
 ③ 「📁 이 폴더로」 = 회사 주소 규칙(개인 메일은 그 주소) · 규칙이 자동보다 먼저 · 남의 메일 막기
 ④ 숫자 = 목록 · 화면(works·kmail) · 관리(이름·더하기·순서·지우기 · 메일은 안 지움)
 사용: py -3.13 _검증/mail_folders_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import sys
@@ -127,8 +128,8 @@ try:
           len([f for f in fl if f["parent_id"] == fl[0]["id"]]) == 18 and len(_sg) == 1 and _sg[0]["parent_id"] == fl[0]["id"]
           and sorted(f["name"] for f in fl if f["parent_id"] == _sg[0]["id"]) == ["삼성전기", "삼성전자"]
           and len([f for f in fl if f["parent_id"] == [g for g in fl if g["name"] == "5.CHIP업체"][0]["id"]]) == 9)
-    check("왼쪽에 「📁 폴더」 + 묶음 이름 + 「일반」", "📁 폴더" in h and "1.고객사" in h and "4.PIN BLOCK 업체" in h and 'href="/mail/inbox?fd=gen"' in h)
-    check("폴더가 생기면 예전 「📁 거래처 폴더」는 숨김", "📁 거래처 폴더" not in h)
+    check("왼쪽에 「📁 폴더」 + 묶음 이름 + 「일반」", "[i:folder] 폴더" in h and "1.고객사" in h and "4.PIN BLOCK 업체" in h and 'href="/mail/inbox?fd=gen"' in h)
+    check("폴더가 생기면 예전 「📁 거래처 폴더」는 숨김", "[i:folder] 거래처 폴더" not in h)
     k.get("/mail/inbox")
     with _db.db_session() as c:
         check("두 번 열어도 두 번 만들지 않음", len(mf.folders(c, OWN)) == len(fl))
@@ -146,7 +147,7 @@ try:
           [(f["name"], f["kind"]) for f in _of] == [("케이엔케이", "staff")], _of)
     check("다른 사람: 부서 폴더 설정은 대표 것 그대로(베트남 이름)", (_otp.get("tv") or {}).get("name") == "베트남", _otp)
     check("다른 사람 왼쪽: 「📁 폴더」 + 케이엔케이 + 부서 · 대표 고객사 이름 없음",
-          "📁 폴더" in h2 and "케이엔케이" in h2 and "시험영업팀" in h2 and "1.고객사" not in h2 and "탑엔지니어링" not in h2, h2[:300])
+          "[i:folder] 폴더" in h2 and "케이엔케이" in h2 and "시험영업팀" in h2 and "1.고객사" not in h2 and "탑엔지니어링" not in h2, h2[:300])
     with _db.db_session() as c:
         c.execute("DELETE FROM mail_folders WHERE user_id=?", (OTHER,))
     k.get("/mail/inbox")
@@ -219,7 +220,7 @@ try:
 
     print("== 4. 「📁 이 폴더로」 ==")
     pane = k.get("/mail/%d/pane" % ids["free"]).text
-    check("읽기 칸에 「폴더 · 📁 일반」 + 고르기", "📁 일반" in pane and 'id="mvFolderSel"' in pane and "와이제이전자" in pane)
+    check("읽기 칸에 「폴더 · 📁 일반」 + 고르기", "[i:folder] 일반" in pane and 'id="mvFolderSel"' in pane and "와이제이전자" in pane)
     check("6.케이엔케이 묶음 이름은 고를 수 없는 머리 줄 · 그 아래 부서 폴더는 고를 수 있음(11-22 대표 「부서 폴더가 안 보임」)",
           '<option value="" disabled>6.케이엔케이</option>' in pane and 'value="t981"' in pane and 'value="t982"' in pane)
     with _db.db_session() as c:

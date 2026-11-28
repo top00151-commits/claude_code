@@ -14,6 +14,7 @@
      · 매출 보기 권한(can_view_sales) 없는 사람에겐 칸·금액 모두 안 보임 · 웍스 표는 바뀌지 않음(읽기만)
   공유키 값은 응답·화면·서버 기록 어디에도 안 나옴
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import json
 import os
@@ -179,7 +180,7 @@ with _db.db_session() as c:
     c.execute("UPDATE mail_messages SET sched_state='fail', sched_err='시험' WHERE id=?", (S2,))
 seg2 = get("/mail/inbox").text
 seg2 = seg2[seg2.find('id="mbxDay"'):]
-check("못 보낸 예약은 「⚠ 못 보냄 1」 빨강", "⚠ 못 보냄 1" in seg2[:3000] and 'href="/mail/sent" class="mbx-day-i red"' in seg2[:3000])
+check("못 보낸 예약은 「⚠ 못 보냄 1」 빨강", "[i:triangle-alert] 못 보냄 1" in seg2[:3000] and 'href="/mail/sent" class="mbx-day-i red"' in seg2[:3000])
 j = get("/api/mail/counts").json()
 check("숫자 입구(/api/mail/counts)에도 오늘 예약", j.get("sched_today") == 1, j)
 with _db.db_session() as c:

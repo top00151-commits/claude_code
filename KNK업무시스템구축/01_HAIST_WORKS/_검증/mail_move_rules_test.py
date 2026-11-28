@@ -7,6 +7,7 @@
  「우리 회사 부서에서 온 메일을 다른 부서로 옮기려 하면 부서 폴더가 안 보임(예: 품질팀 김정록 팀장)」
  「옮길 때 지금부터 발생한 메일에 적용할지 이전 메일도 적용할지 꼭 물어보고 선택 · 부서 이동은 바뀐 날부터 새 부서」
 사용: py -3.13 _검증/mail_move_rules_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -172,7 +173,7 @@ try:
         rl = mf.rules(c, OWN)
     check("규칙 = 회사 주소 @partner-x.example → 드림텍 · 지난 메일도 모두", any(r["pattern"] == "partner-x.example" and r["since"] == "" and r["folder_name"] == "드림텍" for r in rl), rl)
     fh = k.get("/mail/folders").text
-    check("폴더 관리 「내가 정한 규칙」에 「⏪ 지난 메일도 모두」", "⏪ 지난 메일도 모두" in fh)
+    check("폴더 관리 「내가 정한 규칙」에 「⏪ 지난 메일도 모두」", "[i:rewind] 지난 메일도 모두" in fh)
     hl = k.get("/mail/inbox?fd=f%d" % dream).text
     check("드림텍 폴더 목록 = 3통 모두", all(('data-mail-id="%d"' % x) in hl for x in (p1, p2, p3)))
 
@@ -189,7 +190,7 @@ try:
           and any(r["since"] for r in rl) and any(not r["since"] for r in rl), rl)
     check("폴더 관리 규칙에 「⏩ …부터 받은 메일」", "부터 받은 메일" in k.get("/mail/folders").text)
     vp = k.get("/mail/%d/pane" % p4).text
-    check("읽기 칸 「📁 세경하이테크」 + 까닭 = 내 규칙 · …부터", "📁 세경하이테크" in vp and "부터 받은 메일" in vp)
+    check("읽기 칸 「📁 세경하이테크」 + 까닭 = 내 규칙 · …부터", "[i:folder] 세경하이테크" in vp and "부터 받은 메일" in vp)
 
     print("== 6. ↺ 되돌리기 ==")
     j = k.post("/mail/move/undo").json()
@@ -289,7 +290,7 @@ try:
     print("== 12. 화면 글 ==")
     hi = k.get("/mail/inbox").text
     check("묻는 창: 「지금부터 오는 메일만」·「지난 메일도 모두」·「고른 메일 N통만」 · 미리 골라 두지 않음(단추 둘)",
-          "⏩ 지금부터 오는 메일만" in hi and "⏪ 지난 메일도 모두" in hi and "통만 옮기기" in hi and "data-when=\"new\"" in hi and "data-when=\"all\"" in hi)
+          "[i:fast-forward] 지금부터 오는 메일만" in hi and "[i:rewind] 지난 메일도 모두" in hi and "통만 옮기기" in hi and "data-when=\"new\"" in hi and "data-when=\"all\"" in hi)
     check("묻는 창 = 오른쪽 위 ✕ · Esc · 바깥 누르면 닫힘(옮기지 않음)", 'class="x" title="닫기(옮기지 않음)"' in hi and "e.key==='Escape'" in hi)
     check("일반에도 놓을 수 있음", 'data-fkey="gen"' in hi)
     check("로그인 안 하면 401", (lambda: (_UID.__setitem__("v", None), k.post("/mail/move", data={"ids": "1"}).status_code)[1])() == 401)
@@ -305,7 +306,7 @@ try:
     gp = k.get("/mail/folders/general").text
     check("일반 정리: 「＋ 새 폴더로」 · 이름 = 서명의 회사 이름(㈜ 뺌) · 넣을 곳 기본 = 기타 고객사",
           "＋ 새 폴더로" in gp and 'value="뉴컴프테크"' in gp and ('value="%d" selected' % by["2.기타 고객사"]["id"]) in gp)
-    check("일반 정리: 알림·광고 줄 표시 + 위에 「한 번에」 단추(곳·통수)", "📢 알림·광고" in gp and "gnRobots()" in gp and "2곳" in gp)
+    check("일반 정리: 알림·광고 줄 표시 + 위에 「한 번에」 단추(곳·통수)", "[i:megaphone] 알림·광고" in gp and "gnRobots()" in gp and "2곳" in gp)
     j = k.post("/mail/folders/general/new", data={"sender": "kim@newcomp-x.example", "name": "뉴컴프테크", "parent_id": by["2.기타 고객사"]["id"], "when": "all"}).json()
     with _db.db_session() as c:
         nf = c.execute("SELECT id, parent_id FROM mail_folders WHERE user_id=? AND name='뉴컴프테크'", (OWN,)).fetchone()
@@ -405,7 +406,7 @@ try:
     check("보낸 사람을 G-DIX 로 옮겨도(내 규칙) 제목 [MaPS] 메일은 MaPS · 꼬리표 없는 메일은 G-DIX",
           j.get("ok") and key_of(t1) == "f%d" % mp and key_of(t4) == "f%d" % gd, [row(x)["fd_key"] for x in (t1, t4)])
     vp = k.get("/mail/%d/pane" % t1).text
-    check("읽기 칸 까닭 = 「제목 꼬리표 [MaPS - Equip] → 그 회사 아래 폴더」", "📁 MaPS" in vp and "제목 꼬리표 [MaPS - Equip]" in vp)
+    check("읽기 칸 까닭 = 「제목 꼬리표 [MaPS - Equip] → 그 회사 아래 폴더」", "[i:folder] MaPS" in vp and "제목 꼬리표 [MaPS - Equip]" in vp)
     # 11-22 밤 대표 「제목에 특정 단어로 잡았더니 그 제목에 회신으로 보내는 메일도 적용 — 취소하자」 → 제목 규칙 끔(자동 꼬리표는 그대로)
     o1 = put("other@elsewhere-x.example", "[MaPS] 다른 곳에서 온 알림", "가짜", name="다른 곳")
     rq = put("staff-x@knknara.co.kr", "RE: [MaPS] Logged in", "가짜", name="시험직원")
@@ -422,7 +423,7 @@ try:
     check("(취소) 그 회사 사람이 보낸 [MaPS] 메일은 자동 꼬리표로 그대로 MaPS", key_of(t2) == "f%d" % mp and key_of(t1) == "f%d" % mp)
     fh = k.get("/mail/folders").text
     check("(취소) 폴더 관리에 🏷 칸 없음 · 규칙 목록에도 제목 규칙 안 보임",
-          'value="subjtags"' not in fh and "제목 꼬리표 —" not in fh and "🏷 제목 <b>" not in fh and "🏷 [MaPS" not in fh)
+          'value="subjtags"' not in fh and "제목 꼬리표 —" not in fh and "🏷 제목 <b>" not in fh and "[i:tag] 제목 <b>" not in fh and "🏷 [MaPS" not in fh and "[i:tag] [MaPS" not in fh)
     check("꼬리표 뽑기 · 첫 낱말", mf.subj_tags("[MaPS - Equip] x [G-DIX] y") == ["MaPS - Equip", "G-DIX"] and mf.tag_token("MaPS - Equip") == "MaPS" and mf.tag_token("G-DIX") == "G-DIX")
 
     print("== 16. 제목 규칙 — 폴더 관리 🏷 칸 입구도 끔 · 켜면 되살아남(자료 그대로) ==")

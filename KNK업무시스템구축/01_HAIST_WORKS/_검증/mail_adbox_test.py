@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """📢 광고·알림 칸 (대표 2026-11-23 「스팸함 위 광고·알림에 모이게 · 한꺼번에 삭제 · 끌어 넣으면 앞으로 기준 · 이전 것도 할지는 꼭 확인 · 특정 일자 이후만도」)
 운영 무접촉 · 임시 DB · 가짜 사람·메일만.  실행: 프로젝트 루트(01_HAIST_WORKS)에서  python _검증/mail_adbox_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -99,7 +100,7 @@ h = T(k.get("/mail/inbox?app=1&ad=1"))
 got = NM(h)
 check("📢 칸 = 11월 소식·11월 특가·은행 알림(10월 소식은 그대로 받은편지함)",
       got == {IDS["[가짜] 11월 소식"], IDS["[가짜] 11월 특가"], IDS["[가짜] 입출금 알림"]}, got)
-check("📢 칸 위 띠: 3통 · 「🗑 모두 휴지통으로」 · 받은편지함 단추는 안 켜짐", "📢 <b>광고·알림</b> <span>3통" in h and "mbxAdTrash()" in h
+check("📢 칸 위 띠: 3통 · 「🗑 모두 휴지통으로」 · 받은편지함 단추는 안 켜짐", "[i:megaphone]<b>광고·알림</b> <span>3통" in h and "mbxAdTrash()" in h
       and '<a href="/mail/inbox" class="mbx-fold on"' not in h)
 hn = T(k.get("/mail/inbox?app=1&noad=1"))
 check("「광고·알림 빼기」도 같은 기준(10월 소식·견적·사내 남음)", NM(hn) == {IDS["[가짜] 10월 소식"], IDS["[가짜] 견적 부탁"], IDS["[가짜] 사내 공지"]}, NM(hn))
@@ -114,7 +115,7 @@ with _db.db_session() as c:
 hp = T(k.get("/mail/inbox?app=1"))
 check("받은편지함 그냥 목록 = 광고·알림 빠짐(10월 소식·견적·사내만)", NM(hp) == {IDS["[가짜] 10월 소식"], IDS["[가짜] 견적 부탁"], IDS["[가짜] 사내 공지"]}, NM(hp))
 check("「● 안 읽음」 거르기도 같음", NM(T(k.get("/mail/inbox?app=1&unread=1"))) == NM(hp))
-check("그냥 목록엔 「🔕 광고·알림 빼기」 칩 안 보임(늘 빠지므로)", "🔕 광고·알림 빼기" not in hp[hp.find('<div class="mbx-chips">'):hp.find('<div class="mbx-newbar"')])
+check("그냥 목록엔 「🔕 광고·알림 빼기」 칩 안 보임(늘 빠지므로)", "🔕 광고·알림 빼기" not in hp and "[i:bell-off] 광고·알림 빼기" not in hp[hp.find('<div class="mbx-chips">'):hp.find('<div class="mbx-newbar"')])
 hq = T(k.get("/mail/inbox?app=1&q=" + "특가"))
 check("찾기에서는 광고·알림도 나옴(안 사라지게)", IDS["[가짜] 11월 특가"] in NM(hq), NM(hq))
 check("이 사람 메일 보기에서도 나옴", IDS["[가짜] 11월 특가"] in NM(T(k.get("/mail/inbox?app=1&who=minsu@shop-demo.example"))))
@@ -167,7 +168,7 @@ with _db.db_session() as c:
 check("cs=1 로 연 상태 = 내 계정에 기억(안 읽음·첨부)", ch and ch["unread"] == 1 and ch["att"] == 1 and ch["thread"] == 1, ch)
 hf2 = T(k.get("/mail/inbox?app=1&fd=gen"))
 c2 = hf2[hf2.find('<div class="mbx-chips">'):hf2.find('<div class="mbx-newbar"')]
-check("왼쪽 폴더·메뉴로 옮겨 가도(주소에 없음) 안 읽음·첨부 켜진 채", 'class="mbx-chip on">● 안 읽음' in c2 and 'mbx-chip ic-n on" data-ic="📎"' in c2, c2[:500])
+check("왼쪽 폴더·메뉴로 옮겨 가도(주소에 없음) 안 읽음·첨부 켜진 채", 'class="mbx-chip on">● 안 읽음' in c2 and 'mbx-chip ic-n on" data-ic=""' in c2, c2[:500])
 check("주소에 직접 적힌 값이 먼저(unread=0)", 'class="mbx-chip on">● 안 읽음' not in T(k.get("/mail/inbox?app=1&unread=0")))
 hz = T(k.get("/mail/inbox?app=1&cs=1"))
 with _db.db_session() as c:
@@ -176,9 +177,9 @@ check("「전체」(cs=1 · 안 읽음·첨부 없음) = 풀림 기억", ch2["un
 check("이상한 값은 걸러 냄", mup.clean_chips({"unread": "x", "cat": "<b>", "kd": "u12", "thread": 0}) == {"unread": 0, "att": 0, "noad": 0, "thread": 0, "cat": "", "kd": "u12"})
 
 print("⑤ 화면 글·스크립트")
-mv = open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_move_ask.html"), encoding="utf-8").read()
-check("묻는 창 = 「⏩ 고른 메일부터」·「⏪ 지난 메일도 모두」·「📅 이 날짜 이후」 · 미리 골라 두지 않음", "window.mailAdAsk=" in mv and "⏩ 고른 메일부터" in mv
-      and "⏪ 지난 메일도 모두" in mv and "이 날짜 이후 받은 메일부터" in mv and "checked" not in mv[mv.find("window.mailAdAsk="):mv.find("window.mailMoveText=")])
+mv = _mail_ico.ico(open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_move_ask.html"), encoding="utf-8").read())
+check("묻는 창 = 「⏩ 고른 메일부터」·「⏪ 지난 메일도 모두」·「📅 이 날짜 이후」 · 미리 골라 두지 않음", "window.mailAdAsk=" in mv and "[i:fast-forward] 고른 메일부터" in mv
+      and "[i:rewind] 지난 메일도 모두" in mv and "이 날짜 이후 받은 메일부터" in mv and "checked" not in mv[mv.find("window.mailAdAsk="):mv.find("window.mailMoveText=")])
 check("끌어 놓기(op ad) → mailAdAsk · 오른쪽 클릭 「광고·알림으로 표시 ▸」도 같은 창", "if(op==='ad')" in h and "await mailAdAsk({ids:inb})" in h and "📢 광고·알림으로 표시(이 사람) ▸" in h
       and "await mailAdAsk({ids:ids})" in h)
 check("휴지통 되돌리기 종류(adtrash)", "o.k==='adtrash' ? await mbxForm('/mail/ad/trash',{undo:o.ids||''})" in h)

@@ -13,6 +13,7 @@
   ⑨ 설명서: 200 · 한국어 · 인쇄 때 메뉴 숨김 · A4 · 베트남어 없음(사용자 말이 vi 여도) · 맡기기는 시험 명단에게만
      · 설명서·안내의 단추 이름 = 실제 템플릿 글자
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import ast
 import io
 import json
@@ -295,7 +296,7 @@ with _db.db_session() as c:
     _snapj = c.execute("SELECT phone, rank FROM users WHERE id=?", (U["jo"]["id"],)).fetchone()
 check("웍스 직원 명단은 안 바뀜(서명용 값만 따로)", _snapj["phone"] == "010-3333-4444" and _snapj["rank"] == "과장", dict(_snapj))
 sp5 = k.get("/mail/signature").text
-check("서명 화면: 고친 칸은 노란 칸 · 「✏️ 직접 고친 값 · ↺ 자동 값으로」", 'value="010-9999-8888"' in sp5 and "✏️ 직접 고친 값" in sp5 and "↺ 자동 값으로" in sp5 and 'data-auto="010-3333-4444"' in sp5)
+check("서명 화면: 고친 칸은 노란 칸 · 「✏️ 직접 고친 값 · ↺ 자동 값으로」", 'value="010-9999-8888"' in sp5 and "[i:square-pen] 직접 고친 값" in sp5 and "↺ 자동 값으로" in sp5 and 'data-auto="010-3333-4444"' in sp5)
 for bad, why in (({"f_email": "abc"}, "메일 꼴"), ({"f_mobile": "공일공"}, "휴대폰 꼴"), ({"f_name": "<b>x</b>"}, "꺾쇠"), ({"f_dept": "가" * 81}, "80자")):
     check("잘못된 값은 저장 안 함(400) — " + why, k.post("/mail/signature/me", data=bad).status_code == 400)
 r = k.post("/mail/signature/me", data={"f_mobile": "", "f_name_en": "", "f_rank": ""})
@@ -358,10 +359,10 @@ cs = json.loads(mm.group(1)) if mm else []
 check("쓰기 화면 회사 서명 = 새 모양(로고·보안 문구)", any(x.get("slot") == "co-ko" and 'class="knk-co-sig"' in x.get("body", "") and "이 메일(첨부 파일 포함)은" in x.get("body", "") for x in cs), "")
 check("고르면 넣을 회사 서명 = 내 정보로 채운 것", any(x.get("slot") == "co-ko" and "조민혁 과장 · 시험품질팀" in x.get("body", "") for x in cs), cs[:1])
 sp = k.get("/mail/signature").text
-check("서명 화면: 회사 서명 미리 보기 + 「✏️ 내 서명 정보」 + 빈 칸 안내 · 자유 서명 편집기·「회사 서명 쓰기」 없음", "✏️ 내 서명 정보" in sp and 'id="sBody"' not in sp and "🏢 회사 서명 쓰기" not in sp and "조민혁 과장 · 시험품질팀" in sp and "에 비어 있어 뺐습니다" in sp and "팩스 —" not in sp, "")
+check("서명 화면: 회사 서명 미리 보기 + 「✏️ 내 서명 정보」 + 빈 칸 안내 · 자유 서명 편집기·「회사 서명 쓰기」 없음", "[i:square-pen] 내 서명 정보" in sp and 'id="sBody"' not in sp and "[i:building-2] 회사 서명 쓰기" not in sp and "조민혁 과장 · 시험품질팀" in sp and "에 비어 있어 뺐습니다" in sp and "팩스 —" not in sp, "")
 check("직원에겐 「🔧 회사 서명 틀 고치기」 없음", "/mail/signature/company" not in sp)
 as_("ceo")
-check("대표에겐 「🔧 회사 서명 틀 고치기(관리자)」", "🔧 회사 서명 틀 고치기(관리자)" in k.get("/mail/signature").text)
+check("대표에겐 「🔧 회사 서명 틀 고치기(관리자)」", "[i:wrench] 회사 서명 틀 고치기(관리자)" in k.get("/mail/signature").text)
 
 # ═══════════════════════ ⑧ 관리자만 ═══════════════════════
 print("\n⑧ 틀 저장 = 관리자만")
@@ -424,7 +425,7 @@ as_("jo")
 k.post("/api/mail/tour", data={"seen": "0"})
 check("다시 켜기(seen=0) → 다시 보임", k.get("/api/mail/tour").json().get("show") is True)
 hd = km.get("/mail/inbox").text
-check("메일 앱 머리에 처음 안내·「🎓 처음 안내 다시 보기」·「🖨 설명서(인쇄용)」", 'id="mailTour"' in hd and "🎓 처음 안내 다시 보기" in hd and 'href="/mail/help"' in hd, len(hd))
+check("메일 앱 머리에 처음 안내·「🎓 처음 안내 다시 보기」·「🖨 설명서(인쇄용)」", 'id="mailTour"' in hd and "[i:graduation-cap] 처음 안내 다시 보기" in hd and 'href="/mail/help"' in hd, len(hd))
 check("처음 안내는 받은편지함에서만 저절로 · 이번만 닫기 = 이 창(sessionStorage)", "location.pathname.indexOf('/mail/inbox')===0" in hd and "knkmail.tour.closed" in hd)
 check("안내에 베트남어 없음", not VI_CH.search(hd[hd.find('id="mailTour"'):hd.find('id="mailTour"') + 6000]))
 
@@ -456,17 +457,18 @@ for dp, _dn, fs in os.walk(TPL):
     for fn in fs:
         if fn.endswith(".html") and fn not in ("mail_help_print.html", "mail_tour.html"):
             hay.append(io.open(os.path.join(dp, fn), encoding="utf-8", errors="replace").read())
-HAY = re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", "\n".join(hay)))
+HAY = re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", _mail_ico.ico("\n".join(hay))))   # 11-28 4단계: 화면 원문의 {{ mi('이름') }}·mdI('이름') → [i:이름]
 
 
 def on_screen(lbl):
-    return re.sub(r"\s+", "", lbl) in HAY
+    # 설명서·안내 글의 그림 문자는 화면에선 같은 이름의 선 아이콘 — 둘 중 하나로 화면에 있어야 함(아이콘 이름까지 같아야)
+    return re.sub(r"\s+", "", lbl) in HAY or re.sub(r"\s+", "", _mail_ico.emo2tok(lbl)) in HAY
 
 
 labs = mg.manual_labels()
 miss = [x for x in labs if not on_screen(x)]
 check("설명서 단추 이름 %d개 모두 화면에 있음" % len(labs), not miss, miss)
-tour = io.open(os.path.join(TPL, "_v5_partials", "mail_tour.html"), encoding="utf-8").read()
+tour = _mail_ico.ico(io.open(os.path.join(TPL, "_v5_partials", "mail_tour.html"), encoding="utf-8").read())
 _cards = tour[tour.find("var CARDS="):tour.find("];", tour.find("var CARDS="))]   # 안내 장 글만(안내 창 자기 단추는 빼고)
 tl = re.findall(r"「([^」]+)」", _cards)
 miss2 = [x for x in tl if not on_screen(x)]

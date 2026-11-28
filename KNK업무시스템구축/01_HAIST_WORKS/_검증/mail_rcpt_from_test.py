@@ -8,6 +8,7 @@
   ④ 화면: 받는 사람 원문 한 줄 대신 칩 · 그룹 주소는 그 칩 자리에서 「👥 이름(N명 ▾)」 · 주소 못 읽은 메일 = ⚠ 알림 · 파이썬 3.8 · node 문법
   ⑤ 내 주소가 받는 사람·참조에 없을 때: 내가 든 그룹 칩 = 초록 「나」(숨기지 않음) · 아니면 받는 사람 줄 끝 「🙈 숨은참조」(따로 한 줄 아님)
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import ast
 import base64
 import io
@@ -120,7 +121,7 @@ v = k.get("/mail/%d?app=1" % MID).text
 check("그룹 = 그 칩 자리에서 「👥 이름(N명 ▾)」 · 칩이 있으면 따로 띠 안 만듦", "chip.classList.add('grp')" in v and "var chip=h.querySelector('.mv-rc-p[data-addr=\"'+ad.toLowerCase()+'\"]');" in v)
 check("「외 N명」 펼치기·접기", "window.mvRcMore=function(b)" in v)
 nv = k.get("/mail/%d?app=1" % NOF).text
-check("보낸 사람 주소 못 읽은 메일 = ⚠ 알림(「? <>」 아님 · 11-25 「원본에 보낸 사람 정보가 없는 메일」)", "⚠ 원본에 보낸 사람 정보가 없는 메일" in nv and "&lt;&gt;" not in nv[nv.find('class="mv-hname"'):nv.find('class="mv-hname"') + 600])
+check("보낸 사람 주소 못 읽은 메일 = ⚠ 알림(「? <>」 아님 · 11-25 「원본에 보낸 사람 정보가 없는 메일」)", "[i:triangle-alert] 원본에 보낸 사람 정보가 없는 메일" in nv and "&lt;&gt;" not in nv[nv.find('class="mv-hname"'):nv.find('class="mv-hname"') + 600])
 print("⑤ 받는 사람·참조에 내 주소가 없을 때(대표 11-22 「🙈 띠가 괜히 한 줄 차지」)")
 import json as _json
 from app import mail_work as _MW
@@ -140,14 +141,14 @@ for nm, u in (("메일 보기", "/mail/%d?app=1" % VIA), ("읽기 칸 조각", "
     hs = h[h.find('id="mvHsub"'):h.find('</div>', h.find('id="mvHsub"'))]
     # 11-28 M-2 그룹 칩은 서버가 처음부터 그림(뒤에 끼우면 휴대폰에서 줄이 밀림) → class 에 grp · 「👥 이름(N명 ▾)」 단추가 처음 HTML 에 있음
     check("%s: 내가 든 그룹 칩 = 초록 「나」(여섯째라도 숨기지 않음)" % nm, 'class="mv-rc-p via grp" data-addr="sales-demo@knknara.co.kr"' in hs and '<b class="mv-via">나</b>' in hs, hs[:600])
-    check("%s: 그룹 칩 = 처음 HTML 에 「👥 이름(N명 ▾)」·명단(화면이 뒤에 다시 끼우지 않음)" % nm, 'class="mv-grp-b" onclick="mvGrpToggle(this)"' in hs and '<span class="mv-grp-c">👥 ' in hs and 'class="mv-grp-p" hidden' in hs, hs[:600])
-    check("%s: 그룹으로 받으면 🙈 칩·띠 없음 · 「외 1명」(내 그룹 빼고 셈)" % nm, "🙈" not in hs and "외 1명 ▾" in hs and hs.count('class="mv-rc-p x"') == 1, hs.count('class="mv-rc-p x"'))
+    check("%s: 그룹 칩 = 처음 HTML 에 「👥 이름(N명 ▾)」·명단(화면이 뒤에 다시 끼우지 않음)" % nm, 'class="mv-grp-b" onclick="mvGrpToggle(this)"' in hs and '<span class="mv-grp-c">[i:users] ' in hs and 'class="mv-grp-p" hidden' in hs, hs[:600])
+    check("%s: 그룹으로 받으면 🙈 칩·띠 없음 · 「외 1명」(내 그룹 빼고 셈)" % nm, "🙈" not in hs and "[i:eye-off]" not in hs and "외 1명 ▾" in hs and hs.count('class="mv-rc-p x"') == 1, hs.count('class="mv-rc-p x"'))
     check("%s: 칩 마우스 = 「나는 이 그룹 메일로 받았습니다」" % nm, "나는 이 그룹 메일로 받았습니다" in hs)
 h = k.get("/mail/%d?app=1" % BCC).text
 hs = h[h.find('id="mvHsub"'):h.find('</div>', h.find('id="mvHsub"'))]
 _to = hs[hs.find('class="mv-rc mv-rc-to"'):hs.find('class="mv-rc mv-rc-cc"')]
-check("숨은참조 = 받는 사람 줄 끝 작은 칩 「🙈 숨은참조」(따로 한 줄 아님)", "🙈 숨은참조</b>" in _to and "🙈 숨은참조·그룹 주소로 받음" not in hs
-      and hs.find("🙈") > hs.find('class="mv-rc mv-rc-to"'), hs[:500])
+check("숨은참조 = 받는 사람 줄 끝 작은 칩 「🙈 숨은참조」(따로 한 줄 아님)", "[i:eye-off] 숨은참조</b>" in _to and "[i:eye-off] 숨은참조·그룹 주소로 받음" not in hs
+      and hs.find("[i:eye-off]") > hs.find('class="mv-rc mv-rc-to"'), hs[:500])
 check("화면 스크립트: 그룹 칩을 그릴 때 초록 「나」 유지", "var via=chip.classList.contains('via');" in k.get("/mail/%d?app=1" % VIA).text)
 check("내 그룹 찾기 = 그룹 명단에 내 주소(대소문자 무시) · 명단 없는 그룹·바깥은 빼고",
       __import__("app.mail_people", fromlist=["x"]).via_groups({"g" + D: {"members": [{"email": "ME" + D}]}, "h" + D: {"members": [{"email": "x" + D}]}},

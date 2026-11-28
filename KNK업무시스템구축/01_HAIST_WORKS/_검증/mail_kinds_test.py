@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """🏷 종류 목록 고치기 (대표 2026-11-23 「보고 싶은 걸 내가 지정 · 고치는 메뉴를 팝업에서 바로」) — 운영 무접촉 · 임시 DB · 가짜 사람·메일만.
 실행: 프로젝트 루트(01_HAIST_WORKS)에서  python _검증/mail_kinds_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -115,11 +116,11 @@ print("④ 받은편지함 「🏷 종류 ▾」 펼침 상자")
 h = T(k.get("/mail/inbox?app=1"))
 menu = h[h.find('<span class="mbx-kindmenu">'):h.find('</span></span>', h.find('<span class="mbx-kindmenu">'))]
 check("내 순서대로: 🛠 제작요청 → 💲 견적 → 🧾 세금계산서 · 숨긴 발주 없음",
-      menu.find("🛠 제작요청") < menu.find("💲 견적") < menu.find("🧾 세금계산서") and "🛠 제작요청" in menu and "🛒 발주" not in menu, menu[:600])
-check("맨 아래 「✏ 종류 고치기」 → /mail/kinds", menu.rstrip().endswith('✏ 종류 고치기</a>') and 'href="/mail/kinds" class="mbx-chip mbx-kedit"' in menu)
+      menu.find("🛠 제작요청") < menu.find("💲 견적") < menu.find("🧾 세금계산서") and "🛠 제작요청" in menu and "🛒 발주" not in menu and "[i:shopping-cart] 발주" not in menu, menu[:600])
+check("맨 아래 「✏ 종류 고치기」 → /mail/kinds", menu.rstrip().endswith('[i:square-pen] 종류 고치기</a>') and 'href="/mail/kinds" class="mbx-chip mbx-kedit"' in menu)
 check("제작요청 링크 = kd=u1", "&amp;kd=u1" in menu or "&kd=u1" in menu, menu[:400])
 hk = T(k.get("/mail/inbox?app=1&kd=u1"))
-check("kd=u1 → 2통 · 단추 이름 「🏷 제작요청 ▾」 · 그 줄 ✕(다시 누르면 풂)", "🏷 제작요청 ▾" in hk and "🛠 제작요청 ✕" in hk and NM(hk) == 2, NM(hk))
+check("kd=u1 → 2통 · 단추 이름 「🏷 제작요청 ▾」 · 그 줄 ✕(다시 누르면 풂)", "[i:tag] 제작요청 ▾" in hk and "🛠 제작요청 ✕" in hk and NM(hk) == 2, NM(hk))
 hx = T(k.get("/mail/inbox?app=1&kd=u99"))
 check("모르는 kd = 거르지 않음(5통)", NM(hx) == 5, NM(hx))
 hc = T(k.get("/mail/inbox?app=1&cat=" + "견적" + "&kd=u1"))

@@ -9,6 +9,7 @@
   ⑤ 쓰기 화면: 「?」 받는사람·참조·숨은참조(4-4) · 전체 답장 바깥 사람(4-6) · 짧은 제목(5-3) · 답장 제목 「RE: RE:」 → 「Re: 」 하나(5-3)
   ⑥ 1-2 「임시보관함」 이름은 11-18 대표 2단계 결정대로 그대로 · 파이썬 3.8
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import ast
 import io
 import os
@@ -98,9 +99,9 @@ r = k.get("/mail/inbox")
 h = r.text
 day = h[h.find('id="mbxDay"'):h.find("</nav>", h.find('id="mbxDay"'))]
 check("받은편지함 200", r.status_code == 200, r.status_code)
-check("📭 2일 넘게 안 읽음 1(5일 전 안 읽음만 · 읽은 것·60일 전·오늘 것 빼고)", "📭 2일 넘게 안 읽음 <b>1</b>" in day, day[:600])
-check("🚩 내일까지 1", "🚩 내일까지 <b>1</b>" in day, day[:600])
-check("🚫 스팸함 새 1(오늘 옮긴 것만)", "🚫 스팸함 새 <b>1</b>" in day, day[:600])
+check("📭 2일 넘게 안 읽음 1(5일 전 안 읽음만 · 읽은 것·60일 전·오늘 것 빼고)", "[i:mail-open] 2일 넘게 안 읽음 <b>1</b>" in day, day[:600])
+check("🚩 내일까지 1", "[i:flag] 내일까지 <b>1</b>" in day, day[:600])
+check("🚫 스팸함 새 1(오늘 옮긴 것만)", "[i:ban] 스팸함 새 <b>1</b>" in day, day[:600])
 mm = re.search(r'href="(/mail/inbox\?unread=1&amp;noad=1&amp;df=[0-9-]+&amp;dt=[0-9-]+)"', day)
 check("📭 누르는 곳 = 같은 조건 목록", bool(mm), day[:400])
 if mm:
@@ -110,7 +111,7 @@ with _db.db_session() as c:
     c.execute("UPDATE mail_messages SET is_read=1, flag_due='' WHERE user_id=9890")
     c.execute("UPDATE mail_messages SET is_blocked=0 WHERE id=?", (M_SPAM_T,))
 h = k.get("/mail/inbox").text
-check("없으면 안 보임(📭·🚩 내일·🚫)", "2일 넘게 안 읽음" not in h and "🚩 내일까지" not in h and "스팸함 새" not in h, "")
+check("없으면 안 보임(📭·🚩 내일·🚫)", "2일 넘게 안 읽음" not in h and "🚩 내일까지" not in h and "[i:flag] 내일까지" not in h and "스팸함 새" not in h, "")
 
 print("\n② 화면")
 inbox = io.open(os.path.join(ROOT, "app", "templates", "mail_inbox.html"), encoding="utf-8").read()

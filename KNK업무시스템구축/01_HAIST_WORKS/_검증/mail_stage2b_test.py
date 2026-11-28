@@ -13,6 +13,7 @@
   ⑧ 원문 머리로 자동 발송 알아보기(List-Id · Precedence · Auto-Submitted)
   ⑨ 화면: 예약 단추·때 고르기 · 보낸편지함 「보낼 예정」 · 받은편지함 🏖 표시 · 설정 줄 · 설정 화면
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import json
 import os
@@ -119,7 +120,7 @@ with _db.db_session() as c:
 check("기본 + 내용 있는 서명만(2번은 비어 있어 안 나옴) · 이름", [x["name"] for x in sl] == ["기본 서명", "English"], sl)
 hs = k.get("/mail/signature?slot=1").text
 # 11-22 대표 「서명은 회사 공통 하나 · 개인 칸만 고침」 → 서명 화면에 자유 서명 편집 탭 없음 · 「✏️ 내 서명 정보」
-check("서명 화면 = 자유 서명 편집 탭 없음 · 「✏️ 내 서명 정보」", not re.findall(r'class="sig-tab(?: on)?"', hs) and 'id="sigName"' not in hs and "✏️ 내 서명 정보" in hs)
+check("서명 화면 = 자유 서명 편집 탭 없음 · 「✏️ 내 서명 정보」", not re.findall(r'class="sig-tab(?: on)?"', hs) and 'id="sigName"' not in hs and "[i:square-pen] 내 서명 정보" in hs)
 hc = km.get("/mail/compose").text
 check("쓰기 화면 「✍ 서명」 고르기(기본·English·서명 없음)", 'id="cSigSel"' in hc and "English" in hc and "서명 없음" in hc and "window.cmpSigSwap" in hc)
 
@@ -181,7 +182,7 @@ with _db.db_session() as c:
     notice = c.execute("SELECT subject FROM mail_messages WHERE user_id=? AND direction='in' AND from_name='KNK 메일 알림'", (OWN,)).fetchone()
 check("실패 → 「못 보냄」 + 까닭", st["sched_state"] == "fail" and st["sched_err"], st)
 check("받은편지함에 「KNK 메일 알림」(못 보냄)", notice and "보내지 못했습니다" in notice["subject"], notice and dict(notice))
-check("보낸편지함 줄에 「⚠ 못 보냄」 · 지금 다시 보내기", "⚠ 못 보냄" in k.get("/mail/sent").text and "지금 다시 보내기" in k.get("/mail/sent").text)
+check("보낸편지함 줄에 「⚠ 못 보냄」 · 지금 다시 보내기", "[i:triangle-alert] 못 보냄" in k.get("/mail/sent").text and "지금 다시 보내기" in k.get("/mail/sent").text)
 _U["v"] = {"id": OTHER, "role": "member", "name": "시험이", "team_id": None, "team_name": ""}
 oc = k.post("/mail/sched/%d/cancel" % S2).json()
 _U["v"] = dict(U)

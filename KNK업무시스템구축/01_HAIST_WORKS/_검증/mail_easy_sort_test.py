@@ -3,6 +3,7 @@
 대표 11-22 밤 「메일 규칙을 쉽게 설정할 방법은 없을까? 너가 사용자라면 어떻게 구분을 쉽게 했으면 좋겠어?」 → 「1·2·3 진행해」
   1 = 옮기기 전에 같이 옮겨질 메일 미리 보기 · 2 = 폴더마다 들어온 까닭 · 3 = 같은 대화 한눈에(옮기지 않음)
 사용: py -3.13 _검증/mail_easy_sort_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -104,9 +105,9 @@ j = k.post("/mail/move", data={"ids": str(a3), "key": tgt, "when": "all", "scope
 d2 = k.post("/mail/move", data={"ids": str(a3), "dry": "1", "key": tgt}).json()
 check("옮긴 뒤 다시 보면 「✓ 이미 여기」 표시(그 폴더)", j.get("ok") and any(b[2] == 1 for b in d2["person"]["pv"]["by"]), d2["person"]["pv"])
 k.post("/mail/move/undo")
-ask = io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_move_ask.html"), encoding="utf-8").read()
+ask = _mail_ico.ico(io.open(os.path.join(ROOT, "app", "templates", "_v5_partials", "mail_move_ask.html"), encoding="utf-8").read())
 check("묻는 창: 미리 보기 칸 · 범위 바꾸면 다시 그림 · 옮길 곳 열쇠를 셈에 넘김",
-      'class="mmv-pv"' in ask and "renderPv()" in ask and "dry:'1', key:key" in ask and "👀 같이 옮겨질 메일" in ask)
+      'class="mmv-pv"' in ask and "renderPv()" in ask and "dry:'1', key:key" in ask and "[i:eye] 같이 옮겨질 메일" in ask)
 
 print("== 2. 폴더마다 들어온 까닭 ==")
 check("까닭 짧게: 회사 주소 · 서명 회사 · 아래 폴더로 좁힘 · 내 규칙 · 직원 · 이 메일만 · 주소록",
@@ -131,7 +132,7 @@ check("시험전기 폴더 까닭 = 「회사 주소 @semx.example」 · MaPS �
       ("회사 주소 @semx.example", 1) in why.get("f%d" % cx, []) and ("제목 [꼬리표]", 1) in why.get("f%d" % mp, []), why)
 fh = k.get("/mail/folders").text
 check("폴더 관리 줄에 「📥 까닭 통수」 · 회사 아래 폴더엔 「🏷 그 회사 메일 중 제목 [MaPS…]도 자동」",
-      "📥 회사 주소 @semx.example <b>1</b>" in fh and "🏷 그 회사 메일 중 제목 [MaPS…]도 자동" in fh, re.findall(r"📥[^<]{0,60}", fh)[:5])
+      "[i:inbox] 회사 주소 @semx.example <b>1</b>" in fh and "[i:tag] 그 회사 메일 중 제목 [MaPS…]도 자동" in fh, re.findall(r"\[i:inbox\][^<]{0,60}", fh)[:5])
 check("맨 위 폴더(묶음 바로 아래)엔 제목 자동 안내 없음", "제목 [시험전기…]" not in fh and "제목 [삼성그룹…]" not in fh)
 
 print("== 3. 같은 대화 한눈에(옮기지 않음) ==")
@@ -163,10 +164,11 @@ with _db.db_session() as c:
 check("흔한 제목(같은 제목이 많음) = 이 메일의 상대 회사 메일만", tg and tg["n"] == 2 and {x["id"] for x in tg["rows"]} == {g1, g2}, tg and tg["n"])
 pv = k.get("/mail/%d/pane" % t2).text
 check("메일 보기: 「💬 같은 대화 4통 · …」 접힌 한 줄 + 목록(누르면 읽기 칸에)",
-      "💬 같은 대화 4통" in pv and 'class="mv-thr-list"' in pv and ("loadPane(%d)" % t1) in pv and "📍 지금 보는 메일" in pv, re.findall(r"💬[^<]{0,80}", pv)[:2])
+      "[i:message-square] 같은 대화 4통" in pv and 'class="mv-thr-list"' in pv and ("loadPane(%d)" % t1) in pv and "[i:map-pin] 지금 보는 메일" in pv, re.findall(r"\[i:message-square\][^<]{0,80}", pv)[:2])
 fv = k.get("/mail/%d" % t3)
-check("보낸 메일 보기에도 같은 대화", fv.status_code == 200 and "💬 같은 대화 4통" in fv.text, fv.status_code)
-check("혼자인 메일 보기엔 줄 없음", "💬 같은 대화" not in k.get("/mail/%d/pane" % a1).text)
+check("보낸 메일 보기에도 같은 대화", fv.status_code == 200 and "[i:message-square] 같은 대화 4통" in fv.text, fv.status_code)
+_pa1 = k.get("/mail/%d/pane" % a1).text
+check("혼자인 메일 보기엔 줄 없음", "💬 같은 대화" not in _pa1 and "[i:message-square] 같은 대화" not in _pa1)
 
 print("\n결과: %d 통과 / %d 실패" % (P, F))
 sys.exit(1 if F else 0)

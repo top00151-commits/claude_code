@@ -5,6 +5,7 @@ A 찾기: 띄어 쓴 낱말 모두 · 받은+보낸 · 받는 사람·참조·�
 B 폴더 색   D 광고·알림 흐리게 + 빼고 보기   E 날짜 묶음   F 📎 개수   G 「참조」   H 시간(오늘/올해/작년) · 글자 크게
 I 200통에서 끊기지 않게(▼ 더 보기 · 겹침 없음)   J 보낸 사람 → 이 사람·이 회사 메일 · 이 사람에게 쓰기   K 이전 대화 접기
 사용: py -3.13 _검증/mail_find_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -185,7 +186,7 @@ try:
     h2 = k.get("/mail/inbox").text
     check("대화로 묶기 켠 상태도 더 보기 있음", "mbx-morerows" in h2)
     hf = k.get("/mail/inbox?fd=gen&thread=0").text
-    check("일반(분류안됨) 보기 = 위 띠 없음(대표 11-23 「안 나오게」)", 'class="mf-cur">' not in hf and "📂 분류안됨 ✕" in hf)
+    check("일반(분류안됨) 보기 = 위 띠 없음(대표 11-23 「안 나오게」)", 'class="mf-cur">' not in hf and "[i:folder-open] 분류안됨 ✕" in hf)
 
     print("== D · F · G · B · E · H ==")
     h = k.get("/mail/inbox?thread=0").text
@@ -203,7 +204,7 @@ try:
         _cg = {x["addr"] for x in _cl.sender_groups(c, OWN)["groups"] if x["kind"] == "bulk"}
     check("광고 판별 = 보낸 곳별 정리와 같은 기준(같은 주소 묶음)", _bk == _cg and "newsletter@weekly.example" in _bk and "p@semco.example" not in _bk, (_bk, _cg))
     att_row = re.search(r'<a [^>]*data-mail-id="%d"[^>]*>.*?</a>' % ids["att"], h, re.S)
-    check("📎 첨부 개수(본문 속 그림 빼고 2)", att_row and "📎 2</span>" in att_row.group(0), att_row and att_row.group(0)[-300:])
+    check("📎 첨부 개수(본문 속 그림 빼고 2)", att_row and "[i:paperclip] 2</span>" in att_row.group(0), att_row and att_row.group(0)[-300:])
     cc_row = re.search(r'<a [^>]*data-mail-id="%d"[^>]*>.*?</a>' % ids["cc"], h, re.S)
     semco_row = re.search(r'<a [^>]*data-mail-id="%d"[^>]*>.*?</a>' % ids["semco"], h, re.S)
     check("「참조」 꼬리표 — 참조로 받은 메일만", cc_row and "참조</span>" in cc_row.group(0) and "mbx-cc" not in semco_row.group(0))
@@ -224,7 +225,7 @@ try:
     print("== J. 보낸 사람 → 모아 보기 ==")
     p = k.get("/mail/%d/pane" % ids["semco"]).text
     check("보낸 사람 이름 누르면 묶음(이 사람 · 이 회사 · 쓰기)",
-          'class="mv-who"' in p and "/mail/inbox?who=p@semco.example" in p and "🏢 삼성전기 메일 모두" in p and "/mail/compose?to=p@semco.example" in p, p[:0])
+          'class="mv-who"' in p and "/mail/inbox?who=p@semco.example" in p and "[i:building-2] 삼성전기 메일 모두" in p and "/mail/compose?to=p@semco.example" in p, p[:0])
     hw = k.get("/mail/inbox?thread=0&who=p@semco.example").text
     check("이 사람과 주고받은 메일(받은 것)", has(hw, ids["semco"]) and has(hw, ids["text_q"]) and not has(hw, ids["semco_samp"]))
     hw2 = k.get("/mail/inbox?thread=0&who=q@semco.example").text

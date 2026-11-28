@@ -2040,13 +2040,10 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/_v5_partials/knk_rowflag.html': 16, 'app/templates/_v5_partials/knk_rows_lazy.html': 5,
     'app/templates/_v5_partials/knk_sticky_head.html': 2, 'app/templates/_v5_partials/knk_tax_multi.html': 45,
     'app/templates/_v5_partials/knk_tax_sameday.html': 18, 'app/templates/_v5_partials/knk_theme.html': 205,
-    'app/templates/_v5_partials/login_v5_design.html': 2, 'app/templates/_v5_partials/mail_app_head.html': 121,
-    'app/templates/_v5_partials/mail_contrast.html': 75, 'app/templates/_v5_partials/mail_design_v2.html': 34,
-    'app/templates/_v5_partials/mail_inbox_rows.html': 3, 'app/templates/_v5_partials/mail_move_ask.html': 43,
-    'app/templates/_v5_partials/mail_popx.html': 3, 'app/templates/_v5_partials/mail_pwa_head.html': 1,
-    'app/templates/_v5_partials/mail_theme.html': 156, 'app/templates/_v5_partials/mail_theme_cards.html': 16,
-    'app/templates/_v5_partials/mail_tour.html': 13, 'app/templates/_v5_partials/mail_view_body.html': 24,
-    'app/templates/_v5_partials/mail_view_styles.html': 280, 'app/templates/_v5_partials/page_path_guide.html': 4,
+    'app/templates/_v5_partials/login_v5_design.html': 2, 'app/templates/_v5_partials/mail_contrast.html': 75, 'app/templates/_v5_partials/mail_palette.html': 193, 'app/templates/_v5_partials/mail_design_v2.html': 34,
+    'app/templates/_v5_partials/mail_pwa_head.html': 1,
+    'app/templates/_v5_partials/mail_theme.html': 156, 'app/templates/_v5_partials/mail_view_body.html': 2,
+    'app/templates/_v5_partials/page_path_guide.html': 4,
     'app/templates/_v5_partials/photo_viewer.html': 5, 'app/templates/_v5_partials/po_rows.html': 21,
     'app/templates/_v5_partials/po_script.html': 2, 'app/templates/_v5_partials/product_bulk_import.html': 76,
     'app/templates/_v5_partials/project_type_pill.html': 10, 'app/templates/_v5_partials/prq_default_rcpt.html': 17,
@@ -2093,17 +2090,8 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/fta_print.html': 62, 'app/templates/fx_rates.html': 28, 'app/templates/guide.html': 32,
     'app/templates/guide_work_orders.html': 31, 'app/templates/interp_check.html': 40,
     'app/templates/issue_detail.html': 22, 'app/templates/issue_form.html': 21,
-    'app/templates/logistics_home.html': 27, 'app/templates/mail_account.html': 21, 'app/templates/mail_autoreply.html': 15,
-    'app/templates/mail_cleanup.html': 19, 'app/templates/mail_company_sig.html': 18, 'app/templates/mail_compose.html': 274,
-    'app/templates/mail_files.html': 14, 'app/templates/mail_folders.html': 51,
-    'app/templates/mail_folders_general.html': 38, 'app/templates/mail_from_outlook.html': 18,
-    'app/templates/mail_groups.html': 32, 'app/templates/mail_help_print.html': 13,
-    'app/templates/mail_hiworks_folders.html': 37, 'app/templates/mail_hiworks_move.html': 56,
-    'app/templates/mail_import_outlook.html': 37, 'app/templates/mail_inbox.html': 290, 'app/templates/mail_kinds.html': 19,
-    'app/templates/mail_rules.html': 11, 'app/templates/mail_settings.html': 6, 'app/templates/mail_signature.html': 17,
-    'app/templates/mail_storage.html': 21, 'app/templates/mail_templates.html': 23, 'app/templates/mail_tools.html': 35,
-    'app/templates/mail_view_win.html': 2, 'app/templates/mail_waiting.html': 14,
-    'app/templates/materials_new_review.html': 19, 'app/templates/materials_request_detail.html': 28,
+    'app/templates/logistics_home.html': 27, 'app/templates/mail_compose.html': 46,
+    'app/templates/mail_settings.html': 6, 'app/templates/materials_new_review.html': 19, 'app/templates/materials_request_detail.html': 28,
     'app/templates/materials_requests.html': 21, 'app/templates/meeting_doc.html': 53, 'app/templates/meeting_form.html': 65,
     'app/templates/meeting_viz.html': 38, 'app/templates/meetings.html': 29, 'app/templates/mgmt_ledger.html': 61,
     'app/templates/notifications.html': 9, 'app/templates/part_detail.html': 15, 'app/templates/part_form.html': 34,
@@ -2155,17 +2143,11 @@ LOGO_BASE = {
     'app/templates/voice_note_form.html': 1
 }    # __LOGO_BASE__
 # 메일 M-2 면제 — 2026-11-28 규칙 만들 때 센 「단추·폴더 이름 속 그림 문자」 수(파일 경로별) · 4단계에서 화면을 옮기며 줄일 것(늘리지 말 것)
+#   11-28 4단계 「화면 옮기기」 202 → 1 — 남은 1 = mail_kinds.html 종류 그림 고르기 단추(사용자가 고른 그림 = 자료 · 화면은 그리기 전에 선 아이콘으로 바꿈)
+#   ⑤-2 메일 몫(COLOR_BASE): 4단계에서 메일 화면 직접 색 1,694 → 513 — mail_palette.html(메일 색판 = 값 한 곳 · 193) · mail_theme/mail_contrast/mail_design_v2(테마 값 자리) ·
+#     mail_compose.html 46(보내는 메일 본문에 들어가는 글자색·형광펜·표 선 — 받는 쪽 메일 프로그램은 CSS 이름을 몰라 숫자 그대로) · mail_view_body 2(메일 본문 칸 안 인쇄 서명 줄) · mail_settings 6(안 쓰는 옛 화면 · /mail/settings 는 홈으로 넘김) · mail_pwa_head 1(theme-color 메타)
 MAIL_EMOJI_BASE = {
-    'app/templates/_v5_partials/mail_app_head.html': 8, 'app/templates/_v5_partials/mail_delegate.html': 1,
-    'app/templates/_v5_partials/mail_inbox_rows.html': 2, 'app/templates/_v5_partials/mail_move_ask.html': 4,
-    'app/templates/_v5_partials/mail_view_body.html': 39, 'app/templates/mail_account.html': 3,
-    'app/templates/mail_autoreply.html': 1, 'app/templates/mail_cleanup.html': 5, 'app/templates/mail_company_sig.html': 1,
-    'app/templates/mail_compose.html': 17, 'app/templates/mail_folders.html': 2, 'app/templates/mail_folders_general.html': 2,
-    'app/templates/mail_from_outlook.html': 2, 'app/templates/mail_groups.html': 8, 'app/templates/mail_help_print.html': 2,
-    'app/templates/mail_hiworks_folders.html': 10, 'app/templates/mail_hiworks_move.html': 11,
-    'app/templates/mail_import_outlook.html': 3, 'app/templates/mail_inbox.html': 35, 'app/templates/mail_kinds.html': 3,
-    'app/templates/mail_rules.html': 1, 'app/templates/mail_settings.html': 3, 'app/templates/mail_signature.html': 1,
-    'app/templates/mail_storage.html': 3, 'app/templates/mail_templates.html': 6, 'app/templates/mail_tools.html': 29
+    'app/templates/mail_kinds.html': 1
 }    # __MAIL_EMOJI_BASE__
 
 

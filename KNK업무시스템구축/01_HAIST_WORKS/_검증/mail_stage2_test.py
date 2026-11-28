@@ -11,6 +11,7 @@
   ⑦ 답장·전달 인용: 머리말 + 원본 모양 · <style>·<head> 빠짐 · 우리 서버·cid 그림은 [그림] · 바깥 https 그림 유지 · 위험한 것 빠짐
   ⑧ 화면: 종류 단추 · 🚩·⏰ 왼쪽·도구 줄 · 오른쪽 클릭 · 읽기 화면 「🚩 기한·알림」 · 영어 번역 · 새 메일 띠 · 1분마다 숫자 · 바탕화면 알림 설정
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -131,7 +132,7 @@ with _db.db_session() as c:
     r = dict(c.execute("SELECT is_read, snooze_until, snooze_back FROM mail_messages WHERE id=?", (GEN,)).fetchone())
 check("시간이 되면 안 읽음으로 돌아옴 · 돌아온 시각 남김", r["is_read"] == 0 and not r["snooze_until"] and r["snooze_back"] and cnt.get("woke") == 1, (r, cnt))
 check("돌아온 메일은 받은편지함에 다시 보임", ('data-mail-id="%d"' % GEN) in k.get("/mail/inbox").text)
-check("⏰ 보기에 「돌아옴」 3일 동안", "⏰ 돌아옴" in k.get("/mail/inbox?snz=1").text)
+check("⏰ 보기에 「돌아옴」 3일 동안", "[i:alarm-clock] 돌아옴" in k.get("/mail/inbox?snz=1").text)
 
 print("== ④ 소속 시각 ==")
 kor = m._mail_snooze_from("tomorrow", 9)

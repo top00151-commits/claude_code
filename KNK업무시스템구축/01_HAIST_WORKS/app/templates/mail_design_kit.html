@@ -38,6 +38,14 @@
   .mk-ic{ display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:6px; }
   .mk-ic > span{ display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--mt-line); border-radius:var(--knk-radius-control); font-size:12px; color:var(--mt-text2); min-width:0; }
   .mk-ic svg{ width:18px; height:18px; flex:none; }
+  .mk-ic > span b{ font-weight:600; } .mk-ic > span small{ margin-left:auto; font-size:13px; }
+  .mk-ic-pair{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px; } .mk-ic-pair > span{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--mt-line); border-radius:var(--knk-radius-control); font-size:12.5px; }
+  .mk-ic-pair .on .md-i{ fill:currentColor; color:var(--knk-mail-c-amber-50); }
+  .mk-note{ margin:0 0 10px; font-size:12.5px; color:var(--mt-text2); line-height:1.6; } .mk-note code{ font-size:12px; }
+  .mk-pal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px; }
+  .mk-pal > div{ display:grid; grid-template-columns:28px 1fr; grid-template-rows:auto auto; column-gap:8px; align-items:center; min-width:0; }
+  .mk-pal i{ grid-row:1 / span 2; width:28px; height:28px; border-radius:var(--knk-radius-control); border:1px solid var(--mt-line); }
+  .mk-pal b{ font-size:12px; word-break:break-all; } .mk-pal small{ font-size:12px; color:var(--mt-mute); font-variant-numeric:tabular-nums; }
   .mk-frame{ height:520px; border:1px solid var(--mt-line); border-radius:var(--knk-radius-card); overflow:hidden; }
   .mk-row2{ display:flex; flex-wrap:wrap; gap:var(--knk-sp-4); align-items:flex-start; }
   .mk-note{ font-size:12px; color:var(--mt-mute); }
@@ -135,7 +143,17 @@
 
   <section class="mk-sec">
     <h2><span class="tri"><i></i><i></i><i></i></span>선 아이콘 — 단추·폴더 이름은 그림 문자 대신 이것(상태 글 ✅ ⏳ 👉 만 글자)</h2>
+    <p class="mk-note">4단계(11-28): 화면 글은 서버가 <code>mi('이름')</code>(app/mail_icons.py)로, 스크립트가 만드는 단추는 <code>mdI('이름')</code> 로 그린다 — 모양 표는 mail_design_icons.html 한 곳.
+      칸마다 아이콘 · 이름 · 예전 그림 문자(그 그림 문자를 쓰던 자리는 이 아이콘으로 바뀜).</p>
+    <div class="mk-ic-pair"><span>{{ mi('inbox') }} 서버 mi('inbox')</span><span id="mkIcJs"></span><span>{{ mi('star') }} 별(꺼짐)</span><span class="on">{{ mi('star') }} 별(켜짐 = 채움)</span></div>
     <div class="mk-ic" id="mkIc"></div>
+  </section>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>메일 색판 — 화면에 직접 적던 색을 값 그대로 이름으로(_v5_partials/mail_palette.html)</h2>
+    <p class="mk-note">메일 화면 파일은 <code>var(--knk-mail-c-빛깔-짙기)</code> 만 쓴다 · 값을 바꾸면 그 색을 쓰는 메일 화면이 모두 바뀜 · 테마마다 다른 값은 위 「색 이름」(--knk-*)에서.
+      보내는 메일 본문에 들어가는 색(글자색 고르기·표 선)은 받는 쪽 메일 프로그램이 이름을 몰라 숫자 그대로(mail_compose.html).</p>
+    <div class="mk-pal" id="mkPal"></div>
   </section>
 </main>
 <script>
@@ -143,9 +161,20 @@
   var I=window.MD_ICONS||{};
   document.querySelectorAll('svg[data-i]').forEach(function(s){ var n=s.getAttribute('data-i'); if(I[n]) s.innerHTML=I[n]; });
   var box=document.getElementById('mkIc');
+  var EM={}; Object.keys(window.MD_MAP||{}).forEach(function(k){ var n=MD_MAP[k]; (EM[n]=EM[n]||[]).push(k); });
   if(box) Object.keys(I).sort().forEach(function(n){ var sp=document.createElement('span');
-    sp.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[n]+'</svg>';
-    sp.appendChild(document.createTextNode(n)); box.appendChild(sp); });
+    sp.innerHTML=(window.mdI?mdI(n):'')+'<b></b><small data-md-raw></small>';
+    sp.querySelector('b').textContent=n; sp.querySelector('small').textContent=(EM[n]||[]).join(' ');
+    sp.title=n+(EM[n]?' ← '+EM[n].join(' '):''); box.appendChild(sp); });
+  var js=document.getElementById('mkIcJs'); if(js && window.mdI){ js.innerHTML=mdI('inbox')+' 스크립트 mdI(\'inbox\')'; }
+  // 메일 색판 — 쪽에 실린 :root 의 --knk-mail-c-* 를 그대로 읽어 그림(지어낸 값 없음)
+  var pal=document.getElementById('mkPal');
+  if(pal){ var seen={}; [].slice.call(document.styleSheets).forEach(function(sh){ var rr; try{ rr=sh.cssRules; }catch(e){ return; }
+      [].slice.call(rr||[]).forEach(function(r){ if(!r.style || r.selectorText!==':root') return;
+        for(var i=0;i<r.style.length;i++){ var k=r.style[i]; if(k.indexOf('--knk-mail-c-')===0) seen[k]=r.style.getPropertyValue(k).trim(); } }); });
+    Object.keys(seen).sort().forEach(function(k){ var d=document.createElement('div'); d.innerHTML='<i></i><b></b><small></small>';
+      d.querySelector('i').style.background='var('+k+')'; d.querySelector('b').textContent=k.replace('--knk-mail-c-',''); d.querySelector('small').textContent=seen[k]; pal.appendChild(d); });
+    var h2=pal.parentNode.querySelector('h2'); if(h2) h2.appendChild(document.createTextNode(' · '+Object.keys(seen).length+'가지')); }
   var NAMES=[['--mt-bg','--knk-bg-page'],['--mt-surface','--knk-bg-surface'],['--mt-panel','--knk-bg-inset'],['--mt-hover','--knk-bg-hover'],
     ['--mt-sel','--knk-bg-selected'],['--mt-line','--knk-border-default'],['--mt-sep','--knk-border-strong'],['--mt-text','--knk-text-primary'],
     ['--mt-text2','--knk-text-secondary'],['--mt-mute','--knk-text-muted'],['--mt-link','--knk-mail-link'],['--md-mark','--knk-mail-mark'],

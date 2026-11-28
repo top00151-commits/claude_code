@@ -10,6 +10,7 @@
   ④ ✅ 확인 답장: 쓰기 화면 글 = 사내 「확인했습니다 — 11/27(금)까지 처리하겠습니다」 · 바깥 정중 · 영어 메일 영어 · 오늘 = 「오늘 중으로」 · 틀린 날짜 = 글 없음
   ⑤ 읽기만(명부·메일 표 그대로) · 파이썬 3.8
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import ast
 import io
 import os
@@ -147,8 +148,8 @@ r = k.get("/mail/inbox")
 h = r.text
 check("받은편지함 200", r.status_code == 200, r.status_code)
 check("사내 보낸 사람 = 「이름 직책 부서」(메일 프로그램 이름 대신)", "시험팀장 과장 시험영업팀" in h and "시험동기 사원 시험영업팀" in h, "")
-check("👔 꼬리표(우리 팀장 · 우리 팀 윗 직책)", "👔 우리 팀장" in h and "👔 우리 팀 윗 직책" in h, "")
-check("오늘 챙길 메일 「👔 윗분 지시 1」(회신 필요 중 윗분 메일만)", "👔 윗분 지시 <b>1</b>" in h, h[h.find("mbxDay"):h.find("mbxDay") + 900])
+check("👔 꼬리표(우리 팀장 · 우리 팀 윗 직책)", "[i:briefcase] 우리 팀장" in h and "[i:briefcase] 우리 팀 윗 직책" in h, "")
+check("오늘 챙길 메일 「👔 윗분 지시 1」(회신 필요 중 윗분 메일만)", "[i:briefcase] 윗분 지시 <b>1</b>" in h, h[h.find("mbxDay"):h.find("mbxDay") + 900])
 r = k.get("/mail/inbox?reply=1&boss=1")
 check("윗분 지시만 보기 = 팀장 메일만", "팀장 지시" in r.text and "동기 부탁" not in r.text and "견적 요청" not in r.text, "")
 r = k.get("/mail/inbox?reply=1")
@@ -157,15 +158,15 @@ check("회신 필요 = 팀장·동기·바깥 모두(그대로)", all(x in r.tex
 print("\n③ 메일 보기")
 r = k.get("/mail/%d/pane" % M_LEAD)
 t = r.text
-check("보기: 「이름 직책 부서」 · 👔 우리 팀장 · 📌 나 = 받는 사람", r.status_code == 200 and "시험팀장 과장 시험영업팀" in t and "👔 우리 팀장" in t
+check("보기: 「이름 직책 부서」 · 👔 우리 팀장 · 📌 나 = 받는 사람", r.status_code == 200 and "시험팀장 과장 시험영업팀" in t and "[i:briefcase] 우리 팀장" in t
       and 'class="mv-rc-p me"' in t and ">나</span>" in t, r.status_code)   # 11-22 「📌 나 = 받는 사람」 띠 → 받는 사람 줄의 초록 「나」 칩
 check("보기: ✅ 확인 답장 상자 · 본문 기한 단추", 'id="mvAck"' in t and "mvAck('" in t and "본문 기한" in t, "")
 r = k.get("/mail/%d" % M_SUN)
 _cc = r.text[r.text.find('class="mv-rc mv-rc-cc"'):]
 _cc = _cc[:_cc.find('</span><span class="mv-when">') if '</span><span class="mv-when">' in _cc else 600]
-check("전체 보기: 나 = 참조 줄의 초록 「나」 칩(11-22 「👀 나 = 참조」 띠 대신) · 👔 우리 팀 윗 직책", 'class="mv-rc-p me"' in _cc and "👔 우리 팀 윗 직책" in r.text, _cc[:300])
+check("전체 보기: 나 = 참조 줄의 초록 「나」 칩(11-22 「👀 나 = 참조」 띠 대신) · 👔 우리 팀 윗 직책", 'class="mv-rc-p me"' in _cc and "[i:briefcase] 우리 팀 윗 직책" in r.text, _cc[:300])
 r = k.get("/mail/%d/pane" % M_EXT)
-check("바깥 메일: 👔 없음 · 이름 그대로", "👔" not in r.text.split('class="mv-actions"')[0] and "메일프로그램이름" in r.text, "")
+check("바깥 메일: 👔 없음 · 이름 그대로", "👔" not in r.text.split('class="mv-actions"')[0] and "[i:briefcase]" not in r.text.split('class="mv-actions"')[0] and "메일프로그램이름" in r.text, "")
 check("읽기만 — 직원 명부·메일 표 그대로", snap() == S0)
 # 11-26 「메일 누르면 2초」 — 읽음 표시를 화면 계산 뒤 짧게 따로 저장: 열면 여전히 읽음이 되는지 · 쓰기 잠금이 남지 않는지
 with _db.db_session() as _c:

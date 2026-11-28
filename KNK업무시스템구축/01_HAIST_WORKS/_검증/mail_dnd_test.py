@@ -3,6 +3,7 @@
 가짜 직원·가짜 메일·임시 DB(운영 무접촉 · 실제 메일 없음). 대표 지시 2026-11-18 「메일을 끌어다 폴더에 옮기는거」 → 「진행해」.
 실제 끌기(마우스)는 시험 서버에서 브라우저로 확인 · 여기서는 화면에 놓을 곳 표시·서버 길(되돌리기 포함)을 확인.
 사용: py -3.13 _검증/mail_dnd_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import re
@@ -163,7 +164,7 @@ try:
     _st = h[h.find('<div class="mbx-side-top">'):]
     check("왼쪽 위 고정 상자(sticky) 안에 즐겨찾기·메일함 · 폴더는 그 밖(굴러감)",
           '<div class="mbx-side-top">' in h and ".mbx-side-top{position:sticky" in h
-          and _st.find(">즐겨찾기</div>") < _st.find(">메일함</div>") < _st.find("🚫 스팸함") < _st.find("📁 폴더") and _st.find("📁 폴더") > 0)
+          and _st.find(">즐겨찾기</div>") < _st.find(">메일함</div>") < _st.find("[i:ban] 스팸함") < _st.find("[i:folder] 폴더") and _st.find("[i:folder] 폴더") > 0)
     check("즐겨찾기·메일함 머리 누르면 접기 · 이 컴퓨터에 기억 · 키보드(Enter)도",
           all(x in h for x in ('data-sec="fav"', 'data-sec="box"', "mbxSecToggle('fav')", "mbxSecToggle('box')", "mbxSecClosed", ".mbx-sec.closed{display:none}", "event.key==='Enter'")))
     check("왼쪽 칸 새로 그린 뒤(끌어서 옮긴 뒤)에도 접은 것 유지 · 끌고 가다 접힌 머리 위에 머물면 펼침",

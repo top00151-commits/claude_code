@@ -3,6 +3,7 @@
 대표 11-26 「새 메일 쓰기를 누르면 아웃룩처럼 기본으로 많이 쓰는 내용이 바로 — 양식에 『기본 양식』을 추가해 그것을 우선으로」 ·
           「아웃룩처럼 글 도구·표 도구·그림 도구 — 어떤 게 들어가면 좋을지 검토해서 추가」
 사용: py -3.13 _검증/mail_compose_template_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import json
 import os
@@ -107,7 +108,7 @@ for q, kind in (("reply=%d" % mid, "reply"), ("replyall=%d" % mid, "reply"), ("f
 hh = k.get("/mail/compose?reply=%d&ack=2026-11-28" % mid).text
 check("확인 답장(ack) = 서버는 주지만 화면이 넣지 않음(확인 글이 따로 들어감)", "!window.CMP_ACK && defPut(" in hh)
 check("화면: 내 글 판정에서 인용한 원본 뺌 · 서명이 없으면 원본 위에", ".knk-sig,.knk-quote').forEach" in hh and "ED2.querySelector('.knk-sig')||ED2.querySelector('.knk-quote')" in hh)
-check("「양식」 단추 = 남색 채움 · 📑 · 휴대폰도 글자", 'id="cTplBtn"' in hh and "📑<span class=\"tl-keep\">" in hh.replace('"', '\"') or ('📑<span class="tl-keep">' in hh and "#cTplBtn{" in hh), "")
+check("「양식」 단추 = 남색 채움 · 📑 · 휴대폰도 글자", 'id="cTplBtn"' in hh and "[i:clipboard-list]<span class=\"tl-keep\">" in hh.replace('"', '\"') or ('[i:clipboard-list]<span class="tl-keep">' in hh and "#cTplBtn{" in hh), "")
 if did:
     hh = k.get("/mail/compose?draft=%d" % did).text
     check("임시 메일 열기 → 없음", deftpl(hh) is None, deftpl(hh))
@@ -138,7 +139,7 @@ j = k.get("/api/mail/templates").json()
 check("양식 목록 API 에 default_id", j.get("default_id") == tid, j.get("default_id"))
 th = k.get("/mail/templates").text
 check("양식 화면: 「✉ 기본」 표시 · 끄기 단추 · 「✉ 새 메일 기본으로」 · 예시 양식 이름",
-      "✉ 기본</span>" in th and "tpDefSet(0)" in th and "✉ 새 메일 기본으로" in th and "📚 예시 양식" in th, "")
+      "[i:mail] 기본</span>" in th and "tpDefSet(0)" in th and "[i:mail] 새 메일 기본으로" in th and "[i:library] 예시 양식" in th, "")
 th2 = k.get("/mail/templates?from=compose").text
 check("양식 화면: 메일 쓰기에서 새 창으로 열면 ✕ 닫기 · 그냥 열면 없음", 'id="tpWinX"' in th2 and "window.close()" in th2 and 'id="tpWinX"' not in th)
 with _db.db_session() as c:

@@ -8,6 +8,7 @@
   ③ 반영: 파일대로 · 직원은 웍스 이름 · 원본↔저장 대조 ✅ · 마지막 올린 기록 · 다시 올리면 바뀐 것만 · 「지우기」 끄면 남김
   ④ 권한·화면: 관리자만(직원 403) · 설정 줄(관리자만) · 묶음 화면 「📥 하이웍스 파일로 올리기」·마지막 올린 때
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import sys
@@ -158,12 +159,12 @@ check("직원은 올리기 못 함(403)", up(hiworks(F1), "apply").status_code =
 tl = km.get("/mail/tools").text
 check("직원 설정 화면엔 「그룹 메일 명단 올리기」 없음", "그룹 메일 명단 올리기" not in tl)
 hg = km.get("/mail/groups").text
-check("직원 묶음 화면엔 올리기 단추 없음 · 명단은 보임", "📥 하이웍스 파일로 올리기" not in hg and "fsales@knknara.co.kr" in hg)
+check("직원 묶음 화면엔 올리기 단추 없음 · 명단은 보임", "📥 하이웍스 파일로 올리기" not in hg and "[i:inbox] 하이웍스 파일로 올리기" not in hg and "fsales@knknara.co.kr" in hg)
 _U["v"] = dict(U_CEO)
 tl = km.get("/mail/tools").text
 check("관리자 설정 화면 「📥 그룹 메일 명단 올리기(하이웍스 파일)」 · 마지막 올린 때 · 그룹 수", "그룹 메일 명단 올리기" in tl and 'href="/mail/groups#import"' in tl and "마지막 " in tl and "그룹 메일 3개" in tl)
 hg = km.get("/mail/groups").text
-check("관리자 묶음 화면 「📥 하이웍스 파일로 올리기」 · 끌어다 놓기 · 마지막으로 올린 파일 ✅", "📥 하이웍스 파일로 올리기" in hg and 'id="gpDrop"' in hg and "마지막으로 올린 파일" in hg and "✅ 원본과 같음" in hg)
+check("관리자 묶음 화면 「📥 하이웍스 파일로 올리기」 · 끌어다 놓기 · 마지막으로 올린 파일 ✅", "[i:inbox] 하이웍스 파일로 올리기" in hg and 'id="gpDrop"' in hg and "마지막으로 올린 파일" in hg and "✅ 원본과 같음" in hg)
 
 print("== ⑤ 📇 주소록 창 「👥 그룹 메일 · 묶음」 탭(대표 11-20) ==")
 _U["v"] = dict(U_MEM)

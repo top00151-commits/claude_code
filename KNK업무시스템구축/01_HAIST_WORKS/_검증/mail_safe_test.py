@@ -4,6 +4,7 @@ SVG·HTML 바로 열기 금지 · 모르는 곳 바깥 그림 끄기 · 메일 A
 가짜 직원·가짜 메일·가짜 파일·임시 DB(운영 무접촉 · 실제 메일 없음 · AI 실제 호출 없음).
 대표 지시 2026-11-18 「스팸메일은 자동으로 걸러주고 위험한 피싱 파일들도 자동으로 찾아 안전하게」 · 「메일은 OpenAI 로 고정」.
 사용: py -3.13 _검증/mail_safe_test.py"""
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import io
 import os
 import sys
@@ -161,7 +162,7 @@ try:
     k = client()
     print("== 4. 스팸함 화면 · ✓ 스팸 아님 ==")
     hi = k.get("/mail/inbox").text
-    check("왼쪽 「🚫 스팸함」 + 숫자", 'href="/mail/blocked"' in hi and "🚫 스팸함" in hi and '<span class="cnt">4</span>' in hi[hi.find('href="/mail/blocked"'):hi.find('href="/mail/blocked"') + 600])
+    check("왼쪽 「🚫 스팸함」 + 숫자", 'href="/mail/blocked"' in hi and "[i:ban] 스팸함" in hi and '<span class="cnt">4</span>' in hi[hi.find('href="/mail/blocked"'):hi.find('href="/mail/blocked"') + 600])
     hb = k.get("/mail/blocked").text
     check("스팸함 화면: 4통 · 「✓ 스팸 아님」 단추 · 안내", hb.count("notSpam(event,") == 4 and "스팸함</b>" in hb, hb.count("notSpam(event,"))
     j = k.post("/mail/%d/notspam" % r1["id"]).json()

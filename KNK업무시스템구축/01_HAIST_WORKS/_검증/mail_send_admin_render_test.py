@@ -70,6 +70,8 @@ class Blank(dict):
 env = Environment(loader=FileSystemLoader(os.path.join(ROOT, "app", "templates")),
                   autoescape=True, undefined=Lenient)
 env.globals.update(i=Blank(), cfg=Blank(), settings=Blank())
+sys.path.insert(0, ROOT); from app.mail_icons import mi as _mi, mi_ref as _mi_ref, mi_sprite as _mi_sprite  # noqa: E402  11-28 4단계 선 아이콘(앱 전역 값과 같게)
+env.globals.update(mi=_mi, mi_ref=_mi_ref, mi_sprite=_mi_sprite)
 
 FAKE_PW = "FAKE-not-a-real-password-0000"
 

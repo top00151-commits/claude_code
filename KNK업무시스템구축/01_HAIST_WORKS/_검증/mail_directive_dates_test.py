@@ -12,6 +12,7 @@
   ③ 메일 보기: 📅 띠 · 「🚩 기한으로」 → 기존 🚩 기한 길로 저장 → 「✓ 🚩 기한」 · 보낸 메일·인용(옛 글)은 안 봄 · 남의 메일은 404
   ④ 파이썬 3.8 문법
 """
+import _mail_ico; _mail_ico.install()  # noqa: E402  11-28 4단계: 화면의 선 아이콘을 [i:이름] 으로 읽음(그림 문자 대신 · 아이콘 이름까지 확인)
 import ast
 import io
 import os
@@ -168,7 +169,7 @@ check("남의 메일은 404(그대로)", r.status_code == 404, r.status_code)
 r = k.post("/mail/flag", data={"ids": str(M_IN), "due": want_date})
 check("「🚩 기한으로」 = 기존 기한 길로 저장", r.status_code == 200 and r.json().get("due") == want_date, r.text[:200])
 r = k.get("/mail/%d/pane" % M_IN)
-check("저장 뒤 「✓ 🚩 기한」 표시", "✓ 🚩 기한" in r.text and ("mvFollow('flag','%s')" % want_date) not in r.text, "")
+check("저장 뒤 「✓ 🚩 기한」 표시", "✓ [i:flag] 기한" in r.text and ("mvFollow('flag','%s')" % want_date) not in r.text, "")
 info = m._mail_follow_info(None, ME, {"direction": "in", "received_at": "깨진 값", "body_text": "내일까지 보내 주세요", "subject": ""})
 check("받은 시각이 깨져도 메일 보기는 그대로(빈 목록 또는 오늘 기준)", isinstance(info.get("dates"), list), info)
 
