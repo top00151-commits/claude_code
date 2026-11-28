@@ -65,8 +65,10 @@
 {% endmacro %}
 {# z1211: 참석자 칩 — 직원(👤 이름 직책 부서 · 번호) / 외부(이름 + 「외부」) / 이음에서 넘어온 이름(점선 · 아직 연결 안 함)
    🔴 화면 스크립트 atChip() 과 같은 모양 — 하나를 고치면 다른 하나도 #}
+{# z1216 (대표 2026-11-28): 외부 「[회사]이름」 = 회사(흐린 글 · 「·」) + 이름 — 표시만 · 🔴 화면 스크립트 coHtml() 과 같은 모양 #}
+{% macro co_name(t) -%}{% set _cs = mtg_co_split(t) %}{% if _cs[0] %}<span class="at-co">{{ _cs[0] }}</span><span class="at-co-dot">·</span>{% endif %}{{ _cs[1] }}{%- endmacro %}
 {% macro att_chip(a, idx, editable) -%}
-<span class="vw-chip at-chip{% if a.k == 'x' %} at-chip-x{% elif a.k == 't' %} at-chip-t{% elif a.k == 'q' %} at-chip-x at-chip-q{% endif %}" data-k="{{ a.k }}">{% if a.k == 'u' %}👤 {{ a.label }}{% elif a.k == 'x' %}{{ a.name }} <span class="at-tag">{{ i.mf_at_ext_tag }}</span>{% elif a.k == 'q' %}⚠ {{ i.mf_at_q_emp }} {{ a.emp }} <span class="at-tag">{{ i.mf_at_q_tag }}</span>{% else %}{{ a.name }}{% endif %}{% if editable %}<button type="button" class="at-x" data-i="{{ idx }}" title="{{ i.mf_at_rm }}" aria-label="{{ i.mf_at_rm }}">✕</button>{% endif %}</span>
+<span class="vw-chip at-chip{% if a.k == 'x' %} at-chip-x{% elif a.k == 't' %} at-chip-t{% elif a.k == 'q' %} at-chip-x at-chip-q{% endif %}" data-k="{{ a.k }}">{% if a.k == 'u' %}👤 {{ a.label }}{% elif a.k == 'x' %}{{ co_name(a.name) }} <span class="at-tag">{{ i.mf_at_ext_tag }}</span>{% elif a.k == 'q' %}⚠ {{ i.mf_at_q_emp }} {{ a.emp }} <span class="at-tag">{{ i.mf_at_q_tag }}</span>{% else %}{{ co_name(a.name) }}{% endif %}{% if editable %}<button type="button" class="at-x" data-i="{{ idx }}" title="{{ i.mf_at_rm }}" aria-label="{{ i.mf_at_rm }}">✕</button>{% endif %}</span>
 {%- endmacro %}
 {% macro att_box(items, editable) %}
           <div class="mf-fld full" id="atFld">
@@ -237,6 +239,8 @@ button.ri-chk:hover { border-style:solid; }
   padding:3px 5px; margin:-3px -6px -3px 0; border-radius:999px; cursor:pointer; }
 .at-chip .at-x:hover { color: var(--knk-red); background: var(--qv-surface-3, transparent); }
 .at-chip-x { border-style:dashed; }
+.at-co { font-weight:600; color: var(--qv-ink-2, var(--qv-ink)); }   /* z1216: 외부 손님 회사 — 이름보다 한 단계 흐리게 */
+.at-co-dot { margin:0 4px; color: var(--qv-ink-3); }
 .at-chip-t { border-style:dotted; border-width:2px; }
 .at-tag { font-size:11px; font-weight:800; padding:1px 7px; }   /* z1211: 색은 .mf-offtag 와 같이(새 직접 색 금지) */
 .at-note { margin-top:6px; line-height:1.6; }
@@ -1122,6 +1126,19 @@ window.__MTG = {
   var REC_IDLE = M.is_new ? MF.recbtn : MF.recadd;
 
   function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  // z1216 (대표 2026-11-28): 외부 「[회사]이름」·「【회사】이름」 → [회사, 이름] — 서버 _mtg_doc_ext_split 과 같은 규칙(둥근 괄호는 안 봄 · 빈 쪽 있으면 그대로)
+  function coSplit(raw){
+    var t = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
+    var P = [['[', ']'], ['【', '】']];
+    for (var i = 0; i < P.length; i++){
+      if (t.charAt(0) === P[i][0]){
+        var k = t.indexOf(P[i][1], 1);
+        if (k > 1){ var co = t.slice(1, k).trim(), nm = t.slice(k + 1).trim(); if (co && nm) return [co, nm]; }
+      }
+    }
+    return ['', t];
+  }
+  function coHtml(raw){ var c = coSplit(raw); return (c[0] ? '<span class="at-co">'+esc(c[0])+'</span><span class="at-co-dot">·</span>' : '') + esc(c[1]); }
   // z1106: WORKS 는 링크를 누르면 본문만 갈아끼운다(spa_nav) → 이 코드는 화면을 떠난 뒤에도 살아 있다.
   //   녹음 올리기·자동 정리가 뒤에서 끝날 때 새 화면의 같은 id 칸을 읽고 쓰면 엉뚱한 회의에 저장된다
   //   (빈 원문·참석자로 덮어쓰기 위험) → 이 화면이 사라졌으면 $() 는 아무것도 찾지 않는다.
@@ -1314,7 +1331,7 @@ window.__MTG = {
       // z1213: 담당 — 연결된 번호면 「이름 직책 부서」 · 사람이 외부로 정했으면 「외부」 · 연결 안 됐으면 「👤 담당 확인」(옛 줄도 표시만)
       var sub = '', canChg = CAN_EDIT && !a.linked_task_id;
       if (a.assignee_user_id) sub += '<span class="ri-sub">👤 '+esc(a.assignee_disp || a.assignee_name)+'</span>';
-      else if (+a.assignee_ext === 1) sub += '<span class="ri-sub">👤 '+esc(a.assignee_name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span></span>';
+      else if (+a.assignee_ext === 1) sub += '<span class="ri-sub">👤 '+coHtml(a.assignee_name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span></span>';
       else {
         if (a.assignee_name) sub += '<span class="ri-sub">👤 '+esc(a.assignee_name)+'</span>';
         if (!a.linked_task_id) sub += canChg
@@ -2856,9 +2873,9 @@ window.__MTG = {
   function atChip(a, i){
     var x = CAN_EDIT ? '<button type="button" class="at-x" data-i="'+i+'" title="'+esc(MF.at_rm)+'" aria-label="'+esc(MF.at_rm)+'">✕</button>' : '';
     if (a.k === 'u') return '<span class="vw-chip at-chip" data-k="u">👤 '+esc(a.label)+x+'</span>';
-    if (a.k === 'x') return '<span class="vw-chip at-chip at-chip-x" data-k="x">'+esc(a.name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span>'+x+'</span>';
+    if (a.k === 'x') return '<span class="vw-chip at-chip at-chip-x" data-k="x">'+coHtml(a.name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span>'+x+'</span>';
     if (a.k === 'q') return '<span class="vw-chip at-chip at-chip-x at-chip-q" data-k="q">⚠ '+esc(MF.at_q_emp)+' '+esc(a.emp)+' <span class="at-tag">'+esc(MF.at_q_tag)+'</span>'+x+'</span>';   // z1212
-    return '<span class="vw-chip at-chip at-chip-t" data-k="t">'+esc(a.name)+x+'</span>';
+    return '<span class="vw-chip at-chip at-chip-t" data-k="t">'+coHtml(a.name)+x+'</span>';
   }
   function atPaint(){
     var box=$('atChips'); if(!box) return;
@@ -2890,7 +2907,7 @@ window.__MTG = {
     AC.choice = c;
     var box=$('acWho'); if(!box) return;
     if (!c) box.innerHTML = '<span class="mf-hint">'+esc(MF.ac_none)+'</span>';
-    else box.innerHTML = '<span class="vw-chip at-chip'+(c.k==='x'?' at-chip-x':'')+'">'+(c.k==='u' ? '👤 '+esc(c.label) : esc(c.name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span>')
+    else box.innerHTML = '<span class="vw-chip at-chip'+(c.k==='x'?' at-chip-x':'')+'">'+(c.k==='u' ? '👤 '+esc(c.label) : coHtml(c.name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span>')
       + '<button type="button" class="at-x" id="acWhoX" title="'+esc(MF.at_rm)+'" aria-label="'+esc(MF.at_rm)+'">✕</button></span>';
   }
   function acMode(aid){

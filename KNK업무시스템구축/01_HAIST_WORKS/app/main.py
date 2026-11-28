@@ -6404,6 +6404,9 @@ def _mtg_doc_ext_split(raw):
     return "", t
 
 
+tpl.env.globals["mtg_co_split"] = _mtg_doc_ext_split   # z1216: 회의 화면 참석자 칩도 같은 나누기(화면 스크립트 coSplit 과 같은 규칙)
+
+
 def _mtg_doc_att_rows(atts, per_row=3, min_rows=3):
     """참석자 목록 → 종이 양식 줄 목록. 빈칸을 채우고 최소 min_rows 줄을 보장한다."""
     def _blank():
