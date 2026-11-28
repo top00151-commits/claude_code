@@ -305,6 +305,9 @@ tpl.env.globals["mail_design_preview"] = True
 # 11-28 대표 「이음메일 디자인을 코드로」 3단계(회사 색·빨간 안 읽음 점·옅은 빨강 고름·패턴 머리 띠 · _v5_partials/mail_ci.html) —
 #   ⚠ 모든 직원 메일 모양이 바뀜 → 11-28 15시대 대표 전·후 사진 확인 뒤 「3단계 켜」 → True. 되돌리려면 False(예전 모양 그대로).
 tpl.env.globals["mail_ci"] = True
+# 11-28 저녁 대표 「더 강하게」 회사 얼굴(빨간 맨 위·도구 줄 · 회사 판 · 고른 폴더 빨강 · 읽기 창 회사 띠 · 휴대폰 슬로건 띠 · _v5_partials/mail_brand_strong.html)
+#   ⚠ 모든 직원 메일 모양이 바뀜 → 대표 「올려」 뒤 배포. 되돌리려면 False(3단계 모양 그대로 · 메뉴·단추는 원래 같음).
+tpl.env.globals["mail_brand_strong"] = True
 # 11-28 4단계 「화면 옮기기」 — 단추·폴더·메뉴 이름의 그림 문자 대신 선 아이콘 SVG 를 서버에서 그림(app/mail_icons.py · 표는 mail_design_icons.html 한 곳)
 from .mail_icons import mi as _mail_mi, mi_ref as _mail_mi_ref, mi_sprite as _mail_mi_sprite   # noqa: E402
 tpl.env.globals["mi"] = _mail_mi

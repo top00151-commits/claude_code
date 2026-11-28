@@ -1043,6 +1043,7 @@
     <div class="mbx-gutter" data-g="2" title="끌어서 폭 조절"></div>
     <div id="readPane" class="mbx-readpane empty">
       <div class="mbx-rp-ico">{{ mi('mail') }}</div>
+      {% if mail_brand_strong|default(false) and mail_app %}<div class="mbs-face"><img class="mbs-sym" src="/static/img/brand/knk-symbol_white.svg" alt="KNK"><b class="mbs-name">이음메일</b><span class="mbs-slog">사람을 잇고, 일을 잇고, 미래를 잇다.</span></div><img class="mbs-best" src="/static/img/brand/knk-slogan-best_white.svg" alt="Human &amp; Ai create the Best"> {% endif %}
       왼쪽 목록에서 메일을 선택하면<br>여기에서 바로 내용을 볼 수 있어요.
       <div class="mbx-rp-tip">{{ mi('lightbulb') }} 메일을 마우스로 <b>끌어서</b> 왼쪽 폴더·{{ mi('star') }} 중요·{{ mi('archive') }} 보관함·{{ mi('trash-2') }} 휴지통에 놓으면 옮겨집니다<br>(네모로 여러 통 고른 뒤 끌면 한꺼번에)</div>
     </div>

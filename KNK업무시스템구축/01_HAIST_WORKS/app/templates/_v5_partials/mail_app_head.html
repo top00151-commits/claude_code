@@ -238,6 +238,7 @@
   @media(min-width:901px) and (max-width:1500px){ #mailTools.mt-inbox a.mt-day-i .tx{display:none} }
 </style>
 <div class="mail-app-fixed">
+{% if mail_brand_strong|default(false) %}<div class="mbs-topband" aria-hidden="true"><span class="l"><b>KNK 이음메일</b><i>ㅡ</i><span class="t">사람을 잇고 · 일을 잇고 · 미래를 잇다.</span></span><span class="r">Human &amp; AI create the Best</span></div>{% endif %}
 <div class="mail-app-top">
   <a class="brand" href="/mail/inbox" title="메일 첫 화면(받은편지함)으로">{% if mail_ci or mail_ci_preview|default(false) %}<img class="m-ci-logo" src="/static/img/brand/knk-symbol_full.svg" alt="KNK">이음메일{% else %}{{ mi('mail') }} HAIST WORKS 메일함{% endif %}</a>
   {# 11-23 대표 「오른쪽으로 가장 자주 사용할 메뉴 7개」 — 숫자는 아래 도구 줄과 같이 바로바로 #}

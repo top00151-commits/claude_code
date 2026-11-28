@@ -153,3 +153,5 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
 {% include "_v5_partials/mail_contrast.html" %}
 {# 11-28 3단계 새 모양(회사 브랜드) — ⚠ 모든 직원 모양이 바뀜 · 전역 mail_ci(main.py 한 줄)가 켜질 때만 · 견본 /mail/design-kit?ci=1 은 그 화면만 #}
 {% if mail_ci or mail_ci_preview|default(false) %}{% include "_v5_partials/mail_ci.html" %}{% endif %}
+{# 11-28 저녁 대표 「더 강하게」 회사 얼굴 — 3단계 위에 색·로고·패턴만 더함 · 전역 mail_brand_strong(main.py 한 줄)로 켜고 끔 #}
+{% if mail_brand_strong|default(false) %}{% include "_v5_partials/mail_brand_strong.html" %}{% endif %}

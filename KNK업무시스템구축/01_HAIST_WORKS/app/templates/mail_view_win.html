@@ -30,6 +30,7 @@
   {% include "_v5_partials/mail_move_ask.html" %}
   {% set pane = false %}
   {% set win = true %}
+  {% if mail_brand_strong|default(false) %}<div class="mbs-winband"><img src="/static/img/brand/knk-symbol_white.svg" alt="KNK">이음메일<i></i><span>메일 보기</span></div>{% endif %}
   <div class="mv-zoom">{% include "_v5_partials/mail_view_body.html" %}</div>
 </main>
 </body></html>

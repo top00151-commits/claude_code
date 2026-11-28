@@ -1,0 +1,160 @@
+{# 이음메일 「회사 얼굴 — 더 강하게」 — 대표 2026-11-28 저녁 결정
+   근거: HAIST WORKS디자인변경/2026-11-28_이음메일_디자인시안/2026-11-28_1135_세션15_넘김_이음메일_디자인을_코드로.md 맨 위 ⛔ 블록 1~8
+   견본: 같은 폴더 mailbrand.css 의 .mb.strong(PC) · .mp.strong(휴대폰)
+   ⛔ 메뉴·단추의 자리·순서·이름·개수는 바꾸지 않는다 — 여기서는 색·로고·패턴만(크기·여백·순서 규칙 없음)
+   ⛔ 색 숫자를 적지 않는다(검사기 ⑤-2 · M-1) — var(--knk-*) · color-mix 로만. 로고·패턴은 static/img/brand/ 원본 파일
+   켜고 끄기(스위치 한 곳): app/main.py  tpl.env.globals["mail_brand_strong"] = True → False 로 바꾸면 3단계 모양(mail_ci)으로 그대로 돌아감
+   이 조각은 mail_theme.html 맨 끝(mail_ci 다음)에서만 불림 · 같이 쓰는 화면 조각 3곳도 같은 스위치로만 나옴:
+     mail_app_head.html(휴대폰 슬로건 띠) · mail_inbox.html(메일 고르기 전 오른쪽 회사 판) · mail_view_win.html(읽기 창 회사 띠) #}
+<script>document.documentElement.classList.add('mb-strong');</script>
+<style>
+  /* ── 0. 값 — 테마마다 --knk-* 로만(어둡게는 빨강 판을 한 단계 낮춤 · 문서 끝 기준) ── */
+  html.mb-strong[data-mt]{
+    --knk-mail-band:var(--knk-brand);                 /* 맨 위 줄 · 회사 판 · 고른 폴더 */
+    --knk-mail-band2:var(--knk-brand-hover);          /* 둘째 줄(도구 줄) = 진한 빨강 */
+    --knk-mail-band-ink:var(--knk-text-inverse);
+    --knk-mail-on-band-1:color-mix(in srgb, var(--knk-mail-band) 88%, var(--knk-text-inverse));   /* 빨강 위 단추·칩 바탕 — 불투명(패턴이 비쳐 글자 명암이 떨어지지 않게) */
+    --knk-mail-on-band-2:color-mix(in srgb, var(--knk-mail-band) 78%, var(--knk-brand-black));      /* 마우스를 올렸을 때 */
+    --knk-mail-on-band-line:color-mix(in srgb, var(--knk-text-inverse) 50%, transparent);
+    --knk-mail-on-band-dim:color-mix(in srgb, var(--knk-text-inverse) 90%, transparent);
+    --knk-mail-band-bg:linear-gradient(color-mix(in srgb, var(--knk-mail-band) 87%, transparent), color-mix(in srgb, var(--knk-mail-band) 87%, transparent)),
+      url('/static/img/brand/knk-pattern-tile_white.png') 0 0/var(--knk-pattern-w) auto repeat, var(--knk-mail-band);   /* 흰 패턴 13% */
+    --knk-mail-page:color-mix(in srgb, var(--knk-brand-subtle) 60%, var(--knk-bg-page-soft));   /* 옅은 붉은 회색(≈ 견본 #F6EFEF) */
+    --knk-mail-sel:var(--knk-brand-subtle);
+    --knk-mail-unread-name:var(--knk-brand-hover);
+    --knk-mail-day-bg:color-mix(in srgb, var(--knk-brand-subtle) 55%, var(--knk-bg-surface));
+    --knk-mail-day-ink:var(--knk-brand-hover);
+    --knk-mail-hatch:color-mix(in srgb, var(--knk-brand) 32%, transparent);
+    --knk-mail-notice-bg:var(--knk-brand-subtle); --knk-mail-notice-ink:var(--knk-brand-hover); --knk-mail-notice-line:var(--knk-brand-line);
+    --knk-mail-pane-line:color-mix(in srgb, var(--knk-brand) 12%, var(--knk-border-default));
+    --mt-bg:var(--knk-mail-page); }
+  html.mb-strong[data-mt="soft"]{
+    --knk-mail-page:color-mix(in srgb, var(--knk-brand) 6%, var(--knk-bg-page));
+    --knk-mail-sel:var(--knk-bg-selected);
+    --knk-mail-day-bg:color-mix(in srgb, var(--knk-brand) 8%, var(--knk-bg-inset));
+    --knk-mail-notice-bg:color-mix(in srgb, var(--knk-brand) 12%, var(--knk-bg-surface)); --knk-mail-notice-line:color-mix(in srgb, var(--knk-brand) 30%, var(--knk-bg-surface)); }
+  html.mb-strong[data-mt="dark"]{
+    --knk-mail-band:var(--knk-brand-hover);
+    --knk-mail-band2:color-mix(in srgb, var(--knk-brand-hover) 62%, var(--knk-bg-page));
+    --knk-mail-page:color-mix(in srgb, var(--knk-brand) 7%, var(--knk-bg-page));
+    --knk-mail-sel:var(--knk-bg-selected);
+    --knk-mail-unread-name:var(--knk-mail-mark);
+    --knk-mail-day-bg:color-mix(in srgb, var(--knk-brand) 16%, var(--knk-bg-inset));
+    --knk-mail-day-ink:var(--knk-mail-mark);
+    --knk-mail-hatch:color-mix(in srgb, var(--knk-mail-mark) 35%, transparent);
+    --knk-mail-notice-bg:color-mix(in srgb, var(--knk-brand) 22%, var(--knk-bg-surface)); --knk-mail-notice-ink:var(--knk-text-primary);
+    --knk-mail-notice-line:color-mix(in srgb, var(--knk-brand) 45%, var(--knk-bg-surface)); }
+
+  /* ── 1. PC 맨 위 줄 = 회사 빨강 + 흰 패턴 + 흰 심볼 + 「이음메일」 흰 글자 · 고른 메뉴만 흰 바탕 빨강 글자 ── */
+  html.mb-strong .mail-app-top{ background:var(--knk-mail-band-bg) !important; color:var(--knk-mail-band-ink) !important; border-bottom-color:transparent !important; box-shadow:none !important; }
+  html.mb-strong .mail-app-top::after{ display:none !important; }   /* 3단계 오른쪽 옅은 패턴 → 줄 전체 흰 패턴(위 바탕)으로 */
+  html.mb-strong .mail-app-top a, html.mb-strong[data-md] .mail-app-top a.brand{ color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong .mail-app-top a:hover{ background:var(--knk-mail-on-band-1) !important; }
+  html.mb-strong .mail-app-top a.brand .m-ci-logo{ content:url('/static/img/brand/knk-symbol_white.svg'); }   /* 빨강 바탕 = 흰 색판만(knk-brand 색판 규칙) */
+  html.mb-strong[data-md] .mail-app-top .mt-quick a.on{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; font-weight:700; }
+  html.mb-strong[data-md] .mail-app-top .mt-quick .bd{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }   /* 받은편지함 수 파랑 → 흰 바탕 빨강 글자 */
+  html.mb-strong[data-md] .mail-app-top .mt-quick a.on .bd{ background:var(--knk-brand) !important; color:var(--knk-text-inverse) !important; }
+  html.mb-strong[data-md] .mail-app-top .navbtn, html.mb-strong[data-md] .mail-app-top .reload, html.mb-strong[data-md] .mail-app-top .phone, html.mb-strong[data-md] .mail-app-top .install{
+    background:var(--knk-mail-on-band-1) !important; border-color:var(--knk-mail-on-band-line) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md] .mail-app-top .navbtn:hover:not(:disabled), html.mb-strong[data-md] .mail-app-top .reload:hover, html.mb-strong[data-md] .mail-app-top .phone:hover{ background:var(--knk-mail-on-band-2) !important; }
+  html.mb-strong[data-md] .mail-app-top .me{ background:var(--knk-mail-on-band-1) !important; border-color:var(--knk-mail-on-band-line) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] .mail-app-top .me .av{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }
+
+  /* ── 2. PC 둘째 줄(도구 줄) = 진한 빨강 · 「새 메일」 흰 단추 빨강 글자 · 찾기 칸 흰색 ── */
+  html.mb-strong[data-md] #mailTools{ background:var(--knk-mail-band2) !important; border-bottom-color:transparent !important; box-shadow:none !important; }
+  html.mb-strong[data-md][data-mt] #mailTools > a, html.mb-strong[data-md][data-mt] #mailTools > button, html.mb-strong[data-md][data-mt] #mailTools > .mt-fs > button,
+  html.mb-strong[data-md][data-mt] #mailTools > details > summary, html.mb-strong[data-md][data-mt] #mailTools .mt-in-l .mbx-foldbtn{ color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md] #mailTools > a:hover, html.mb-strong[data-md] #mailTools > button:hover:not(:disabled), html.mb-strong[data-md] #mailTools > .mt-fs > button:hover:not(:disabled),
+  html.mb-strong[data-md] #mailTools > details > summary:hover{ background:var(--knk-mail-on-band-1) !important; }
+  html.mb-strong.knk-mail-ci[data-md][data-mt] #mailTools .new, html.mb-strong[data-md][data-mt] #mailTools .new{ background:var(--knk-bg-white) !important; border-color:var(--knk-bg-white) !important; color:var(--knk-brand) !important; filter:none; }
+  html.mb-strong[data-md][data-mt] #mailTools .new .md-i{ color:var(--knk-brand) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .mt-sync{ border-color:var(--knk-mail-on-band-line) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .on, html.mb-strong[data-md][data-mt] #mailTools .sw.on{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .bd{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .bd.g{ background:var(--knk-mail-on-band-1) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md] #mailTools .sep{ background:var(--knk-mail-on-band-line) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .mt-more{ background:var(--knk-mail-band2) !important; box-shadow:-8px 0 10px var(--knk-mail-band2) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .mt-fs .fs-b{ color:var(--knk-mail-band-ink) !important; }
+  /* 찾기 칸(받은편지함이 도구 줄에 넘긴 것) — 칸은 흰색, 「검색」·「자세히」는 빨강 위 흰 테두리 */
+  html.mb-strong:not([data-mt="dark"]) #mailTools .mbx-search input[type=text]{ background-color:var(--knk-bg-white) !important; border-color:var(--knk-bg-white) !important; color:var(--knk-brand-ink) !important; }
+  html.mb-strong[data-md][data-mt] #mailTools .mt-in-l .mbx-search .btn, html.mb-strong[data-md][data-mt] #mailTools .mt-in-l .mbx-more > summary{
+    background:var(--knk-mail-on-band-1) !important; border-color:var(--knk-mail-on-band-line) !important; color:var(--knk-mail-band-ink) !important; }
+  /* 오늘 챙길 숫자 칩 — 빨강 위 흰 칩 */
+  html.mb-strong[data-md][data-mt] #mailTools a.mt-day-i, html.mb-strong[data-md][data-mt] #mailTools a.mt-day-i.red, html.mb-strong[data-md][data-mt] #mailTools a.mt-day-i.warn{
+    background:var(--knk-mail-on-band-1) !important; border-color:transparent !important; color:var(--knk-mail-band-ink) !important; }
+  /* 도구 줄 안에서 펼치는 상자(읽기창보기 · 자세히)는 흰 상자 그대로 — 글자색을 물려받지 않게 */
+  html.mb-strong #mailTools details > :not(summary){ color:var(--mt-text); }
+
+  /* ── 6. 화면 바탕 = 옅은 붉은 회색(위 --mt-bg) · 하이웍스 연결 알림 줄 = 옅은 빨강 ── */
+  html.mb-strong[data-mt] .mail-link-band:not(.imp){ background:var(--knk-mail-notice-bg) !important; color:var(--knk-mail-notice-ink) !important; border-bottom-color:var(--knk-mail-notice-line) !important; }
+
+  /* ── 4. 폴더 칸 — 고른 폴더 = 빨강으로 꽉 · 흰 글자 · 묶음 제목 앞 회사 표식 「세 줄」 ── */
+  html.mb-strong[data-md][data-mt] .mbx-fold.on{ background:var(--knk-mail-band) !important; color:var(--knk-mail-band-ink) !important; box-shadow:none !important; }
+  html.mb-strong[data-md][data-mt] .mbx-fold.on .md-i{ color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] .mbx-fold.on .cnt, html.mb-strong[data-md][data-mt] .mbx-fold.on .mf-n, html.mb-strong[data-md][data-mt] .mbx-fold.on .mf-tg{ color:var(--knk-mail-on-band-dim) !important; }
+  html.mb-strong[data-md][data-mt] .mbx-fold.on .fbadge, html.mb-strong[data-md][data-mt] .mbx-fold.on .mf-u, html.mb-strong[data-md][data-mt] .mbx-fold.on .mf-ra{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }
+  html.mb-strong[data-md][data-mt] .mbx-fold-h{ color:var(--knk-mail-day-ink) !important; }
+  html.mb-strong .mbx-fold-h::before{ content:''; display:inline-block; flex:none; width:11px; height:11px; margin-right:6px; vertical-align:-1px;
+    background:linear-gradient(90deg, var(--knk-mail-mark) 0 2.5px, transparent 2.5px 4.25px, var(--knk-mail-mark) 4.25px 6.75px, transparent 6.75px 8.5px, var(--knk-mail-mark) 8.5px 11px); }
+
+  /* ── 5. 목록 — 고른 줄 = 옅은 빨강 + 왼쪽 빨간 줄 4px · 안 읽은 이름 진한 빨강(점은 3단계 그대로 빨강) · 날짜 줄 = 패턴 각도(52°) 빗금 ── */
+  html.mb-strong[data-md][data-mt] .mbx-row.active, html.mb-strong[data-md][data-mt] .mbx-headlink.active{ background:var(--knk-mail-sel) !important; box-shadow:inset 4px 0 0 var(--knk-mail-mark) !important; }
+  html.mb-strong[data-md][data-mt] .mbx-row.unread .mbx-from, html.mb-strong[data-md][data-mt] .mbx-headlink.unread .mbx-from{ color:var(--knk-mail-unread-name) !important; }
+  html.mb-strong[data-md][data-mt] .mbx-list > div.mbx-day{ color:var(--knk-mail-day-ink) !important;
+    background:repeating-linear-gradient(-52deg, var(--knk-mail-hatch) 0 1.5px, transparent 1.5px 6px) right 12px center/36% 6px no-repeat, var(--knk-mail-day-bg) !important; }
+  /* 휴대폰 「오늘 챙길 메일」 칩 = 빨강으로 꽉(0 인 칩은 3단계처럼 숨김) */
+  html.mb-strong[data-mt] nav.mbx-day .mbx-day-i, html.mb-strong[data-mt] nav.mbx-day .mbx-day-i.red, html.mb-strong[data-mt] nav.mbx-day .mbx-day-i.warn{
+    background:var(--knk-mail-band) !important; border-color:var(--knk-mail-band) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md] .mbx-split{ border-color:var(--knk-mail-pane-line) !important; }
+
+  /* ── 3. 메일을 고르기 전 오른쪽 칸 = 회사 판(빨강 + 흰 패턴 + 흰 심볼 + 「이음메일」 + 슬로건 + 지금 안내 글 + 흰 슬로건 로고) ── */
+  .mbs-face, .mbs-best{ display:none; }
+  html.mb-strong .mbx-readpane.empty{ background:var(--knk-mail-band-bg) !important; color:var(--knk-mail-on-band-dim) !important; }
+  html.mb-strong .mbx-readpane.empty .mbx-rp-ico{ display:none; }   /* 회색 봉투 그림 대신 회사 심볼 */
+  html.mb-strong .mbx-readpane.empty .mbs-face{ display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:6px; }
+  html.mb-strong .mbx-readpane.empty .mbs-sym{ width:135px; height:44px; display:block; }   /* 원본 비율 3.07 · 크기를 미리 정해 그린 뒤 밀림 없음 */
+  html.mb-strong .mbx-readpane.empty .mbs-name{ font-size:30px; font-weight:800; line-height:1.25; letter-spacing:-.02em; color:var(--knk-mail-band-ink); }
+  html.mb-strong .mbx-readpane.empty .mbs-slog{ font-size:15px; font-weight:700; line-height:1.6; color:var(--knk-mail-band-ink); }
+  html.mb-strong .mbx-readpane.empty .mbx-rp-tip{ color:var(--knk-mail-on-band-dim) !important; }
+  html.mb-strong .mbx-readpane.empty .mbs-best{ display:block; order:9; width:188px; height:22px; margin-top:14px; }
+
+  /* ── 7. 읽기 창(새 창) — 맨 위 회사 띠 + 제목·보낸 사람·단추 칸을 빨강 판 위에(「답장」만 흰 단추) · 본문 흰 칸 · 이전/다음은 그대로 아래 ── */
+  html.mb-strong .mbs-winband{ display:flex; align-items:center; gap:9px; margin:0 0 10px; padding:9px 16px; border-radius:12px;
+    background:var(--knk-mail-band-bg); color:var(--knk-mail-band-ink); font-weight:800; font-size:14px; letter-spacing:-.01em; }
+  html.mb-strong .mbs-winband img{ width:46px; height:15px; display:block; }
+  html.mb-strong .mbs-winband i{ width:1px; height:14px; background:var(--knk-mail-on-band-line); }
+  html.mb-strong .mbs-winband span{ font-weight:600; color:var(--knk-mail-on-band-dim); }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head{ background:var(--knk-mail-band-bg) !important; border-color:transparent !important; color:var(--knk-mail-band-ink); }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-subj, html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-hname,
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-hname a.mv-who, html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-rc-l,
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-hsub, html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-chips{ color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-av{ background:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > .btn:not(.btn-primary), html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > details > summary.btn,
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-chips .mv-reply-btn, html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-chips .mv-fd-cur{
+    background:var(--knk-mail-on-band-1) !important; border-color:var(--knk-mail-on-band-line) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > .btn.mv-ico, html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > #mvFu > summary,
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > #mvMore > summary{ background:transparent !important; border-color:transparent !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > .mv-ico:hover, html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > details > summary:hover,
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > .btn:not(.btn-primary):hover{ background:var(--knk-mail-on-band-2) !important; color:var(--knk-mail-band-ink) !important; }
+  html.mb-strong[data-md][data-mt] .mw-wrap .mv-head .mv-actions > .mv-star.on{ color:var(--knk-highlight-subtle) !important; }
+  html.mb-strong.knk-mail-ci[data-md][data-mt] .mw-wrap .mv-head .mv-actions > .btn-primary{ background:var(--knk-bg-white) !important; border-color:var(--knk-bg-white) !important; color:var(--knk-brand) !important; }
+  html.mb-strong:not([data-mt="dark"]) .mw-wrap .mv-head .mv-fd-sel{ background-color:var(--knk-bg-white) !important; border-color:var(--knk-bg-white) !important; color:var(--knk-brand-ink) !important; }
+  /* 머리 안에서 펼치는 상자(확인 답장 · 기한 · 더 보기 · 보낸 사람 카드 · 같은 대화)는 흰 상자 그대로 */
+  html.mb-strong .mw-wrap .mv-head .mv-more-box, html.mb-strong .mw-wrap .mv-head .mv-who-pop, html.mb-strong .mw-wrap .mv-head .mv-thr-list, html.mb-strong .mw-wrap .mv-head .mv-grp{ color:var(--mt-text); }
+
+  /* ── 8. 휴대폰 — 맨 위 16px 슬로건 띠(이음 .mobile-top-brand 와 같은 높이·같은 글) · 로고·바로가기 줄 = 빨간 머리(위 1·2 그대로) ── */
+  .mbs-topband{ display:none; }
+  @media(max-width:640px){
+    html.mb-strong .mbs-topband{ display:flex; align-items:center; justify-content:space-between; gap:5px; box-sizing:border-box;
+      height:calc(16px + env(safe-area-inset-top, 0px)); padding-top:env(safe-area-inset-top, 0px);
+      padding-left:max(9px, env(safe-area-inset-left)); padding-right:max(9px, env(safe-area-inset-right));
+      background:var(--mt-surface); border-bottom:1px solid var(--mt-line); font-size:9px; line-height:1; letter-spacing:-.1px;
+      white-space:nowrap; overflow:hidden; user-select:none; pointer-events:none; }
+    html.mb-strong .mbs-topband .l{ display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; flex:1 1 auto; }
+    html.mb-strong .mbs-topband b{ color:var(--knk-mail-mark); font-weight:800; flex:none; }
+    html.mb-strong .mbs-topband i{ font-style:normal; color:var(--mt-mute); flex:none; }
+    html.mb-strong .mbs-topband .t{ color:var(--mt-mute); font-weight:500; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    html.mb-strong .mbs-topband .r{ flex:none; color:var(--mt-mute); font-weight:600; margin-left:8px; }
+  }
+  @media print{ .mbs-topband, .mbs-winband{ display:none !important; } }
+</style>
