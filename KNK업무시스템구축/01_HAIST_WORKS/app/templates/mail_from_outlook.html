@@ -6,23 +6,23 @@
   /* 11-25 대표 「예전 아웃룩에 남아있는데 어떻게 전달하지?」 — 아웃룩에서 뽑은 파일(메일 번호·보낸 사람만)로 빈 보낸 사람 채우기 */
   .fo-wrap{padding:0 var(--content-pad,32px) 40px;box-sizing:border-box}
   .fo-wrap .page-head{padding-left:0;padding-right:0}
-  .fo-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin:0 0 14px}
+  .fo-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:16px 18px;margin:0 0 14px}
   .fo-note{font-size:12.5px;color:var(--mute);line-height:1.75}
   .fo-step{display:flex;gap:10px;margin:10px 0;font-size:13.5px;line-height:1.75}
-  .fo-num{flex:0 0 24px;height:24px;border-radius:50%;background:var(--knk-red,#a5282c);color:#fff;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;margin-top:2px}
-  .fo-code{display:block;background:var(--mt-panel,#f6f7f9);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
+  .fo-num{flex:0 0 24px;height:24px;border-radius:50%;background:var(--knk-red);color:var(--knk-mail-c-white);font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .fo-code{display:block;background:var(--mt-panel,var(--knk-mail-c-gray-03-4));border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
   .fo-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
   .fo-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
   @media(max-width:760px){.fo-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.fo-wrap{padding:0 12px 32px}}
-  .fo-tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--mt-panel,#fafbfc)}
+  .fo-tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--mt-panel,var(--knk-mail-c-gray-02-3))}
   .fo-tile .t{font-size:12px;color:var(--mute);font-weight:700}
   .fo-tile .v{font-size:20px;font-weight:800;margin-top:2px}
   #foMsg{display:block;flex-basis:100%;width:100%;margin-top:10px;font-size:14px;line-height:1.7;border-radius:10px;padding:0}
-  #foMsg:not(:empty){padding:12px 14px;border:1px solid var(--line,#d6dbe1)}
-  #foMsg.ok{background:#ecfdf3;border-color:#86d3a8;color:#14532d}
-  #foMsg.todo{background:#fff7e6;border-color:#f3c27a;color:#7a4a05}
-  #foMsg.wait{background:#eef4ff;border-color:#a9c3f5;color:#1e3a8a}
-  #foMsg.err{background:#fef2f2;border-color:#f3a5a5;color:#b91c1c}
+  #foMsg:not(:empty){padding:12px 14px;border:1px solid var(--line,var(--knk-mail-c-blue-14))}
+  #foMsg.ok{background:var(--knk-mail-c-green-04);border-color:var(--knk-mail-c-green-32);color:var(--knk-mail-c-green-80)}
+  #foMsg.todo{background:var(--knk-mail-c-amber-05);border-color:var(--knk-mail-c-amber-28);color:var(--knk-mail-c-amber-75)}
+  #foMsg.wait{background:var(--knk-mail-c-blue-03-3);border-color:var(--knk-mail-c-blue-19);color:var(--knk-mail-c-blue-67)}
+  #foMsg.err{background:var(--knk-mail-c-red-03);border-color:var(--knk-mail-c-red-20);color:var(--knk-mail-c-red-58)}
   #foMsg b{font-weight:800}
 </style>
 </head><body>
@@ -31,18 +31,18 @@
 <div class="fo-wrap">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 아웃룩에서 보낸 사람 채우기</div>
-    <h1 class="page-title">📇 아웃룩에서 <em>보낸 사람 채우기</em></h1>
+    <h1 class="page-title">{{ mi('contact') }} 아웃룩에서 <em>보낸 사람 채우기</em></h1>
   </div>{% with exit_href='/mail/tools', exit_label='설정·정리' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
 
   <div class="fo-card">
     <div style="font-size:13.5px;line-height:1.75">보낸 사람이 비어 있는 예전 메일 <b id="foLeft">{{ '{:,}'.format(left) }}통</b>을 <b>예전 아웃룩에 남은 원본</b>으로 정확히 채웁니다.
       아웃룩에서 <b>메일 번호(Message-ID) · 보낸 사람 주소 · 이름 · 받은 시각</b> 4칸만 뽑아 올리면, 메일 번호가 같은 메일만 채웁니다.</div>
-    <div class="fo-note">🔒 제목·본문·첨부는 뽑지 않습니다 · 아웃룩의 메일은 바꾸지 않습니다(읽기만) · 올린 파일은 서버에 저장하지 않고 맞춰 본 뒤 버립니다 · 채운 것은 「↺ 되돌리기」로 그대로 되돌릴 수 있습니다</div>
+    <div class="fo-note">{{ mi('lock') }} 제목·본문·첨부는 뽑지 않습니다 · 아웃룩의 메일은 바꾸지 않습니다(읽기만) · 올린 파일은 서버에 저장하지 않고 맞춰 본 뒤 버립니다 · 채운 것은 「↺ 되돌리기」로 그대로 되돌릴 수 있습니다</div>
   </div>
 
   <div class="fo-card">
     <h2 style="margin:0 0 6px;font-size:15px">① 아웃룩 PC 에서 파일 만들기 <span class="fo-note">(처음 한 번 · 몇 분)</span></h2>
-    <div class="fo-step"><div class="fo-num">1</div><div><a href="/mail/from-outlook/script" class="btn btn-secondary" download>⬇ 명령 파일 내려받기(outlook_from_export.ps1)</a></div></div>
+    <div class="fo-step"><div class="fo-num">1</div><div><a href="/mail/from-outlook/script" class="btn btn-secondary" download>{{ mi('download') }} 명령 파일 내려받기(outlook_from_export.ps1)</a></div></div>
     <div class="fo-step"><div class="fo-num">2</div><div>아웃룩이 설치된 PC 에서 <b>PowerShell</b> 을 열고 아래 한 줄을 붙여 넣어 실행합니다(아웃룩이 「허용」을 물으면 허용).
       <code class="fo-code">powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\Downloads\outlook_from_export.ps1"</code>
       <span class="fo-note">폴더마다 통수가 나오고, 끝나면 <b>바탕화면</b>에 <code>KNK_아웃룩_보낸사람_날짜_시각.csv</code> 파일이 생깁니다.</span></div></div>
@@ -52,7 +52,7 @@
     <h2 style="margin:0 0 6px;font-size:15px">② 파일 올리기</h2>
     <div class="fo-row">
       <input type="file" id="foFile" accept=".csv,text/csv">
-      <button type="button" class="btn btn-secondary" onclick="foGo(true)">🔢 몇 통 맞는지 세기</button>
+      <button type="button" class="btn btn-secondary" onclick="foGo(true)">{{ mi('hash') }} 몇 통 맞는지 세기</button>
       <button type="button" class="btn btn-primary" id="foFill" onclick="foGo(false)" disabled title="먼저 「몇 통 맞는지 세기」">✅ 채우기</button>
       <button type="button" class="btn btn-secondary" onclick="foUndo()">↺ 되돌리기</button>
       <span id="foMsg"></span>
@@ -75,7 +75,7 @@ async function foGo(dry){
   var fd=new FormData(); fd.append('file', f); if(dry) fd.append('dry','1');
   var j={};
   try{ var r=await fetch('/mail/from-outlook',{method:'POST',body:fd}); j=await r.json(); }catch(e){ j={ok:false,message:'네트워크가 끊겼습니다'}; }
-  if(!j.ok){ foMsg('⚠ <b>끝나지 않았습니다</b> — '+foEsc(j.message||'실패')+' · 다시 눌러 보시고, 같으면 빅터에게 알려 주세요.', true); return; }
+  if(!j.ok){ foMsg(''+mdI('triangle-alert')+' <b>끝나지 않았습니다</b> — '+foEsc(j.message||'실패')+' · 다시 눌러 보시고, 같으면 빅터에게 알려 주세요.', true); return; }
   var t=document.getElementById('foTiles'); t.hidden=false;
   t.innerHTML=foTile('파일 줄', j.rows)+foTile('메일 번호 있는 줄', j.with_mid)+foTile('맞는 메일', j.matched)+foTile(dry?'채울 수 있음':'채움', dry?j.matched:j.filled);
   document.getElementById('foLeft').textContent=(Number(j.left)||0).toLocaleString()+'통';
@@ -94,7 +94,7 @@ async function foUndo(){
   if(!confirm('마지막으로 채운 묶음을 되돌릴까요?')) return;
   var fd=new FormData(); fd.append('undo','1');
   var j={}; try{ var r=await fetch('/mail/from-outlook',{method:'POST',body:fd}); j=await r.json(); }catch(e){}
-  foMsg(j.ok ? ('✅ <b>완료 — 되돌리기가 끝났습니다.</b> '+foN(j.undone)+'통을 채우기 전으로 되돌렸습니다. 다시 채우려면 파일을 골라 「몇 통 맞는지 세기」부터 하세요.') : '⚠ <b>끝나지 않았습니다</b> — 되돌리지 못했습니다. 빅터에게 알려 주세요.', j.ok ? 'ok' : true);
+  foMsg(j.ok ? ('✅ <b>완료 — 되돌리기가 끝났습니다.</b> '+foN(j.undone)+'통을 채우기 전으로 되돌렸습니다. 다시 채우려면 파일을 골라 「몇 통 맞는지 세기」부터 하세요.') : ''+mdI('triangle-alert')+' <b>끝나지 않았습니다</b> — 되돌리지 못했습니다. 빅터에게 알려 주세요.', j.ok ? 'ok' : true);
 }
 </script>
 </body></html>
