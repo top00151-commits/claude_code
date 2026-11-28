@@ -79,7 +79,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             var tgt = (mgmt && name) ? ("\n(대상: " + mgmt + " " + name + ")") : "";
             var txt = "[WORKS 찾아가는 길]\n"
                     + "① 상단 '매출영업센터' → ② 왼쪽 메뉴 '프로젝트' → ③ 검색창에 " + find + " 입력 → ④ 나온 카드 클릭\n"
-                    + "※ 열람 권한(영업/기술)이 있어야 보입니다." + tgt;
+                    + "※ 보기 권한(영업/기술)이 있어야 보입니다." + tgt;
             var orig = btn.textContent;
             function ok(){ btn.textContent = '✓ 복사됨 — 메신저에 붙여넣기'; setTimeout(function(){ btn.textContent = orig; }, 1800); }
             function fb(){ try { var ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch(e){ window.prompt('아래 내용을 복사해 직원에게 보내세요:', txt); } }
@@ -112,7 +112,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
          '수정'도 프로젝트 폼이 아니라 제작요청서 편집 페이지로(사진2). openFollowupOrder 모달/JS는 미사용으로 잔존(트리거 없음). #}
       {# 2026-07-16 (대표 지시): 작업일정표·전사일정표 바로가기 — '＋ 제작요청서 작성' 왼쪽. 제작요청서 화면(z842/z844)과 동일 규격:
          작업일정표=/sales/schedule?focus_ref(이 프로젝트 행 강조)·매출열람권(can_sales_amt) 없으면 회색 비활성 / 전사일정표=/dept/schedule 전원. #}
-      {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ p.id }}" title="작업일정표에서 이 관리번호 위치로 이동">📅 작업일정표</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — '전사일정표'를 이용하세요" aria-disabled="true">📅 작업일정표</span>{% endif %}
+      {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ p.id }}" title="작업일정표에서 이 관리번호 위치로 이동">📅 작업일정표</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 보기 권한이 있는 분만 열 수 있습니다 — '전사일정표'를 이용하세요" aria-disabled="true">📅 작업일정표</span>{% endif %}
       <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표</a>
       {# v5H226z841 (대표 지시): 발행된 제작요청서 '보기' 바로가기 — 누르면 제작요청서 페이지(읽기모드·사진2). 등록분 있을 때만·전원 열람. #}
       {% if prod_requests %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit" title="발행된 제작요청서 보기">📋 제작요청서 보기</a>{% endif %}
@@ -451,7 +451,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     {% set _kpi_ccy = p.currency or primary_so_currency or 'KRW' %}
     {% set _is_mixed = (currency_mix and currency_mix|length > 1) %}{# v5H226z696: 통화 혼합이면 확정매출 KPI도 통화별 분리(환산 없는 합산 표기 폐기) #}
     {# v5H226z823: 확정 매출 KPI — 매출금액 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
-    <div class="kpi-card"><div class="kpi-label"{{ ct('proj.sales_total') }}>{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({% if _is_mixed %}혼합{% else %}{{ _kpi_ccy }}{% endif %})</span></div>{% if can_sales_amt %}{% if _is_mixed %}<div class="kpi-num" style="font-size:17px;line-height:1.35;">{% for r in currency_mix %}<div{% if not loop.first %} style="font-size:13px;color:var(--mute);font-weight:600;"{% endif %}>{{ money(r.total, r.currency) }}</div>{% endfor %}</div>{% else %}<div class="kpi-num">{% if _displayed_amt %}{{ money(_displayed_amt, _kpi_ccy) }}{% else %}—{% endif %}</div>{% endif %}{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="매출금액은 열람 권한자만">🔒</div>{% endif %}{% if can_sales_amt and not _is_mixed and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
+    <div class="kpi-card"><div class="kpi-label"{{ ct('proj.sales_total') }}>{% if project_orders %}확정 매출{% else %}수주액{% endif %} <span style="font-size:10px;color:var(--mute);">({% if _is_mixed %}혼합{% else %}{{ _kpi_ccy }}{% endif %})</span></div>{% if can_sales_amt %}{% if _is_mixed %}<div class="kpi-num" style="font-size:17px;line-height:1.35;">{% for r in currency_mix %}<div{% if not loop.first %} style="font-size:13px;color:var(--mute);font-weight:600;"{% endif %}>{{ money(r.total, r.currency) }}</div>{% endfor %}</div>{% else %}<div class="kpi-num">{% if _displayed_amt %}{{ money(_displayed_amt, _kpi_ccy) }}{% else %}—{% endif %}</div>{% endif %}{% else %}<div class="kpi-num" style="color:var(--mute);font-size:15px;" title="매출금액은 보기 권한이 있는 분만 보입니다">🔒</div>{% endif %}{% if can_sales_amt and not _is_mixed and project_orders and p.order_amount and (p.order_amount|round) != (_so_total|round) %}<div style="font-size:10px;color:var(--knk-red);font-weight:700;margin-top:3px;" title="폼 저장값({{ '{:,.0f}'.format(p.order_amount) }}) ≠ SO 합계({{ '{:,.0f}'.format(_so_total) }}). SO 합계 기준 표시 중">⚠ 폼/SO 불일치</div>{% endif %}</div>
     {# v5H226z646 (대표 지시): 예상 매출(수주 전) KPI 삭제 — 예상값 미입력 건은 항상 확정과 동일(+0)이라 의미 약함. 확정 매출 KPI만 유지. (expected_amount 데이터는 보존) #}
   </div>
 
@@ -2136,7 +2136,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         {% include '_v5_partials/history_card.html' %}
         {# v5H226z896 (대표 지시): 금액은 기술영업팀 권한자만 → 그 외는 이력에서 🔒 마스킹 안내 #}
         {% if not can_sales_amt %}
-        <div style="margin-top:8px;font-size:11px;color:var(--mute);">🔒 단가·매출·수주액 등 금액 항목은 열람 권한자만 표시됩니다.</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--mute);">🔒 단가·매출·수주액 등 금액 항목은 보기 권한이 있는 분만 보입니다.</div>
         {% endif %}
       </div>
 
@@ -2546,7 +2546,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               📦 총 <b style="color:var(--ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:#7c4a03;">[수주 내역]</span> 표 참조
             </div>
             {% endif %}
-          {% else %}<span title="매출금액은 열람 권한자만">🔒</span>{% endif %}</dd>
+          {% else %}<span title="매출금액은 보기 권한이 있는 분만 보입니다">🔒</span>{% endif %}</dd>
           {# v5H226z195 (대표 지시): 2단계 발주 — 최종 고객 매출(참고·합계제외) + 차액 #}
           {% if p.two_tier_order %}
           <dt>최종 고객 매출<br><span style="font-size:9px;color:#94a3b8;font-weight:400;">(참고 · 합계 제외)</span></dt>

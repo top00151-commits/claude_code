@@ -38,7 +38,7 @@ tr.ap-dirty td,div.ap-dirty{box-shadow:inset 3px 0 0 #f59e0b;}
       <a class="az-btn" href="/admin/users/{{ p.id }}/edit" title="이름·사번·이메일·비밀번호">✏ 기본 정보 고치기</a>
     </div>
     <div id="apLike" class="ap-like">
-      <b>누구와 똑같이 할까요?</b> 센터 보기·등록과 담당 사업부만 그 사람과 같게 맞춥니다(역할·관리자 권한은 복사하지 않음). 맞춘 뒤 아래 <b>저장</b>을 눌러야 바뀝니다.<br>
+      <b>누구와 똑같이 할까요?</b> 센터 보기·수정 칸과 담당 사업부만 그 사람과 같게 맞춥니다(역할·관리자 권한은 복사하지 않음). 맞춘 뒤 아래 <b>저장</b>을 눌러야 바뀝니다.<br>
       <input class="az-in" id="apLikeIn" list="apStaff" placeholder="이름 또는 사번" style="width:260px;margin-top:6px">
       <datalist id="apStaff">{% for s in staff %}<option value="{{ s.name }} · {{ s.employee_no or '' }} · {{ s.team_name or '' }}" data-id="{{ s.id }}"></option>{% endfor %}</datalist>
       <button class="az-btn pri" type="button" onclick="apLikeGo()">이 사람처럼 맞추기</button>
@@ -57,12 +57,12 @@ tr.ap-dirty td,div.ap-dirty{box-shadow:inset 3px 0 0 #f59e0b;}
             <label class="az-sw"><input type="checkbox" data-k="{{ f }}" {{ 'checked' if (cur[f] or lk) }} {{ 'disabled' if (lk or read_only) }}><span></span></label></div>
           {%- endmacro %}
           {{ sw('can_view_sales', '보기') }}
-          {{ sw('can_use_sales', '등록·수정', '견적·수주·프로젝트 등록') }}
+          {{ sw('can_use_sales', '보기·수정', '견적·수주·프로젝트 등록') }}
           <div class="az-row ap-biz" data-row="biz_divs"><span>담당 사업부 <span class="ap-why">· 제작요청 알림을 받는 사업부(없으면 전 사업부)</span></span>
             <span>{% for k, v in bizs %}<label><input type="checkbox" data-biz="{{ k }}" {{ 'checked' if k in cur.biz_divs.split(',') }} {{ 'disabled' if read_only }}>{{ v }}</label>{% endfor %}</span></div>
           <div class="az-h">📦 자재구매센터</div>
           {{ sw('can_view_logistics', '보기') }}
-          {{ sw('can_use_logistics', '등록·수정', '발주·구매 서류 만들기 포함') }}
+          {{ sw('can_use_logistics', '보기·수정', '발주·구매 서류 만들기 포함') }}
           <div class="az-h">🔐 민감 정보 보기 <span class="ap-why" style="font-weight:400">— 부서마다 정합니다 · <a href="/admin/field-access">부서별로 정하기 →</a></span></div>
           {% for s in pv.sens %}
           <div class="az-row"><span>{{ s.label }} <span class="ap-why">· {{ s.why }}</span></span>
@@ -108,7 +108,7 @@ tr.ap-dirty td,div.ap-dirty{box-shadow:inset 3px 0 0 #f59e0b;}
 (function () {
   var OLD = {{ cur|tojson }};
   var LOCK = {{ pv.locked|tojson }};
-  var LBL = {can_view_sales:'매출 보기', can_use_sales:'매출 등록·수정', can_view_logistics:'자재 보기', can_use_logistics:'자재 등록·수정',
+  var LBL = {can_view_sales:'매출 보기', can_use_sales:'매출 보기·수정', can_view_logistics:'자재 보기', can_use_logistics:'자재 보기·수정',
              biz_divs:'담당 사업부', role:'역할', team_id:'부서', is_active:'재직'};
   function q(s) { return document.querySelector(s); }
   function cur() {

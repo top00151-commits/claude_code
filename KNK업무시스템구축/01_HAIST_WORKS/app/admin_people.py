@@ -27,8 +27,8 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 # 넘기기·복사할 수 있는 칸(관리자 권한·역할은 제외 — 대표만)
-FLAGS = (("can_view_sales", "매출영업센터 보기"), ("can_use_sales", "매출영업센터 등록·수정"),
-         ("can_view_logistics", "자재구매센터 보기"), ("can_use_logistics", "자재구매센터 등록·수정"))
+FLAGS = (("can_view_sales", "매출영업센터 보기"), ("can_use_sales", "매출영업센터 보기·수정"),
+         ("can_view_logistics", "자재구매센터 보기"), ("can_use_logistics", "자재구매센터 보기·수정"))
 BIZ = (("T", "검사기"), ("M", "자동화"), ("L", "라이프밸류"), ("E", "기타"))
 ITEM_LABEL = dict(FLAGS)
 ITEM_LABEL.update({"biz:" + k: "담당 사업부 · " + v for k, v in BIZ})
@@ -283,8 +283,8 @@ def register_admin_people(app, d):
             r["role_lbl"] = ROLE_LABEL.get(r.get("role") or "member", r.get("role") or "")
             lk = locked_for_role(r.get("role"))
             on = {f for f, _ in FLAGS if r.get(f) or f in lk}
-            r["chips"] = [("매출 등록·수정" if "can_use_sales" in on else "매출 보기") if "can_view_sales" in on or "can_use_sales" in on else "",
-                          ("자재 등록·수정" if "can_use_logistics" in on else "자재 보기") if "can_view_logistics" in on or "can_use_logistics" in on else ""]
+            r["chips"] = [("매출 보기·수정" if "can_use_sales" in on else "매출 보기") if "can_view_sales" in on or "can_use_sales" in on else "",
+                          ("자재 보기·수정" if "can_use_logistics" in on else "자재 보기") if "can_view_logistics" in on or "can_use_logistics" in on else ""]
             r["chips"] = [x for x in r["chips"] if x]
             r["role_fixed"] = bool(lk)
             r["biz_lbl"] = "·".join(v for k, v in BIZ if k in _biz_set(r.get("biz_divs")))

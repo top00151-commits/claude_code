@@ -130,7 +130,7 @@ r = cl.get("/admin/staff?corp=vn")
 chk("사조립" in r.text and "라영업" not in r.text, "법인 거르기 = 법인 사람만")
 r = cl.get("/admin/staff?q=T834")
 chk("라영업" in r.text and "마영업" not in r.text, "사번으로 찾기")
-chk("매출 등록·수정" in cl.get("/admin/staff?q=라영업").text, "목록에 할 수 있는 것(매출 등록·수정)")
+chk("매출 보기·수정" in cl.get("/admin/staff?q=라영업").text, "목록에 할 수 있는 것(매출 보기·수정)")   # z1191z200 (대표 11-28 권한 용어 통일 「권한 없음 / 보기 / 보기·수정」): 화면·이력 글자 「등록·편집」→「보기·수정」 · 저장값(can_use_*)은 그대로
 r = cl.get("/admin/depts")
 chk(r.status_code == 200 and "가상영업팀" in r.text and "매출금액" in r.text and "구매단가" in r.text, "부서 화면 = 부서별 민감 정보 보기 표시")
 
@@ -209,7 +209,7 @@ chk("role" not in j["vals"], "역할은 복사 대상 아님")
 print("§6 담당 교체")
 CUR["u"] = ADM
 pv = cl.post("/admin/handover/preview", json={"kind": "transfer", "from": P["id"], "to": V["id"], "items": ["can_use_logistics"], "remove": True}).json()
-chk(pv["ok"] and pv["added"] == ["자재구매센터 보기", "자재구매센터 등록·수정"] and set(pv["removed"]) == {"자재구매센터 등록·수정"},
+chk(pv["ok"] and pv["added"] == ["자재구매센터 보기", "자재구매센터 보기·수정"] and set(pv["removed"]) == {"자재구매센터 보기·수정"},
     "미리보기: 받는 사람 + 보기·등록 · 보낸 사람 − 등록 · 실제 %s" % pv)
 pv = cl.post("/admin/handover/preview", json={"kind": "transfer", "from": P["id"], "to": V["id"], "items": ["can_use_sales"]}).json()
 chk(not pv["ok"] and "없는 것" in pv["msg"], "보낸 사람에게 없는 것은 못 넘김")

@@ -88,7 +88,7 @@
     var f = q('#ahFrom').value, box = q('#ahItems');
     if (!f) { box.innerHTML = '<span class="none">보내는 사람을 먼저 골라 주세요</span>'; return; }
     var have = STAFF[f] || [];
-    if (!have.length) { box.innerHTML = '<span class="none">이 사람은 넘길 권한이 없습니다(센터 보기·등록 · 담당 사업부 모두 꺼짐)</span>'; return; }
+    if (!have.length) { box.innerHTML = '<span class="none">이 사람은 넘길 권한이 없습니다(센터 보기·수정 칸 · 담당 사업부 모두 꺼짐)</span>'; return; }
     box.innerHTML = ALL.filter(function (k) { return have.indexOf(k) >= 0; }).map(function (k) {
       return '<label><input type="checkbox" value="' + k + '" checked> ' + LBL[k] + '</label>'; }).join('');
     box.querySelectorAll('input').forEach(function (el) { el.addEventListener('change', reset); });

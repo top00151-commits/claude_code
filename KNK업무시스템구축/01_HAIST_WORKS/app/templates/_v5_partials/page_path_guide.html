@@ -34,7 +34,7 @@
     var tgtLine = target ? ("\n(대상: " + target + (extra ? (" " + extra) : "") + ")") : "";
     var txt = "[WORKS 찾아가는 길]\n"
             + "① 상단 '" + center + "' → ② 왼쪽 메뉴 '" + menu + "' → ③ " + hint + " → ④ 나온 항목 클릭\n"
-            + "※ 열람 권한이 있어야 보입니다." + tgtLine;
+            + "※ 보기 권한이 있어야 보입니다." + tgtLine;
     var orig = btn.textContent;
     function ok(){ btn.textContent = '✓ 복사됨 — 메신저에 붙여넣기'; setTimeout(function(){ btn.textContent = orig; }, 1800); }
     function fb(){ try { var ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); ok(); } catch(e){ window.prompt('아래 내용을 복사해 직원에게 보내세요:', txt); } }

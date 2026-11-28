@@ -238,7 +238,7 @@
 
         {# 이동 버튼 — 제작요청서(사진2)와 동일: 작업일정표 · 전사일정표. 편집은 소모품 상세. #}
         <div class="prq-footer">
-          {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ co.id }}" title="작업일정표에서 이 소모품 위치로 이동">📅 작업일정표 바로가기</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 열람 권한자만 열 수 있습니다 — 아래 '전사일정표 바로가기'를 이용하세요" aria-disabled="true">📅 작업일정표 바로가기</span>{% endif %}
+          {% if can_sales_amt %}<a class="btn btn-secondary" href="/sales/schedule?focus_ref={{ co.id }}" title="작업일정표에서 이 소모품 위치로 이동">📅 작업일정표 바로가기</a>{% else %}<span class="btn btn-secondary" style="opacity:.45;cursor:not-allowed;" title="작업일정표는 매출 보기 권한이 있는 분만 열 수 있습니다 — 아래 '전사일정표 바로가기'를 이용하세요" aria-disabled="true">📅 작업일정표 바로가기</span>{% endif %}
           <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표 바로가기</a>
           <div class="prq-actions">
             {# z895(대표 지시): 소모품 상세(편집)는 영업·물류 권한자만 활성 — 일반 직원은 비활성(회색) #}

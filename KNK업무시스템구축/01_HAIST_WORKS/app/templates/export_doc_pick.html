@@ -73,7 +73,7 @@ tr.dom td { color:#94a3b8; background:#fafafa; }
           <td><span class="so">{{ o.order_no or ('SO' ~ o.id) }}</span><div class="gray">{{ p.mgmt_code|default('') }}</div></td>
           <td>{% if o.customer_id %}<b>{{ o.cust or o.buyer }}</b>{% if o.buyer and o.buyer != o.cust %}<div class="gray">{{ o.buyer }}</div>{% endif %}{% else %}<span style="color:#b45309;font-weight:700;">⚠ 1차 고객 미정 — 수주 칸 확인 필요</span>{% endif %}</td>
           <td><b>{{ o.currency }}</b></td>
-          <td class="num">{% if can_money %}{{ money(o.total_amount, o.currency) }}{% else %}<span class="gray" title="매출 금액 열람 권한이 있는 분만 보입니다">—</span>{% endif %}</td>
+          <td class="num">{% if can_money %}{{ money(o.total_amount, o.currency) }}{% else %}<span class="gray" title="매출 금액 보기 권한이 있는 분만 보입니다">—</span>{% endif %}</td>
           <td class="num">{{ o.n_items }}</td>
           <td>{{ o.order_date or '—' }}</td>
           <td>{{ o.due_date or '—' }}</td>

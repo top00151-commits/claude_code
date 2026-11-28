@@ -108,9 +108,9 @@
       <label style="font-size:13px;color:var(--ink);font-weight:800;">🔑 센터 진입 권한 <span style="font-weight:500;color:var(--mute);">(체크 시 해당 센터 사용 가능)</span></label>
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px 24px;margin-top:10px;">
         <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_view_sales" {% if target_user and target_user.can_view_sales %}checked{% endif %}> 📈 매출·영업 <b>보기</b></label>
-        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_use_sales" {% if target_user and target_user.can_use_sales %}checked{% endif %}> 📈 매출·영업 <b>등록·편집</b></label>
+        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_use_sales" {% if target_user and target_user.can_use_sales %}checked{% endif %}> 📈 매출·영업 <b>보기·수정</b></label>
         <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_view_logistics" {% if target_user and target_user.can_view_logistics %}checked{% endif %}> 📦 자재·구매 <b>보기</b></label>
-        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_use_logistics" {% if target_user and target_user.can_use_logistics %}checked{% endif %}> 📦 자재·구매 <b>등록·편집</b></label>
+        <label style="font-size:13px;display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" name="can_use_logistics" {% if target_user and target_user.can_use_logistics %}checked{% endif %}> 📦 자재·구매 <b>보기·수정</b></label>
       </div>
       <div style="font-size:11.5px;color:var(--mute);margin-top:8px;line-height:1.6;">
         ※ <b>대표·임원</b>은 역할상 항상 열립니다(여기 체크와 무관). <b>관리자</b>도 여기 체크한 대로만 열립니다(2026-10-21 대표 지시).<br>

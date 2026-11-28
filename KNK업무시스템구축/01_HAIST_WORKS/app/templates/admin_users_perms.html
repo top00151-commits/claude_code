@@ -62,7 +62,7 @@
     <div class="pg-help">
       칸을 눌러 켜고 끈 뒤 오른쪽 위 <b>💾 저장</b>을 누르세요. 바뀐 칸은 노랗게 보이고, 저장하면 사람마다 <b>변경 이력</b>에 남습니다.<br>
       칸 위 <b>모두</b> = 지금 보이는 사람 전부 켜기·끄기(법인·부서·검색으로 먼저 거르세요) ·
-      <b>등록·편집</b>을 켜면 <b>보기</b>도 켜집니다 · 대표·임원의 센터 칸은 역할상 항상 열립니다(🔒) · <b>관리자</b>도 체크한 대로만 열립니다 · 담당 사업부를 모두 비우면 <b>공통</b>(전 사업부 통보).
+      <b>보기·수정</b>을 켜면 <b>보기</b>도 켜집니다 · 대표·임원의 센터 칸은 역할상 항상 열립니다(🔒) · <b>관리자</b>도 체크한 대로만 열립니다 · 담당 사업부를 모두 비우면 <b>공통</b>(전 사업부 통보).
     </div>
     <div class="ucf-tabs" role="tablist" aria-label="법인 책갈피">
       <button type="button" class="ucf-tab" role="tab" data-corp="본사">본사<span class="n"></span></button>
@@ -94,7 +94,7 @@
           </tr>
           <tr class="c">
             {% for k, lbl in bizs %}<th>{{ lbl }}<label class="all" title="보이는 사람 모두 켜기·끄기"><input type="checkbox" class="pall" data-f="biz" data-v="{{ k }}">모두</label></th>{% endfor %}
-            {% for f, lbl in flags %}<th>{{ '보기' if f.startswith('can_view') else '등록·편집' }}<label class="all" title="보이는 사람 모두 켜기·끄기"><input type="checkbox" class="pall" data-f="{{ f }}">모두</label></th>{% endfor %}
+            {% for f, lbl in flags %}<th>{{ '보기' if f.startswith('can_view') else '보기·수정' }}<label class="all" title="보이는 사람 모두 켜기·끄기"><input type="checkbox" class="pall" data-f="{{ f }}">모두</label></th>{% endfor %}
           </tr>
         </thead>
         <tbody>
@@ -128,7 +128,7 @@
   var grid=document.getElementById('pgGrid'); if(!grid) return;
   var rows=Array.prototype.slice.call(grid.querySelectorAll('tbody tr.prow'));
   var FLAGS=['can_view_sales','can_use_sales','can_view_logistics','can_use_logistics'];
-  var LBL={biz_divs:'담당 사업부',can_view_sales:'매출·영업 보기',can_use_sales:'매출·영업 등록·편집',can_view_logistics:'자재·구매 보기',can_use_logistics:'자재·구매 등록·편집'};
+  var LBL={biz_divs:'담당 사업부',can_view_sales:'매출·영업 보기',can_use_sales:'매출·영업 보기·수정',can_view_logistics:'자재·구매 보기',can_use_logistics:'자재·구매 보기·수정'};
   var BIZ=[['T','검사기'],['M','자동화'],['L','라이프밸류'],['E','기타']];
   var IMPLY={can_use_sales:'can_view_sales',can_use_logistics:'can_view_logistics'};   /* 등록·편집 켜면 보기도 */
   var DROP={can_view_sales:'can_use_sales',can_view_logistics:'can_use_logistics'};    /* 보기 끄면 등록·편집도 */

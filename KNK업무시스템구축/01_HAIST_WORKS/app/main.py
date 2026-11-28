@@ -17877,8 +17877,8 @@ async def admin_users_bulk_delete(req: Request):
 #     대표·임원 = 센터 4칸 역할상 항상 열림(잠금 · z1191g 부터 관리자는 체크대로) · 팀장 = 보기 2칸 잠금 · 등록·편집 → 보기 자동.
 #   · 화면을 연 뒤 다른 곳에서 바뀐 칸은 덮어쓰지 않는다(보낸 옛 값 ≠ 지금 값 → 건너뛰고 알림).
 #   · 바뀐 칸은 사람마다 user_history 에 「일괄 설정」으로 남긴다(사람 수정 화면도 같은 기록 — 전에는 안 남았다).
-_Z1191F_FLAGS = (("can_view_sales", "매출·영업 보기"), ("can_use_sales", "매출·영업 등록·편집"),
-                 ("can_view_logistics", "자재·구매 보기"), ("can_use_logistics", "자재·구매 등록·편집"))
+_Z1191F_FLAGS = (("can_view_sales", "매출·영업 보기"), ("can_use_sales", "매출·영업 보기·수정"),
+                 ("can_view_logistics", "자재·구매 보기"), ("can_use_logistics", "자재·구매 보기·수정"))
 _Z1191F_BIZ = (("T", "검사기"), ("M", "자동화"), ("L", "라이프밸류"), ("E", "기타"))
 _Z1191F_ROLE_LBL = {"ceo": "대표", "executive": "임원", "admin": "관리자", "leader": "팀장"}
 _Z1191F_COLS = ("COALESCE(biz_divs,'') AS biz_divs, COALESCE(can_view_sales,0) AS can_view_sales, "
