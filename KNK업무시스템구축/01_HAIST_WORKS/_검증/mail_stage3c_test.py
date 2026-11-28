@@ -434,10 +434,12 @@ check("인쇄 때 메뉴·도구 줄·인쇄 단추 숨김 · A4", "@media print
 check("구역은 쪽 사이에서 안 잘림", "page-break-inside:avoid" in h)
 check("화면용 감싸개에 폭 상한·가운데 정렬 없음", not re.search(r"\.hp(-doc)?\{[^}]*(max-width|margin:\s*0 auto)", h))
 check("맡기기 구역은 시험 명단이 아니면 안 실림", 'id="sec-dlg"' not in h and 'id="sec-write"' in h)
-check("설명서에 베트남어 없음", not VI_CH.search(h) and "lang=vi" not in h, VI_CH.findall(h)[:5])
+# 11-28 앱 모드 머리에 공용 달력(knk_datepicker)이 들어와 베트남 휴일 이름(자료 · <script> 안)이 실림 → 화면 글만 봄
+_txt = lambda x: re.sub(r"(?is)<script\b.*?</script>", "", x)
+check("설명서에 베트남어 없음(화면 글)", not VI_CH.search(_txt(h)) and "lang=vi" not in _txt(h), VI_CH.findall(_txt(h))[:5])
 as_("vn")
 hv = km.get("/mail/help").text
-check("사용자 말이 vi 여도 한국어만(베트남어 보류)", "HAIST WORKS 메일 설명서" in hv and not VI_CH.search(hv))
+check("사용자 말이 vi 여도 한국어만(베트남어 보류)", "HAIST WORKS 메일 설명서" in hv and not VI_CH.search(_txt(hv)))
 as_("ceo")
 check("시험 명단(대표)에겐 맡기기 구역 실림", 'id="sec-dlg"' in km.get("/mail/help").text)
 check("WORKS 주소로 열어도 200", k.get("/mail/help").status_code == 200)
