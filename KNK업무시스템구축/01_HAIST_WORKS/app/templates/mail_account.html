@@ -3,12 +3,12 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .ac-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 14px}
+  .ac-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:18px;margin:0 var(--content-pad,32px) 14px}
   .ac-fld input,.ac-fld select{max-width:640px}  /* 입력 칸만 알맞은 길이(표준 §1-4) */
   .ac-box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0 14px;font-size:13px;line-height:1.85}
-  .ac-ok{border-color:#6ee7b7;background:#ecfdf5}
-  .ac-no{border-color:#fcd34d;background:#fffbeb}
-  .ac-stop{border-color:#fca5a5;background:#fef2f2}
+  .ac-ok{border-color:var(--knk-mail-c-teal-33);background:var(--knk-mail-c-teal-04)}
+  .ac-no{border-color:var(--knk-mail-c-amber-35);background:var(--knk-mail-c-yellow-04)}
+  .ac-stop{border-color:var(--knk-mail-c-red-18);background:var(--knk-mail-c-red-03)}
   .ac-fld{margin-bottom:12px}
   .ac-fld label{display:block;font-size:12.5px;color:var(--mute);margin-bottom:4px}
   .ac-fld input{width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line);
@@ -16,38 +16,38 @@
   .ac-actions{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap;
               border-top:1px solid var(--line);padding-top:14px}
   .ac-step{display:flex;gap:10px;margin:10px 0}
-  .ac-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--knk-red);color:#fff;
+  .ac-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--knk-red);color:var(--knk-mail-c-white);
           font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
   .ac-step>div:last-child{font-size:13px;line-height:1.7;min-width:0}
   .ac-note{font-size:12px;color:var(--mute);line-height:1.75}
   /* 11-23 대표 「첫 연결 — 하이웍스 어디서 무엇을 고르는지 · 지난 메일 선택 · 확인하고 넘어가게」 */
   .ac-h2{margin:0 0 8px;font-size:15px}
   .ac-path{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12.5px}
-  .ac-path b{background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-weight:700}
-  .ac-opt{border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin:6px 0;font-size:12.5px;line-height:1.7;background:var(--mt-panel,#fafbfc)}
+  .ac-path b{background:var(--knk-mail-c-gray-04);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-weight:700}
+  .ac-opt{border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin:6px 0;font-size:12.5px;line-height:1.7;background:var(--mt-panel,var(--knk-mail-c-gray-02-3))}
   .ac-opt em{font-style:normal;font-weight:700}
   .ac-pick{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
   .ac-pick label{flex:1 1 280px;display:flex;gap:9px;align-items:flex-start;border:2px solid var(--line);border-radius:10px;padding:11px 13px;cursor:pointer;font-size:13px;line-height:1.65}
-  .ac-pick label:has(input:checked){border-color:var(--knk-red);background:#fff5f5}
+  .ac-pick label:has(input:checked){border-color:var(--knk-red);background:var(--knk-mail-c-red-02)}
   .ac-pick input{margin-top:4px;flex:none}
   .ac-pick b{font-size:14px}
   .ac-agree{display:flex;gap:9px;align-items:flex-start;margin:12px 0 4px;font-size:13.5px;font-weight:700;cursor:pointer}
   .ac-agree input{width:18px;height:18px;margin-top:2px;flex:none}
   .btn[disabled]{opacity:.45;cursor:not-allowed}
-  html[data-mt="dark"] .ac-path b{background:#1e293b}
-  html[data-mt="dark"] .ac-pick label:has(input:checked){background:#3f1d1d}
+  html[data-mt="dark"] .ac-path b{background:var(--knk-mail-c-blue-83)}
+  html[data-mt="dark"] .ac-pick label:has(input:checked){background:var(--knk-mail-c-red-82)}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 내 메일 계정</div>
-    <h1 class="page-title">📮 내 <em>회사 주소 연결</em></h1>
+    <h1 class="page-title">{{ mi('mailbox') }} 내 <em>회사 주소 연결</em></h1>
   </div>{% include "_v5_partials/mail_exit.html" %}</div>
 
   {% if not mail_key %}
   <div class="ac-card" style="border-color:var(--amber);">
-    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">⚠ 서버에 메일 암호화 키(<code>KNK_MAIL_KEY</code>)가 없어
+    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">{{ mi('triangle-alert') }} 서버에 메일 암호화 키(<code>KNK_MAIL_KEY</code>)가 없어
       비밀번호를 안전하게 저장할 수 없습니다. 전산담당자에게 요청하세요.</div>
   </div>
   {% endif %}
@@ -64,7 +64,7 @@
     <div class="ac-step ac-must"><div class="ac-num">3</div><div><b>수신 대상</b> = 🔴 <b>꼭 「전체 메일」을 고르세요.</b>
       <div class="ac-opt">✅ <em>전체 메일</em> — 하이웍스에 있는 메일을 <b>옛날 것까지 모두</b> 가져옵니다. 보낸 사람·받은 날짜가 원본 그대로 정확히 들어옵니다.
         메일이 많으면 다 들어오기까지 몇 시간~하루 걸립니다. 하이웍스가 <b>일주일 뒤 저절로 「최근 6개월 메일」로 되돌리니</b> 따로 바꾸지 않으셔도 됩니다.</div>
-      <div class="ac-opt">❌ <em>최근 6개월 메일</em>(하이웍스 처음 값) — 고르지 마세요. 6개월보다 옛 메일은 KNK 메일로 들어오지 않습니다.</div>
+      <div class="ac-opt">{{ mi('x') }}<em>최근 6개월 메일</em>(하이웍스 처음 값) — 고르지 마세요. 6개월보다 옛 메일은 KNK 메일로 들어오지 않습니다.</div>
       <div class="ac-note">하이웍스 화면 문구 「'전체 메일'은 이미 받아간 메일을 다시 받아야 할 경우에만 사용」은 신경 쓰지 않으셔도 됩니다 — KNK 메일은 같은 메일을 두 번 넣지 않습니다.</div></div></div>
     <div class="ac-step"><div class="ac-num">4</div><div><b>허용 국가</b>는 그대로 두셔도 됩니다(KNK 메일 서버는 한국에 있습니다).</div></div>
     <div class="ac-step"><div class="ac-num">5</div><div><b>읽음 표시</b>
@@ -78,7 +78,7 @@
   <div class="ac-card">
     <h2 class="ac-h2">② 지난 메일을 어떻게 할까요?</h2>
     <div class="ac-pick" role="radiogroup" aria-label="지난 메일">
-      <label><input type="radio" name="acChoice" value="old" onchange="acGate()"><span><b>📥 지난 메일도 가져오기</b><br>
+      <label><input type="radio" name="acChoice" value="old" onchange="acGate()"><span><b>{{ mi('inbox') }} 지난 메일도 가져오기</b><br>
         하이웍스 「수신 대상 = 전체 메일」(위 ①-3)이면 <b>옛날 메일까지 모두</b>, <b>최근 것부터 차례로</b> 가져옵니다.
         메일이 많으면 다 들어오기까지 <b>몇 시간</b> 걸릴 수 있습니다(그동안 새 메일도 같이 들어옴).</span></label>
       <label><input type="radio" name="acChoice" value="new" onchange="acGate()"><span><b>🆕 지금부터 오는 새 메일만</b><br>
@@ -91,7 +91,7 @@
   {% else %}
   <div class="ac-card">
     <div class="ac-box ac-ok">
-      📥 <b>받기가 켜져 있습니다</b> — 하이웍스에 온 메일이 몇 분마다 저절로 들어옵니다(바로 받기 = 메일 화면 위 「🔃 보내기/받기」 · <kbd>F9</kbd>).<br>
+      {{ mi('inbox') }}<b>받기가 켜져 있습니다</b> — 하이웍스에 온 메일이 몇 분마다 저절로 들어옵니다(바로 받기 = 메일 화면 위 「{{ mi('arrow-down-up') }} 보내기/받기」 · <kbd>F9</kbd>).<br>
       {% if import_on %}⏳ <b>지난 메일을 가져오는 중</b>입니다 — 최근 것부터 차례로 들어옵니다.<br>{% endif %}
       {% if last_run %}· 마지막으로 받은 때 = {{ last_run }}{% if last_status %} · {{ last_status }}{% endif %}{% endif %}
     </div>
@@ -100,7 +100,7 @@
 
   <div class="ac-card">
     <h2 class="ac-h2">{% if first %}③ {% endif %}내 회사 메일 계정</h2>
-    <div class="ac-note">🔒 비밀번호는 <b>암호화해서 보관</b>하며, 화면·기록 어디에도 다시 나타나지 않습니다.</div>
+    <div class="ac-note">{{ mi('lock') }} 비밀번호는 <b>암호화해서 보관</b>하며, 화면·기록 어디에도 다시 나타나지 않습니다.</div>
 
     <div class="ac-box {% if st.ok %}ac-ok{% else %}ac-no{% endif %}">
       {% if st.ok and allowed %}
@@ -108,13 +108,13 @@
         · 보내는 주소 = <b>{{ st.addr }}</b><br>
         · 보내기 서버 = <code>{{ st.host }}</code> : <code>{{ st.port }}</code>
       {% elif st.ok and not allowed %}
-        🔗 <b>계정은 연결됐습니다.</b> 다만 아직 <b>내 주소로 보내기 대상</b>이 아닙니다 —
+        {{ mi('link') }}<b>계정은 연결됐습니다.</b> 다만 아직 <b>내 주소로 보내기 대상</b>이 아닙니다 —
         지금 보내면 <b>{{ my_from }}</b> 으로 나갑니다.<br>
         · 연결된 주소 = <b>{{ st.addr }}</b>
       {% elif first and not has_pass %}
-        ⚠ <b>아직 연결 전입니다.</b> 아래에 내 회사 메일주소와 ① 6번에서 만든 메일 전용 비밀번호를 넣고 「연결하고 받기 시작」을 누르세요.
+        {{ mi('triangle-alert') }}<b>아직 연결 전입니다.</b> 아래에 내 회사 메일주소와 ① 6번에서 만든 메일 전용 비밀번호를 넣고 「연결하고 받기 시작」을 누르세요.
       {% else %}
-        ⚠ <b>아직 연결 전입니다.</b> {{ st.why }}
+        {{ mi('triangle-alert') }}<b>아직 연결 전입니다.</b> {{ st.why }}
       {% endif %}
     </div>
 
@@ -132,14 +132,14 @@
     {% endif %}
 
     <div class="ac-actions">
-      <button type="button" class="btn btn-primary" id="acSaveBtn" onclick="acSave()"{% if first %} disabled{% endif %}>{% if first %}🔗 연결하고 받기 시작{% else %}💾 저장{% endif %}</button>
-      <button type="button" class="btn btn-secondary" onclick="acTest()">🔌 보내기 연결 시험</button>
+      <button type="button" class="btn btn-primary" id="acSaveBtn" onclick="acSave()"{% if first %} disabled{% endif %}>{% if first %}{{ mi('link') }} 연결하고 받기 시작{% else %}{{ mi('save') }} 저장{% endif %}</button>
+      <button type="button" class="btn btn-secondary" onclick="acTest()">{{ mi('plug') }} 보내기 연결 시험</button>
       <a href="/mail/inbox" class="btn btn-secondary">받은편지함으로</a>
       {% if has_pass %}<button type="button" class="btn btn-secondary" onclick="acUnlink()">연결 풀기</button>{% endif %}
       <span id="acMsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     {% if first %}<div class="ac-note" id="acWhy" style="margin-top:8px;">「연결하고 받기 시작」은 ②에서 하나를 고르고 「확인했습니다」에 표시하면 눌립니다.</div>{% endif %}
-    <div class="ac-note" style="margin-top:8px;">🔌 <b>보내기 연결 시험</b>은 로그인만 해 보고 끊습니다 — <b>메일을 보내지 않습니다.</b>
+    <div class="ac-note" style="margin-top:8px;">{{ mi('plug') }}<b>보내기 연결 시험</b>은 로그인만 해 보고 끊습니다 — <b>메일을 보내지 않습니다.</b>
       {% if fetch_on %}<br>🔴 <b>연결 풀기</b>를 누르면 <b>보내기뿐 아니라 받아오기도 멈춥니다.</b>{% endif %}</div>
     <div class="ac-note" style="margin-top:4px;">막히는 화면이 나오면 캡처해서 빅터에게 보내 주세요. 단계별로 안내합니다.</div>
   </div>
@@ -169,13 +169,13 @@
   window.acSave = async function(){
     var addr = (document.getElementById('acAddr').value || '').trim();
     var pw = document.getElementById('acPw').value || '';
-    if(!addr){ say('⚠ 메일주소를 넣으세요', '#b91c1c'); return; }
+    if(!addr){ say('⚠ 메일주소를 넣으세요', 'var(--knk-mail-c-red-58)'); return; }
     var fd = new FormData();
     fd.append('address', addr);
     fd.append('password', pw);
     if(FIRST){
       var ch = choice(), ag = document.getElementById('acAgree').checked;
-      if(!ch || !ag){ say('⚠ ②에서 고르고 「확인했습니다」에 표시해 주세요', '#b91c1c'); return; }
+      if(!ch || !ag){ say('⚠ ②에서 고르고 「확인했습니다」에 표시해 주세요', 'var(--knk-mail-c-red-58)'); return; }
       if(ch==='old' && !confirm('지난 메일을 최근 것부터 차례로 가져옵니다.\n메일이 많으면 다 들어오기까지 몇 시간 걸릴 수 있습니다.\n\n시작할까요?')) return;
       fd.append('choice', ch); fd.append('agree', '1');
     }
@@ -184,10 +184,10 @@
     var j = await post('/mail/account', fd);
     if(j.ok){
       document.getElementById('acPw').value = '';   // 화면에 남기지 않음
-      say('✅ ' + (j.message || '연결했습니다.'), '#047857');
+      say('✅ ' + (j.message || '연결했습니다.'), 'var(--knk-mail-c-teal-76)');
       setTimeout(function(){ location.href = FIRST ? '/mail/inbox' : location.href; }, FIRST ? 2200 : 900);
     } else {
-      say('⚠ ' + (j.message || '저장 실패'), '#b91c1c');
+      say('⚠ ' + (j.message || '저장 실패'), 'var(--knk-mail-c-red-58)');
       if(FIRST) acGate(); else b.disabled=false;
     }
   };
@@ -195,15 +195,15 @@
   window.acTest = async function(){
     say('연결 확인 중… (메일은 보내지 않습니다)');
     var j = await post('/mail/account/test', new FormData());
-    say((j.ok ? '✅ ' : '⚠ ') + (j.message || ''), j.ok ? '#047857' : '#b91c1c');
+    say((j.ok ? '✅ ' : '⚠ ') + (j.message || ''), j.ok ? 'var(--knk-mail-c-teal-76)' : 'var(--knk-mail-c-red-58)');
   };
 
   window.acUnlink = async function(){
     if(!confirm('연결을 풉니다.\n이 계정으로 더 이상 메일을 보내거나 받을 수 없게 됩니다.\n(이미 받은 메일은 그대로 남습니다)\n\n계속할까요?')) return;
     say('푸는 중…');
     var j = await post('/mail/account/unlink', new FormData());
-    if(j.ok){ say('✅ ' + (j.message||''), '#047857'); setTimeout(function(){ location.reload(); }, 900); }
-    else { say('⚠ ' + (j.message||'실패'), '#b91c1c'); }
+    if(j.ok){ say('✅ ' + (j.message||''), 'var(--knk-mail-c-teal-76)'); setTimeout(function(){ location.reload(); }, 900); }
+    else { say('⚠ ' + (j.message||'실패'), 'var(--knk-mail-c-red-58)'); }
   };
 })();
 </script>

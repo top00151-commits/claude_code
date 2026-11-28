@@ -6,54 +6,54 @@
   /* 「일반」 정리(대표 지시 2026-11-17 「일반에 남은 메일 정리해줘」) — 보낸 곳별로 묶어 한 번에 폴더로 */
   .gn-wrap{padding:0 var(--content-pad,32px) 32px;box-sizing:border-box}  /* 11-19 풀폭(모니터 비율 자동) */
   .gn-wrap .page-head{padding-left:0;padding-right:0}
-  .gn-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:12px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
+  .gn-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:12px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
   .gn-help b{color:var(--ink)}
   .gn-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
   .gn-q{flex:1;min-width:160px;max-width:300px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
-  .gn-list{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);overflow:hidden}
+  .gn-list{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));overflow:hidden}
   .gn-row{display:grid;grid-template-columns:28px minmax(190px,1.3fr) 70px minmax(180px,1.6fr) minmax(210px,auto);gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
   .gn-row:last-child{border-bottom:0}
-  .gn-row.head{background:var(--mt-panel,#f8fafc);font-size:12px;color:var(--mute);font-weight:700}
-  .gn-row.done{background:#f0fdf4}
-  .gn-row.sug{background:#fffbeb}
+  .gn-row.head{background:var(--mt-panel,var(--knk-mail-c-gray-02));font-size:12px;color:var(--mute);font-weight:700}
+  .gn-row.done{background:var(--knk-mail-c-green-03)}
+  .gn-row.sug{background:var(--knk-mail-c-yellow-04)}
   .gn-row input[type=checkbox]{width:17px;height:17px;cursor:pointer}
   /* 11-22 「＋ 새 폴더로」 · 알림·광고 */
   .gn-new{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
   .gn-new[hidden]{display:none}
-  .gn-new input{border:1px solid var(--mt-line,#cbd5e1);border-radius:7px;padding:4px 8px;font-size:12.5px;font-family:inherit;width:150px;min-width:0}
-  .gn-new select{font-size:12.5px;padding:4px 6px;border:1px solid var(--mt-line,#cbd5e1);border-radius:7px;max-width:170px}
-  .gn-newbtn{background:none;border:0;color:#1d4ed8;font-size:12.5px;cursor:pointer;padding:2px 0;font-family:inherit}
-  .gn-robot{display:inline-block;font-size:11px;font-weight:700;color:#7c2d12;background:#ffedd5;border-radius:6px;padding:0 5px;margin-left:4px}
-  .gn-rb{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+  .gn-new input{border:1px solid var(--mt-line,var(--knk-mail-c-gray-16));border-radius:7px;padding:4px 8px;font-size:12.5px;font-family:inherit;width:150px;min-width:0}
+  .gn-new select{font-size:12.5px;padding:4px 6px;border:1px solid var(--mt-line,var(--knk-mail-c-gray-16));border-radius:7px;max-width:170px}
+  .gn-newbtn{background:none;border:0;color:var(--knk-mail-c-blue-52);font-size:12.5px;cursor:pointer;padding:2px 0;font-family:inherit}
+  .gn-robot{display:inline-block;font-size:11px;font-weight:700;color:var(--knk-mail-c-orange-72);background:var(--knk-mail-c-amber-08);border-radius:6px;padding:0 5px;margin-left:4px}
+  .gn-rb{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid var(--knk-mail-c-orange-17);background:var(--knk-mail-c-amber-04);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
   .gn-who{min-width:0}
   .gn-key{font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gn-names{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gn-n{font-weight:700;text-align:right;white-space:nowrap}
-  .gn-n small{display:block;font-weight:600;font-size:11px;color:#2563eb}
+  .gn-n small{display:block;font-weight:600;font-size:11px;color:var(--knk-mail-c-blue-47)}
   .gn-subj{min-width:0}
   .gn-subj .s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
-  .gn-subj .h{font-size:11.5px;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gn-subj .h{font-size:11.5px;color:var(--knk-mail-c-orange-69);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gn-subj .d{font-size:11px;color:var(--mute)}
   .gn-act{display:flex;gap:6px;align-items:center;justify-content:flex-end}
-  .gn-act select{font-size:12.5px;padding:4px 6px;border:1px solid var(--mt-line,#cbd5e1);border-radius:7px;max-width:190px;background:var(--mt-surface,#fff)}
-  .gn-btn{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
-  .gn-btn:hover{background:var(--mt-hover,#f3f4f6)}
-  .gn-btn.go{background:#1d4ed8;border-color:#1d4ed8;color:#fff;font-weight:700}
-  .gn-ok{font-size:12px;color:#047857;font-weight:700;white-space:nowrap}
-  .gn-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .gn-act select{font-size:12.5px;padding:4px 6px;border:1px solid var(--mt-line,var(--knk-mail-c-gray-16));border-radius:7px;max-width:190px;background:var(--mt-surface,var(--knk-mail-c-white))}
+  .gn-btn{border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
+  .gn-btn:hover{background:var(--mt-hover,var(--knk-mail-c-gray-04-2))}
+  .gn-btn.go{background:var(--knk-mail-c-blue-52);border-color:var(--knk-mail-c-blue-52);color:var(--knk-mail-c-white);font-weight:700}
+  .gn-ok{font-size:12px;color:var(--knk-mail-c-teal-76);font-weight:700;white-space:nowrap}
+  .gn-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-03);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
   .gn-empty{padding:34px 16px;text-align:center;color:var(--mute);line-height:1.8}
   /* 11-25 knk-no-silent-change — 옮기기 전에 「언제부터 · 몇 통」 꼭 묻는 창 */
   .gna-bg{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px}
-  .gna{position:relative;background:var(--mt-surface,#fff);color:var(--ink,#111827);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.25);width:min(500px,100%);padding:18px 18px 14px;font-size:13.5px;line-height:1.6}
+  .gna{position:relative;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink,var(--knk-mail-c-gray-89));border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.25);width:min(500px,100%);padding:18px 18px 14px;font-size:13.5px;line-height:1.6}
   .gna h3{margin:0 30px 6px 0;font-size:16px;font-weight:800;overflow-wrap:anywhere}
-  .gna .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:16px;font-weight:700;color:var(--mute,#64748b);cursor:pointer}
-  .gna .sub{color:var(--mute,#64748b);font-size:12.5px;margin-bottom:10px;overflow-wrap:anywhere}
+  .gna .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:16px;font-weight:700;color:var(--mute,var(--knk-mail-c-gray-53));cursor:pointer}
+  .gna .sub{color:var(--mute,var(--knk-mail-c-gray-53));font-size:12.5px;margin-bottom:10px;overflow-wrap:anywhere}
   .gna .go{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .gna .go button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid #c7d2fe;background:#eef2ff;color:#1e3a8a;border-radius:10px;padding:10px 12px;font:inherit;cursor:pointer}
+  .gna .go button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-03);color:var(--knk-mail-c-blue-67);border-radius:10px;padding:10px 12px;font:inherit;cursor:pointer}
   .gna .go button b{font-size:14px}
-  .gna .go button span{font-size:12px;color:#475569}
+  .gna .go button span{font-size:12px;color:var(--knk-mail-c-gray-65)}
   .gna .cancel{margin-top:10px;text-align:right}
-  .gn-done{border:1px solid #86d3a8;background:#ecfdf3;color:#14532d;border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}
+  .gn-done{border:1px solid var(--knk-mail-c-green-32);background:var(--knk-mail-c-green-04);color:var(--knk-mail-c-green-80);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px}
   @media(max-width:520px){ .gna .go{grid-template-columns:1fr} }
   @media(max-width:760px){
     .gn-row{grid-template-columns:26px 1fr auto;gap:6px 8px}
@@ -68,19 +68,19 @@
 <div class="gn-wrap">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/folders">폴더</a> · 일반 정리</div>
-    <h1 class="page-title">🧹 「일반」 <em>정리</em></h1>
+    <h1 class="page-title">{{ mi('eraser') }} 「일반」 <em>정리</em></h1>
   </div><div><a href="/mail/inbox?fd=gen" class="btn btn-secondary">← 일반 메일 보기</a></div></div>
 
   <div class="gn-help">
     「일반」에 남은 메일 <b>{{ gen.n }}통</b>을 <b>보낸 곳별로 묶었습니다</b>(회사 주소 @ 뒤 · 지메일 같은 개인 메일은 그 주소 하나).
     <br>· 줄마다 폴더를 고르고 <b>옮기기</b> — 그 곳에서 온 메일이 <b>지난 것·앞으로 올 것 모두</b> 그 폴더로 갑니다(나에게만 · <a href="/mail/folders">폴더 관리</a>에서 언제든 지울 수 있음).
-    <br>· <span style="background:#fffbeb;padding:0 4px;border-radius:4px">노란 줄</span>은 서명의 회사 이름이나 제목의 [회사]로 <b>추천 폴더를 미리 골라 둔 줄</b>입니다 — 맞으면 아래 <b>「추천대로 모두 옮기기」</b> 한 번이면 됩니다.
+    <br>· <span style="background:var(--knk-mail-c-yellow-04);padding:0 4px;border-radius:4px">노란 줄</span>은 서명의 회사 이름이나 제목의 [회사]로 <b>추천 폴더를 미리 골라 둔 줄</b>입니다 — 맞으면 아래 <b>「추천대로 모두 옮기기」</b> 한 번이면 됩니다.
     <br>· 맞는 폴더가 없으면 <b>「＋ 새 폴더로」</b> — 이름(서명의 회사 이름·회사 주소로 미리 채움)을 확인하고 넣을 곳만 고르면 폴더를 만들고 그 회사 메일이 모두 그리로 갑니다. <b>위에서부터</b> 하면 적은 손으로 많이 줄어듭니다.
   </div>
   {% if robot_n|default(0) %}
   <div id="gnDone" class="gn-done" hidden></div>
   <div class="gn-rb" id="gnRobot">
-    <span>📢 <b>알림·광고</b>로 보이는 주소 <b>{{ robot_n }}곳 · {{ '{:,}'.format(robot_m) }}통</b>(noreply·newsletter 등)</span>
+    <span>{{ mi('megaphone') }}<b>알림·광고</b>로 보이는 주소 <b>{{ robot_n }}곳 · {{ '{:,}'.format(robot_m) }}통</b>(noreply·newsletter 등)</span>
     <button type="button" class="gn-btn go" onclick="gnRobots()">「{{ robot_name }}」 폴더로 한 번에</button>
     <span style="color:var(--mute);font-size:12px">주소 하나씩 옮깁니다(같은 회사의 사람 메일은 그대로) · 지난·앞으로 메일 · ↺ 되돌리기</span>
     <span id="gnRobotMsg"></span>
@@ -90,7 +90,7 @@
   {% if groups %}
   <div class="gn-bar">
     <input type="text" class="gn-q" id="gnQ" placeholder="주소·이름·제목으로 찾기" oninput="gnFilter()">
-    <span style="color:var(--mute)">보낸 곳 {{ groups|length }}곳{% set sug_n = groups|selectattr('suggest')|list|length %}{% if sug_n %} · 추천 있는 곳 <b style="color:#92400e">{{ sug_n }}</b>{% endif %}</span>
+    <span style="color:var(--mute)">보낸 곳 {{ groups|length }}곳{% set sug_n = groups|selectattr('suggest')|list|length %}{% if sug_n %} · 추천 있는 곳 <b style="color:var(--knk-mail-c-orange-69)">{{ sug_n }}</b>{% endif %}</span>
   </div>
   <div class="gn-list" id="gnList">
     <div class="gn-row head"><span><input type="checkbox" id="gnAll" onclick="gnAllTog(this)" title="보이는 줄 모두 고르기"></span><span>보낸 곳</span><span style="text-align:right">메일</span><span>최근 제목 · 단서</span><span style="text-align:right">폴더로 옮기기</span></div>
@@ -98,13 +98,13 @@
     <div class="gn-row{{ ' sug' if g.suggest else '' }}" data-sender="{{ g.sample }}" data-q="{{ (g.key ~ ' ' ~ g.names|join(' ') ~ ' ' ~ (g.subject or '') ~ ' ' ~ g.hints|join(' '))|lower }}">
       <span><input type="checkbox" class="gn-ck"></span>
       <div class="gn-who">
-        <div class="gn-key" title="{{ g.senders|join(', ') }}">{% if g.is_domain %}@{{ g.key }}{% else %}{{ g.key }}{% endif %}{% if g.robot %}<span class="gn-robot" title="알림·광고로 보이는 주소">📢 알림·광고</span>{% endif %}</div>
+        <div class="gn-key" title="{{ g.senders|join(', ') }}">{% if g.is_domain %}@{{ g.key }}{% else %}{{ g.key }}{% endif %}{% if g.robot %}<span class="gn-robot" title="알림·광고로 보이는 주소">{{ mi('megaphone') }} 알림·광고</span>{% endif %}</div>
         <div class="gn-names">{{ g.names|join(' · ') }}{% if g.senders|length > 1 %} <span title="{{ g.senders|join(', ') }}">· {{ g.senders|length }}명</span>{% endif %}</div>
       </div>
       <div class="gn-n">{{ g.n }}통{% if g.u %}<small>안읽음 {{ g.u }}</small>{% endif %}</div>
       <div class="gn-subj">
         <div class="s" title="{{ g.subject }}">{{ g.subject }}</div>
-        {% if g.hints %}<div class="h" title="{{ g.hints|join(' · ') }}">💡 {{ g.hints|join(' · ') }}</div>{% endif %}
+        {% if g.hints %}<div class="h" title="{{ g.hints|join(' · ') }}">{{ mi('lightbulb') }} {{ g.hints|join(' · ') }}</div>{% endif %}
         <div class="d">{{ g.at }} · <a href="/mail/inbox?fd=gen&q={{ g.key|urlencode }}" target="_blank" rel="noopener">메일 보기</a></div>
       </div>
       <div class="gn-act">
@@ -124,16 +124,16 @@
     {% endfor %}
   </div>
   <div class="gn-sel">
-    {% if sug_n %}<button type="button" class="gn-btn go" onclick="gnSuggested()">💡 추천대로 모두 옮기기 ({{ sug_n }}곳)</button>{% endif %}
+    {% if sug_n %}<button type="button" class="gn-btn go" onclick="gnSuggested()">{{ mi('lightbulb') }} 추천대로 모두 옮기기 ({{ sug_n }}곳)</button>{% endif %}
     <span style="margin-left:auto">고른 줄을</span>
-    <select id="gnBulk" style="font-size:13px;padding:5px 7px;border:1px solid var(--mt-line,#cbd5e1);border-radius:7px">
+    <select id="gnBulk" style="font-size:13px;padding:5px 7px;border:1px solid var(--mt-line,var(--knk-mail-c-gray-16));border-radius:7px">
       <option value="">폴더 고르기…</option>
       {% for f in choices %}<option value="{{ f.id }}">{{ '　└ ' if f.depth else '' }}{{ f.name }}</option>{% endfor %}
     </select>
     <button type="button" class="gn-btn go" onclick="gnBulk()">로 옮기기</button>
   </div>
   {% else %}
-  <div class="gn-list"><div class="gn-empty">🎉 「일반」에 남은 메일이 없습니다.</div></div>
+  <div class="gn-list"><div class="gn-empty">{{ mi('party-popper') }} 「일반」에 남은 메일이 없습니다.</div></div>
   {% endif %}
 </div>
 </main>
@@ -154,7 +154,7 @@
       bg.innerHTML='<div class="gna" role="dialog" aria-modal="true"><button type="button" class="x" title="닫기 (Esc)" aria-label="닫기">✕</button>'
         +'<h3>'+gnEsc(title)+'</h3><div class="sub">'+gnEsc(sub)+'</div>'
         +'<div style="font-weight:700;margin:4px 0 8px">언제부터 옮길까요?</div><div class="go">'
-        +'<button type="button" data-w="all"><b>📥 지난 메일도 모두</b><span>지금까지 받은 '+(count||0).toLocaleString()+'통 + 앞으로 올 메일</span></button>'
+        +'<button type="button" data-w="all"><b>'+mdI('inbox')+' 지난 메일도 모두</b><span>지금까지 받은 '+(count||0).toLocaleString()+'통 + 앞으로 올 메일</span></button>'
         +'<button type="button" data-w="new"><b>🆕 지금부터 오는 메일만</b><span>지난 메일은 지금 자리 그대로</span></button></div>'
         +'<div class="cancel"><button type="button" class="gn-btn" data-w="">취소</button></div></div>';
       document.body.appendChild(bg);

@@ -17,44 +17,44 @@
   @media(min-width:1800px){.mt-tiles{grid-template-columns:repeat(6,minmax(0,1fr))}}  /* 11-19 넓은 모니터 = 정리 칸 6개 한 줄 */
   @media(max-width:900px){.mt-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:560px){.mt-tiles{grid-template-columns:1fr;grid-auto-rows:auto}.mt-wrap{padding:0 12px 32px}.mt-sec{flex-wrap:wrap;white-space:nowrap}.mt-sec small{flex-basis:100%;white-space:normal}.mt-tile{min-height:0}}
-  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:var(--mt-surface,#fff);padding:16px 18px;min-height:168px}
-  .mt-tile .mt-tt{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--mt-text2,#374151)}
+  .mt-tile{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;background:var(--mt-surface,var(--knk-mail-c-white));padding:16px 18px;min-height:168px}
+  .mt-tile .mt-tt{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--mt-text2,var(--knk-mail-c-blue-73-2))}
   .mt-tile .mt-tt .ic{font-size:20px}
   .mt-tile .num{font-size:28px;font-weight:800;line-height:1.15;color:var(--ink);min-height:32px;display:flex;align-items:center}
   .mt-tile .num small{font-size:14px;font-weight:600;color:var(--mute);margin-left:3px}
   .mt-tile .why{font-size:12.5px;color:var(--mute);line-height:1.5;flex:1}
-  .mt-tile .go{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;background:var(--knk-red);color:#fff}
-  .mt-tile .go.sub{background:var(--mt-surface,#fff);color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .mt-tile .go{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;background:var(--knk-red);color:var(--knk-mail-c-white)}
+  .mt-tile .go.sub{background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink);border:1px solid var(--line);font-weight:600}
   .mt-tile .go[disabled]{opacity:.45;cursor:default}
-  .mt-tile.clean{background:#f6fbf7;border-color:#cfe8d6}
-  .mt-tile.clean .num{color:#15803d;font-size:19px}
-  .mt-tile.warn{border-color:#fecaca;background:#fffafa}
+  .mt-tile.clean{background:var(--knk-mail-c-gray-03-3);border-color:var(--knk-mail-c-green-14)}
+  .mt-tile.clean .num{color:var(--knk-mail-c-green-71);font-size:19px}
+  .mt-tile.warn{border-color:var(--knk-mail-c-red-11);background:var(--knk-mail-c-gray-01-3)}
   .mt-tile select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;margin:0 2px}
   /* ② 설정 — 줄 */
-  .mt-list{border:1px solid var(--line);border-radius:14px;background:var(--mt-surface,#fff);overflow:hidden}
-  .mt-row{display:flex;align-items:center;gap:14px;padding:13px 16px;border-top:1px solid #f0f1f3;text-decoration:none;color:var(--ink)}
+  .mt-list{border:1px solid var(--line);border-radius:14px;background:var(--mt-surface,var(--knk-mail-c-white));overflow:hidden}
+  .mt-row{display:flex;align-items:center;gap:14px;padding:13px 16px;border-top:1px solid var(--knk-mail-c-gray-05-3);text-decoration:none;color:var(--ink)}
   .mt-row:first-child{border-top:0}
-  a.mt-row:hover,button.mt-row:hover{background:var(--mt-panel,#fafbfc)}
+  a.mt-row:hover,button.mt-row:hover{background:var(--mt-panel,var(--knk-mail-c-gray-02-3))}
   .mt-row .ic{font-size:21px;width:28px;text-align:center;flex:none}
   .mt-row .tx{flex:1;min-width:0}
   .mt-row .t{font-size:14.5px;font-weight:700}
   .mt-row .d{font-size:12.5px;color:var(--mute);margin-top:2px;line-height:1.5}
-  .mt-row .st{flex:none;font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--mt-hover,#f1f5f9);color:var(--mt-text2,#475569);white-space:nowrap}
-  .mt-row .st.ok{background:#e8f6ec;color:#15803d}
-  .mt-row .st.no{background:#fff7ed;color:#c2410c}
-  .mt-row .arr{flex:none;color:var(--mt-mute,#9ca3af);font-size:18px}
-  .mt-row select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--mt-surface,#fff)}
-  .mt-sw{flex:none;position:relative;width:46px;height:26px;border-radius:999px;background:#d1d5db;border:0;cursor:pointer;transition:background .15s}
-  .mt-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--mt-surface,#fff);box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
-  .mt-sw.on{background:#16a34a}
+  .mt-row .st{flex:none;font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--mt-hover,var(--knk-mail-c-gray-04));color:var(--mt-text2,var(--knk-mail-c-gray-65));white-space:nowrap}
+  .mt-row .st.ok{background:var(--knk-mail-c-green-06);color:var(--knk-mail-c-green-71)}
+  .mt-row .st.no{background:var(--knk-mail-c-amber-04);color:var(--knk-mail-c-orange-60)}
+  .mt-row .arr{flex:none;color:var(--mt-mute,var(--knk-mail-c-gray-35-2));font-size:18px}
+  .mt-row select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--mt-surface,var(--knk-mail-c-white))}
+  .mt-sw{flex:none;position:relative;width:46px;height:26px;border-radius:999px;background:var(--knk-mail-c-gray-16-3);border:0;cursor:pointer;transition:background .15s}
+  .mt-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--mt-surface,var(--knk-mail-c-white));box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+  .mt-sw.on{background:var(--knk-mail-c-green-64)}
   .mt-sw.on::after{left:23px}
-  .mt-keys{font-size:12.5px;color:var(--mt-text2,#374151);line-height:1.9}
-  .mt-keys kbd{display:inline-block;min-width:20px;text-align:center;border:1px solid var(--mt-line,#d1d5db);border-bottom-width:2px;border-radius:5px;padding:0 5px;font-family:inherit;font-size:11.5px;background:var(--mt-panel,#f9fafb);margin-right:3px}
-  .mt-adm{margin-top:22px;border:1px dashed #d6d3d1;border-radius:14px;background:#fbfaf8;padding:4px 14px}
-  .mt-adm>summary{cursor:pointer;padding:10px 2px;font-size:14.5px;font-weight:800;color:#57534e;list-style:none}
+  .mt-keys{font-size:12.5px;color:var(--mt-text2,var(--knk-mail-c-blue-73-2));line-height:1.9}
+  .mt-keys kbd{display:inline-block;min-width:20px;text-align:center;border:1px solid var(--mt-line,var(--knk-mail-c-gray-16-3));border-bottom-width:2px;border-radius:5px;padding:0 5px;font-family:inherit;font-size:11.5px;background:var(--mt-panel,var(--knk-mail-c-gray-02-2));margin-right:3px}
+  .mt-adm{margin-top:22px;border:1px dashed var(--knk-mail-c-gray-17);border-radius:14px;background:var(--knk-mail-c-gray-02-5);padding:4px 14px}
+  .mt-adm>summary{cursor:pointer;padding:10px 2px;font-size:14.5px;font-weight:800;color:var(--knk-mail-c-gray-68);list-style:none}
   .mt-adm>summary::-webkit-details-marker{display:none}
   .mt-adm .mt-list{margin-bottom:12px}
-  .mt-msg{font-size:12.5px;color:#15803d;font-weight:700}
+  .mt-msg{font-size:12.5px;color:var(--knk-mail-c-green-71);font-weight:700}
   @media(max-width:640px){.mt-row{flex-wrap:wrap}.mt-row .tx{flex-basis:calc(100% - 50px)}}
 </style>
 </head><body>
@@ -63,47 +63,47 @@
 <div class="mt-wrap">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">메일</a> · 설정·정리</div>
-    <h1 class="page-title">⚙ 설정·<em>정리</em></h1>
+    <h1 class="page-title">{{ mi('settings') }} 설정·<em>정리</em></h1>
   </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
-  {% if owner_only %}<div class="alert" style="margin:8px 0;padding:10px 14px;border-radius:10px;background:var(--warn-bg,#fff7e6);color:var(--ink,#333)">📥 메일 받기 설정(바깥 메일 받는 사람·입구 열쇠)은 대표님만 바꿀 수 있습니다.</div>{% endif %}
+  {% if owner_only %}<div class="alert" style="margin:8px 0;padding:10px 14px;border-radius:10px;background:var(--warn-bg,var(--knk-mail-c-amber-05));color:var(--ink,var(--knk-mail-c-gray-80))">{{ mi('inbox') }} 메일 받기 설정(바깥 메일 받는 사람·입구 열쇠)은 대표님만 바꿀 수 있습니다.</div>{% endif %}
 
   {# ① 지금 내 메일 — 정리할 것 #}
-  <div class="mt-sec">🧹 지금 내 메일 <small>정리할 것이 있으면 숫자가 보이고, 단추 하나로 끝납니다</small></div>
+  <div class="mt-sec">{{ mi('eraser') }} 지금 내 메일 <small>정리할 것이 있으면 숫자가 보이고, 단추 하나로 끝납니다</small></div>
   <div class="mt-tiles">
     <div class="mt-tile {{ 'warn' if blocked_n else 'clean' }}">
-      <div class="mt-tt"><span class="ic">🚫</span>스팸함</div>
+      <div class="mt-tt"><span class="ic">{{ mi('ban') }}</span>스팸함</div>
       {% if blocked_n %}<div class="num">{{ '{:,}'.format(blocked_n) }}<small>통</small></div>{% else %}<div class="num">✓ 비어 있어요</div>{% endif %}
       <div class="why">스팸·피싱으로 보여 저절로 옮긴 메일 · 지우지 않음 · 정상 메일이면 「✓ 스팸 아님」</div>
       <a class="go{{ '' if blocked_n else ' sub' }}" href="/mail/blocked">열어 보기</a>
     </div>
     {% if has_tree %}
     <div class="mt-tile {{ '' if gen_n else 'clean' }}">
-      <div class="mt-tt"><span class="ic">🗂</span>폴더 없는 메일(일반)</div>
+      <div class="mt-tt"><span class="ic">{{ mi('folders') }}</span>폴더 없는 메일(일반)</div>
       {% if gen_n %}<div class="num">{{ '{:,}'.format(gen_n) }}<small>통</small></div>{% else %}<div class="num">✓ 모두 폴더에 있어요</div>{% endif %}
       <div class="why">어느 폴더에도 안 들어간 메일 — 보낸 곳별로 묶어 한 번에 폴더로</div>
       <a class="go{{ '' if gen_n else ' sub' }}" href="/mail/folders/general">폴더로 정리하기</a>
     </div>
     {% endif %}
     <div class="mt-tile {{ '' if ad_n else 'clean' }}">
-      <div class="mt-tt"><span class="ic">📮</span>광고·알림 보내는 곳</div>
+      <div class="mt-tt"><span class="ic">{{ mi('mailbox') }}</span>광고·알림 보내는 곳</div>
       {% if ad_n %}<div class="num">{{ '{:,}'.format(ad_n) }}<small>곳</small></div>{% else %}<div class="num">✓ 없어요</div>{% endif %}
       <div class="why">광고·알림을 보낸 곳별로 묶어 한 번에 휴지통으로 · 나에게만 다시 안 받기</div>
       <a class="go{{ '' if ad_n else ' sub' }}" href="/mail/cleanup">보낸 곳별 정리</a>
     </div>
     <div class="mt-tile" id="mtOldTile">
-      <div class="mt-tt"><span class="ic">📦</span>오래된 메일 한 번에 보관</div>
+      <div class="mt-tt"><span class="ic">{{ mi('archive') }}</span>오래된 메일 한 번에 보관</div>
       <div class="num" id="mtOldN">…</div>
-      <div class="why">받은 지 <select id="mtOldM" onchange="mtOldCount()"><option value="1">1개월</option><option value="3" selected>3개월</option><option value="6">6개월</option><option value="12">1년</option></select> 지난 <b>읽은</b> 메일을 📦 보관함으로(⭐ 중요는 그대로 · 지우지 않음 · <a href="/mail/inbox?arc=1">보관함 보기</a>)</div>
-      <button type="button" class="go" id="mtOldGo" onclick="mtOldGo()" disabled>📦 보관하기</button>
+      <div class="why">받은 지 <select id="mtOldM" onchange="mtOldCount()"><option value="1">1개월</option><option value="3" selected>3개월</option><option value="6">6개월</option><option value="12">1년</option></select> 지난 <b>읽은</b> 메일을 {{ mi('archive') }} 보관함으로({{ mi('star') }} 중요는 그대로 · 지우지 않음 · <a href="/mail/inbox?arc=1">보관함 보기</a>)</div>
+      <button type="button" class="go" id="mtOldGo" onclick="mtOldGo()" disabled>{{ mi('archive') }} 보관하기</button>
     </div>
     <div class="mt-tile {{ '' if trash_n else 'clean' }}">
-      <div class="mt-tt"><span class="ic">🗑</span>휴지통</div>
+      <div class="mt-tt"><span class="ic">{{ mi('trash-2') }}</span>휴지통</div>
       {% if trash_n %}<div class="num">{{ '{:,}'.format(trash_n) }}<small>통</small></div>{% else %}<div class="num">✓ 비어 있어요</div>{% endif %}
       <div class="why">지운 메일 되살리기 · 완전히 지우기 · 휴지통 비우기</div>
       <a class="go sub" href="/mail/trash">열어 보기</a>
     </div>
     <div class="mt-tile">
-      <div class="mt-tt"><span class="ic">🔁</span>같은 메일 여러 통</div>
+      <div class="mt-tt"><span class="ic">{{ mi('repeat') }}</span>같은 메일 여러 통</div>
       <div class="num" id="mtDupN" style="font-size:17px;color:var(--mute)">눌러서 검사</div>
       <div class="why">여러 그룹 주소로 같은 메일이 여러 통 온 것을 1통만 남기기(답장은 안 건드림 · 휴지통에서 되살릴 수 있음)</div>
       <button type="button" class="go sub" onclick="dedupInbox(event)">정리하기</button>
@@ -111,68 +111,68 @@
   </div>
 
   {# ② 설정 #}
-  <div class="mt-sec">⚙ 설정 <small>한 번 정해 두면 계속 그대로</small></div>
+  <div class="mt-sec">{{ mi('settings') }} 설정 <small>한 번 정해 두면 계속 그대로</small></div>
   <div class="mt-list">
-    <a class="mt-row" href="/mail/signature"><span class="ic">✍</span><span class="tx"><span class="t">서명</span><span class="d" style="display:block">메일 끝에 붙는 이름·직책·연락처 · 3개까지(예: 한국어·English·Tiếng Việt) — 메일 쓰기에서 골라 바꿈</span></span>
+    <a class="mt-row" href="/mail/signature"><span class="ic">{{ mi('pen-line') }}</span><span class="tx"><span class="t">서명</span><span class="d" style="display:block">메일 끝에 붙는 이름·직책·연락처 · 3개까지(예: 한국어·English·Tiếng Việt) — 메일 쓰기에서 골라 바꿈</span></span>
       <span class="st {{ 'ok' if has_sig else 'no' }}">{{ ('있음' ~ ((' · ' ~ sig_n ~ '개') if sig_n|default(1) > 1 else '')) if has_sig else '아직 없음' }}</span><span class="arr">›</span></a>
     {# 11-19 1단계 ① 📝 자주 쓰는 글 · ④ 👥 받는 사람 묶음·회사 그룹 메일 #}
-    <a class="mt-row" href="/mail/templates"><span class="ic">📝</span><span class="tx"><span class="t">자주 쓰는 글(양식)</span><span class="d" style="display:block">견적서 송부·발주 확인·납기 안내·세금계산서… 한국어·영어·베트남어 · 메일 쓰기 「📝 양식」에서 골라 넣고 노란 빈칸만 채움</span></span><span class="arr">›</span></a>
-    <a class="mt-row" href="/mail/groups"><span class="ic">👥</span><span class="tx"><span class="t">받는 사람 묶음 · 그룹 메일</span><span class="d" style="display:block">자주 함께 보내는 사람 묶음 · 부서 묶음 · <b>knksales@ 같은 그룹 메일에 누가 있는지</b></span></span>
+    <a class="mt-row" href="/mail/templates"><span class="ic">{{ mi('file-pen') }}</span><span class="tx"><span class="t">자주 쓰는 글(양식)</span><span class="d" style="display:block">견적서 송부·발주 확인·납기 안내·세금계산서… 한국어·영어·베트남어 · 메일 쓰기 「{{ mi('file-pen') }} 양식」에서 골라 넣고 노란 빈칸만 채움</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/groups"><span class="ic">{{ mi('users') }}</span><span class="tx"><span class="t">받는 사람 묶음 · 그룹 메일</span><span class="d" style="display:block">자주 함께 보내는 사람 묶음 · 부서 묶음 · <b>knksales@ 같은 그룹 메일에 누가 있는지</b></span></span>
       <span class="st {{ 'ok' if grp_n|default(0) else 'no' }}">{{ ('그룹 메일 ' ~ grp_n ~ '개') if grp_n|default(0) else '그룹 메일 아직 없음' }}</span><span class="arr">›</span></a>
     {# 11-25 대표 「아웃룩 옛 메일 가져오기」 — 직원 누구나(내 메일함으로만) #}
-    <a class="mt-row" href="/mail/import-outlook"><span class="ic">📥</span><span class="tx"><span class="t">아웃룩 옛 메일 가져오기</span><span class="d" style="display:block">PC 아웃룩에 남은 옛 메일을 기간(5·3·2·1년)을 골라 본문·첨부까지 내 메일함으로 — 같은 메일은 두 번 안 들어감</span></span><span class="arr">›</span></a>
-    <a class="mt-row" href="/mail/hiworks-move"><span class="ic">🔀</span><span class="tx"><span class="t">하이웍스에서 옮겨 오기</span><span class="d" style="display:block">하이웍스 「메일 자동분류」 규칙과 개인 메일함 옛 메일을 이음 메일로 — <b>안 하면 그 규칙에 걸린 새 메일이 이음 메일에 안 옵니다</b> · 화면 설명대로 따라 하면 혼자 끝남</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/import-outlook"><span class="ic">{{ mi('inbox') }}</span><span class="tx"><span class="t">아웃룩 옛 메일 가져오기</span><span class="d" style="display:block">PC 아웃룩에 남은 옛 메일을 기간(5·3·2·1년)을 골라 본문·첨부까지 내 메일함으로 — 같은 메일은 두 번 안 들어감</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/hiworks-move"><span class="ic">{{ mi('shuffle') }}</span><span class="tx"><span class="t">하이웍스에서 옮겨 오기</span><span class="d" style="display:block">하이웍스 「메일 자동분류」 규칙과 개인 메일함 옛 메일을 이음 메일로 — <b>안 하면 그 규칙에 걸린 새 메일이 이음 메일에 안 옵니다</b> · 화면 설명대로 따라 하면 혼자 끝남</span></span><span class="arr">›</span></a>
     {# 11-27 대표 「아웃룩 안 쓰고 하이웍스만 사용하는 직원들이 있어서」 — 직원 누구나(본인 메일함만 · 비밀번호 저장 안 함) #}
-{% if false %}{# 11-27 대표 「우선 비활성화 — 방법이 없어」(하이웍스에 IMAP 길이 없음) · 다시 열 때 이 줄 조건만 #}    <a class="mt-row" href="/mail/hiworks-folders"><span class="ic">📂</span><span class="tx"><span class="t">하이웍스 개인 메일함 가져오기</span><span class="d" style="display:block">하이웍스에서 내가 만든 메일함(주간업무·자금일보 등)을 같은 이름 폴더로 — 하이웍스 메일은 그대로 · 같은 메일은 두 번 안 들어감</span></span><span class="arr">›</span></a>{% endif %}
+{% if false %}{# 11-27 대표 「우선 비활성화 — 방법이 없어」(하이웍스에 IMAP 길이 없음) · 다시 열 때 이 줄 조건만 #}    <a class="mt-row" href="/mail/hiworks-folders"><span class="ic">{{ mi('folder-open') }}</span><span class="tx"><span class="t">하이웍스 개인 메일함 가져오기</span><span class="d" style="display:block">하이웍스에서 내가 만든 메일함(주간업무·자금일보 등)을 같은 이름 폴더로 — 하이웍스 메일은 그대로 · 같은 메일은 두 번 안 들어감</span></span><span class="arr">›</span></a>{% endif %}
     {% if is_admin %}{# 11-20 대표 「인원이 바뀔 때마다 이 파일을 올려서 업데이트」 #}
-    <a class="mt-row" href="/mail/groups#import"><span class="ic">📥</span><span class="tx"><span class="t">그룹 메일 명단 올리기(하이웍스 파일) <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">하이웍스 관리자 화면에서 받은 「knknara.co.kr_그룹메일.xls」를 올리면 회사 그룹 메일 명단을 한꺼번에 맞춤 · 사람이 바뀔 때마다 다시 올리기 · 반영 전에 바뀌는 것을 먼저 보여 드림</span></span>
+    <a class="mt-row" href="/mail/groups#import"><span class="ic">{{ mi('inbox') }}</span><span class="tx"><span class="t">그룹 메일 명단 올리기(하이웍스 파일) <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">하이웍스 관리자 화면에서 받은 「knknara.co.kr_그룹메일.xls」를 올리면 회사 그룹 메일 명단을 한꺼번에 맞춤 · 사람이 바뀔 때마다 다시 올리기 · 반영 전에 바뀌는 것을 먼저 보여 드림</span></span>
       <span class="st {{ 'ok' if grp_imp|default({}) and grp_imp.at else 'no' }}">{% if grp_imp|default({}) and grp_imp.at %}마지막 {{ grp_imp.at[5:16]|replace('-','/') }} · {{ grp_imp.groups }}개{% else %}아직 안 올림{% endif %}</span><span class="arr">›</span></a>
     {# 11-25 대표 「예전 아웃룩에 남아있는데 어떻게 전달하지?」 #}
-    <a class="mt-row" href="/mail/from-outlook"><span class="ic">📇</span><span class="tx"><span class="t">아웃룩에서 보낸 사람 채우기 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">보낸 사람이 빈 예전 메일 — 아웃룩에서 뽑은 파일(메일 번호·보낸 사람만)로 정확히 채움</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/from-outlook"><span class="ic">{{ mi('contact') }}</span><span class="tx"><span class="t">아웃룩에서 보낸 사람 채우기 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">보낸 사람이 빈 예전 메일 — 아웃룩에서 뽑은 파일(메일 번호·보낸 사람만)로 정확히 채움</span></span><span class="arr">›</span></a>
     {# 11-23 대표 「서버 용량 부담」 — 숫자만 재는 화면 #}
-    <a class="mt-row" href="/mail/storage"><span class="ic">📦</span><span class="tx"><span class="t">메일 용량 재기 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">기간·종류별 크기 · 오래된 메일을 압축하면 얼마로 줄어드는지(숫자만)</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/storage"><span class="ic">{{ mi('archive') }}</span><span class="tx"><span class="t">메일 용량 재기 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">기간·종류별 크기 · 오래된 메일을 압축하면 얼마로 줄어드는지(숫자만)</span></span><span class="arr">›</span></a>
     {# 11-20 3단계 ⑧ 🏢 회사 서명 틀 — 틀만 메일이 가짐(값은 웍스 직원 명단·회사 정보에서 읽음) #}
-    <a class="mt-row" href="/mail/signature/company"><span class="ic">🏢</span><span class="tx"><span class="t">회사 서명 틀 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">회사 공통 서명 모양(한국어·English) — 직원은 「🏢 회사 서명 쓰기」나 메일 쓰기 「✍」에서 자기 정보로 채워진 서명을 바로 씀</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/signature/company"><span class="ic">{{ mi('building-2') }}</span><span class="tx"><span class="t">회사 서명 틀 <small style="color:var(--mute);font-weight:600">관리자</small></span><span class="d" style="display:block">회사 공통 서명 모양(한국어·English) — 직원은 「{{ mi('building-2') }} 회사 서명 쓰기」나 메일 쓰기 「{{ mi('pen-line') }} 」에서 자기 정보로 채워진 서명을 바로 씀</span></span><span class="arr">›</span></a>
     {% endif %}
     {# 11-20 3단계 ⑨ 처음 안내 · 인쇄용 설명서 #}
-    <a class="mt-row" href="/mail/help" target="_blank" rel="noopener"><span class="ic">🖨</span><span class="tx"><span class="t">설명서(인쇄용)</span><span class="d" style="display:block">메일 쓰는 법을 A4 로 — 단추 이름은 화면 글자 그대로 · 처음 안내는 위 「❔ 도움말」 → 「🎓 처음 안내 다시 보기」</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/help" target="_blank" rel="noopener"><span class="ic">{{ mi('printer') }}</span><span class="tx"><span class="t">설명서(인쇄용)</span><span class="d" style="display:block">메일 쓰는 법을 A4 로 — 단추 이름은 화면 글자 그대로 · 처음 안내는 위 「{{ mi('circle-help') }} 도움말」 → 「{{ mi('graduation-cap') }} 처음 안내 다시 보기」</span></span><span class="arr">›</span></a>
     {# 11-19 2단계-나 🏖 부재중 자동 응답 #}
-    <a class="mt-row" href="/mail/autoreply"><span class="ic">🏖</span><span class="tx"><span class="t">부재중 자동 응답</span><span class="d" style="display:block">출장·휴가 동안 메일을 보낸 사람에게 자동으로 회신 · 기간을 정하면 그때만 · 같은 사람에게 한 번만</span></span>
+    <a class="mt-row" href="/mail/autoreply"><span class="ic">{{ mi('tree-palm') }}</span><span class="tx"><span class="t">부재중 자동 응답</span><span class="d" style="display:block">출장·휴가 동안 메일을 보낸 사람에게 자동으로 회신 · 기간을 정하면 그때만 · 같은 사람에게 한 번만</span></span>
       <span class="st {{ 'ok' if ar_info|default({}) and ar_info.live else '' }}">{% if ar_info|default({}) and ar_info.on %}{{ '켜짐' if ar_info.live else ('기간 지남' if ar_info.over else '예약됨') }} {{ ar_info.start[5:]|replace('-','/') }}~{{ ar_info.end[5:]|replace('-','/') }}{% else %}꺼짐{% endif %}</span><span class="arr">›</span></a>
-    <a class="mt-row" href="/mail/account"><span class="ic">🔗</span><span class="tx"><span class="t">내 회사 주소 연결</span><span class="d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기</span></span>
+    <a class="mt-row" href="/mail/account"><span class="ic">{{ mi('link') }}</span><span class="tx"><span class="t">내 회사 주소 연결</span><span class="d" style="display:block">내 @knknara.co.kr 주소로 보내기 · 받기</span></span>
       <span class="st {{ 'ok' if has_acct else 'no' }}">{{ '연결됨' if has_acct else '연결 안 됨' }}</span><span class="arr">›</span></a>
-    <a class="mt-row" href="/mail/folders"><span class="ic">📁</span><span class="tx"><span class="t">폴더 관리</span><span class="d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 메일이 어느 폴더로 갈지 내가 정한 규칙</span></span>
+    <a class="mt-row" href="/mail/folders"><span class="ic">{{ mi('folder') }}</span><span class="tx"><span class="t">폴더 관리</span><span class="d" style="display:block">폴더 더하기·이름 바꾸기·순서 · 메일이 어느 폴더로 갈지 내가 정한 규칙</span></span>
       <span class="st">{% if folder_n %}폴더 {{ folder_n }}개{% if rule_n %} · 규칙 {{ rule_n }}개{% endif %}{% else %}폴더 없음{% endif %}</span><span class="arr">›</span></a>
     {% if mail_app %}
     {# 11-19 대표 「테마 3가지 — 골라서 쓰게」 · 메일 앱 화면에만(도구 줄 🎨 와 같은 설정) #}
-    <div class="mt-row" style="flex-wrap:wrap" id="mtThemeRow"><span class="ic">🎨</span><span class="tx"><span class="t">화면 테마</span><span class="d" style="display:block">누르면 바로 바뀜 · 이 컴퓨터에만 · 위 도구 줄 「🎨 테마」와 같은 설정</span></span>
+    <div class="mt-row" style="flex-wrap:wrap" id="mtThemeRow"><span class="ic">{{ mi('palette') }}</span><span class="tx"><span class="t">화면 테마</span><span class="d" style="display:block">누르면 바로 바뀜 · 이 컴퓨터에만 · 위 도구 줄 「{{ mi('palette') }} 테마」와 같은 설정</span></span>
       <div style="flex-basis:100%;margin-top:8px">{% include "_v5_partials/mail_theme_cards.html" %}</div></div>
     {% endif %}
-    <div class="mt-row"><span class="ic">🗔</span><span class="tx"><span class="t">보기 방식</span><span class="d" style="display:block">메일 내용을 어디에 보일지 — 작은 모니터면 「끄기(목록만, 누르면 크게)」가 편해요 · 이 컴퓨터에만</span></span>
+    <div class="mt-row"><span class="ic">{{ mi('panel-right') }}</span><span class="tx"><span class="t">보기 방식</span><span class="d" style="display:block">메일 내용을 어디에 보일지 — 작은 모니터면 「끄기(목록만, 누르면 크게)」가 편해요 · 이 컴퓨터에만</span></span>
       <select id="mtView" onchange="mtViewSet(this.value)" title="받은편지함 「🗔 보기」와 같은 설정">
         <option value="auto">자동 — 화면 크기에 맞춤</option><option value="right">오른쪽(세 칸)</option><option value="bottom">아래(목록 위·내용 아래)</option><option value="list">끄기(목록만, 누르면 크게)</option>
       </select><span class="mt-msg" id="mtViewMsg"></span></div>
-    <div class="mt-row" id="mtBig"><span class="ic">🔠</span><span class="tx"><span class="t">글자 크게 보기</span><span class="d" style="display:block">켜면 110% · 위쪽 도구 줄 「− 🔠 글자 ＋」로 80%~145%(8단계) · 이 컴퓨터·이 휴대폰에만</span></span>
+    <div class="mt-row" id="mtBig"><span class="ic">{{ mi('type') }}</span><span class="tx"><span class="t">글자 크게 보기</span><span class="d" style="display:block">켜면 110% · 위쪽 도구 줄 「− {{ mi('type') }} 글자 ＋」로 80%~145%(8단계) · 이 컴퓨터·이 휴대폰에만</span></span>
       <span class="st" id="mtBigSw">끔</span><button type="button" class="mt-sw" id="mtBigBtn" onclick="mtBigToggle()" aria-label="글자 크게 보기 켜기·끄기"></button></div>
     {% if mail_app %}
     {# 11-19 2단계 — 새 메일 바탕화면 알림(이 컴퓨터에만 · 메일 창이 뒤에 있을 때만) #}
-    <div class="mt-row" id="mtNoti"><span class="ic">🔔</span><span class="tx"><span class="t">새 메일 알림(바탕화면)</span><span class="d" style="display:block">메일 창이 뒤에 숨어 있을 때 새 메일이 오면 화면 구석에 알림 · 이 컴퓨터에만 · 처음 켤 때 브라우저가 「허용」을 묻습니다</span><span class="d" id="mtNotiMsg" style="display:block;color:#b45309"></span></span>
+    <div class="mt-row" id="mtNoti"><span class="ic">{{ mi('bell') }}</span><span class="tx"><span class="t">새 메일 알림(바탕화면)</span><span class="d" style="display:block">메일 창이 뒤에 숨어 있을 때 새 메일이 오면 화면 구석에 알림 · 이 컴퓨터에만 · 처음 켤 때 브라우저가 「허용」을 묻습니다</span><span class="d" id="mtNotiMsg" style="display:block;color:var(--knk-mail-c-orange-63)"></span></span>
       <span class="st" id="mtNotiSw">끔</span><button type="button" class="mt-sw" id="mtNotiBtn" onclick="mtNotiToggle()" aria-label="새 메일 알림 켜기·끄기"></button></div>
     {% endif %}
     <div class="mt-row"><span class="ic">⌨</span><span class="tx"><span class="t">단축키(아웃룩과 같게)</span>
       <span class="mt-keys" style="display:block">메일 <b>더블클릭</b> = 새 창 · <kbd>↑</kbd><kbd>↓</kbd>다음 메일 · <kbd>R</kbd>답장 · <kbd>Shift</kbd>+<kbd>R</kbd>전체 답장 · <kbd>Shift</kbd>+<kbd>F</kbd>전달 · <kbd>Delete</kbd>삭제 · <kbd>E</kbd>보관 · <kbd>U</kbd>읽음↔안 읽음 · <kbd>S</kbd>(또는 <kbd>Insert</kbd>)중요 · <kbd>N</kbd>새 메일 · 메일 위 <b>오른쪽 클릭</b> = 메뉴</span></span></div>
-    <a class="mt-row" href="/mail/kinds"><span class="ic">🏷</span><span class="tx"><span class="t">🏷 종류 목록 고치기(모아 보기)</span><span class="d" style="display:block">받은편지함 「🏷 종류 ▾」에 보일 것 — 견적·발주·세금계산서 숨기기·순서 · 내 종류 더하기(제목·보낸 사람 낱말)</span></span><span class="arr">›</span></a>
-    <a class="mt-row" href="/mail/rules"><span class="ic">🏷</span><span class="tx"><span class="t">메일 종류 규칙(견적·발주·세금계산서)</span><span class="d" style="display:block">보낸 사람·제목 낱말로 메일 종류를 정하는 규칙 — 가끔 씀</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/kinds"><span class="ic">{{ mi('tag') }}</span><span class="tx"><span class="t">{{ mi('tag') }} 종류 목록 고치기(모아 보기)</span><span class="d" style="display:block">받은편지함 「{{ mi('tag') }} 종류 ▾」에 보일 것 — 견적·발주·세금계산서 숨기기·순서 · 내 종류 더하기(제목·보낸 사람 낱말)</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/rules"><span class="ic">{{ mi('tag') }}</span><span class="tx"><span class="t">메일 종류 규칙(견적·발주·세금계산서)</span><span class="d" style="display:block">보낸 사람·제목 낱말로 메일 종류를 정하는 규칙 — 가끔 씀</span></span><span class="arr">›</span></a>
   </div>
 
   {% if is_admin %}
-  <details class="mt-adm"><summary>🔧 관리자 설정 ▸ <small style="font-weight:500;color:var(--mute)">처음 한 번 · 회사 전체에 영향</small></summary>
+  <details class="mt-adm"><summary>{{ mi('wrench') }} 관리자 설정 ▸ <small style="font-weight:500;color:var(--mute)">처음 한 번 · 회사 전체에 영향</small></summary>
   <div class="mt-list">
-    <a class="mt-row" href="/mail/blocklist"><span class="ic">⛔</span><span class="tx"><span class="t">차단 목록 관리</span><span class="d" style="display:block">회사 전체에서 막을 위험·스팸 주소</span></span><span class="arr">›</span></a>
-    {% if is_inbound_owner %}<a class="mt-row" href="/admin/mail-inbound"><span class="ic">📥</span><span class="tx"><span class="t">받기 설정</span><span class="d" style="display:block">메일이 이음웍스로 들어오는 길</span></span><span class="arr">›</span></a>{% endif %}
-    <a class="mt-row" href="/admin/mail-send"><span class="ic">📤</span><span class="tx"><span class="t">보내기 설정</span><span class="d" style="display:block">메일을 내보내는 길(발송망)</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/mail/blocklist"><span class="ic">{{ mi('octagon-x') }}</span><span class="tx"><span class="t">차단 목록 관리</span><span class="d" style="display:block">회사 전체에서 막을 위험·스팸 주소</span></span><span class="arr">›</span></a>
+    {% if is_inbound_owner %}<a class="mt-row" href="/admin/mail-inbound"><span class="ic">{{ mi('inbox') }}</span><span class="tx"><span class="t">받기 설정</span><span class="d" style="display:block">메일이 이음웍스로 들어오는 길</span></span><span class="arr">›</span></a>{% endif %}
+    <a class="mt-row" href="/admin/mail-send"><span class="ic">{{ mi('send') }}</span><span class="tx"><span class="t">보내기 설정</span><span class="d" style="display:block">메일을 내보내는 길(발송망)</span></span><span class="arr">›</span></a>
     <a class="mt-row" href="/admin/mail-fetch"><span class="ic">⤵</span><span class="tx"><span class="t">기존 메일 가져오기</span><span class="d" style="display:block">하이웍스 등 기존 메일을 당겨오기</span></span><span class="arr">›</span></a>
-    <a class="mt-row" href="/admin/mail-purge"><span class="ic">💽</span><span class="tx"><span class="t">저장 공간 정리</span><span class="d" style="display:block">휴지통 비우기 · 오래된 메일 완전삭제 · 디스크 정리</span></span><span class="arr">›</span></a>
+    <a class="mt-row" href="/admin/mail-purge"><span class="ic">{{ mi('hard-drive') }}</span><span class="tx"><span class="t">저장 공간 정리</span><span class="d" style="display:block">휴지통 비우기 · 오래된 메일 완전삭제 · 디스크 정리</span></span><span class="arr">›</span></a>
   </div>
   </details>
   {% endif %}
@@ -211,7 +211,7 @@ async function mtOldCount(){
   n.textContent='세는 중…'; b.disabled=true;
   try{ var fd=new FormData(); fd.append('months', m); fd.append('dry','1');
     var r=await fetch('/mail/archive/old',{method:'POST',body:fd}); var j=await r.json();
-    if(j.ok){ if(j.n){ n.innerHTML=j.n.toLocaleString()+'<small>통</small>'; n.style.fontSize=''; n.style.color=''; } else { n.textContent='✓ 보관할 메일이 없어요'; n.style.fontSize='18px'; n.style.color='#15803d'; }
+    if(j.ok){ if(j.n){ n.innerHTML=j.n.toLocaleString()+'<small>통</small>'; n.style.fontSize=''; n.style.color=''; } else { n.textContent='✓ 보관할 메일이 없어요'; n.style.fontSize='18px'; n.style.color='var(--knk-mail-c-green-71)'; }
       b.disabled=!j.n; b.dataset.n=j.n; if(tile) tile.classList.toggle('clean', !j.n); }
     else { n.textContent='⚠ 셀 수 없습니다'; }
   }catch(e){ n.textContent='⚠ 네트워크 오류'; }
@@ -232,7 +232,7 @@ async function dedupInbox(ev){
   if(ev) ev.preventDefault();
   if(!confirm('여러 그룹메일로 같은 메일이 여러 통 온 것을 1통만 남기고 정리할까요?\n(답장·내용이 다른 메일은 안 건드리고, 정리된 메일은 휴지통으로 갑니다 — 복구 가능)')) return;
   try{ var r=await fetch('/mail/dedup',{method:'POST'}); var j=await r.json();
-    var n=document.getElementById('mtDupN'); if(n){ n.textContent=j.removed ? ('✓ '+j.removed+'통 정리함') : '✓ 같은 메일 없어요'; n.style.color='#15803d'; }
+    var n=document.getElementById('mtDupN'); if(n){ n.textContent=j.removed ? ('✓ '+j.removed+'통 정리함') : '✓ 같은 메일 없어요'; n.style.color='var(--knk-mail-c-green-71)'; }
     alert(j.message||(j.ok?'정리 완료':'실패')); }catch(e){ alert('네트워크 오류'); }
 }
 </script>

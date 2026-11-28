@@ -7,20 +7,20 @@
   .fl-wrap{padding:0 var(--content-pad,32px) 32px}
   @media(max-width:700px){.fl-wrap{padding:0 12px 24px}}
   .fl-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-  .fl-bar input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13.5px;min-width:180px;flex:1;max-width:320px;background:var(--mt-surface,#fff);color:var(--ink)}
-  .fl-bar select{border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;font-size:13.5px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .fl-bar input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13.5px;min-width:180px;flex:1;max-width:320px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink)}
+  .fl-bar select{border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;font-size:13.5px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink)}
   .fl-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-  .fl-chip{font-size:12.5px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:4px 11px;text-decoration:none;color:var(--ink);background:var(--mt-surface,#fff)}
-  .fl-chip.on{background:#1e3a8a;border-color:#1e3a8a;color:#fff}
-  .fl-tbl{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--mt-surface,#fff);font-size:13px}
-  .fl-tbl th{background:var(--mt-panel,#fafbfc);text-align:left;font-size:12px;color:var(--mute);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
-  .fl-tbl td{padding:8px 10px;border-top:1px solid #f0f1f3;vertical-align:middle}
+  .fl-chip{font-size:12.5px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:4px 11px;text-decoration:none;color:var(--ink);background:var(--mt-surface,var(--knk-mail-c-white))}
+  .fl-chip.on{background:var(--knk-mail-c-blue-67);border-color:var(--knk-mail-c-blue-67);color:var(--knk-mail-c-white)}
+  .fl-tbl{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--mt-surface,var(--knk-mail-c-white));font-size:13px}
+  .fl-tbl th{background:var(--mt-panel,var(--knk-mail-c-gray-02-3));text-align:left;font-size:12px;color:var(--mute);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .fl-tbl td{padding:8px 10px;border-top:1px solid var(--knk-mail-c-gray-05-3);vertical-align:middle}
   .fl-fn{font-weight:700;word-break:break-all}
   .fl-ic{font-size:16px;margin-right:4px}
   .fl-sub a{color:var(--mute);text-decoration:none}
   .fl-sub a:hover{text-decoration:underline}
   .fl-dir{font-size:11.5px;font-weight:800;border-radius:999px;padding:1px 8px;white-space:nowrap}
-  .fl-dir.in{background:#ecfdf5;color:#047857}.fl-dir.out{background:#eff6ff;color:#1d4ed8}
+  .fl-dir.in{background:var(--knk-mail-c-teal-04);color:var(--knk-mail-c-teal-76)}.fl-dir.out{background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-52)}
   .fl-act a{font-size:12.5px;font-weight:700;text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:3px 8px;color:var(--ink);white-space:nowrap;margin-right:4px;display:inline-block}
   .fl-empty{padding:28px;text-align:center;color:var(--mute)}
   .fl-note{font-size:12px;color:var(--mute);margin-top:10px;line-height:1.7}
@@ -36,7 +36,7 @@
     .fl-chip{flex:none;white-space:nowrap;padding:7px 12px}
     .fl-tbl,.fl-tbl tbody{display:block;width:100%;border:0;border-radius:0;background:none;overflow:visible}
     .fl-tbl thead{display:none}
-    .fl-tbl tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:start;border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:10px 12px;margin:0 0 8px}
+    .fl-tbl tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:start;border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:10px 12px;margin:0 0 8px}
     .fl-tbl td{display:block;padding:0;border:0;min-width:0}
     .fl-tbl td.hm{display:none}
     .fl-tbl td.fl-sub,.fl-tbl td.fl-act,.fl-tbl td.fl-empty{grid-column:1 / -1}
@@ -51,7 +51,7 @@
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 첨부 모아 보기</div>
-    <h1 class="page-title">📎 첨부 <em>모아 보기</em></h1>
+    <h1 class="page-title">{{ mi('paperclip') }} 첨부 <em>모아 보기</em></h1>
   </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
   <div class="fl-wrap">
     <form class="fl-bar" method="get" action="/mail/files">
@@ -68,7 +68,7 @@
       {% set _base = keep_nk %}
       <a class="fl-chip {{ 'on' if not kind }}" href="/mail/files{{ ('?' ~ _base) if _base else '' }}">전체</a>
       {% for k, v in kinds.items() %}<a class="fl-chip {{ 'on' if kind==k }}" href="/mail/files?{{ _base ~ ('&' if _base else '') }}kind={{ k }}">{{ ic[k] }} {{ v[0] }}</a>{% endfor %}
-      <a class="fl-chip {{ 'on' if kind=='etc' }}" href="/mail/files?{{ _base ~ ('&' if _base else '') }}kind=etc">📄 기타</a>
+      <a class="fl-chip {{ 'on' if kind=='etc' }}" href="/mail/files?{{ _base ~ ('&' if _base else '') }}kind=etc">{{ mi('file-text') }} 기타</a>
     </div>
     <table class="fl-tbl">
       <thead><tr><th>파일</th><th class="hm">크기</th><th></th><th>상대 · 메일</th><th class="hm">날짜</th><th></th></tr></thead>
@@ -80,7 +80,7 @@
         <td><span class="fl-dir {{ r.direction }}">{{ '받음' if r.direction=='in' else '보냄' }}</span></td>
         <td class="fl-sub"><div style="font-weight:600">{{ r.who }}</div><a href="/mail/{{ r.mail_id }}">{{ (r.subject or '(제목 없음)')[:70] }}</a></td>
         <td class="hm" style="white-space:nowrap;color:var(--mute)">{{ (r.received_at or '')[:10] }}</td>
-        <td class="fl-act"><a href="/mail/{{ r.mail_id }}/att/{{ r.att_id }}" title="내려받기">⬇ 받기</a><a href="/mail/{{ r.mail_id }}" title="이 첨부가 있는 메일 열기">메일</a><a href="/mail/compose?forward={{ r.mail_id }}" onclick="return window.mailNewWin ? mailNewWin(event,'forward={{ r.mail_id }}') : true" title="이 메일을 첨부와 함께 전달 — 새 창으로">↪ 전달</a></td>
+        <td class="fl-act"><a href="/mail/{{ r.mail_id }}/att/{{ r.att_id }}" title="내려받기">{{ mi('download') }} 받기</a><a href="/mail/{{ r.mail_id }}" title="이 첨부가 있는 메일 열기">메일</a><a href="/mail/compose?forward={{ r.mail_id }}" onclick="return window.mailNewWin ? mailNewWin(event,'forward={{ r.mail_id }}') : true" title="이 메일을 첨부와 함께 전달 — 새 창으로">↪ 전달</a></td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="fl-empty">찾는 첨부가 없습니다.</td></tr>

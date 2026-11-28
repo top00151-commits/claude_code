@@ -4,24 +4,24 @@
 <style>
   .mtour{position:fixed;inset:0;z-index:9800;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px}
   .mtour[hidden]{display:none}
-  .mtour-box{width:min(460px,100%);background:var(--mt-surface,#fff);color:var(--mt-text,#1f2937);border-radius:16px;box-shadow:0 18px 48px rgba(0,0,0,.25);
+  .mtour-box{width:min(460px,100%);background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-83));border-radius:16px;box-shadow:0 18px 48px rgba(0,0,0,.25);
     padding:20px 20px 14px;display:flex;flex-direction:column;gap:10px;max-height:calc(100dvh - 32px);overflow:auto}
   .mtour-top{display:flex;align-items:center;gap:8px}
-  .mtour-step{font-size:12px;color:var(--mt-mute,#6b7280)}
-  .mtour-x{margin-left:auto;border:0;background:none;font-size:18px;cursor:pointer;color:var(--mt-mute,#6b7280);padding:2px 6px;border-radius:6px}
-  .mtour-x:hover{background:var(--mt-hover,#f1f5f9)}
+  .mtour-step{font-size:12px;color:var(--mt-mute,var(--knk-mail-c-gray-54))}
+  .mtour-x{margin-left:auto;border:0;background:none;font-size:18px;cursor:pointer;color:var(--mt-mute,var(--knk-mail-c-gray-54));padding:2px 6px;border-radius:6px}
+  .mtour-x:hover{background:var(--mt-hover,var(--knk-mail-c-gray-04))}
   .mtour-ic{font-size:40px;line-height:1}
   .mtour-h{font-size:18px;font-weight:800;margin:0}
   .mtour-b{font-size:14px;line-height:1.75}
   .mtour-b ul{margin:0;padding-left:18px}
   .mtour-dots{display:flex;gap:6px;justify-content:center;padding:4px 0}
-  .mtour-dots i{width:8px;height:8px;border-radius:50%;background:var(--mt-line,#e5e7eb)}
-  .mtour-dots i.on{background:var(--knk-red,#b91c1c)}
+  .mtour-dots i{width:8px;height:8px;border-radius:50%;background:var(--mt-line,var(--knk-mail-c-gray-09))}
+  .mtour-dots i.on{background:var(--knk-red,var(--knk-mail-c-red-58))}
   .mtour-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .mtour-act .sp{flex:1}
-  .mtour-act button{font:inherit;font-size:13.5px;border-radius:9px;padding:8px 14px;cursor:pointer;border:1px solid var(--mt-line,#d1d5db);background:var(--mt-surface,#fff);color:inherit}
-  .mtour-act .go{background:var(--knk-red,#b91c1c);border-color:var(--knk-red,#b91c1c);color:#fff;font-weight:700}
-  .mtour-act .nv{border:0;background:none;color:var(--mt-mute,#6b7280);text-decoration:underline;padding:8px 4px}
+  .mtour-act button{font:inherit;font-size:13.5px;border-radius:9px;padding:8px 14px;cursor:pointer;border:1px solid var(--mt-line,var(--knk-mail-c-gray-16-3));background:var(--mt-surface,var(--knk-mail-c-white));color:inherit}
+  .mtour-act .go{background:var(--knk-red,var(--knk-mail-c-red-58));border-color:var(--knk-red,var(--knk-mail-c-red-58));color:var(--knk-mail-c-white);font-weight:700}
+  .mtour-act .nv{border:0;background:none;color:var(--mt-mute,var(--knk-mail-c-gray-54));text-decoration:underline;padding:8px 4px}
   .mtour-act button[hidden]{display:none}
   @media(max-width:480px){.mtour-box{padding:16px 14px 12px}.mtour-h{font-size:16.5px}.mtour-b{font-size:13.5px}}
 </style>
@@ -45,11 +45,11 @@
 (function(){
   var CARDS=[
     {ic:'📥', h:'받은편지함', b:'<ul><li>메일을 <b>한 번</b> 누르면 옆 칸에서 읽고, <b>두 번</b> 누르면 새 창으로 엽니다.</li><li>메일 위에서 <b>오른쪽 클릭</b> = 답장·전달·보관·삭제 메뉴.</li><li>위 「오늘 챙길 메일」 숫자를 누르면 그 메일만 보입니다.</li></ul>'},
-    {ic:'✏️', h:'새 메일 쓰기', b:'<ul><li>위 「✏️ 새 메일」 · 받는사람은 이름 몇 글자만 치면 고를 수 있어요.</li><li>「📝 양식」 = 자주 쓰는 글(노란 빈칸은 Tab 키).</li><li>「✍」에서 서명을 바꾸거나 <b>🏢 회사 서명</b>을 고릅니다.</li><li>「📤 보내기」 뒤 10초 안에는 「↺ 보내기 취소」.</li></ul>'},
-    {ic:'👥', h:'그룹 메일 · 받는 사람 묶음', b:'<ul><li>knksales@ 같은 그룹 메일 주소를 넣으면 아래에 <b>누가 받는지</b> 보입니다.</li><li>자주 함께 보내는 사람은 「⚙ 설정·정리」 → 「받는 사람 묶음 · 그룹 메일」에서 묶어 두세요.</li></ul>'},
-    {ic:'⏳', h:'답 받기 · ⏱ 예약', b:'<ul><li>바깥 거래처에 보낼 때 「⏳ 답 받기」에서 기한을 고르면, 그때까지 답이 없을 때 알려 드려요. 왼쪽 「⏳ 답 기다림」에 모입니다.</li><li>「⏱ 예약」 = 정한 때에 서버가 보냅니다(창을 닫아도 됨).</li></ul>'},
+    {ic:'✏️', h:'새 메일 쓰기', b:'<ul><li>위 「'+mdI('square-pen')+' 새 메일」 · 받는사람은 이름 몇 글자만 치면 고를 수 있어요.</li><li>「'+mdI('file-pen')+' 양식」 = 자주 쓰는 글(노란 빈칸은 Tab 키).</li><li>「'+mdI('pen-line')+'」에서 서명을 바꾸거나 <b>'+mdI('building-2')+' 회사 서명</b>을 고릅니다.</li><li>「'+mdI('send')+' 보내기」 뒤 10초 안에는 「↺ 보내기 취소」.</li></ul>'},
+    {ic:'👥', h:'그룹 메일 · 받는 사람 묶음', b:'<ul><li>knksales@ 같은 그룹 메일 주소를 넣으면 아래에 <b>누가 받는지</b> 보입니다.</li><li>자주 함께 보내는 사람은 「'+mdI('settings')+' 설정·정리」 → 「받는 사람 묶음 · 그룹 메일」에서 묶어 두세요.</li></ul>'},
+    {ic:'⏳', h:'답 받기 · ⏱ 예약', b:'<ul><li>바깥 거래처에 보낼 때 「⏳ 답 받기」에서 기한을 고르면, 그때까지 답이 없을 때 알려 드려요. 왼쪽 「⏳ 답 기다림」에 모입니다.</li><li>「'+mdI('timer')+' 예약」 = 정한 때에 서버가 보냅니다(창을 닫아도 됨).</li></ul>'},
     {ic:'👉', h:'직원에게 맡기기', dl:true, b:'<ul><li>메일을 열고 「👉 맡기기」 → 담당자·기한·한 줄 지시 → 이음 요청으로 갑니다.</li><li>독촉·결과 확인은 이음 요청에서 합니다(지금은 시험 중이라 일부 직원만 보여요).</li></ul>'},
-    {ic:'❔', h:'언제든 다시', b:'<ul><li>위 「❔ 도움말」에서 단축키를 보고, 이 안내를 다시 볼 수 있어요.</li><li><a href="/mail/help" target="_blank" rel="noopener">🖨 설명서(인쇄용)</a>를 열어 종이로 뽑아 두셔도 됩니다.</li></ul>'}
+    {ic:'❔', h:'언제든 다시', b:'<ul><li>위 「'+mdI('circle-help')+' 도움말」에서 단축키를 보고, 이 안내를 다시 볼 수 있어요.</li><li><a href="/mail/help" target="_blank" rel="noopener">'+mdI('printer')+' 설명서(인쇄용)</a>를 열어 종이로 뽑아 두셔도 됩니다.</li></ul>'}
   ];
   var list=CARDS, at=0;
   function el(id){ return document.getElementById(id); }

@@ -6,24 +6,24 @@
   /* 11-23 대표 「중복 메일도 용량을 차지하는지 · 오래된 메일은 최대한 줄여 보관 · 160명이면 서버 부담」 — 숫자만 재는 화면 */
   .st-wrap{padding:0 var(--content-pad,32px) 40px;box-sizing:border-box}
   .st-wrap .page-head{padding-left:0;padding-right:0}
-  .st-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin:0 0 14px}
+  .st-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:16px 18px;margin:0 0 14px}
   .st-note{font-size:12.5px;color:var(--mute);line-height:1.75}
   .st-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:4px 0 6px}
   @media(max-width:900px){.st-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:560px){.st-tiles{grid-template-columns:1fr}.st-wrap{padding:0 12px 32px}}
-  .st-tile{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--mt-panel,#fafbfc)}
+  .st-tile{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--mt-panel,var(--knk-mail-c-gray-02-3))}
   .st-tile .t{font-size:12.5px;color:var(--mute);font-weight:700}
   .st-tile .v{font-size:22px;font-weight:800;margin-top:4px;color:var(--ink)}
   .st-tile .d{font-size:12px;color:var(--mute);margin-top:2px;line-height:1.5}
-  .st-tile.good .v{color:#15803d}
+  .st-tile.good .v{color:var(--knk-mail-c-green-71)}
   .st-tbl{width:100%;border-collapse:collapse;font-size:13px}
   .st-tbl th,.st-tbl td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;white-space:nowrap}
   .st-tbl th:first-child,.st-tbl td:first-child{text-align:left;white-space:normal}
-  .st-tbl thead th{background:var(--mt-panel,#fafbfc);font-weight:700;color:var(--mt-text2,#374151)}
-  .st-tbl tr.sum td{font-weight:800;background:var(--mt-panel,#fafbfc)}
+  .st-tbl thead th{background:var(--mt-panel,var(--knk-mail-c-gray-02-3));font-weight:700;color:var(--mt-text2,var(--knk-mail-c-blue-73-2))}
+  .st-tbl tr.sum td{font-weight:800;background:var(--mt-panel,var(--knk-mail-c-gray-02-3))}
   .st-scroll{overflow-x:auto}
   .st-bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:8px}
-  .st-bar i{display:block;height:100%;background:var(--knk-red,#b91c1c);width:0}
+  .st-bar i{display:block;height:100%;background:var(--knk-red,var(--knk-mail-c-red-58));width:0}
   .st-sim{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;margin:8px 0}
   .st-sim input{width:80px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:13px}
 </style>
@@ -33,14 +33,14 @@
 <div class="st-wrap">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 메일 용량 재기</div>
-    <h1 class="page-title">📦 메일 <em>용량 재기</em></h1>
+    <h1 class="page-title">{{ mi('archive') }} 메일 <em>용량 재기</em></h1>
   </div>{% with exit_href='/mail/tools', exit_label='설정·정리' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
 
   <div class="st-card">
     <div style="font-size:13.5px;line-height:1.75">내 메일이 서버에서 차지하는 크기를 <b>기간·종류별</b>로 재고, <b>오래된 메일을 압축하면 얼마로 줄어드는지</b> 실제로 압축해 봅니다.</div>
-    <div class="st-note">🔒 숫자만 잽니다 — 메일을 바꾸거나 지우거나 바깥으로 보내지 않습니다 · 제목·내용은 이 화면에 나오지 않습니다 · 메일이 많으면 몇 분 걸립니다(그동안 다른 일 하셔도 됩니다).</div>
+    <div class="st-note">{{ mi('lock') }} 숫자만 잽니다 — 메일을 바꾸거나 지우거나 바깥으로 보내지 않습니다 · 제목·내용은 이 화면에 나오지 않습니다 · 메일이 많으면 몇 분 걸립니다(그동안 다른 일 하셔도 됩니다).</div>
     <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button type="button" class="btn btn-primary" id="stGo" onclick="stStart()">📏 지금 재기</button>
+      <button type="button" class="btn btn-primary" id="stGo" onclick="stStart()">{{ mi('ruler') }} 지금 재기</button>
       <span id="stMsg" style="font-size:12.5px"></span>
     </div>
     <div class="st-bar" id="stBar" hidden><i id="stBarI"></i></div>
@@ -73,15 +73,15 @@
 
   {# 11-23 대표 「1번 2번 진행해」 — ① 6개월 지난 본문 압축 · ② 같은 본문 하나로 · 11-26 「1번 진행해」 ③ 받을 때 바로 · 날짜 상관없이 모두 #}
   <div class="st-card" id="pkCard">
-    <h2 style="margin:0 0 6px;font-size:15px">🗜 본문 정리 — 서식 본문 압축 · 같은 본문은 하나만</h2>
+    <h2 style="margin:0 0 6px;font-size:15px">{{ mi('file-archive') }} 본문 정리 — 서식 본문 압축 · 같은 본문은 하나만</h2>
     <div class="st-note">· <b>새 메일은 받을 때·보낼 때 바로 압축</b>합니다(11-26부터) · 같은 본문(그룹 메일·전사 공지·자동 알림 · 사람이 달라도)은 보관함 <b>한 벌</b>을 같이 씁니다<br>
       · 여기 「지금 정리」·밤 정리 대상 = 아직 압축 안 된 서식 본문(HTML) 1KB 넘는 메일 <b>모두</b>(날짜 상관없음)<br>
       · 압축한 본문은 「본문 보관함」에 <b>한 벌만</b> 두고, 메일을 열면 그 자리에서 풀어 보여 줍니다(느려짐 거의 없음) · 글 본문은 그대로라 <b>찾기·미리 보기·답장은 그대로</b><br>
       · <b>풀어 보아 원본과 똑같을 때만</b> 옮김 · 정리하기 전 DB 사본을 먼저 만듦 · 「되돌리기」로 마지막 정리를 그대로 되돌림 · <b>매일 밤 22시 이후 저절로 한 번</b> 더 정리</div>
     <div class="st-tiles" id="pkTiles" style="margin-top:10px"></div>
     <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button type="button" class="btn btn-secondary" onclick="pkPlan()">🔢 정리할 것 세기</button>
-      <button type="button" class="btn btn-primary" id="pkGo" onclick="pkRun(false)" disabled>🗜 지금 정리</button>
+      <button type="button" class="btn btn-secondary" onclick="pkPlan()">{{ mi('hash') }} 정리할 것 세기</button>
+      <button type="button" class="btn btn-primary" id="pkGo" onclick="pkRun(false)" disabled>{{ mi('file-archive') }} 지금 정리</button>
       <button type="button" class="btn btn-secondary" id="pkUndo" onclick="pkRun(true)" hidden>↺ 마지막 정리 되돌리기</button>
       <span id="pkMsg" style="font-size:12.5px"></span>
     </div>
@@ -99,8 +99,8 @@
   function say(t, c){ var m=document.getElementById('stMsg'); m.textContent=t; m.style.color=c||''; }
   window.stStart=async function(){
     document.getElementById('stGo').disabled=true; say('재는 중…');
-    try{ var r=await fetch('/mail/storage/start',{method:'POST',headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ say('⚠ '+(j.message||'시작하지 못했습니다'),'#b91c1c'); document.getElementById('stGo').disabled=false; return; } }
-    catch(e){ say('⚠ 네트워크 오류','#b91c1c'); document.getElementById('stGo').disabled=false; return; }
+    try{ var r=await fetch('/mail/storage/start',{method:'POST',headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ say('⚠ '+(j.message||'시작하지 못했습니다'),'var(--knk-mail-c-red-58)'); document.getElementById('stGo').disabled=false; return; } }
+    catch(e){ say('⚠ 네트워크 오류','var(--knk-mail-c-red-58)'); document.getElementById('stGo').disabled=false; return; }
     poll();
   };
   async function poll(){
@@ -109,8 +109,8 @@
       if(j.state==='running'){ var b=document.getElementById('stBar'); b.hidden=false; var p=j.total? Math.min(100, Math.round(j.done*100/j.total)) : 0;
         document.getElementById('stBarI').style.width=p+'%'; say('재는 중… '+(j.done||0)+' / '+(j.total||'?')+'통'); T=setTimeout(poll, 1500); return; }
       document.getElementById('stGo').disabled=false; document.getElementById('stBar').hidden=true;
-      if(j.state==='done'){ J=j.result; draw(); say('✓ '+J.at+' 잼 · '+J.secs+'초 걸림','#047857'); }
-      else if(j.state==='error'){ say('⚠ 재지 못했습니다 — '+(j.error||''),'#b91c1c'); }
+      if(j.state==='done'){ J=j.result; draw(); say('✓ '+J.at+' 잼 · '+J.secs+'초 걸림','var(--knk-mail-c-teal-76)'); }
+      else if(j.state==='error'){ say('⚠ 재지 못했습니다 — '+(j.error||''),'var(--knk-mail-c-red-58)'); }
     }catch(e){ T=setTimeout(poll, 3000); }
   }
   function sumCells(filter){ var o={n:0,body:0,body_z:0,att_logical:0,att_physical:0}; Object.keys(J.cells).forEach(function(k){ var a=k.split('|'); if(filter(a[0],a[1])){ var c=J.cells[k]; Object.keys(o).forEach(function(x){ o[x]+=c[x]||0; }); } }); return o; }
@@ -160,8 +160,8 @@
   };
   // 11-28 M-4 앞서 잰 결과는 서버가 화면과 함께 넘김 → 그리기 전에 채움(뒤에 물어 와 그리면 아래가 크게 밀렸음) · 재는 중일 때만 물어 봄
   var S0 = {{ (st0|default({}))|tojson }};
-  if(S0 && S0.state==='done' && S0.result){ J=S0.result; try{ draw(); say('✓ '+J.at+' 잼 · '+J.secs+'초 걸림','#047857'); }catch(e){ poll(); } }
-  else if(S0 && S0.state==='error'){ say('⚠ 재지 못했습니다 — '+(S0.error||''),'#b91c1c'); }
+  if(S0 && S0.state==='done' && S0.result){ J=S0.result; try{ draw(); say('✓ '+J.at+' 잼 · '+J.secs+'초 걸림','var(--knk-mail-c-teal-76)'); }catch(e){ poll(); } }
+  else if(S0 && S0.state==='error'){ say('⚠ 재지 못했습니다 — '+(S0.error||''),'var(--knk-mail-c-red-58)'); }
   else if(S0 && S0.state==='running'){ poll(); }
 
   /* 11-23 본문 정리 */
@@ -169,7 +169,7 @@
   function psay(t,c){ var m=document.getElementById('pkMsg'); m.textContent=t; m.style.color=c||''; }
   window.pkPlan=async function(){
     psay('세는 중…(몇십 초)');
-    try{ var r=await fetch('/mail/storage/pack',{headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ psay('⚠ '+(j.message||''),'#b91c1c'); return; }
+    try{ var r=await fetch('/mail/storage/pack',{headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ psay('⚠ '+(j.message||''),'var(--knk-mail-c-red-58)'); return; }
       var b=document.getElementById('pkTiles'); b.innerHTML='';
       tile(b,'정리할 메일', (j.mails||0).toLocaleString()+'통', '6개월 지남 '+(j.old_n||0).toLocaleString()+' · 같은 본문 '+(j.dup_n||0).toLocaleString()+(j.pack_all? ' · 최근 '+(j.new_n||0).toLocaleString() : ''));
       tile(b,'그 본문 크기(지금)', mb(j.raw), '같은 본문 하나로 치면 '+mb(j.unique_raw)+' · '+(j.unique_n||0).toLocaleString()+'가지', j.raw>0);
@@ -177,17 +177,17 @@
       document.getElementById('pkGo').disabled=!(j.mails>0);
       document.getElementById('pkUndo').hidden=!(j.batches && j.batches.length);
       document.getElementById('pkHist').textContent = (j.batches&&j.batches.length) ? ('지난 정리: '+j.batches.slice(0,5).map(function(x){ return x.at.slice(5,16)+' '+x.n.toLocaleString()+'통'; }).join(' · ')) : '';
-      psay(j.mails? '정리할 것이 있습니다 — 「지금 정리」' : '✓ 정리할 것이 없습니다', j.mails? '' : '#047857');
+      psay(j.mails? '정리할 것이 있습니다 — 「지금 정리」' : '✓ 정리할 것이 없습니다', j.mails? '' : 'var(--knk-mail-c-teal-76)');
       if(j.job && j.job.state==='running') pkPoll();
-    }catch(e){ psay('⚠ 네트워크 오류','#b91c1c'); }
+    }catch(e){ psay('⚠ 네트워크 오류','var(--knk-mail-c-red-58)'); }
   };
   window.pkRun=async function(undo){
     if(undo && !confirm('마지막 정리를 되돌릴까요?\n그때 압축한 본문을 다시 메일 칸에 채웁니다(서버 용량이 다시 늘어납니다).')) return;
     if(!undo && !confirm('본문 정리를 시작할까요?\n먼저 DB 사본을 만든 뒤 압축합니다 · 메일이 많으면 몇 분 걸립니다 · 그동안 메일은 그대로 쓰실 수 있습니다.')) return;
     var fd=new FormData(); fd.append('undo', undo?'1':'0');
     document.getElementById('pkGo').disabled=true;
-    try{ var r=await fetch('/mail/storage/pack',{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ psay('⚠ '+(j.message||''),'#b91c1c'); return; } }
-    catch(e){ psay('⚠ 네트워크 오류','#b91c1c'); return; }
+    try{ var r=await fetch('/mail/storage/pack',{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); if(!j.ok){ psay('⚠ '+(j.message||''),'var(--knk-mail-c-red-58)'); return; } }
+    catch(e){ psay('⚠ 네트워크 오류','var(--knk-mail-c-red-58)'); return; }
     pkPoll();
   };
   async function pkPoll(){
@@ -195,9 +195,9 @@
     try{ var r=await fetch('/mail/storage/pack',{headers:{'X-Requested-With':'fetch'}}); var j=await r.json(); var s=j.job||{};
       if(s.state==='running'){ psay('정리 중… '+(s.done||0).toLocaleString()+' / '+(s.total||'?').toLocaleString()+'통'); PT=setTimeout(pkPoll, 2000); return; }
       if(s.state==='done' && s.result){ var x=s.result;
-        if(x.undone!==undefined) psay('✓ 되돌렸습니다 — '+x.undone.toLocaleString()+'통','#047857');
-        else psay('✓ 정리했습니다 — '+(x.packed||0).toLocaleString()+'통 · 원래 '+mb(x.raw)+' → 보관함에 새로 '+mb(x.z_new)+(x.skipped? ' · 건너뜀 '+x.skipped : ''),'#047857'); }
-      else if(s.state==='error') psay('⚠ '+(s.error||'실패'),'#b91c1c');
+        if(x.undone!==undefined) psay('✓ 되돌렸습니다 — '+x.undone.toLocaleString()+'통','var(--knk-mail-c-teal-76)');
+        else psay('✓ 정리했습니다 — '+(x.packed||0).toLocaleString()+'통 · 원래 '+mb(x.raw)+' → 보관함에 새로 '+mb(x.z_new)+(x.skipped? ' · 건너뜀 '+x.skipped : ''),'var(--knk-mail-c-teal-76)'); }
+      else if(s.state==='error') psay('⚠ '+(s.error||'실패'),'var(--knk-mail-c-red-58)');
       pkPlan2(j);
     }catch(e){ PT=setTimeout(pkPoll, 4000); }
   }

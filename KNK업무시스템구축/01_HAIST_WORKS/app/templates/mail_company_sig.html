@@ -5,21 +5,21 @@
 <style>
   /* 11-20 3단계 ⑧ 🏢 회사 서명 틀(관리자) — 틀(글자·자리표시)만 메일이 가짐 · 값은 웍스에서 읽음 */
   .cs-wrap{padding:0 var(--content-pad,32px) 24px}
-  .cs-info{border:1px solid #bfdbfe;background:#eff6ff;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#1e3a8a;line-height:1.75;margin-bottom:14px}
+  .cs-info{border:1px solid var(--knk-mail-c-blue-13);background:var(--knk-mail-c-blue-03-2);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--knk-mail-c-blue-67);line-height:1.75;margin-bottom:14px}
   .cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
-  .cs-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:14px 16px;min-width:0}
+  .cs-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:14px 16px;min-width:0}
   .cs-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
   .cs-h b{font-size:15px}
-  .cs-st{font-size:11.5px;border-radius:999px;padding:2px 9px;background:#f1f5f9;color:#475569}
-  .cs-st.on{background:#e8f6ec;color:#15803d}
-  .cs-st.off{background:#fff7ed;color:#c2410c}
+  .cs-st{font-size:11.5px;border-radius:999px;padding:2px 9px;background:var(--knk-mail-c-gray-04);color:var(--knk-mail-c-gray-65)}
+  .cs-st.on{background:var(--knk-mail-c-green-06);color:var(--knk-mail-c-green-71)}
+  .cs-st.off{background:var(--knk-mail-c-amber-04);color:var(--knk-mail-c-orange-60)}
   .cs-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
-  .cs-chips button{border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:999px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
+  .cs-chips button{border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-03);color:var(--knk-mail-c-indigo-59);border-radius:999px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer}
   .cs-ta{width:100%;min-height:150px;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.7;resize:vertical}
-  .cs-pvh .cs-me{float:right;font-weight:600;font-size:12px;color:var(--knk-red,#a5282c);text-decoration:none} .cs-pvh .cs-me:hover{text-decoration:underline}
+  .cs-pvh .cs-me{float:right;font-weight:600;font-size:12px;color:var(--knk-red);text-decoration:none} .cs-pvh .cs-me:hover{text-decoration:underline}
   .cs-pvh{font-size:12px;color:var(--mute);margin:10px 0 4px}
-  .cs-pv{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.65;min-height:40px;word-break:break-word;background:var(--mt-panel,#fafbfc);overflow-x:auto;max-width:100%}
-  .cs-note{font-size:11.5px;color:#b45309;margin-top:4px;line-height:1.5}
+  .cs-pv{border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.65;min-height:40px;word-break:break-word;background:var(--mt-panel,var(--knk-mail-c-gray-02-3));overflow-x:auto;max-width:100%}
+  .cs-note{font-size:11.5px;color:var(--knk-mail-c-orange-63);margin-top:4px;line-height:1.5}
   .cs-act{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
   .cs-msg{font-size:12.5px}
   @media(max-width:640px){.cs-wrap{padding:0 12px 20px}.cs-grid{grid-template-columns:1fr}}
@@ -29,16 +29,16 @@
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/signature">메일 서명</a> · 회사 서명 틀</div>
-    <h1 class="page-title">🏢 회사 서명 <em>틀</em> <small style="font-size:13px;color:var(--mute);font-weight:600">관리자</small></h1>
+    <h1 class="page-title">{{ mi('building-2') }} 회사 서명 <em>틀</em> <small style="font-size:13px;color:var(--mute);font-weight:600">관리자</small></h1>
   </div>{% with exit_href='/mail/signature', exit_label='메일 서명' %}{% include "_v5_partials/mail_exit.html" %}{% endwith %}</div>
   <div class="cs-wrap">
     <div class="cs-info">
-      · 여기서는 <b>모양(글자·자리)</b>만 정합니다. 직원이 「🏢 회사 서명 쓰기」를 누르거나 메일 쓰기 「✍」에서 고르면 <b>그 사람 정보</b>로 채워집니다.<br>
+      · 여기서는 <b>모양(글자·자리)</b>만 정합니다. 직원이 「{{ mi('building-2') }} 회사 서명 쓰기」를 누르거나 메일 쓰기 「{{ mi('pen-line') }} 」에서 고르면 <b>그 사람 정보</b>로 채워집니다.<br>
       · <b>{이름} {직책} {부서} {휴대폰} {메일} {영문이름} {영문직책} {한국이름} {한국직책} {베트남이름}</b> = 웍스 직원 명단(이음 메신저에 등록한 정보가 로그인 때 넘어옴 · 영어·베트남어 틀의 {이름}{직책}은 그 말로 바뀜 → 한국 이름은 {한국이름}{한국직책})(영문 이름이 없으면 메일 주소 이름 부분 「jiman.park」→「Jiman Park」) · <b>{홈페이지}</b> = www.knknara.com · <b>{회사} {주소} {전화} {팩스}</b> = 웍스 회사 정보{% if user.role in ('admin','ceo') %}(<a href="/admin/company-info" target="_blank" rel="noopener">웍스 「회사 정보」에서 고치기</a>){% endif %} — 메일에서는 고치지 않습니다.<br>
       · 값이 비어 있는 자리는 그 줄(또는 「 · 」로 나뉜 그 토막)만 빠집니다. 베트남 법인 직원은 회사 이름이 「KNK VINA Co., Ltd.」, 주소가 베트남 공장 주소로 들어가고, 전화·팩스는 빠집니다.<br>
       · 누가 어떤 서명을: 본사 = 한국어(기본)·영어 · 베트남 법인 한국 사람 = 한국어(기본)·영어 · 베트남 법인 베트남 사람(이음 쓰는 말 = 베트남어) = 베트남어(기본)·한국어·영어 · 기본은 사람마다 서명 화면에서 바꿀 수 있음<br>
       · 모양: 맨 위 <b>로고</b> · 첫 줄 <b>굵게</b> · 둘째 줄과 마지막 줄 <b>회색</b> · 맨 아래 <b>보안 문구</b>(본사 한국어 서명 = 한국어 먼저 · 베트남 법인·영어 서명 = 영어 먼저 · 늘 붙음)<br>
-      · 미리 보기는 <b>내 정보</b>로 채운 모양입니다 — 내 정보(이름·직책·부서·휴대폰 등)는 <a href="/mail/signature#meCard">✏️ 내 서명 정보</a>에서 고칩니다.
+      · 미리 보기는 <b>내 정보</b>로 채운 모양입니다 — 내 정보(이름·직책·부서·휴대폰 등)는 <a href="/mail/signature#meCard">{{ mi('square-pen') }} 내 서명 정보</a>에서 고칩니다.
     </div>
     <div class="cs-grid">
       {% for lg in langs %}{% set t = tpls[lg] %}
@@ -49,11 +49,11 @@
         </div>
         <div class="cs-chips">{% for k, _v, _w in fields %}<button type="button" onclick="csPut('{{ lg }}','{{ '{' ~ k ~ '}' }}')" title="누르면 글쓴 자리에 넣음">{{ '{' ~ k ~ '}' }}</button>{% endfor %}</div>
         <textarea class="cs-ta" id="csTa_{{ lg }}" spellcheck="false">{{ t.body if t.on else defaults[lg] }}</textarea>
-        <div class="cs-pvh">미리 보기(내 정보) <a href="/mail/signature#meCard" class="cs-me" title="이름·직책·부서·휴대폰·메일 등 내 정보는 「메일 서명」 화면의 ✏️ 내 서명 정보에서 고칩니다 · 회사·주소·전화·팩스는 웍스 「회사 정보」">✏️ 내 정보 고치기</a></div>
+        <div class="cs-pvh">미리 보기(내 정보) <a href="/mail/signature#meCard" class="cs-me" title="이름·직책·부서·휴대폰·메일 등 내 정보는 「메일 서명」 화면의 ✏️ 내 서명 정보에서 고칩니다 · 회사·주소·전화·팩스는 웍스 「회사 정보」">{{ mi('square-pen') }} 내 정보 고치기</a></div>
         <div class="cs-pv" id="csPv_{{ lg }}">{{ prev[lg].html|safe }}</div>
         <div class="cs-note" id="csNote_{{ lg }}">{% if prev[lg].note %}ⓘ {{ prev[lg].note }}{% endif %}</div>
         <div class="cs-act">
-          <button type="button" class="btn btn-primary" onclick="csSave('{{ lg }}','save')">💾 저장</button>
+          <button type="button" class="btn btn-primary" onclick="csSave('{{ lg }}','save')">{{ mi('save') }} 저장</button>
           {% if t.on %}<button type="button" class="btn btn-secondary" onclick="csSave('{{ lg }}','off')" title="이 말 회사 서명을 직원 화면에서 뺍니다">이 말은 쓰지 않기</button>{% endif %}
           {% if t.custom %}<button type="button" class="btn btn-secondary" onclick="csSave('{{ lg }}','default')">기본 틀로 되돌리기</button>{% endif %}
           <span class="cs-msg" id="csMsg_{{ lg }}"></span>
@@ -67,7 +67,7 @@
 <script>
 (function(){
   var tm={};
-  function msg(lg,t,c){ var m=document.getElementById('csMsg_'+lg); if(!m) return; m.textContent=t; m.style.color=c==='g'?'var(--success,#15803d)':(c==='r'?'var(--knk-red,#b91c1c)':'var(--mute)'); }
+  function msg(lg,t,c){ var m=document.getElementById('csMsg_'+lg); if(!m) return; m.textContent=t; m.style.color=c==='g'?'var(--success,var(--knk-mail-c-green-71))':(c==='r'?'var(--knk-red,var(--knk-mail-c-red-58))':'var(--mute)'); }
   async function preview(lg){
     var ta=document.getElementById('csTa_'+lg); if(!ta) return;
     var fd=new FormData(); fd.append('lang',lg); fd.append('body',ta.value);

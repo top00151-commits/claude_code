@@ -7,21 +7,21 @@
   .wt-wrap{padding:0 var(--content-pad,32px) 32px}
   @media(max-width:700px){.wt-wrap{padding:0 12px 24px}}
   .wt-tip{font-size:12.5px;color:var(--mute);line-height:1.7;margin-bottom:12px}
-  .wt-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);overflow:hidden}
-  .wt-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid #f0f1f3;flex-wrap:wrap}
+  .wt-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));overflow:hidden}
+  .wt-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--knk-mail-c-gray-05-3);flex-wrap:wrap}
   .wt-row:first-child{border-top:0}
-  .wt-row.due{background:#fff7ed}
+  .wt-row.due{background:var(--knk-mail-c-amber-04)}
   .wt-main{flex:1;min-width:240px}
   .wt-main a{color:var(--ink);text-decoration:none;font-weight:700;font-size:14px}
   .wt-main a:hover{text-decoration:underline}
   .wt-sub{font-size:12.5px;color:var(--mute);margin-top:3px}
   .wt-st{font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}
-  .wt-st.wait{background:#eff6ff;color:#1e3a8a}.wt-st.due{background:#ffedd5;color:#9a3412}.wt-st.ok{background:#dcfce7;color:#166534}.wt-st.done{background:#f3f4f6;color:#4b5563}
+  .wt-st.wait{background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67)}.wt-st.due{background:var(--knk-mail-c-amber-08);color:var(--knk-mail-c-orange-66)}.wt-st.ok{background:var(--knk-mail-c-green-07);color:var(--knk-mail-c-green-76)}.wt-st.done{background:var(--knk-mail-c-gray-04-2);color:var(--knk-mail-c-gray-66)}
   .wt-act{display:flex;gap:6px;flex-wrap:wrap}
-  .wt-act button,.wt-act a{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:var(--mt-surface,#fff);color:var(--ink);cursor:pointer;text-decoration:none}
-  .wt-act .go{background:var(--knk-red);border-color:var(--knk-red);color:#fff}
+  .wt-act button,.wt-act a{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink);cursor:pointer;text-decoration:none}
+  .wt-act .go{background:var(--knk-red);border-color:var(--knk-red);color:var(--knk-mail-c-white)}
   .wt-empty{padding:28px 16px;text-align:center;color:var(--mute);font-size:13.5px;line-height:1.8}
-  html[data-mt="dark"] .wt-row.due{background:#3b2414}
+  html[data-mt="dark"] .wt-row.due{background:var(--knk-mail-c-orange-85-2)}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -39,13 +39,13 @@
           <div class="wt-sub">→ {{ w.rcpts[:3]|join(', ') }}{% if w.rcpts|length > 3 %} 외 {{ w.rcpts|length - 3 }}명{% endif %} · 보낸 날 {{ (w.received_at or '')[5:10]|replace('-','/') }}</div></div>
         {% if w.wait_state == 'replied' %}<span class="wt-st ok" title="같은 제목으로 상대 회사에서 온 메일을 저절로 답으로 짝지었습니다 — 틀렸으면 「아직 아님」">✅ 답 옴(자동)</span>
         {% elif w.wait_state == 'done' %}<span class="wt-st done">✓ 끝냄</span>
-        {% elif w.overdue %}<span class="wt-st due">⏰ {{ (w.wait_until or '')[5:]|replace('-','/') }}까지였어요 · 답 안 옴</span>
+        {% elif w.overdue %}<span class="wt-st due">{{ mi('alarm-clock') }} {{ (w.wait_until or '')[5:]|replace('-','/') }}까지였어요 · 답 안 옴</span>
         {% else %}<span class="wt-st wait">⏳ {{ (w.wait_until or '')[5:]|replace('-','/') }}까지 기다림</span>{% endif %}
         <div class="wt-act">
           {% if w.wait_state == 'replied' and w.wait_reply_id %}<a href="/mail/{{ w.wait_reply_id }}">온 답 보기</a>
           <button type="button" onclick="wtNotYet({{ w.id }})" title="이 짝이 틀렸으면 — 다시 답 기다림으로(그 메일은 다시 답으로 보지 않음)">↩ 아직 아님</button>{% endif %}
           {% if w.wait_state == 'wait' %}
-          <a class="go" href="/mail/compose?nudge={{ w.id }}" onclick="return window.mailNewWin ? mailNewWin(event,'nudge={{ w.id }}') : true" title="원래 받는 사람에게 「[확인 요청] 원래 제목」 — 정중한 글 + 원래 메일 인용 · 새 창으로">✉ 다시 묻기</a>
+          <a class="go" href="/mail/compose?nudge={{ w.id }}" onclick="return window.mailNewWin ? mailNewWin(event,'nudge={{ w.id }}') : true" title="원래 받는 사람에게 「[확인 요청] 원래 제목」 — 정중한 글 + 원래 메일 인용 · 새 창으로">{{ mi('mail') }} 다시 묻기</a>
           <button type="button" onclick="wtDo({{ w.id }}, 'done')" title="전화 등으로 답을 받았으면">✓ 답 받음</button>
           <button type="button" onclick="wtDo({{ w.id }}, 'more')" title="3일 더 기다리기">＋3일</button>
           <button type="button" onclick="wtDo({{ w.id }}, 'off')">그만</button>

@@ -8,21 +8,21 @@
   .hp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
   .hp-bar .sp{flex:1}
   .hp-bar .hint{font-size:12.5px;color:var(--mute)}
-  .hp-doc{background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px;padding:22px 26px}
-  .hp-title{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:3px solid var(--knk-red,#b91c1c);padding-bottom:10px;margin-bottom:14px}
+  .hp-doc{background:var(--mt-surface,var(--knk-mail-c-white));border:1px solid var(--line);border-radius:12px;padding:22px 26px}
+  .hp-title{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;border-bottom:3px solid var(--knk-red,var(--knk-mail-c-red-58));padding-bottom:10px;margin-bottom:14px}
   .hp-title h1{margin:0;font-size:22px}
   .hp-title .meta{margin-left:auto;font-size:12px;color:var(--mute)}
   .hp-lead{font-size:13.5px;line-height:1.75;margin:0 0 16px}
   .hp-secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px 22px}
   .hp-sec{break-inside:avoid;page-break-inside:avoid;border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
   .hp-sec h2{margin:0 0 8px;font-size:15.5px;display:flex;align-items:center;gap:8px}
-  .hp-sec h2 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--knk-red,#b91c1c);color:#fff;font-size:12px}
-  .hp-it{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:4px 12px;padding:6px 0;border-top:1px dashed #e5e7eb;font-size:13px;line-height:1.7}
+  .hp-sec h2 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--knk-red,var(--knk-mail-c-red-58));color:var(--knk-mail-c-white);font-size:12px}
+  .hp-it{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:4px 12px;padding:6px 0;border-top:1px dashed var(--knk-mail-c-gray-09);font-size:13px;line-height:1.7}
   .hp-it:first-of-type{border-top:0}
-  .hp-btn{display:inline-block;border:1px solid #cbd5e1;background:#f8fafc;border-radius:7px;padding:1px 8px;font-weight:700;font-size:12.5px;white-space:nowrap;align-self:start}
+  .hp-btn{display:inline-block;border:1px solid var(--knk-mail-c-gray-16);background:var(--knk-mail-c-gray-02);border-radius:7px;padding:1px 8px;font-weight:700;font-size:12.5px;white-space:nowrap;align-self:start}
   .hp-keys{border-collapse:collapse;font-size:13px;width:100%}
-  .hp-keys td{border-top:1px dashed #e5e7eb;padding:5px 6px}
-  .hp-keys kbd{display:inline-block;min-width:18px;text-align:center;border:1px solid #d1d5db;border-bottom-width:2px;border-radius:5px;padding:0 6px;font-family:inherit;font-size:12px;background:#f9fafb}
+  .hp-keys td{border-top:1px dashed var(--knk-mail-c-gray-09);padding:5px 6px}
+  .hp-keys kbd{display:inline-block;min-width:18px;text-align:center;border:1px solid var(--knk-mail-c-gray-16-3);border-bottom-width:2px;border-radius:5px;padding:0 6px;font-family:inherit;font-size:12px;background:var(--knk-mail-c-gray-02-2)}
   .hp-foot{margin-top:14px;font-size:12px;color:var(--mute);line-height:1.7}
   @media(max-width:640px){
     .hp{padding:8px 12px 24px}
@@ -34,15 +34,15 @@
   @page{size:A4;margin:14mm 13mm}
   @media print{
     .mail-app-fixed, .mail-help, .mail-theme-pop, .mtour, .hp-bar, nav, .sidebar, .topbar { display:none !important; }
-    html, body { background:#fff !important; height:auto !important; overflow:visible !important; }
+    html, body { background:var(--knk-mail-c-white) !important; height:auto !important; overflow:visible !important; }
     .app, .main { display:block !important; padding:0 !important; margin:0 !important; overflow:visible !important; }
     .hp { padding:0 !important; }
     .hp-doc { border:0 !important; padding:0 !important; border-radius:0 !important; }
     .hp-secs { display:block !important; }
-    .hp-sec { margin:0 0 4mm !important; border-color:#cbd5e1 !important; }
+    .hp-sec { margin:0 0 4mm !important; border-color:var(--knk-mail-c-gray-16) !important; }
     .hp-title h1 { font-size:18pt; }
     .hp-it, .hp-lead, .hp-keys { font-size:10pt; }
-    .hp-btn { background:#fff !important; }
+    .hp-btn { background:var(--knk-mail-c-white) !important; }
     a { color:inherit !important; text-decoration:none !important; }
     .hp-keys-sec { page-break-before:auto; }
   }
@@ -52,14 +52,14 @@
 <main class="main" data-dn="main">
   <div class="hp">
     <div class="hp-bar">
-      <button type="button" class="btn btn-primary" onclick="window.print()">🖨 인쇄하기</button>
-      <a href="/mail/inbox" class="btn btn-secondary">📥 받은편지함으로</a>
+      <button type="button" class="btn btn-primary" onclick="window.print()">{{ mi('printer') }} 인쇄하기</button>
+      <a href="/mail/inbox" class="btn btn-secondary">{{ mi('inbox') }} 받은편지함으로</a>
       <span class="sp"></span>
       <span class="hint">A4 용지에 맞춰 나옵니다 · 위 메뉴·단추는 인쇄되지 않습니다</span>
     </div>
     <article class="hp-doc">
-      <div class="hp-title"><h1>📧 {{ doc_title }}</h1><span class="meta">KNK · {{ today }} 기준 · 화면 글자 그대로</span></div>
-      <p class="hp-lead">메일함에서 자주 쓰는 것만 모았습니다. 「 」 안의 글자는 <b>화면의 단추 이름 그대로</b>입니다. 궁금한 점은 메일함 위 「❔ 도움말」에서도 볼 수 있습니다.</p>
+      <div class="hp-title"><h1>{{ mi('mail') }} {{ doc_title }}</h1><span class="meta">KNK · {{ today }} 기준 · 화면 글자 그대로</span></div>
+      <p class="hp-lead">메일함에서 자주 쓰는 것만 모았습니다. 「 」 안의 글자는 <b>화면의 단추 이름 그대로</b>입니다. 궁금한 점은 메일함 위 「{{ mi('circle-help') }} 도움말」에서도 볼 수 있습니다.</p>
       <div class="hp-secs">
         {% for s in secs %}
         <section class="hp-sec" id="sec-{{ s.id }}">

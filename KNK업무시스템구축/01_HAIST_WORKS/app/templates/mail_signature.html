@@ -5,23 +5,23 @@
 <style>
   /* 11-22 대표 「서명은 지금 정한 서명을 공통으로 · 이름·전화번호·메일 주소 등 개인적인 것만 · 잘못됐으면 개인적인 부분만 고칠 수 있게 · 보안 문구 무조건」
      → 이 화면 = ① 새 메일에 넣을 회사 서명 말 ② 회사 서명 미리 보기(내 정보로 채움) ③ 내 서명 정보(개인 칸만 고침 · 비우면 자동) */
-  .co-card{border:1px solid #c7d2fe;background:#f5f7ff;border-radius:12px;padding:14px 16px;margin:0 var(--content-pad,32px) 14px}
+  .co-card{border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-02);border-radius:12px;padding:14px 16px;margin:0 var(--content-pad,32px) 14px}
   .co-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;font-size:14.5px;margin-bottom:4px}
   .co-h a{font-size:12.5px;font-weight:600;margin-left:auto}
   .co-d{font-size:12.5px;color:var(--mute);line-height:1.6;margin-bottom:10px}
   .co-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:10px}
-  .co-one{border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
-  .co-lg{font-size:12px;font-weight:700;color:#3730a3}
+  .co-one{border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,var(--knk-mail-c-white));padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .co-lg{font-size:12px;font-weight:700;color:var(--knk-mail-c-indigo-59)}
   .co-pv{font-size:13px;line-height:1.65;word-break:break-word}
-  .co-note{font-size:11.5px;color:#b45309;line-height:1.5}
-  .me-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:14px 16px;margin:0 var(--content-pad,32px) 24px}
+  .co-note{font-size:11.5px;color:var(--knk-mail-c-orange-63);line-height:1.5}
+  .me-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:14px 16px;margin:0 var(--content-pad,32px) 24px}
   .me-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:10px 14px;margin-top:8px}
   .me-f{display:flex;flex-direction:column;gap:3px;min-width:0}
   .me-f label{font-size:12.5px;font-weight:700;color:var(--ink)}
   .me-f input{font:inherit;font-size:13.5px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
-  .me-f input.ov{border-color:#f59e0b;background:#fffbeb}
-  .me-f input.chg{border-color:#2563eb;background:#eff6ff}
-  .me-f small a{color:#1d4ed8;cursor:pointer;margin-left:4px}
+  .me-f input.ov{border-color:var(--knk-mail-c-amber-50);background:var(--knk-mail-c-yellow-04)}
+  .me-f input.chg{border-color:var(--knk-mail-c-blue-47);background:var(--knk-mail-c-blue-03-2)}
+  .me-f small a{color:var(--knk-mail-c-blue-52);cursor:pointer;margin-left:4px}
   .me-f small{font-size:11.5px;color:var(--mute);line-height:1.45;overflow-wrap:anywhere}
   .me-act{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
   @media(max-width:640px){.co-card{margin:0 12px 12px}.me-card{margin:0 12px 20px;padding:14px}}
@@ -31,29 +31,29 @@
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 서명</div>
-    <h1 class="page-title">✍️ 메일 <em>서명</em></h1>
+    <h1 class="page-title">{{ mi('pen-line') }} 메일 <em>서명</em></h1>
   </div>{% include "_v5_partials/mail_exit.html" %}</div>
 
   {% if sig_choices is defined and sig_choices %}
   <div class="co-card" id="sigDefBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-    <b style="font-size:14px">✉ 새 메일에 기본으로 넣을 서명</b>
+    <b style="font-size:14px">{{ mi('mail') }} 새 메일에 기본으로 넣을 서명</b>
     <select id="sigDefSel" style="font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:4px 8px">
       <option value=""{% if not sig_pref %} selected{% endif %}>회사 기본({% for g in sig_choices if (g.slot|string) == (sig_default|string) %}{{ g.name }}{% else %}{{ sig_choices[0].name }}{% endfor %})</option>
       {% for g in sig_choices %}<option value="{{ g.slot }}"{% if sig_pref and (g.slot|string) == sig_pref %} selected{% endif %}>{{ g.name }}</option>{% endfor %}
     </select>
-    <span id="sigDefMsg" style="font-size:12.5px;color:var(--mute)">메일을 쓸 때 「✍」에서 그 메일만 다른 말 서명으로 바꿀 수 있습니다</span>
+    <span id="sigDefMsg" style="font-size:12.5px;color:var(--mute)">메일을 쓸 때 「{{ mi('pen-line') }} 」에서 그 메일만 다른 말 서명으로 바꿀 수 있습니다</span>
   </div>
   <script>(function(){ var s=document.getElementById('sigDefSel'), m=document.getElementById('sigDefMsg'); if(!s) return;
     s.addEventListener('change', async function(){ var fd=new FormData(); fd.append('slot', s.value);
-      try{ var r=await fetch('/mail/signature/default',{method:'POST',body:fd}); var j=await r.json(); m.textContent=(j.ok?'✅ ':'⚠ ')+(j.msg||''); m.style.color=j.ok?'var(--success,#15803d)':'var(--knk-red,#b91c1c)'; }
+      try{ var r=await fetch('/mail/signature/default',{method:'POST',body:fd}); var j=await r.json(); m.textContent=(j.ok?'✅ ':'⚠ ')+(j.msg||''); m.style.color=j.ok?'var(--success,var(--knk-mail-c-green-71))':'var(--knk-red,var(--knk-mail-c-red-58))'; }
       catch(e){ m.textContent='⚠ 네트워크 오류'; } }); })();</script>
   {% endif %}
 
   {% if co_sigs|default([]) or can_company|default(false) %}
   <div class="co-card" id="coCard">
-    <div class="co-h">🏢 회사 서명 <span style="font-size:12px;font-weight:600;color:var(--mute)">회사 공통 모양 · 내 정보로 채움 · 보안 문구 늘 붙음</span>
-      {% if can_company|default(false) %}<a href="/mail/signature/company">🔧 회사 서명 틀 고치기(관리자)</a>{% endif %}</div>
-    <div class="co-d">서명 모양은 회사가 정한 하나만 씁니다. 이름·직책·휴대폰·메일은 <b>이음 메신저에 등록한 정보</b>로 자동으로 채우고, 틀린 곳은 아래 「✏️ 내 서명 정보」에서 그 칸만 고칩니다.
+    <div class="co-h">{{ mi('building-2') }} 회사 서명 <span style="font-size:12px;font-weight:600;color:var(--mute)">회사 공통 모양 · 내 정보로 채움 · 보안 문구 늘 붙음</span>
+      {% if can_company|default(false) %}<a href="/mail/signature/company">{{ mi('wrench') }} 회사 서명 틀 고치기(관리자)</a>{% endif %}</div>
+    <div class="co-d">서명 모양은 회사가 정한 하나만 씁니다. 이름·직책·휴대폰·메일은 <b>이음 메신저에 등록한 정보</b>로 자동으로 채우고, 틀린 곳은 아래 「{{ mi('square-pen') }} 내 서명 정보」에서 그 칸만 고칩니다.
       보안 문구는 서명을 지우고 보내도 <b>보내는 모든 메일에 저절로</b> 붙습니다.</div>
     {% if co_sigs|default([]) %}
     <div class="co-list">
@@ -66,26 +66,26 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="co-d" style="margin:0">지금 쓰는 회사 서명 틀이 없습니다 — 「🔧 회사 서명 틀 고치기」에서 정해 주세요.</div>
+    <div class="co-d" style="margin:0">지금 쓰는 회사 서명 틀이 없습니다 — 「{{ mi('wrench') }} 회사 서명 틀 고치기」에서 정해 주세요.</div>
     {% endif %}
   </div>
   {% endif %}
 
   {% if me_fields is defined and me_fields %}
   <div class="me-card" id="meCard">
-    <div class="co-h">✏️ 내 서명 정보 <span style="font-size:12px;font-weight:600;color:var(--mute)">이음에 등록한 정보로 채워 두었습니다 · 틀린 칸은 고치고, 넣고 싶지 않은 칸은 비운 뒤 💾 저장</span></div>
+    <div class="co-h">{{ mi('square-pen') }} 내 서명 정보 <span style="font-size:12px;font-weight:600;color:var(--mute)">이음에 등록한 정보로 채워 두었습니다 · 틀린 칸은 고치고, 넣고 싶지 않은 칸은 비운 뒤 {{ mi('save') }} 저장</span></div>
     <div class="me-grid">
       {% for f in me_fields %}
       <div class="me-f">
         <label for="me_{{ f.key }}">{{ f.label }}</label>
         {# 11-22 대표 「자동으로 확인 가능한 건 칸 아래 「자동: …」 말고 입력칸에 채워 · 지우거나 고치면 반영 · 비우면 없는 걸로」 #}
         <input id="me_{{ f.key }}" name="f_{{ f.key }}" type="{{ 'email' if f.key == 'email' else 'text' }}" maxlength="80" value="{{ f.val }}" placeholder="(비움 — 서명에 넣지 않음)" data-auto="{{ f.auto }}" data-orig="{{ f.val }}"{% if f.has_ov %} class="ov"{% endif %}>
-        <small>{% if f.has_ov %}{% if f.val %}✏️ 직접 고친 값{% else %}비움 — 서명에 넣지 않음{% endif %}{% if f.auto %} <a onclick="meAuto('{{ f.key }}')" title="이음에 등록한 값으로">↺ 자동 값으로</a>{% endif %}{% endif %}</small>
+        <small>{% if f.has_ov %}{% if f.val %}{{ mi('square-pen') }} 직접 고친 값{% else %}비움 — 서명에 넣지 않음{% endif %}{% if f.auto %} <a onclick="meAuto('{{ f.key }}')" title="이음에 등록한 값으로">↺ 자동 값으로</a>{% endif %}{% endif %}</small>
       </div>
       {% endfor %}
     </div>
     <div class="me-act">
-      <button type="button" class="btn btn-primary" onclick="meSave(false)">💾 저장</button>
+      <button type="button" class="btn btn-primary" onclick="meSave(false)">{{ mi('save') }} 저장</button>
       <button type="button" class="btn btn-secondary" onclick="meSave(true)">↺ 모두 자동 값으로</button>
       <span id="meMsg" style="font-size:12.5px"></span>
     </div>
@@ -94,15 +94,15 @@
     window.meAuto=function(k){ var i=document.getElementById('me_'+k); if(!i) return; i.value=i.getAttribute('data-auto')||''; i.dispatchEvent(new Event('input')); i.focus(); };
     document.querySelectorAll('#meCard input[name^="f_"]').forEach(function(i){ i.addEventListener('input', function(){
       i.classList.toggle('chg', i.value!==i.getAttribute('data-orig'));
-      var m=document.getElementById('meMsg'); if(m && document.querySelector('#meCard input.chg')){ m.textContent='⚠ 고친 칸이 있습니다 — 💾 저장을 눌러야 서명에 들어갑니다'; m.style.color='#b45309'; } }); });
+      var m=document.getElementById('meMsg'); if(m && document.querySelector('#meCard input.chg')){ m.textContent='⚠ 고친 칸이 있습니다 — 💾 저장을 눌러야 서명에 들어갑니다'; m.style.color='var(--knk-mail-c-orange-63)'; } }); });
     window.meSave=async function(reset){
       if(reset && !confirm('고친 칸을 모두 지우고 이음에 등록한 값으로 되돌릴까요?')) return;
       var fd=new FormData(); if(reset) fd.append('reset','1'); document.querySelectorAll('#meCard input[name^="f_"]').forEach(function(i){ fd.append(i.name, i.value.trim()); });
       var m=document.getElementById('meMsg'); m.textContent='저장 중…'; m.style.color='var(--mute)';
       try{ var r=await fetch('/mail/signature/me',{method:'POST',body:fd}); var j=await r.json();
-        if(j.ok){ m.textContent='✅ '+(j.msg||'저장했습니다'); m.style.color='var(--success,#15803d)'; setTimeout(function(){ location.reload(); },500); }
-        else { m.textContent='⚠ '+(j.msg||'저장하지 못했습니다'); m.style.color='var(--knk-red,#b91c1c)'; } }
-      catch(e){ m.textContent='⚠ 네트워크 오류'; m.style.color='var(--knk-red,#b91c1c)'; }
+        if(j.ok){ m.textContent='✅ '+(j.msg||'저장했습니다'); m.style.color='var(--success,var(--knk-mail-c-green-71))'; setTimeout(function(){ location.reload(); },500); }
+        else { m.textContent='⚠ '+(j.msg||'저장하지 못했습니다'); m.style.color='var(--knk-red,var(--knk-mail-c-red-58))'; } }
+      catch(e){ m.textContent='⚠ 네트워크 오류'; m.style.color='var(--knk-red,var(--knk-mail-c-red-58))'; }
     };
   })();</script>
   {% endif %}

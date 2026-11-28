@@ -1,9 +1,9 @@
 {# 테마 고르기 카드 3장 — 누르면 바로 바뀜(새로고침 없이) · 도구 줄 🎨 상자와 ⚙ 설정·정리 화면이 같이 씀 #}
 <div class="mt-cards" role="radiogroup" aria-label="화면 테마">
   {% for k, ico, nm, desc, c in [
-      ('clear', '☀️', '밝게', '흰 바탕 · 또렷한 검은 글씨 — 낮에 사무실에서 (기본)', {'side':'#f6f7f9','list':'#ffffff','read':'#eceff3','tx':'#111827','mu':'#c3c9d1'}),
-      ('soft',  '🌤', '부드럽게', '차분한 회청색 바탕 · 메일 본문도 살짝 낮춤 — 눈부심이 적어 오래 볼 때', {'side':'#d2dae3','list':'#dfe5eb','read':'#c6d0da','tx':'#1c2633','mu':'#97a5b5','paper':'#ebebeb'}),
-      ('dark',  '🌙', '어둡게', '어두운 바탕 · 밝은 글씨 — 저녁·어두운 곳에서 (메일 본문은 흰 종이 그대로)', {'side':'#171a1e','list':'#1c1f24','read':'#111317','tx':'#e8ebef','mu':'#4b525c'}) ] %}
+      ('clear', '☀️', '밝게', '흰 바탕 · 또렷한 검은 글씨 — 낮에 사무실에서 (기본)', {'side':'var(--knk-mail-c-gray-03-4)','list':'var(--knk-mail-c-white)','read':'var(--knk-mail-c-gray-06-4)','tx':'var(--knk-mail-c-gray-89)','mu':'var(--knk-mail-c-gray-21)'}),
+      ('soft',  '🌤', '부드럽게', '차분한 회청색 바탕 · 메일 본문도 살짝 낮춤 — 눈부심이 적어 오래 볼 때', {'side':'var(--knk-mail-c-blue-14-2)','list':'var(--knk-mail-c-blue-10)','read':'var(--knk-mail-c-gray-18)','tx':'var(--knk-mail-c-gray-85)','mu':'var(--knk-mail-c-gray-35-3)','paper':'var(--knk-mail-c-gray-08-2)'}),
+      ('dark',  '🌙', '어둡게', '어두운 바탕 · 밝은 글씨 — 저녁·어두운 곳에서 (메일 본문은 흰 종이 그대로)', {'side':'var(--knk-mail-c-gray-90)','list':'var(--knk-mail-c-gray-87-3)','read':'var(--knk-mail-c-gray-92)','tx':'var(--knk-mail-c-gray-08)','mu':'var(--knk-mail-c-gray-67)'}) ] %}
   <button type="button" class="mt-card" data-mt-k="{{ k }}" role="radio" aria-checked="false" onclick="mailThemeSet('{{ k }}')" title="{{ nm }} — {{ desc }}">
     <span class="mt-pv" aria-hidden="true"><span class="t"></span><span class="b">
       <span class="s" style="background:{{ c.side }}"><i style="background:{{ c.tx }};width:80%"></i><i style="background:{{ c.mu }};width:60%"></i><i style="background:{{ c.mu }};width:70%"></i><i style="background:{{ c.mu }};width:50%"></i></span>

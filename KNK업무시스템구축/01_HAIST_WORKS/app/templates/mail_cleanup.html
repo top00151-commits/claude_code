@@ -6,33 +6,33 @@
   /* 보낸 곳별 정리 (대표 지시 2026-11-16) — 받은편지함을 보낸 곳별로 묶어 한 번에 정리 */
   .cl-wrap{padding:0 var(--content-pad,32px) 32px;box-sizing:border-box}  /* 11-19 풀폭(모니터 비율 자동) */
   .cl-wrap .page-head{padding-left:0;padding-right:0}
-  .cl-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:13px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
+  .cl-help{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:13px 16px;font-size:13px;color:var(--mute);line-height:1.75;margin-bottom:12px}
   .cl-help b{color:var(--ink)}
   .cl-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-  .cl-chip{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:999px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--ink);font-family:inherit}
-  .cl-chip.on{background:var(--knk-red,#c0392b);color:#fff;border-color:transparent;font-weight:700}
+  .cl-chip{border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:999px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--ink);font-family:inherit}
+  .cl-chip.on{background:var(--knk-red,var(--knk-mail-c-red-54));color:var(--knk-mail-c-white);border-color:transparent;font-weight:700}
   .cl-q{flex:1;min-width:160px;max-width:300px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit}
-  .cl-list{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);overflow:hidden}
+  .cl-list{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));overflow:hidden}
   .cl-row{display:grid;grid-template-columns:30px minmax(170px,1.2fr) 74px minmax(150px,1.6fr) 96px auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
   .cl-row:last-child{border-bottom:0}
-  .cl-row.head{background:var(--mt-panel,#f8fafc);font-size:12px;color:var(--mute);font-weight:700}
-  .cl-row.partner{background:#fbfdfb}
+  .cl-row.head{background:var(--mt-panel,var(--knk-mail-c-gray-02));font-size:12px;color:var(--mute);font-weight:700}
+  .cl-row.partner{background:var(--knk-mail-c-gray-01-4)}
   .cl-row input[type=checkbox]{width:17px;height:17px;cursor:pointer}
   .cl-who{min-width:0}
   .cl-name{font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cl-addr{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cl-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
-  .cl-tag{font-size:10.5px;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:600}
-  .cl-tag.p{background:#dcfce7;color:#166534}
+  .cl-tag{font-size:10.5px;padding:1px 7px;border-radius:6px;background:var(--knk-mail-c-yellow-11);color:var(--knk-mail-c-orange-69);font-weight:600}
+  .cl-tag.p{background:var(--knk-mail-c-green-07);color:var(--knk-mail-c-green-76)}
   .cl-n{font-weight:700;text-align:right;white-space:nowrap}
   .cl-n small{display:block;font-weight:500;font-size:11px;color:var(--mute)}
   .cl-subj{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .cl-date{font-size:12px;color:var(--mute);white-space:nowrap}
   .cl-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:nowrap}
-  .cl-btn{border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
-  .cl-btn:hover{background:var(--mt-hover,#f3f4f6)}
-  .cl-btn.mute{color:#7c2d12;border-color:#fdba74}
-  .cl-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:12px;padding:11px 14px;display:none;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .cl-btn{border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--ink)}
+  .cl-btn:hover{background:var(--mt-hover,var(--knk-mail-c-gray-04-2))}
+  .cl-btn.mute{color:var(--knk-mail-c-orange-72);border-color:var(--knk-mail-c-orange-28)}
+  .cl-sel{position:sticky;bottom:0;z-index:5;margin-top:12px;border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-03);border-radius:12px;padding:11px 14px;display:none;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
   .cl-sel.on{display:flex}
   .cl-empty{padding:34px 16px;text-align:center;color:var(--mute);line-height:1.8}
   .cl-sec{font-size:14px;font-weight:700;margin:22px 0 8px}
@@ -52,19 +52,19 @@
 <div class="cl-wrap">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 보낸 곳별 정리</div>
-    <h1 class="page-title">📮 보낸 곳별 <em>정리</em></h1>
+    <h1 class="page-title">{{ mi('mailbox') }} 보낸 곳별 <em>정리</em></h1>
   </div><div><a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a></div></div>
 
   <div class="cl-help">
     받은편지함의 메일을 <b>보낸 곳별로 묶었습니다.</b> 필요 없는 곳을 골라 한 번에 정리하세요.
-    <br>· <b>휴지통으로</b> — 그 곳에서 온 메일을 모두 휴지통으로 옮깁니다(⭐ 중요 표시한 메일은 남김 · <a href="/mail/trash">휴지통</a>에서 되돌릴 수 있음).
+    <br>· <b>휴지통으로</b> — 그 곳에서 온 메일을 모두 휴지통으로 옮깁니다({{ mi('star') }} 중요 표시한 메일은 남김 · <a href="/mail/trash">휴지통</a>에서 되돌릴 수 있음).
     <br>· <b>다시 안 받기</b> — <b>나에게만</b> 적용됩니다. 그 곳의 메일은 지금 것도, 앞으로 오는 것도 받은편지함에 안 보이고 <a href="/mail/blocked">스팸함</a>에 모입니다(지우지 않음 · 아래에서 언제든 풀 수 있음).
     {% if scanned < total %}<br>· 메일이 많아 <b>최근 {{ scanned }}통</b>만 묶었습니다(전체 {{ total }}통).{% endif %}
   </div>
 
   {% set bulk_n = groups|selectattr('kind','equalto','bulk')|list|length %}
   <div class="cl-bar">
-    <button type="button" class="cl-chip {{ 'on' if bulk_n else '' }}" data-f="bulk" onclick="clFilter('bulk',this)">📢 광고·알림으로 보이는 곳 {{ bulk_n }}</button>
+    <button type="button" class="cl-chip {{ 'on' if bulk_n else '' }}" data-f="bulk" onclick="clFilter('bulk',this)">{{ mi('megaphone') }} 광고·알림으로 보이는 곳 {{ bulk_n }}</button>
     <button type="button" class="cl-chip {{ '' if bulk_n else 'on' }}" data-f="all" onclick="clFilter('all',this)">전체 {{ groups|length }}</button>
     <input type="text" class="cl-q" id="clQ" placeholder="이름·주소·제목으로 찾기" oninput="clApply()">
   </div>
@@ -88,8 +88,8 @@
       <div class="cl-subj" title="{{ g.subject }}">{{ g.subject }}</div>
       <div class="cl-date">{{ (g.last_at or '')[:10] }}</div>
       <div class="cl-acts">{% if g.addr %}
-        <button type="button" class="cl-btn" onclick="clOne(this,'trash')" title="이 곳에서 온 메일을 모두 휴지통으로(⭐ 중요 표시한 메일은 남김)">🗑 휴지통으로</button>
-        {% if g.reasons and g.reasons[0] == '사내' %}{% else %}<button type="button" class="cl-btn mute" onclick="clOne(this,'mute')" title="나에게만 — 앞으로 오는 메일도 스팸함으로">🔕 다시 안 받기</button>{% endif %}
+        <button type="button" class="cl-btn" onclick="clOne(this,'trash')" title="이 곳에서 온 메일을 모두 휴지통으로(⭐ 중요 표시한 메일은 남김)">{{ mi('trash-2') }} 휴지통으로</button>
+        {% if g.reasons and g.reasons[0] == '사내' %}{% else %}<button type="button" class="cl-btn mute" onclick="clOne(this,'mute')" title="나에게만 — 앞으로 오는 메일도 스팸함으로">{{ mi('bell-off') }} 다시 안 받기</button>{% endif %}
       {% endif %}</div>
     </div>
     {% endfor %}
@@ -102,16 +102,16 @@
   <div class="cl-sel" id="clSel">
     <b id="clSelTxt"></b>
     <span style="flex:1"></span>
-    <button type="button" class="btn btn-secondary" onclick="clMany('trash')">🗑 고른 곳 메일 모두 휴지통으로</button>
-    <button type="button" class="btn btn-secondary" style="color:#7c2d12;border-color:#fdba74" onclick="clMany('mute')">🔕 고른 곳 다시 안 받기</button>
+    <button type="button" class="btn btn-secondary" onclick="clMany('trash')">{{ mi('trash-2') }} 고른 곳 메일 모두 휴지통으로</button>
+    <button type="button" class="btn btn-secondary" style="color:var(--knk-mail-c-orange-72);border-color:var(--knk-mail-c-orange-28)" onclick="clMany('mute')">{{ mi('bell-off') }} 고른 곳 다시 안 받기</button>
   </div>
 
-  <div class="cl-sec">🔕 다시 안 받기로 한 곳 {{ mutes|length }}</div>
+  <div class="cl-sec">{{ mi('bell-off') }} 다시 안 받기로 한 곳 {{ mutes|length }}</div>
   <div class="cl-list">
     {% if mutes %}{% for b in mutes %}
     <div class="cl-mrow"><b>{{ b.addr }}</b><span style="color:var(--mute);font-size:12px">{{ (b.created_at or '')[:10] }} · 스팸함에 {{ b.held }}통</span>
       <span style="flex:1"></span><button type="button" class="cl-btn" data-addr="{{ b.addr }}" data-held="{{ b.held }}" onclick="clUnmute(this)">풀기</button></div>
-    {% endfor %}{% else %}<div class="cl-empty" style="padding:18px">아직 없습니다. 위에서 「🔕 다시 안 받기」를 누르면 여기에 모입니다.</div>{% endif %}
+    {% endfor %}{% else %}<div class="cl-empty" style="padding:18px">아직 없습니다. 위에서 「{{ mi('bell-off') }} 다시 안 받기」를 누르면 여기에 모입니다.</div>{% endif %}
   </div>
 </div>
 </main></div>

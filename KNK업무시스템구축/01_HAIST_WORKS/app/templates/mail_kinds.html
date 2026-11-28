@@ -9,42 +9,42 @@
    · 낱말을 고치는 순간 「받은편지함에서 몇 통」을 바로 보여 줌(0통·너무 많음 알림) #}
 <style>
   .kd-wrap{padding:0 var(--content-pad,32px) 40px}
-  .kd-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:16px 18px;margin-bottom:14px}
+  .kd-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:16px 18px;margin-bottom:14px}
   .kd-card h3{margin:0 0 4px;font-size:14.5px}
   .kd-sub{color:var(--mute);font-size:12.5px;line-height:1.7;margin-bottom:10px}
-  .kd-row{display:grid;grid-template-columns:28px 40px minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 8px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:var(--mt-surface,#fff)}
-  .kd-row.off{background:var(--mt-panel,#f8fafc)}
+  .kd-row{display:grid;grid-template-columns:28px 40px minmax(0,1fr) auto;gap:8px;align-items:start;padding:9px 8px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:var(--mt-surface,var(--knk-mail-c-white))}
+  .kd-row.off{background:var(--mt-panel,var(--knk-mail-c-gray-02))}
   .kd-row.off .kd-name,.kd-row.off .kd-ic{opacity:.5}
   .kd-row input[type=checkbox]{width:18px;height:18px;margin:7px 0 0 4px;cursor:pointer}
-  .kd-ic{height:32px;width:40px;border:1px solid var(--line);border-radius:8px;background:var(--mt-surface,#fff);font-size:17px;cursor:pointer;padding:0}
+  .kd-ic{height:32px;width:40px;border:1px solid var(--line);border-radius:8px;background:var(--mt-surface,var(--knk-mail-c-white));font-size:17px;cursor:pointer;padding:0}
   .kd-ic:disabled{cursor:default;border-color:transparent;background:none}
   .kd-main{min-width:0}
   .kd-name{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;min-height:32px;flex-wrap:wrap}
   .kd-name input{font:inherit;font-weight:700;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;width:180px;max-width:100%}
-  .kd-tag{font-size:11px;font-weight:600;color:var(--mute);background:var(--mt-hover,#f1f5f9);border-radius:6px;padding:1px 7px}
+  .kd-tag{font-size:11px;font-weight:600;color:var(--mute);background:var(--mt-hover,var(--knk-mail-c-gray-04));border-radius:6px;padding:1px 7px}
   .kd-words{margin-top:5px}
   .kd-words input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
   .kd-words .ro{font-size:12px;color:var(--mute);line-height:1.6}
   .kd-n{font-size:12px;margin-top:4px;color:var(--mute)}
-  .kd-n.warn{color:#b45309;font-weight:600}
-  .kd-n.ok b{color:#15803d}
+  .kd-n.warn{color:var(--knk-mail-c-orange-63);font-weight:600}
+  .kd-n.ok b{color:var(--knk-mail-c-green-71)}
   .kd-act{display:flex;gap:4px;align-items:center;padding-top:2px}
-  .kd-act button{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:var(--mt-surface,#fff);cursor:pointer;font-size:13px;color:inherit;padding:0}
-  .kd-act button:hover:not(:disabled){background:var(--mt-hover,#f1f3f5)}
+  .kd-act button{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:var(--mt-surface,var(--knk-mail-c-white));cursor:pointer;font-size:13px;color:inherit;padding:0}
+  .kd-act button:hover:not(:disabled){background:var(--mt-hover,var(--knk-mail-c-gray-05))}
   .kd-act button:disabled{opacity:.3;cursor:default}
-  .kd-act .del{color:var(--knk-red,#b91c1c)}
+  .kd-act .del{color:var(--knk-red,var(--knk-mail-c-red-58))}
   .kd-sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  .kd-sug button{border:1px dashed #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}
-  .kd-sug button:hover{background:#dbeafe}
+  .kd-sug button{border:1px dashed var(--knk-mail-c-blue-22);background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-52);border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}
+  .kd-sug button:hover{background:var(--knk-mail-c-blue-07)}
   .kd-sug button:disabled{opacity:.4;cursor:default}
-  .kd-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;background:var(--mt-bg,var(--bg,#f6f7f9));border-top:1px solid var(--line);margin-top:6px}
+  .kd-bar{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 0;background:var(--mt-bg,var(--bg,var(--knk-mail-c-gray-03-4)));border-top:1px solid var(--line);margin-top:6px}
   .kd-bar .msg{font-size:12.5px;color:var(--mute)}
-  .kd-bar .msg.ok{color:#15803d;font-weight:700}
-  .kd-bar .msg.dirty{color:#b45309;font-weight:700}
-  .kd-icpop{position:fixed;z-index:9500;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.16);padding:8px;display:grid;grid-template-columns:repeat(6,34px);gap:4px}
+  .kd-bar .msg.ok{color:var(--knk-mail-c-green-71);font-weight:700}
+  .kd-bar .msg.dirty{color:var(--knk-mail-c-orange-63);font-weight:700}
+  .kd-icpop{position:fixed;z-index:9500;background:var(--mt-surface,var(--knk-mail-c-white));border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.16);padding:8px;display:grid;grid-template-columns:repeat(6,34px);gap:4px}
   .kd-icpop[hidden]{display:none}
   .kd-icpop button{width:34px;height:32px;border:0;border-radius:7px;background:none;font-size:17px;cursor:pointer}
-  .kd-icpop button:hover{background:var(--mt-hover,#f1f3f5)}
+  .kd-icpop button:hover{background:var(--mt-hover,var(--knk-mail-c-gray-05))}
   @media(max-width:640px){ .kd-row{grid-template-columns:24px 36px minmax(0,1fr)} .kd-act{grid-column:1 / -1;justify-content:flex-end} }
 </style>
 </head><body>
@@ -52,12 +52,12 @@
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 종류 목록</div>
-    <h1 class="page-title">🏷 종류 목록 <em>고치기</em> <small style="font-size:13px;color:var(--mute);font-weight:500">받은편지함 「🏷 종류 ▾」에 보일 것</small></h1>
+    <h1 class="page-title">{{ mi('tag') }} 종류 목록 <em>고치기</em> <small style="font-size:13px;color:var(--mute);font-weight:500">받은편지함 「{{ mi('tag') }} 종류 ▾」에 보일 것</small></h1>
   </div></div>
   <div class="kd-wrap">
     <div class="kd-card">
       <h3>내 종류 목록</h3>
-      <div class="kd-sub">✔ 를 끄면 펼침 상자에서 숨깁니다(지우지 않음) · ↑↓ 로 순서 · <b>내 종류</b>는 이름과 <b>찾을 낱말</b>(쉼표로 여러 개)을 적으면
+      <div class="kd-sub">{{ mi('check') }} 를 끄면 펼침 상자에서 숨깁니다(지우지 않음) · ↑↓ 로 순서 · <b>내 종류</b>는 이름과 <b>찾을 낱말</b>(쉼표로 여러 개)을 적으면
         <b>제목이나 보낸 사람(이름·주소)</b>에 그 낱말이 하나라도 들어간 메일을 모아 보여 줍니다 · 내 계정에 기억(다른 컴퓨터에서도 같음)</div>
       <div id="kdList"></div>
       <button type="button" class="btn btn-secondary" id="kdAdd" onclick="kdAdd()">＋ 내 종류 더하기</button>
@@ -65,7 +65,7 @@
       <div class="kd-sug" id="kdSug"></div>
     </div>
     <div class="kd-bar">
-      <button type="button" class="btn btn-primary" onclick="kdSave()">💾 저장</button>
+      <button type="button" class="btn btn-primary" onclick="kdSave()">{{ mi('save') }} 저장</button>
       <a class="btn btn-secondary" href="/mail/inbox" onclick="return kdLeave(event, this.href)">← 받은편지함에서 보기</a>
       <button type="button" class="btn btn-secondary" onclick="kdReset()" title="견적·발주·세금계산서 셋만(내 종류는 지움)">↺ 처음 목록으로</button>
       <span class="msg" id="kdMsg"></span>
@@ -98,9 +98,9 @@
       var wd = k.b ? '<div class="ro">AI 분류 + 제목 낱말: '+esc((BW[k.b]||[]).slice(0,6).join(' · '))+' … · 고치기는 「설정·정리 → 메일 종류 규칙」</div>'
                    : '<input type="text" value="'+esc((k.w||[]).join(', '))+'" placeholder="찾을 낱말 — 쉼표로 여러 개 (예: 제작 요청, 제작요청, 제작 진행)" data-f="w" data-i="'+i+'">';
       var wn=warnOf(k), c=cnt[i];
-      var info = k.b ? '' : (wn ? '<div class="kd-n warn">⚠ '+esc(wn)+'</div>'
+      var info = k.b ? '' : (wn ? '<div class="kd-n warn">'+mdI('triangle-alert')+' '+esc(wn)+'</div>'
                  : (c==null ? '<div class="kd-n">받은편지함에서 세는 중…</div>'
-                 : (c===0 ? '<div class="kd-n warn">⚠ 지금 받은편지함에 맞는 메일이 없어요 — 낱말을 확인해 주세요(저장은 됩니다)</div>'
+                 : (c===0 ? '<div class="kd-n warn">'+mdI('triangle-alert')+' 지금 받은편지함에 맞는 메일이 없어요 — 낱말을 확인해 주세요(저장은 됩니다)</div>'
                  : '<div class="kd-n ok">받은편지함에서 <b>'+c.toLocaleString()+'통</b> 걸림'+(c>3000?' · 많아요 — 낱말을 더 좁히면 찾기 쉬워요':'')+'</div>')));
       h+='<div class="kd-row'+(k.on?'':' off')+'" data-i="'+i+'">'
         +'<input type="checkbox" '+(k.on?'checked':'')+' data-f="on" data-i="'+i+'" title="펼침 상자에 보이기">'
@@ -108,7 +108,7 @@
         +'<div class="kd-main"><div class="kd-name">'+nm+'</div><div class="kd-words">'+wd+'</div>'+info+'</div>'
         +'<div class="kd-act"><button type="button" data-mv="-1" data-i="'+i+'" title="위로" '+(i===0?'disabled':'')+'>↑</button>'
         +'<button type="button" data-mv="1" data-i="'+i+'" title="아래로" '+(i===K.length-1?'disabled':'')+'>↓</button>'
-        +(k.b?'':'<button type="button" class="del" data-del="'+i+'" title="이 종류 지우기">🗑</button>')+'</div></div>';
+        +(k.b?'':'<button type="button" class="del" data-del="'+i+'" title="이 종류 지우기">'+mdI('trash-2')+'</button>')+'</div></div>';
     });
     document.getElementById('kdList').innerHTML=h;
     var full=nCustom()>=MAX; document.getElementById('kdAdd').disabled=full;

@@ -4,12 +4,12 @@
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
   /* 11-19 대표 「2-나 진행해」 — 🏖 부재중 자동 응답(출장·휴가) · 기간이 있을 때만 · 조심스럽게 */
-  .ar-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 14px}
+  .ar-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:18px;margin:0 var(--content-pad,32px) 14px}
   .ar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
   .ar-row label.t{width:110px;font-size:13px;color:var(--mute);flex:none}
-  .ar-row input[type=date],.ar-row input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13.5px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .ar-row input[type=date],.ar-row input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13.5px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink)}
   .ar-row input[type=text]{flex:1;min-width:220px;max-width:640px}
-  .ar-body{width:100%;max-width:900px;min-height:170px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;line-height:1.7;box-sizing:border-box;background:var(--mt-surface,#fff);color:var(--ink)}
+  .ar-body{width:100%;max-width:900px;min-height:170px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;line-height:1.7;box-sizing:border-box;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink)}
   .ar-sw{display:inline-flex;align-items:center;gap:10px;font-size:15px;font-weight:800;cursor:pointer;user-select:none}
   .ar-sw input{width:20px;height:20px}
   .ar-who{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
@@ -19,23 +19,23 @@
   .ar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
   .ar-log{font-size:12.5px;color:var(--mute);line-height:1.8}
   .ar-state{display:inline-block;font-size:12px;font-weight:800;border-radius:999px;padding:2px 10px;margin-left:8px}
-  .ar-vac{border-color:#a7f3d0;background:#ecfdf5;color:#065f46;font-size:13.5px;line-height:1.7;padding:12px 16px}
-  html[data-mt="dark"] .ar-vac{background:#052e2b;border-color:#065f46;color:#a7f3d0}
-  .ar-state.on{background:#dcfce7;color:#166534}.ar-state.off{background:#f3f4f6;color:#4b5563}.ar-state.wait{background:#fef3c7;color:#92400e}
+  .ar-vac{border-color:var(--knk-mail-c-teal-20);background:var(--knk-mail-c-teal-04);color:var(--knk-mail-c-teal-80);font-size:13.5px;line-height:1.7;padding:12px 16px}
+  html[data-mt="dark"] .ar-vac{background:var(--knk-mail-c-teal-90);border-color:var(--knk-mail-c-teal-80);color:var(--knk-mail-c-teal-20)}
+  .ar-state.on{background:var(--knk-mail-c-green-07);color:var(--knk-mail-c-green-76)}.ar-state.off{background:var(--knk-mail-c-gray-04-2);color:var(--knk-mail-c-gray-66)}.ar-state.wait{background:var(--knk-mail-c-yellow-11);color:var(--knk-mail-c-orange-69)}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · <a href="/mail/tools">설정·정리</a> · 부재중 자동 응답</div>
-    <h1 class="page-title">🏖 부재중 <em>자동 응답</em>
+    <h1 class="page-title">{{ mi('tree-palm') }} 부재중 <em>자동 응답</em>
       {% if st.enabled and st.start_date <= today <= st.end_date %}<span class="ar-state on">지금 켜짐</span>{% elif st.enabled and st.end_date and st.end_date < today %}<span class="ar-state off">기간 지남 · 안 보냄</span>{% elif st.enabled %}<span class="ar-state wait">예약됨</span>{% else %}<span class="ar-state off">꺼짐</span>{% endif %}</h1>
   </div><div><a href="/mail/tools" class="btn btn-secondary">← 설정·정리</a></div></div>
 
-  {% if not ready %}<div class="ar-card" style="border-color:var(--amber)">⚠ 보내기 설정이 안 돼 있어 자동 응답을 보낼 수 없습니다 — 먼저 「📮 내 회사 주소 연결」을 해 주세요.</div>{% endif %}
+  {% if not ready %}<div class="ar-card" style="border-color:var(--amber)">{{ mi('triangle-alert') }} 보내기 설정이 안 돼 있어 자동 응답을 보낼 수 없습니다 — 먼저 「{{ mi('mailbox') }} 내 회사 주소 연결」을 해 주세요.</div>{% endif %}
 
   {% if vac_fill %}{# 11-20 2단계 🏖 이음 휴가 → 기간만 채움 · 저장을 눌러야 켜짐 #}
-  <div class="ar-card ar-vac" id="arVacFill">🏖 이음에 <b>휴가{% if vac_fill.label %}(~{{ vac_fill.label }}){% endif %}</b>로 등록돼 있어 기간을 채워 두었습니다 — 내용을 확인하고 아래 <b>「💾 저장」</b>을 눌러야 켜집니다.{% if not vac_fill.end %} <small>(휴가 끝나는 날을 몰라 끝 날짜는 비워 두었습니다 — 골라 주세요)</small>{% endif %}</div>
+  <div class="ar-card ar-vac" id="arVacFill">{{ mi('tree-palm') }} 이음에 <b>휴가{% if vac_fill.label %}(~{{ vac_fill.label }}){% endif %}</b>로 등록돼 있어 기간을 채워 두었습니다 — 내용을 확인하고 아래 <b>「{{ mi('save') }} 저장」</b>을 눌러야 켜집니다.{% if not vac_fill.end %} <small>(휴가 끝나는 날을 몰라 끝 날짜는 비워 두었습니다 — 골라 주세요)</small>{% endif %}</div>
   {% endif %}
   <div class="ar-card">
     <div class="ar-row"><label class="ar-sw"><input type="checkbox" id="arOn" {{ 'checked' if (st.enabled or vac_fill) else '' }}> 부재중 자동 응답 켜기</label></div>
@@ -50,9 +50,9 @@
         <label><input type="radio" name="arWho" value="1" {{ 'checked' if st.only_known or st.only_known is none else '' }}> <b>아는 사람에게만</b> <small>(권장) 회사 직원 · 주소록 · 거래처 · 내가 메일을 보낸 적 있는 사람</small></label>
         <label><input type="radio" name="arWho" value="0" {{ 'checked' if (st.only_known is not none and not st.only_known) else '' }}> 모든 사람 <small>(스팸·광고·자동 발송 메일은 빼고)</small></label>
       </div></div>
-    <div class="ar-safe">🔒 <b>이럴 때는 보내지 않습니다</b> — 같은 사람에게 이번 기간에 두 번째(한 번만) · 스팸·피싱·위험 메일 · 광고·알림·뉴스레터·다른 자동 응답·반송(no-reply 등) · 나를 <b>참조로만</b> 넣은 메일 · 나 자신 · 하루 50통이 넘을 때<br>
-      ✉ 보낸 자동 응답은 「📤 보낸편지함」에 남고, 받는 쪽 메일 프로그램이 자동 응답으로 알아보게 표시합니다(서로 자동 응답이 끝없이 오가지 않게).</div>
-    <div class="ar-actions"><button type="button" class="btn btn-primary" onclick="arSave()">💾 저장</button><span id="arMsg" style="font-size:13px"></span></div>
+    <div class="ar-safe">{{ mi('lock') }}<b>이럴 때는 보내지 않습니다</b> — 같은 사람에게 이번 기간에 두 번째(한 번만) · 스팸·피싱·위험 메일 · 광고·알림·뉴스레터·다른 자동 응답·반송(no-reply 등) · 나를 <b>참조로만</b> 넣은 메일 · 나 자신 · 하루 50통이 넘을 때<br>
+      {{ mi('mail') }} 보낸 자동 응답은 「{{ mi('send') }} 보낸편지함」에 남고, 받는 쪽 메일 프로그램이 자동 응답으로 알아보게 표시합니다(서로 자동 응답이 끝없이 오가지 않게).</div>
+    <div class="ar-actions"><button type="button" class="btn btn-primary" onclick="arSave()">{{ mi('save') }} 저장</button><span id="arMsg" style="font-size:13px"></span></div>
   </div>
 
   {% if logs %}

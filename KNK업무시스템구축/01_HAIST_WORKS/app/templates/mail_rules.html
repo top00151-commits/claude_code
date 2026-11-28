@@ -3,7 +3,7 @@
 {% include "_v5_partials/styles.html" %}
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
-  .rl-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 14px}
+  .rl-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:18px;margin:0 var(--content-pad,32px) 14px}
   .rl-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   .rl-form select,.rl-form input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;outline:none}
   .rl-form input[name=pattern]{flex:1;min-width:180px}
@@ -21,11 +21,11 @@
 <main class="main" data-dn="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 자동분류 규칙</div>
-    <h1 class="page-title">🏷 메일 <em>종류 규칙</em> <small style="font-size:13px;color:var(--mute);font-weight:500">견적·발주·세금계산서 나누기</small></h1>
+    <h1 class="page-title">{{ mi('tag') }} 메일 <em>종류 규칙</em> <small style="font-size:13px;color:var(--mute);font-weight:500">견적·발주·세금계산서 나누기</small></h1>
   </div>{% include "_v5_partials/mail_exit.html" %}</div>
 
-  {% set BG = {'견적':'#eff6ff','발주':'#ecfdf5','세금계산서':'#fef3c7','일반':'#f3f4f6'} %}
-  {% set FG = {'견적':'#1d4ed8','발주':'#047857','세금계산서':'#92400e','일반':'#4b5563'} %}
+  {% set BG = {'견적':'var(--knk-mail-c-blue-03-2)','발주':'var(--knk-mail-c-teal-04)','세금계산서':'var(--knk-mail-c-yellow-11)','일반':'var(--knk-mail-c-gray-04-2)'} %}
+  {% set FG = {'견적':'var(--knk-mail-c-blue-52)','발주':'var(--knk-mail-c-teal-76)','세금계산서':'var(--knk-mail-c-orange-69)','일반':'var(--knk-mail-c-gray-66)'} %}
 
   <div class="rl-card">
     <div style="font-size:13px;color:var(--mute);margin-bottom:10px;line-height:1.7;">
@@ -51,7 +51,7 @@
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
       <b style="font-size:13.5px;">내 규칙 {{ rules|length }}개</b>
       <span style="flex:1"></span>
-      <button type="button" class="btn btn-secondary" onclick="applyRules()" {% if not rules %}disabled{% endif %}>🔁 기존 메일에 지금 적용</button>
+      <button type="button" class="btn btn-secondary" onclick="applyRules()" {% if not rules %}disabled{% endif %}>{{ mi('repeat') }} 기존 메일에 지금 적용</button>
       <a href="/mail/inbox" class="btn btn-secondary">← 받은편지함</a>
     </div>
     {% if rules %}
@@ -61,7 +61,7 @@
         <span class="rl-when">{{ '보낸사람' if r.match_type=='sender' else '제목' }}에</span>
         <span class="rl-pat">“{{ r.pattern }}”</span>
         <span class="rl-arrow">포함 →</span>
-        <span class="rl-cat" style="background:{{ BG.get(r.category,'var(--mt-hover,#f3f4f6)') }};color:{{ FG.get(r.category,'var(--mt-text2,#4b5563)') }}">{{ r.category }}</span>
+        <span class="rl-cat" style="background:{{ BG.get(r.category,'var(--mt-hover,var(--knk-mail-c-gray-04-2))') }};color:{{ FG.get(r.category,'var(--mt-text2,var(--knk-mail-c-gray-66))') }}">{{ r.category }}</span>
         <button type="button" class="rl-del" onclick="delRule({{ r.id }})">삭제</button>
       </li>
       {% endfor %}

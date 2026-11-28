@@ -28,10 +28,10 @@
           (okUrl(x.win_url||x.url)?' <a href="#" class="mv-dlg-open" data-u="'+esc(x.win_url||x.url)+'" data-no="'+esc(x.request_no)+'" title="이음 요청을 옆 창으로 엽니다">요청 #'+esc(x.request_no)+' 열기</a>':'')+
           (x.instruction?'<div class="mv-dlg-ins" title="한 줄 지시">「'+esc(x.instruction)+'」 · 받을 결과: '+esc(x.result)+'</div>':'')+'</div>';
       });
-      if(j.warn) h+='<div class="mv-dlg-i dim">⚠ '+esc(j.warn)+' (마지막으로 알던 상태를 보여 드립니다)</div>';
+      if(j.warn) h+='<div class="mv-dlg-i dim">'+mdI('triangle-alert')+' '+esc(j.warn)+' (마지막으로 알던 상태를 보여 드립니다)</div>';
       box.innerHTML=h; box.hidden=false;
       box.querySelectorAll('.mv-dlg-open').forEach(function(a){ a.addEventListener('click', function(ev){ ev.preventDefault(); mvDlgOpenReq(a.getAttribute('data-u'), a.getAttribute('data-no')); }); });
-    }).catch(function(){ box.innerHTML='<div class="mv-dlg-i dim">⚠ 맡긴 요청 상태를 읽지 못했습니다(네트워크)</div>'; });
+    }).catch(function(){ box.innerHTML='<div class="mv-dlg-i dim">'+mdI('triangle-alert')+' 맡긴 요청 상태를 읽지 못했습니다(네트워크)</div>'; });
   };
   {% if dl.n %}mvDlgBand(MID);{% endif %}
   if(!CAN) return;
@@ -52,7 +52,7 @@
     bg.innerHTML='<div class="dlg-box" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">'+
       '<div class="dlg-h"><h3 id="dlgTitle">👉 이 메일 맡기기</h3><button type="button" class="dlg-x" onclick="mvDlgClose()" title="닫기(쓴 것은 남아 있습니다)">✕</button></div>'+
       '<div id="dlgForm">'+
-      '<div class="dlg-sub">이음 「📧 메일 업무」 방에 <b>요청</b>으로 만듭니다 · 담당·기한·독촉·결과 확인은 이음 요청에서 합니다.</div>'+
+      '<div class="dlg-sub">이음 「'+mdI('mail')+' 메일 업무」 방에 <b>요청</b>으로 만듭니다 · 담당·기한·독촉·결과 확인은 이음 요청에서 합니다.</div>'+
       '<div class="dlg-f"><label class="dlg-l" for="dlgQ">담당자 <small>여러 명 · 이름이나 부서로 찾기</small></label>'+
       '<div class="dlg-chips" id="dlgChips"></div>'+
       '<input type="text" id="dlgQ" autocomplete="off" placeholder="예: 김영업 · 품질팀 · 구매" oninput="mvDlgFind()" onkeydown="mvDlgQKey(event)">'+
@@ -64,11 +64,11 @@
       '<div class="dlg-f"><label class="dlg-l" for="dlgIns">한 줄 지시 <small id="dlgCnt">0/200</small></label>'+
       '<input type="text" id="dlgIns" maxlength="200" autocomplete="off" placeholder="예: 견적서 검토 후 회신 부탁드립니다 (비우면 「메일 확인 부탁드립니다」)" oninput="mvDlgSync()"></div>'+
       '<div class="dlg-f"><span class="dlg-l">받을 결과</span><div class="dlg-seg" id="dlgRk">'+
-      '<label><input type="radio" name="dlgRk" value="reply" checked onchange="mvDlgSync()"> 💬 답변</label>'+
-      '<label><input type="radio" name="dlgRk" value="file" onchange="mvDlgSync()"> 📎 파일</label>'+
+      '<label><input type="radio" name="dlgRk" value="reply" checked onchange="mvDlgSync()"> '+mdI('message-square')+' 답변</label>'+
+      '<label><input type="radio" name="dlgRk" value="file" onchange="mvDlgSync()"> '+mdI('paperclip')+' 파일</label>'+
       '<label><input type="radio" name="dlgRk" value="check" onchange="mvDlgSync()"> ✅ 처리 확인</label></div></div>'+
       '<div class="dlg-f" id="dlgFilesRow" hidden><label class="dlg-chk"><input type="checkbox" id="dlgFiles" onchange="mvDlgSync()"> <span id="dlgFilesTxt"></span></label><div class="dlg-hint warn" id="dlgFilesWhy" hidden></div></div>'+
-      '<div class="dlg-note">📋 메일 원문(제목·보낸 사람·본문)은 <b>복사해서</b> 넘깁니다 — 맡은 사람은 내 메일함을 볼 수 없습니다.</div>'+
+      '<div class="dlg-note">'+mdI('clipboard-list')+' 메일 원문(제목·보낸 사람·본문)은 <b>복사해서</b> 넘깁니다 — 맡은 사람은 내 메일함을 볼 수 없습니다.</div>'+
       '<div class="dlg-msg" id="dlgMsg" role="status"></div>'+
       '<div class="dlg-btns"><button type="button" class="btn btn-secondary" onclick="mvDlgClose()">닫기</button><button type="button" class="btn btn-primary" id="dlgGo" onclick="mvDlgSend()">👉 맡기기</button></div>'+
       '</div><div id="dlgDone" hidden></div></div>';
@@ -105,7 +105,7 @@
       res.innerHTML=_last.length ? _last.map(function(x,i){ return '<button type="button" data-i="'+i+'">'+esc(x.disp)+(x.me?' <small>(나)</small>':'')+'</button>'; }).join('') : '<div class="dlg-none">찾는 직원이 없습니다</div>';
       res.hidden=false;
       res.querySelectorAll('button').forEach(function(b){ b.addEventListener('click', function(){ addWho(_last[+b.getAttribute('data-i')]); }); });
-    }).catch(function(){ res.innerHTML='<div class="dlg-none">⚠ 네트워크 오류</div>'; res.hidden=false; });
+    }).catch(function(){ res.innerHTML='<div class="dlg-none">'+mdI('triangle-alert')+' 네트워크 오류</div>'; res.hidden=false; });
   }, 180); };
   function addWho(x){ if(!x) return; if(S.d.who.length>=20){ say('담당자는 20명까지 고를 수 있습니다.','warn'); return; }
     if(!S.d.who.some(function(p){ return p.emp===x.emp; })) S.d.who.push({emp:x.emp, disp:x.disp});
@@ -174,7 +174,7 @@
       el('dlgForm').hidden=true; var done=el('dlgDone'); done.hidden=false;
       done.innerHTML='<div class="dlg-ok">✓ '+(j.existing?'이미 만든 요청입니다 — ':'')+'「'+esc(j.room_name||'📧 메일 업무')+'」 방'+(j.room_new?'(새 방)':'')+'에 요청 <b>#'+esc(j.request_no)+'</b> 를 만들었습니다</div>'+
         (lines.length?'<ul class="dlg-ul">'+lines.map(function(t){ return '<li>'+t+'</li>'; }).join('')+'</ul>':'')+
-        '<div class="dlg-btns">'+(u?'<button type="button" class="btn btn-primary" id="dlgOpenReq">💬 요청 열기</button>':'')+'<button type="button" class="btn btn-secondary" onclick="mvDlgClose()">닫기</button></div>';
+        '<div class="dlg-btns">'+(u?'<button type="button" class="btn btn-primary" id="dlgOpenReq">'+mdI('message-square')+' 요청 열기</button>':'')+'<button type="button" class="btn btn-secondary" onclick="mvDlgClose()">닫기</button></div>';
       var ob=el('dlgOpenReq'); if(ob) ob.addEventListener('click', function(){ mvDlgOpenReq(u, j.request_no); });
       var band=el('mvDlg'); if(band && String(band.getAttribute('data-mail'))===String(mid)){ band.hidden=false; mvDlgBand(mid); }
     }catch(e){ say('⚠ 네트워크 오류 — 「👉 맡기기」를 한 번 더 눌러 주세요(같은 요청이 두 번 생기지 않습니다).','err'); }
