@@ -16,6 +16,10 @@
     .mbx-star{min-width:32px;min-height:32px}
   }
 </style>
+{# 11-28 4단계 메일 색판(직접 색 대신 이름 · 값 그대로) — 웍스 틀 안 메일 화면에서도 #}
+{% include "_v5_partials/mail_palette.html" %}
+{# 웍스 틀(앱 모드 아님)은 메일 테마가 안 들어와 선 아이콘 표(mdI)가 없음 → 여기서 한 번 #}
+{% if not mail_app|default(false) %}{% include "_v5_partials/mail_design_icons.html" %}{% endif %}
 <link rel="manifest" href="/mail/manifest.webmanifest">
 <meta name="theme-color" content="#A5282C">
 <link rel="icon" type="image/svg+xml" href="/mail/icon.svg">

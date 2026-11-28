@@ -165,7 +165,8 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
     html[data-md="v2"] .mv-chips .mv-reply-btn:hover{ background:var(--mt-hover); }
   }
 
-  /* ── ④ 선 아이콘 ── */
+  /* ── ④ 선 아이콘 ── 11-28 4단계: 서버가 그린 아이콘(mi())은 예전 모양(?design=v1)에서도 같은 크기 */
+  .md-i{ width:1.15em; height:1.15em; flex:none; vertical-align:-.2em; display:inline-block; }
   html[data-md="v2"] .md-i{ width:1.15em; height:1.15em; flex:none; vertical-align:-.2em; display:inline-block; }
   html[data-md="v2"] .mail-tools .ic .md-i{ width:17px; height:17px; }
   html[data-md="v2"] .mail-tools .new .md-i{ color:#fff; }
@@ -186,12 +187,15 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
     '💬':'message-square','📭':'mail-open','⏱':'timer','🔕':'bell-off','💲':'dollar-sign','🛒':'shopping-cart','🧾':'receipt','🙈':'eye-off','📌':'pin',
     '🔍':'search','🔎':'search','👀':'eye','🏷':'tag','👥':'users','📢':'megaphone','🔔':'bell','🖨':'printer','⬇':'download','📅':'calendar','🔒':'lock',
     '✅':'circle-check','⚠':'triangle-alert','🏢':'building-2','👤':'user','📋':'clipboard-list','🕘':'clock','☰':'menu','☀':'sun','🌙':'moon','🌤':'cloud-sun',
-    '✨':'sparkles','🤖':'bot','💡':'lightbulb','📊':'chart-column','📇':'contact','ℹ':'info'};
+    '✨':'sparkles','🤖':'bot','💡':'lightbulb','📊':'chart-column','📇':'contact','ℹ':'info',
+    /* 11-28 4단계 더함 — 서버 표(app/mail_icons.py · mi())와 같은 이름 */
+    '💾':'save','📮':'mailbox','📬':'mailbox','✍':'pen-line','📄':'file-text','🏖':'tree-palm','✔':'check','🔗':'link','🖼':'image','👔':'briefcase','⛔':'octagon-x','🔌':'plug','🗜':'file-archive','★':'star','☆':'star','🔧':'wrench','🖍':'highlighter','📕':'book','📗':'book','📘':'book','📚':'library','⏩':'fast-forward','⏪':'rewind','🔢':'hash','⏹':'square','☐':'square','🔀':'shuffle','🔁':'repeat','🎓':'graduation-cap','📱':'smartphone','🗗':'app-window','🔤':'a-large-small','❌':'x','📐':'ruler','📏':'ruler','🎉':'party-popper','👁':'eye','🖥':'monitor','🔑':'key-round','👍':'thumbs-up','💽':'hard-drive','📍':'map-pin','🌐':'globe','📑':'clipboard-list','⛓':'link'};
+  window.MD_MAP=MAP;   // 11-28 4단계 — 견본(/mail/design-kit)이 「그림 문자 → 선 아이콘」 표를 이 표 그대로 보여 줌
   var keys=Object.keys(MAP).sort(function(a,b){ return b.length-a.length; }).map(function(k){ return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); });
   var RE=new RegExp('^(\\s*)('+keys.join('|')+')\\uFE0F?\\s?');
   // 사람이 쓴 글(제목·미리 보기·보낸 사람·본문·쓰는 칸)은 건드리지 않음
   var SKIP_PARENT='.mbx-subj,.mbx-pv,.mbx-sum,.mbx-from,.mv-subj,.mv-who';
-  var SKIP_UP='.mv-frame,.mv-body,.cmp-editor,[contenteditable],textarea,script,style,option,.md-switch,svg';
+  var SKIP_UP='.mv-frame,.mv-body,.cmp-editor,[contenteditable],textarea,script,style,option,.md-switch,svg,[data-md-raw]';   // 11-28 [data-md-raw] = 견본의 「예전 그림 문자」 칸처럼 그림 문자 그대로 보여 줄 곳
   function on(){ return document.documentElement.getAttribute('data-md')==='v2' && window.MD_ICONS; }
   function svg(name){ var s=document.createElementNS('http://www.w3.org/2000/svg','svg');
     s.setAttribute('viewBox','0 0 24 24'); s.setAttribute('fill','none'); s.setAttribute('stroke','currentColor'); s.setAttribute('stroke-width','1.8');
@@ -216,6 +220,8 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
     document.body.appendChild(d); }
   // 11-27 대표 「깜빡임으로 멀미」 — 그림 문자→아이콘 바꾸기를 화면을 그리기 전에(본문 끝 인라인에서 부름) · 아래 DOMContentLoaded 는 남은 것만(두 번 해도 같음)
   window.mdScanNow=function(){ try{ scan(document.body); }catch(e){} };
+  /* 11-28 4단계 — 스크립트가 만든 메뉴·칸(오른쪽 클릭 메뉴 등)을 붙인 그 자리에서 바로 바꿈(다음 그림 틀까지 기다리지 않음 → 그림 문자가 한 번 비치지 않게) */
+  window.mdFix=function(el){ try{ scan(el); }catch(e){} return el; };
   document.addEventListener('DOMContentLoaded', function(){ sw(); scan(document.body);
     if(!on()) return; var q=[], busy=false;
     new MutationObserver(function(ms){ ms.forEach(function(m){ m.addedNodes.forEach(function(x){ q.push(x); }); });

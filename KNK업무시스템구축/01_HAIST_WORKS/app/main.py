@@ -305,6 +305,11 @@ tpl.env.globals["mail_design_preview"] = True
 # 11-28 대표 「이음메일 디자인을 코드로」 3단계(회사 색·빨간 안 읽음 점·옅은 빨강 고름·패턴 머리 띠 · _v5_partials/mail_ci.html) —
 #   ⚠ 모든 직원 메일 모양이 바뀜 → 11-28 15시대 대표 전·후 사진 확인 뒤 「3단계 켜」 → True. 되돌리려면 False(예전 모양 그대로).
 tpl.env.globals["mail_ci"] = True
+# 11-28 4단계 「화면 옮기기」 — 단추·폴더·메뉴 이름의 그림 문자 대신 선 아이콘 SVG 를 서버에서 그림(app/mail_icons.py · 표는 mail_design_icons.html 한 곳)
+from .mail_icons import mi as _mail_mi, mi_ref as _mail_mi_ref, mi_sprite as _mail_mi_sprite   # noqa: E402
+tpl.env.globals["mi"] = _mail_mi
+tpl.env.globals["mi_ref"] = _mail_mi_ref
+tpl.env.globals["mi_sprite"] = _mail_mi_sprite
 # 11-28 ① 보내기 전에 확인 — 「회사 밖 개인 메일 주소 섞임」 판정에 쓰는 개인 메일 주소 목록(받은 메일 분류와 같은 목록 한 곳)
 from .mail_guard import FREE_MAIL as _MAIL_FREE_A   # noqa: E402
 from .mail_store import _NO_DOMAIN_GROUP as _MAIL_FREE_B   # noqa: E402

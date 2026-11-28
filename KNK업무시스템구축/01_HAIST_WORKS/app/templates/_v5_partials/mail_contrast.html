@@ -85,10 +85,10 @@
   html[data-mt="dark"] .co-card > .co-d, html[data-mt="dark"] #sigDefMsg,
   html[data-mt="dark"] .mi-pick label:has(input:checked) small{ color:#56606e !important; }
   /* 5 스크립트가 직접 넣은 초록 글자(rgb(21,128,61) 어두운 초록 칸 3.1) */
-  html[data-mt="dark"] [style^="color:#b91c1c" i], html[data-mt="dark"] [style*=";color:#b91c1c" i], html[data-mt="dark"] [style*="; color:#b91c1c" i]{ color:#ff8a8f !important; }   /* 화면 글 속 진한 빨강 글자(2.6) */
-  html[data-mt="dark"] [style*="background:#fffbeb" i]{ color:#713f12; }
-  html[data-mt="dark"] [style*="background:#fef2f2" i][style*="color:#b91c1c" i]{ color:#b91c1c !important; }   /* 11-27 2차: 옅은 분홍 상자(인라인)는 진한 빨강 그대로(위 규칙 예외) */   /* 화면 글 속 노란 표시 상자 안 글자 */
-  html[data-mt="dark"] [style^="color: rgb(21, 128, 61)"], html[data-mt="dark"] [style*="; color: rgb(21, 128, 61)"], html[data-mt="dark"] [style^="color:#15803d" i], html[data-mt="dark"] [style*=";color:#15803d" i]{ color:#4ade80 !important; }
+  html[data-mt="dark"] [style^="color:#b91c1c" i], html[data-mt="dark"] [style*=";color:#b91c1c" i], html[data-mt="dark"] [style*="; color:#b91c1c" i], html[data-mt="dark"] [style^="color:var(--knk-mail-c-red-58)"], html[data-mt="dark"] [style*=";color:var(--knk-mail-c-red-58)"], html[data-mt="dark"] [style*="; color:var(--knk-mail-c-red-58)"], html[data-mt="dark"] [style^="color: var(--knk-mail-c-red-58)"], html[data-mt="dark"] [style*="; color: var(--knk-mail-c-red-58)"]{ color:#ff8a8f !important; }   /* 화면 글 속 진한 빨강 글자(2.6) · 11-28 4단계: 색판 이름(var(--knk-mail-c-*))으로 바뀐 인라인 글자도 같은 규칙 */
+  html[data-mt="dark"] [style*="background:#fffbeb" i], html[data-mt="dark"] [style*="background:var(--knk-mail-c-yellow-04)"]{ color:#713f12; }
+  html[data-mt="dark"] [style*="background:#fef2f2" i][style*="color:#b91c1c" i], html[data-mt="dark"] [style*="background:var(--knk-mail-c-red-03)"][style*="color:var(--knk-mail-c-red-58)"]{ color:#b91c1c !important; }   /* 11-27 2차: 옅은 분홍 상자(인라인)는 진한 빨강 그대로(위 규칙 예외) */   /* 화면 글 속 노란 표시 상자 안 글자 */
+  html[data-mt="dark"] [style^="color: rgb(21, 128, 61)"], html[data-mt="dark"] [style*="; color: rgb(21, 128, 61)"], html[data-mt="dark"] [style^="color:#15803d" i], html[data-mt="dark"] [style*=";color:#15803d" i], html[data-mt="dark"] [style^="color:var(--knk-mail-c-green-71)"], html[data-mt="dark"] [style*=";color:var(--knk-mail-c-green-71)"], html[data-mt="dark"] [style*="; color:var(--knk-mail-c-green-71)"], html[data-mt="dark"] [style^="color: var(--knk-mail-c-green-71)"], html[data-mt="dark"] [style*="; color: var(--knk-mail-c-green-71)"]{ color:#4ade80 !important; }
   /* ════ 11-27 2차 — 옛 디자인(v1 · 주소 ?design=v1 로만 켜짐) ════ */
   /* 빨간 머리띠 「· 사원」 투명도 .85(4.4) → 1(5.5) */
   html[data-mt] .mail-app-top .me .role{ opacity:1; }

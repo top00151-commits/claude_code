@@ -1,0 +1,44 @@
+{# 메일 색판 — 11-28 대표 「이음메일 디자인을 코드로」 4단계 「화면 옮기기」
+   메일 화면에 직접 적혀 있던 색(#…)을 값 그대로 이름으로 모은 곳(모양 변화 0). 화면 파일은 var(--knk-mail-c-*) 만 쓴다.
+   이름 = 빛깔(red·orange·amber·yellow·green·teal·sky·blue·indigo·violet·pink·gray) + 짙기(00 밝음 ~ 100 어두움).
+   뜻(정보 = blue · 위험·지우기 = red · 주의·기한 = amber·orange · 됨·안전 = green · 종류·분류 = indigo·violet · 바탕·글자 = gray)
+   ⚠ 값을 바꾸면 그 색을 쓰는 메일 화면 모두가 바뀐다 — 테마(밝게·부드럽게·어둡게)마다 다른 값은 mail_theme.html 의 --knk-* 에서.
+   웍스·메일 어디서나 같은 값(모든 테마 공통) · 이 파일은 mail_pwa_head.html(메일 화면 머리)·mail_theme.html 이 부른다. #}
+<style>
+  /* 선 아이콘(mi() · mdI()) 기본 크기 — 웍스 틀 안 메일 화면(새 디자인 조각이 안 들어오는 곳)에서도 글자 크기만큼 */
+  .md-i{ width:1.15em; height:1.15em; flex:none; vertical-align:-.2em; display:inline-block; }
+:root{
+  --knk-mail-c-amber-04:#fff7ed; --knk-mail-c-amber-05:#fff7e6; --knk-mail-c-amber-08:#ffedd5; --knk-mail-c-amber-24:#fcd58a; --knk-mail-c-amber-26:#f1d78a; --knk-mail-c-amber-28:#f3c27a;
+  --knk-mail-c-amber-35:#fcd34d; --knk-mail-c-amber-50:#f59e0b; --knk-mail-c-amber-55:#b8852e; --knk-mail-c-amber-67:#a16207; --knk-mail-c-amber-71:#7a5a1c; --knk-mail-c-amber-75:#7a4a05;
+  --knk-mail-c-amber-78:#6b3f03; --knk-mail-c-amber-86:#3a2a0c; --knk-mail-c-black:#000000; --knk-mail-c-blue-02:#f5f7ff; --knk-mail-c-blue-03:#eef2ff; --knk-mail-c-blue-03-2:#eff6ff;
+  --knk-mail-c-blue-03-3:#eef4ff; --knk-mail-c-blue-05:#eef2f7; --knk-mail-c-blue-06:#e0e7ff; --knk-mail-c-blue-06-2:#e0ecff; --knk-mail-c-blue-07:#dbeafe; --knk-mail-c-blue-07-2:#dbe4ff;
+  --knk-mail-c-blue-09:#e3e7ec; --knk-mail-c-blue-10:#dfe5eb; --knk-mail-c-blue-11:#c7d2fe; --knk-mail-c-blue-13:#bfdbfe; --knk-mail-c-blue-14:#d6dbe1; --knk-mail-c-blue-14-2:#d2dae3;
+  --knk-mail-c-blue-15:#bcd0f8; --knk-mail-c-blue-18:#a5b4fc; --knk-mail-c-blue-19:#a9c3f5; --knk-mail-c-blue-22:#93c5fd; --knk-mail-c-blue-24:#8ab4f8; --knk-mail-c-blue-40:#3b82f6;
+  --knk-mail-c-blue-47:#2563eb; --knk-mail-c-blue-52:#1d4ed8; --knk-mail-c-blue-60:#1e40af; --knk-mail-c-blue-63:#34508a; --knk-mail-c-blue-67:#1e3a8a; --knk-mail-c-blue-73:#334155;
+  --knk-mail-c-blue-73-2:#374151; --knk-mail-c-blue-74:#1e3a66; --knk-mail-c-blue-82:#1a2840; --knk-mail-c-blue-83:#1e293b; --knk-mail-c-blue-84:#15233f; --knk-mail-c-blue-89:#0f172a;
+  --knk-mail-c-gray-01:#fbfcfe; --knk-mail-c-gray-01-2:#faf8ff; --knk-mail-c-gray-01-3:#fffafa; --knk-mail-c-gray-01-4:#fbfdfb; --knk-mail-c-gray-01-5:#fcfcfd; --knk-mail-c-gray-01-6:#fcfdff;
+  --knk-mail-c-gray-01-7:#f8faff; --knk-mail-c-gray-02:#f8fafc; --knk-mail-c-gray-02-2:#f9fafb; --knk-mail-c-gray-02-3:#fafbfc; --knk-mail-c-gray-02-4:#fafafa; --knk-mail-c-gray-02-5:#fbfaf8;
+  --knk-mail-c-gray-03:#f5f6f8; --knk-mail-c-gray-03-2:#f7f8fa; --knk-mail-c-gray-03-3:#f6fbf7; --knk-mail-c-gray-03-4:#f6f7f9; --knk-mail-c-gray-04:#f1f5f9; --knk-mail-c-gray-04-2:#f3f4f6;
+  --knk-mail-c-gray-05:#f1f3f5; --knk-mail-c-gray-05-2:#f1f1f1; --knk-mail-c-gray-05-3:#f0f1f3; --knk-mail-c-gray-06:#eef0f2; --knk-mail-c-gray-06-2:#eef0f3; --knk-mail-c-gray-06-3:#f0f0f0;
+  --knk-mail-c-gray-06-4:#eceff3; --knk-mail-c-gray-08:#e8ebef; --knk-mail-c-gray-08-2:#ebebeb; --knk-mail-c-gray-09:#e5e7eb; --knk-mail-c-gray-16:#cbd5e1; --knk-mail-c-gray-16-2:#d0d5dd;
+  --knk-mail-c-gray-16-3:#d1d5db; --knk-mail-c-gray-17:#d6d3d1; --knk-mail-c-gray-17-2:#cbd2db; --knk-mail-c-gray-18:#c6d0da; --knk-mail-c-gray-21:#c3c9d1; --knk-mail-c-gray-25:#b6bcc6;
+  --knk-mail-c-gray-29:#a9b3bf; --knk-mail-c-gray-35:#94a3b8; --knk-mail-c-gray-35-2:#9ca3af; --knk-mail-c-gray-35-3:#97a5b5; --knk-mail-c-gray-41:#8a94a3; --knk-mail-c-gray-53:#64748b;
+  --knk-mail-c-gray-54:#6b7280; --knk-mail-c-gray-54-2:#6b7380; --knk-mail-c-gray-62:#56606e; --knk-mail-c-gray-65:#475569; --knk-mail-c-gray-66:#4b5563; --knk-mail-c-gray-67:#4b525c;
+  --knk-mail-c-gray-68:#57534e; --knk-mail-c-gray-80:#333333; --knk-mail-c-gray-83:#1f2937; --knk-mail-c-gray-85:#1c2633; --knk-mail-c-gray-87:#2a2516; --knk-mail-c-gray-87-2:#222222;
+  --knk-mail-c-gray-87-3:#1c1f24; --knk-mail-c-gray-89:#111827; --knk-mail-c-gray-90:#171a1e; --knk-mail-c-gray-92:#111317; --knk-mail-c-gray-93:#111111; --knk-mail-c-green-03:#f0fdf4;
+  --knk-mail-c-green-04:#ecfdf3; --knk-mail-c-green-06:#e8f6ec; --knk-mail-c-green-07:#dcfce7; --knk-mail-c-green-14:#cfe8d6; --knk-mail-c-green-15:#bbf7d0; --knk-mail-c-green-20:#a7f3c6;
+  --knk-mail-c-green-25:#9be3b0; --knk-mail-c-green-27:#86efac; --knk-mail-c-green-32:#86d3a8; --knk-mail-c-green-55:#22c55e; --knk-mail-c-green-64:#16a34a; --knk-mail-c-green-70:#2f6b48;
+  --knk-mail-c-green-71:#15803d; --knk-mail-c-green-76:#166534; --knk-mail-c-green-80:#14532d; --knk-mail-c-green-87:#12301f; --knk-mail-c-indigo-26:#818cf8; --knk-mail-c-indigo-33:#6366f1;
+  --knk-mail-c-indigo-41:#4f46e5; --knk-mail-c-indigo-49:#4338ca; --knk-mail-c-indigo-59:#3730a3; --knk-mail-c-indigo-66:#312e81; --knk-mail-c-indigo-80:#1e1b4b; --knk-mail-c-orange-17:#fed7aa;
+  --knk-mail-c-orange-28:#fdba74; --knk-mail-c-orange-60:#c2410c; --knk-mail-c-orange-63:#b45309; --knk-mail-c-orange-66:#9a3412; --knk-mail-c-orange-69:#92400e; --knk-mail-c-orange-71:#854d0e;
+  --knk-mail-c-orange-72:#7c2d12; --knk-mail-c-orange-74:#713f12; --knk-mail-c-orange-74-2:#78350f; --knk-mail-c-orange-85:#3b2410; --knk-mail-c-orange-85-2:#3b2414; --knk-mail-c-orange-86:#422006;
+  --knk-mail-c-red-02:#fff5f5; --knk-mail-c-red-03:#fef2f2; --knk-mail-c-red-04:#fdecec; --knk-mail-c-red-06:#fee2e2; --knk-mail-c-red-11:#fecaca; --knk-mail-c-red-15:#fdb4b4;
+  --knk-mail-c-red-18:#fca5a5; --knk-mail-c-red-20:#f3a5a5; --knk-mail-c-red-39:#e0565b; --knk-mail-c-red-49:#dc2626; --knk-mail-c-red-54:#c0392b; --knk-mail-c-red-58:#b91c1c;
+ --knk-mail-c-red-62:#c00000; --knk-mail-c-red-64:#a11616; --knk-mail-c-red-65:#991b1b; --knk-mail-c-red-67:#7f2a2e; --knk-mail-c-red-69:#7f1d1d;
+  --knk-mail-c-red-82:#3f1d1d; --knk-mail-c-red-83:#3a1c1e; --knk-mail-c-red-84:#3b1517; --knk-mail-c-teal-04:#ecfdf5; --knk-mail-c-teal-11:#ccfbf1; --knk-mail-c-teal-20:#a7f3d0;
+  --knk-mail-c-teal-33:#6ee7b7; --knk-mail-c-teal-70:#059669; --knk-mail-c-teal-74:#0f766e; --knk-mail-c-teal-76:#047857; --knk-mail-c-teal-80:#065f46; --knk-mail-c-teal-90:#052e2b;
+  --knk-mail-c-violet-02:#f5f3ff; --knk-mail-c-violet-05:#ede9fe; --knk-mail-c-violet-05-2:#f3e8ff; --knk-mail-c-violet-08:#ddd6fe; --knk-mail-c-violet-15:#c4b5fd; --knk-mail-c-violet-42:#7c3aed;
+  --knk-mail-c-violet-50:#6d28d9; --knk-mail-c-violet-53:#7e22ce; --knk-mail-c-violet-58:#5b21b6; --knk-mail-c-violet-65:#4c1d95; --knk-mail-c-white:#ffffff; --knk-mail-c-yellow-02:#fffdf5;
+  --knk-mail-c-yellow-04:#fffbeb; --knk-mail-c-yellow-05:#fefce8; --knk-mail-c-yellow-11:#fef3c7; --knk-mail-c-yellow-12:#fef9c3; --knk-mail-c-yellow-23:#fde68a; --knk-mail-c-yellow-23-2:#fef08a;
+  --knk-mail-c-yellow-36:#fde047; --knk-mail-c-yellow-78:#55491d;
+}</style>
