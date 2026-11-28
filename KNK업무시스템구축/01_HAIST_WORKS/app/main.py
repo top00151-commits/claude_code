@@ -302,6 +302,9 @@ tpl.env.globals["cust_label"] = _cust_pick_label
 # 11-22 밤 대표 「1로 바로 올려」: 메일 화면 새 디자인(v2 · _v5_partials/mail_design_v2.html)을 모두에게 기본으로.
 #   False 로 바꾸면 메일 화면이 예전 모양 그대로(조각이 아예 안 들어감). 고르기 단추(지금/새 시안)는 mail_design_switch 일 때만(시연 서버).
 tpl.env.globals["mail_design_preview"] = True
+# 11-28 대표 「이음메일 디자인을 코드로」 3단계(회사 색·빨간 안 읽음 점·옅은 빨강 고름·패턴 머리 띠 · _v5_partials/mail_ci.html) —
+#   ⚠ 모든 직원 메일 모양이 바뀜 → 대표 「올려」 뒤에만 True. 지금은 견본 화면 /mail/design-kit?ci=1 에서만 보임(그 화면만 · 직원 메일 화면은 그대로).
+tpl.env.globals["mail_ci"] = False
 # 11-28 ① 보내기 전에 확인 — 「회사 밖 개인 메일 주소 섞임」 판정에 쓰는 개인 메일 주소 목록(받은 메일 분류와 같은 목록 한 곳)
 from .mail_guard import FREE_MAIL as _MAIL_FREE_A   # noqa: E402
 from .mail_store import _NO_DOMAIN_GROUP as _MAIL_FREE_B   # noqa: E402

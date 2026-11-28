@@ -239,7 +239,7 @@
 </style>
 <div class="mail-app-fixed">
 <div class="mail-app-top">
-  <a class="brand" href="/mail/inbox" title="메일 첫 화면(받은편지함)으로">📧 HAIST WORKS 메일함</a>
+  <a class="brand" href="/mail/inbox" title="메일 첫 화면(받은편지함)으로">{% if mail_ci or mail_ci_preview|default(false) %}<img class="m-ci-logo" src="/static/img/brand/knk-symbol_full.svg" alt="KNK">이음메일{% else %}📧 HAIST WORKS 메일함{% endif %}</a>
   {# 11-23 대표 「오른쪽으로 가장 자주 사용할 메뉴 7개」 — 숫자는 아래 도구 줄과 같이 바로바로 #}
   <nav class="mt-quick" aria-label="자주 쓰는 메뉴">
     <a href="/mail/inbox" data-q="in" title="받은편지함"><span class="ic">📥</span><span class="t">받은편지함</span><span class="bd" data-cnt="unread" hidden></span></a>

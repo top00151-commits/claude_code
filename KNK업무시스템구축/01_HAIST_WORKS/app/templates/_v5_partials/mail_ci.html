@@ -1,0 +1,41 @@
+{# 이음메일 3단계 「새 모양(회사 브랜드)」 — 대표 2026-11-28 「이음메일 디자인을 코드로」 넘김 문서 4절 3단계
+   ⚠ 모든 직원의 메일 모양이 바뀐다 → 대표 「올려」 전에는 꺼 둠.
+   켜는 곳 한 줄: app/main.py  tpl.env.globals["mail_ci"] = False → True
+   (그 전에는 견본 화면 /mail/design-kit?ci=1 과 시험 서버에서만 보임 — mail_theme.html 맨 끝이 이 조각을 부름)
+   바꾸는 것(값만 · 기능·자리·단축키 그대로):
+     ① 회사 빨강 = brand.json(#AE2025 · v5_tokens.css 의 .knk-ci 묶음) — 웍스 3단계와 같은 값 한 곳
+     ② 안 읽음 점 파랑 → 회사 빨강(안 읽음 숫자 빨간 원과 같은 뜻 · 한 색)
+     ③ 고른 줄·고른 폴더 = 옅은 빨강 + 왼쪽 빨간 줄
+     ④ 「오늘 챙길 메일」 칩 = 0 인 것 숨김
+     ⑤ 머리 띠 = 회사 심볼 로고 + 「이음메일」 · 오른쪽에 옅은 회사 패턴(자동화 시스템 뜻 · 목록·본문 뒤에는 안 깖)
+     ⑥ 글꼴 = 회사 지정 나눔스퀘어(메일 본문·쓰는 칸 글자는 그대로 — 받는 사람이 보는 모양)
+   색 숫자는 여기 적지 않는다(검사기 ⑤-2 · M-1) — 모두 var(--knk-*) · color-mix 로만. #}
+<script>document.documentElement.classList.add('knk-ci','knk-mail-ci');</script>
+<style>
+  /* ① 회사 빨강 — .knk-ci(v5_tokens.css)가 --knk-brand 를 brand.json 빨강으로. 메일 테마의 바탕·글자 값(mail_theme.html)은 그대로 */
+  html.knk-mail-ci[data-mt]{ --knk-mail-mark:var(--knk-brand); }
+  html.knk-mail-ci[data-mt="dark"]{ --knk-mail-mark:color-mix(in srgb, var(--knk-brand-red) 62%, white); }
+  /* ② 안 읽음 점 = 회사 빨강 */
+  html.knk-mail-ci[data-md="v2"][data-mt]{ --knk-mail-dot:var(--knk-mail-mark); }
+  /* ③ 고른 줄·폴더·도구 = 옅은 빨강(어둡게는 어두운 빨강빛) + 왼쪽 빨간 줄(v2 규칙이 --md-mark 로 이미 그림) */
+  html.knk-mail-ci[data-mt="clear"]{ --knk-bg-selected:color-mix(in srgb, var(--knk-brand) 8%, var(--knk-bg-surface)); }
+  html.knk-mail-ci[data-mt="soft"]{ --knk-bg-selected:color-mix(in srgb, var(--knk-brand) 14%, var(--knk-bg-surface)); }
+  html.knk-mail-ci[data-mt="dark"]{ --knk-bg-selected:color-mix(in srgb, var(--knk-brand-red) 24%, var(--knk-bg-surface)); }
+  /* 색 채운 단추 = 회사 빨강 한 가지(새 메일 · 보내기 · 답장) */
+  html.knk-mail-ci .btn-primary, html.knk-mail-ci .mail-tools .new{ background-color:var(--knk-brand) !important; background-image:none !important; border-color:var(--knk-brand) !important; }
+  html.knk-mail-ci .fbadge, html.knk-mail-ci .mf-u{ background:var(--knk-mail-mark) !important; }
+  /* ④ 오늘 챙길 메일 — 0 인 칩은 숨김(있는 것만 칩 줄로) */
+  html.knk-mail-ci .mbx-day-i.zero{ display:none !important; }
+  /* ⑤ 머리 띠 — 오른쪽 옅은 패턴(6%) · 왼쪽 회사 심볼(원본 SVG 파일) */
+  html.knk-mail-ci .mail-app-top{ position:sticky; overflow:hidden; }
+  html.knk-mail-ci .mail-app-top::after{ content:''; position:absolute; top:0; right:0; bottom:0; width:30%;
+    background:url('/static/img/brand/knk-pattern-tile_red.png') 0 0/var(--knk-pattern-w) auto repeat; opacity:.06; pointer-events:none;
+    -webkit-mask-image:linear-gradient(to left, black 30%, transparent); mask-image:linear-gradient(to left, black 30%, transparent); }
+  html.knk-mail-ci[data-mt="dark"] .mail-app-top::after{ background-image:url('/static/img/brand/knk-pattern-tile_white.png'); opacity:.05; }
+  html.knk-mail-ci .mail-app-top > *{ position:relative; z-index:1; }
+  html.knk-mail-ci .mail-app-top a.brand .m-ci-logo{ height:16px; width:auto; vertical-align:-2px; margin-right:6px; }
+  html.knk-mail-ci[data-mt="dark"] .mail-app-top a.brand .m-ci-logo{ content:url('/static/img/brand/knk-symbol_white.svg'); }   /* 검정 바탕 = 흰 색판만(스킬 knk-brand 색판 규칙) */
+  /* ⑥ 글꼴 — 화면 글자만 나눔스퀘어(본문·쓰는 칸 제외 · v2 의 글꼴 규칙과 같은 범위) */
+  html.knk-mail-ci[data-md="v2"] body, html.knk-mail-ci[data-md="v2"] body *:not(.cmp-editor):not(.cmp-editor *):not(.mv-body *){ font-family:var(--knk-font) !important; }
+  html.knk-mail-ci .mv-subj{ font-family:var(--knk-font-head) !important; font-weight:800 !important; }
+</style>

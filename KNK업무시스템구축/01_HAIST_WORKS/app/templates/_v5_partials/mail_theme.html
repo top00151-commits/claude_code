@@ -149,4 +149,5 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
 {% if mail_design_preview|default(false) %}{% include "_v5_partials/mail_design_v2.html" %}{% endif %}
 {# 11-27 🔆 글자 또렷하게(이음 v1039·v1040 기준을 메일에) — 새 디자인 다음에 와서 덮음 #}
 {% include "_v5_partials/mail_contrast.html" %}
-
+{# 11-28 3단계 새 모양(회사 브랜드) — ⚠ 모든 직원 모양이 바뀜 · 전역 mail_ci(main.py 한 줄)가 켜질 때만 · 견본 /mail/design-kit?ci=1 은 그 화면만 #}
+{% if mail_ci or mail_ci_preview|default(false) %}{% include "_v5_partials/mail_ci.html" %}{% endif %}
