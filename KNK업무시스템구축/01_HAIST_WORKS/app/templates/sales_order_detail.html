@@ -44,6 +44,21 @@ body {   /* z1191z205: --qv-* 다리(공용 테마와 같은 값)는 뺌 · 사�
     </div>
   </header>
 
+  {# z1191z206 (대표 11-28): 이 수주의 일 흐름 한 줄(N 연결) — 견적 → 수주 → 제작요청 → 출하 → 세금계산서 → 입금 · 자료는 번호(id)로만 이음 · 없으면 흐린 칸 「없음」 
+     같은 화면 아래 표(#so-ti·#so-rcv)로 가는 칸은 주소(#)를 바꾸지 않고 바로 내려감 — 주소 # 가 바뀌면 부분 전환(spa_nav popstate)이 본문을 다시 받아 맨 위로 돌아감 #}
+  {% if so_chain %}
+  <nav class="so-chain" aria-label="이 수주의 일 흐름" data-dn="so-chain" style="margin:12px var(--content-pad);">
+    <div class="k-chain">
+    {% for x in so_chain %}
+      {% if x.href %}<a class="k-chain-item {{ x.st }}" href="{{ x.href }}" data-chain="{{ x.key }}" title="{{ x.label }} 보기"{% if x.href[:1] == "#" %} onclick="var t=document.getElementById('{{ x.href[1:] }}');if(t){event.preventDefault();t.scrollIntoView({block:'start'});}"{% endif %}>{% else %}<div class="k-chain-item {{ x.st }}" data-chain="{{ x.key }}">{% endif %}
+        <b>{{ x.label }}{% if x.href %} <span class="go" aria-hidden="true">→</span>{% endif %}</b><small>{% if x.st == 'now' %}지금 보는 것 · {% endif %}{{ x.sub }}</small>
+      {% if x.href %}</a>{% else %}</div>{% endif %}
+      {% if not loop.last %}<span class="k-conn{% if not x.conn_on %} off{% endif %}" aria-hidden="true"></span>{% endif %}
+    {% endfor %}
+    </div>
+  </nav>
+  {% endif %}
+
   <!-- KPI -->
   <div class="bento" data-dn="kpi-bento" data-dn-tone="green" style="grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(110px,auto);">{# z1191z114: 발행 칸에 「부가세 포함」 줄이 붙어 110px 고정이면 숫자 아래가 잘림 → 내용만큼 #}
     {# v5H226z823: 매출금액 KPI — 열람 권한자(can_sales_amt: 임원·매출금액 허용팀)만. 그 외 🔒. #}
@@ -127,7 +142,7 @@ body {   /* z1191z205: --qv-* 다리(공용 테마와 같은 값)는 뺌 · 사�
       <!-- 송장 -->
       <div>
         {# z1191z114: 세금계산서 = 호기 차수 발행(작업일정표 · 마감 화면에서 적은 것) — 옛 송장 표는 있을 때만 아래에 #}
-        <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">🧾 세금계산서 ({{ ti_groups|length }}장)</h3>
+        <h3 id="so-ti" style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">🧾 세금계산서 ({{ ti_groups|length }}장)</h3>
         {% if ti_groups %}
         <div class="tbl-wrap tbl-sticky">
           <table class="tbl">
@@ -156,7 +171,7 @@ body {   /* z1191z205: --qv-* 다리(공용 테마와 같은 값)는 뺌 · 사�
       </div>
       <!-- 수금 -->
       <div>
-        <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">💰 수금 내역 ({{ receipts|length }})</h3>
+        <h3 id="so-rcv" style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ink);">💰 수금 내역 ({{ receipts|length }})</h3>
         {% if receipts %}
         <div class="tbl-wrap tbl-sticky">
           <table class="tbl">

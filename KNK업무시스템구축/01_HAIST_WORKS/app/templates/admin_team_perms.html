@@ -37,7 +37,7 @@
             <td class="num">{{ m.direct_count|default(0) }}</td>
             <td class="num">{{ m.group_count|default(0) }}</td>
             <td class="num">{{ m.deleg_count|default(0) }}</td>
-            {% if is_admin_actor %}<td class="center"><a class="btn btn-secondary" href="/admin/permissions/grant?user_id={{ m.id }}" style="padding:4px 8px;font-size:11px;">부여</a></td>{% endif %}
+            {% if is_admin_actor %}<td class="center"><a class="btn btn-secondary" href="/admin/staff/{{ m.id }}" title="이 사람이 할 수 있는 것 보기·바꾸기(관리 → 👤 직원)" style="padding:4px 8px;font-size:11px;">권한 바꾸기</a>{# z1191z206: 옛 「부여」(/admin/permissions/grant · 쓰지 않음) → 직원 화면 #}</td>{% endif %}
           </tr>
         {% endfor %}
         </tbody>

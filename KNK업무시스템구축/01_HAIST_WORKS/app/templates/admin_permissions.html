@@ -12,10 +12,22 @@
     <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">사용자·그룹 권한 부여/회수 + 위임 토큰 관리</div></div>
   </div>
 
+  {# z1191z206: /admin/permissions/grant(GET·POST) 로 왔을 때 — 말없이 망가지지 않게 어디서 주는지 안내 #}
+  {% if moved_grant %}
+  <div id="z206-moved" role="status" style="margin: 0 var(--content-pad) var(--space-3);padding:12px 16px;border:1px solid var(--knk-warning);background:var(--knk-warning-subtle);border-radius:var(--radius-md);font-size:13px;color:var(--knk-text-primary);line-height:1.6;">
+    <b>ℹ 「권한 부여」 화면은 쓰지 않습니다</b> — 아무것도 저장되지 않았습니다. 권한은 아래 화면에서 주세요.<br>
+    <a href="/admin/staff" style="font-weight:700;color:var(--knk-brand-hover);">👤 직원</a> (한 사람 — 할 수 있는 것 보기·바꾸기) ·
+    <a href="/admin/users/perms" style="font-weight:700;color:var(--knk-brand-hover);">🔑 여러 명 권한 한꺼번에</a> (사업부·센터 권한) ·
+    <a href="/team/permissions" style="font-weight:700;color:var(--knk-brand-hover);">🔐 팀 권한</a> (팀원별)
+  </div>
+  {% endif %}
+
   <div class="actions" style="margin: 0 var(--content-pad);grid-template-columns:repeat(3,1fr);gap:var(--space-3);display:grid;">
-    <a class="action-card" href="/admin/permissions/grant" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
-      <div style="width:42px;height:42px;background:var(--knk-warning-subtle);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">＋</div>
-      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 부여</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">사용자에게 직접 권한 부여</p></div>
+    {# z1191z206 (대표 11-28): 「권한 부여」(/admin/permissions/grant) 카드 뺌 — 그 화면은 쓰지 않음(목록 비어 있고 칸 이름이 서버와 달라 아무도 못 씀).
+       실제로 권한을 주는 곳 = 관리 → 👤 직원 · 🔑 여러 명 권한 한꺼번에 · 팀 권한 #}
+    <a class="action-card" href="/admin/staff" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">
+      <div style="width:42px;height:42px;background:var(--knk-warning-subtle);border-radius:var(--radius-md);display:grid;place-items:center;font-size:22px;">👤</div>
+      <div style="flex:1;"><h4 style="font-size:13px;font-weight:700;color:var(--ink);">권한 주기 → 👤 직원</h4><p style="font-size:11px;color:var(--mute);margin-top:2px;">한 사람이 할 수 있는 것 보기·바꾸기(관리 → 직원)</p></div>
       <div style="color:var(--knk-warning);font-weight:700;">→</div>
     </a>
     <a class="action-card" href="/admin/permissions/groups" style="background:var(--paper-3);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--space-4);display:flex;align-items:center;gap:var(--space-3);text-decoration:none;color:inherit;transition:all .18s;">

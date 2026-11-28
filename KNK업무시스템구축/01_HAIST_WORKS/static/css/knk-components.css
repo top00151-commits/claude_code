@@ -237,6 +237,14 @@
 .k-chain-item.wait{border-style:dashed;background:var(--knk-bg-inset)}
 .k-conn{width:30px;height:12px;flex:none;background:repeating-linear-gradient(-60deg,var(--knk-brand) 0 2px,transparent 2px 5px)}
 .k-conn.off{background:repeating-linear-gradient(-60deg,var(--knk-border-strong) 0 2px,transparent 2px 5px)}
+/* z1191z206: 누르는 칸(a.k-chain-item → 그 자료 화면) · 일부만(.part · 확인 색) · 없음 칸 제목 흐리게 · 휴대폰 = 칸이 줄을 채우며 줄바꿈 */
+a.k-chain-item{text-decoration:none;color:inherit}
+a.k-chain-item:hover,a.k-chain-item:focus-visible{border-color:var(--knk-brand);outline:none}
+.k-chain-item .go{font-size:11px;font-weight:700;color:var(--knk-brand-hover)}
+.k-chain-item.part{border-color:var(--knk-warning)}
+.k-chain-item.part small{color:var(--knk-warning-text)}
+.k-chain-item.wait b{color:var(--knk-text-secondary)}
+@media (max-width:640px){.k-chain{gap:4px}.k-chain-item{min-width:0;flex:1 1 128px;padding:6px 10px}.k-conn{width:18px}}
 
 /* ── 회사 표식 ④ 사선 패턴 — 시스템이 일하는 곳에만 ── */
 .k-hero{position:relative;overflow:hidden;background:var(--knk-bg-white);border:1px solid var(--knk-border-subtle);border-radius:var(--knk-radius-card);padding:20px 24px}

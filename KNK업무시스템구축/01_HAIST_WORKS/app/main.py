@@ -32268,6 +32268,109 @@ async def projects_detail_alias(req: Request, pid: int):
     return RedirectResponse(f"/project/{pid}", 303)
 
 
+def _so_chain_z206(c, u, order, items, ti_groups, receipts_p, outstanding):
+    """z1191z206 (대표 11-28 「추천대로 해」): 수주 상세 「N 연결」 — 견적 → 수주 → 제작요청 → 출하 → 세금계산서 → 입금 한 줄.
+    ⛔ 읽기만(화면을 열어도 자료를 고치지 않음) · 연결은 번호(id)로만 · 애매하면 「없음」.
+    각 칸은 이미 있는 판정을 그대로 쓴다:
+      견적     = _z141_project(관리번호 id → 수주 id 별 견적서 · 견적·발주서 관리와 같은 판정) — project_quote_files.order_id
+      제작요청 = prod_requests(project_id · order_ids · 취소 뺌) — 저장된 수주 번호에 이 수주가 있을 때 · 수주 번호가 비어 있는
+                 옛 요청서는 그 관리번호 살아 있는 수주가 이 수주 하나뿐일 때만(_z48_project_orders · 여럿이면 애매 → 연결 안 함)
+      출하     = 호기·품목 줄 unit_status='출하' 수(납품·수금 화면 n_ship/n_total 과 같은 셈) + 옛 출하 표(shipments)
+      세금계산서 = 이 화면 위 ti_groups(호기 차수 발행 · 💰 입금 확인 _rc_rows_z94 와 같은 칸)
+      입금     = receipts_payment(order_id) · 수주 상태 PAID = 입금 완료 · 미수 = 이 화면 위 outstanding(_rc_rows_z94)
+    반환 [ {key, label, st('done'|'part'|'now'|'wait'), sub, href} … ] — href 는 이미 있는 화면 주소만(없으면 None)."""
+    oid = int(order["id"])
+    pid = order.get("project_id")
+    st_up = str(order.get("status") or "").upper()
+    out = []
+    # ① 견적
+    q_fs = []
+    if pid:
+        try:
+            q_fs = ((_z141_project(c, int(pid)) or {}).get(oid) or {}).get("fs") or []
+        except Exception as _e:
+            print("[z1191z206] 견적 칸 읽기 실패:", repr(_e))
+            q_fs = []
+    if q_fs:
+        _q0 = q_fs[0]   # resolve = 최근 위
+        out.append({"key": "quote", "label": "견적", "st": "done",
+                    "sub": "%d장 · %s" % (len(q_fs), str(_q0.get("created_at") or "")[:10]) if len(q_fs) > 1 else "올림 · %s" % str(_q0.get("created_at") or "")[:10],
+                    "href": ("/quotes/%d" % int(_q0["id"])) if can_view_sales(u) else None, "n": len(q_fs)})
+    else:
+        out.append({"key": "quote", "label": "견적", "st": "wait", "sub": "없음", "href": None, "n": 0})
+    # ② 수주(지금 보는 것)
+    _so_kr = {"DRAFT": "임시", "CONFIRMED": "수주확정", "IN_PRODUCTION": "진행중", "READY_TO_SHIP": "납품대기",
+              "SHIPPED": "출하", "INVOICED": "송장발행", "PAID": "수금완료", "CANCELLED": "취소"}   # so_status_pill.html 과 같은 말
+    out.append({"key": "order", "label": "수주", "st": "now",
+                "sub": " · ".join(x for x in (str(order.get("order_date") or "")[:10], _so_kr.get(st_up, st_up)) if x),
+                "href": None, "n": 1})
+    # ③ 제작요청
+    prs = []
+    if pid:
+        try:
+            _live = _z48_project_orders(c, int(pid))
+            _only_me = len(_live) == 1 and int(_live[0]["id"]) == oid
+            for r in c.execute("SELECT id, COALESCE(order_ids,'') AS order_ids, COALESCE(created_at,'') AS created_at "
+                               "FROM prod_requests WHERE project_id=? AND cancelled_at IS NULL ORDER BY id DESC", (int(pid),)).fetchall():
+                _ids = _z48_ids(r["order_ids"])
+                if (oid in _ids) if _ids else _only_me:
+                    prs.append(dict(r))
+        except Exception as _e:
+            print("[z1191z206] 제작요청 칸 읽기 실패:", repr(_e))
+            prs = []
+    if prs:
+        out.append({"key": "prod", "label": "제작요청", "st": "done",
+                    "sub": ("%d장 · " % len(prs) if len(prs) > 1 else "발행 · ") + str(prs[0]["created_at"])[:10],
+                    "href": "/project/%d/prod-request/edit?prid=%d" % (int(pid), int(prs[0]["id"])), "n": len(prs)})
+    else:
+        out.append({"key": "prod", "label": "제작요청", "st": "wait", "sub": "없음", "href": None, "n": 0})
+    # ④ 출하
+    n_tot = len(items)
+    n_ship = sum(1 for it in items if str(it.get("unit_status") or "") == "출하")
+    _sd = sorted(str(it.get("status_date") or "")[:10] for it in items
+                 if str(it.get("unit_status") or "") == "출하" and str(it.get("status_date") or "").strip())
+    try:
+        _old = c.execute("SELECT COUNT(*), MAX(shipped_at) FROM shipments WHERE order_id=?", (oid,)).fetchone()
+    except Exception:
+        _old = (0, None)
+    n_old = int((_old[0] if _old else 0) or 0)
+    _unit = "품목" if _so_is_parts974(c, oid) else "호기"
+    if n_ship or n_old:
+        _last = _sd[-1] if _sd else str((_old[1] if _old else "") or "")[:10]
+        if n_ship:
+            _txt = ("%s 모두" % _unit) if n_ship == n_tot else ("%d / %d %s" % (n_ship, n_tot, _unit))
+        else:
+            _txt = "%d건" % n_old
+        out.append({"key": "ship", "label": "출하", "st": "done" if (n_ship == n_tot or not n_ship) else "part",
+                    "sub": _txt + ((" · " + _last) if _last else ""),
+                    "href": ("/project/%d" % int(pid)) if pid else None, "n": n_ship or n_old})
+    else:
+        out.append({"key": "ship", "label": "출하", "st": "wait", "sub": "없음", "href": None, "n": 0})
+    # ⑤ 세금계산서
+    if ti_groups:
+        out.append({"key": "ti", "label": "세금계산서", "st": "done",
+                    "sub": "%d장 · %s" % (len(ti_groups), max(g["date"] for g in ti_groups)),
+                    "href": "#so-ti", "n": len(ti_groups)})
+    else:
+        out.append({"key": "ti", "label": "세금계산서", "st": "wait", "sub": "없음", "href": None, "n": 0})
+    # ⑥ 입금
+    _rd = sorted(str(r.get("received_at") or "")[:10] for r in receipts_p if str(r.get("received_at") or "").strip())
+    if st_up == "PAID":
+        out.append({"key": "pay", "label": "입금", "st": "done",
+                    "sub": "입금 완료" + ((" · " + _rd[-1]) if _rd else ""), "href": "#so-rcv", "n": len(receipts_p)})
+    elif receipts_p:
+        _left = outstanding is not None and outstanding > 0
+        out.append({"key": "pay", "label": "입금", "st": "part" if _left else "done",
+                    "sub": "%d건%s%s" % (len(receipts_p), (" · " + _rd[-1]) if _rd else "", " · 미수 남음" if _left else ""),
+                    "href": "#so-rcv", "n": len(receipts_p)})
+    else:
+        out.append({"key": "pay", "label": "입금", "st": "wait", "sub": "없음", "href": None, "n": 0})
+    # 사선(N) = 앞 칸과 다음 칸이 모두 있을 때 빨강 · 하나라도 없으면 회색 점선
+    for i, x in enumerate(out):
+        x["conn_on"] = (i + 1 < len(out)) and x["st"] != "wait" and out[i + 1]["st"] != "wait"
+    return out
+
+
 @app.get("/sales/orders/{oid:int}", response_class=HTMLResponse)
 async def sales_order_detail(req: Request, oid: int):
     """수주 상세 — 라인/송장/수금/이력 (v5H47 신규)."""
@@ -32418,7 +32521,13 @@ async def sales_order_detail(req: Request, oid: int):
     except Exception as _e114:   # 숫자 칸만 「—」 — 화면은 열리게(이유는 서버 기록에)
         print("[z1191z114] 수주 상세 미수금 계산 실패:", repr(_e114))
         outstanding = None
-    return ctx(req, "sales_order_detail.html", user=u, active="sales",
+    try:   # z1191z206: 「N 연결」 한 줄(읽기만) — 실패해도 화면은 열리게(칸 없이)
+        with db_session() as _c206:
+            so_chain = _so_chain_z206(_c206, u, order, items, ti_groups, receipts_p, outstanding)
+    except Exception as _e206:
+        print("[z1191z206] 수주 N 연결 계산 실패:", repr(_e206))
+        so_chain = []
+    return ctx(req, "sales_order_detail.html", user=u, active="sales", so_chain=so_chain,
                order=order, items=items, invoices=invoices_,
                receipts=receipts_p, history=history,
                total_invoiced=invoiced, total_received=received,
@@ -55686,21 +55795,39 @@ async def admin_permissions_page(req: Request):
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
-    return ctx(req, "admin_permissions.html", user=u, active="admin")
+    # z1191z206: 「권한 부여」 화면을 막고 여기로 보낼 때(?moved=grant) 위에 안내 띠
+    return ctx(req, "admin_permissions.html", user=u, active="admin",
+               moved_grant=(req.query_params.get("moved") == "grant"))
+
+
+# z1191z206 (대표 11-28 「추천대로 해」): 「권한 부여」(/admin/permissions/grant) 화면은 쓰지 않는다 — 입구를 빼고 막기만.
+#   그 화면은 목록 두 개가 비어 있고 양식 칸 이름(user_id·permission_id)과 서버가 읽는 칸(to_user·resource·action·expires_at)이
+#   달라 누구도 쓸 수 없었다(z204 조사). 실제 권한은 관리 → 👤 직원(/admin/staff) · 🔑 여러 명 권한 한꺼번에(/admin/users/perms) ·
+#   팀 권한(/team/permissions)에서 준다. 주소를 직접 열거나(GET) 옛 양식을 보내도(POST) 아무것도 저장하지 않고 권한 관리 화면 안내로 보낸다.
+#   서버 코드·템플릿(admin_permissions_grant.html)은 지우지 않고 남긴다(아래 _z206_grant_submit_off · 스킬 knk-safe-delete 「숨기기 우선」).
+_Z206_GRANT_MOVED = "/admin/permissions?moved=grant"
 
 
 @app.get("/admin/permissions/grant", response_class=HTMLResponse)
 async def admin_permissions_grant_page(req: Request):
-    """보내기 탭 — 위임 발송 폼 (시안 §1-A)"""
+    """보내기 탭 — 위임 발송 폼 (시안 §1-A) · z1191z206: 쓰지 않음 → 권한 관리 안내로"""
     u = require(req, ["admin", "ceo"])
     if not u:
         return RedirectResponse("/login", 303)
-    return ctx(req, "admin_permissions_grant.html", user=u, active="admin")
+    return RedirectResponse(_Z206_GRANT_MOVED, 303)
 
 
 @app.post("/admin/permissions/grant")
 async def admin_permissions_grant_submit(req: Request):
-    """위임 토큰 발행 (S3 2차 본문 · 시안 §1-A 5필드)
+    """z1191z206: 쓰지 않음 — 저장하지 않고 권한 관리 안내로(옛 본문은 _z206_grant_submit_off 에 그대로 남김)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"error": "권한 없음"}, 401)
+    return RedirectResponse(_Z206_GRANT_MOVED, 303)
+
+
+async def _z206_grant_submit_off(req: Request):
+    """위임 토큰 발행 (S3 2차 본문 · 시안 §1-A 5필드) — z1191z206 부터 어느 주소에도 걸려 있지 않음(보관만)
     트랜잭션: delegation_tokens INSERT + delegation_audit INSERT (audit 누락 0건)
     RBAC 컬럼 분리: resource + action 셀렉터 → permissions 조회 (없으면 자동 INSERT)
     """
