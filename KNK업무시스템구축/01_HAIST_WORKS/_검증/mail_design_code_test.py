@@ -4,7 +4,7 @@
   0 서명 로고 = static/img/brand/ 스킬 원본(바이트까지) · 보낼 때 인라인 첨부로 바뀜
   1 메일 색 이름(--mt-* · --md-*) = 별칭만(직접 색 0) · 세 테마가 --knk-* 값을 정함
   2 메일 공용 모양 static/css/knk-mail.css = .m-* 모두 · 색 숫자 0 · --knk-* 정의 0 · 메일 화면이 불러옴
-  3 회사 모양(mail_ci) = 꺼짐(전역 False) · 켜는 줄 한 곳
+  3 회사 모양(mail_ci) = 켜짐(대표 11-28 「3단계 켜」 · 전역 True) · 켜는 줄 한 곳
   5 검사기 메일 몫(M-1~M-4) = 지금 코드 통과 · 일부러 어긴 코드는 잡힘(자체 시험)
   7 ① 보내기 전 확인: 개인 메일 섞임 · 첨부 말 ② 대화 흐름 점·선·「내 답장 아직」 ③ 보낸 사람 카드 숫자(주소 경계)
 """
@@ -82,7 +82,7 @@ check("메일 테마가 knk-mail.css 를 불러옴", "/static/css/knk-mail.css" 
 # ── 3단계 꺼짐 ──
 print("\n3단계 회사 모양 = 꺼짐(대표 「올려」 전)")
 main_src = rd(ROOT, "app", "main.py")
-check("전역 mail_ci = False", re.search(r'(?m)^tpl\.env\.globals\["mail_ci"\] = False', main_src) is not None)
+check("전역 mail_ci = True(대표 11-28 「3단계 켜」)", re.search(r'(?m)^tpl\.env\.globals\["mail_ci"\] = True', main_src) is not None)
 mt = rd(T, "mail_theme.html")
 check("mail_ci.html 은 mail_ci(또는 견본 미리보기)일 때만 들어옴", re.search(r"\{%\s*if\s*mail_ci\b[^%]*%\}\s*\{%\s*include\s*\"_v5_partials/mail_ci.html\"", mt) is not None)
 
