@@ -4,38 +4,38 @@
    언제부터는 미리 골라 두지 않음(두 단추 중 하나를 눌러야 옮김) · 범위 = 회사 주소 모두(기본) / 이 사람만 · 「이 메일만」은 작은 글자 #}
 <style>
   .mmv-bg{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:9990;display:flex;align-items:center;justify-content:center;padding:16px}
-  .mmv{position:relative;background:var(--mt-surface,#fff);color:var(--ink,#111827);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.25);
+  .mmv{position:relative;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink,var(--knk-mail-c-gray-89));border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.25);
        width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:18px 18px 14px;font-size:13.5px;line-height:1.55}
   .mmv h3{margin:0 30px 4px 0;font-size:16px;font-weight:800;overflow-wrap:anywhere}
-  .mmv .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:16px;font-weight:700;color:var(--mute,#64748b);cursor:pointer}
-  .mmv .x:hover{background:var(--mt-hover,#f1f3f5);color:var(--ink,#111827)}
-  .mmv .sub{color:var(--mute,#64748b);font-size:12.5px;margin-bottom:10px;overflow-wrap:anywhere}
-  .mmv .scope{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px;padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:var(--mt-soft,#f8fafc)}
+  .mmv .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:16px;font-weight:700;color:var(--mute,var(--knk-mail-c-gray-53));cursor:pointer}
+  .mmv .x:hover{background:var(--mt-hover,var(--knk-mail-c-gray-05));color:var(--ink,var(--knk-mail-c-gray-89))}
+  .mmv .sub{color:var(--mute,var(--knk-mail-c-gray-53));font-size:12.5px;margin-bottom:10px;overflow-wrap:anywhere}
+  .mmv .scope{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px;padding:10px 12px;border:1px solid var(--line,var(--knk-mail-c-gray-09));border-radius:10px;background:var(--mt-soft,var(--knk-mail-c-gray-02))}
   .mmv .scope label{display:flex;gap:8px;align-items:flex-start;cursor:pointer;overflow-wrap:anywhere}
   .mmv .scope input{margin-top:3px}
-  .mmv .scope small{color:var(--mute,#64748b)}
+  .mmv .scope small{color:var(--mute,var(--knk-mail-c-gray-53))}
   .mmv .q{font-weight:700;margin:4px 0 8px}
   .mmv .go{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .mmv .go button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid #c7d2fe;background:#eef2ff;color:#1e3a8a;
+  .mmv .go button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-03);color:var(--knk-mail-c-blue-67);
        border-radius:10px;padding:10px 12px;font:inherit;cursor:pointer;min-width:0}
   .mmv .go button b{font-size:14px}
-  .mmv .go button span{font-size:12px;color:#475569;line-height:1.45}
-  .mmv .go button:hover{background:#e0e7ff;border-color:#818cf8}
+  .mmv .go button span{font-size:12px;color:var(--knk-mail-c-gray-65);line-height:1.45}
+  .mmv .go button:hover{background:var(--knk-mail-c-blue-06);border-color:var(--knk-mail-c-indigo-26)}
   .mmv .go button:disabled{opacity:.5;cursor:wait}
-  .mmv .one{margin-top:10px;font-size:12.5px;color:var(--mute,#64748b)}
-  .mmv .one a{color:#1d4ed8;cursor:pointer}
-  .mmv .msg{margin-top:8px;font-size:12.5px;color:#b91c1c;min-height:1em}
+  .mmv .one{margin-top:10px;font-size:12.5px;color:var(--mute,var(--knk-mail-c-gray-53))}
+  .mmv .one a{color:var(--knk-mail-c-blue-52);cursor:pointer}
+  .mmv .msg{margin-top:8px;font-size:12.5px;color:var(--knk-mail-c-red-58);min-height:1em}
   .mmv .mmv-pv:empty{display:none}
-  .mmv .mmv-pv{margin:-4px 0 12px;padding:8px 10px;border:1px dashed var(--line,#cbd5e1);border-radius:10px;font-size:12.5px}
+  .mmv .mmv-pv{margin:-4px 0 12px;padding:8px 10px;border:1px dashed var(--line,var(--knk-mail-c-gray-16));border-radius:10px;font-size:12.5px}
   .mmv .pv-h{font-weight:700;margin-bottom:3px}
-  .mmv .pv-h small,.mmv .pv-more{color:var(--mute,#64748b);font-weight:500}
-  .mmv .pv-by{color:var(--ink-soft,#334155);overflow-wrap:anywhere}
-  .mmv .pv-by .here,.mmv .pv-rows .f.here{color:#15803d;font-weight:700}
+  .mmv .pv-h small,.mmv .pv-more{color:var(--mute,var(--knk-mail-c-gray-53));font-weight:500}
+  .mmv .pv-by{color:var(--ink-soft,var(--knk-mail-c-blue-73));overflow-wrap:anywhere}
+  .mmv .pv-by .here,.mmv .pv-rows .f.here{color:var(--knk-mail-c-green-71);font-weight:700}
   .mmv .pv-rows{list-style:none;margin:6px 0 2px;padding:0;display:flex;flex-direction:column;gap:2px}
   .mmv .pv-rows li{display:grid;grid-template-columns:76px minmax(0,90px) minmax(0,1fr) auto;gap:6px;align-items:baseline;min-width:0}
   .mmv .pv-rows span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .mmv .pv-rows .d{color:var(--mute,#64748b);font-variant-numeric:tabular-nums}
-  .mmv .pv-rows .f{color:var(--mute,#64748b);font-size:11.5px;max-width:110px}
+  .mmv .pv-rows .d{color:var(--mute,var(--knk-mail-c-gray-53));font-variant-numeric:tabular-nums}
+  .mmv .pv-rows .f{color:var(--mute,var(--knk-mail-c-gray-53));font-size:11.5px;max-width:110px}
   @media(max-width:520px){.mmv .go{grid-template-columns:1fr} .mmv .pv-rows li{grid-template-columns:64px minmax(0,1fr) auto} .mmv .pv-rows .w{display:none}}
 </style>
 <script>
@@ -58,27 +58,27 @@
       var many=info.n>1;
       var html='<div class="mmv" role="dialog" aria-modal="true" aria-label="메일 옮기기">'+
         '<button type="button" class="x" title="닫기(옮기지 않음)" aria-label="닫기">✕</button>'+
-        '<h3>📁 「'+esc(name)+'」(으)로 옮기기</h3>'+
+        '<h3>'+mdI('folder')+' 「'+esc(name)+'」(으)로 옮기기</h3>'+
         '<div class="sub">고른 메일 '+n(info.n)+'통'+(info.from?(' · 지금 「'+esc(info.from)+'」'):'')+' · 나에게만 적용</div>';
       if(info.same && !info.subject){
-        html+='<div class="scope"><label><span>👤 <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label></div>';
+        html+='<div class="scope"><label><span>'+mdI('user')+' <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label></div>';
       } else if(info.same){
         html+='<div class="scope">'+
-          '<label><input type="radio" name="mmvScope" value="person" checked><span>👤 <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
-          '<label><input type="radio" name="mmvScope" value="subject"><span>🏷 <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>'+
+          '<label><input type="radio" name="mmvScope" value="person" checked><span>'+mdI('user')+' <b>'+esc(info.person.label)+'</b> 에서 온 메일 <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
+          '<label><input type="radio" name="mmvScope" value="subject"><span>'+mdI('tag')+' <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>'+
           '</div>';
       } else {
         html+='<div class="scope">'+
-          '<label><input type="radio" name="mmvScope" value="company" checked><span>🏢 <b>'+esc(info.company.label)+'</b> 에서 온 메일 모두 <small>(지금 '+n(info.company.n)+'통)</small></span></label>'+
-          '<label><input type="radio" name="mmvScope" value="person"><span>👤 '+(many?'고른 메일의 보낸 사람만':'이 사람만')+' — '+esc(info.person.label)+' <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
-          (info.subject?'<label><input type="radio" name="mmvScope" value="subject"><span>🏷 <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>':'')+
+          '<label><input type="radio" name="mmvScope" value="company" checked><span>'+mdI('building-2')+' <b>'+esc(info.company.label)+'</b> 에서 온 메일 모두 <small>(지금 '+n(info.company.n)+'통)</small></span></label>'+
+          '<label><input type="radio" name="mmvScope" value="person"><span>'+mdI('user')+' '+(many?'고른 메일의 보낸 사람만':'이 사람만')+' — '+esc(info.person.label)+' <small>(지금 '+n(info.person.n)+'통)</small></span></label>'+
+          (info.subject?'<label><input type="radio" name="mmvScope" value="subject"><span>'+mdI('tag')+' <b>'+esc(info.subject.label)+'</b> 꼬리표가 붙은 메일(보낸 사람 상관없이) <small>(지금 '+n(info.subject.n)+'통)</small></span></label>':'')+
           '</div>';
       }
       html+='<div class="mmv-pv" aria-live="polite"></div>';
       html+='<div class="q">언제 받은 메일부터 옮길까요?</div>'+
         '<div class="go">'+
-          '<button type="button" data-when="new"><b>⏩ 지금부터 오는 메일만</b><span>고른 메일과 앞으로 받는 메일이 이리로 · 지난 메일은 지금 자리 그대로<br>(예: 부서를 옮긴 날부터)</span></button>'+
-          '<button type="button" data-when="all"><b>⏪ 지난 메일도 모두</b><span>이미 받은 메일 <i class="mmv-n">'+n(info.same?info.person.n:info.company.n)+'</i>통과 앞으로 받는 메일 모두 이리로</span></button>'+
+          '<button type="button" data-when="new"><b>'+mdI('fast-forward')+' 지금부터 오는 메일만</b><span>고른 메일과 앞으로 받는 메일이 이리로 · 지난 메일은 지금 자리 그대로<br>(예: 부서를 옮긴 날부터)</span></button>'+
+          '<button type="button" data-when="all"><b>'+mdI('rewind')+' 지난 메일도 모두</b><span>이미 받은 메일 <i class="mmv-n">'+n(info.same?info.person.n:info.company.n)+'</i>통과 앞으로 받는 메일 모두 이리로</span></button>'+
         '</div>'+
         '<div class="one">또는 <a data-when="one">고른 메일 '+n(info.n)+'통만 옮기기</a> (보낸 곳의 다른 메일·앞으로 올 메일은 자동 분류 그대로)</div>'+
         '<div class="msg"></div></div>';
@@ -95,11 +95,11 @@
         var pv=(sc==='person'?info.person.pv:info.company.pv)||{}, el=bg.querySelector('.mmv-pv'); if(!el) return;
         var by=(pv.by||[]), rows=(pv.rows||[]);
         if(!by.length){ el.innerHTML=''; return; }
-        var h='<div class="pv-h">👀 같이 옮겨질 메일 <small>(⏪ 지난 메일도 모두 고를 때)</small></div><div class="pv-by">지금 자리: '+
+        var h='<div class="pv-h">'+mdI('eye')+' 같이 옮겨질 메일 <small>('+mdI('rewind')+' 지난 메일도 모두 고를 때)</small></div><div class="pv-by">지금 자리: '+
           by.map(function(b){ return '<span class="'+(b[2]?'here':'')+'">'+esc(b[0])+' '+n(b[1])+(b[2]?' ✓ 이미 여기':'')+'</span>'; }).join(' · ')+'</div>';
         if(rows.length){ h+='<ul class="pv-rows">'+rows.map(function(r){ return '<li><span class="d">'+esc(r[0])+'</span><span class="w">'+esc(r[1])+'</span><span class="s">'+esc(r[2])+'</span><span class="f'+(r[4]?' here':'')+'">'+esc(r[3]||'')+'</span></li>'; }).join('')+'</ul>'; }
         if(pv.more) h+='<div class="pv-more">외 '+n(pv.more)+'통</div>';
-        if(pv.pinned) h+='<div class="pv-more">📌 「이 메일만」으로 따로 정해 둔 '+n(pv.pinned)+'통은 그대로 둡니다</div>';
+        if(pv.pinned) h+='<div class="pv-more">'+mdI('pin')+' 「이 메일만」으로 따로 정해 둔 '+n(pv.pinned)+'통은 그대로 둡니다</div>';
         el.innerHTML=h;
       }
       renderPv();
@@ -108,11 +108,11 @@
         bg.querySelector('.mmv-n').textContent=n(sc==='person'?info.person.n:(sc==='subject'?info.subject.n:info.company.n)); renderPv(); }); });
       bg.querySelectorAll('[data-when]').forEach(function(b){ b.addEventListener('click', async function(){
         var when=b.getAttribute('data-when'), sc=(bg.querySelector('input[name="mmvScope"]:checked')||{}).value||(info.same?'person':'company');
-        bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,#64748b)'; msg.textContent='옮기는 중…';
+        bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,var(--knk-mail-c-gray-53))'; msg.textContent='옮기는 중…';
         try{ var j=await post({ids:ids.join(','), key:key, when:when, scope:sc});
-          if(!j.ok){ msg.style.color='#b91c1c'; msg.textContent='⚠ '+(j.message||'옮기지 못했습니다'); bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); return; }
+          if(!j.ok){ msg.style.color='var(--knk-mail-c-red-58)'; msg.textContent='⚠ '+(j.message||'옮기지 못했습니다'); bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); return; }
           j.text = window.mailMoveText(j); close(j);
-        }catch(e){ msg.style.color='#b91c1c'; msg.textContent='⚠ 네트워크 오류'; bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); }
+        }catch(e){ msg.style.color='var(--knk-mail-c-red-58)'; msg.textContent='⚠ 네트워크 오류'; bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); }
       }); });
       var first=bg.querySelector('.go button'); if(first) first.focus();
     });
@@ -131,16 +131,16 @@
       var bg=document.createElement('div'); bg.className='mmv-bg';
       bg.innerHTML='<div class="mmv" role="dialog" aria-modal="true" aria-label="광고·알림으로 정하기">'+
         '<button type="button" class="x" title="닫기(정하지 않음)" aria-label="닫기">✕</button>'+
-        '<h3>📢 광고·알림으로 정하기</h3>'+
-        '<div class="sub">보낸 사람 '+n(info.n_send)+'곳 · 나에게만 적용 · 메일은 지우지 않음(「📢 광고·알림」 칸에 모임)</div>'+
-        '<div class="scope">'+who.slice(0,5).map(function(w){ return '<div>👤 <b>'+w+'</b></div>'; }).join('')+(who.length>5?'<div><small>외 '+(who.length-5)+'곳</small></div>':'')+
+        '<h3>'+mdI('megaphone')+' 광고·알림으로 정하기</h3>'+
+        '<div class="sub">보낸 사람 '+n(info.n_send)+'곳 · 나에게만 적용 · 메일은 지우지 않음(「'+mdI('megaphone')+' 광고·알림」 칸에 모임)</div>'+
+        '<div class="scope">'+who.slice(0,5).map(function(w){ return '<div>'+mdI('user')+' <b>'+w+'</b></div>'; }).join('')+(who.length>5?'<div><small>외 '+(who.length-5)+'곳</small></div>':'')+
         '<div><small>지금 이 보낸 사람에게서 받은 메일 '+n(info.n_all)+'통</small></div></div>'+
         '<div class="q">언제 받은 메일부터 광고·알림으로 할까요?</div>'+
         '<div class="go">'+
-          '<button type="button" data-when="first"><b>⏩ 고른 메일부터</b><span>'+esc(fd0)+' 받은 고른 메일과 그 뒤로 오는 메일 <i>'+n(info.n_first)+'</i>통 · 그 전 메일은 그대로</span></button>'+
-          '<button type="button" data-when="all"><b>⏪ 지난 메일도 모두</b><span>이미 받은 메일 <i>'+n(info.n_all)+'</i>통과 앞으로 받는 메일 모두</span></button>'+
+          '<button type="button" data-when="first"><b>'+mdI('fast-forward')+' 고른 메일부터</b><span>'+esc(fd0)+' 받은 고른 메일과 그 뒤로 오는 메일 <i>'+n(info.n_first)+'</i>통 · 그 전 메일은 그대로</span></button>'+
+          '<button type="button" data-when="all"><b>'+mdI('rewind')+' 지난 메일도 모두</b><span>이미 받은 메일 <i>'+n(info.n_all)+'</i>통과 앞으로 받는 메일 모두</span></button>'+
         '</div>'+
-        '<div class="one" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">📅 또는 <input type="date" class="mad-d" max="'+td+'" value="'+esc(fd0)+'" style="font:inherit;border:1px solid var(--line,#cbd5e1);border-radius:7px;padding:3px 6px"> '+
+        '<div class="one" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+mdI('calendar')+' 또는 <input type="date" class="mad-d" max="'+td+'" value="'+esc(fd0)+'" style="font:inherit;border:1px solid var(--line,var(--knk-mail-c-gray-16));border-radius:7px;padding:3px 6px"> '+
           '<a data-when="date">이 날짜 이후 받은 메일부터</a></div>'+
         '<div class="msg"></div></div>';
       document.body.appendChild(bg);
@@ -154,12 +154,12 @@
         var when=b.getAttribute('data-when'), since='';
         if(when==='first') since=info.first||'';
         else if(when==='date'){ since=(bg.querySelector('.mad-d').value||''); if(!/^\d{4}-\d{2}-\d{2}$/.test(since)){ msg.textContent='⚠ 날짜를 골라 주세요'; return; } }
-        bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,#64748b)'; msg.textContent='정하는 중…';
+        bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=true; }); msg.style.color='var(--mute,var(--knk-mail-c-gray-53))'; msg.textContent='정하는 중…';
         try{ var j=await ad({ids:ids.join(','), mode:'on', since:since});
-          if(!j.ok){ msg.style.color='#b91c1c'; msg.textContent='⚠ '+(j.message||'정하지 못했습니다'); bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); return; }
+          if(!j.ok){ msg.style.color='var(--knk-mail-c-red-58)'; msg.textContent='⚠ '+(j.message||'정하지 못했습니다'); bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); return; }
           j.text='📢 보낸 사람 '+n(j.n_send)+'곳을 광고·알림으로 — '+(j.since ? (j.since.slice(0,10)+' 받은 메일부터 · 그 전 메일은 그대로') : '지난 메일도 모두')+' · 되돌리려면 메일 위 오른쪽 클릭 「📢 광고·알림 아님」';
           close(j);
-        }catch(e){ msg.style.color='#b91c1c'; msg.textContent='⚠ 네트워크 오류'; bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); }
+        }catch(e){ msg.style.color='var(--knk-mail-c-red-58)'; msg.textContent='⚠ 네트워크 오류'; bg.querySelectorAll('.go button').forEach(function(x){ x.disabled=false; }); }
       }); });
       var first=bg.querySelector('.go button'); if(first) first.focus();
     });
@@ -175,9 +175,9 @@
   window.mailAskText=function(o){
     return new Promise(function(resolve){
       var bg=modal('<h3>'+esc(o.title||'')+'</h3>'+(o.sub?'<div class="sub">'+esc(o.sub)+'</div>':'')+
-        '<input type="text" class="mmv-in" maxlength="'+(o.max||60)+'" style="width:100%;box-sizing:border-box;font:inherit;font-size:14px;border:1px solid var(--line,#cbd5e1);border-radius:8px;padding:8px 10px" placeholder="'+esc(o.ph||'')+'">'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="gn-c" style="font:inherit;border:1px solid var(--line,#cbd5e1);background:#fff;border-radius:8px;padding:6px 14px;cursor:pointer">취소</button>'+
-        '<button type="button" class="gn-o" style="font:inherit;border:0;background:#1d4ed8;color:#fff;border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700">'+esc(o.ok||'확인')+'</button></div>');
+        '<input type="text" class="mmv-in" maxlength="'+(o.max||60)+'" style="width:100%;box-sizing:border-box;font:inherit;font-size:14px;border:1px solid var(--line,var(--knk-mail-c-gray-16));border-radius:8px;padding:8px 10px" placeholder="'+esc(o.ph||'')+'">'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" class="gn-c" style="font:inherit;border:1px solid var(--line,var(--knk-mail-c-gray-16));background:var(--knk-mail-c-white);border-radius:8px;padding:6px 14px;cursor:pointer">취소</button>'+
+        '<button type="button" class="gn-o" style="font:inherit;border:0;background:var(--knk-mail-c-blue-52);color:var(--knk-mail-c-white);border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700">'+esc(o.ok||'확인')+'</button></div>');
       var inp=bg.querySelector('.mmv-in'); inp.value=o.value||'';
       function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
       function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); close(null); } else if(e.key==='Enter' && document.activeElement===inp){ e.preventDefault(); close(inp.value.trim()); } }
@@ -198,16 +198,16 @@
     if(!j.ok){ alert('⚠ '+(j.message||'하지 못했습니다')); return false; }
     return await new Promise(function(resolve){
       var its=j.items||[];
-      var html='<h3>💡 「'+esc(name)+'」 아래 폴더 추천</h3>'+
+      var html='<h3>'+mdI('lightbulb')+' 「'+esc(name)+'」 아래 폴더 추천</h3>'+
         '<div class="sub">이 폴더에 든 메일의 <b>서명 회사 이름·부서</b>로 모았습니다. 고른 이름으로 아래 폴더를 만들면, 그 회사·부서 메일이 저절로 그 안으로 갑니다(모르는 메일은 「'+esc(name)+'」에 남음 · 이름은 고쳐도 됩니다).</div>';
-      if(!its.length){ html+='<div class="sub" style="color:#92400e">나눌 후보가 없습니다 — 서명에 회사·부서 이름이 없거나 이미 아래 폴더가 있습니다. 오른쪽 클릭 「＋ 아래 폴더 만들기」로 직접 만들 수 있습니다.</div>'; }
+      if(!its.length){ html+='<div class="sub" style="color:var(--knk-mail-c-orange-69)">나눌 후보가 없습니다 — 서명에 회사·부서 이름이 없거나 이미 아래 폴더가 있습니다. 오른쪽 클릭 「＋ 아래 폴더 만들기」로 직접 만들 수 있습니다.</div>'; }
       else {
-        html+='<div style="max-height:46vh;overflow:auto;border:1px solid var(--line,#e5e7eb);border-radius:10px">';
-        its.forEach(function(x,i){ html+='<label style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line,#f1f5f9)">'+
+        html+='<div style="max-height:46vh;overflow:auto;border:1px solid var(--line,var(--knk-mail-c-gray-09));border-radius:10px">';
+        its.forEach(function(x,i){ html+='<label style="display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line,var(--knk-mail-c-gray-04))">'+
           '<input type="checkbox" class="ss-ck" data-i="'+i+'"><input type="text" class="ss-nm" data-i="'+i+'" value="'+esc(x.name)+'" maxlength="60" style="flex:1;min-width:0;font:inherit;font-size:13px;border:1px solid transparent;border-radius:6px;padding:3px 6px">'+
-          '<small style="color:#64748b;white-space:nowrap">'+(x.by==='부서'?'부서':'회사')+' · '+x.senders+'명 · '+n(x.n)+'통</small></label>'; });
-        html+='</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;align-items:center"><span class="ss-msg" style="margin-right:auto;font-size:12.5px;color:#64748b"></span>'+
-          '<button type="button" class="ss-go" style="font:inherit;border:0;background:#1d4ed8;color:#fff;border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700">고른 것 아래 폴더로 만들기</button></div>';
+          '<small style="color:var(--knk-mail-c-gray-53);white-space:nowrap">'+(x.by==='부서'?'부서':'회사')+' · '+x.senders+'명 · '+n(x.n)+'통</small></label>'; });
+        html+='</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;align-items:center"><span class="ss-msg" style="margin-right:auto;font-size:12.5px;color:var(--knk-mail-c-gray-53)"></span>'+
+          '<button type="button" class="ss-go" style="font:inherit;border:0;background:var(--knk-mail-c-blue-52);color:var(--knk-mail-c-white);border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:700">고른 것 아래 폴더로 만들기</button></div>';
       }
       var bg=modal(html);
       function close(v){ document.removeEventListener('keydown', onKey, true); bg.remove(); resolve(v); }
