@@ -83,6 +83,8 @@
 .mc-ttl { font-size: 15px; font-weight: 800; color: var(--qv-ink); flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mc-sub { font-size: 12.5px; color: var(--qv-ink-3); margin-top: 5px; line-height: 1.5; overflow-wrap: anywhere; }
 .mc-sub b { color: var(--qv-ink-2); font-weight: 700; }
+.mc-sub .mc-xn { color: var(--qv-ink-2); }   /* z1217: 외부 손님 이름 = 회사보다 한 단계 진하게 */
+.mc-sub .mc-co-dot { margin: 0 3px; }
 .mc-min { display:flex; align-items:center; gap:8px; flex-wrap: wrap; margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--qv-line); }
 .mc-btn { display:inline-flex; align-items:center; padding: 5px 13px; border-radius: 999px; border: 1px solid var(--qv-line-2); font-size: 13px; font-weight: 700; color: var(--qv-ink); text-decoration: none; background: var(--qv-surface); white-space: nowrap; }
 .mc-btn:hover { border-color: var(--qv-line-3); }
@@ -347,6 +349,16 @@
       return out;
     }
     function hx(s){ return Q.terms.length ? marks(s, Q.terms) : esc(s); }
+    // z1216·z1217 (대표 2026-11-28): 외부 「[회사]이름」·「【회사】이름」 → 회사 · 이름 — 회의 화면 coSplit · 서버 _mtg_doc_ext_split 과 같은 규칙(표시만)
+    function coSplitL(raw){
+      var t = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim(), P = [['[', ']'], ['【', '】']];
+      for (var i = 0; i < P.length; i++){
+        if (t.charAt(0) === P[i][0]){ var k = t.indexOf(P[i][1], 1);
+          if (k > 1){ var co = t.slice(1, k).trim(), nm = t.slice(k + 1).trim(); if (co && nm) return [co, nm]; } }
+      }
+      return ['', t];
+    }
+    function coHtmlL(raw){ var c = coSplitL(raw); return c[0] ? '<span class="mc-co">' + hx(c[0]) + '</span><span class="mc-co-dot">·</span><span class="mc-xn">' + hx(c[1]) + '</span>' : hx(c[1]); }
     function cardText(m){
       return [m.title, m.location, m.organizer]
         .concat((m.attendees || []).map(function(a){ return a.name; }), m.externals || [])
@@ -475,7 +487,7 @@
         + '<div class="mc-sub">👥 ' + atts.length + '명'
         + (atts.length ? ' — ' + atts.map(function(a){ return hx(a.name); }).join(', ') : '') + '</div>';
       if (m.externals && m.externals.length) {
-        h += '<div class="mc-sub">' + MT.external + ' ' + m.externals.length + MT.people + ' ' + hx(m.externals.join(', ')) + '</div>';
+        h += '<div class="mc-sub">' + MT.external + ' ' + m.externals.length + MT.people + ' ' + m.externals.map(coHtmlL).join(', ') + '</div>';
       }
       if (me.is_organizer) {
         // 👤 응답 현황은 등록 담당에게만 — 이음 회의 카드와 같은 규칙
