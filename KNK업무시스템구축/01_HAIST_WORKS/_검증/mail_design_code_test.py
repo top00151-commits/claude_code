@@ -86,6 +86,24 @@ check("전역 mail_ci = True(대표 11-28 「3단계 켜」)", re.search(r'(?m)^
 mt = rd(T, "mail_theme.html")
 check("mail_ci.html 은 mail_ci(또는 견본 미리보기)일 때만 들어옴", re.search(r"\{%\s*if\s*mail_ci\b[^%]*%\}\s*\{%\s*include\s*\"_v5_partials/mail_ci.html\"", mt) is not None)
 
+# ── 글꼴 = Pretendard(대표 11-28 밤 「나눔스퀘어 보기 어렵다 → Pretendard」) ──
+print("\n화면 글꼴 = Pretendard(메일 전용 · 공용 v5_tokens 는 세션 01)")
+_mf = re.search(r"--m-font:([^;]+);", cssn)
+check("knk-mail.css --m-font = 'Pretendard' 먼저 · 우리 서버 파일 이름 'PretendardMail' 포함",
+      _mf is not None and _mf.group(1).strip().startswith("'Pretendard'") and "'PretendardMail'" in _mf.group(1))
+_ci = re.sub(r"/\*.*?\*/", "", rd(T, "mail_ci.html"), flags=re.S)
+_v2 = re.sub(r"/\*.*?\*/", "", rd(T, "mail_design_v2.html"), flags=re.S)
+_mail_css = {"knk-mail.css": cssn, "mail_ci.html": _ci, "mail_design_v2.html": _v2}
+_nan = [k for k, v in _mail_css.items() if re.search(r"nanum", v, re.I)]
+check("메일 전용 CSS·조각에 NanumSquare 0", not _nan, _nan)
+_kf = [k for k, v in _mail_css.items() if re.search(r"var\(--knk-font(-head)?\b", v)]
+check("메일 화면 글꼴이 웍스 공용 --knk-font 를 따르지 않음(--m-font)", not _kf, _kf)
+check("메일 화면 글자 규칙(v2 · mail_ci) = --m-font", "font-family:var(--m-font," in _ci and "font-family:var(--m-font," in _v2)
+_ff = re.search(r"@font-face\{[^}]*PretendardMail[^}]*\}", _v2.replace(" ", ""))
+check("PretendardMail @font-face = 우리 서버 파일(바깥 주소 없음 · 파일 있음)",
+      _ff is not None and "/static/fonts/pretendard/PretendardVariable.woff2" in _ff.group(0) and "http" not in _ff.group(0)
+      and os.path.isfile(os.path.join(ROOT, "static", "fonts", "pretendard", "PretendardVariable.woff2")))
+
 # ── 5단계 검사기 ──
 print("\n5단계 검사기 메일 몫")
 import check_standards as cs

@@ -8,7 +8,7 @@
      ③ 고른 줄·고른 폴더 = 옅은 빨강 + 왼쪽 빨간 줄
      ④ 「오늘 챙길 메일」 칩 = 0 인 것 숨김
      ⑤ 머리 띠 = 회사 심볼 로고 + 「이음메일」 · 오른쪽에 옅은 회사 패턴(자동화 시스템 뜻 · 목록·본문 뒤에는 안 깖)
-     ⑥ 글꼴 = 회사 지정 나눔스퀘어(메일 본문·쓰는 칸 글자는 그대로 — 받는 사람이 보는 모양)
+     ⑥ 글꼴 = Pretendard(대표 11-28 밤 「나눔스퀘어 보기 어렵다 → Pretendard」 · 값 = knk-mail.css --m-font · 메일 본문·쓰는 칸 글자는 그대로 — 받는 사람이 보는 모양)
    색 숫자는 여기 적지 않는다(검사기 ⑤-2 · M-1) — 모두 var(--knk-*) · color-mix 로만. #}
 <script>document.documentElement.classList.add('knk-ci','knk-mail-ci');</script>
 <style>
@@ -35,7 +35,7 @@
   html.knk-mail-ci .mail-app-top > *{ position:relative; z-index:1; }
   html.knk-mail-ci .mail-app-top a.brand .m-ci-logo{ height:16px; width:auto; vertical-align:-2px; margin-right:6px; }
   html.knk-mail-ci[data-mt="dark"] .mail-app-top a.brand .m-ci-logo{ content:url('/static/img/brand/knk-symbol_white.svg'); }   /* 검정 바탕 = 흰 색판만(스킬 knk-brand 색판 규칙) */
-  /* ⑥ 글꼴 — 화면 글자만 나눔스퀘어(본문·쓰는 칸 제외 · v2 의 글꼴 규칙과 같은 범위) */
-  html.knk-mail-ci[data-md="v2"] body, html.knk-mail-ci[data-md="v2"] body *:not(.cmp-editor):not(.cmp-editor *):not(.mv-body *){ font-family:var(--knk-font) !important; }
-  html.knk-mail-ci .mv-subj{ font-family:var(--knk-font-head) !important; font-weight:800 !important; }
+  /* ⑥ 글꼴 — 화면 글자만 Pretendard(본문·쓰는 칸 제외 · v2 의 글꼴 규칙과 같은 범위) · 웍스 공용 --knk-font 를 따르지 않음(메일 전용 --m-font) */
+  html.knk-mail-ci[data-md="v2"] body, html.knk-mail-ci[data-md="v2"] body *:not(.cmp-editor):not(.cmp-editor *):not(.mv-body *){ font-family:var(--m-font,'Pretendard','PretendardMail',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',sans-serif) !important; }
+  html.knk-mail-ci .mv-subj{ font-family:var(--m-font,'Pretendard','PretendardMail',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',sans-serif) !important; font-weight:800 !important; }
 </style>

@@ -32,7 +32,7 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
 
   /* ── ① 글꼴 — 메일 화면 글자만(본문·쓰는 칸 안 글자는 손대지 않음) ── */
   html[data-md="v2"] body, html[data-md="v2"] body *:not(.cmp-editor):not(.cmp-editor *):not(.mv-body *){
-    font-family:'PretendardMail','Pretendard','Malgun Gothic','맑은 고딕',sans-serif !important; }
+    font-family:var(--m-font,'Pretendard','PretendardMail',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',sans-serif) !important; }   /* 값 = static/css/knk-mail.css --m-font(Pretendard) */
   html[data-md="v2"] body{ -webkit-font-smoothing:antialiased; letter-spacing:-.003em; }
 
   /* ── ② 글자 크기 5단계(12 · 13 · 14 · 16 · 20) · 굵기 3단계(400 · 600 · 700) ── */
