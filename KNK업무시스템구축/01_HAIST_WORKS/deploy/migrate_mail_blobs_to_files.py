@@ -41,7 +41,11 @@ def content_path(db_path, sha):
 def write_atomic(p, data):
     """임시파일 -> rename(원자적). 이미 같은 크기 파일이 있으면 재사용(중복제거)."""
     if os.path.exists(p) and os.path.getsize(p) == len(data):
-        return "reused"
+        try:
+            os.utime(p, None)  # 11-28 밤 정리(안 쓰는 첨부 파일)가 방금 다시 쓰인 파일을 지우지 않게
+            return "reused"
+        except FileNotFoundError:
+            pass
     d = os.path.dirname(p)
     os.makedirs(d, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp_")

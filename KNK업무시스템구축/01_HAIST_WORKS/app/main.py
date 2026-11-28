@@ -2852,6 +2852,10 @@ def _mail_vacuum_tick():
                     _mailbox.purge_expired_pending(db_session)
                 except Exception as _e:
                     print("[MAIL-PURGE] 밤 지우기 실패(다음 밤에 다시): %s" % str(_e)[:160], flush=True)
+                try:   # 11-28 대표 「정리」 — 어느 메일도 쓰지 않는 첨부 파일(7일 지난 것만 · 지우기 전 다시 셈 · 금지 시간은 안에서도 봄)
+                    _mailbox.purge_orphan_att_files(db_session)
+                except Exception as _e:
+                    print("[MAIL-ATT-GC] 밤 정리 실패(다음 밤에 다시): %s" % str(_e)[:160], flush=True)
                 try:   # 11-27 기한 지난 큰 파일 지우기(기한 뒤 7일 여유 · 표의 줄은 남김)
                     _lp = _mailbox.purge_expired_large(db_session)
                     print("[MAIL-LARGE] 기한 지난 큰 파일 %d개 지움" % _lp, flush=True)
@@ -31230,8 +31234,26 @@ async def admin_mail_purge_page(req: Request):
         purge_label = _mailbox.purge_date_label(_mailbox.purge_until(c))
         from . import mail_vacuum as _mvac
         vac_last = _mvac.last_result(c)   # 11-25 밤 줄이기 마지막 결과 한 줄(관리자 화면만)
+        att_last = _mailbox.last_orphan_result(c)   # 11-28 안 쓰는 첨부 파일 밤 정리 마지막 결과
     return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n, vac_last=vac_last,
-               pending=pending, purge_label=purge_label, purge_days=_mailbox.PURGE_KEEP_DAYS)
+               pending=pending, purge_label=purge_label, purge_days=_mailbox.PURGE_KEEP_DAYS, att_last=att_last)
+
+
+@app.get("/admin/mail-purge/orphan-files")
+async def admin_mail_purge_orphan_files(req: Request):
+    """11-28 미리 세기 — 어느 메일도 쓰지 않는 첨부 파일 수·크기(지우지 않음 · 아무것도 쓰지 않음 · admin·ceo 만)."""
+    u = require(req, ["admin", "ceo"])
+    if not u:
+        return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
+    from starlette.concurrency import run_in_threadpool as _ritp
+    from . import mail_vacuum as _mvac
+    try:
+        r = await _ritp(_mailbox.count_orphan_att_files, db_session)   # 디스크 훑기는 서버 일꾼 밖에서
+    except Exception as e:
+        return JSONResponse({"ok": False, "message": "세지 못했습니다: %s" % str(e)[:80]})
+    r.update({"ok": True, "size_txt": _mvac.fmt_bytes(r["bytes"]), "ready_txt": _mvac.fmt_bytes(r["ready_bytes"]),
+              "age_days": _mailbox.ORPHAN_AGE_DAYS, "grace_days": _mailbox.ORPHAN_GRACE_DAYS})
+    return JSONResponse(r)
 
 
 @app.post("/admin/mail-purge/preview")

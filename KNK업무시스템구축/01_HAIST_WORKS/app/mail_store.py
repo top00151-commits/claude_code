@@ -2447,6 +2447,316 @@ def purge_expired_pending(session, now=None, chunk: int = 300) -> dict:
     return {"deleted": deleted, "kept": kept, "skip": ""}
 
 
+# ─── 11-28 대표 「정리」 — 어느 메일도 쓰지 않는 첨부 파일(디스크) 밤 정리 (스킬 knk-safe-delete 3절) ───
+#   첨부 파일은 내용 지문 경로(data/mail_att/sha256/<앞2>/<지문>)에 하나만 두고 여러 메일이 함께 쓴다.
+#   메일 줄이 지워져도 파일은 남는다 → 「쓰는 곳 0」을 센 뒤에만 지운다.
+#   쓰는 곳 = mail_attachments 의 **모든 줄**(메일 상태 무관: 받은·보낸·임시보관·예약·휴지통·완전 삭제 대기·차단·스팸,
+#            주인 메일 줄이 없는 떨어진 줄까지) 의 sha256 · path. 다른 곳(맡기기·전달·예약 보내기·락아 읽기·이음)은
+#            파일을 경로로 들고 있지 않고 그때 바이트를 읽어 복사한다(코드 전수 확인 · 작업기록 참고).
+#   지우는 조건(모두): 쓰는 곳 0 · 파일 수정 시각 7일 지남(막 저장 중인 파일 보호) ·
+#            「아무도 안 씀」을 처음 본 날부터 7일 지남(최근 DB 백업을 되살려도 첨부가 깨지지 않게) ·
+#            지우기 바로 전 그 파일 하나를 다시 셈(이름 바꿔 떼어 낸 뒤 한 번 더) · 금지 시간 아님.
+#   옛 방식 파일(data/mail_att/<메일 번호>/<첨부 번호>_이름)은 그 메일 번호의 줄 경로와 맞춰 본다 · 모르는 모양은 안 지움.
+ORPHAN_AGE_DAYS = 7          # 파일 수정 시각
+ORPHAN_GRACE_DAYS = 7        # 「아무도 안 씀」을 처음 본 날부터
+ORPHAN_MAX_FILES = 3000      # 한 밤에 지우는 수 상한
+ORPHAN_MAX_SECS = 300        # 한 밤에 쓰는 시간 상한(초 · 훑기 포함)
+_ORPHAN_SFX = ".orphan_del"  # 떼어 낸 파일(지우기 직전 잠깐) — 중간에 멈췄으면 다음 밤에 제자리로
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _att_tail(p) -> str:
+    """경로에서 'mail_att/' 뒤 부분('/' 로) — 서버 폴더 이름이 달라져도 같은 파일이면 같은 값."""
+    s = (p or "").replace("\\", "/")
+    i = s.rfind("/mail_att/")
+    if i < 0:
+        return s[len("mail_att/"):] if s.startswith("mail_att/") else ""
+    return s[i + len("/mail_att/"):]
+
+
+def _att_kind(rel: str):
+    """(종류, 값) — sha=(지문) · old=(메일 번호, 첨부 번호) · tmp=저장 중 임시 · None=모르는 모양(안 지움)."""
+    parts = rel.split("/")
+    if len(parts) == 3 and parts[0] == "sha256":
+        nm = parts[2]
+        if _HEX64.match(nm) and parts[1] == nm[:2]:
+            return "sha", nm
+        if nm.startswith(".tmp_"):
+            return "tmp", None
+        return None, None
+    if len(parts) == 2 and parts[0].isdigit():
+        a = parts[1].split("_", 1)[0]
+        if a.isdigit():
+            return "old", (int(parts[0]), int(a))
+    return None, None
+
+
+def _scan_att_files(root):
+    """디스크만 훑음(DB 안 엶) — [(상대 경로, 전체 경로, 크기, 수정 시각)] · 바로가기(심볼릭 링크)는 안 셈."""
+    out = []
+    if not os.path.isdir(root):
+        return out
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        try:
+            it = os.scandir(d)
+        except OSError as e:
+            print("[MAIL-ATT-GC] 폴더 못 읽음(건너뜀) %s" % str(e)[:120], flush=True)
+            continue
+        with it:
+            for e in it:
+                try:
+                    if e.is_symlink():
+                        continue
+                    if e.is_dir(follow_symlinks=False):
+                        stack.append(e.path)
+                    elif e.is_file(follow_symlinks=False):
+                        st = e.stat(follow_symlinks=False)
+                        out.append((os.path.relpath(e.path, root).replace("\\", "/"), e.path, st.st_size, st.st_mtime))
+                except OSError:
+                    continue
+    return out
+
+
+def _att_refs(c):
+    """쓰는 곳 한 번에 — (지문 모음, 경로 꼬리 모음, 줄 수). 메일 상태로 거르지 않는다(모든 줄 = 쓰는 곳)."""
+    shas, tails, n = set(), set(), 0
+    for r in c.execute("SELECT sha256, path FROM mail_attachments WHERE sha256 IS NOT NULL OR path IS NOT NULL"):
+        n += 1
+        if r[0]:
+            shas.add(str(r[0]).strip().lower())
+        if r[1]:
+            t = _att_tail(r[1])
+            if t:
+                tails.add(t)
+    return shas, tails, n
+
+
+def _att_in_use_one(c, rel, kind, val) -> bool:
+    """그 파일 하나만 다시 셈(색인 쓰는 짧은 질의)."""
+    if kind == "sha":
+        if c.execute("SELECT 1 FROM mail_attachments WHERE sha256=? LIMIT 1", (val,)).fetchone():
+            return True
+        if c.execute("SELECT 1 FROM mail_attachments WHERE sha256=? LIMIT 1", (val.upper(),)).fetchone():
+            return True
+        return False
+    if kind == "old":
+        mid, aid = val
+        for r in c.execute("SELECT path FROM mail_attachments WHERE mail_id=? OR id=?", (mid, aid)).fetchall():
+            if r[0] and _att_tail(r[0]) == rel:
+                return True
+        return False
+    return False   # tmp = 저장 중 임시 파일 · 줄이 가리키지 않음
+
+
+def _orphan_seen_ensure(c):
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_att_orphan_seen(
+        key TEXT PRIMARY KEY,            -- data/mail_att 아래 상대 경로
+        first_seen TEXT NOT NULL,        -- 「아무도 안 씀」을 처음 본 때(한국시간)
+        size INTEGER DEFAULT 0)""")
+
+
+def _orphan_plan(session, now, write_seen: bool):
+    """디스크 훑기 → 쓰는 곳 한 번 셈 → 아무도 안 쓰는 파일 목록. write_seen=False 면 아무것도 쓰지 않음(미리 세기)."""
+    import time as _t
+    import datetime as _dt_o
+    root = _att_dir()
+    t0 = _t.time()
+    files = _scan_att_files(root)              # ① 파일 목록 먼저(DB 안 쥠)
+    scan_secs = _t.time() - t0
+    with session() as c:                        # ② 쓰는 곳은 읽기 한 번(짧게)
+        shas, tails, nref = _att_refs(c)
+        seen = {}
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_att_orphan_seen'").fetchone():
+            seen = {r[0]: r[1] for r in c.execute("SELECT key, first_seen FROM mail_att_orphan_seen").fetchall()}
+    now_s = now.strftime("%Y-%m-%d %H:%M:%S")
+    grace_cut = (now - _dt_o.timedelta(days=ORPHAN_GRACE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+    age_cut = _t.time() - ORPHAN_AGE_DAYS * 86400
+    plan = {"files": len(files), "bytes": sum(f[2] for f in files), "refs": nref, "orphan": [], "unknown": 0,
+            "leftover": [], "matched": 0, "scan_secs": scan_secs, "root": root, "stop": ""}
+    for rel, full, size, mt in files:
+        if rel.endswith(_ORPHAN_SFX):
+            plan["leftover"].append((rel, full))
+            continue
+        kind, val = _att_kind(rel)
+        if kind is None:
+            plan["unknown"] += 1
+            continue
+        used = (rel in tails) or (kind == "sha" and val in shas)
+        if used:
+            plan["matched"] += 1
+            continue
+        fs = seen.get(rel) or now_s
+        ready = (mt <= age_cut) and (fs <= grace_cut)
+        plan["orphan"].append({"rel": rel, "full": full, "size": size, "mtime": mt, "kind": kind, "val": val,
+                               "first_seen": fs, "ready": ready, "young": mt > age_cut})
+    # 안전 멈춤: 줄이 있는데 디스크 파일과 하나도 안 맞으면 → 폴더를 잘못 본 것 · 줄이 하나도 없는데 파일만 있으면 → DB 를 잘못 본 것
+    if files and nref == 0:
+        plan["stop"] = "첨부 줄이 하나도 없는데 파일만 있음(다른 DB 를 보고 있을 수 있음)"
+    elif nref > 0 and plan["matched"] == 0 and plan["orphan"]:
+        plan["stop"] = "첨부 줄은 있는데 디스크 파일과 하나도 안 맞음(폴더를 잘못 보고 있을 수 있음)"
+    if write_seen and not plan["stop"]:
+        cur = {o["rel"] for o in plan["orphan"]}
+        with session() as c:
+            _orphan_seen_ensure(c)
+            new = [(o["rel"], o["first_seen"], o["size"]) for o in plan["orphan"] if o["rel"] not in seen]
+            for i in range(0, len(new), 500):
+                c.executemany("INSERT OR IGNORE INTO mail_att_orphan_seen(key, first_seen, size) VALUES(?,?,?)", new[i:i + 500])
+            gone = [k for k in seen if k not in cur]      # 다시 쓰이게 됐거나 없어진 파일 → 처음 본 날 지움
+            for i in range(0, len(gone), 500):
+                part = gone[i:i + 500]
+                c.execute("DELETE FROM mail_att_orphan_seen WHERE key IN (" + ",".join("?" * len(part)) + ")", part)
+    return plan
+
+
+def count_orphan_att_files(session, now=None) -> dict:
+    """미리 세기(지우지 않음 · 아무것도 쓰지 않음) — 관리 화면 한 줄용."""
+    from . import mail_vacuum as _mvac
+    now = now or _mvac.kst_now()
+    p = _orphan_plan(session, now, write_seen=False)
+    o = p["orphan"]
+    rd = [x for x in o if x["ready"]]
+    return {"n": len(o), "bytes": sum(x["size"] for x in o), "ready_n": len(rd), "ready_bytes": sum(x["size"] for x in rd),
+            "young_n": sum(1 for x in o if x["young"]), "files": p["files"], "all_bytes": p["bytes"], "unknown": p["unknown"],
+            "scan_secs": round(p["scan_secs"], 2), "stop": p["stop"]}
+
+
+def last_orphan_result(c):
+    """마지막 밤 정리(안 쓰는 첨부 파일) 결과 한 줄 — 없으면 None."""
+    _ensure_purge(c)
+    r = c.execute("SELECT action, n, note, at FROM mail_purge_log WHERE action IN ('night_att_files','night_att_stop') "
+                  "ORDER BY id DESC LIMIT 1").fetchone()
+    return dict(zip(("action", "n", "note", "at"), tuple(r))) if r else None
+
+
+def purge_orphan_att_files(session, now=None, max_files: int = ORPHAN_MAX_FILES, max_secs: float = ORPHAN_MAX_SECS) -> dict:
+    """밤 정리 — 어느 메일도 쓰지 않는 첨부 파일만 지운다(위 조건 모두). 반환 {"deleted", "bytes", "kept", "wait", "skip", "stop"}.
+    금지 시간(08:50~09:30 · 월 02:00~07:30 NAS 백업)에는 안 돈다. 결과는 mail_purge_log(누른 사람 = NULL · 시스템)."""
+    import time as _t
+    from . import mail_vacuum as _mvac
+    given = now is not None
+    now = now or _mvac.kst_now()
+    q = _mvac.quiet_reason(now)
+    if q:
+        print("[MAIL-ATT-GC] 돌면 안 되는 시간 — 건너뜀(%s)" % q, flush=True)
+        return {"deleted": 0, "bytes": 0, "kept": 0, "wait": 0, "skip": q, "stop": ""}
+    t0 = _t.time()
+    plan = _orphan_plan(session, now, write_seen=True)
+    out = {"deleted": 0, "bytes": 0, "kept": 0, "wait": 0, "skip": "", "stop": plan["stop"]}
+    why = {"방금 씀": 0, "다시 셈에서 쓰는 곳": 0, "못 지움": 0}
+    # 중간에 멈춰 떼어 낸 채 남은 파일 → 제자리로(다음 판단은 다음 밤)
+    for rel, full in plan["leftover"]:
+        orig = full[:-len(_ORPHAN_SFX)]
+        try:
+            if os.path.exists(orig):
+                os.remove(full)
+            else:
+                os.replace(full, orig)
+        except OSError:
+            pass
+    if plan["stop"]:
+        with session() as c:
+            _ensure_purge(c)
+            _purge_log(c, None, None, "night_att_stop", 0, note="멈춤 — " + plan["stop"] + " · 파일은 그대로")
+        print("[MAIL-ATT-GC] 멈춤 — %s" % plan["stop"], flush=True)
+        return out
+    ready = [o for o in plan["orphan"] if o["ready"]]
+    out["wait"] = len(plan["orphan"]) - len(ready)
+    age_s = ORPHAN_AGE_DAYS * 86400
+    hit = ""
+    olddirs = set()
+    import contextlib as _cl
+    _es = _cl.ExitStack()
+    c = _es.enter_context(session())   # 다시 셈 전용 연결 하나(읽기만 · 쓰기 잠금 안 쥠 · 질의마다 새로 저장된 줄까지 봄)
+    try:
+        for i, o in enumerate(ready):
+            if out["deleted"] >= max_files:
+                hit = "한 밤 상한 %d개" % max_files
+                break
+            if _t.time() - t0 > max_secs:
+                hit = "한 밤 시간 상한 %d초" % int(max_secs)
+                break
+            if i % 50 == 0 and _mvac.quiet_reason(now if given else _mvac.kst_now()):
+                hit = "금지 시간에 들어감"
+                break
+            full, tmp = o["full"], o["full"] + _ORPHAN_SFX
+            try:
+                st = os.stat(full)
+            except FileNotFoundError:
+                continue
+            if _t.time() - st.st_mtime < age_s:
+                why["방금 씀"] += 1
+                continue
+            if _att_in_use_one(c, o["rel"], o["kind"], o["val"]):   # 지우기 바로 전 — 그 파일 하나만 다시 셈
+                why["다시 셈에서 쓰는 곳"] += 1
+                continue
+            try:
+                os.replace(full, tmp)                # 떼어 냄 — 이때 새 메일이 같은 내용을 저장하면 그쪽은 새로 씀
+            except OSError:
+                why["못 지움"] += 1
+                continue
+            keep = False
+            try:
+                st2 = os.stat(tmp)
+                if _t.time() - st2.st_mtime < age_s:  # 떼어 내기 직전에 새 메일이 이 파일을 다시 쓰기 시작함
+                    keep, k = True, "방금 씀"
+                elif _att_in_use_one(c, o["rel"], o["kind"], o["val"]):   # 떼어 낸 뒤 한 번 더
+                    keep, k = True, "다시 셈에서 쓰는 곳"
+            except Exception:
+                keep, k = True, "못 지움"
+            if keep:
+                why[k] += 1
+                try:
+                    if os.path.exists(full):
+                        os.remove(tmp)               # 새 메일이 같은 내용을 이미 다시 씀
+                    else:
+                        os.replace(tmp, full)        # 제자리로
+                except OSError:
+                    pass
+                continue
+            try:
+                os.remove(tmp)
+                out["deleted"] += 1
+                out["bytes"] += o["size"]
+                if o["kind"] == "old":
+                    olddirs.add(os.path.dirname(full))
+            except OSError:
+                why["못 지움"] += 1
+                try:
+                    os.replace(tmp, full)
+                except OSError:
+                    pass
+    finally:
+        _es.close()
+    for d in olddirs:                            # 옛 방식 메일 번호 폴더가 비었으면 치움
+        try:
+            os.rmdir(d)
+        except OSError:
+            pass
+    if out["deleted"]:
+        with session() as c:
+            _orphan_seen_ensure(c)
+            # 지운 파일은 처음 본 날 목록에서 뺌(남은 것은 다음 밤 훑기 때 다시 맞춤)
+            gone = [o["rel"] for o in ready if not os.path.exists(o["full"])]
+            for j in range(0, len(gone), 500):
+                part = gone[j:j + 500]
+                c.execute("DELETE FROM mail_att_orphan_seen WHERE key IN (" + ",".join("?" * len(part)) + ")", part)
+    out["kept"] = sum(why.values())
+    secs = _t.time() - t0
+    keep_txt = " · ".join("%s %d" % (k, v) for k, v in why.items() if v)
+    note = ("지움 %d개 · %s · 아무도 안 쓰는 파일 %d개 중 기다림 %d개(7일 안 지남) · 남김 %d개%s%s · 모르는 모양 %d개(안 지움) · 전체 %d개 · %.1f초"
+            % (out["deleted"], _mvac.fmt_bytes(out["bytes"]), len(plan["orphan"]), out["wait"], out["kept"],
+               ("(" + keep_txt + ")") if keep_txt else "", (" · 멈춤: " + hit + " → 다음 밤에 이어서") if hit else "",
+               plan["unknown"], plan["files"], secs))
+    out["stop"] = hit
+    with session() as c:
+        _ensure_purge(c)
+        _purge_log(c, None, None, "night_att_files", out["deleted"], note=note)
+    print("[MAIL-ATT-GC] " + note, flush=True)
+    return out
+
+
 # ─── 번역(요청 시) ──────────────────────────────────────────────────
 def translate_mail(c, mail_id: int, user_id: int, target: str = "ko"):
     """메일 제목·본문을 target(ko/vi/en) 으로 번역. 반환 (성공, dict|메시지)."""
@@ -2861,10 +3171,16 @@ def _ensure_att_cols(c):
 def _write_content_file(p: str, data: bytes) -> bool:
     """내용해시 파일을 원자적으로 기록(임시파일→rename). 이미 있고 크기 같으면 안 씀(중복제거).
     반환 True=파일 최종 존재(신규 기록 or 기존 재사용). 실패 시 False.
-    ⭐파일 삭제는 어디서도 하지 않음 → 여러 메일이 한 파일 공유해도 서로 깨질 위험 0(고아만 남을 뿐)."""
+    ⭐파일 삭제는 밤 정리(purge_orphan_att_files) 한 곳뿐 — 어느 줄도 안 쓰는 파일만 · 재사용 때 수정 시각을 새로 해 보호."""
     try:
         if os.path.exists(p) and os.path.getsize(p) == len(data):
-            return True                     # 같은 내용 이미 있음 → 재사용(중복제거)
+            try:
+                # 11-28 수정 시각을 지금으로 — 밤 정리(purge_orphan_att_files)가 「방금 다시 쓰기 시작한 파일」을 지우지 않게.
+                # 그 사이 밤 정리가 떼어 냈으면(없어짐) 아래로 내려가 새로 쓴다.
+                os.utime(p, None)
+                return True                 # 같은 내용 이미 있음 → 재사용(중복제거)
+            except FileNotFoundError:
+                pass
         d = os.path.dirname(p)
         os.makedirs(d, exist_ok=True)
         import tempfile
