@@ -13,9 +13,9 @@
 <style>
 /* v5H226z74: 시안1 토큰 — consumable_form_upload v1+v2 */
 body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+  --qv-surface:var(--knk-bg-surface); --qv-surface-2:var(--knk-bg-inset); --qv-line:var(--knk-border-subtle);
+  --qv-ink:var(--knk-text-primary); --qv-ink-2:var(--knk-text-secondary); --qv-ink-3:var(--knk-text-muted);
+  --biz-t:var(--knk-cat-orange); --biz-m:var(--knk-info); --biz-e:var(--knk-cat-violet); --biz-c:var(--knk-success);
 }
 @media (max-width:1100px){ .page-title{font-size:22px !important;} .row{grid-template-columns:repeat(2,1fr) !important;} .next-actions{grid-template-columns:1fr !important;} }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,38 +35,38 @@ a { text-decoration: none; color: inherit; }
 .field input[type=file] { padding: 6px; }
 .btn-primary { background: var(--qv-ink); color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; }
-.btn-success { background: #059669; color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-success { background: var(--knk-success); color: white; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-row { display: flex; gap: 8px; margin-top: 12px; }
 /* v5H226z289: 15칸이라 가로폭 넘침 → 표 최소폭 부여 + .preview-wrap 좌우 스크롤(대표 지시) */
 table.preview { width: 100%; min-width: 1640px; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
 table.preview th, table.preview td { padding: 6px 8px; border-bottom: 1px solid var(--qv-line); text-align: left; vertical-align: top; }
-table.preview th { background: #f8f8f8; font-weight: 600; color: var(--qv-ink-3); position: sticky; top: 0; white-space: nowrap; }
+table.preview th { background: var(--knk-bg-inset); font-weight: 600; color: var(--qv-ink-3); position: sticky; top: 0; white-space: nowrap; }
 table.preview img { width: 110px; height: 55px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* v5H226z295: 와이드 2:1 동일 크기 */
 table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-line); border-radius: 4px; font-size: 12px; }
 .match-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; margin-left: 4px; }
-.match-exact { background: #d1fae5; color: #065f46; }
-.match-partial { background: #fef3c7; color: #92400e; }
-.match-none { background: #f3f4f6; color: #6b7280; }
+.match-exact { background: var(--knk-success-subtle); color: var(--knk-success); }
+.match-partial { background: var(--knk-warning-subtle); color: var(--knk-warning); }
+.match-none { background: var(--knk-bg-subtle); color: var(--knk-text-muted); }
 .preview-wrap { max-height: 65vh; overflow: auto; }
 #statusMsg { padding: 10px 14px; border-radius: 8px; margin: 8px 0; font-size: 13px; display: none; }
-#statusMsg.ok { background: #d1fae5; color: #065f46; display: block; }
-#statusMsg.err { background: #fee2e2; color: #991b1b; display: block; }
-#statusMsg.info { background: #dbeafe; color: #1e40af; display: block; }
+#statusMsg.ok { background: var(--knk-success-subtle); color: var(--knk-success); display: block; }
+#statusMsg.err { background: var(--knk-danger-subtle); color: var(--knk-danger); display: block; }
+#statusMsg.info { background: var(--knk-info-subtle); color: var(--knk-info); display: block; }
 /* v5H145 — 등록 완료 배너 + 다음단계 카드 */
-.success-card { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #059669; border-radius: 12px; padding: 24px; margin: 0 32px 16px; display:none; }
+.success-card { background: var(--knk-success-subtle); border: 2px solid var(--knk-success); border-radius: 12px; padding: 24px; margin: 0 32px 16px; display:none; }
 .success-card.show { display:block; animation: fadeUp .3s ease; }
 @keyframes fadeUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
-.success-banner { font-size: 22px; font-weight: 800; color: #065f46; margin-bottom: 6px; }
-.success-sub { font-size: 13px; color: #047857; margin-bottom: 18px; line-height:1.5; }
+.success-banner { font-size: 22px; font-weight: 800; color: var(--knk-success); margin-bottom: 6px; }
+.success-sub { font-size: 13px; color: var(--knk-success); margin-bottom: 18px; line-height:1.5; }
 .next-actions { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
-.btn-next-primary { background: linear-gradient(135deg, #059669, #047857); color: white; border: 0; border-radius: 10px; padding: 16px 18px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: center; box-shadow: 0 4px 12px rgba(5,150,105,.3); display:block; }
+.btn-next-primary { background: var(--knk-success); color: white; border: 0; border-radius: 10px; padding: 16px 18px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: center; box-shadow: 0 4px 12px rgba(5,150,105,.3); display:block; }
 .btn-next-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(5,150,105,.4); }
-.btn-next-secondary { background: white; color: #065f46; border: 1.5px solid #059669; border-radius: 10px; padding: 16px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; display:block; }
-.btn-next-secondary:hover { background: #d1fae5; }
-.btn-next-ghost { background: transparent; color: #047857; border: 1px dashed #059669; border-radius: 10px; padding: 16px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; display:block; }
-.btn-next-ghost:hover { background: #ecfdf5; }
+.btn-next-secondary { background: white; color: var(--knk-success); border: 1.5px solid var(--knk-success); border-radius: 10px; padding: 16px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; display:block; }
+.btn-next-secondary:hover { background: var(--knk-success-subtle); }
+.btn-next-ghost { background: transparent; color: var(--knk-success); border: 1px dashed var(--knk-success); border-radius: 10px; padding: 16px 14px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; display:block; }
+.btn-next-ghost:hover { background: var(--knk-success-subtle); }
 .next-actions a { text-decoration:none; }
-.notify-toast { font-size: 12px; color: #047857; margin-top: 10px; display:none; }
+.notify-toast { font-size: 12px; color: var(--knk-success); margin-top: 10px; display:none; }
 .notify-toast.show { display:block; }
 </style>
 </head>
@@ -75,7 +75,7 @@ table.preview input { width: 100%; padding: 4px 6px; border: 1px solid var(--qv-
 .top,.sidebar,.victor-dock,#victorDock{display:none!important;}
 .app{display:block!important;min-width:0!important;height:auto!important;}
 .main{height:auto!important;overflow:visible!important;}
-html,body{background:#fff!important;overflow:auto!important;}
+html,body{background:var(--knk-bg-surface)!important;overflow:auto!important;}
 .page-head .crumbs{display:none!important;}</style>{% endif %}
 <div class="app">
   {% set active_tab = "sales" %}
@@ -91,7 +91,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         <div class="crumbs" data-dn="crumb"><a href="/consumables">소모품 수주</a> · <b>C 소모품 입력</b></div>
         <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span style="font-size:30px;">📦</span>
-          <span style="background:#16a34a;color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">C 소모품</span>
+          <span style="background:var(--knk-success);color:var(--knk-text-inverse);padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">C 소모품</span>
           <em>등록</em>
         </h1>
       </div>
@@ -104,10 +104,10 @@ html,body{background:#fff!important;overflow:auto!important;}
     <div style="padding:0 var(--content-pad,32px);">{% set reg_active='CO' %}{% include "_v5_partials/reg_tabs.html" %}</div>
     {# v5H226z728 (대표 지시): 직접 등록을 위(주)로 · 엑셀 양식은 '1장=1발' 블록이라 옛 '여러 발주/구분번호' 안내 삭제하고 아래로. #}
     {# ① 엑셀 없이 직접 등록 — 헤더만 만들고 상세에서 라인·사진을 직접 입력(권장) #}
-    <div class="card" style="border:1.5px solid #fcd9b6;background:#fffdf8;">
+    <div class="card" style="border:1.5px solid var(--knk-warning-line);background:var(--knk-bg-inset);">
       <h2 style="font-size:17px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span>✏️ 엑셀 없이 직접 등록</span>
-        <span style="font-size:12px;font-weight:600;color:#c2410c;background:#fff1e6;border:1px solid #fcd9b6;border-radius:99px;padding:2px 10px;">간편 · 헤더 만들고 상세에서 입력</span>
+        <span style="font-size:12px;font-weight:600;color:var(--knk-warning);background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:99px;padding:2px 10px;">간편 · 헤더 만들고 상세에서 입력</span>
       </h2>
       <form id="uploadForm" onsubmit="return false;">
         <div class="row">
@@ -143,12 +143,12 @@ html,body{background:#fff!important;overflow:auto!important;}
         {# v5H226z954/z955 (대표 지시): 소모품 관리번호 수동 지정 — 예전 데이터 번호 맞춤(기술영업팀 전원 + 지정 3명 · z1191z90). [검증] 통과한 번호만 등록. 비우면 자동발급. #}
         <div class="row" style="margin-top:8px;">
           <div class="field" style="grid-column: 1 / -1;">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700;color:#9a3412;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700;color:var(--knk-warning);">
               <input type="checkbox" id="cManualChk" onchange="cManualToggle()" style="width:14px;height:14px;flex-shrink:0;"> 🔧 관리번호 직접 지정 <span style="font-weight:400;color:var(--qv-ink-3);">(예전 데이터 번호 맞춤 · 비우면 자동발급)</span>
             </label>
             <div id="cManualWrap" hidden style="margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <input type="text" name="manual_mgmt_code" id="cManualCode" placeholder="예: 006C2607 (소모품=C)" autocomplete="off" maxlength="12" oninput="cManualReset()" style="width:200px;font-family:Consolas,monospace;font-weight:700;text-transform:uppercase;padding:5px 7px;border:1px solid var(--qv-line);border-radius:6px;">
-              <button type="button" onclick="cManualValidate()" style="padding:6px 14px;border:1px solid #1d4ed8;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-weight:700;cursor:pointer;">검증</button>
+              <button type="button" onclick="cManualValidate()" style="padding:6px 14px;border:1px solid var(--knk-info);background:var(--knk-info-subtle);color:var(--knk-info);border-radius:6px;font-weight:700;cursor:pointer;">검증</button>
               <span id="cManualMsg" style="font-size:12px;"></span>
             </div>
           </div>
@@ -164,16 +164,16 @@ html,body{background:#fff!important;overflow:auto!important;}
     </div>
 
     {# ② 엑셀 양식으로 등록 — '1장 = 한 발주' 블록 양식(위=발주정보 / 아래=품목). 작성법은 양식 '작성안내' 시트 #}
-    <div class="card" style="border:1px solid #d9e6fb;background:#fbfdff;">
+    <div class="card" style="border:1px solid var(--knk-info-line);background:var(--knk-info-subtle);">
       <h2 style="font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span>📦 엑셀 양식으로 등록</span>
-        <span style="font-size:12px;font-weight:600;color:#1d4ed8;background:#e0edff;border:1px solid #b9d2ff;border-radius:99px;padding:2px 10px;">1장 = 한 발주</span>
+        <span style="font-size:12px;font-weight:600;color:var(--knk-info);background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);border-radius:99px;padding:2px 10px;">1장 = 한 발주</span>
       </h2>
-      <div style="background:#fff;border:1px solid #d9e6fb;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:12.8px;color:var(--qv-ink-2);line-height:1.85;">
-        <b style="color:#1d4ed8;">한 파일 = 한 발주</b> 입니다. 양식 <b>위쪽(기본정보)</b>에 고객사·발주일·통화·상태 등 발주 정보를, <b>아래(품목 표)</b>에 품목을 한 줄씩 적습니다. <b>통화·거래구분·상태·형태</b>는 드롭다운으로 고릅니다. 품목 <b>사진</b>도 함께 등록됩니다. 자세한 작성법은 양식 안 <b>‘작성안내’ 시트</b>를 참고하세요.
+      <div style="background:var(--knk-bg-surface);border:1px solid var(--knk-info-line);border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:12.8px;color:var(--qv-ink-2);line-height:1.85;">
+        <b style="color:var(--knk-info);">한 파일 = 한 발주</b> 입니다. 양식 <b>위쪽(기본정보)</b>에 고객사·발주일·통화·상태 등 발주 정보를, <b>아래(품목 표)</b>에 품목을 한 줄씩 적습니다. <b>통화·거래구분·상태·형태</b>는 드롭다운으로 고릅니다. 품목 <b>사진</b>도 함께 등록됩니다. 자세한 작성법은 양식 안 <b>‘작성안내’ 시트</b>를 참고하세요.
       </div>
       <div class="btn-row">
-        <a href="/consumables/import-bulk-template" style="padding:11px 18px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;background:#e0edff;border:1px solid #b9d2ff;color:#1d4ed8;">📥 양식 다운로드</a>
+        <a href="/consumables/import-bulk-template" style="padding:11px 18px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);color:var(--knk-info);">📥 양식 다운로드</a>
         <button type="button" class="btn-primary" onclick="document.getElementById('coBulkFile').click()">📤 엑셀 업로드 (미리보기)</button>
         <input type="file" id="coBulkFile" accept=".xlsx" style="display:none;" onchange="if(window.coBulkUpload){coBulkUpload(this.files[0]);}else{alert('업로드 기능 로딩 안 됨 — F5 후 다시 시도');}">
       </div>
@@ -182,16 +182,16 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     {# 엑셀 양식 미리보기 모달 (1장=1발 확인 → 확정) #}
     <div id="coBulkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;overflow-y:auto;padding:30px 20px;">
-      <div style="max-width:1100px;margin:0 auto;background:#fff;border-radius:10px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+      <div style="max-width:1100px;margin:0 auto;background:var(--knk-bg-surface);border-radius:10px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
           <h2 style="margin:0;font-size:18px;font-weight:800;">엑셀 양식 — 미리보기 (1장 = 한 발주)</h2>
-          <button type="button" onclick="coBulkClose()" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:#666;">×</button>
+          <button type="button" onclick="coBulkClose()" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--knk-text-muted);">×</button>
         </div>
-        <div id="coBulkSummary" style="padding:10px 14px;background:#eef4ff;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+        <div id="coBulkSummary" style="padding:10px 14px;background:var(--knk-info-subtle);border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
         <div id="coBulkList" style="max-height:60vh;overflow:auto;"></div>
         <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:10px;">
-          <button type="button" onclick="coBulkClose()" style="padding:9px 20px;background:#fff;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer;">취소</button>
-          <button type="button" id="coBulkConfirmBtn" onclick="coBulkConfirm()" disabled style="padding:9px 20px;background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;opacity:0.5;">발주 등록 확정</button>
+          <button type="button" onclick="coBulkClose()" style="padding:9px 20px;background:var(--knk-bg-surface);border:1px solid var(--knk-border-default);border-radius:6px;font-size:13px;cursor:pointer;">취소</button>
+          <button type="button" id="coBulkConfirmBtn" onclick="coBulkConfirm()" disabled style="padding:9px 20px;background:var(--knk-info);color:var(--knk-text-inverse);border:1px solid var(--knk-info);border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;opacity:0.5;">발주 등록 확정</button>
         </div>
       </div>
     </div>
@@ -253,20 +253,20 @@ window.cManualToggle = function(){
 };
 window.cManualReset = function(){
   window._cManualOK=null;
-  var m=document.getElementById('cManualMsg'); if(m){ m.textContent='변경됨 — [검증]을 다시 눌러 주세요.'; m.style.color='#b45309'; }
+  var m=document.getElementById('cManualMsg'); if(m){ m.textContent='변경됨 — [검증]을 다시 눌러 주세요.'; m.style.color='var(--knk-warning)'; }
 };
 window.cManualValidate = function(){
   var i=document.getElementById('cManualCode'), m=document.getElementById('cManualMsg'); if(!i||!m) return;
   var code=(i.value||'').trim().toUpperCase(); i.value=code;
-  if(!code){ m.textContent='관리번호를 입력하세요.'; m.style.color='#b45309'; window._cManualOK=null; return; }
-  m.textContent='검증 중…'; m.style.color='#64748b';
+  if(!code){ m.textContent='관리번호를 입력하세요.'; m.style.color='var(--knk-warning)'; window._cManualOK=null; return; }
+  m.textContent='검증 중…'; m.style.color='var(--knk-text-muted)';
   fetch('/api/mgmt-code/check?code='+encodeURIComponent(code)+'&ptype=CONSUMABLE', {headers:{'Accept':'application/json'}})
     .then(function(r){ return r.json(); })
     .then(function(j){
-      if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='#15803d'; window._cManualOK=code; }
-      else { m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호'); m.style.color='#dc2626'; window._cManualOK=null; }
+      if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='var(--knk-success)'; window._cManualOK=code; }
+      else { m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호'); m.style.color='var(--knk-danger)'; window._cManualOK=null; }
     })
-    .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='#dc2626'; window._cManualOK=null; });
+    .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='var(--knk-danger)'; window._cManualOK=null; });
 };
 
 // v5H226z312 (대표 지시): 직접 등록(엑셀 없이) — 헤더 필드만으로 발주 생성 후 상세로 이동(업로드 흐름과 동일 네비)
@@ -354,7 +354,7 @@ function renderPreview() {
     const _imgs = ln.images || [];
     const _cellOf = (arr) => arr.length
       ? arr.map(im => `<a href="${im.full_url}" target="_blank"><img src="${im.thumb_url}" /></a>`).join(' ')
-      : '<span style="color:#aaa;font-size:11px;">—</span>';
+      : '<span style="color:var(--knk-text-muted);font-size:11px;">—</span>';
     const locCell = _cellOf(_imgs.filter(im => im.category === 'loc'));
     const photoCell = _cellOf(_imgs.filter(im => im.category !== 'loc'));
     const partBadge = ln.part_match
@@ -485,15 +485,15 @@ function _nfmt(n){ return (Number(n)||0).toLocaleString(); }
 async function coBulkUpload(file){
   if(!file){ return; }
   var msg = document.getElementById('coBulkMsg');
-  msg.style.color = '#1d4ed8'; msg.textContent = '⏳ 업로드 + 파싱 중...';
+  msg.style.color = 'var(--knk-info)'; msg.textContent = '⏳ 업로드 + 파싱 중...';
   var ov = window.KNKBusy ? KNKBusy.overlay('📤 엑셀 업로드·분석 중입니다…','파일을 읽고 발주를 인식하고 있어요.') : null;
   var fd = new FormData(); fd.append('file', file);
   var r;
   try { r = await fetch('/consumables/import-bulk', {method:'POST', body: fd, credentials:'same-origin'}); }
-  catch(e){ if(ov) ov.fail('업로드 실패'); msg.style.color='#c33'; msg.textContent = '❌ 통신 실패: ' + e; return; }
-  if(!r.ok){ if(ov) ov.fail('업로드 실패'); msg.style.color='#c33'; msg.textContent = '❌ 업로드 실패 (HTTP ' + r.status + ')' + ((r.status===401||r.status===403)?' — 로그인/권한 확인 후 F5':''); return; }
-  var j; try { j = await r.json(); } catch(e){ if(ov) ov.fail('응답 오류'); msg.style.color='#c33'; msg.textContent='❌ 응답 오류(로그인 풀림 가능) — F5 후 재시도'; return; }
-  if(!j.ok){ if(ov) ov.fail(j.error||'파싱 실패'); msg.style.color='#c33'; msg.textContent = '❌ ' + (j.error || '파싱 실패'); return; }
+  catch(e){ if(ov) ov.fail('업로드 실패'); msg.style.color='var(--knk-danger)'; msg.textContent = '❌ 통신 실패: ' + e; return; }
+  if(!r.ok){ if(ov) ov.fail('업로드 실패'); msg.style.color='var(--knk-danger)'; msg.textContent = '❌ 업로드 실패 (HTTP ' + r.status + ')' + ((r.status===401||r.status===403)?' — 로그인/권한 확인 후 F5':''); return; }
+  var j; try { j = await r.json(); } catch(e){ if(ov) ov.fail('응답 오류'); msg.style.color='var(--knk-danger)'; msg.textContent='❌ 응답 오류(로그인 풀림 가능) — F5 후 재시도'; return; }
+  if(!j.ok){ if(ov) ov.fail(j.error||'파싱 실패'); msg.style.color='var(--knk-danger)'; msg.textContent = '❌ ' + (j.error || '파싱 실패'); return; }
   _coBulkOrders = j.orders || [];
   window._coBulkToken = j.token || '';   // v5H226z368: 확정 때 사진 임시폴더 식별
   document.getElementById('coBulkFile').value = '';
@@ -506,49 +506,49 @@ function renderCoBulkPreview(j){
   var sum = document.getElementById('coBulkSummary');
   var okOrders = (j.orders||[]).filter(function(o){ return !o._errors || o._errors.length===0; });
   if(!j.total_orders){
-    sum.innerHTML = '<b style="color:#b91c1c;">⚠ 인식된 발주가 없습니다.</b> 11행 머리글 아래(12행~)에 품목을 입력하고 예시행(12~13행)은 지웠는지 확인하세요.';
+    sum.innerHTML = '<b style="color:var(--knk-danger);">⚠ 인식된 발주가 없습니다.</b> 11행 머리글 아래(12행~)에 품목을 입력하고 예시행(12~13행)은 지웠는지 확인하세요.';
   } else {
     sum.innerHTML = '총 발주 <b>' + j.total_orders + '</b>건 · 품목 <b>' + j.total_items + '</b>개'
       + ((j.total_images) ? ' · 사진 <b>' + j.total_images + '</b>개' : '')
-      + ' · 등록 가능 <b style="color:#2a7a2a;">' + okOrders.length + '</b>건';
+      + ' · 등록 가능 <b style="color:var(--knk-success);">' + okOrders.length + '</b>건';
   }
   var list = document.getElementById('coBulkList');
   list.innerHTML = (j.orders||[]).map(function(o){
     var err = o._errors && o._errors.length > 0;
-    var head = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 11px;background:' + (err?'#fff0f0':'#f5f9ff') + ';font-size:13px;">'
-      + '<b>' + _escH(o.customer_name||'(고객사 없음)') + '</b>' + (o.cust_ok?'':' <span style="font-size:11px;color:#c33;">미등록</span>') + (o.cust_now?' <span style="font-size:11px;color:#2563eb;" title="옛 이름·시스템명으로 찾음 — 같은 고객 번호로 연결">→ 지금 이름 '+_escH(o.cust_now)+'</span>':'')
-      + '<span style="color:#666;">발주일 ' + _escH(o.order_date||'-') + '</span>'
+    var head = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 11px;background:' + (err?'var(--knk-danger-subtle)':'var(--knk-info-subtle)') + ';font-size:13px;">'
+      + '<b>' + _escH(o.customer_name||'(고객사 없음)') + '</b>' + (o.cust_ok?'':' <span style="font-size:11px;color:var(--knk-danger);">미등록</span>') + (o.cust_now?' <span style="font-size:11px;color:var(--knk-info);" title="옛 이름·시스템명으로 찾음 — 같은 고객 번호로 연결">→ 지금 이름 '+_escH(o.cust_now)+'</span>':'')
+      + '<span style="color:var(--knk-text-muted);">발주일 ' + _escH(o.order_date||'-') + '</span>'
       // v5H226z959 (대표 지시): 관리번호 — 비움=자동발급 / 채움 검증통과=✓ 지정 / 검증실패=✗(사유는 아래 오류줄)
       + (o._mgmt_auto
-          ? '<span style="font-size:11px;color:#999;">관리번호 자동발급</span>'
+          ? '<span style="font-size:11px;color:var(--knk-text-muted);">관리번호 자동발급</span>'
           : (o._mgmt_manual_ok
-              ? '<span style="font-size:11px;color:#0a7;font-weight:700;">관리번호 ' + _escH(o.mgmt_code||'') + ' ✓ 지정</span>'
-              : '<span style="font-size:11px;color:#c33;font-weight:700;">관리번호 ' + _escH(o.mgmt_code||'') + ' ✗</span>'))
-      + (o.group_label ? '<span style="color:#666;">구분 ' + _escH(o.group_label) + '</span>' : '')
-      + '<span style="color:#666;">' + (o.is_export ? '수출' : '내수') + ' · ' + _escH(o.currency||'KRW') + '</span>'
+              ? '<span style="font-size:11px;color:var(--knk-success);font-weight:700;">관리번호 ' + _escH(o.mgmt_code||'') + ' ✓ 지정</span>'
+              : '<span style="font-size:11px;color:var(--knk-danger);font-weight:700;">관리번호 ' + _escH(o.mgmt_code||'') + ' ✗</span>'))
+      + (o.group_label ? '<span style="color:var(--knk-text-muted);">구분 ' + _escH(o.group_label) + '</span>' : '')
+      + '<span style="color:var(--knk-text-muted);">' + (o.is_export ? '수출' : '내수') + ' · ' + _escH(o.currency||'KRW') + '</span>'
       /* v5H226z987b: 진행 사업부(K3) — 카드 사업부 배지 연동 표시 */
-      + (o.biz_div==='T' ? '<span style="color:#1e40af;font-weight:700;">🔬 검사기</span>' : (o.biz_div==='M' ? '<span style="color:#5b21b6;font-weight:700;">🤖 자동화</span>' : ''))
+      + (o.biz_div==='T' ? '<span style="color:var(--knk-info);font-weight:700;">🔬 검사기</span>' : (o.biz_div==='M' ? '<span style="color:var(--knk-cat-violet);font-weight:700;">🤖 자동화</span>' : ''))
       /* z1191z3: 양식 K4 프로젝트명(비면 '소모품') */
-      + '<span style="color:#666;">프로젝트 <b>' + _escH(o.project_name || '소모품') + '</b></span>'
-      + (o.cc_name ? '<span style="color:#666;">담당 ' + _escH(o.cc_name) + '</span>' : '')
-      + '<span style="margin-left:auto;font-weight:700;">품목 ' + o.item_count + '개' + (o.image_count ? ' · <span style="color:#0a7;">📷' + o.image_count + '</span>' : '') + ' · 합계 ' + _knkMoney(o.total_amount, o.currency) + '</span>'
-      + (err ? '<div style="flex-basis:100%;color:#c33;font-size:12px;margin-top:3px;">⚠ ' + o._errors.map(_escH).join(' · ') + '</div>' : '')
-      + (o._warn ? '<div style="flex-basis:100%;color:#b45309;font-size:12px;margin-top:3px;">⚠ ' + _escH(o._warn) + '</div>' : '')
+      + '<span style="color:var(--knk-text-muted);">프로젝트 <b>' + _escH(o.project_name || '소모품') + '</b></span>'
+      + (o.cc_name ? '<span style="color:var(--knk-text-muted);">담당 ' + _escH(o.cc_name) + '</span>' : '')
+      + '<span style="margin-left:auto;font-weight:700;">품목 ' + o.item_count + '개' + (o.image_count ? ' · <span style="color:var(--knk-success);">📷' + o.image_count + '</span>' : '') + ' · 합계 ' + _knkMoney(o.total_amount, o.currency) + '</span>'
+      + (err ? '<div style="flex-basis:100%;color:var(--knk-danger);font-size:12px;margin-top:3px;">⚠ ' + o._errors.map(_escH).join(' · ') + '</div>' : '')
+      + (o._warn ? '<div style="flex-basis:100%;color:var(--knk-warning);font-size:12px;margin-top:3px;">⚠ ' + _escH(o._warn) + '</div>' : '')
       + '</div>';
     var items = '<table style="width:100%;border-collapse:collapse;font-size:12px;"><tbody>'
       + (o.items||[]).map(function(it){
           var ie = it._errors && it._errors.length > 0;
-          return '<tr style="background:' + (ie?'#fff6f6':'#fff') + ';">'
-            + '<td style="padding:4px 9px;border-bottom:1px solid #eee;">' + _escH(it.part_name||'-') + ((it._imgs&&it._imgs.length)?' <span style="color:#0a7;font-size:11px;">📷'+it._imgs.length+'</span>':'') + '</td>'
-            + '<td style="padding:4px 9px;border-bottom:1px solid #eee;color:#888;">' + _escH(it.spec||'') + '</td>'
-            + '<td style="padding:4px 9px;border-bottom:1px solid #eee;text-align:right;">' + _nfmt(it.qty) + ' ' + _escH(it.unit||'') + '</td>'
-            + '<td style="padding:4px 9px;border-bottom:1px solid #eee;text-align:right;">' + _knkMoney(it.unit_price, o.currency) + '</td>'
-            + '<td style="padding:4px 9px;border-bottom:1px solid #eee;color:#1d4ed8;">' + _escH(it.link_mgmt||'') + '</td>'
-            + (ie ? '<td style="padding:4px 9px;border-bottom:1px solid #eee;color:#c33;">' + it._errors.map(_escH).join(',') + '</td>' : '<td style="border-bottom:1px solid #eee;"></td>')
+          return '<tr style="background:' + (ie?'var(--knk-danger-subtle)':'var(--knk-bg-surface)') + ';">'
+            + '<td style="padding:4px 9px;border-bottom:1px solid var(--knk-border-subtle);">' + _escH(it.part_name||'-') + ((it._imgs&&it._imgs.length)?' <span style="color:var(--knk-success);font-size:11px;">📷'+it._imgs.length+'</span>':'') + '</td>'
+            + '<td style="padding:4px 9px;border-bottom:1px solid var(--knk-border-subtle);color:var(--knk-text-muted);">' + _escH(it.spec||'') + '</td>'
+            + '<td style="padding:4px 9px;border-bottom:1px solid var(--knk-border-subtle);text-align:right;">' + _nfmt(it.qty) + ' ' + _escH(it.unit||'') + '</td>'
+            + '<td style="padding:4px 9px;border-bottom:1px solid var(--knk-border-subtle);text-align:right;">' + _knkMoney(it.unit_price, o.currency) + '</td>'
+            + '<td style="padding:4px 9px;border-bottom:1px solid var(--knk-border-subtle);color:var(--knk-info);">' + _escH(it.link_mgmt||'') + '</td>'
+            + (ie ? '<td style="padding:4px 9px;border-bottom:1px solid var(--knk-border-subtle);color:var(--knk-danger);">' + it._errors.map(_escH).join(',') + '</td>' : '<td style="border-bottom:1px solid var(--knk-border-subtle);"></td>')
             + '</tr>';
         }).join('')
       + '</tbody></table>';
-    return '<div style="border:1px solid ' + (err?'#f1c0c0':'#dbe6f5') + ';border-radius:7px;margin-bottom:10px;overflow:hidden;">' + head + items + '</div>';
+    return '<div style="border:1px solid ' + (err?'var(--knk-danger-line)':'var(--knk-info-line)') + ';border-radius:7px;margin-bottom:10px;overflow:hidden;">' + head + items + '</div>';
   }).join('');
   var btn = document.getElementById('coBulkConfirmBtn');
   if(okOrders.length > 0){ btn.disabled=false; btn.style.opacity='1'; btn.textContent = '발주 등록 확정 (' + okOrders.length + '건)'; }

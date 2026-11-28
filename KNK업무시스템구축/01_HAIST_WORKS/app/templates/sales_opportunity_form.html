@@ -5,82 +5,82 @@
 /* v5H226z420 (대표 지시): 좌우 여백이 너무 커서 꽉 차 보이게 — 1080px 고정 해제,
    본문 폭 전체(페이지 제목과 같은 좌우 content-pad 선)까지 채움. 모니터 폭에 자동 적응. */
 .op-wrap{margin:0 var(--content-pad) var(--space-6);padding:0;}
-.op-meta{font-size:12.5px;color:#64748b;margin-bottom:12px;}
-.op-meta b{color:#1e293b;}
-.op-saved{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
-.op-promoted{background:#eef6ff;border:1px solid #b9d2ff;color:#1e40af;border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
-.op-promoted a{color:#1d4ed8;font-weight:700;}
-.op-err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
-.op-card{background:#fff;border:1px solid #f1e8d4;border-radius:10px;padding:12px 18px;margin-bottom:9px;}
-.op-card h3{margin:0 0 9px;font-size:13.5px;font-weight:800;color:#A5282C;}
+.op-meta{font-size:12.5px;color:var(--knk-text-muted);margin-bottom:12px;}
+.op-meta b{color:var(--knk-text-primary);}
+.op-saved{background:var(--knk-success-subtle);border:1px solid var(--knk-success-line);color:var(--knk-success);border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.op-promoted{background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);color:var(--knk-info);border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.op-promoted a{color:var(--knk-info);font-weight:700;}
+.op-err{background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);border-radius:8px;padding:9px 13px;font-size:13px;margin-bottom:12px;}
+.op-card{background:var(--knk-bg-surface);border:1px solid var(--knk-border-subtle);border-radius:10px;padding:12px 18px;margin-bottom:9px;}
+.op-card h3{margin:0 0 9px;font-size:13.5px;font-weight:800;color:var(--knk-brand);}
 /* z420: 모니터 폭에 따라 칸 개수 자동(넓으면 칸↑·행↓, 좁으면 1~2열) — auto-fit */
 .op-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:9px 16px;}
 .op-f{display:flex;flex-direction:column;gap:5px;}
 .op-f.full{grid-column:1 / -1;}
-.op-f label{font-size:12px;font-weight:700;color:#334155;}
-.op-f label .req{color:#dc2626;}
-.op-f input,.op-f select,.op-f textarea{padding:8px 11px;border:1px solid #d6cdb6;border-radius:7px;font-size:13.5px;font-family:inherit;color:#1e293b;background:#fff;}
-.op-f input:focus,.op-f select:focus,.op-f textarea:focus{outline:none;border-color:#A5282C;}
+.op-f label{font-size:12px;font-weight:700;color:var(--knk-text-secondary);}
+.op-f label .req{color:var(--knk-danger);}
+.op-f input,.op-f select,.op-f textarea{padding:8px 11px;border:1px solid var(--knk-border-default);border-radius:7px;font-size:13.5px;font-family:inherit;color:var(--knk-text-primary);background:var(--knk-bg-surface);}
+.op-f input:focus,.op-f select:focus,.op-f textarea:focus{outline:none;border-color:var(--knk-brand);}
 .op-f textarea{resize:vertical;min-height:42px;}
-.op-step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed #f1e8d4;flex-wrap:wrap;}
+.op-step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--knk-border-subtle);flex-wrap:wrap;}
 .op-step:last-child{border-bottom:none;}
-.op-step .lbl{width:90px;font-weight:700;font-size:13px;color:#334155;flex-shrink:0;}
+.op-step .lbl{width:90px;font-weight:700;font-size:13px;color:var(--knk-text-secondary);flex-shrink:0;}
 .op-step .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;}
-.op-step input[type=date]{padding:6px 9px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;}
-.op-ppl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px 102px;border-bottom:1px dashed #f1e8d4;}
-.op-ppl .lbl2{font-size:11.5px;color:#64748b;font-weight:700;min-width:56px;}
+.op-step input[type=date]{padding:6px 9px;border:1px solid var(--knk-border-default);border-radius:6px;font-size:12.5px;}
+.op-ppl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px 102px;border-bottom:1px dashed var(--knk-border-subtle);}
+.op-ppl .lbl2{font-size:11.5px;color:var(--knk-text-muted);font-weight:700;min-width:56px;}
 .op-chips{display:flex;gap:5px;flex-wrap:wrap;}
-.op-pchip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:#eef6ff;color:#1e3a8a;font-size:12px;border:1px solid #bfdbfe;}
-.op-pchip.req{background:#f1f5f9;color:#475569;border-color:#e2e8f0;}
-.op-px{border:none;background:none;color:#64748b;cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 2px;}
-.op-px:hover{color:#b91c1c;}
-.op-padd{padding:4px 8px;border:1px dashed #94a3b8;border-radius:999px;font-size:12px;color:#334155;background:#fff;max-width:240px;}
-.op-pnone{color:#94a3b8;font-size:12px;}
-.op-hint{font-size:11.5px;color:#92400e;}
+.op-pchip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:var(--knk-info-subtle);color:var(--knk-info);font-size:12px;border:1px solid var(--knk-info-line);}
+.op-pchip.req{background:var(--knk-bg-subtle);color:var(--knk-text-secondary);border-color:var(--knk-border-subtle);}
+.op-px{border:none;background:none;color:var(--knk-text-muted);cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 2px;}
+.op-px:hover{color:var(--knk-danger);}
+.op-padd{padding:4px 8px;border:1px dashed var(--knk-border-strong);border-radius:999px;font-size:12px;color:var(--knk-text-secondary);background:var(--knk-bg-surface);max-width:240px;}
+.op-pnone{color:var(--knk-text-muted);font-size:12px;}
+.op-hint{font-size:11.5px;color:var(--knk-warning);}
 @media (max-width:768px){ .op-ppl{padding-left:0;} }
-.op-step .memo{flex:1;min-width:160px;padding:6px 10px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;font-family:inherit;}
+.op-step .memo{flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--knk-border-default);border-radius:6px;font-size:12.5px;font-family:inherit;}
 .op-actions{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
-.op-btn{padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:none;border:1px solid #d6cdb6;background:#fff;color:#334155;display:inline-block;}
-.op-btn.primary{background:#A5282C;color:#fff;border-color:#A5282C;}
-.op-btn.promote{background:#15a34a;color:#fff;border-color:#15a34a;}
-.op-btn.danger{background:#fff;color:#b91c1c;border-color:#fca5a5;}
-.op-locked{font-size:11.5px;color:#94a3b8;}
-.op-qsel{flex:1;min-width:200px;padding:6px 10px;border:1px solid #d6cdb6;border-radius:6px;font-size:12.5px;font-family:inherit;}
-.op-qlink{font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:700;white-space:nowrap;}
-.op-fgroup{padding:8px 0;border-bottom:1px dashed #f1e8d4;}
+.op-btn{padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;text-decoration:none;border:1px solid var(--knk-border-default);background:var(--knk-bg-surface);color:var(--knk-text-secondary);display:inline-block;}
+.op-btn.primary{background:var(--knk-brand);color:var(--knk-text-inverse);border-color:var(--knk-brand);}
+.op-btn.promote{background:var(--knk-success);color:var(--knk-text-inverse);border-color:var(--knk-success);}
+.op-btn.danger{background:var(--knk-bg-surface);color:var(--knk-danger);border-color:var(--knk-danger-line);}
+.op-locked{font-size:11.5px;color:var(--knk-text-muted);}
+.op-qsel{flex:1;min-width:200px;padding:6px 10px;border:1px solid var(--knk-border-default);border-radius:6px;font-size:12.5px;font-family:inherit;}
+.op-qlink{font-size:12px;color:var(--knk-info);text-decoration:none;font-weight:700;white-space:nowrap;}
+.op-fgroup{padding:8px 0;border-bottom:1px dashed var(--knk-border-subtle);}
 .op-fgroup:last-of-type{border-bottom:none;}
-.op-fhead{display:flex;align-items:center;gap:10px;font-size:13px;color:#334155;margin-bottom:4px;}
-.op-fbtn{padding:4px 11px;border:1px solid #b9d2ff;background:#e0edff;color:#1d4ed8;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;}
+.op-fhead{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--knk-text-secondary);margin-bottom:4px;}
+.op-fbtn{padding:4px 11px;border:1px solid var(--knk-info-line);background:var(--knk-info-subtle);color:var(--knk-info);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;}
 .op-flist{list-style:none;margin:0;padding:0 0 0 2px;}
 .op-flist li{font-size:12.5px;padding:3px 0;display:flex;align-items:center;gap:8px;}
-.op-flist li a{color:#1e293b;text-decoration:none;}
-.op-flist li a:hover{color:#A5282C;text-decoration:underline;}
-.op-flist li .sz{color:#94a3b8;font-size:11px;}
-.op-flist li .del{color:#b91c1c;font-weight:800;text-decoration:none;margin-left:auto;}
-.op-fnone{color:#cbd5e1;font-size:11.5px;}
+.op-flist li a{color:var(--knk-text-primary);text-decoration:none;}
+.op-flist li a:hover{color:var(--knk-brand);text-decoration:underline;}
+.op-flist li .sz{color:var(--knk-text-muted);font-size:11px;}
+.op-flist li .del{color:var(--knk-danger);font-weight:800;text-decoration:none;margin-left:auto;}
+.op-fnone{color:var(--knk-text-disabled);font-size:11.5px;}
 /* z421 부서 요청(수주 전 부서 협업) */
-.op-sub{font-weight:400;color:#94a3b8;font-size:11.5px;}
+.op-sub{font-weight:400;color:var(--knk-text-muted);font-size:11.5px;}
 .op-reqform{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:7px;}
-.op-reqform select,.op-reqform input[type=text]{padding:7px 10px;border:1px solid #d6cdb6;border-radius:7px;font-size:13px;font-family:inherit;}
+.op-reqform select,.op-reqform input[type=text]{padding:7px 10px;border:1px solid var(--knk-border-default);border-radius:7px;font-size:13px;font-family:inherit;}
 .op-reqform input[type=text]{flex:1;min-width:200px;}
-.op-reqform input[type=date]{padding:6px 9px;border:1px solid #d6cdb6;border-radius:7px;font-size:12.5px;}
-.op-reqhint{font-size:11.5px;color:#64748b;margin-bottom:9px;}
-.op-reqhint a{color:#1d4ed8;font-weight:700;text-decoration:none;}
+.op-reqform input[type=date]{padding:6px 9px;border:1px solid var(--knk-border-default);border-radius:7px;font-size:12.5px;}
+.op-reqhint{font-size:11.5px;color:var(--knk-text-muted);margin-bottom:9px;}
+.op-reqhint a{color:var(--knk-info);font-weight:700;text-decoration:none;}
 .op-reqlist{list-style:none;margin:0;padding:0;}
-.op-reqlist li{border:1px solid #eef0f3;border-radius:9px;padding:9px 12px;margin-bottom:7px;background:#fbfcfe;}
+.op-reqlist li{border:1px solid var(--knk-border-subtle);border-radius:9px;padding:9px 12px;margin-bottom:7px;background:var(--knk-bg-inset);}
 .op-reqhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
-.op-reqdept{font-weight:800;font-size:13.5px;color:#1e293b;}
+.op-reqdept{font-weight:800;font-size:13.5px;color:var(--knk-text-primary);}
 .op-reqbadge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;}
-.op-reqbadge.st-requested{background:#fef9c3;color:#854d0e;}
-.op-reqbadge.st-assigned{background:#e0edff;color:#1d4ed8;}
-.op-reqbadge.st-in_progress{background:#dcfce7;color:#166534;}
-.op-reqbadge.st-done{background:#e2e8f0;color:#475569;}
-.op-reqbadge.st-hold{background:#fde2e2;color:#991b1b;}
-.op-reqdue{font-size:11.5px;color:#64748b;}
-.op-reqx{padding:3px 10px;border:1px solid #fca5a5;background:#fff;color:#b91c1c;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;}
-.op-reqdetail{font-size:12.5px;color:#334155;margin:5px 0 4px;}
-.op-reqmeta{font-size:11.5px;color:#64748b;}
-.op-reqmeta b{color:#1e293b;}
+.op-reqbadge.st-requested{background:var(--knk-warning-subtle);color:var(--knk-warning);}
+.op-reqbadge.st-assigned{background:var(--knk-info-subtle);color:var(--knk-info);}
+.op-reqbadge.st-in_progress{background:var(--knk-success-subtle);color:var(--knk-success);}
+.op-reqbadge.st-done{background:var(--knk-bg-subtle);color:var(--knk-text-secondary);}
+.op-reqbadge.st-hold{background:var(--knk-danger-subtle);color:var(--knk-danger);}
+.op-reqdue{font-size:11.5px;color:var(--knk-text-muted);}
+.op-reqx{padding:3px 10px;border:1px solid var(--knk-danger-line);background:var(--knk-bg-surface);color:var(--knk-danger);border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;}
+.op-reqdetail{font-size:12.5px;color:var(--knk-text-secondary);margin:5px 0 4px;}
+.op-reqmeta{font-size:11.5px;color:var(--knk-text-muted);}
+.op-reqmeta b{color:var(--knk-text-primary);}
 </style></head>
 <body>
 <div class="app">{% set active_tab='sales' %}
@@ -88,7 +88,7 @@
 <main class="main">
   <div class="page-head"><div>
     <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/sales/opportunities">영업 기회</a> · <b>{{ opp.opp_no if opp else '신규 등록' }}</b></div>
-    <h1 class="page-title">영업 기회 <em>{{ ('— ' + opp.title) if opp else '— 신규 등록' }}</em></h1>
+    <h1 class="page-title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>영업 기회 <em>{{ ('— ' + opp.title) if opp else '— 신규 등록' }}</em></h1>
   </div></div>
   <div class="op-wrap">
     {% if request.query_params.get('saved') %}<div class="op-saved">✅ 저장됐습니다.</div>{% endif %}
@@ -99,8 +99,8 @@
     {% if request.query_params.get('req_warn')=='noleader' %}<div class="op-promoted">⚠ 요청은 등록됐지만 해당 부서에 <b>팀장이 지정돼 있지 않아</b> 메신저 알림은 보내지 못했습니다. (관리자에서 부서 팀장 지정 필요)</div>{% endif %}
     {% if request.query_params.get('req_err') %}<div class="op-err">{% if request.query_params.get('req_err')=='dup' %}이미 그 부서에 진행 중인 요청이 있습니다 (영업 기회당 부서별 1건).{% elif request.query_params.get('req_err')=='team' %}요청할 부서를 선택해 주세요.{% else %}부서 요청 처리에 실패했습니다.{% endif %}</div>{% endif %}
     {% if promoted %}<div class="op-promoted">✅ 이 영업 기회는 프로젝트로 <b>승격 완료</b> → <a href="/project/{{ promoted.id }}">[{{ promoted.mgmt_code }}] {{ promoted.name }}</a> (해당 프로젝트에서 제작요청 발행)</div>
-    {% elif opp and opp.promoted_project_id %}<div class="op-promoted" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;">⚠ 승격됐던 프로젝트가 이미 삭제된 상태입니다(연결 끊김). 이 영업 기회는 아래 <b>삭제</b>로 정리할 수 있습니다. {# v5H226z899 #}</div>{% endif %}
-    {% if opp %}<div class="op-meta">기회번호 <b>{{ opp.opp_no }}</b> · 단계 <b>{{ opp.stage }}</b> · 다음 할 일: <b style="color:#A5282C;">{{ opp.next_action }}</b></div>{% endif %}
+    {% elif opp and opp.promoted_project_id %}<div class="op-promoted" style="background:var(--knk-warning-subtle);border-color:var(--knk-warning-line);color:var(--knk-warning);">⚠ 승격됐던 프로젝트가 이미 삭제된 상태입니다(연결 끊김). 이 영업 기회는 아래 <b>삭제</b>로 정리할 수 있습니다. {# v5H226z899 #}</div>{% endif %}
+    {% if opp %}<div class="op-meta">기회번호 <b>{{ opp.opp_no }}</b> · 단계 <b>{{ opp.stage }}</b> · 다음 할 일: <b style="color:var(--knk-brand);">{{ opp.next_action }}</b></div>{% endif %}
 
     <form method="post" action="{{ ('/sales/opportunities/' ~ opp.id ~ '/edit') if opp else '/sales/opportunities' }}" onsubmit="var _b=window.KNKCust&&KNKCust.validate(this); if(_b){ try{_b.focus();}catch(e){} alert('고객사를 등록된 목록에서 선택하세요(빨간 칸). 비워두려면 칸을 비우세요.'); return false; } return true;">
       <div class="op-card">
@@ -109,9 +109,9 @@
           <div class="op-f full"><label>건명 <span class="req">*</span></label>
             <input type="text" name="title" required value="{{ opp.title|default('', true) }}" placeholder="예: 삼성 PBA 검사기 신규 문의" {% if not can_edit %}disabled{% endif %}></div>
           {# v5H226z622/z623 (대표 지시): 고객사 = 등록 고객사(시스템명) 자동완성 콤보. 신규고객 체크 시 임시 텍스트 허용 #}
-          <div class="op-f"><label>고객사 <span style="font-weight:400;color:#94a3b8;font-size:11px;">(등록 목록에서 선택)</span></label>
+          <div class="op-f"><label>고객사 <span style="font-weight:400;color:var(--knk-text-muted);font-size:11px;">(등록 목록에서 선택)</span></label>
             <input id="oppCustPicker" type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="0" data-cust-initial="{{ opp.customer_name|default('', true) }}" placeholder="고객사명·시스템명 → 목록 선택" autocomplete="off" {% if not can_edit %}disabled{% endif %}>
-            <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#64748b;margin-top:5px;cursor:pointer;">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--knk-text-muted);margin-top:5px;cursor:pointer;">
               <input type="checkbox" id="oppNewCust" {% if not can_edit %}disabled{% endif %} onchange="if(window.KNKCust)KNKCust.setFree(document.getElementById('oppCustPicker'), this.checked)"> 🆕 신규고객(미등록) — 임시 텍스트로 입력(제작요청 승격 시 등록 알람)
             </label>
           </div>
@@ -221,7 +221,7 @@
 
     {% if opp %}
     <div class="op-card">
-      <h3>첨부 파일 <span style="font-weight:400;color:#94a3b8;font-size:11.5px;">— 제안서·견적서·미팅 (PDF·엑셀·한글·이미지 등, 25MB 이하)</span></h3>
+      <h3>첨부 파일 <span style="font-weight:400;color:var(--knk-text-muted);font-size:11.5px;">— 제안서·견적서·미팅 (PDF·엑셀·한글·이미지 등, 25MB 이하)</span></h3>
       {% for key,lbl in [('proposal','📝 제안서'),('quotation','💰 견적서'),('meeting','🤝 미팅')] %}
       <div class="op-fgroup">
         <div class="op-fhead"><b>{{ lbl }}</b>
@@ -237,7 +237,7 @@
       <input type="file" id="opFile" data-knk-no-dropzone style="display:none;" onchange="opUp(this)">
     </div>
     {% else %}
-    <div class="op-card" style="font-size:12px;color:#94a3b8;">💾 먼저 저장하면 제안서·견적서 파일을 첨부할 수 있습니다.</div>
+    <div class="op-card" style="font-size:12px;color:var(--knk-text-muted);">💾 먼저 저장하면 제안서·견적서 파일을 첨부할 수 있습니다.</div>
     {% endif %}
 
     {% if opp %}
@@ -296,7 +296,7 @@
         <button type="submit" class="op-btn danger">삭제</button>
       </form>
       {% else %}
-      <span style="align-self:center;font-size:12px;color:#94a3b8;">삭제는 기술영업팀장 · 대표만 할 수 있습니다</span>
+      <span style="align-self:center;font-size:12px;color:var(--knk-text-muted);">삭제는 기술영업팀장 · 대표만 할 수 있습니다</span>
       {% endif %}
     </div>
     {% endif %}

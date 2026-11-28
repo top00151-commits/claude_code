@@ -151,5 +151,21 @@ check("제목 앞 세 줄 — 제작요청서·전사 일정표·등록 고르�
       and '<i></i><i></i><i></i></span>전사 일정표</h2>' in ds)
 
 
+# ── 10. 5판 — 소모품 올리기 · 프로젝트 양식 · 영업 기회 양식 · 소모품 상세 ──
+for rel in ("app/templates/consumable_form_upload.html", "app/templates/project_form.html", "app/templates/sales_opportunity_form.html", "app/templates/consumable_detail.html"):
+    check("5판 직접 색 0 · 면제값 줄 뺌: %s" % rel, hexes(rel) == [] and rel not in C.COLOR_BASE)
+cu = rd("app/templates/consumable_form_upload.html"); cd5 = rd("app/templates/consumable_detail.html"); pf = rd("app/templates/project_form.html")
+check("소모품 올리기·상세 그러데이션 0 · 화면만의 --qv-* 덮기는 새 이름을 가리킴", "linear-gradient" not in cu and "linear-gradient" not in cd5
+      and "--qv-surface:var(--knk-bg-surface)" in cu.replace(" ", "") and "--qv-surface:var(--knk-bg-surface)" in cd5.replace(" ", ""))
+check("프로젝트 양식 형태 머리 색 = 빠른 등록과 같은 뜻 이름(소모품 완료·기타 흐림·검사기 주황·자동화 정보·라이프밸류 빨강)",
+      "{% set _form_kind_color = 'var(--knk-success)' %}" in pf and "{% set _form_kind_color = 'var(--knk-text-muted)' %}" in pf
+      and "{% set _form_kind_color = 'var(--knk-cat-orange)' %}" in pf and "{% set _form_kind_color = 'var(--knk-info)' %}" in pf and "{% set _form_kind_color = 'var(--knk-brand)' %}" in pf)
+check("프로젝트 양식 관리번호 확인 색 비교가 같은 이름끼리(초록→노랑 바뀜 그대로)",
+      "var color = 'var(--knk-success)';" in pf and "if (color === 'var(--knk-success)') color = 'var(--knk-warning)';" in pf)
+check("제목 앞 세 줄 — 영업 기회 양식·소모품 상세(소모품 올리기·프로젝트 양식은 큰 그림 문자 + 갈래 머리가 있어 넣지 않음)",
+      '<h1 class="page-title">' + T3 + "영업 기회 <em>" in rd("app/templates/sales_opportunity_form.html") and '<h1 class="page-title" data-dn="title">' + T3 in cd5
+      and T3 not in cu and T3 not in pf)
+
+
 print("결과: %d 통과 / %d 실패" % (ok, fail))
 sys.exit(1 if fail else 0)

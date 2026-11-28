@@ -8,9 +8,9 @@
 /* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z55: 시안1 토큰 — project_form v1+v2 차수 */
 body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+  --qv-surface:var(--knk-bg-surface); --qv-surface-2:var(--knk-bg-inset); --qv-line:var(--knk-border-subtle);
+  --qv-ink:var(--knk-text-primary); --qv-ink-2:var(--knk-text-secondary); --qv-ink-3:var(--knk-text-muted);
+  --biz-t:var(--knk-cat-orange); --biz-m:var(--knk-info); --biz-e:var(--knk-cat-violet); --biz-c:var(--knk-success);
 }
 @media (max-width:1100px){ .pf-row.three{grid-template-columns:repeat(2,1fr) !important;} }
 /* v5H76: 프로젝트 등록 폼 — 단정한 섹션형 레이아웃 (기본정보 → 고객·일정 → 금액·상태 → 비고) */
@@ -29,14 +29,14 @@ body {
 .pf-section h3::before { content: ""; width: 4px; height: 18px; background: var(--knk-red); border-radius: 3px; opacity: .65; }
 .pf-section h3 .sub { font-weight: 500; }
 /* 친근 안내 히어로 — 첫 화면엔 한 줄 안심 문구만, 기술 설명은 접기 */
-.pf-hero { margin: var(--space-2) 0 var(--space-5); padding: 14px 18px; background: #f0f7ff; border: 1px solid #cfe4fb; border-radius: var(--radius-md); color: var(--qv-ink-2); font-size: 13.5px; line-height: 1.6; }
-.pf-hero b { color: #1e40af; }
+.pf-hero { margin: var(--space-2) 0 var(--space-5); padding: 14px 18px; background: var(--knk-info-subtle); border: 1px solid var(--knk-info-line); border-radius: var(--radius-md); color: var(--qv-ink-2); font-size: 13.5px; line-height: 1.6; }
+.pf-hero b { color: var(--knk-info); }
 .pf-hero .star { color: var(--knk-red); font-weight: 800; }
 .pf-help { margin-top: 9px; font-size: 12px; }
 .pf-help summary { cursor: pointer; color: var(--qv-ink-3); font-weight: 600; list-style: none; display: inline-block; }
 .pf-help summary::-webkit-details-marker { display: none; }
 .pf-help summary::before { content: "ⓘ "; }
-.pf-help summary:hover { color: #1e40af; text-decoration: underline; }
+.pf-help summary:hover { color: var(--knk-info); text-decoration: underline; }
 .pf-help .body { margin-top: 9px; color: var(--qv-ink-3); line-height: 1.75; padding: 11px 14px; background: var(--qv-surface-2); border-radius: var(--radius-md); }
 .pf-help .body b { color: var(--qv-ink-2); }
 /* v5H226z179 (2026-06-03 대표 지시): 고객사 담당자 등 짧은-텍스트 칸 컴팩트화 —
@@ -80,7 +80,7 @@ body {
 .top,.sidebar,.victor-dock,#victorDock{display:none!important;}
 .app{display:block!important;min-width:0!important;height:auto!important;}
 .main{height:auto!important;overflow:visible!important;}
-html,body{background:#fff!important;overflow:auto!important;}
+html,body{background:var(--knk-bg-surface)!important;overflow:auto!important;}
 .page-head .crumbs{display:none!important;}</style>{% endif %}
 <div class="app">{% set active_tab = 'sales' %}
 {% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -93,27 +93,27 @@ html,body{background:#fff!important;overflow:auto!important;}
   {% if _is_consumable %}
     {% set _form_kind_emoji = '📦' %}
     {% set _form_kind_name = 'C 소모품' %}
-    {% set _form_kind_color = '#16a34a' %}
+    {% set _form_kind_color = 'var(--knk-success)' %}
   {% elif _ptype_title == 'OTHER' %}
     {% set _form_kind_emoji = '🌐' %}
     {% set _form_kind_name = 'E 기타' %}
-    {% set _form_kind_color = '#f59e0b' %}
+    {% set _form_kind_color = 'var(--knk-text-muted)' %}
   {% elif _bd_title == 'T' %}
     {% set _form_kind_emoji = '🔬' %}
     {% set _form_kind_name = 'T 검사기' %}
-    {% set _form_kind_color = '#1e40af' %}
+    {% set _form_kind_color = 'var(--knk-cat-orange)' %}
   {% elif _bd_title == 'M' %}
     {% set _form_kind_emoji = '🤖' %}
     {% set _form_kind_name = 'M 자동화' %}
-    {% set _form_kind_color = '#9d174d' %}
+    {% set _form_kind_color = 'var(--knk-info)' %}
   {% elif _bd_title == 'L' %}
     {% set _form_kind_emoji = '💄' %}
     {% set _form_kind_name = 'L 라이프밸류' %}
-    {% set _form_kind_color = '#db2777' %}
+    {% set _form_kind_color = 'var(--knk-brand)' %}
   {% else %}
     {% set _form_kind_emoji = '📋' %}
     {% set _form_kind_name = '프로젝트' %}
-    {% set _form_kind_color = '#475569' %}
+    {% set _form_kind_color = 'var(--knk-text-secondary)' %}
   {% endif %}
   <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
     <div>
@@ -123,7 +123,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       </div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span style="font-size:30px;">{{ _form_kind_emoji }}</span>
-        <span style="background:{{ _form_kind_color }};color:#fff;padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">{{ _form_kind_name }}</span>
+        <span style="background:{{ _form_kind_color }};color:var(--knk-text-inverse);padding:4px 12px;border-radius:8px;font-size:18px;font-weight:800;letter-spacing:0.02em;">{{ _form_kind_name }}</span>
         <em>{% if project %}수정{% else %}등록{% endif %}</em>
       </h1>
       {% if not project and preset %}
@@ -175,7 +175,7 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     {% if project %}
     {# v5H192: 수정 모드 — 기본은 잠금. '🔓 수정 잠금 해제' 클릭 → 비밀번호 인증 → 편집 가능 #}
-    <div id="pfLockBanner" style="margin: 0 0 var(--space-4); padding: 14px 18px; background: #fff8e8; border: 1px solid var(--qv-line-3); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px;">
+    <div id="pfLockBanner" style="margin: 0 0 var(--space-4); padding: 14px 18px; background: var(--knk-warning-subtle); border: 1px solid var(--qv-line-3); border-radius: var(--radius-md); display: flex; align-items: center; gap: 14px;">
       <span style="font-size:22px;">🔒</span>
       <div style="flex:1;font-size:13px;line-height:1.65;color:var(--qv-ink);">
         <b style="color:var(--qv-ink-2);">기본 등록 정보는 보존 모드</b>
@@ -183,11 +183,11 @@ html,body{background:#fff!important;overflow:auto!important;}
         <br><span style="font-size:11.5px;color:var(--qv-ink-3);">관리코드·사업부·유형·등록자/등록일시 는 영구 잠금 (감사 무결성) · PO유형은 수정 가능(변경 이력에 남음)</span>
       </div>
       <button type="button" id="pfUnlockBtn"
-              style="padding:8px 16px;background:var(--knk-red);color:#fff;border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+              style="padding:8px 16px;background:var(--knk-red);color:var(--knk-text-inverse);border:0;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
         🔓 수정 잠금 해제
       </button>
     </div>
-    <div id="pfUnlockedBanner" style="display:none;margin: 0 0 var(--space-4); padding: 12px 18px; background: #d1fae5; border: 1px solid #10b981; border-radius: var(--radius-md); align-items: center; gap: 12px; color: #065f46; font-weight: 700; font-size: 13px;">
+    <div id="pfUnlockedBanner" style="display:none;margin: 0 0 var(--space-4); padding: 12px 18px; background: var(--knk-success-subtle); border: 1px solid var(--knk-success); border-radius: var(--radius-md); align-items: center; gap: 12px; color: var(--knk-success); font-weight: 700; font-size: 13px;">
       ✓ 잠금 해제됨 — 변경 후 [💾 저장] 클릭. 일부 필드(관리코드/사업부/유형)는 여전히 영구 잠금입니다.
     </div>
     {% set qf_mode = 'edit' %}{% set qf_pid = project.id %}{% include "_v5_partials/quote_fill.html" %}{# z1191z62 (대표 11-18 「수정화면에서는 견적서 등록하는곳이 없는데」) #}
@@ -195,7 +195,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     {% else %}
     <div class="pf-hero">
       📝 <b>빨간 별<span class="star">*</span> 표시만 채우면 등록돼요.</b> 나머지 칸은 비워둬도 되고, 나중에 상세 화면에서 채울 수 있어요.<br>
-      <span style="font-size:12.5px;color:#1d4ed8;font-weight:600;">✓ 등록하면 <b>관리번호와 수주번호(SO)가 자동으로 함께 발급</b>됩니다. (상태는 고른 단계 그대로 유지)</span>
+      <span style="font-size:12.5px;color:var(--knk-info);font-weight:600;">✓ 등록하면 <b>관리번호와 수주번호(SO)가 자동으로 함께 발급</b>됩니다. (상태는 고른 단계 그대로 유지)</span>
       <details class="pf-help">
         <summary>관리번호·수주번호는 어떻게 부여되나요?</summary>
         <div class="body">
@@ -209,7 +209,7 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     {% set _err = (request.query_params.get('error') if request else '') %}
     {% if _err %}
-    <div style="margin:0 0 var(--space-4);padding:12px 14px;background:#fff3f3;border:1px solid var(--knk-red);border-radius:var(--radius-md);color:var(--knk-red);font-size:13px;font-weight:600;">
+    <div style="margin:0 0 var(--space-4);padding:12px 14px;background:var(--knk-danger-subtle);border:1px solid var(--knk-red);border-radius:var(--radius-md);color:var(--knk-red);font-size:13px;font-weight:600;">
       {% if _err == 'customer_not_registered' %}
         ⚠ "{{ request.query_params.get('cust') }}" 은(는) 등록된 고객사가 아닙니다.
         먼저 <a href="/customers/new" style="color:var(--knk-red);text-decoration:underline;font-weight:700;">/customers/new</a> 에서 고객사를 등록한 뒤 선택해주세요.
@@ -266,9 +266,9 @@ html,body{background:#fff!important;overflow:auto!important;}
     {% endif %}
 
 {% macro so_table7(rows) %}
-<table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;">
+<table style="width:100%;border-collapse:collapse;font-size:12.5px;background:var(--knk-bg-surface);">
   <thead><tr style="background:var(--qv-surface-3);"><th style="padding:6px 8px;text-align:left;">수주번호</th><th style="padding:6px 8px;text-align:left;">형태</th><th style="padding:6px 8px;text-align:left;">PO유형</th><th style="padding:6px 8px;text-align:left;">고객사</th><th style="padding:6px 8px;text-align:right;">수량</th><th style="padding:6px 8px;text-align:right;">금액</th><th style="padding:6px 8px;text-align:left;">발주일</th><th style="padding:6px 8px;text-align:left;">납기</th></tr></thead>
-  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line,#e5e7eb);"><td style="padding:6px 8px;font-weight:700;white-space:nowrap;"><a href="?so={{ r.order_no|urlencode }}" class="z14-pick-link" data-so="{{ r.order_no }}" style="color:#1d4ed8;text-decoration:underline;" title="이 화면에서 이 수주만 고치기(z1191z14)">{{ r.order_no }}</a> <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" style="color:var(--qv-ink-3);font-size:11px;text-decoration:none;" title="상세 화면의 이 수주 카드로(수량·금액·호기)">↗</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ money(r.amount, r.currency or 'KRW') }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td><td style="padding:6px 8px;">{{ r.due_date|default('') }}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for r in rows %}<tr style="border-top:1px solid var(--qv-line);"><td style="padding:6px 8px;font-weight:700;white-space:nowrap;"><a href="?so={{ r.order_no|urlencode }}" class="z14-pick-link" data-so="{{ r.order_no }}" style="color:var(--knk-info);text-decoration:underline;" title="이 화면에서 이 수주만 고치기(z1191z14)">{{ r.order_no }}</a> <a href="/project/{{ project.id }}?so={{ r.order_no|urlencode }}" style="color:var(--qv-ink-3);font-size:11px;text-decoration:none;" title="상세 화면의 이 수주 카드로(수량·금액·호기)">↗</a></td><td style="padding:6px 8px;">{{ r.form }}</td><td style="padding:6px 8px;">{{ r.po_type }}</td><td style="padding:6px 8px;">{{ r.customer }}</td><td style="padding:6px 8px;text-align:right;">{{ r.qty }}</td><td style="padding:6px 8px;text-align:right;font-weight:700;">{{ money(r.amount, r.currency or 'KRW') }}</td><td style="padding:6px 8px;">{{ r.order_date }}</td><td style="padding:6px 8px;">{{ r.due_date|default('') }}</td></tr>{% endfor %}</tbody>
 </table>
 {% endmacro %}
     {# z1191z7 (안지연 프로 신고 · 대표 2026-11-06): 이 화면은 관리번호 전체의 공통 정보 — 수주마다 다른 값은 상세 수주 카드에서 #}
@@ -278,9 +278,9 @@ html,body{background:#fff!important;overflow:auto!important;}
        수주를 고르면 그 수주의 칸만 보이고 「이 수주만 저장」 = 상세 수주 카드와 같은 저장 경로(/sales/orders/{id}/quick-edit ·
        PO유형 /sales/schedule/cell + so_oid) — 두 화면에서 고친 결과가 늘 같다. 수량·금액·호기는 상세 수주 카드에서. #}
     {% set _z14ok = (request.query_params.get('z14ok') if request else '') or '' %}
-    {% if _z14ok %}<div style="margin:0 0 var(--space-3);padding:10px 16px;background:#d1fae5;border:1px solid #10b981;border-radius:var(--radius-md);color:#065f46;font-weight:700;font-size:13px;">✅ 수주 <b>{{ _z14ok }}</b> 저장됨 — 이 수주만 바뀌었고 변경 이력에 남았습니다.</div>{% endif %}
+    {% if _z14ok %}<div style="margin:0 0 var(--space-3);padding:10px 16px;background:var(--knk-success-subtle);border:1px solid var(--knk-success);border-radius:var(--radius-md);color:var(--knk-success);font-weight:700;font-size:13px;">✅ 수주 <b>{{ _z14ok }}</b> 저장됨 — 이 수주만 바뀌었고 변경 이력에 남았습니다.</div>{% endif %}
     <div id="z14Box" data-pid="{{ project.id }}" data-mgmt="{{ project.mgmt_code }}" data-n="{{ so_rows|length }}" data-sel="{{ z14_sel|default('') }}"
-         style="margin:0 0 var(--space-4);padding:12px 18px;background:#fff7ed;border:1px solid #fdba74;border-radius:var(--radius-md);font-size:12.5px;line-height:1.65;">
+         style="margin:0 0 var(--space-4);padding:12px 18px;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:var(--radius-md);font-size:12.5px;line-height:1.65;">
       <div class="z14-pick">
         <span class="z14-pick-lbl">✏️ 고칠 대상</span>
         <button type="button" class="z14-tab" data-so="">🗂 관리번호 공통</button>
@@ -290,7 +290,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="z14-common-note">
         ⓘ <b>관리번호 공통</b> = 관리번호 <b>{{ project.mgmt_code }}</b> 전체(<b>수주 {{ so_rows|length }}건</b>{% if so_mixed %} · 형태 섞임{% endif %})에 해당하는 정보입니다(프로젝트명·사업부·거래 구분·상태·고객 담당자 등).
         수주마다 다른 <b>발주처·2차 고객사·PO유형·발주일·납기·납품처·모델·장비</b>는 위에서 <b>수주번호를 골라</b> 그 수주만 고칩니다. 수량·금액·호기는 상세 화면 수주 카드(↗)에서 고칩니다.
-        <div style="margin-top:6px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#92400e;">⚠ 수주가 {{ so_rows|length }}건이라 아래 공통 칸의 <b>고객사·2차 고객·통화·거래구분·형태·PO유형·모델·장비</b>는 여기서 저장해도 <b>바뀌지 않습니다</b>(다른 수주 값이 함께 바뀌는 사고 방지 · z1191z153). 수주별로는 위에서 수주번호를 고르거나 「✏️ 프로젝트 정보 수정」에서 고치세요.</div>
+        <div style="margin-top:6px;padding:6px 10px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:8px;color:var(--knk-warning);">⚠ 수주가 {{ so_rows|length }}건이라 아래 공통 칸의 <b>고객사·2차 고객·통화·거래구분·형태·PO유형·모델·장비</b>는 여기서 저장해도 <b>바뀌지 않습니다</b>(다른 수주 값이 함께 바뀌는 사고 방지 · z1191z153). 수주별로는 위에서 수주번호를 고르거나 「✏️ 프로젝트 정보 수정」에서 고치세요.</div>
         <div style="margin-top:8px;">{{ so_table7(so_rows) }}</div>
       </div>
       {% for r in so_rows %}
@@ -324,7 +324,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           <label>모델명<input type="text" class="z14-f" data-field="model_name" data-orig="{{ r.model_name }}" value="{{ r.model_name }}" autocomplete="off" placeholder="(비움 = 프로젝트 {{ project.model_name or '' }})"></label>
           <label>장비명<input type="text" class="z14-f" data-field="equip_name" data-orig="{{ r.equip_name }}" value="{{ r.equip_name }}" autocomplete="off" placeholder="(비움 = 프로젝트 {{ project.equip_name or '' }})"></label>
           {% if r.is_parts14 %}{# z1191z16 (안지연 프로 확인 · 대표 「1,2,3 진행해」): 상품 수량 — 이 수주만(작업일정표 수량 칸과 같은 저장) #}
-          <label>수량 <span class="z14-inh">(상품 · <span class="z16-u">{{ '식' if r.po_eff == '개조' else '완제품 대분' }}</span>)</span><input type="number" min="1" max="999" step="1" class="z14-f" data-field="unit_qty" data-orig="{{ r.uq_raw if r.uq_raw >= 1 else '' }}" value="{{ r.uq_raw if r.uq_raw >= 1 else '' }}" placeholder="⚠ 미입력 — 숫자를 넣으세요"{% if r.uq_raw < 1 %} style="border-color:#b91c1c;"{% endif %}></label>
+          <label>수량 <span class="z14-inh">(상품 · <span class="z16-u">{{ '식' if r.po_eff == '개조' else '완제품 대분' }}</span>)</span><input type="number" min="1" max="999" step="1" class="z14-f" data-field="unit_qty" data-orig="{{ r.uq_raw if r.uq_raw >= 1 else '' }}" value="{{ r.uq_raw if r.uq_raw >= 1 else '' }}" placeholder="⚠ 미입력 — 숫자를 넣으세요"{% if r.uq_raw < 1 %} style="border-color:var(--knk-danger);"{% endif %}></label>
           {% endif %}
         </div>
         <div class="z14-act">
@@ -339,28 +339,28 @@ html,body{background:#fff!important;overflow:auto!important;}
     </div>
     <style>
     #z14Box .z14-pick { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:8px; }
-    #z14Box .z14-pick-lbl { font-weight:800; color:#9a3412; margin-right:4px; }
-    #z14Box .z14-tab { padding:5px 12px; border:1px solid #fdba74; background:#fff; border-radius:999px; font-size:12.5px; font-weight:700; color:#9a3412; cursor:pointer; }
-    #z14Box .z14-tab .z14-tab-sub { font-weight:500; font-size:11px; color:#b45309; }
-    #z14Box .z14-tab.on { background:#c2410c; border-color:#c2410c; color:#fff; }
-    #z14Box .z14-tab.on .z14-tab-sub { color:#ffedd5; }
-    #z14Box .z14-now { margin:2px 0 8px; padding:8px 12px; background:#fff; border:2px solid #c2410c; border-radius:8px; font-size:14px; color:#7c2d12; }
+    #z14Box .z14-pick-lbl { font-weight:800; color:var(--knk-warning); margin-right:4px; }
+    #z14Box .z14-tab { padding:5px 12px; border:1px solid var(--knk-warning-line); background:var(--knk-bg-surface); border-radius:999px; font-size:12.5px; font-weight:700; color:var(--knk-warning); cursor:pointer; }
+    #z14Box .z14-tab .z14-tab-sub { font-weight:500; font-size:11px; color:var(--knk-warning); }
+    #z14Box .z14-tab.on { background:var(--knk-warning); border-color:var(--knk-warning); color:var(--knk-text-inverse); }
+    #z14Box .z14-tab.on .z14-tab-sub { color:var(--knk-warning-subtle); }
+    #z14Box .z14-now { margin:2px 0 8px; padding:8px 12px; background:var(--knk-bg-surface); border:2px solid var(--knk-warning); border-radius:8px; font-size:14px; color:var(--knk-warning); }
     #z14Box .z14-head { font-size:13px; margin-bottom:8px; }
-    #z14Box .z14-detail { margin-left:8px; font-size:12px; color:#1d4ed8; }
-    #z14Box .z14-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px 14px; background:#fff; border:1px solid #fed7aa; border-radius:8px; padding:12px; }
+    #z14Box .z14-detail { margin-left:8px; font-size:12px; color:var(--knk-info); }
+    #z14Box .z14-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px 14px; background:var(--knk-bg-surface); border:1px solid var(--knk-warning-line); border-radius:8px; padding:12px; }
     #z14Box .z14-grid label { display:flex; flex-direction:column; gap:3px; font-size:12px; font-weight:700; color:var(--qv-ink-2); }
-    #z14Box .z14-grid input, #z14Box .z14-grid select { padding:6px 9px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; font-weight:500; background:var(--qv-surface,#fff); }
-    #z14Box .z14-grid .z14-dirty { border-color:#c2410c; background:#fff7ed; }
+    #z14Box .z14-grid input, #z14Box .z14-grid select { padding:6px 9px; border:1px solid var(--qv-line); border-radius:6px; font-size:13px; font-weight:500; background:var(--qv-surface); }
+    #z14Box .z14-grid .z14-dirty { border-color:var(--knk-warning); background:var(--knk-warning-subtle); }
     #z14Box .z14-grid-ro div { font-size:13px; }
     #z14Box .z14-k { display:inline-block; min-width:92px; color:var(--qv-ink-3); font-size:12px; }
     #z14Box .z14-inh { font-size:10.5px; font-weight:500; color:var(--qv-ink-3); }
-    #z14Box .z14-warn { margin-bottom:8px; padding:8px 12px; background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; color:#991b1b; }
+    #z14Box .z14-warn { margin-bottom:8px; padding:8px 12px; background:var(--knk-danger-subtle); border:1px solid var(--knk-danger-line); border-radius:6px; color:var(--knk-danger); }
     #z14Box .z14-act { margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
     #z14Box .z14-msg { font-weight:700; }
     #z14Box .z14-hint { margin-top:6px; font-size:11.5px; color:var(--qv-ink-3); }
     form.pf-wrap.z14-so-mode .pf-section, form.pf-wrap.z14-so-mode .pf-actions { display:none !important; }
-    .z14-ro-date { padding:9px 12px; border:1px dashed #fdba74; border-radius:8px; background:#fffbeb; font-size:14px; font-weight:700; color:var(--qv-ink); }
-    .z14-ro-date .z14-src { font-size:11.5px; font-weight:500; color:#9a3412; margin-left:6px; }
+    .z14-ro-date { padding:9px 12px; border:1px dashed var(--knk-warning-line); border-radius:8px; background:var(--knk-warning-subtle); font-size:14px; font-weight:700; color:var(--qv-ink); }
+    .z14-ro-date .z14-src { font-size:11.5px; font-weight:500; color:var(--knk-warning); margin-left:6px; }
     </style>
     {% endif %}
     <!-- ① 기본 정보 -->
@@ -384,7 +384,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row solo">
         <div class="pf-field full">
           {# v5H226z455 (대표 지시): 형태 4종 — 완제품/제품/상품/기타. 호기는 완제품에서만 매김. 내부값 ASSEMBLY/SEMI/PARTS/ETC. #}
-          <label>형태{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(완제품=장비 완성품·호기 / 제품=반제품·가공품 / 상품=구매품 2차가공없이 재판매)</span></label>
+          <label>형태{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:var(--knk-warning);font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(완제품=장비 완성품·호기 / 제품=반제품·가공품 / 상품=구매품 2차가공없이 재판매)</span></label>
           <div style="display:flex;gap:18px;padding:8px 4px;flex-wrap:wrap;">
             <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
               <input type="radio" name="shipment_form" value="ASSEMBLY" {% if _ship_form not in ('SEMI','PARTS','ETC') %}checked{% endif %}>
@@ -424,7 +424,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                  autocomplete="off" placeholder="예: Display 압착 자동화설비">
         </div>
         <div class="pf-field">
-          <label>모델명{% if _eq_req %}<span class="req">*</span>{% endif %}{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(장비 모델명)</span></label>
+          <label>모델명{% if _eq_req %}<span class="req">*</span>{% endif %}{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:var(--knk-warning);font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(장비 모델명)</span></label>
           <input type="text" name="model" id="pf_model_input"
                  value="{{ project.model_name or '' }}"{% if _eq_req %} required{% endif %}
                  autocomplete="off" placeholder="예: BATTPRESSAUTO-S-V2">
@@ -439,7 +439,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                  (*"완제품 장비수량이 부품쪽에 같이 포함되어 있어서 별도로 나와있으면 좋겠다.
                     그렇다면 부품의 수량은 어디에 입력?"*)
            → 부품 칸(품명·모델명)과 완제품 수량을 **따로** 놓고, 간편폼과 **같은 모양**으로 통일한다. #}
-      <div id="pf_part_wrap" style="display:none;background:#fff7ec;border:1px solid #f0d9a8;border-radius:8px;padding:10px;margin-top:4px;">
+      <div id="pf_part_wrap" style="display:none;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:8px;padding:10px;margin-top:4px;">
         <div class="pf-row" style="grid-template-columns:1fr 1fr;">
           <div class="pf-field">
             <label>부품 품명 <span class="sub">(대표 1식)</span></label>
@@ -452,21 +452,21 @@ html,body{background:#fff!important;overflow:auto!important;}
         </div>
         {# v5H226z976 (대표 지시): 읽기전용 '1식' → '완제품 몇 대분' 편집칸 — 등록 오입력은 [정보 수정]에서 교정하는 게 정석.
            비우면 1(=1식, 부품만 출하). 저장 시 projects.unit_qty + 단일 상품 SO(orders.unit_qty)에 반영(작업일정표 수량과 동일 소스). #}
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 2px;padding:8px 12px;background:#fff;border:1px solid #fed7aa;border-radius:8px;">
-          <span style="font-weight:700;color:#9a3412;font-size:13px;">🏭 완제품 장비 수량</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 2px;padding:8px 12px;background:var(--knk-bg-surface);border:1px solid var(--knk-warning-line);border-radius:8px;">
+          <span style="font-weight:700;color:var(--knk-warning);font-size:13px;">🏭 완제품 장비 수량</span>
           <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1"
                  value="{{ project.unit_qty if project and (project.unit_qty or 0)|int >= 1 else '' }}"
                  style="width:110px;text-align:center;font-weight:700;">
-          <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 <span style="color:#9a3412;">(PO유형 개조면 식)</span> — <b style="color:#9a3412;">부품 수량이 아닙니다.</b>
+          <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 <span style="color:var(--knk-warning);">(PO유형 개조면 식)</span> — <b style="color:var(--knk-warning);">부품 수량이 아닙니다.</b>
             신규·추가 = 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지(1대분도 1) · 개조 = <b>몇 식</b>인지(1식·2식…).</span>
         </div>
-        <div class="sub" style="font-size:11px;color:#7c4a03;line-height:1.6;margin-top:8px;">
+        <div class="sub" style="font-size:11px;color:var(--knk-warning);line-height:1.6;margin-top:8px;">
           {# ⚠ '아래 추가 품목' 은 **신규 등록에서만** 있다({% raw %}{% if not project %}{% endraw %}) — 수정 화면에서 그렇게 안내하면
              **없는 곳을 가리키는 글**이 된다(안지연 프로가 "부품의 수량은 어디에 입력?" 이라 물은 이유). 화면별로 갈라 쓴다. #}
           {% if project %}
           ⓘ <b>부품 하나하나의 수량</b>은 이 화면이 아니라 <b>프로젝트 상세</b>에서 넣습니다 — 수주 카드의 <b>[＋ 항목 추가]</b> 또는 <b>[📤 상품 양식 올리기]</b>(엑셀 일괄).
           <div style="margin-top:6px;">
-            <a href="/project/{{ project.id }}" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #f0a868;border-radius:7px;color:#9a3412;font-size:12px;font-weight:700;text-decoration:none;"
+            <a href="/project/{{ project.id }}" style="display:inline-block;padding:5px 12px;background:var(--knk-bg-surface);border:1px solid var(--knk-warning-line);border-radius:7px;color:var(--knk-warning);font-size:12px;font-weight:700;text-decoration:none;"
                title="이 관리번호의 수주 카드에서 부품 품명·수량·단가를 줄 단위로 넣습니다">🔧 부품 수량 넣으러 가기 (프로젝트 상세)</a>
           </div>
           {% else %}
@@ -477,7 +477,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         </div>
       </div>
       {# ── 기타 선택 시: (기타) 품명 (모델명 없음) ── #}
-      <div id="pf_etc_wrap" class="pf-row solo" style="display:none;background:#f3f0ff;border:1px solid #d8d0f0;border-radius:8px;padding:10px;margin-top:4px;">
+      <div id="pf_etc_wrap" class="pf-row solo" style="display:none;background:var(--knk-cat-violet-subtle);border:1px solid var(--knk-cat-violet-line);border-radius:8px;padding:10px;margin-top:4px;">
         <div class="pf-field full">
           <label>기타 품명 <span class="sub">(모델명 없음)</span></label>
           <input type="text" name="etc_name" id="pf_etc_name" autocomplete="off" placeholder="예: C/T 핀블럭">
@@ -533,7 +533,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           </script>
         </div>
         <div class="pf-field">
-          <label>PO 유형{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} {% if project %}<span class="sub" style="color:var(--qv-ink-3);">(바꾸면 변경 이력에 남습니다)</span>{% endif %}</label>
+          <label>PO 유형{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:var(--knk-warning);font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} {% if project %}<span class="sub" style="color:var(--qv-ink-3);">(바꾸면 변경 이력에 남습니다)</span>{% endif %}</label>
           {% if project %}
             {# v5H177 의 '등록 후 영구 잠금'을 v5H226z1031(안지연 프로 신고·대표 지시)에서 **해제**.
                잠근 탓에 잘못 넣으면 고칠 방법이 없어 **삭제하고 다시 등록** → 수주번호가 새로 발번되어
@@ -556,21 +556,21 @@ html,body{background:#fff!important;overflow:auto!important;}
       </div>
       <div class="pf-row solo">
         <div class="pf-field full">
-          <label>관리코드 <span class="sub" style="color:#a07a30;">(기존 코드 있으면 입력 · 비우면 자동 발급)</span></label>
+          <label>관리코드 <span class="sub" style="color:var(--knk-warning);">(기존 코드 있으면 입력 · 비우면 자동 발급)</span></label>
           <div style="display:flex;gap:8px;align-items:stretch;">
             <input type="text" name="mgmt_code" id="pf_mgmt_input" value="{{ project.mgmt_code or '' }}"
                    placeholder="예: 001M2403 — 비우면 자동 발급" maxlength="8" autocomplete="off"
                    style="text-transform:uppercase;flex:1;" {% if project %}readonly{% endif %}>
             {% if not project %}
             <button type="button" id="pf_mgmt_confirm"
-                    style="white-space:nowrap;padding:0 16px;background:var(--qv-ink-2);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">🔍 확인</button>
+                    style="white-space:nowrap;padding:0 16px;background:var(--qv-ink-2);color:var(--knk-text-inverse);border:0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">🔍 확인</button>
             {% endif %}
           </div>
           {% if not project %}
           <div class="sub" style="font-size:11px;color:var(--qv-ink-3);margin-top:4px;line-height:1.5;">
             진행 중이던 <b>기존 프로젝트</b>는 실제 관리코드를 그대로 입력하세요.<br>
             형식: <b>일련3자리 + 사업부(T/M/L/E/C) + 연월(YYMM)</b> = 8자리. 비우면 오늘 기준 자동 발급됩니다.<br>
-            <b style="color:#a07a30;">PO유형이 '신규'가 아니면</b> 기존 관리번호를 입력하세요 → 그 프로젝트에 <b>추가 발주</b>로 연결됩니다.
+            <b style="color:var(--knk-warning);">PO유형이 '신규'가 아니면</b> 기존 관리번호를 입력하세요 → 그 프로젝트에 <b>추가 발주</b>로 연결됩니다.
           </div>
           {# v5H226z164: 비-신규 + 관리번호 입력 시 라이브 검증 (기존 프로젝트 확인 + 고객사/프로젝트명 불일치 경고) #}
           <div id="pfMgmtVerify" style="display:none;margin-top:7px;padding:8px 11px;border-radius:7px;font-size:12px;line-height:1.55;background:var(--qv-surface-2);border:1px solid var(--qv-line);"></div>
@@ -603,7 +603,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                 var cn = ((document.querySelector('input[name="customer_name"]')||{}).value||'').trim();
                 var pn = ((document.querySelector('input[name="name"]')||{}).value||'').trim();
                 var msgs = ['📌 기존 프로젝트: <b>'+esc(hit.name||'')+'</b> · 고객사 <b>'+esc(hit.customer_name||'—')+'</b> → 이 프로젝트에 추가 발주됩니다.'];
-                var color = '#16a34a';
+                var color = 'var(--knk-success)';
                 var custBad = (cn && hit.customer_name && cn !== (hit.customer_name||'').trim());
                 if (custBad){
                   msgs.push('⚠ 입력 고객사 <b>'+esc(cn)+'</b> ≠ 기존 <b>'+esc(hit.customer_name)+'</b> — <b>다릅니다. 확인하세요</b> (저장 차단).');
@@ -614,7 +614,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                 }
                 if (pn && hit.name && pn !== (hit.name||'').trim()){
                   msgs.push('⚠ 입력 프로젝트명 <b>'+esc(pn)+'</b> ≠ 기존 <b>'+esc(hit.name)+'</b> — 확인하세요.');
-                  if (color === '#16a34a') color = '#d97706';
+                  if (color === 'var(--knk-success)') color = 'var(--knk-warning)';
                 }
                 show(msgs.join('<br>'), color);
               }).catch(function(){ window.__pfMgmtState='checking'; clearV(); });
@@ -660,7 +660,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                 _fill('pf_cc_phone', p.cc_phone); _fill('pf_cc_email', p.cc_email); _fill('pf_cc_note', p.cc_note);
                 window.__pfMgmtState = 'ok'; window.__pfMgmtMsg = '';
                 window.__pfConfirmedCode = code;   // v5H226z214: 이후 관리코드 변경·삭제 시 리셋 기준
-                show('✓ 기존 프로젝트 <b>'+(p.name||'')+'</b> · 고객사 <b>'+(p.customer_name||'')+'</b> 확인됨 — 프로젝트명·고객사 자동 입력·잠금. 담당자도 불러왔습니다. <span style="color:var(--qv-ink-3);">(관리코드를 비우거나 바꾸면 초기화됩니다)</span>', '#16a34a');
+                show('✓ 기존 프로젝트 <b>'+(p.name||'')+'</b> · 고객사 <b>'+(p.customer_name||'')+'</b> 확인됨 — 프로젝트명·고객사 자동 입력·잠금. 담당자도 불러왔습니다. <span style="color:var(--qv-ink-3);">(관리코드를 비우거나 바꾸면 초기화됩니다)</span>', 'var(--knk-success)');
               }).catch(function(){ confirmBtn.disabled=false; confirmBtn.textContent='🔍 확인'; alert('조회 실패 — 다시 시도하세요.'); });
             });
           })();
@@ -762,7 +762,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                   if (!hint) {
                     hint = document.createElement('div');
                     hint.id = 'pfParentAutofill';
-                    hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:4px;font-size:12px;color:#1b5e20;';
+                    hint.style.cssText = 'margin-top:6px;padding:6px 10px;background:var(--knk-success-subtle);border-left:3px solid var(--knk-success);border-radius:4px;font-size:12px;color:var(--knk-success);';
                     inp.parentElement.appendChild(hint);
                   }
                   hint.textContent = '✓ 연관 프로젝트 정보로 고객사/사업부/모델 자동 채움됨 (필요 시 수정 가능)';
@@ -810,14 +810,14 @@ html,body{background:#fff!important;overflow:auto!important;}
       <div class="pf-row" style="grid-template-columns:1fr 1fr;align-items:start;">
         {# v5H226z163 (대표 지시): 전체 미리보기(datalist) 대신 타이핑하면 뜨는 자동완성 #}
         <div class="pf-field" style="position:relative;">
-          <label>고객사1{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(등록된 고객사만 선택 가능)</span></label>
+          <label>고객사1{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:var(--knk-warning);font-weight:700;" title="관리번호 전체의 대표값입니다. 수주마다 다르면 상세 [수주 내역] 카드에서 그 수주만 고칩니다(z1191z7)">(대표값)</span>{% endif %} <span class="sub">(등록된 고객사만 선택 가능)</span></label>
           {# v5H226z653 (대표 지시): 옛 이름전용 자동완성 → KNKCust 종사업장 picker 로 교체(같은 상호 여러 종사업장 구분·hidden customer_id 제출). 추가발주 잠금/자동채움은 free 모드, 편집은 기존 customer_id 로 복원(아래 스크립트). #}
           <input type="text" id="pf_customer_input" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id"
                  data-cust-required="1" data-cust-initial="{{ project.customer_name or '' }}" autocomplete="off"
                  placeholder="고객사명·시스템명 입력 → 목록에서 종사업장까지 선택. 없으면 /customers/new 에서 등록">
         </div>
         <div class="pf-field">
-          <label>고객사2{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:#b45309;font-weight:700;" title="관리번호 전체의 대표값 — 자기 2차를 따로 적지 않은 수주(1차가 프로젝트 고객과 같은 수주)가 이 값을 따릅니다. 수주마다 다르면 맨 위 「고칠 대상」에서 그 수주를 골라 고칩니다(z1191z14)">(대표값)</span>{% endif %} <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
+          <label>고객사2{% if project and so_rows and so_rows|length >= 2 %} <span class="sub" style="color:var(--knk-warning);font-weight:700;" title="관리번호 전체의 대표값 — 자기 2차를 따로 적지 않은 수주(1차가 프로젝트 고객과 같은 수주)가 이 값을 따릅니다. 수주마다 다르면 맨 위 「고칠 대상」에서 그 수주를 골라 고칩니다(z1191z14)">(대표값)</span>{% endif %} <span class="sub">(최종 고객 — 다를 때만, 선택)</span></label>
           <input type="text" name="secondary_customer" id="pf_secondary_customer" autocomplete="off"
                  value="{{ project.secondary_customer or '' }}" placeholder="최종 고객사명(선택) · 여러 곳: SEV 8대, SEVT 3대" title="여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)">
           {# 최종 고객 매출(참고)은 UI에서 내림 — 기존 값은 hidden 으로 보존(편집 시 미손실)
@@ -864,7 +864,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         })();
         </script>
         <style>
-        .knk-ac { position:absolute; left:0; right:0; top:100%; z-index:60; background:var(--qv-surface,#fff);
+        .knk-ac { position:absolute; left:0; right:0; top:100%; z-index:60; background:var(--qv-surface);
                   border:1px solid var(--qv-line); border-radius:0 0 8px 8px; max-height:240px; overflow-y:auto;
                   box-shadow:0 10px 28px rgba(0,0,0,.14); margin-top:-1px; }
         .knk-ac .ac-item { padding:9px 13px; font-size:13px; cursor:pointer; color:var(--qv-ink); border-top:1px solid var(--qv-line); }
@@ -910,15 +910,15 @@ html,body{background:#fff!important;overflow:auto!important;}
       {% set _d14 = so_rows|selectattr('due_date')|sort(attribute='due_date')|last %}
       <div class="pf-row" id="pfConfirmRows">
         <div class="pf-field">
-          <label>발주일 <span class="sub" style="color:#b45309;font-weight:700;">(수주마다 다름 — 가장 이른 발주)</span></label>
+          <label>발주일 <span class="sub" style="color:var(--knk-warning);font-weight:700;">(수주마다 다름 — 가장 이른 발주)</span></label>
           <div class="z14-ro-date">{{ project.order_date or '—' }}{% if _o14 %}<span class="z14-src">← 수주 {{ _o14.order_no }}</span>{% endif %}</div>
         </div>
         <div class="pf-field">
-          <label>납기 <span class="sub" style="color:#b45309;font-weight:700;">(수주마다 다름 — 가장 늦은 납기)</span></label>
+          <label>납기 <span class="sub" style="color:var(--knk-warning);font-weight:700;">(수주마다 다름 — 가장 늦은 납기)</span></label>
           <div class="z14-ro-date">{{ project.due_date or '—' }}{% if _d14 %}<span class="z14-src">← 수주 {{ _d14.order_no }}</span>{% endif %}</div>
         </div>
       </div>
-      <div style="margin:-4px 0 10px;font-size:11.5px;color:#9a3412;">ⓘ 수주가 {{ so_rows|length }}건이라 발주일·납기는 여기서 고치지 않습니다 — 맨 위 <b>「✏️ 고칠 대상」</b>에서 수주번호를 골라 그 수주의 날짜를 고치세요.</div>
+      <div style="margin:-4px 0 10px;font-size:11.5px;color:var(--knk-warning);">ⓘ 수주가 {{ so_rows|length }}건이라 발주일·납기는 여기서 고치지 않습니다 — 맨 위 <b>「✏️ 고칠 대상」</b>에서 수주번호를 골라 그 수주의 날짜를 고치세요.</div>
       {% else %}
       <div class="pf-row" id="pfConfirmRows">
         <div class="pf-field">
@@ -1208,8 +1208,8 @@ html,body{background:#fff!important;overflow:auto!important;}
           var v = sel.value;
           var strict = (v === '진행중' || v === '출하');
           if (strict) {
-            hint.style.background = '#fff8e8';
-            hint.style.color = '#7c4a03';
+            hint.style.background = 'var(--knk-warning-subtle)';
+            hint.style.color = 'var(--knk-warning)';
             hint.innerHTML = document.getElementById('z14Box')
               ? '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — 발주일·납기는 <b>수주마다</b> 맨 위 「✏️ 고칠 대상」에서 그 수주를 골라 고칩니다(z1191z14).'
               : '⚠ <b>' + v + '</b> 단계는 실제 수주 발생 — <b>1대 단가 · 발주일 · 납기</b> 입력 필수입니다.';
@@ -1423,9 +1423,9 @@ html,body{background:#fff!important;overflow:auto!important;}
 
     {% endif %}{# /not _is_consumable and not _is_parts_form — ③ 금액 섹션 #}
     {% if _is_parts_form %}
-    <div class="pf-section" style="background:#fef9e6;border:1px dashed #d4b75a;">
-      <h3 style="color:#7c4a03;">🧰 부품 형태 출고</h3>
-      <div style="font-size:12.5px;color:#5a4a00;line-height:1.65;padding:0 4px;">
+    <div class="pf-section" style="background:var(--knk-warning-subtle);border:1px dashed var(--knk-warning-line);">
+      <h3 style="color:var(--knk-warning);">🧰 부품 형태 출고</h3>
+      <div style="font-size:12.5px;color:var(--knk-warning);line-height:1.65;padding:0 4px;">
         등록 후 <b>프로젝트 상세 화면</b> 에서 정식 PACKING LIST 양식으로 부품 라인을 일괄 추가/편집합니다.<br>
         엑셀 양식 다운로드 → 부품 채워서 업로드 → 자동 매칭(품명/규격/메이커/원산지/BOX/수량/단가).
       </div>
@@ -1447,7 +1447,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       {# 입력칸 영역만 스크롤 (헤더 제외). 많아지면 내부 스크롤, 헤더는 고정 #}
       <div id="pfExtraItems" style="max-height:320px;overflow-y:auto;padding-right:2px;"></div>
       <button type="button" id="pfAddItem"
-              style="margin-top:8px;padding:8px 16px;background:var(--qv-ink-2);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">➕ 품목 추가</button>
+              style="margin-top:8px;padding:8px 16px;background:var(--qv-ink-2);color:var(--knk-text-inverse);border:0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">➕ 품목 추가</button>
       <div class="sub" style="font-size:11px;color:var(--qv-ink-3);margin-top:8px;line-height:1.55;">
         ⓘ 한 관리번호(프로젝트)에 장비·부품 등 <b>여러 품목</b>을 함께 등록할 수 있습니다.
         <b>기타</b>는 모델명 없이 품명만 입력합니다. (추가 품목은 등록 시 수주번호로도 함께 발행됩니다)
@@ -1478,7 +1478,7 @@ html,body{background:#fff!important;overflow:auto!important;}
         + '<input type="number" name="pi_qty[]" class="pi-qty" value="1" min="1" style="width:100%;padding:6px;text-align:center;">'
         + '<input type="text" name="pi_price[]" class="pi-price" inputmode="decimal" placeholder="0" style="width:100%;padding:6px;text-align:right;">'
         + '<input type="text" class="pi-amt" readonly value="0" style="width:100%;padding:6px;text-align:right;background:var(--qv-surface-3);color:var(--knk-red);font-weight:700;">'
-        + '<button type="button" class="pi-del" title="이 품목 삭제" style="width:28px;height:34px;border:1px solid var(--qv-line);background:#fff;border-radius:6px;cursor:pointer;color:#c33;font-weight:700;">✕</button>'
+        + '<button type="button" class="pi-del" title="이 품목 삭제" style="width:28px;height:34px;border:1px solid var(--qv-line);background:var(--knk-bg-surface);border-radius:6px;cursor:pointer;color:var(--knk-danger);font-weight:700;">✕</button>'
         + '</div>';
       }
       function attach(row){
@@ -1539,7 +1539,7 @@ html,body{background:#fff!important;overflow:auto!important;}
       {% endif %}
     </div>
     {# v5H194: 클라이언트사이드 검증 안내 영역 — 빈 항목들을 한 번에 표시 #}
-    <div id="pfValidateBanner" style="display:none;margin-top:14px;padding:12px 14px;background:#fff3f3;border:1px solid var(--knk-red);border-radius:var(--radius-md);color:var(--knk-red);font-size:13px;font-weight:600;line-height:1.7;"></div>
+    <div id="pfValidateBanner" style="display:none;margin-top:14px;padding:12px 14px;background:var(--knk-danger-subtle);border:1px solid var(--knk-red);border-radius:var(--radius-md);color:var(--knk-red);font-size:13px;font-weight:600;line-height:1.7;"></div>
   </form>
   {# v5H226z324(대표 지시): 기타(OTHER) 탭 전용 일괄 등록 — 신규 등록 시만 #}
   {% if not project %}<div style="padding:0 var(--content-pad,32px);">{% set bulk_biz='E' %}{% set bulk_label='기타' %}{% include "_v5_partials/bulk_import.html" %}</div>{% endif %}
@@ -1547,7 +1547,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     /* v5H194: 빈 필수 필드 빨간 테두리 강조 */
     .pf-field input.pf-missing,
     .pf-field select.pf-missing,
-    .pf-field textarea.pf-missing { border-color: var(--knk-red) !important; box-shadow: 0 0 0 2px rgba(218,72,76,0.20) !important; background: #fff3f3 !important; }
+    .pf-field textarea.pf-missing { border-color: var(--knk-red) !important; box-shadow: 0 0 0 2px rgba(218,72,76,0.20) !important; background: var(--knk-danger-subtle) !important; }
   </style>
   {# v5H194: 신규 등록 클라이언트 검증 — 페이지 reload 없이 빈 필드 즉시 표시 + 입력값 보존 #}
   {% if not project %}
@@ -1748,7 +1748,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           window.knkLeaveOk = true;
           location.href = '/projects/' + pid + '/edit?so=' + encodeURIComponent(so) + '&z14ok=' + encodeURIComponent(so);
         } catch (e) {
-          msg.style.color = '#b91c1c'; msg.textContent = '⚠ ' + e.message;
+          msg.style.color = 'var(--knk-danger)'; msg.textContent = '⚠ ' + e.message;
           btn.disabled = false;
         }
       });

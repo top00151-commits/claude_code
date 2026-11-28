@@ -11,9 +11,9 @@
 /* v5H226z74 빅터 핫픽스: v5 토큰 → Quiet Tone v3 일괄 마이그 */
 /* v5H226z73: 시안1 토큰 + .mgmt-pill — consumable_detail v1+v2 */
 body {
-  --qv-surface:#ffffff; --qv-surface-2:#f7f8fa; --qv-line:#eef0f4;
-  --qv-ink:#0f172a; --qv-ink-2:#334155; --qv-ink-3:#64748b;
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+  --qv-surface:var(--knk-bg-surface); --qv-surface-2:var(--knk-bg-inset); --qv-line:var(--knk-border-subtle);
+  --qv-ink:var(--knk-text-primary); --qv-ink-2:var(--knk-text-secondary); --qv-ink-3:var(--knk-text-muted);
+  --biz-t:var(--knk-cat-orange); --biz-m:var(--knk-info); --biz-e:var(--knk-cat-violet); --biz-c:var(--knk-success);
 }
 @media (max-width:1100px){ .page-title{font-size:22px !important;} }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,20 +24,20 @@ a { text-decoration: none; color: inherit; }
 .page-title { font-size: 26px; font-weight: 700; margin-top: 4px; }
 .page-title em { font-style: normal; color: var(--qv-ink-2); }
 .btn-secondary { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
-.btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
-.btn-notify { background: linear-gradient(135deg, #059669, #047857); color: white; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-danger { background: var(--knk-danger-subtle); color: var(--knk-danger); border: 1px solid var(--knk-danger-line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.btn-notify { background: var(--knk-success); color: white; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-notify:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(5,150,105,.3); }
 #notifyMsg { padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-left: 8px; display:none; }
-#notifyMsg.ok { background:#d1fae5; color:#065f46; display:inline-block; }
-#notifyMsg.err { background:#fee2e2; color:#991b1b; display:inline-block; }
+#notifyMsg.ok { background:var(--knk-success-subtle); color:var(--knk-success); display:inline-block; }
+#notifyMsg.err { background:var(--knk-danger-subtle); color:var(--knk-danger); display:inline-block; }
 /* v5H226z292: 관련부서 통보 — 부서 선택 모달 */
 .ntf-modal { position:fixed; inset:0; background:rgba(15,23,42,.42); z-index:10050; display:flex; align-items:center; justify-content:center; }
-.ntf-card { background:#fff; border-radius:12px; width:min(440px,93vw); max-height:84vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.32); }
+.ntf-card { background:var(--knk-bg-surface); border-radius:12px; width:min(440px,93vw); max-height:84vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.32); }
 .ntf-head { padding:14px 18px; font-weight:700; font-size:15px; border-bottom:1px solid var(--qv-line); }
 .ntf-body { padding:8px 18px; overflow:auto; }
 .ntf-actions { font-size:12px; margin:4px 0 6px; }
-.ntf-actions a { color:#1d4ed8; text-decoration:none; font-weight:700; cursor:pointer; }
-.ntf-row { display:flex; align-items:center; gap:9px; padding:8px 4px; font-size:13.5px; border-bottom:1px solid #f1f0ec; cursor:pointer; }
+.ntf-actions a { color:var(--knk-info); text-decoration:none; font-weight:700; cursor:pointer; }
+.ntf-row { display:flex; align-items:center; gap:9px; padding:8px 4px; font-size:13.5px; border-bottom:1px solid var(--knk-border-subtle); cursor:pointer; }
 .ntf-row input { width:16px; height:16px; }
 .ntf-row .ntf-cnt { margin-left:auto; font-size:11px; color:var(--qv-ink-3); }
 .ntf-foot { padding:12px 18px; border-top:1px solid var(--qv-line); display:flex; gap:8px; justify-content:flex-end; }
@@ -46,36 +46,36 @@ a { text-decoration: none; color: inherit; }
    td 는 표 셀 그대로 두고 안쪽 wrapper(.spec-wrap)만 flex. */
 .spec-wrap { display:flex; gap:2px; align-items:center; }
 .spec-wrap input { flex:1; min-width:0; }
-.spec-hist-btn { flex:0 0 auto; border:1px solid var(--qv-line); background:#f8f6f1; border-radius:5px; font-size:12px; padding:2px 5px; cursor:pointer; }
-.spec-hist-btn:hover { background:#eef2ff; border-color:#c7d2fe; }
+.spec-hist-btn { flex:0 0 auto; border:1px solid var(--qv-line); background:var(--knk-bg-subtle); border-radius:5px; font-size:12px; padding:2px 5px; cursor:pointer; }
+.spec-hist-btn:hover { background:var(--knk-cat-violet-subtle); border-color:var(--knk-cat-violet-line); }
 .sh-card { width:min(760px,95vw); }
 .sh-table { width:100%; border-collapse:collapse; font-size:12.5px; margin:6px 0 12px; }
-.sh-table th { background:#f4f1e8; border:1px solid var(--qv-line); padding:5px 8px; white-space:nowrap; }
+.sh-table th { background:var(--knk-bg-subtle); border:1px solid var(--qv-line); padding:5px 8px; white-space:nowrap; }
 .sh-table td { border:1px solid var(--qv-line); padding:5px 8px; white-space:nowrap; }
 .sh-table td.num { text-align:right; }
 .sh-sub { font-size:12px; color:var(--qv-ink-3); margin:2px 0 6px; }
 /* v5H226z890(대표 지시): 통보 개별 인원 선택(제작요청과 동일) */
-.ntf-teamblk { border-bottom:1px solid #f1f0ec; }
+.ntf-teamblk { border-bottom:1px solid var(--knk-border-subtle); }
 .ntf-teamrow { display:flex; align-items:center; gap:6px; }
 .ntf-teamrow .ntf-row { flex:1; border-bottom:none; }
-.ntf-exp { flex-shrink:0; border:1px solid #cbd5e1; background:#fff; color:#2563eb; border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
+.ntf-exp { flex-shrink:0; border:1px solid var(--knk-border-default); background:var(--knk-bg-surface); color:var(--knk-info); border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
 .ntf-members { display:none; flex-wrap:wrap; gap:4px 12px; padding:2px 0 8px 26px; }
 .ntf-members.knkp-open, .ntf-members.open { display:flex; }
-.ntf-mrow { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; cursor:pointer; }
+.ntf-mrow { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:var(--knk-text-secondary); cursor:pointer; }
 .ntf-mrow input { width:15px; height:15px; }
-.ntf-mrank { color:#94a3b8; font-size:10.5px; }
+.ntf-mrank { color:var(--knk-text-muted); font-size:10.5px; }
 .card { background: var(--qv-surface); border: 1px solid var(--qv-line); border-radius: 12px; padding: 20px; margin: 0 32px 16px; }
 /* v5H226z306(대표 지시): 정보란 재배치 — 의미 묶음 + 칸 테두리(엑셀형) + 읽기전용 칸 구분 */
 .header-grid { display: block; }
 /* v5H226z308(대표 지시): 정보란 A안 — 묶음 라벨 좌측 칩 + 칸마다 '라벨 값' 한 줄 → 묶음당 1줄(전체 4줄) */
 .info-sect { display:flex; align-items:stretch; border:1px solid var(--qv-line); border-radius:7px; overflow:hidden; margin-bottom:4px; }
 .info-sect:last-child { margin-bottom:0; }
-.info-sect .sect-label { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:46px; font-size:10px; font-weight:700; color:var(--qv-ink-3); background:var(--qv-surface-2,#efeee9); padding:0 4px; border-right:1px solid var(--qv-line); text-align:center; line-height:1.1; }
+.info-sect .sect-label { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:46px; font-size:10px; font-weight:700; color:var(--qv-ink-3); background:var(--qv-surface-2); padding:0 4px; border-right:1px solid var(--qv-line); text-align:center; line-height:1.1; }
 .info-row { flex:1; min-width:0; display:grid; gap:1px; background:var(--qv-line); }   /* 1px gap = 칸 구분선 */
 .info-row.c3 { grid-template-columns:repeat(3,1fr); }
 .info-row.c4 { grid-template-columns:repeat(4,1fr); }
-.h-cell { display:flex; align-items:center; gap:6px; background:#fff; padding:3px 10px; min-width:0; }
-.h-cell.ro { background:var(--qv-surface-2,#faf9f7); }   /* 읽기전용 칸 옅은 배경 */
+.h-cell { display:flex; align-items:center; gap:6px; background:var(--knk-bg-surface); padding:3px 10px; min-width:0; }
+.h-cell.ro { background:var(--qv-surface-2); }   /* 읽기전용 칸 옅은 배경 */
 .h-cell .lbl { flex-shrink:0; font-size:9.5px; color:var(--qv-ink-3); font-weight:600; margin:0; white-space:nowrap; }
 .h-cell .val { flex:1; min-width:0; font-size:12.5px; font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .h-cell .val.amount { color: var(--knk-red); font-size: 13px; }
@@ -86,7 +86,7 @@ a { text-decoration: none; color: inherit; }
 /* v5H226z304(대표 지시): 라인 표 — 작업일정표(board) '시트 양식'(격자) 이식 */
 table.items { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 /* 칸 사이 세로 구분선(#eee5d4) + 가로 구분선(var(--line)) = board 격자 핵심 */
-table.items th, table.items td { padding: 0 8px; height: 30px; border-bottom: 1px solid var(--line); border-right: 1px solid #eee5d4; text-align: left; vertical-align: middle; }
+table.items th, table.items td { padding: 0 8px; height: 30px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--knk-border-subtle); text-align: left; vertical-align: middle; }
 table.items th:last-child, table.items td:last-child { border-right: 0; }   /* 우측 외곽 중복선 제거 */
 /* v5H226z960 (대표 지시·버그수정): 칸 숨김 = col폭0 + 이 클래스(패딩·테두리·overflow 제거)로 완전히 접음. 숨김칸에만 적용(전역 overflow:hidden 금지 — 셀 내 검색 드롭다운 보존). */
 table.items th.itm-hidden, table.items td.itm-hidden { padding: 0 !important; border-right: 0 !important; overflow: hidden !important; white-space: nowrap !important; }
@@ -100,16 +100,16 @@ table.items th.amount { text-align: center; }
 table.items input { padding: 1px 6px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
 /* v5H226z960 (대표 지시): 단가·금액 편집칸 통화기호 앞표기(규정 z750/z758) — 기호 span + 숫자 입력(우측정렬). money()는 표시셀, 편집셀은 ccysym+pricefmt. */
 table.items .amt-inp { display:flex; align-items:center; gap:1px; width:100%; }
-table.items .amt-inp .ccy-pre { flex:0 0 auto; color:var(--qv-ink-3,#64748b); font-size:11px; font-weight:600; }
+table.items .amt-inp .ccy-pre { flex:0 0 auto; color:var(--qv-ink-3); font-size:11px; font-weight:600; }
 table.items .amt-inp input { width:100%; min-width:0; text-align:right; }
-table.items input:hover { border-color: var(--qv-line); background:#fff; }
-table.items input:focus { outline: none; border-color: var(--knk-red); background:#fff; box-shadow: 0 0 0 1px var(--knk-red) inset; }
+table.items input:hover { border-color: var(--qv-line); background:var(--knk-bg-surface); }
+table.items input:focus { outline: none; border-color: var(--knk-red); background:var(--knk-bg-surface); box-shadow: 0 0 0 1px var(--knk-red) inset; }
 table.items img { width: 90px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; }  /* z295 와이드 2:1 — overflow:hidden 미적용(클리핑 방지) */
-table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover */
+table.items tbody tr:hover td { background: var(--knk-bg-hover); }   /* board 크림 hover */
 /* v5H226z298: 정보란 인라인 편집 + 책갈피 탭 + 변경 이력 */
-.header-grid .ef { flex:1 1 0; width:auto; min-width:0; box-sizing:border-box; padding:1px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; font-weight:600; color:var(--qv-ink-1,#1f2937); background:transparent; }
-.header-grid .ef:hover { border-color:var(--qv-line); background:#fff; }
-.header-grid .ef:focus { outline:none; border-color:#2563eb; background:#fff; }
+.header-grid .ef { flex:1 1 0; width:auto; min-width:0; box-sizing:border-box; padding:1px 6px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; font-weight:600; color:var(--qv-ink-1); background:transparent; }
+.header-grid .ef:hover { border-color:var(--qv-line); background:var(--knk-bg-surface); }
+.header-grid .ef:focus { outline:none; border-color:var(--knk-info); background:var(--knk-bg-surface); }
 /* v5H226z889(대표 지시): 정보칸에 마우스 올리면 화면이 미세하게 흔들리는 문제 — 실측으로 진짜 원인 확정.
    측정(실브라우저 CSSOM 열거 + 실제 hover): 흔들림의 원인은 날짜칸이 아니라, 정보칸을 감싼 .card 다.
    v5_tokens.css 의 `.card:hover{ transform: translateY(-2px) }`(+ `.card{ transition: all .2s }`)가
@@ -120,21 +120,21 @@ table.items tbody tr:hover td { background: #fffdf5; }   /* board 크림 hover *
    (z888 의 '날짜칸 스피너·지우기 버튼' 가설은 원인이 아니어서 해당 블록을 revert.) */
 .card { transition: none; }
 .card:hover { transform: none; box-shadow: 0 1px 2px rgba(15,23,42,.04); border-color: var(--qv-line); }
-.header-grid .ef.cust-bad { color:#b91c1c; background:#fef2f2; }
+.header-grid .ef.cust-bad { color:var(--knk-danger); background:var(--knk-danger-subtle); }
 /* v5H226z958 (대표 지시): 고객사 검색형 선택창 — 셀 안에서 다른 .ef 칸과 동일하게 꽉 차게. */
 #coCustWrap .knkcust-wrap { flex:1 1 0; min-width:0; }
 #coCustWrap input[data-cust-picker] { width:100%; }
 #coCustWrap .knkcust-dd { font-size:12px; }
 .co-tabs { display:flex; gap:6px; margin:18px 0 0; }
-.co-tab { padding:8px 16px; border:1px solid var(--qv-line); border-bottom:none; border-radius:8px 8px 0 0; background:#f4f4f5; color:var(--qv-ink-2); font-weight:700; font-size:13px; cursor:pointer; }
-.co-tab.active { background:#fff; color:var(--knk-red); box-shadow:0 -2px 0 var(--knk-red) inset; }
+.co-tab { padding:8px 16px; border:1px solid var(--qv-line); border-bottom:none; border-radius:8px 8px 0 0; background:var(--knk-bg-subtle); color:var(--qv-ink-2); font-weight:700; font-size:13px; cursor:pointer; }
+.co-tab.active { background:var(--knk-bg-surface); color:var(--knk-red); box-shadow:0 -2px 0 var(--knk-red) inset; }
 table.hist { width:100%; border-collapse:collapse; font-size:12.5px; }
 table.hist th, table.hist td { padding:6px 10px; border-bottom:1px solid var(--qv-line); text-align:left; vertical-align:top; }
-table.hist th { background:#f8f8f8; color:var(--qv-ink-3); font-weight:600; white-space:nowrap; }
+table.hist th { background:var(--knk-bg-inset); color:var(--qv-ink-3); font-weight:600; white-space:nowrap; }
 /* v5H226z300: 자재코드 연결 — 추천 버튼 / 검색 결과 */
-.btn-suggest { display:inline-block; margin-bottom:3px; padding:2px 8px; font-size:10.5px; font-weight:700; color:#065f46; background:#d1fae5; border:1px solid #6ee7b7; border-radius:10px; cursor:pointer; }
-.btn-suggest:hover { background:#a7f3d0; }
-.part-opt:hover { background:#eef6ff; }
+.btn-suggest { display:inline-block; margin-bottom:3px; padding:2px 8px; font-size:10.5px; font-weight:700; color:var(--knk-success); background:var(--knk-success-subtle); border:1px solid var(--knk-success-line); border-radius:10px; cursor:pointer; }
+.btn-suggest:hover { background:var(--knk-success-line); }
+.part-opt:hover { background:var(--knk-info-subtle); }
 /* v5H226z303/z304: 라인 표 칸 너비 조정 핸들(작업일정표처럼) — table-layout/th position 은 위 z304 블록에서 지정 */
 table.items th .col-rz { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; user-select:none; z-index:5; }
 table.items th .col-rz:hover { background:rgba(176,16,16,.25); }   /* board(col-resizer)와 동일 */
@@ -147,44 +147,44 @@ table.items tfoot td { background: var(--paper-2); font-weight: 700; }   /* v5H2
 table.items th.photo-cell, table.items td.photo-cell { padding: 0 4px; text-align: center; }
 /* v5H226z904 (대표 지시): 사진 칸 클릭 선택 → Ctrl+V 로 복사한 사진 붙여넣기(엑셀식) */
 table.items td.photo-cell { cursor: cell; outline: none; position: relative; }
-table.items td.photo-cell.pc-sel { box-shadow: inset 0 0 0 2px var(--knk-red,#A5282C); background: #fff7f7; }
+table.items td.photo-cell.pc-sel { box-shadow: inset 0 0 0 2px var(--knk-red); background: var(--knk-danger-subtle); }
 table.items td.photo-cell.pc-busy { opacity: .45; }
 /* v5H226z905 (대표 지시): 사진 칸에 마우스 올리면 우측 상단 ✕ → 확인 후 그 사진만 삭제 */
 table.items td.photo-cell .pc-del {
   position: absolute; top: 2px; right: 2px; width: 17px; height: 17px; padding: 0; line-height: 15px;
-  border: 1px solid #fca5a5; background: #fff; color: #dc2626; border-radius: 50%;
+  border: 1px solid var(--knk-danger-line); background: var(--knk-bg-surface); color: var(--knk-danger); border-radius: 50%;
   font-size: 11px; font-weight: 800; cursor: pointer; display: none; z-index: 2;
 }
 table.items td.photo-cell:hover .pc-del, table.items td.photo-cell:focus-within .pc-del { display: block; }
-table.items td.photo-cell .pc-del:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
+table.items td.photo-cell .pc-del:hover { background: var(--knk-danger); color: var(--knk-text-inverse); border-color: var(--knk-danger); }
 /* v5H226z725: 라인 표 select(형태 등) — input 과 동일 룩 */
 table.items select { padding: 1px 4px; border: 1px solid transparent; border-radius: 3px; background: transparent; font-size: 12px; width: 100%; box-sizing: border-box; }
-table.items select:hover { border-color: var(--qv-line); background:#fff; }
-table.items select:focus { outline: none; border-color: var(--knk-red); background:#fff; }
+table.items select:hover { border-color: var(--qv-line); background:var(--knk-bg-surface); }
+table.items select:focus { outline: none; border-color: var(--knk-red); background:var(--knk-bg-surface); }
 /* v5H226z725: 발주 공통(ord-col) 칸 — 라인 단위가 아닌 발주(주문) 단위(모든 줄 동일) → 옅은 파랑으로 구분 */
-table.items th.ord-col { background:#eef4fb; }
-table.items td.ord-col { background:#f5f9fe; }
-table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
+table.items th.ord-col { background:var(--knk-info-subtle); }
+table.items td.ord-col { background:var(--knk-info-subtle); }
+table.items tbody tr:hover td.ord-col { background:var(--knk-info-line); }
 /* v5H226z309(대표 지시): 라인 직접 추가 버튼 + 사진 첨부 컨트롤 */
-.btn-addline { padding:7px 16px; border:1px solid var(--knk-red); border-radius:8px; background:var(--knk-red); color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
+.btn-addline { padding:7px 16px; border:1px solid var(--knk-red); border-radius:8px; background:var(--knk-red); color:var(--knk-text-inverse); font-size:13px; font-weight:700; cursor:pointer; }
 .btn-addline:hover { filter:brightness(.95); }
-.photo-add { display:inline-flex; align-items:center; justify-content:center; width:42px; height:26px; padding:0; border:1px dashed var(--qv-line); border-radius:5px; cursor:pointer; font-size:14px; line-height:1; background:#fafafa; color:inherit; font-family:inherit; appearance:none; -webkit-appearance:none; }
-.photo-add:hover { border-color:var(--knk-red); background:#fff5f5; }
+.photo-add { display:inline-flex; align-items:center; justify-content:center; width:42px; height:26px; padding:0; border:1px dashed var(--qv-line); border-radius:5px; cursor:pointer; font-size:14px; line-height:1; background:var(--knk-bg-inset); color:inherit; font-family:inherit; appearance:none; -webkit-appearance:none; }
+.photo-add:hover { border-color:var(--knk-red); background:var(--knk-danger-subtle); }
 /* v5H226z305(대표 지시): 라인 표 툴바 — 작업일정표 메뉴 이식(날짜 컨트롤 제외) */
 .co-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
-.co-tools button, .co-tools .tool-btn { padding:6px 12px; border:1px solid var(--qv-line); border-radius:7px; background:var(--paper-2); font-size:12.5px; font-weight:700; color:var(--qv-ink-1,#1f2937); cursor:pointer; }
-.co-tools button:hover, .co-tools .tool-btn:hover { background:#fff; border-color:var(--knk-red); }
+.co-tools button, .co-tools .tool-btn { padding:6px 12px; border:1px solid var(--qv-line); border-radius:7px; background:var(--paper-2); font-size:12.5px; font-weight:700; color:var(--qv-ink-1); cursor:pointer; }
+.co-tools button:hover, .co-tools .tool-btn:hover { background:var(--knk-bg-surface); border-color:var(--knk-red); }
 .co-tools .cols-menu { position:relative; display:inline-block; }
-.co-tools .cols-pop { display:none; position:absolute; top:34px; left:0; z-index:30; background:#fff; border:1px solid var(--qv-line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:8px 6px; min-width:150px; }
+.co-tools .cols-pop { display:none; position:absolute; top:34px; left:0; z-index:30; background:var(--knk-bg-surface); border:1px solid var(--qv-line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:8px 6px; min-width:150px; }
 .co-tools .cols-pop.show { display:block; }
 .co-tools .cols-pop label { display:flex; align-items:center; gap:7px; font-size:12.5px; padding:4px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
-.co-tools .cols-pop label:hover { background:#fdf3f3; }
-.co-tools .cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+.co-tools .cols-pop label:hover { background:var(--knk-danger-subtle); }
+.co-tools .cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:var(--knk-text-inverse); font-size:12px; font-weight:700; cursor:pointer; }
 .co-tools .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
 .co-tools .co-hint { font-size:11px; color:var(--qv-ink-3); }
 /* 전체화면(표 영역만) */
-.co-items-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; background:#fff; padding:16px; max-height:100vh; overflow:auto; }
-.co-items-wrap:fullscreen { background:#fff; padding:16px; overflow:auto; }
+.co-items-wrap.fs { position:fixed; inset:0; z-index:9999; margin:0; background:var(--knk-bg-surface); padding:16px; max-height:100vh; overflow:auto; }
+.co-items-wrap:fullscreen { background:var(--knk-bg-surface); padding:16px; overflow:auto; }
 /* 화면 인쇄 — 표만(버튼으로 인쇄할 때만 적용) */
 @media print {
   body.co-print-items * { visibility:hidden; }
@@ -204,13 +204,13 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
         {% set pg_center = 'sales' %}{% set pg_menu_label = '프로젝트' %}{% set pg_menu_url = '/projects' %}{% set pg_target = co.mgmt_code or co.co_no %}{% set pg_search_hint = "검색창에 관리번호 '" ~ (co.mgmt_code or co.co_no) ~ "' 입력 → 📦 소모품 책갈피 확인" %}
         {% include '_v5_partials/page_path_guide.html' with context %}
         {# v5H226z73: 헤더 mgmt_code 빨강 monospace → .mgmt-pill lg 잉크 알약 #}
-        <h1 class="page-title" data-dn="title">{% if co.mgmt_code %}<span class="mgmt-pill lg">{{ co.mgmt_code }}</span> {% endif %}{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
+        <h1 class="page-title" data-dn="title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>{% if co.mgmt_code %}<span class="mgmt-pill lg">{{ co.mgmt_code }}</span> {% endif %}{{ co.co_no }} <em>{{ STATUS_LABELS.get(co.status, co.status) }}</em></h1>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <a class="btn-secondary" href="/consumables">← 목록</a>
         {# v5H226z370(대표 지시): 수정 반영(저장) — 현재 입력값(고객사 포함) 전부 한 번에 저장 후 새로고침. 자동저장도 유지. #}
-        <button id="coSaveBtn" type="button" onclick="coSaveAll()" style="background:var(--knk-red);color:#fff;border:1px solid var(--knk-red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">💾 수정 반영(저장)</button>
-        <span id="coSaveMsg" style="font-size:12px;font-weight:700;color:#16a34a;"></span>
+        <button id="coSaveBtn" type="button" onclick="coSaveAll()" style="background:var(--knk-red);color:var(--knk-text-inverse);border:1px solid var(--knk-red);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;">💾 수정 반영(저장)</button>
+        <span id="coSaveMsg" style="font-size:12px;font-weight:700;color:var(--knk-success);"></span>
         {# z1191z9: 이 화면이 보여 주는 소모품 번호 — 저장 때 같이 보내 서버가 주소 번호와 맞춰 본다(다르면 저장 거부) #}
         <span id="coPage" data-co-id="{{ co.id }}" hidden></span>
         {# v5H145 — 관련부서 통보 발송 (자재구매·생산팀 + admin) #}
@@ -224,9 +224,9 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
 
     {# v5H226z890 (대표 지시): 통보받은 부서·인원 표시 — 제작요청서 상세와 동일. co.notify_* 스냅샷. #}
     {% if co.notify_sent_to %}
-    <div style="margin:0 32px 12px;padding:9px 14px;border-radius:9px;background:#f0f9ff;border:1px solid #bae6fd;font-size:12.5px;color:#075985;line-height:1.6;">
-      📣 <b>통보 완료</b> — {{ co.notify_dept_count or 0 }}부서 · {{ co.notify_sent_to or 0 }}명{% if co.notify_msg_sent %} · 📱 이음 {{ co.notify_msg_sent }}{% endif %}{% if co.notify_at %} <span style="color:#64748b;">({{ co.notify_at }}{% if co.notify_by_name %} · {{ co.notify_by_name }}{% endif %})</span>{% endif %}
-      {% if co.notify_recipients %}<br><span style="color:#0c4a6e;">📋 받는 사람 : {{ co.notify_recipients }}</span>{% endif %}
+    <div style="margin:0 32px 12px;padding:9px 14px;border-radius:9px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);font-size:12.5px;color:var(--knk-info);line-height:1.6;">
+      📣 <b>통보 완료</b> — {{ co.notify_dept_count or 0 }}부서 · {{ co.notify_sent_to or 0 }}명{% if co.notify_msg_sent %} · 📱 이음 {{ co.notify_msg_sent }}{% endif %}{% if co.notify_at %} <span style="color:var(--knk-text-muted);">({{ co.notify_at }}{% if co.notify_by_name %} · {{ co.notify_by_name }}{% endif %})</span>{% endif %}
+      {% if co.notify_recipients %}<br><span style="color:var(--knk-info);">📋 받는 사람 : {{ co.notify_recipients }}</span>{% endif %}
     </div>
     {% endif %}
 
@@ -460,22 +460,22 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
             {# v5H226z300(대표 지시): 자재코드 연결 — 등록 자재 자동연결(업로드)+추천+수동검색 #}
             <td>
               {% if it.part_id %}
-                <div style="font-weight:700;color:#1e40af;font-size:11.5px;">{{ it.part_no or ('자재#' ~ it.part_id) }}</div>
-                <a onclick="unlinkPart({{ it.id }})" style="font-size:10px;color:#b91c1c;cursor:pointer;">✕ 해제</a>
+                <div style="font-weight:700;color:var(--knk-info);font-size:11.5px;">{{ it.part_no or ('자재#' ~ it.part_id) }}</div>
+                <a onclick="unlinkPart({{ it.id }})" style="font-size:10px;color:var(--knk-danger);cursor:pointer;">✕ 해제</a>
               {% else %}
                 {% if it.suggest_part %}<button type="button" class="btn-suggest" onclick="linkPart({{ it.id }},{{ it.suggest_part.id }})" title="등록 자재 정확일치">🔗 {{ it.suggest_part.part_no }} 연결</button>{% endif %}
                 <div style="position:relative;">
                   <input class="part-search" data-iid="{{ it.id }}" placeholder="🔍 자재 검색" autocomplete="off" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:11px;border:1px solid var(--qv-line);border-radius:4px;">
-                  <div class="part-results" data-iid="{{ it.id }}" style="display:none;position:absolute;left:0;z-index:30;background:#fff;border:1px solid var(--qv-line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);max-height:220px;overflow:auto;width:250px;"></div>
+                  <div class="part-results" data-iid="{{ it.id }}" style="display:none;position:absolute;left:0;z-index:30;background:var(--knk-bg-surface);border:1px solid var(--qv-line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);max-height:220px;overflow:auto;width:250px;"></div>
                 </div>
               {% endif %}
             </td>
             {# v5H226z301(대표 지시): 연결 관리번호 직접 입력+검증(모델/장비 다르면 알람·강제연결) + 모델 자동매칭 추천 #}
             <td>
               {% if it.linked_project_id %}
-                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:#1e40af;font-weight:700;">{{ it.linked_mgmt_code or ('PID ' ~ it.linked_project_id) }}</a>
+                <a href="/project/{{ it.linked_project_id }}" target="_blank" style="color:var(--knk-info);font-weight:700;">{{ it.linked_mgmt_code or ('PID ' ~ it.linked_project_id) }}</a>
                 {% if it.linked_project_name %}<div style="font-size:10px;color:var(--qv-ink-3);">{{ it.linked_project_name }}</div>{% endif %}
-                <a onclick="unlinkMgmt({{ it.id }})" style="font-size:10px;color:#b91c1c;cursor:pointer;">✕ 해제</a>
+                <a onclick="unlinkMgmt({{ it.id }})" style="font-size:10px;color:var(--knk-danger);cursor:pointer;">✕ 해제</a>
               {% else %}
                 {% if it.suggest_mgmt %}<button type="button" class="btn-suggest" onclick="linkMgmt({{ it.id }},'{{ it.suggest_mgmt.mgmt_code }}',1)" title="추천: 같은 고객사 · 모델명/장비명 90%↑ 일치 ({{ it.suggest_mgmt.name }})">🔗 {{ it.suggest_mgmt.mgmt_code }} 연결</button>{% endif %}
                 <input class="mgmt-input" data-iid="{{ it.id }}" placeholder="🔢 관리번호 입력" autocomplete="off" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:11px;border:1px solid var(--qv-line);border-radius:4px;">
@@ -520,8 +520,8 @@ table.items tbody tr:hover td.ord-col { background:#eaf2fc; }
               <td>{{ h.changed_by_name or '—' }}</td>
               <td>{% if h.scope == 'line' %}라인 #{{ h.item_id }}{% else %}정보{% endif %}</td>
               <td style="font-weight:600;">{{ h.label }}</td>
-              <td style="color:#9ca3af;">{{ h.old_value if h.old_value not in (None, '') else '—' }}</td>
-              <td style="color:#b91c1c;font-weight:600;">{{ h.new_value if h.new_value not in (None, '') else '—' }}</td>
+              <td style="color:var(--knk-text-muted);">{{ h.old_value if h.old_value not in (None, '') else '—' }}</td>
+              <td style="color:var(--knk-danger);font-weight:600;">{{ h.new_value if h.new_value not in (None, '') else '—' }}</td>
             </tr>
           {% endfor %}
           </tbody>
@@ -919,9 +919,9 @@ async function openSpecHist(btn){
       var _cur = (typeof CO_ID !== 'undefined' && Number(d.co_id) === Number(CO_ID));
       function _shLnk(txt){
         if (!txt) return '—';
-        if (_cur) return _shEsc(txt) + ' <span style="color:var(--qv-ink-3,#94a3b8);font-size:11px;">(현재)</span>';
+        if (_cur) return _shEsc(txt) + ' <span style="color:var(--qv-ink-3);font-size:11px;">(현재)</span>';
         if (!d.co_id) return _shEsc(txt);
-        return '<a href="/consumables/' + Number(d.co_id) + '" onclick="return _shPop(this)" style="color:#1d4ed8;text-decoration:underline;" title="새 팝업창으로 이 발주 상세 열기 — 지금 화면과 나란히 비교 (같이 나간 품목 확인)">' + _shEsc(txt) + '</a>';
+        return '<a href="/consumables/' + Number(d.co_id) + '" onclick="return _shPop(this)" style="color:var(--knk-info);text-decoration:underline;" title="새 팝업창으로 이 발주 상세 열기 — 지금 화면과 나란히 비교 (같이 나간 품목 확인)">' + _shEsc(txt) + '</a>';
       }
       h += '<tr><td>' + _shEsc(d.sdate || '—') + '</td><td>' + _shEsc(d.customer || '—') + '</td><td>' + _shEsc(d.status_ko) + '</td><td>' + _shLnk(d.co_no) + '</td><td>' + _shLnk(d.mgmt_code) + '</td><td class="num">' + _shEsc(d.qty == null ? '—' : d.qty) + _shEsc(d.unit || '') + '</td><td class="num">' + _shMoney(d.unit_price, d.currency) + '</td><td class="num">' + _shMoney(d.amount, d.currency) + '</td></tr>';
     });

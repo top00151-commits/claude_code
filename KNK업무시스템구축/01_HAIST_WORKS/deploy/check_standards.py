@@ -2049,7 +2049,7 @@ def split_by_path(hits, base, root=None):
 
 
 # ⑤-2 · ⑤-3 면제 — 2026-11-28 규칙 만들 때 센 개수(파일 경로별 · 주석 뺌). ⚠ 늘리지 말 것 — 그 화면을 손볼 때 var(--knk-*) · 로고 파일로 옮기고 숫자를 줄일 것.
-COLOR_BASE = {   # z1191z205 4판: 빠른 등록·제작요청서·전사 일정표·등록 고르기 0 · 3판: 매출 홈·프로젝트 상세·수출 준비·HS 채우기 0 · z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
+COLOR_BASE = {   # z1191z205 5판: 소모품 올리기·프로젝트 양식·영업 기회 양식·소모품 상세 0 · 4판: 빠른 등록·제작요청서·전사 일정표·등록 고르기 0 · 3판: 매출 홈·프로젝트 상세·수출 준비·HS 채우기 0 · z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
     'app/templates/_admin_z83.html': 25, 'app/templates/_contact_styles.html': 4, 'app/templates/_export_price_z86.html': 33,
     'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 17, 'app/templates/_legacy_admin_v4.html': 26,
     'app/templates/_legacy_daily_v4.html': 1, 'app/templates/_legacy_guide_v4.html': 30,
@@ -2102,8 +2102,8 @@ COLOR_BASE = {   # z1191z205 4판: 빠른 등록·제작요청서·전사 일정
     'app/templates/as_detail.html': 12, 'app/templates/as_form.html': 3, 'app/templates/as_list.html': 14,
     'app/templates/bank_recon.html': 14, 'app/templates/bom_tools.html': 19, 'app/templates/bom_upload.html': 26,
     'app/templates/bom_upload_report.html': 19, 'app/templates/calendar.html': 27, 'app/templates/catalog.html': 13,
-    'app/templates/catalog_cart.html': 3, 'app/templates/consumable_detail.html': 93,
-    'app/templates/consumable_form_upload.html': 115, 'app/templates/consumable_prod_request.html': 92,
+    'app/templates/catalog_cart.html': 3,
+    'app/templates/consumable_prod_request.html': 92,
     'app/templates/consumables.html': 29, 'app/templates/contact_detail.html': 19,
     'app/templates/contact_import_vcf.html': 10, 'app/templates/contact_mail.html': 1,
     'app/templates/contacts_list.html': 72, 'app/templates/contacts_scan.html': 15, 'app/templates/customer_detail.html': 28,
@@ -2136,7 +2136,6 @@ COLOR_BASE = {   # z1191z205 4판: 빠른 등록·제작요청서·전사 일정
     'app/templates/prod_requests_list.html': 79,
     'app/templates/profile.html': 1, 'app/templates/progress_dashboard.html': 2, 'app/templates/progress_detail.html': 2,
     'app/templates/project_baseline.html': 21, 'app/templates/project_bom.html': 33,
-    'app/templates/project_form.html': 109,
     
     'app/templates/project_unit_candidates.html': 18, 'app/templates/project_unit_status_sync.html': 27,
     'app/templates/project_units.html': 39, 'app/templates/projects.html': 44, 'app/templates/qc_report_form.html': 21,
@@ -2148,7 +2147,6 @@ COLOR_BASE = {   # z1191z205 4판: 빠른 등록·제작요청서·전사 일정
     'app/templates/sales_aging.html': 12, 'app/templates/sales_dashboard.html': 12, 'app/templates/sales_drill.html': 59,
     'app/templates/sales_flow_guide.html': 18, 'app/templates/sales_fx_gain.html': 30, 'app/templates/sales_glance.html': 40,
     'app/templates/sales_opportunities.html': 76,
-    'app/templates/sales_opportunity_form.html': 99, 
     'app/templates/sales_outstanding.html': 19,
     'app/templates/sales_production.html': 12,
     'app/templates/sales_quote_detail.html': 12, 'app/templates/sales_quote_form.html': 18,
