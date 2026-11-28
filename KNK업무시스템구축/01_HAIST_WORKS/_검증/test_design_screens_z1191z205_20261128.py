@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """z1191z205 디자인 4단계(화면 옮기기) — 화면별 직접 색 · 화면 안 <style> · 끝 기준 · 일부러 어김
 대표 11-28 「진행해」 · 기준 문서 HAIST WORKS디자인변경/2026-11-28_화면기준표_KNK브랜드/2026-11-28_1121_…_v2_디자인을_코드로.md 4단계
-이번 판 = 앞 3화면(작업 일정표 · 수주 목록 · 수주 상세) · z204(75f157c9) 위로 합친 뒤 남은 17색까지. 견적서·홈·로그인은 다음 판.
+이번 판 = 앞 3화면(작업 일정표 · 수주 목록 · 수주 상세) · z204(75f157c9) 위로 합친 뒤 남은 17색까지. 2판(7절) = 견적서(/sales/quotations)·홈·로그인.
 """
 import os, re, sys
 sys.stdout.reconfigure(encoding="utf-8")
@@ -87,6 +87,28 @@ check("일부러 어김: 수주 상세에 #123456 → ⑤-2 가 한 줄 잡음",
 bad2 = sb.replace("var(--knk-info);\"></i>납품", "#2563eb;\"></i>납품", 1); p3 = os.path.join(td, "schedule_board.html"); open(p3, "w", encoding="utf-8").write(bad2)
 check("일부러 어김: 일정표 범례 색을 되돌림 → ⑤-2 가 잡음", len(C.check_direct_colors([p3])) == 1)
 shutil.rmtree(td, ignore_errors=True)
+
+# ── 7. 2판 — 견적서(/sales/quotations) · 홈 · 로그인 ──
+qt = rd("app/templates/sales_quotations.html")
+check("견적 관리 직접 색 0", hexes("app/templates/sales_quotations.html") == [])
+check("견적 관리 --qv-* 다리 뺌 · 제목 앞 세 줄(📋 대신)", "--qv-surface:" not in qt and T3 + "견적·발주서 관리</h1>" in qt)
+check("견적 관리 사업부 책갈피·고른 칸 = 회사 빨강(파랑 아님)", ".qm-bt.on { background:var(--knk-brand); border-color:var(--knk-brand);" in qt and ".qm-k.on { border-color:var(--knk-brand);" in qt)
+check("견적 칸(파랑=정보)·발주서 칸(초록=완료) 놓을 자리 구분 그대로(z147)", ".qm-t tr.over > td:not(.qm-po) { background:var(--knk-info-subtle) !important; }" in qt and "outline:2px dashed var(--knk-success)" in qt)
+check("영업 아래 책갈피 조각 직접 색 0(대체값만 뺌)", hexes("app/templates/_v5_partials/sales_subtabs_z98.html") == [])
+hm = rd("app/templates/home.html")
+check("홈 직접 색 0 · 글꼴 = --knk-font · 정의 없는 --knk-red-deep 안 씀", hexes("app/templates/home.html") == [] and "body { font-family: var(--knk-font);" in hm and "--knk-red-deep" not in hm)
+check("홈 인사말 앞 세 줄", '<h1 class="page-title">' + T3 + "{{ _g137[0] }}</h1>" in hm)
+lg = rd("app/templates/login.html")
+check("로그인 직접 색 0 · --amber 0 · 그러데이션 0", hexes("app/templates/login.html") == [] and "--amber" not in lg and "linear-gradient" not in lg)
+check("로그인 로고 = static/img/brand 흰 색판(빨강 바탕) · 글자로 흉내 낸 KNK 없음", 'src="/static/img/brand/knk-slogan-best_white.svg"' in lg and "/static/logo.png" not in lg and ">KNK</b>" not in lg)
+check("로그인 패턴 = 흰 패턴 한 칸(로그인은 패턴 써도 되는 곳)", "url('/static/img/brand/knk-pattern-tile_white.png') 0 0 / var(--knk-pattern-w)" in lg)
+check("로그인 글꼴 = --knk-font · 기준 값 꼬리 = APP_VERSION", "font-family: var(--knk-font);" in lg and "v5_tokens.css?v={{ APP_VERSION }}" in lg)
+check("로그인 주 단추 = --knk-action 단색 하나", lg.count("background: var(--knk-action);") == 1)
+check("⑤-3 로고 면제값에서 login.html 뺌(0)", "app/templates/login.html" not in C.LOGO_BASE)
+for rel in ("app/templates/sales_quotations.html", "app/templates/home.html", "app/templates/login.html", "app/templates/_v5_partials/sales_subtabs_z98.html"):
+    check("⑤-2 면제값 내림 %s = 0" % rel, rel not in C.COLOR_BASE)
+check("⑤-2 _knk_picker 면제값 = 지금 수(%d)" % len(hexes("app/templates/_knk_picker.html")), C.COLOR_BASE.get("app/templates/_knk_picker.html") == len(hexes("app/templates/_knk_picker.html")))
+
 
 print("결과: %d 통과 / %d 실패" % (ok, fail))
 sys.exit(1 if fail else 0)

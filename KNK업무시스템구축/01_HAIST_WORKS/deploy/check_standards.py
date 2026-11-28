@@ -2015,9 +2015,9 @@ def split_by_path(hits, base, root=None):
 
 
 # ⑤-2 · ⑤-3 면제 — 2026-11-28 규칙 만들 때 센 개수(파일 경로별 · 주석 뺌). ⚠ 늘리지 말 것 — 그 화면을 손볼 때 var(--knk-*) · 로고 파일로 옮기고 숫자를 줄일 것.
-COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 알약 내림(0 은 줄을 뺌)
+COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
     'app/templates/_admin_z83.html': 25, 'app/templates/_contact_styles.html': 4, 'app/templates/_export_price_z86.html': 33,
-    'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 24, 'app/templates/_legacy_admin_v4.html': 26,
+    'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 17, 'app/templates/_legacy_admin_v4.html': 26,
     'app/templates/_legacy_daily_v4.html': 1, 'app/templates/_legacy_guide_v4.html': 30,
     'app/templates/_legacy_home_v4.html': 48, 'app/templates/_legacy_home_v5alias.html': 4,
     'app/templates/_legacy_login_v4.html': 45, 'app/templates/_legacy_logistics_home_v4.html': 8,
@@ -2051,7 +2051,7 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/_v5_partials/po_script.html': 2, 'app/templates/_v5_partials/product_bulk_import.html': 76,
     'app/templates/_v5_partials/project_type_pill.html': 10, 'app/templates/_v5_partials/prq_default_rcpt.html': 17,
     'app/templates/_v5_partials/quote_fill.html': 56, 'app/templates/_v5_partials/quote_rows.html': 34,
-    'app/templates/_v5_partials/reg_tabs.html': 9, 'app/templates/_v5_partials/sales_subtabs_z98.html': 5,
+    'app/templates/_v5_partials/reg_tabs.html': 9,
     'app/templates/_v5_partials/so_calendar.html': 50, 'app/templates/_v5_partials/so_pipeline.html': 15,
     'app/templates/_v5_partials/so_type_pill.html': 10,
     'app/templates/_v5_partials/spa_nav.html': 3, 'app/templates/_v5_partials/step_z156.html': 13,
@@ -2091,8 +2091,8 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/export_ship.html': 2, 'app/templates/export_ship_qr_print.html': 22,
     'app/templates/export_ship_view.html': 13, 'app/templates/fta_form.html': 10, 'app/templates/fta_list.html': 24,
     'app/templates/fta_print.html': 62, 'app/templates/fx_rates.html': 28, 'app/templates/guide.html': 32,
-    'app/templates/guide_work_orders.html': 31, 'app/templates/home.html': 14, 'app/templates/interp_check.html': 40,
-    'app/templates/issue_detail.html': 22, 'app/templates/issue_form.html': 21, 'app/templates/login.html': 2,
+    'app/templates/guide_work_orders.html': 31, 'app/templates/interp_check.html': 40,
+    'app/templates/issue_detail.html': 22, 'app/templates/issue_form.html': 21,
     'app/templates/logistics_home.html': 27, 'app/templates/mail_account.html': 21, 'app/templates/mail_autoreply.html': 15,
     'app/templates/mail_cleanup.html': 19, 'app/templates/mail_company_sig.html': 18, 'app/templates/mail_compose.html': 274,
     'app/templates/mail_files.html': 14, 'app/templates/mail_folders.html': 51,
@@ -2128,7 +2128,7 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/sales_home.html': 155, 'app/templates/sales_opportunities.html': 76,
     'app/templates/sales_opportunity_form.html': 99, 
     'app/templates/sales_outstanding.html': 19,
-    'app/templates/sales_production.html': 12, 'app/templates/sales_quotations.html': 136,
+    'app/templates/sales_production.html': 12,
     'app/templates/sales_quote_detail.html': 12, 'app/templates/sales_quote_form.html': 18,
     'app/templates/sales_receipts_check.html': 73, 'app/templates/sales_report.html': 40,
     'app/templates/sales_shipments_receipts.html': 75, 
@@ -2151,7 +2151,7 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
 LOGO_BASE = {
     'app/templates/_legacy_login_v4.html': 1, 'app/templates/_v5_partials/chrome.html': 1,
     'app/templates/_v5_partials/guide_v5_design.html': 1, 'app/templates/_v5_partials/login_v5_design.html': 1,
-    'app/templates/_v5_partials/print_v5_design.html': 1, 'app/templates/login.html': 2, 'app/templates/meeting_doc.html': 1,
+    'app/templates/_v5_partials/print_v5_design.html': 1, 'app/templates/meeting_doc.html': 1,
     'app/templates/voice_note_form.html': 1
 }    # __LOGO_BASE__
 # 메일 M-2 면제 — 2026-11-28 규칙 만들 때 센 「단추·폴더 이름 속 그림 문자」 수(파일 경로별) · 4단계에서 화면을 옮기며 줄일 것(늘리지 말 것)

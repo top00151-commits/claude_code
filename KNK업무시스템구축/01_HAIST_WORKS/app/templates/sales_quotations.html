@@ -3,78 +3,74 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 /* z1191z105 (대표 11-22 「견적관리 … 관리번호별, 수주번호별 최종 견적서(엑셀) 등록 또는 등록된 상태를 보는걸로」) */
-body {
-  --qv-surface:var(--knk-bg-surface,#FAFBF9); --qv-line:var(--knk-border-subtle,#E2E6E1);
-  --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169);
-}
-.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
+.main > .knk-page-head { background: var(--knk-bg-surface); border-bottom: 1px solid var(--knk-border-subtle); padding-left: var(--content-pad); padding-right: var(--content-pad); }
 .qm-wrap { padding: 12px var(--content-pad) 24px; }
 .qm-kpis { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin-bottom:12px; }   /* z1191z160: 금액 비교 칸 없앰(3칸) */
 .qm-fl { display:flex; flex-direction:column; gap:3px; }   /* z1191z160: 한 수주에 여러 장 = 줄마다 하나 */
-.qm-k { display:block; text-decoration:none; color:inherit; background:#fff; border:1px solid var(--qv-line); border-radius:10px; padding:10px 14px; }
-.qm-k:hover { border-color:#93c5fd; }
+.qm-k { display:block; text-decoration:none; color:inherit; background:var(--knk-bg-surface); border:1px solid var(--qv-line); border-radius:10px; padding:10px 14px; }
+.qm-k:hover { border-color:var(--knk-border-strong); }
 .qm-k .l { font-size:12px; color:var(--qv-ink-3); }
 .qm-k .n { font-size:22px; font-weight:800; color:var(--qv-ink); }
 .qm-k .qm-sub { font-size:11px; color:var(--qv-ink-3); margin-top:2px; }   /* z1191z141 */
-.qm-k.bad .n { color:#b91c1c; } .qm-k.warn .n { color:#b45309; }
-.qm-k.on { border-color:#2563eb; box-shadow:0 0 0 2px #dbeafe; }
+.qm-k.bad .n { color:var(--knk-danger); } .qm-k.warn .n { color:var(--knk-warning); }
+.qm-k.on { border-color:var(--knk-brand); box-shadow:0 0 0 2px var(--knk-brand-subtle); }
 .qm-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
-.qm-bar .chip { padding:5px 11px; border:1px solid var(--qv-line); border-radius:999px; background:#fff; font-size:12.5px; color:var(--qv-ink-2); text-decoration:none; white-space:nowrap; }
-.qm-bar .chip.on { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; font-weight:700; }
+.qm-bar .chip { padding:5px 11px; border:1px solid var(--qv-line); border-radius:999px; background:var(--knk-bg-surface); font-size:12.5px; color:var(--qv-ink-2); text-decoration:none; white-space:nowrap; }
+.qm-bar .chip.on { border-color:var(--knk-brand); background:var(--knk-brand-subtle); color:var(--knk-brand); font-weight:700; }
 .qm-bar input[type=search] { padding:6px 10px; border:1px solid var(--qv-line); border-radius:8px; font-size:13px; min-width:220px; }
-.qm-drop { margin-left:auto; display:flex; align-items:center; gap:10px; padding:8px 14px; border:2px dashed #93c5fd; border-radius:10px; background:#f0f7ff; color:#1e3a8a; font-size:13px; cursor:pointer; }
-.qm-drop.over { border-color:#2563eb; background:#dbeafe; }
+.qm-drop { margin-left:auto; display:flex; align-items:center; gap:10px; padding:8px 14px; border:2px dashed var(--knk-info-line); border-radius:10px; background:var(--knk-info-subtle); color:var(--knk-info-text); font-size:13px; cursor:pointer; }
+.qm-drop.over { border-color:var(--knk-info); background:var(--knk-info-subtle); }
 /* z1191z192 B-2 (화면 전수 점검 11-27 · 표가 첫 화면에 2줄(1440)/0줄(892)): 올리기 칸 두 개가 두 줄 높이(128px)를 차지 →
    PC·좁은 창(768px 이상)에선 한 줄 단추 모양(긴 설명은 마우스를 올리면 · 끌어다 놓기·누르기 그대로). 휴대폰(767 이하)은 그대로 두 줄. */
-.qm-drop .qm-hint-s { display:none; font-size:11.5px; color:#334155; }
+.qm-drop .qm-hint-s { display:none; font-size:11.5px; color:var(--knk-text-secondary); }
 @media (min-width:768px){ .qm-drop { padding:6px 12px; } .qm-drop .qm-hint { display:none; } .qm-drop .qm-hint-s { display:inline; } }
-.qm-t { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--qv-line); border-radius:10px; font-size:13px; }
+.qm-t { width:100%; border-collapse:collapse; background:var(--knk-bg-surface); border:1px solid var(--qv-line); border-radius:10px; font-size:13px; }
 /* z1191z191 A-1 (화면 전수 점검 11-27 · 표 안으로 내리면 칸 이름이 사라짐): 표에 `overflow:hidden` 이 있어 칸 이름의 고정(sticky)이
    표 안에서만 걸렸다(표 자체는 스크롤하지 않으니 고정이 안 됨) → 빼서 본문 스크롤 기준으로 고정 · 공용 제목 띠 틀(knk_sticky_head)이
    제목 띠 높이만큼 내려 「제목 띠 바로 아래」에 붙인다. 표 모서리 둥글기는 border-collapse 라 원래도 칸에 적용 안 됨(겉모양 같음).
    휴대폰(767px 이하): 표 최소 폭(약 684px)이 화면보다 넓어 화면 전체가 옆으로 밀렸다(문서 폭 700) → 표만 옆으로 미는 상자(.qm-hs). */
 .qm-hs { min-width: 0; }
 @media (max-width: 767px) { .qm-hs { overflow-x: auto; -webkit-overflow-scrolling: touch; } }
-.qm-t th { text-align:left; font-size:12px; color:var(--qv-ink-3); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--qv-line); background:#f8faf8; position:sticky; top:0; z-index:1; }
-.qm-t td { padding:7px 10px; border-bottom:1px solid #eef1ee; vertical-align:middle; }
-.qm-t tr.pj td { background:#fafbfa; border-top:1px solid var(--qv-line); }
+.qm-t th { text-align:left; font-size:12px; color:var(--qv-ink-3); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--qv-line); background:var(--knk-bg-inset); position:sticky; top:0; z-index:1; }
+.qm-t td { padding:7px 10px; border-bottom:1px solid var(--knk-border-subtle); vertical-align:middle; }
+.qm-t tr.pj td { background:var(--knk-bg-inset); border-top:1px solid var(--qv-line); }
 .qm-t tr.so td:first-child { padding-left:28px; color:var(--qv-ink-2); }
 /* z1191z147 (대표 11-25 「끌어다 놓으면 견적서·발주서가 한꺼번에 선택되는 것처럼 보임」): 놓을 자리를 칸별로 — 견적 칸(파랑) · 발주서 칸(초록) */
-.qm-t tr.over > td:not(.qm-po) { background:#dbeafe !important; }
-.qm-t tr.over .qm-pick { outline:2px solid #2563eb; outline-offset:1px; }
-.qm-t tr.over .qm-pick::after { content:'  ← 여기에 놓으면 견적서'; font-weight:800; color:#1d4ed8; }
-.qm-t td.qm-po .z143-box.over { outline:2px dashed #16a34a; outline-offset:2px; background:#dcfce7; border-radius:8px; }
-.qm-t td.qm-po .z143-box.over .z143-up { outline:2px solid #16a34a; outline-offset:1px; }
-.qm-t td.qm-po .z143-box.over .z143-up::after { content:'  ← 여기에 놓으면 발주서'; font-weight:800; color:#15803d; }
+.qm-t tr.over > td:not(.qm-po) { background:var(--knk-info-subtle) !important; }
+.qm-t tr.over .qm-pick { outline:2px solid var(--knk-info); outline-offset:1px; }
+.qm-t tr.over .qm-pick::after { content:'  ← 여기에 놓으면 견적서'; font-weight:800; color:var(--knk-info); }
+.qm-t td.qm-po .z143-box.over { outline:2px dashed var(--knk-success); outline-offset:2px; background:var(--knk-success-subtle); border-radius:8px; }
+.qm-t td.qm-po .z143-box.over .z143-up { outline:2px solid var(--knk-success); outline-offset:1px; }
+.qm-t td.qm-po .z143-box.over .z143-up::after { content:'  ← 여기에 놓으면 발주서'; font-weight:800; color:var(--knk-success); }
 .qm-t .num { text-align:right; white-space:nowrap; }
 .qm-pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
-.qm-pill.ok { background:#dcfce7; color:#166534; } .qm-pill.no { background:#fee2e2; color:#b91c1c; }
+.qm-pill.ok { background:var(--knk-success-subtle); color:var(--knk-success); } .qm-pill.no { background:var(--knk-danger-subtle); color:var(--knk-danger); }
 /* z1191z165: 입금 끝난 수주 = 회색 접은 줄 */
-.qm-paidbar td { padding:3px 10px !important; background:#f8fafc; }
-.qm-paidbtn { border:0; background:none; cursor:pointer; font-size:12px; color:#475569; padding:2px 0; text-align:left; }
+.qm-paidbar td { padding:3px 10px !important; background:var(--knk-bg-inset); }
+.qm-paidbtn { border:0; background:none; cursor:pointer; font-size:12px; color:var(--knk-text-secondary); padding:2px 0; text-align:left; }
 .qm-paidbtn:hover .qm-paidarr { text-decoration:underline; }
-.qm-paidarr { color:#1d4ed8; }
-tr.qm-paid td { background:#f8fafc; color:#64748b; }
+.qm-paidarr { color:var(--knk-action); }
+tr.qm-paid td { background:var(--knk-bg-inset); color:var(--knk-text-muted); }
 tr.qm-paid[hidden] { display:none; }
-.qm-pill.wn { background:#fef3c7; color:#92400e; } .qm-pill.rep { background:#e0e7ff; color:#3730a3; } .qm-pill.mute { background:#f1f5f9; color:#64748b; }
-.qm-f { color:#1d4ed8; font-weight:700; text-decoration:none; word-break:break-all; }
-.qm-meta { font-size:11px; color:#94a3b8; }
-.qm-btn { padding:3px 10px; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
-.qm-btn.up { border-color:#93c5fd; color:#1d4ed8; background:#eff6ff; }
-.qm-panel { margin:0 0 12px; padding:12px 14px; border:1px solid #93c5fd; border-radius:10px; background:#fff; font-size:13px; }
+.qm-pill.wn { background:var(--knk-warning-subtle); color:var(--knk-warning-text); } .qm-pill.rep { background:var(--knk-cat-violet-subtle); color:var(--knk-cat-violet); } .qm-pill.mute { background:var(--knk-bg-subtle); color:var(--knk-text-muted); }
+.qm-f { color:var(--knk-action); font-weight:700; text-decoration:none; word-break:break-all; }
+.qm-meta { font-size:11px; color:var(--knk-text-muted); }
+.qm-btn { padding:3px 10px; border:1px solid var(--knk-border-default); background:var(--knk-bg-surface); color:var(--knk-text-secondary); border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.qm-btn.up { border-color:var(--knk-info-line); color:var(--knk-info); background:var(--knk-info-subtle); }
+.qm-panel { margin:0 0 12px; padding:12px 14px; border:1px solid var(--knk-info-line); border-radius:10px; background:var(--knk-bg-surface); font-size:13px; }
 .qm-panel .row { margin-top:6px; }
 .qm-cand { display:flex; gap:8px; align-items:flex-start; padding:5px 8px; border-radius:8px; cursor:pointer; }
-.qm-cand:hover { background:#f1f5f9; }
-.qm-x { float:right; border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:2px 9px; cursor:pointer; font-size:12px; }
+.qm-cand:hover { background:var(--knk-bg-subtle); }
+.qm-x { float:right; border:1px solid var(--knk-border-default); background:var(--knk-bg-surface); border-radius:6px; padding:2px 9px; cursor:pointer; font-size:12px; }
 /* z1191z107 (대표 11-22): 사업부 책갈피 — 전체 · 검사기 · 자동화 · 라이프밸류 · 소모품 · 기타 */
-.qm-biz { display:flex; gap:2px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid #2563eb; margin:2px 0 12px; }
-.qm-bt { display:inline-flex; align-items:center; gap:6px; padding:8px 16px 7px; border:1px solid var(--qv-line); border-bottom:none; border-radius:10px 10px 0 0; background:#f1f5f9; color:var(--qv-ink-2); font-size:13.5px; font-weight:700; text-decoration:none; white-space:nowrap; }
-.qm-bt:hover { background:#e2e8f0; }
-.qm-bt .n { font-size:11.5px; font-weight:800; color:var(--qv-ink-3); background:#fff; border-radius:999px; padding:0 7px; }
-.qm-bt.on { background:#2563eb; border-color:#2563eb; color:#fff; }
-.qm-bt.on .n { color:#1d4ed8; }
+.qm-biz { display:flex; gap:2px; align-items:flex-end; flex-wrap:wrap; border-bottom:2px solid var(--knk-brand); margin:2px 0 12px; }
+.qm-bt { display:inline-flex; align-items:center; gap:6px; padding:8px 16px 7px; border:1px solid var(--qv-line); border-bottom:none; border-radius:10px 10px 0 0; background:var(--knk-bg-subtle); color:var(--qv-ink-2); font-size:13.5px; font-weight:700; text-decoration:none; white-space:nowrap; }
+.qm-bt:hover { background:var(--knk-border-subtle); }
+.qm-bt .n { font-size:11.5px; font-weight:800; color:var(--qv-ink-3); background:var(--knk-bg-surface); border-radius:999px; padding:0 7px; }
+.qm-bt.on { background:var(--knk-brand); border-color:var(--knk-brand); color:var(--knk-text-inverse); }
+.qm-bt.on .n { color:var(--knk-brand); }
 .qm-bt.zero { opacity:.55; }
-.qm-note { margin:0 0 10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; font-size:12.5px; color:var(--qv-ink-2); }
+.qm-note { margin:0 0 10px; padding:8px 12px; border:1px solid var(--knk-border-subtle); border-radius:8px; background:var(--knk-bg-inset); font-size:12.5px; color:var(--qv-ink-2); }
 @media (max-width:900px){ .qm-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } .qm-drop { margin-left:0; width:100%; } }
 </style>
 </head><body>
@@ -84,7 +80,7 @@ tr.qm-paid[hidden] { display:none; }
   <header class="knk-page-head" data-dn="page-head">
     <div>
       <nav class="knk-breadcrumb"><a href="/sales">매출영업센터</a> · 🎯 수주 전 · <b>견적서·발주서</b></nav>
-      <h1 class="knk-page-title">📋 견적·발주서 관리</h1>
+      <h1 class="knk-page-title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>견적·발주서 관리</h1>
       <p class="knk-page-meta">견적서는 <b>엑셀</b>로 <b>수주번호마다</b> 올립니다 · 한 수주에 견적서·발주서를 <b>여러 장</b> 올려도 모두 남습니다 · 잘못 올린 것은 그 파일의 「🗑 빼기」</p>
     </div>
     <div class="knk-page-actions">
@@ -110,7 +106,7 @@ tr.qm-paid[hidden] { display:none; }
     <div class="qm-kpis">
       <a class="qm-k{% if not qb.only %} on{% endif %}" href="{{ qs(only='') }}"><div class="l"{{ ct('quotes.has') }}>견적서 있음</div><div class="n">{{ c.so_with }} <span style="font-size:13px;color:var(--qv-ink-3);font-weight:600;">/ {{ c.so }}건</span></div><div class="qm-sub">수주번호에 견적서가 1장 이상 붙은 수</div></a>
       <a class="qm-k bad{% if qb.only == 'none' %} on{% endif %}" href="{{ qs(only='none') }}" title="누르면 견적서가 없는 곳만"><div class="l"{{ ct('quotes.none') }}>견적서 없음</div><div class="n">{{ c.so_none }}건</div></a>
-      <div class="qm-k"><div class="l">수주 전</div><div class="n">{{ c.pre }}건{% if c.noso %} <a href="/projects/so-check" style="font-size:12px;color:#b45309;font-weight:700;" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 견적서 — 눌러서 수주번호 고르기">· 👉 수주번호 고를 견적서 {{ c.noso }}</a>{% endif %}</div><div class="qm-sub" title="z1191z143: 고객사에서 받은 발주서가 올라온 수주(지금 보이는 목록 안)">📄 고객 발주서 받은 수주 {{ c.po_so }}건</div></div>
+      <div class="qm-k"><div class="l">수주 전</div><div class="n">{{ c.pre }}건{% if c.noso %} <a href="/projects/so-check" style="font-size:12px;color:var(--knk-warning);font-weight:700;" title="z1191z156: 관리번호에만 붙어 있고 수주번호가 없는 옛 견적서 — 눌러서 수주번호 고르기">· 👉 수주번호 고를 견적서 {{ c.noso }}</a>{% endif %}</div><div class="qm-sub" title="z1191z143: 고객사에서 받은 발주서가 올라온 수주(지금 보이는 목록 안)">📄 고객 발주서 받은 수주 {{ c.po_so }}건</div></div>
     </div>
     {% endif %}
     <form class="qm-bar" method="get" action="/sales/quotations">
@@ -123,29 +119,29 @@ tr.qm-paid[hidden] { display:none; }
       <input type="search" name="q" value="{{ qb.q }}" placeholder="관리번호·고객사 · 견적서 안 글(품명·부품·사양)" title="z1191z121: 견적서 엑셀 안의 품명·부품·사양·담당자 글도 찾습니다(낱말 여러 개 = 한 줄에 모두)">
       {% if can_up and qb.biz != 'C' %}
       <label class="qm-drop" id="qmTopDrop" title="엑셀을 여기에 끌어다 놓거나 눌러서 고르세요 — 읽어서 관리번호·수주번호를 찾아 드립니다">
-        📎 <span><b>견적서 엑셀 올리기</b><br class="qm-hint"><span class="qm-hint" style="font-size:11.5px;color:#334155;">끌어다 놓기 · 어디에 붙일지 찾아 드립니다</span><span class="qm-hint-s"> · 끌어다 놓기</span></span>
+        📎 <span><b>견적서 엑셀 올리기</b><br class="qm-hint"><span class="qm-hint" style="font-size:11.5px;color:var(--knk-text-secondary);">끌어다 놓기 · 어디에 붙일지 찾아 드립니다</span><span class="qm-hint-s"> · 끌어다 놓기</span></span>
         <input type="file" id="qmTopFile" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
       </label>
       {# z1191z143 (대표 11-24 「이 화면에 고객사에서 받은 발주서도 등록할수있게」): 발주서 올리기 — 파일 이름·안 글의 수주번호·관리번호로 자리 찾기 #}
-      <label class="qm-drop qm-podrop" id="qmPoDrop" style="margin-left:0;border-color:#86efac;background:#f0fdf4;color:#14532d;" title="고객사에서 받은 발주서(PDF·사진·엑셀)를 여기에 끌어다 놓거나 눌러서 고르세요 — 수주번호·관리번호를 찾아 드립니다">
-        📄 <span><b>고객 발주서 올리기</b><br class="qm-hint"><span class="qm-hint" style="font-size:11.5px;color:#334155;">PDF·사진·엑셀 · 끌어다 놓기</span><span class="qm-hint-s"> · 끌어다 놓기</span></span>
+      <label class="qm-drop qm-podrop" id="qmPoDrop" style="margin-left:0;border-color:var(--knk-success-line);background:var(--knk-success-subtle);color:var(--knk-success-text);" title="고객사에서 받은 발주서(PDF·사진·엑셀)를 여기에 끌어다 놓거나 눌러서 고르세요 — 수주번호·관리번호를 찾아 드립니다">
+        📄 <span><b>고객 발주서 올리기</b><br class="qm-hint"><span class="qm-hint" style="font-size:11.5px;color:var(--knk-text-secondary);">PDF·사진·엑셀 · 끌어다 놓기</span><span class="qm-hint-s"> · 끌어다 놓기</span></span>
         <input type="file" id="qmPoFile" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;">
       </label>
       {% endif %}
     </form>
     <div id="qmPanel" class="qm-panel" hidden></div>
-    <div id="qmPoPanel" class="qm-panel" style="border-color:#86efac;" hidden></div>
+    <div id="qmPoPanel" class="qm-panel" style="border-color:var(--knk-success-line);" hidden></div>
     {% if qhits %}{# z1191z121 (대표 11-23 「비슷한걸 요구했을때 최종이 어떤거였는지 · 상세항목」): 견적서 안 글 찾기 #}
-    <div class="qm-panel" style="border-color:#c7d2fe;">
+    <div class="qm-panel" style="border-color:var(--knk-cat-violet-line);">
       <b>🔎 견적서 안에서 「{{ qhits.q }}」</b> — {% if qhits.files %}견적서 <b>{{ qhits.files|length }}장</b> · 맞은 줄 {{ qhits.n_lines }}개{% else %}못 찾았습니다{% endif %}
       <span class="qm-meta"> · 품명·부품·사양·담당자 글까지 찾습니다{% if not qhits.can_cost %} · 원가 줄은 권한 있는 분만{% endif %}</span>
       {% for h in qhits.files %}
-      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #eef1ee;">
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--knk-border-subtle);">
         <a class="qm-f" href="/quotes/{{ h.id }}">👁 {{ h.meta.title or h.name }}</a>
         <span class="qm-meta">{{ h.meta.customer or '업체명 없음' }} · {{ h.meta.qdate or '' }}{% if h.meta.contact %} · {{ h.meta.contact }}{% endif %}</span>
         · <a href="/project/{{ h.pid }}{% if h.order_no %}?so={{ h.order_no|urlencode }}{% endif %}" style="color:inherit;">{{ h.mgmt }} {{ h.pname or '' }}</a>
         {% if h.order_no %}<span class="qm-pill ok">{{ h.order_no }}{% if h.status %} · {{ {'CONFIRMED':'수주','IN_PROGRESS':'진행','SHIPPED':'출하','INVOICED':'계산서','PAID':'입금 완료'}.get(h.status, h.status) }}{% endif %}</span>{% else %}<a class="qm-pill wn" href="/projects/so-check" title="수주번호를 아직 고르지 않은 옛 견적서">👉 수주번호 고르기 전</a>{% endif %}
-        {% for ln in h.lines %}<div class="qm-meta" style="margin:3px 0 0 18px;color:#475569;"><b>{{ ln.sheet }}</b> · {{ ln.text }}</div>{% endfor %}
+        {% for ln in h.lines %}<div class="qm-meta" style="margin:3px 0 0 18px;color:var(--knk-text-secondary);"><b>{{ ln.sheet }}</b> · {{ ln.text }}</div>{% endfor %}
         {% if h.n > 3 %}<div class="qm-meta" style="margin-left:18px;">… 맞은 줄 {{ h.n - 3 }}개 더</div>{% endif %}
       </div>
       {% endfor %}
@@ -169,7 +165,7 @@ tr.qm-paid[hidden] { display:none; }
     </table></div>
     {% endif %}
     {% if c.period_hidden %}{# z1191z165b: 찾은 관리번호가 기간 밖이면 말없이 빼지 않고 알림 #}
-    <div style="margin:6px 0 10px;padding:8px 12px;border:1px solid #fde68a;background:#fffbeb;border-radius:8px;font-size:13px;color:#92400e;">👉 「{{ qb.q }}」 — 지금 고른 기간 밖에 관리번호 {{ c.period_hidden }}개가 더 있습니다 · <a href="{{ qs(period='all') }}" style="font-weight:700;color:#1d4ed8;">기간 「전체」로 보기</a></div>
+    <div style="margin:6px 0 10px;padding:8px 12px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:8px;font-size:13px;color:var(--knk-warning);">👉 「{{ qb.q }}」 — 지금 고른 기간 밖에 관리번호 {{ c.period_hidden }}개가 더 있습니다 · <a href="{{ qs(period='all') }}" style="font-weight:700;color:var(--knk-info);">기간 「전체」로 보기</a></div>
     {% endif %}
     {% if qb.rows %}
     <div class="qm-hs"><table class="qm-t">
@@ -185,7 +181,7 @@ tr.qm-paid[hidden] { display:none; }
               {% elif not r.sos %}<span class="qm-meta">수주 전 — 수주번호가 생기면 그 수주번호에 올립니다</span>{% else %}<span class="qm-meta">↓ 수주번호마다 올립니다</span>{% endif %}</td>
           <td></td>
           <td class="qm-po">{% set _ps = r.po %}{% if _ps.files %}<div class="qm-fl">
-            {% for x in _ps.files %}<div>{% if cm %}<a class="qm-f" href="/customer-po/{{ x.id }}" title="고객 발주서 바로 보기 · {{ x.by_name or '' }} {{ (x.created_at or '')[:16] }}" style="color:#166534;">📄 {{ x.orig_name }}</a>{% else %}🔒{% endif %}</div>{% endfor %}
+            {% for x in _ps.files %}<div>{% if cm %}<a class="qm-f" href="/customer-po/{{ x.id }}" title="고객 발주서 바로 보기 · {{ x.by_name or '' }} {{ (x.created_at or '')[:16] }}" style="color:var(--knk-success);">📄 {{ x.orig_name }}</a>{% else %}🔒{% endif %}</div>{% endfor %}
             <div><a class="qm-pill wn" href="/projects/so-check" title="z1191z156: 수주번호가 없는 옛 발주서 — 눌러서 수주번호 고르기">👉 수주번호를 골라 주세요</a></div>
           </div>{% endif %}</td>
         </tr>
@@ -194,7 +190,7 @@ tr.qm-paid[hidden] { display:none; }
         <tr class="qm-paidbar" data-pid="{{ p.id }}"><td colspan="6"><button type="button" class="qm-paidbtn" data-pid="{{ p.id }}" aria-expanded="{{ 'true' if r.paid_open else 'false' }}">└ 입금 끝난 수주 {{ r.paid|length }}건 <span class="qm-meta">({% for x in r.paid %}{{ x.o.order_no }}{% if not loop.last %} · {% endif %}{% endfor %})</span> <b class="qm-paidarr">{{ '▾ 접기' if r.paid_open else '▸ 펼쳐 보기' }}</b></button></td></tr>
         {% endif %}
         <tr class="so qm-slot{% if s.paid %} qm-paid{% endif %}" data-pid="{{ p.id }}"{% if s.paid and not r.paid_open %} hidden{% endif %} data-oid="{{ o.id }}" data-label="{{ o.order_no }} · {{ p.mgmt_code }}{% if s.units %} · {{ s.units }}{% endif %}" data-has="{{ fs|length if fs else '' }}"{% if cm %} data-amt="{{ money(o.total_amount or 0, o.currency or 'KRW') }}"{% endif %}>
-          <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a>{% if s.paid %} <span class="qm-pill" style="background:#f1f5f9;color:#475569;">입금 끝남</span>{% endif %}</td>
+          <td>└ <a href="/sales/orders/{{ o.id }}" style="color:inherit;">{{ o.order_no }}</a>{% if s.paid %} <span class="qm-pill" style="background:var(--knk-bg-subtle);color:var(--knk-text-secondary);">입금 끝남</span>{% endif %}</td>
           <td>{# z1191z164: 이 수주의 1차 고객사(세금계산서 받는 곳) #}<span title="이 수주의 고객사">{{ o.cust or '—' }}</span><div class="qm-meta">{{ s.units or '—' }}{% if o.due_date %} · 납기 {{ o.due_date }}{% endif %}</div></td>
           <td class="num">{% if cm %}{{ money(o.total_amount or 0, o.currency or 'KRW') }}{% else %}🔒{% endif %}</td>
           <td>{% if fs %}<div class="qm-fl">{# z1191z160: 이 수주에 올린 견적서 모두(최근 위) · 금액 비교·따라가기 없음 #}
@@ -203,7 +199,7 @@ tr.qm-paid[hidden] { display:none; }
             </div>{% else %}<span class="qm-pill {{ 'mute' if s.paid else 'no' }}">없음</span>{% endif %}</td>
           <td>{% if can_up %}<button type="button" class="qm-btn{% if not fs %} up{% endif %} qm-pick" title="엑셀 견적서 — 이 줄에 끌어다 놓아도 됩니다 · 더 올려도 지금 것은 그대로 남습니다">{% if fs %}＋ 더 올리기{% else %}＋ 올리기{% endif %}</button>{% endif %}</td>
           <td class="qm-po">{% set _ps = s.po %}<div class="z143-box" data-pid="{{ p.id }}" data-oid="{{ o.id }}">
-            {% if _ps.files %}<div class="qm-fl">{% for x in _ps.files %}<div>{% if cm %}<a class="qm-f" href="/customer-po/{{ x.id }}" title="고객 발주서 바로 보기 · {{ x.by_name or '' }} {{ (x.created_at or '')[:16] }}" style="color:#166534;">📄 {{ x.orig_name }}</a>{% else %}🔒{% endif %}{% if cm and x.kind == 'xl' and x.amount is not none %} <span class="qm-meta">{{ money(x.amount|float, x.currency or 'KRW') }}</span>{% endif %}</div>{% endfor %}</div>
+            {% if _ps.files %}<div class="qm-fl">{% for x in _ps.files %}<div>{% if cm %}<a class="qm-f" href="/customer-po/{{ x.id }}" title="고객 발주서 바로 보기 · {{ x.by_name or '' }} {{ (x.created_at or '')[:16] }}" style="color:var(--knk-success);">📄 {{ x.orig_name }}</a>{% else %}🔒{% endif %}{% if cm and x.kind == 'xl' and x.amount is not none %} <span class="qm-meta">{{ money(x.amount|float, x.currency or 'KRW') }}</span>{% endif %}</div>{% endfor %}</div>
             {% endif %}{# z1191z147 (대표 11-25): 없을 때 「—」 지움 · z1191z160: 여러 장 모두 · 금액 비교 없음 #}
             {% if can_up %}<div{% if _ps.files %} style="margin-top:3px;"{% endif %}><button type="button" class="qm-btn{% if not _ps.files %} up{% endif %} z143-up" title="PDF·사진·엑셀 · 이 칸에 끌어다 놓아도 됩니다 · 더 올려도 지금 것은 그대로 남습니다">{% if _ps.files %}＋ 더 올리기{% else %}＋ 올리기{% endif %}</button><input type="file" class="z143-file" accept="{{ z143_accept }}" data-knk-no-dropzone style="display:none;"> <span class="z143-msg qm-meta"></span></div>{% endif %}
           </div></td>
@@ -238,9 +234,9 @@ tr.qm-paid[hidden] { display:none; }
   var STEPS = ['엑셀 올리기', '수주번호 고르기', '붙이기 · 다시 고르기(문제 있을 때만)', '끝'];
   function stepBar(n, now){
     return '<ol class="z156-st" style="display:flex;flex-wrap:wrap;gap:4px;list-style:none;margin:0 70px 6px 0;padding:0;font-size:11.5px;">' + STEPS.map(function(t, i){
-      var k = i + 1, st = k < n ? 'color:#166534;border-color:#bbf7d0;background:#f0fdf4;' : (k === n ? 'color:#fff;background:#1d4ed8;border-color:#1d4ed8;font-weight:700;' : 'color:#94a3b8;');
-      return '<li style="padding:1px 8px;border-radius:999px;border:1px ' + (t.indexOf('다시') >= 0 ? 'dashed' : 'solid') + ' #e2e8f0;' + st + '">' + (k < n ? '✓ ' : '') + k + ' ' + esc(t) + '</li>';
-    }).join('') + '</ol>' + (now ? '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:' + (now.indexOf('✅') === 0 ? '#166534' : (now.indexOf('⚠') === 0 ? '#b91c1c' : (now.indexOf('👉') === 0 ? '#b45309' : '#1e3a8a'))) + ';">' + esc(now) + '</div>' : '');
+      var k = i + 1, st = k < n ? 'color:var(--knk-success);border-color:var(--knk-success-line);background:var(--knk-success-subtle);' : (k === n ? 'color:var(--knk-text-inverse);background:var(--knk-info);border-color:var(--knk-info);font-weight:700;' : 'color:var(--knk-text-muted);');
+      return '<li style="padding:1px 8px;border-radius:999px;border:1px ' + (t.indexOf('다시') >= 0 ? 'dashed' : 'solid') + ' var(--knk-border-subtle);' + st + '">' + (k < n ? '✓ ' : '') + k + ' ' + esc(t) + '</li>';
+    }).join('') + '</ol>' + (now ? '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:' + (now.indexOf('✅') === 0 ? 'var(--knk-success-text)' : (now.indexOf('⚠') === 0 ? 'var(--knk-danger)' : (now.indexOf('👉') === 0 ? 'var(--knk-warning)' : 'var(--knk-info-text)'))) + ';">' + esc(now) + '</div>' : '');
   }
   function show(html, n, now){ panel.hidden = false; panel.innerHTML = '<button type="button" class="qm-x" id="qmX">✕ 닫기</button>' + (n ? stepBar(n, now) : '') + html; panel.scrollIntoView({block:'nearest'}); }
   function closeP(){ panel.hidden = true; panel.innerHTML = ''; cur = null; }
@@ -251,20 +247,20 @@ tr.qm-paid[hidden] { display:none; }
 
   function start(file, slot){
     if (!file) return;
-    if (!isXl(file.name)) { show('<b style="color:#b91c1c;">견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.</b>', 1, '⚠ 끝나지 않았습니다 — 엑셀 파일을 다시 올려 주세요'); return; }
-    if (file.size > 20*1024*1024) { show('<b style="color:#b91c1c;">20MB 보다 큰 파일은 올릴 수 없습니다.</b>', 1, '⚠ 끝나지 않았습니다 — 20MB 아래 파일을 올려 주세요'); return; }
+    if (!isXl(file.name)) { show('<b style="color:var(--knk-danger);">견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.</b>', 1, '⚠ 끝나지 않았습니다 — 엑셀 파일을 다시 올려 주세요'); return; }
+    if (file.size > 20*1024*1024) { show('<b style="color:var(--knk-danger);">20MB 보다 큰 파일은 올릴 수 없습니다.</b>', 1, '⚠ 끝나지 않았습니다 — 20MB 아래 파일을 올려 주세요'); return; }
     target = slot;
     show('⏳ 「' + esc(file.name) + '」 읽는 중… (금액·고객사를 읽습니다)', 1, '⏳ 진행 중 — 견적서를 읽고 있습니다(10~30초)');
     var fd = new FormData(); fd.append('file', file);
-    post('/api/project-quote/read', fd).then(afterRead).catch(function(){ show('<b style="color:#b91c1c;">인터넷 연결이 끊겨 올리지 못했습니다.</b>'); });
+    post('/api/project-quote/read', fd).then(afterRead).catch(function(){ show('<b style="color:var(--knk-danger);">인터넷 연결이 끊겨 올리지 못했습니다.</b>'); });
   }
   function afterRead(j){
-    if (!j || !j.ok) { show('<b style="color:#b91c1c;">' + esc((j && j.message) || '읽지 못했습니다 — 다시 올려 주세요.') + '</b>'); return; }
+    if (!j || !j.ok) { show('<b style="color:var(--knk-danger);">' + esc((j && j.message) || '읽지 못했습니다 — 다시 올려 주세요.') + '</b>'); return; }
     cur = j;
     if (j.need_password) {
       show('🔒 「' + esc(j.name) + '」은 암호가 걸린 엑셀입니다. 비밀번호를 넣으면 풀어서 금액을 읽습니다(비밀번호는 저장하지 않음 · 파일은 원본 그대로 보관).'
-        + (j.bad_password ? '<div style="color:#b91c1c;margin-top:4px;">비밀번호가 맞지 않습니다.</div>' : '')
-        + '<div class="row"><input type="password" id="qmPw" autocomplete="off" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;"> <button type="button" class="qm-btn up" id="qmPwGo">풀어서 읽기</button> <button type="button" class="qm-btn" id="qmPwSkip">읽지 않고 붙이기</button></div>');
+        + (j.bad_password ? '<div style="color:var(--knk-danger);margin-top:4px;">비밀번호가 맞지 않습니다.</div>' : '')
+        + '<div class="row"><input type="password" id="qmPw" autocomplete="off" style="padding:5px 8px;border:1px solid var(--knk-border-default);border-radius:6px;"> <button type="button" class="qm-btn up" id="qmPwGo">풀어서 읽기</button> <button type="button" class="qm-btn" id="qmPwSkip">읽지 않고 붙이기</button></div>');
       return;
     }
     choose();
@@ -275,7 +271,7 @@ tr.qm-paid[hidden] { display:none; }
     if (f.item_name) a.push('품명 ' + esc(f.item_name));
     if (f.amount != null && f.amount !== '') a.push('금액 <b>' + esc(f.currency || '') + ' ' + Number(f.amount).toLocaleString('en-US', {maximumFractionDigits: 2}) + '</b>');
     if (f.quote_date) a.push('견적일 ' + esc(f.quote_date));
-    return a.length ? ('<div class="qm-meta" style="color:#475569;">읽은 값: ' + a.join(' · ') + '</div>') : '<div class="qm-meta">읽은 값이 없습니다(그래도 붙일 수 있습니다).</div>';
+    return a.length ? ('<div class="qm-meta" style="color:var(--knk-text-secondary);">읽은 값: ' + a.join(' · ') + '</div>') : '<div class="qm-meta">읽은 값이 없습니다(그래도 붙일 수 있습니다).</div>';
   }
   function choose(){
     if (target) { confirmSlot(target); return; }
@@ -292,7 +288,7 @@ tr.qm-paid[hidden] { display:none; }
       } else {
         h += '<div class="row qm-meta">파일에서 관리번호·수주번호·고객사를 찾지 못했습니다 — 아래에서 찾아 고르세요.</div>';
       }
-      h += '<div class="row">🔎 <input type="search" id="qmFind" placeholder="관리번호·수주번호·프로젝트·고객사로 찾기" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;min-width:280px;"></div><div id="qmFindRes"></div>'
+      h += '<div class="row">🔎 <input type="search" id="qmFind" placeholder="관리번호·수주번호·프로젝트·고객사로 찾기" style="padding:5px 8px;border:1px solid var(--knk-border-default);border-radius:6px;min-width:280px;"></div><div id="qmFindRes"></div>'
         + '<div class="row"><button type="button" class="qm-btn up" id="qmNext">이 수주번호에 붙이기 →</button> <span class="qm-meta">견적서는 수주번호에만 붙습니다 · 고른 수주에 견적서가 있어도 함께 남습니다</span></div>';
       show(h, 2, (c && c.pick != null) ? '👉 지금 하실 일: 미리 고른 수주번호가 맞는지 보고 「이 수주번호에 붙이기 →」' : '👉 지금 하실 일: 이 견적서를 붙일 수주번호를 고르세요(관리번호만으로는 붙지 않습니다)');
       panel.__cands = list;
@@ -301,8 +297,8 @@ tr.qm-paid[hidden] { display:none; }
   function confirmSlot(s){
     var f = (cur && cur.fields) || {};
     var h = '<b>「' + esc(cur.name) + '」 → ' + esc(s.label) + '</b>' + readTxt();
-    if (s.amt) h += '<div class="qm-meta" style="color:#475569;">수주 금액 ' + esc(s.amt) + '</div>';
-    if (s.has) h += '<div class="row qm-meta" style="color:#475569;">이 수주에는 견적서가 이미 ' + esc(s.has) + '장 있습니다 — 올려도 그대로 남고 함께 보입니다.</div>';   /* z1191z160 */
+    if (s.amt) h += '<div class="qm-meta" style="color:var(--knk-text-secondary);">수주 금액 ' + esc(s.amt) + '</div>';
+    if (s.has) h += '<div class="row qm-meta" style="color:var(--knk-text-secondary);">이 수주에는 견적서가 이미 ' + esc(s.has) + '장 있습니다 — 올려도 그대로 남고 함께 보입니다.</div>';   /* z1191z160 */
     h += '<div class="row"><button type="button" class="qm-btn up" id="qmGo">올리기</button> <button type="button" class="qm-btn" id="qmBack">수주번호 다시 고르기</button></div>';
     show(h, 3, '👉 지금 하실 일: 「올리기」를 누르면 ' + (s.label || '').split(' · ')[0] + ' 에 붙습니다'); panel.__slot = s;
   }
@@ -313,10 +309,10 @@ tr.qm-paid[hidden] { display:none; }
     show('⏳ 붙이는 중…', 3, '⏳ 진행 중 — 붙이고 있습니다');
     post('/api/project-quote/place', fd).then(function(j){
       if (j && (j.need_so || j.no_so)) { show('<div class="row"><button type="button" class="qm-btn up" id="qmBack">수주번호 다시 고르기</button></div>', 2, j.message || '👉 수주번호를 골라 주세요'); return; }
-      if (!j || !j.ok) { show('<b style="color:#b91c1c;">' + esc((j && j.message) || '붙이지 못했습니다 — 다시 해 보세요.') + '</b><div class="row"><button type="button" class="qm-btn" id="qmBack">수주번호 다시 고르기</button></div>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); return; }
+      if (!j || !j.ok) { show('<b style="color:var(--knk-danger);">' + esc((j && j.message) || '붙이지 못했습니다 — 다시 해 보세요.') + '</b><div class="row"><button type="button" class="qm-btn" id="qmBack">수주번호 다시 고르기</button></div>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); return; }
       show(esc(j.slot) + '에 올렸습니다' + (j.n_so > 1 ? ' (이 수주 견적서 모두 ' + j.n_so + '장)' : '') + ' — 목록을 다시 불러옵니다…', 4, '✅ 완료 — ' + (j.slot || '') + ' 에 붙었습니다');
       setTimeout(function(){ location.reload(); }, 900);
-    }).catch(function(){ show('<b style="color:#b91c1c;">인터넷 연결이 끊겨 붙이지 못했습니다.</b>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); });
+    }).catch(function(){ show('<b style="color:var(--knk-danger);">인터넷 연결이 끊겨 붙이지 못했습니다.</b>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); });
   }
   var findT = null;
   panel.addEventListener('input', function(e){
@@ -329,7 +325,7 @@ tr.qm-paid[hidden] { display:none; }
         var it = (j && j.items) || [], base = (panel.__cands || []).length;
         panel.__found = it;
         box.innerHTML = it.length ? it.map(function(x, i){
-          if (x.head) return '<div class="qm-meta" style="margin-top:4px;font-weight:700;color:#334155;">' + esc(x.label) + '</div>';   /* z1191z156: 관리번호 = 머리 글(고를 수 없음) */
+          if (x.head) return '<div class="qm-meta" style="margin-top:4px;font-weight:700;color:var(--knk-text-secondary);">' + esc(x.label) + '</div>';   /* z1191z156: 관리번호 = 머리 글(고를 수 없음) */
           return '<label class="qm-cand"><input type="radio" name="qmC" value="' + (base + i) + '"><span>' + esc(x.label) + (x.has ? ' <span class="qm-pill mute">견적서 ' + esc(x.has) + '장 있음 · 함께 남음</span>' : '') + '</span></label>'; }).join('') : '<div class="qm-meta">찾은 것이 없습니다.</div>';
       });
     }, 250);
@@ -390,35 +386,35 @@ tr.qm-paid[hidden] { display:none; }
   var STEPS = ['발주서 올리기', '수주번호 고르기', '붙이기 · 다시 고르기(문제 있을 때만)', '끝'];
   function stepBar(n, now){
     return '<ol style="display:flex;flex-wrap:wrap;gap:4px;list-style:none;margin:0 70px 6px 0;padding:0;font-size:11.5px;">' + STEPS.map(function(t, i){
-      var k = i + 1, st = k < n ? 'color:#166534;border-color:#bbf7d0;background:#f0fdf4;' : (k === n ? 'color:#fff;background:#15803d;border-color:#15803d;font-weight:700;' : 'color:#94a3b8;');
-      return '<li style="padding:1px 8px;border-radius:999px;border:1px ' + (t.indexOf('다시') >= 0 ? 'dashed' : 'solid') + ' #e2e8f0;' + st + '">' + (k < n ? '✓ ' : '') + k + ' ' + esc(t) + '</li>';
-    }).join('') + '</ol>' + (now ? '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:' + (now.indexOf('✅') === 0 ? '#166534' : (now.indexOf('⚠') === 0 ? '#b91c1c' : (now.indexOf('👉') === 0 ? '#b45309' : '#14532d'))) + ';">' + esc(now) + '</div>' : '');
+      var k = i + 1, st = k < n ? 'color:var(--knk-success);border-color:var(--knk-success-line);background:var(--knk-success-subtle);' : (k === n ? 'color:var(--knk-text-inverse);background:var(--knk-success);border-color:var(--knk-success);font-weight:700;' : 'color:var(--knk-text-muted);');
+      return '<li style="padding:1px 8px;border-radius:999px;border:1px ' + (t.indexOf('다시') >= 0 ? 'dashed' : 'solid') + ' var(--knk-border-subtle);' + st + '">' + (k < n ? '✓ ' : '') + k + ' ' + esc(t) + '</li>';
+    }).join('') + '</ol>' + (now ? '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:' + (now.indexOf('✅') === 0 ? 'var(--knk-success-text)' : (now.indexOf('⚠') === 0 ? 'var(--knk-danger)' : (now.indexOf('👉') === 0 ? 'var(--knk-warning)' : 'var(--knk-success-text)'))) + ';">' + esc(now) + '</div>' : '');
   }
   function show(h, n, now){ panel.hidden = false; panel.innerHTML = '<button type="button" class="qm-x" data-po="x">✕ 닫기</button>' + (n ? stepBar(n, now) : '') + h; panel.scrollIntoView({block:'nearest'}); }
   function closeP(){ panel.hidden = true; panel.innerHTML = ''; cur = null; }
   function post(url, fd){ return fetch(url, {method:'POST', body:fd, credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){ return {ok:false}; }); }); }
   function start(file){
     if (!file) return;
-    if (!/\.(pdf|png|jpe?g|xlsx|xlsm|xls)$/i.test(file.name || '')) { show('<b style="color:#b91c1c;">고객 발주서는 PDF · 사진(jpg·png) · 엑셀(xlsx·xls) 파일만 올릴 수 있습니다.</b>'); return; }
-    if (file.size > 20*1024*1024) { show('<b style="color:#b91c1c;">20MB 보다 큰 파일은 올릴 수 없습니다.</b>'); return; }
+    if (!/\.(pdf|png|jpe?g|xlsx|xlsm|xls)$/i.test(file.name || '')) { show('<b style="color:var(--knk-danger);">고객 발주서는 PDF · 사진(jpg·png) · 엑셀(xlsx·xls) 파일만 올릴 수 있습니다.</b>'); return; }
+    if (file.size > 20*1024*1024) { show('<b style="color:var(--knk-danger);">20MB 보다 큰 파일은 올릴 수 없습니다.</b>'); return; }
     show('⏳ 「' + esc(file.name) + '」 올리는 중… (수주번호·관리번호를 찾습니다)', 1, '⏳ 진행 중 — 올리고 있습니다');
     var fd = new FormData(); fd.append('file', file);
     post('/api/customer-po/upload', fd).then(function(j){
-      if (!j || !j.ok) { show('<b style="color:#b91c1c;">' + esc((j && j.message) || '올리지 못했습니다 — 다시 해 보세요.') + '</b>'); return; }
+      if (!j || !j.ok) { show('<b style="color:var(--knk-danger);">' + esc((j && j.message) || '올리지 못했습니다 — 다시 해 보세요.') + '</b>'); return; }
       cur = j; choose();
-    }).catch(function(){ show('<b style="color:#b91c1c;">인터넷 연결이 끊겨 올리지 못했습니다.</b>'); });
+    }).catch(function(){ show('<b style="color:var(--knk-danger);">인터넷 연결이 끊겨 올리지 못했습니다.</b>'); });
   }
   function choose(){
     var list = cur.cands || [];
     var h = '<b>📄 「' + esc(cur.name) + '」 고객 발주서를 어디에 붙일까요?</b>'
-      + (cur.amount_txt ? '<div class="qm-meta" style="color:#475569;">엑셀에서 읽은 금액 <b>' + esc(cur.amount_txt) + '</b>' + (cur.amount_label ? ' (' + esc(cur.amount_label) + ')' : '') + '</div>' : '');
+      + (cur.amount_txt ? '<div class="qm-meta" style="color:var(--knk-text-secondary);">엑셀에서 읽은 금액 <b>' + esc(cur.amount_txt) + '</b>' + (cur.amount_label ? ' (' + esc(cur.amount_label) + ')' : '') + '</div>' : '');
     if (list.length) {
       h += '<div class="row qm-meta">' + esc(cur.why || '') + (cur.pick != null ? ' — 하나가 분명해 미리 골랐습니다(맞는지 확인)' : ' — 고르세요') + '</div>';
       list.forEach(function(x, i){ h += '<label class="qm-cand"><input type="radio" name="qmPoC" value="' + i + '"' + (cur.pick === i ? ' checked' : '') + '><span>' + esc(x.label) + (x.has ? ' <span class="qm-pill mute">발주서 ' + x.has + '장 있음 · 함께 남음</span>' : '') + '</span></label>'; });
     } else {
       h += '<div class="row qm-meta">파일에서 수주번호·관리번호를 찾지 못했습니다 — 아래에서 찾아 고르세요.</div>';
     }
-    h += '<div class="row">🔎 <input type="search" id="qmPoFind" placeholder="관리번호·수주번호·프로젝트·고객사로 찾기" style="padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;min-width:280px;"></div><div id="qmPoFindRes"></div>'
+    h += '<div class="row">🔎 <input type="search" id="qmPoFind" placeholder="관리번호·수주번호·프로젝트·고객사로 찾기" style="padding:5px 8px;border:1px solid var(--knk-border-default);border-radius:6px;min-width:280px;"></div><div id="qmPoFindRes"></div>'
       + '<div class="row"><button type="button" class="qm-btn up" data-po="go">이 수주번호에 붙이기</button> <span class="qm-meta">발주서는 수주번호에만 붙습니다 · 그 수주에 발주서가 있어도 함께 남습니다</span></div>';
     show(h, 2, cur.pick != null ? '👉 지금 하실 일: 미리 고른 수주번호가 맞는지 보고 「이 수주번호에 붙이기」' : '👉 지금 하실 일: 이 발주서를 붙일 수주번호를 고르세요(관리번호만으로는 붙지 않습니다)'); panel.__c = list; panel.__f = [];
   }
@@ -432,7 +428,7 @@ tr.qm-paid[hidden] { display:none; }
       fetch('/api/customer-po/search?q=' + encodeURIComponent(q), {credentials:'same-origin'}).then(function(r){ return r.json(); }).then(function(j){
         var it = (j && j.items) || [], base = (panel.__c || []).length; panel.__f = it;
         box.innerHTML = it.length ? it.map(function(x, i){
-          if (x.head) return '<div class="qm-meta" style="margin-top:4px;font-weight:700;color:#334155;">' + esc(x.label) + '</div>';   /* z1191z156: 관리번호 = 머리 글(고를 수 없음) */
+          if (x.head) return '<div class="qm-meta" style="margin-top:4px;font-weight:700;color:var(--knk-text-secondary);">' + esc(x.label) + '</div>';   /* z1191z156: 관리번호 = 머리 글(고를 수 없음) */
           return '<label class="qm-cand"><input type="radio" name="qmPoC" value="' + (base + i) + '"><span>' + esc(x.label) + (x.has ? ' <span class="qm-pill mute">발주서 ' + x.has + '장 있음</span>' : '') + '</span></label>'; }).join('') : '<div class="qm-meta">찾은 것이 없습니다.</div>';
       });
     }, 250);
@@ -450,10 +446,10 @@ tr.qm-paid[hidden] { display:none; }
       show('⏳ 붙이는 중…', 3, '⏳ 진행 중 — 붙이고 있습니다');
       post('/api/customer-po/place', fd).then(function(j){
         if (j && (j.need_so || j.no_so)) { show('<div class="row"><button type="button" class="qm-btn up" data-po="back">수주번호 다시 고르기</button></div>', 2, j.message || '👉 수주번호를 골라 주세요'); return; }
-        if (!j || !j.ok) { show('<b style="color:#b91c1c;">' + esc((j && j.message) || '붙이지 못했습니다 — 다시 해 보세요.') + '</b><div class="row"><button type="button" class="qm-btn" data-po="back">수주번호 다시 고르기</button></div>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); return; }
+        if (!j || !j.ok) { show('<b style="color:var(--knk-danger);">' + esc((j && j.message) || '붙이지 못했습니다 — 다시 해 보세요.') + '</b><div class="row"><button type="button" class="qm-btn" data-po="back">수주번호 다시 고르기</button></div>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); return; }
         show(esc(j.slot) + '에 고객 발주서를 올렸습니다' + (j.n_so > 1 ? ' (이 수주 발주서 모두 ' + j.n_so + '장)' : '') + ' — 목록을 다시 불러옵니다…', 4, '✅ 완료 — ' + (j.slot || '') + ' 에 붙었습니다');
         setTimeout(function(){ location.reload(); }, 900);
-      }).catch(function(){ show('<b style="color:#b91c1c;">인터넷 연결이 끊겨 붙이지 못했습니다.</b><div class="row"><button type="button" class="qm-btn" data-po="back">수주번호 다시 고르기</button></div>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); });
+      }).catch(function(){ show('<b style="color:var(--knk-danger);">인터넷 연결이 끊겨 붙이지 못했습니다.</b><div class="row"><button type="button" class="qm-btn" data-po="back">수주번호 다시 고르기</button></div>', 3, '⚠ 끝나지 않았습니다 — 다시 해 보세요'); });
     }
   });
   fi.addEventListener('change', function(){ var f = fi.files && fi.files[0]; fi.value = ''; start(f); });

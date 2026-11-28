@@ -12,77 +12,79 @@
    레거시 백업: _legacy_login_v4.html
    ============================================================ #}
 
-<link href="/static/css/v5_tokens.css?v=20260726v5H226z1057" rel="stylesheet" />
+<link href="/static/css/v5_tokens.css?v={{ APP_VERSION }}" rel="stylesheet" />
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-family: var(--knk-font);
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: var(--paper);
-  background-image:
-    radial-gradient(circle at 15% 20%, rgba(165,40,44,0.10) 0%, transparent 50%),
-    radial-gradient(circle at 85% 80%, rgba(165,40,44,0.06) 0%, transparent 55%);
-  color: var(--ink);
+  background: var(--knk-bg-page);
+  color: var(--knk-text-primary);
 }
 .wrap {
   width: 100%; max-width: 1080px;
   display: grid; grid-template-columns: 1.1fr 1fr;
-  background: var(--paper-3); border-radius: 28px; overflow: hidden;
-  box-shadow: 0 30px 80px rgba(184,132,58,0.18), 0 0 0 1px var(--line);
+  background: var(--knk-bg-surface); border-radius: var(--knk-radius-modal); overflow: hidden;
+  box-shadow: var(--knk-shadow-modal), 0 0 0 1px var(--knk-border-subtle);
   margin: 40px;
 }
 .welcome {
-  background: linear-gradient(135deg, var(--knk-red) 0%, #7A1D20 100%);
-  color: white; padding: 56px 52px;
+  background: var(--knk-brand);
+  color: var(--knk-text-inverse); padding: 56px 52px;
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   min-height: 600px;
 }
+/* z1191z205: 회사 빨강 바탕 + 흰 패턴(시스템이 스스로 일하는 곳 = 로그인 · 스킬 knk-brand 4절) · 빨강 바탕엔 흰 색판 로고만 */
+.welcome::before { content: ""; position: absolute; inset: 0; background: url('/static/img/brand/knk-pattern-tile_white.png') 0 0 / var(--knk-pattern-w) auto repeat; opacity: .08; pointer-events: none; }   /* 글자 뒤 = 6~10% (knk-brand) */
 .welcome-top { position: relative; z-index: 2; }
-.welcome-logo { background: white; padding: 12px 18px; border-radius: 14px; display: inline-block; box-shadow: 0 8px 22px rgba(0,0,0,0.15); }
-.welcome-logo img { height: 32px; display: block; }
-.welcome-vol { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-glow); margin-top: 28px; font-weight: 600; }
+.welcome-logo { display: inline-block; }
+.welcome-logo img { height: 28px; width: auto; display: block; }
+.welcome-vol { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--knk-text-inverse); margin-top: 28px; font-weight: 700; }
 .welcome-mid { position: relative; z-index: 2; }
-.welcome h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 14px; color: white; }
-.welcome h1 em { font-style: normal; color: var(--amber-glow); }
-.welcome p { font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.88); max-width: 380px; }
+.welcome h1 { font-family: var(--knk-font-head); font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 14px; color: var(--knk-text-inverse); }
+.welcome h1 em { font-style: normal; color: var(--knk-text-inverse); text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 6px; }
+.welcome p { font-size: 15px; line-height: 1.7; color: var(--knk-text-inverse); max-width: 380px; }
 .welcome-bottom { position: relative; z-index: 2; display: flex; gap: 18px; padding-top: 28px; border-top: 1px solid rgba(255,255,255,0.18); }
 .stat { flex: 1; }
-.stat-num { font-size: 26px; font-weight: 700; color: white; }
-.stat-label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--amber-glow); margin-top: 2px; font-weight: 500; }
+.stat-num { font-size: 26px; font-weight: 700; color: var(--knk-text-inverse); }
+.stat-label { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--knk-text-inverse); margin-top: 2px; font-weight: 700; }
 .stat-divider { width: 1px; height: 40px; background: rgba(255,255,255,0.2); }
 
-.form-side { padding: 56px 52px; display: flex; flex-direction: column; justify-content: center; background: var(--paper-3); }
-.form-label-up { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--amber-deep); font-weight: 700; margin-bottom: 12px; }
-.form-side h2 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 8px; }
-.form-side .sub { font-size: 14px; color: var(--mute); margin-bottom: 32px; line-height: 1.6; }
+.form-side { padding: 56px 52px; display: flex; flex-direction: column; justify-content: center; background: var(--knk-bg-surface); }
+.form-label-up { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--knk-brand); font-weight: 800; margin-bottom: 12px; }
+.form-side h2 { font-family: var(--knk-font-head); font-size: 32px; font-weight: 800; letter-spacing: -0.02em; color: var(--knk-text-primary); margin-bottom: 8px; }
+.form-side .sub { font-size: 14px; color: var(--knk-text-muted); margin-bottom: 32px; line-height: 1.6; }
 
 .field { margin-bottom: 18px; }
-.field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
-.field input { width: 100%; padding: 14px 16px; font-size: 14px; font-family: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 14px; transition: all 0.2s; }
-.field input:focus { outline: none; border-color: var(--amber); background: white; box-shadow: 0 0 0 4px var(--amber-glow); }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--knk-text-primary); margin-bottom: 7px; }
+.field input { width: 100%; padding: 14px 16px; font-size: 14px; font-family: inherit; color: var(--knk-text-primary); background: var(--knk-bg-surface); border: 1px solid var(--knk-border-default); border-radius: var(--knk-radius-control); transition: all 0.2s; }
+.field input:focus { outline: none; border-color: var(--knk-focus); background: var(--knk-bg-surface); box-shadow: 0 0 0 3px var(--knk-focus-ring); }
 
 .field-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 24px; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mute); cursor: pointer; }
-.check input { accent-color: var(--amber); width: 16px; height: 16px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--knk-text-muted); cursor: pointer; }
+.check input { accent-color: var(--knk-brand); width: 16px; height: 16px; }
 .link { font-size: 13px; color: var(--knk-warning); text-decoration: none; font-weight: 600; }
 .link:hover { text-decoration: underline; }
 
-.btn-primary { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--amber) 0%, #C2693A 100%); color: white; border: 0; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 22px rgba(212,146,59,0.32); font-family: inherit; transition: all .18s; }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(212,146,59,0.42); }
+.btn-primary { width: 100%; padding: 15px; background: var(--knk-action); color: var(--knk-text-inverse); border: 0; border-radius: var(--knk-radius-control); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .18s; }
+.btn-primary:hover { background: var(--knk-action-hover); }
 
-.divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mute); }
-.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--knk-text-muted); }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--knk-border-subtle); }
 
-.btn-secondary { width: 100%; padding: 13px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all .18s; }
-.btn-secondary:hover { background: var(--amber-glow); border-color: var(--amber); }
+.btn-secondary { width: 100%; padding: 13px; background: var(--knk-bg-surface); color: var(--knk-text-primary); border: 1px solid var(--knk-border-default); border-radius: var(--knk-radius-control); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all .18s; }
+.btn-secondary:hover { background: var(--knk-bg-hover); border-color: var(--knk-border-strong); }
 
-.footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--mute); }
-.footer b { color: var(--knk-red); }
+.footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--knk-text-muted); }
+.footer b { color: var(--knk-text-primary); }
 
-.error-banner { margin-bottom: 16px; padding: 12px 14px; background: rgba(165,40,44,0.08); border: 1px solid var(--knk-red); border-radius: 12px; color: var(--knk-red); font-size: 13px; font-weight: 600; }
+.error-banner { margin-bottom: 16px; padding: 12px 14px; background: var(--knk-danger-subtle); border: 1px solid var(--knk-danger-line); border-radius: var(--knk-radius-control); color: var(--knk-danger-text); font-size: 13px; font-weight: 700; }
+
+/* 세 줄 표식 — 이 화면은 공용 모양 파일을 부르지 않는 홀로 화면이라 knk-components.css 의 .k-tri 와 같은 두 줄만 */
+.k-tri{display:inline-flex;gap:2px;height:14px;flex:none} .k-tri i{display:block;width:3px;background:var(--knk-brand);border-radius:1px}
 
 @media (max-width: 880px) {
   .wrap { grid-template-columns: 1fr; max-width: 480px; }
@@ -97,7 +99,7 @@ body {
   <div class="welcome">
     <div class="welcome-top">
       <div class="welcome-logo">
-        <img src="/static/logo.png" alt="KNK" onerror="this.style.display='none';this.parentElement.innerHTML='<b style=&quot;color:var(--knk-red);font-size:22px&quot;>KNK</b>';" />
+        <img src="/static/img/brand/knk-slogan-best_white.svg" alt="KNK — Human &amp; Ai create the Best · HAIST Innovation" width="242" height="28" />
       </div>
       <div class="welcome-vol">HAIST WORKS · v5 H5 · 2026</div>
     </div>
@@ -115,7 +117,7 @@ body {
   </div>
 
   <div class="form-side">
-    <div class="form-label-up">ENTER</div>
+    <div class="form-label-up"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>ENTER</div>
     <h2>메신저에서 들어오세요</h2>
     <p class="sub">HAIST WORKS 는 사내 메신저를 통해 입장합니다.<br>메신저에 로그인한 뒤 상단의 <b>“🔗 WORKS 열기”</b> 버튼을 눌러주세요.</p>
 
