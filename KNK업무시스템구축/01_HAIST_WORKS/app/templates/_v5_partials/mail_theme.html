@@ -2,6 +2,8 @@
    ☀️ 밝게(기본) · 🌤 부드럽게 · 🌙 어둡게 — 이 컴퓨터에 기억(knkmail.theme) · 메일 화면에만(WORKS 다른 화면은 그대로)
    화면 글 속 고정 색은 var(--mt-*, 원래 색) 으로 바꿔 두었고, 여기서 그 값을 테마마다 정한다.
    메일 본문(보낸 사람이 만든 모양)과 쓰는 칸은 흰 종이 그대로 — 받는 사람이 보는 모양과 같게(11-22 「부드럽게」만 밝기를 살짝 낮춤 · 색은 그대로). #}
+{# 11-28 2단계 — 메일 공용 모양 .m-*(--knk-* 이름만 · 지금 화면은 안 써서 모양 변화 0 · 견본 /mail/design-kit) #}
+<link rel="stylesheet" href="/static/css/knk-mail.css?v={{ APP_VERSION }}">
 <script>
 (function(){ var t='clear'; try{ t=localStorage.getItem('knkmail.theme')||'clear'; }catch(e){}
   if(['clear','soft','dark'].indexOf(t)<0) t='clear'; document.documentElement.setAttribute('data-mt', t); })();
@@ -18,23 +20,35 @@ document.addEventListener('DOMContentLoaded', function(){ try{ mailThemeMark(); 
 window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var k=e.newValue||'clear'; if(['clear','soft','dark'].indexOf(k)<0) k='clear'; document.documentElement.setAttribute('data-mt', k); try{ mailThemeMark(); }catch(_){} } });
 </script>
 <style>
+  /* ── 11-28 대표 「이음메일 디자인을 코드로」 1단계 — 메일 색 이름(--mt-* · --md-*)은 기준 값(--knk-*)을 가리키는 별칭만.
+     값은 테마마다 아래에서 --knk-* 로만 정한다(웍스와 같은 이름 · 웍스에 없는 메일 몫만 --knk-mail-*).
+     층: brand.json → v5_tokens.css(--knk-* 웍스 기본) → 여기(메일 테마마다 --knk-* 값) → --mt-* · --md-* 별칭 → 메일 화면
+     3단계(대표 「올려」 뒤)는 이 값들만 회사 값으로 바꾸면 화면 전체가 따라간다(_v5_partials/mail_ci.html). ── */
+  html[data-mt]{
+    --mt-bg:var(--knk-bg-page); --mt-surface:var(--knk-bg-surface); --mt-panel:var(--knk-bg-inset); --mt-hover:var(--knk-bg-hover);
+    --mt-line:var(--knk-border-default); --mt-sep:var(--knk-border-strong); --mt-gutter:var(--knk-mail-gutter); --mt-thumb:var(--knk-mail-thumb); --mt-track:var(--knk-mail-track);
+    --mt-text:var(--knk-text-primary); --mt-text2:var(--knk-text-secondary); --mt-mute:var(--knk-text-muted); --mt-sel:var(--knk-bg-selected);
+    --mt-unread:var(--knk-info); --mt-link:var(--knk-info); --knk-mail-mark:var(--knk-brand); }
   html[data-mt="clear"]{ color-scheme:light;
-    --mt-bg:#eceff3; --mt-surface:#ffffff; --mt-panel:#f6f7f9; --mt-hover:#eceff3; --mt-line:#cfd6de; --mt-sep:#a9b3bf; --mt-gutter:#dce1e7; --mt-thumb:#9aa4b0; --mt-track:#e3e7ec;
-    --mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e; --mt-sel:#e2ecfd; --mt-unread:#1d4ed8; --mt-link:#1d4ed8;
+    --knk-bg-page:#eceff3; --knk-bg-surface:#ffffff; --knk-bg-inset:#f6f7f9; --knk-bg-hover:#eceff3; --knk-border-default:#cfd6de; --knk-border-strong:#a9b3bf;
+    --knk-mail-gutter:#dce1e7; --knk-mail-thumb:#9aa4b0; --knk-mail-track:#e3e7ec;
+    --knk-text-primary:#111827; --knk-text-secondary:#374151; --knk-text-muted:#56606e; --knk-bg-selected:#e2ecfd; --knk-info:#1d4ed8;
     --paper:#eceff3; --paper-2:#f3f4f6; --paper-3:#ffffff; --paper-warm:#f6f7f9; --warm-tan:#e5e7eb;
     --ink:#111827; --ink-soft:#374151; --mute:#56606e; --mute-2:#9aa3af; --line:#cfd6de; --line-strong:#a9b3bf; --line-soft:#eef0f3; }
   /* 11-22 대표 「부드럽게를 조금 더 눈부심이 덜하게」 — 바탕·목록 칸을 한 단계 낮춤(가장 밝던 목록 칸 #edf1f5 → #dfe5eb)
      · 글자는 아주 검은색 대신 짙은 남회색(대비는 읽기 좋은 정도 그대로) · 메일 본문 흰 종이도 이 테마에서만 살짝 낮춤(아래) */
   html[data-mt="soft"]{ color-scheme:light;
-    --mt-bg:#c6d0da; --mt-surface:#dfe5eb; --mt-panel:#d2dae3; --mt-hover:#c8d2dc; --mt-line:#a5b3c2; --mt-sep:#8494a7; --mt-gutter:#b6c2cf; --mt-thumb:#7b8c9f; --mt-track:#c0cad5;
-    --mt-text:#1c2633; --mt-text2:#313d4c; --mt-mute:#465365; --mt-sel:#b9cce3; --mt-unread:#1a49a6; --mt-link:#1a49a6;
+    --knk-bg-page:#c6d0da; --knk-bg-surface:#dfe5eb; --knk-bg-inset:#d2dae3; --knk-bg-hover:#c8d2dc; --knk-border-default:#a5b3c2; --knk-border-strong:#8494a7;
+    --knk-mail-gutter:#b6c2cf; --knk-mail-thumb:#7b8c9f; --knk-mail-track:#c0cad5;
+    --knk-text-primary:#1c2633; --knk-text-secondary:#313d4c; --knk-text-muted:#465365; --knk-bg-selected:#b9cce3; --knk-info:#1a49a6;
     --paper:#c6d0da; --paper-2:#d2dae3; --paper-3:#dfe5eb; --paper-warm:#d2dae3; --warm-tan:#bcc7d3;
     --ink:#1c2633; --ink-soft:#313d4c; --mute:#465365; --mute-2:#77869a; --line:#a5b3c2; --line-strong:#8494a7; --line-soft:#ced6df; }
   html[data-mt="soft"] .mv-frame{ filter:brightness(.92); }
   html[data-mt="soft"] .cmp-editor{ background:#eef0f3 !important; }
   html[data-mt="dark"]{ color-scheme:dark;
-    --mt-bg:#111317; --mt-surface:#1c1f24; --mt-panel:#171a1e; --mt-hover:#282d34; --mt-line:#363c45; --mt-sep:#525b67; --mt-gutter:#24282e; --mt-thumb:#5c6571; --mt-track:#1a1d21;
-    --mt-text:#e8ebef; --mt-text2:#c6ccd4; --mt-mute:#9ba4b0; --mt-sel:#203454; --mt-unread:#8ab4f8; --mt-link:#8ab4f8;
+    --knk-bg-page:#111317; --knk-bg-surface:#1c1f24; --knk-bg-inset:#171a1e; --knk-bg-hover:#282d34; --knk-border-default:#363c45; --knk-border-strong:#525b67;
+    --knk-mail-gutter:#24282e; --knk-mail-thumb:#5c6571; --knk-mail-track:#1a1d21;
+    --knk-text-primary:#e8ebef; --knk-text-secondary:#c6ccd4; --knk-text-muted:#9ba4b0; --knk-bg-selected:#203454; --knk-info:#8ab4f8;
     --paper:#111317; --paper-2:#171a1e; --paper-3:#1c1f24; --paper-warm:#171a1e; --warm-tan:#323840;
     --ink:#e8ebef; --ink-soft:#c6ccd4; --mute:#9ba4b0; --mute-2:#6b7480; --line:#363c45; --line-strong:#4a525d; --line-soft:#22262c;
     --amber-glow:#3a3120; }
@@ -135,3 +149,4 @@ window.addEventListener('storage', function(e){ if(e.key==='knkmail.theme'){ var
 {% if mail_design_preview|default(false) %}{% include "_v5_partials/mail_design_v2.html" %}{% endif %}
 {# 11-27 🔆 글자 또렷하게(이음 v1039·v1040 기준을 메일에) — 새 디자인 다음에 와서 덮음 #}
 {% include "_v5_partials/mail_contrast.html" %}
+

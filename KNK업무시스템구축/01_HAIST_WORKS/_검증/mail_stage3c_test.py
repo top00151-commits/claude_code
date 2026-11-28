@@ -179,7 +179,7 @@ from app import mail_send as _msend
 from app import mail_store as _mailbox_t
 v, f = sigs("jo")
 h = mg.design_html(f["text"], v["_corp"], "ko")
-check("맨 위 로고 + 오른쪽 QR = 본문에 품은 그림 둘(data:image/png) · 로고 너비 220 · QR 56", h.count('src="data:image/png;base64,') == 2 and 'width="220"' in h
+check("맨 위 로고 + 오른쪽 QR = 본문에 품은 그림 둘(data:image/png) · 로고 너비(원본 비율 · 11-28 0단계 mg.SIG_LOGO_W) · QR 56", h.count('src="data:image/png;base64,') == 2 and ('width="%d"' % mg.SIG_LOGO_W) in h
       and 'alt="KNK HAIST Innovation"' in h and 'width="56" height="56" alt="QR www.knknara.com"' in h, h[:200])
 check("로고·QR 을 누르면 홈페이지(https://www.knknara.com)", h.count('<a href="https://www.knknara.com" target="_blank"') == 2)
 try:
@@ -219,7 +219,11 @@ check("보낼 때 거르기(위생 처리)를 거쳐도 로고·QR·링크·글�
       and _san.count('href="https://www.knknara.com"') == 2 and "font-size:15px" in _san)
 _html_s, _imgs = _msend._inline_data_images(_san)
 check("보낼 때 로고·QR = 인라인 첨부(cid) 둘로 바뀜(받는 쪽에서도 보임)", len(_imgs) == 2 and "data:image" not in _html_s and _html_s.count('src="cid:') == 2, len(_imgs))
-check("서명용 로고·QR 파일 = 가볍게(40KB · 4KB 아래)", 0 < os.path.getsize(os.path.join(ROOT, "static", "mail_sig_logo.png")) < 40000
+# 11-28 0단계: 서명 로고 = 스킬 knk-brand 원본 PNG 그대로(static/img/brand/) — 원본이라 예전 줄인 그림(40KB 아래)보다 큼 → 70KB 아래로 봄
+_lg = os.path.join(ROOT, "static", *mg.SIG_LOGO_FILE.split("/"))
+_lg_src = os.path.join(os.path.dirname(os.path.dirname(ROOT)), "00_스킬규정", "knk-brand", "assets", "logo", "png", os.path.basename(_lg))
+check("서명용 로고 = 스킬 원본 파일 그대로(70KB 아래) · QR 4KB 아래", 0 < os.path.getsize(_lg) < 70000
+      and (not os.path.exists(_lg_src) or open(_lg, "rb").read() == open(_lg_src, "rb").read())
       and 0 < os.path.getsize(os.path.join(ROOT, "static", "mail_sig_qr.png")) < 4000)
 
 # ═══════════════════════ ⑧-3 사람마다 회사 서명 · 기본 서명 (대표 11-22) ═══════════════════════

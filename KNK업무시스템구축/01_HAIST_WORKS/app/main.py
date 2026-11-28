@@ -25849,6 +25849,16 @@ def _mail_who_info(m, folder_info):
         return None
 
 
+@app.get("/mail/design-kit", response_class=HTMLResponse)
+def mail_design_kit_page(req: Request, ci: int = 0):
+    """11-28 대표 「이음메일 디자인을 코드로」 6단계 — 살아 있는 견본(메일 테마·.m-*·대화 흐름·선 아이콘을 실제 코드로 그림).
+    ?ci=1 = 3단계 새 모양 미리 보기(이 화면에서만 · 직원 메일 화면은 전역 mail_ci 가 켜질 때만). 읽기만."""
+    u = get_user(req)
+    if not u:
+        return RedirectResponse("/login", 303)
+    return ctx(req, "mail_design_kit.html", user=u, mail_ci_preview=(ci == 1))
+
+
 def _mail_folders_res(c, uid):
     """읽기 화면 한 번에 폴더 나누기 결과 한 번(폴더 나무 없는 사람 = None · 실패도 None)."""
     try:

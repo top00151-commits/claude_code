@@ -171,7 +171,8 @@ try:
     check("새 창(더블클릭)도 같은 테마", "knkmail.theme" in km.get("/mail/%d?win=1" % M_CUST).text)
     check("칸 구분선 또렷하게(11-19 대표 「구분선이 잘 안 보여」): 테마마다 경계선·손잡이 줄 색 · 칸 사이 줄 양쪽 선 · 스크롤 막대 회색",
           # 11-22 밤 새 디자인(mail_design_v2 · 테마 조각 뒤에 붙음)이 밝게 테마 선 색을 한 번 더 정함 → 테마 3가지 정의 부분만 센다
-          hk.split("window.MD_ICONS")[0].count("--mt-sep:") == 3 and hk.split("window.MD_ICONS")[0].count("--mt-gutter:") == 3 and "html[data-mt] .mbx-gutter{ background:var(--mt-gutter) !important; box-shadow:inset 1px 0 0 var(--mt-sep)" in hk
+          # 11-28 1단계: 테마 값은 --knk-*(경계선 = --knk-border-strong · 손잡이 줄 = --knk-mail-gutter) · --mt-sep·--mt-gutter 는 별칭 한 번
+          hk.split("window.MD_ICONS")[0].count("--knk-border-strong:") == 3 and hk.split("window.MD_ICONS")[0].count("--knk-mail-gutter:") == 3 and "--mt-sep:var(--knk-border-strong)" in hk and "--mt-gutter:var(--knk-mail-gutter)" in hk and "html[data-mt] .mbx-gutter{ background:var(--mt-gutter) !important; box-shadow:inset 1px 0 0 var(--mt-sep)" in hk
           and "html[data-mt] .main{ scrollbar-color:var(--mt-thumb) var(--mt-track); }" in hk)
     # 11-19 대표 「화면 구성 비율이 안 맞지? 이런 게 많은데 · 모니터 크기 비율에 자동으로 맞게」 — 회사 표준(시트여백·자동 높이)
     import re as _re

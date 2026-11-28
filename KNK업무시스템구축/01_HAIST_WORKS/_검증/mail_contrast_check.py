@@ -28,21 +28,21 @@ def ratio(a, b):
 
 # (설명, 들어 있어야 할 규칙 조각(정규식), 글자색, [바탕들]) — 바탕은 메일 테마 토큰 실제 값
 RULES = [
-    ("밝게 보조 글자", r'\[data-mt="clear"\]\{ --mt-mute:#5f6774; \}', "#5f6774", ["#ffffff", "#f7f8fa", "#f2f3f5", "#e9eef7"]),
+    ("밝게 보조 글자", r'\[data-mt="clear"\]\{ --knk-text-muted:#5f6774; \}', "#5f6774", ["#ffffff", "#f7f8fa", "#f2f3f5", "#e9eef7"]),
     ("밝게 입력 안내", r'data-mt="clear"\] textarea::-webkit-input-placeholder\{ color:#5f6774 !important', "#5f6774", ["#ffffff", "#f2f3f5"]),
     ("부드럽게 입력 안내", r'data-mt="soft"\] textarea::-webkit-input-placeholder\{ color:#465365 !important', "#465365", ["#dfe5eb", "#c6d0da", "#d2dae3"]),
     ("머리띠 투명도 1", r'html\[data-mt\] \.mail-app-top a\{ opacity:1; \}', None, []),
     ("폴더 수 투명도 1", r'\.mbx-fold \.cnt, html\[data-mt\] \.mbx-fold\.on \.cnt\{ opacity:1;', None, []),
     ("0건 칩 투명도 1", r'\.mbx-day-i\.zero\{ opacity:1;', None, []),
-    ("부드럽게 회신 꼬리표", r'\[data-mt="soft"\]\{ --md-warn:#6f4100; \}', "#6f4100", ["#dfe5eb", "#c6d0da", "#c8d2dc", "#b9cce3"]),
+    ("부드럽게 회신 꼬리표", r'\[data-mt="soft"\]\{ --knk-mail-warn:#6f4100; \}', "#6f4100", ["#dfe5eb", "#c6d0da", "#c8d2dc", "#b9cce3"]),
     ("밝게 발송망 안내", r'data-mt="clear"\] \[style\*="--amber-deep"\] b\{ color:#92400e', "#92400e", ["#f2f3f5", "#ffffff"]),
     ("부드럽게 발송망 안내", r'data-mt="soft"\] \[style\*="--amber-deep"\] b\{ color:#7c3d06', "#7c3d06", ["#c6d0da", "#dfe5eb"]),
-    ("하위 화면 제목 글자 토큰", r'--knk-text-primary:var\(--mt-text\)', None, []),
+    ("하위 화면 제목 글자 토큰(11-28: 테마가 --knk-text-* 를 직접 정함 · 옛 「var(--mt-text)」 줄 없음)", r'메일 테마가 --knk-text-\* 값을 직접 정하므로', None, []),
     ("가져오기 단계 번호 원", r'\.mi-fs \.n\{ background:#5f6774; \}', "#ffffff", ["#5f6774"]),
     ("어둡게 보내기/받기 글자", r'data-mt="dark"\] \.mail-tools \.mt-sync, html\[data-mt="dark"\] \.mt-card b \.ck\{ color:#ff8a8f; \}', "#ff8a8f", ["#1c1f24", "#111317", "#171a1e", "#282d34", "#262a30"]),
     ("어둡게 숫자 원 바탕", r'\.mail-app-top \.me \.av\{ background:#cc3a40 !important; \}', "#ffffff", ["#cc3a40"]),
     ("어둡게 메뉴 삭제", r'\.mbx-ctx \.i\.red\{ color:#ff8a8f; \}', "#ff8a8f", ["#1c1f24"]),
-    ("어둡게 밝은 상자 안 글자", r'--mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e;', "#56606e", ["#f8fafc", "#fff7ed", "#fff5f5", "#f5f7ff"]),
+    ("어둡게 밝은 상자 안 글자", r'--knk-mail-light-text:#111827; --knk-mail-light-text2:#374151; --knk-mail-light-mute:#56606e;', "#56606e", ["#f8fafc", "#fff7ed", "#fff5f5", "#f5f7ff"]),
     ("어둡게 찾기 띠 굵은 글자", r'\.mbx-res b, html\[data-mt="dark"\] \.mbx-res-n\{ color:#f1e3a8; \}', "#f1e3a8", ["#2a2817"]),
     ("서명 미리 보기 흰 종이", r'html\[data-mt\] \.co-pv\{ background:#fff;', None, []),
     # 11-27 2차 — 옛 디자인(v1) · 관리자 메일 화면
@@ -52,7 +52,7 @@ RULES = [
     ("머리띠 직책 투명도 1", r'\.mail-app-top \.me \.role\{ opacity:1; \}', "#ffffff", ["#b14649"]),
     ("v1 어둡게 주소록 알약", r'\[data-mt="dark"\] \.mv-ct-inline\{ color:#5b21b6; \}', "#5b21b6", ["#f5f3ff"]),
     ("어둡게 ⋯ 상자 주황 글자(두 디자인)", r'html\[data-mt="dark"\] \.mv-more-box \.warn, html\[data-mt="dark"\] \.mv-more-box \.mv-fu-row button\.x\{ color:#fdba74; \}', "#fdba74", ["#1c1f24", "#171a1e", "#282d34"]),
-    ("관리자 흰 카드 안 밝은 테마 글자", r'--mt-text:#1d2228; --mt-text2:#3f4652; --mt-mute:#5f6774; --mt-link:#2556c4;', "#5f6774", ["#ffffff", "#f8fafc", "#f8fbff", "#fffbeb", "#eff6ff"]),
+    ("관리자 흰 카드 안 밝은 테마 글자", r'--knk-mail-light2-text:#1d2228; --knk-mail-light2-text2:#3f4652; --knk-mail-light2-mute:#5f6774; --knk-mail-light2-link:#2556c4;', "#5f6774", ["#ffffff", "#f8fafc", "#f8fbff", "#fffbeb", "#eff6ff"]),
     ("관리자 카드 안 입력·보조 단추 밝은 글자", r'\.btn:not\(\.btn-primary\)\{ color:#e8ebef; \}', "#e8ebef", ["#1c1f24", "#262a30"]),
     ("관리자 완전삭제 단추", r'\.mp-card \.btn\.danger\{ color:#ff8a8f !important; \}', "#ff8a8f", ["#262a30"]),
     ("고른 사람 빈 칸 안내", r'\.knkp-chips-empty\{ color:#64748b; \}', "#64748b", ["#ffffff"]),
@@ -89,12 +89,12 @@ def main():
     print("① 지금 판: %s (규칙 %d개)" % ("통과" if not bad else "실패 %d" % len(bad), len(RULES)))
     # 나쁜 예 — 값을 예전 값으로 되돌린 판이 실제로 걸리는지
     worse = [
-        ("보조 글자 되돌림", con.replace("--mt-mute:#5f6774;", "--mt-mute:#6b7380;")),
+        ("보조 글자 되돌림", con.replace("--knk-text-muted:#5f6774;", "--knk-text-muted:#6b7380;")),
         ("숫자 원 되돌림", con.replace("background:#cc3a40 !important;", "background:#e0666b !important;")),
         ("투명도 되돌림", con.replace(".mail-app-top a{ opacity:1; }", ".mail-app-top a{ opacity:.92; }")),
         ("v1 폴더 수 되돌림(보조 글자색)", con.replace('html[data-md="v1"] .mbx-fold.on .cnt{ color:inherit !important; }', '')),
         ("숫자 원 바탕 v2 한정 풀림", con.replace('html[data-md="v2"][data-mt="dark"] .fbadge, html[data-md="v2"][data-mt="dark"] .mf-u', 'html[data-mt="dark"] .fbadge, html[data-mt="dark"] .mf-u')),
-        ("관리자 카드 글자 토큰 빠짐", con.replace("--mt-text:#1d2228; --mt-text2:#3f4652;", "")),
+        ("관리자 카드 글자 토큰 빠짐", con.replace("--knk-mail-light2-text:#1d2228; --knk-mail-light2-text2:#3f4652;", "")),
         ("이름 겹침 상자 표시 없이", con.replace(":is(.bl-card,.ms-card,", ":is(.bl-card,.mi-card,.ms-card,", 1)),
         ("불러오기 빠짐", None),
     ]

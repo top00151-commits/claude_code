@@ -1,0 +1,99 @@
+/* ============================================================
+   이음메일 공용 모양 .m-* (11-28 대표 「이음메일 디자인을 코드로」 2단계)
+   원본 견본: HAIST WORKS디자인변경/2026-11-28_이음메일_디자인시안/mail.css (넘김 문서 4절 2단계)
+   · 색·크기는 --knk-* 이름만(값은 v5_tokens.css · 메일 테마 값은 _v5_partials/mail_theme.html) — 여기서 새 색·새 --knk-* 를 만들지 않는다
+   · 지금(3단계 전) 메일 화면은 .m-* 를 쓰지 않으므로 불러와도 모양 변화 0 — 4단계에서 화면을 한 곳씩 옮긴다
+   · 살아 있는 견본: /mail/design-kit (이 파일의 .m-* 를 모두 실제로 그림)
+   ============================================================ */:root{
+  --m-top-h:56px;
+  --m-side-w:232px;
+  --m-list-w:440px;
+  --m-row-pad:12px 16px;
+}
+.m-ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.m-ic.sm{width:16px;height:16px}
+
+/* 틀 */
+.m-app{height:100%;min-height:0;display:flex;flex-direction:column;background:var(--knk-bg-page);font-family:var(--knk-font);color:var(--knk-text-primary);font-size:14px}
+.m-top{position:relative;overflow:hidden;height:var(--m-top-h);flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--knk-bg-white);border-bottom:1px solid var(--knk-border-subtle)}
+.m-top::after{content:'';position:absolute;top:0;right:0;bottom:0;width:30%;background:url('/static/img/brand/knk-pattern-tile_red.png') 0 0/265px auto repeat;opacity:.06;-webkit-mask-image:linear-gradient(to left,black 30%,transparent);mask-image:linear-gradient(to left,black 30%,transparent);pointer-events:none}
+.m-top>*{position:relative;z-index:1}
+.m-brand{display:flex;align-items:center;gap:10px;font-family:var(--knk-font-head);font-weight:800;font-size:17px;color:var(--knk-brand-black);white-space:nowrap}
+.m-brand img{height:16px;width:auto}
+.m-body{flex:1;min-height:0;display:flex}
+.m-side{width:var(--m-side-w);flex:none;overflow:auto;background:var(--knk-bg-white);border-right:1px solid var(--knk-border-subtle);padding:12px 8px;display:flex;flex-direction:column;gap:2px}
+.m-list{width:var(--m-list-w);flex:none;display:flex;flex-direction:column;min-height:0;background:var(--knk-bg-white);border-right:1px solid var(--knk-border-subtle)}
+.m-list-scroll{flex:1;overflow:auto}
+.m-read{flex:1;min-width:0;overflow:auto;background:var(--knk-bg-white)}
+
+/* 폴더 줄 */
+.m-f{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:var(--knk-radius-control);font:inherit;font-size:14px;color:var(--knk-text-secondary);background:none;border:0;width:100%;text-align:left;cursor:pointer}
+.m-f:hover{background:var(--knk-bg-hover)}
+.m-f.on{background:var(--knk-brand-subtle);color:var(--knk-brand-black);font-weight:700}
+.m-f.on .m-ic{color:var(--knk-brand)}
+.m-f span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-u{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--knk-brand);color:var(--knk-text-inverse);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.m-n{font-size:12px;color:var(--knk-text-muted);font-variant-numeric:tabular-nums}
+.m-side-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 10px 6px;font-size:12px;font-weight:700;color:var(--knk-text-muted)}
+
+/* 오늘 챙길 메일 · 거르기 칩 */
+.m-today{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px;border-bottom:1px solid var(--knk-border-subtle)}
+.m-chip{height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--knk-border-default);background:var(--knk-bg-white);font:inherit;font-size:13px;color:var(--knk-text-secondary);display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.m-chip:hover{background:var(--knk-bg-hover)}
+.m-chip b{font-weight:800;color:var(--knk-text-primary);font-variant-numeric:tabular-nums}
+.m-chip.hot b{color:var(--knk-danger)}
+.m-chip.on{border-color:var(--knk-brand);background:var(--knk-brand-subtle);color:var(--knk-brand-black);font-weight:700}
+.m-filter{display:flex;align-items:center;gap:6px;padding:8px 16px;border-bottom:1px solid var(--knk-border-subtle);flex-wrap:wrap}
+
+/* 목록 줄 */
+.m-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;column-gap:10px;row-gap:2px;padding:var(--m-row-pad);border:0;border-bottom:1px solid var(--knk-border-subtle);background:var(--knk-bg-white);width:100%;text-align:left;font:inherit;cursor:pointer;color:inherit}
+.m-row:hover{background:var(--knk-bg-hover)}
+.m-row.on{background:var(--knk-brand-subtle);box-shadow:inset 3px 0 0 var(--knk-brand)}
+.m-dot{width:8px;height:8px;border-radius:999px;background:transparent;margin-top:7px}
+.m-row.unread .m-dot{background:var(--knk-brand)}
+.m-from{font-size:14px;color:var(--knk-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-row.unread .m-from{font-weight:800;color:var(--knk-text-primary)}
+.m-subj{grid-column:2/4;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--knk-text-primary)}
+.m-row.unread .m-subj{font-weight:700}
+.m-snip{grid-column:2/4;font-size:13px;color:var(--knk-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-time{font-size:12px;color:var(--knk-text-muted);white-space:nowrap;display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.m-tags{grid-column:2/4;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.m-star{color:var(--knk-border-strong)}
+.m-star.on{color:var(--knk-warning);fill:var(--knk-warning)}
+
+/* 읽기 */
+.m-read-in{padding:24px 32px 48px;display:flex;flex-direction:column;gap:16px}
+.m-tool{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 32px;border-bottom:1px solid var(--knk-border-subtle);background:var(--knk-bg-white);position:sticky;top:0;z-index:2}
+.m-subject{margin:0;font-family:var(--knk-font-head);font-size:22px;font-weight:800;line-height:1.35;color:var(--knk-brand-black)}
+.m-av{width:40px;height:40px;border-radius:999px;background:var(--knk-brand-subtle);color:var(--knk-brand);font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.m-av.sm{width:22px;height:22px;font-size:11px}
+.m-person{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 3px;border-radius:999px;background:var(--knk-bg-subtle);font-size:13px;color:var(--knk-text-primary);white-space:nowrap}
+.m-person.me{background:var(--knk-success-subtle);color:var(--knk-success);font-weight:700}
+.m-person.me .m-av{background:var(--knk-success);color:var(--knk-text-inverse)}
+.m-meta{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px 12px;align-items:center;font-size:13px}
+.m-meta dt{color:var(--knk-text-muted)}
+.m-meta dd{margin:0;display:flex;flex-wrap:wrap;gap:6px}
+.m-bodytext{font-size:15px;line-height:1.75;color:var(--knk-text-primary)}
+.m-bodytext p{margin:0 0 12px}
+.m-att{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--knk-border-default);border-radius:var(--knk-radius-card);background:var(--knk-bg-white);min-width:220px;max-width:280px;text-decoration:none;color:inherit}
+.m-att:hover{background:var(--knk-bg-hover);text-decoration:none;color:inherit}
+.m-att i{width:36px;height:40px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:800;color:var(--knk-text-inverse);flex:none}
+.m-att i.pdf{background:var(--knk-brand)}
+.m-att i.xls{background:var(--knk-success)}
+.m-att i.img{background:var(--knk-info)}
+.m-att i.doc{background:var(--knk-text-secondary)}
+.m-att b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-att small{font-size:12px;color:var(--knk-text-muted)}
+
+/* 오른쪽 클릭 메뉴 */
+.m-menu{width:260px;background:var(--knk-bg-white);border:1px solid var(--knk-border-default);border-radius:var(--knk-radius-card);box-shadow:var(--knk-shadow-modal);padding:6px;display:flex;flex-direction:column}
+.m-menu button{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:0;background:none;border-radius:var(--knk-radius-control);font:inherit;font-size:14px;color:var(--knk-text-primary);text-align:left;cursor:pointer}
+.m-menu button:hover,.m-menu button.on{background:var(--knk-bg-hover)}
+.m-menu kbd{margin-left:auto;font-family:inherit;font-size:12px;color:var(--knk-text-muted)}
+.m-menu hr{border:0;border-top:1px solid var(--knk-border-subtle);margin:4px 0}
+
+/* 좁은 화면: 목록만 */
+@media (max-width:900px){
+  .m-side,.m-read{display:none}
+  .m-list{width:100%;border-right:0}
+}

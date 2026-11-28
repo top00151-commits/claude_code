@@ -1867,6 +1867,138 @@ def check_font_files(files, root=None):
     return bad
 
 
+# ── 이음메일 디자인 = 코드 (세션 15 · 대표 2026-11-28 「이음메일 디자인을 코드로」 5단계) ─────────────────────────
+#    기준 문서: HAIST WORKS디자인변경/2026-11-28_이음메일_디자인시안/2026-11-28_1135_세션15_넘김_이음메일_디자인을_코드로.md
+#    메일 화면 = app/templates/mail*.html · app/templates/_v5_partials/mail*.html · static/css/knk-mail.css
+#    M-1 메일 색 이름(--mt-* · --md-*)은 별칭만 — 값에 직접 색(#… · rgb() · hsl())을 적으면 실패(1단계 끝 기준 · 면제 없음)
+#        (새 직접 색이 느는 것은 공용 ⑤-2 가 파일별로 잡는다)
+#    M-2 단추·폴더 이름에 새 그림 문자 — <button>·<summary>·단추 모양 <a> 안 글자의 그림 문자 수가 파일별 면제(MAIL_EMOJI_BASE)를 넘으면 실패
+#        상태 글 ✅ ⏳ 👉(knk-done-status) · 닫기 ✕ · 확인 ✓ 는 셈에서 뺌
+#    M-3 메일의 회사 색 = brand.json — 메일 파일이 --knk-brand*/--knk-mail-mark 를 brand.json 과 다른 #색으로 적으면 실패
+#        (어둡게 테마 블록의 --knk-mail-mark 는 글자 대비용 밝은 빨강이라 뺌) · 안내서 PDF 의 틀린 색(#AE2B30 · #00C0A3)은 어디서든 실패
+#    M-4 서명 로고 = static/img/brand/ 원본 — app/mail_guide.py 의 SIG_LOGO_FILE 이 img/brand/… 이고 그 파일이 있어야 함
+#        (파일이 원본과 같은지는 ⑤-3)
+MAIL_EMOJI_KEEP = set("✅⏳👉✕✓")
+EMOJI_RE = re.compile("[\U0001F300-\U0001FAFF☀-➿⬀-⯿⌚⌛⏩-⏺ℹⓂ㊗㊙]")
+MAIL_LABEL_RE = re.compile(r"<(button|summary)\b[^>]*>(.*?)</\1>|<a\b[^>]*class=[\"'][^\"']*\b(?:btn|new|mbx-fold|mt-row|mv-[a-z-]*btn)\b[^\"']*[\"'][^>]*>(.*?)</a>", re.S | re.I)
+MAIL_BAD_HEX = ("#AE2B30", "#00C0A3")
+
+
+def _mail_files(root=None):
+    root = root or ROOT
+    out = []
+    for p in _walk(os.path.join(root, "app", "templates"), (".html",)):
+        if os.path.basename(p).startswith("mail"):
+            out.append(p)
+    cp = os.path.join(root, "static", "css", "knk-mail.css")
+    if os.path.exists(cp):
+        out.append(cp)
+    return sorted(out)
+
+
+def _mail_emoji_count(text):
+    return sum(1 for ch in EMOJI_RE.findall(text) if ch not in MAIL_EMOJI_KEEP)
+
+
+def check_mail_design(root=None, files=None, brand_path=None):
+    """M-1 ~ M-4 — 반환 (바로 위반, 그림 문자 칸 [(파일, 줄, 글)])."""
+    import json
+    root = root or ROOT
+    files = files if files is not None else _mail_files(root)
+    bad, emo = [], []
+    try:
+        brand = json.load(io.open(brand_path or _brand_json_path(root), encoding="utf-8"))
+        red = brand["colors"]["red"]["screen"].upper()
+    except Exception as e:
+        return [(brand_path or _brand_json_path(root), 0, "brand.json 을 읽지 못함(%s)" % e.__class__.__name__)], []
+    for p in files:
+        s = _strip_comments_keep_lines(_read(p))
+        # M-1
+        for m in re.finditer(r"(?<![\w-])(--(?:mt|md)-[\w-]+)\s*:\s*([^;{}]+)", s):
+            v = m.group(2)
+            if re.search(r"#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(", v):
+                bad.append((p, s[:m.start()].count("\n") + 1, "M-1 메일 색 이름 %s 에 직접 색(%s) → var(--knk-*) 별칭만 (값은 mail_theme.html 의 --knk-*)" % (m.group(1), v.strip()[:40])))
+        # M-3
+        for m in re.finditer(r"([^{}]*)\{([^{}]*)\}", s):
+            sel, body = m.group(1), m.group(2)
+            for dm in re.finditer(r"(?<![\w-])(--knk-brand(?:-red|-hover|-subtle)?|--knk-mail-mark)\s*:\s*(#[0-9a-fA-F]{3,8})", body):
+                name, hx = dm.group(1), dm.group(2).upper()
+                if name == "--knk-mail-mark" and 'data-mt="dark"' in sel:
+                    continue
+                if name in ("--knk-brand", "--knk-brand-red", "--knk-mail-mark") and hx != red:
+                    ln = s[:m.start(2) + dm.start()].count("\n") + 1
+                    bad.append((p, ln, "M-3 회사 색 %s = %s · brand.json 빨강 = %s → var(--knk-brand-red)" % (name, hx, red)))
+        for hx in MAIL_BAD_HEX:
+            for m in re.finditer(re.escape(hx) + r"\b", s, re.I):
+                bad.append((p, s[:m.start()].count("\n") + 1, "M-3 안내서 PDF 의 틀린 색 %s — brand.json 값만" % hx))
+        # M-2
+        if p.lower().endswith(".html"):
+            for m in MAIL_LABEL_RE.finditer(s):
+                inner = m.group(2) if m.group(2) is not None else (m.group(3) or "")
+                inner = re.sub(r"<[^>]+>", "", inner)
+                n = _mail_emoji_count(inner)
+                for _ in range(n):
+                    emo.append((p, s[:m.start()].count("\n") + 1, "M-2 단추·폴더 이름에 그림 문자 → 선 아이콘(mail_design_icons.html) · 상태 글 ✅⏳👉 만"))
+    # M-4
+    gp = os.path.join(root, "app", "mail_guide.py")
+    gs = _read(gp)
+    mm = re.search(r"(?m)^SIG_LOGO_FILE\s*=\s*[\"']([^\"']+)[\"']", gs or "")
+    if not mm:
+        bad.append((gp, 0, "M-4 서명 로고 SIG_LOGO_FILE 이 없다 — 서명 로고는 static/img/brand/ 원본 파일 한 곳에서"))
+    else:
+        rel = mm.group(1)
+        if not rel.startswith("img/brand/"):
+            bad.append((gp, gs[:mm.start()].count("\n") + 1, "M-4 서명 로고 %s 가 static/img/brand/ 가 아님 → 스킬 knk-brand 원본 복사본만" % rel))
+        elif not os.path.isfile(os.path.join(root, "static", *rel.split("/"))):
+            bad.append((gp, gs[:mm.start()].count("\n") + 1, "M-4 서명 로고 파일 없음: static/%s" % rel))
+        if re.search(r"_img_src\(\s*[\"'](?!img/brand/)[^\"']*logo", gs):
+            bad.append((gp, 0, "M-4 서명 로고를 static/img/brand/ 밖 그림으로 부름"))
+    return bad, emo
+
+
+def mail_design_selftest():
+    """일부러 어긴 메일 코드(임시 폴더)로 M-1 ~ M-4 가 실제로 잡히는지 — 잡히지 않으면 그 자체가 위반."""
+    import tempfile, shutil, json
+    out = []
+    tmp = tempfile.mkdtemp(prefix="mailchk_")
+    try:
+        os.makedirs(os.path.join(tmp, "app", "templates", "_v5_partials"))
+        os.makedirs(os.path.join(tmp, "static", "css"))
+        os.makedirs(os.path.join(tmp, "static", "img", "brand"))
+        bp = os.path.join(tmp, "brand.json")
+        json.dump({"colors": {"red": {"screen": "#AE2025"}}}, io.open(bp, "w", encoding="utf-8"))
+        good = os.path.join(tmp, "app", "templates", "_v5_partials", "mail_theme.html")
+        io.open(good, "w", encoding="utf-8").write(
+            '<style>html[data-mt]{ --mt-text:var(--knk-text-primary); --md-mark:var(--knk-mail-mark); }\n'
+            'html[data-mt="dark"]{ --knk-mail-mark:#e0666b; }</style>\n<button>✅ 끝</button><button>✕ 닫기</button>\n')
+        io.open(os.path.join(tmp, "app", "mail_guide.py"), "w", encoding="utf-8").write('SIG_LOGO_FILE = "img/brand/knk-slogan-best_full.png"\n')
+        io.open(os.path.join(tmp, "static", "img", "brand", "knk-slogan-best_full.png"), "wb").write(b"x")
+        b0, e0 = check_mail_design(tmp, brand_path=bp)
+        if b0 or e0:
+            out.append((good, 0, "자체 시험: 지키는 코드가 걸림 %s" % (b0 + e0)[:2]))
+        cases = [
+            ("M-1", '<style>html[data-mt="clear"]{ --mt-text:#111827; }</style>'),
+            ("M-3", '<style>html[data-mt]{ --knk-mail-mark:#A5282C; }</style>'),
+            ("M-3", '<style>.x{ color:#AE2B30; }</style>'),
+            ("M-2", '<button type="button">📦 보관</button>'),
+        ]
+        for tag, code in cases:
+            bad_p = os.path.join(tmp, "app", "templates", "mail_bad.html")
+            io.open(bad_p, "w", encoding="utf-8").write(code)
+            b, e = check_mail_design(tmp, brand_path=bp)
+            hit = [x for x in (b + e) if x[0] == bad_p and x[2].startswith(tag)]
+            if not hit:
+                out.append((bad_p, 0, "자체 시험: 일부러 어긴 %s 를 못 잡음 — %s" % (tag, code)))
+            os.remove(bad_p)
+        io.open(os.path.join(tmp, "app", "mail_guide.py"), "w", encoding="utf-8").write('SIG_LOGO_FILE = "mail_sig_logo.png"\n')
+        b, e = check_mail_design(tmp, brand_path=bp)
+        if not [x for x in b if x[2].startswith("M-4")]:
+            out.append((tmp, 0, "자체 시험: 원본 아닌 서명 로고(M-4)를 못 잡음"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return out
+
+
 def split_by_path(hits, base, root=None):
     """⑤-2·⑤-3 면제 = 파일 「경로」별 개수(이름이 같은 다른 화면 — home.html · workflow/home.html — 이 섞이지 않게)."""
     root = root or ROOT
@@ -1909,10 +2041,10 @@ COLOR_BASE = {
     'app/templates/_v5_partials/knk_sticky_head.html': 2, 'app/templates/_v5_partials/knk_tax_multi.html': 45,
     'app/templates/_v5_partials/knk_tax_sameday.html': 18, 'app/templates/_v5_partials/knk_theme.html': 205,
     'app/templates/_v5_partials/login_v5_design.html': 2, 'app/templates/_v5_partials/mail_app_head.html': 121,
-    'app/templates/_v5_partials/mail_contrast.html': 78, 'app/templates/_v5_partials/mail_design_v2.html': 35,
+    'app/templates/_v5_partials/mail_contrast.html': 75, 'app/templates/_v5_partials/mail_design_v2.html': 34,
     'app/templates/_v5_partials/mail_inbox_rows.html': 3, 'app/templates/_v5_partials/mail_move_ask.html': 43,
     'app/templates/_v5_partials/mail_popx.html': 3, 'app/templates/_v5_partials/mail_pwa_head.html': 1,
-    'app/templates/_v5_partials/mail_theme.html': 159, 'app/templates/_v5_partials/mail_theme_cards.html': 16,
+    'app/templates/_v5_partials/mail_theme.html': 156, 'app/templates/_v5_partials/mail_theme_cards.html': 16,
     'app/templates/_v5_partials/mail_tour.html': 13, 'app/templates/_v5_partials/mail_view_body.html': 24,
     'app/templates/_v5_partials/mail_view_styles.html': 280, 'app/templates/_v5_partials/page_path_guide.html': 4,
     'app/templates/_v5_partials/photo_viewer.html': 5, 'app/templates/_v5_partials/po_rows.html': 21,
@@ -2022,6 +2154,19 @@ LOGO_BASE = {
     'app/templates/_v5_partials/print_v5_design.html': 1, 'app/templates/login.html': 2, 'app/templates/meeting_doc.html': 1,
     'app/templates/voice_note_form.html': 1
 }    # __LOGO_BASE__
+# 메일 M-2 면제 — 2026-11-28 규칙 만들 때 센 「단추·폴더 이름 속 그림 문자」 수(파일 경로별) · 4단계에서 화면을 옮기며 줄일 것(늘리지 말 것)
+MAIL_EMOJI_BASE = {
+    'app/templates/_v5_partials/mail_app_head.html': 8, 'app/templates/_v5_partials/mail_delegate.html': 1,
+    'app/templates/_v5_partials/mail_inbox_rows.html': 2, 'app/templates/_v5_partials/mail_move_ask.html': 4,
+    'app/templates/_v5_partials/mail_view_body.html': 39, 'app/templates/mail_account.html': 3,
+    'app/templates/mail_autoreply.html': 1, 'app/templates/mail_cleanup.html': 5, 'app/templates/mail_company_sig.html': 1,
+    'app/templates/mail_compose.html': 17, 'app/templates/mail_folders.html': 2, 'app/templates/mail_folders_general.html': 2,
+    'app/templates/mail_from_outlook.html': 2, 'app/templates/mail_groups.html': 8, 'app/templates/mail_help_print.html': 2,
+    'app/templates/mail_hiworks_folders.html': 10, 'app/templates/mail_hiworks_move.html': 11,
+    'app/templates/mail_import_outlook.html': 3, 'app/templates/mail_inbox.html': 35, 'app/templates/mail_kinds.html': 3,
+    'app/templates/mail_rules.html': 1, 'app/templates/mail_settings.html': 3, 'app/templates/mail_signature.html': 1,
+    'app/templates/mail_storage.html': 3, 'app/templates/mail_templates.html': 6, 'app/templates/mail_tools.html': 29
+}    # __MAIL_EMOJI_BASE__
 
 
 def main():
@@ -2278,6 +2423,19 @@ def main():
             print("       %s:%s  %s" % (_rel(f), l, m))
     else:
         print("  ✅ ⑤-4 글꼴 파일 : @font-face 가 부르는 파일 모두 있음")
+
+    # ── 이음메일 디자인 = 코드 (세션 15 · 11-28) ── 메일 파일은 바뀐 것만 볼 때도 메일 파일 전체를 본다(작아서 빠름)
+    md_self = mail_design_selftest()
+    md_bad, md_emo = check_mail_design()
+    md_new, md_old = split_by_path(md_emo, MAIL_EMOJI_BASE)
+    if md_self or md_bad or md_new:
+        fail += len(md_self) + len(md_bad) + len(md_new)
+        print("  ❌ 메일 디자인(M-1~M-4) : %d건%s → 색 이름은 별칭만 · 단추 이름은 선 아이콘 · 회사 색 = brand.json · 서명 로고 = static/img/brand/"
+              % (len(md_bad) + len(md_new), " · 자체 시험 실패 %d" % len(md_self) if md_self else ""))
+        for f, l, m in (md_self + md_bad + md_new)[:20]:
+            print("       %s:%s  %s" % (_rel(f) if os.path.isabs(f) and f.startswith(ROOT) else f, l, m))
+    else:
+        print("  ✅ 메일 디자인(M-1~M-4) : 색 이름 별칭만 · 새 그림 문자 단추 0 (기존 면제 %d건) · 회사 색 = brand.json · 서명 로고 원본 · 자체 시험 통과" % md_old)
     print("=" * 72)
     if fail:
         print("결과: 위반 %d건 — 고치거나, 정당한 사유면 ALLOW 에 사유와 함께 추가하세요." % fail)

@@ -6,7 +6,7 @@
 <style>
   /* ── v1040 ③ 흐린 보조 글자·입력 안내 글자(테마마다 따로 잼) ── */
   /* 밝게: 보조 글자 #6b7380 → #5f6774 (흰 면 4.8→5.7 · 고른 줄 #e9eef7 4.1→4.9 · 옆 칸 #f7f8fa 4.5→5.4) */
-  html[data-md="v2"][data-mt="clear"]{ --mt-mute:#5f6774; }
+  html[data-md="v2"][data-mt="clear"]{ --knk-text-muted:#5f6774; }   /* 11-28 1단계: 값은 --knk-* 로(--mt-mute 는 별칭) */
   /* 입력 안내 글자: 웍스 공용 #c3bdaf(밝게 흰 칸 1.9 · 부드럽게 1.5) → 테마 보조 글자색 */
   html[data-mt="clear"] input::placeholder, html[data-mt="clear"] textarea::placeholder,
   html[data-mt="clear"] input::-webkit-input-placeholder, html[data-mt="clear"] textarea::-webkit-input-placeholder{ color:#5f6774 !important; opacity:1; }
@@ -27,7 +27,7 @@
   html[data-mt="clear"] [style*="--amber-deep"], html[data-mt="clear"] [style*="--amber-deep"] b{ color:#92400e !important; }
   html[data-mt="soft"] [style*="--amber-deep"], html[data-mt="soft"] [style*="--amber-deep"] b{ color:#7c3d06 !important; }
   /* 부드럽게: 「회신」 꼬리표 글자 #a15c07(3.4) → #6f4100(5.6) */
-  html[data-md="v2"][data-mt="soft"]{ --md-warn:#6f4100; }
+  html[data-md="v2"][data-mt="soft"]{ --knk-mail-warn:#6f4100; }
   html[data-mt="soft"] .co-note{ color:#7c3d06; }
   html[data-mt="soft"] .gn-n small{ color:#1a49a6; }
   html[data-mt="dark"] .gn-n small{ color:var(--mt-link); }
@@ -35,7 +35,7 @@
   html[data-mt="dark"] .mf-n b{ color:var(--mt-link); }
 
   /* ── 페이지 머리(설정·양식 등 하위 화면) — 웍스 글자 토큰이 메일 테마를 안 따라감(어둡게 제목 1.2 · 길 표시 3.2) ── */
-  html[data-mt="soft"], html[data-mt="dark"]{ --knk-text-primary:var(--mt-text); --knk-text-secondary:var(--mt-text2); --knk-text-muted:var(--mt-mute); }
+  /* 11-28 1단계: 메일 테마가 --knk-text-* 값을 직접 정하므로(mail_theme.html) 웍스 글자 토큰도 테마를 따라감 — 옛 「--knk-text-*:var(--mt-*)」 줄은 빼야 돌고 도는 이름이 안 생김 */
 
   /* ── 가져오기 단계 번호 원(흰 글자 on #cbd2db 1.5) → 바탕 #5f6774(5.7) ── */
   html[data-mt] .mi-fs .n{ background:#5f6774; }
@@ -72,12 +72,15 @@
   /* 찾기 결과 띠 안 굵은 글자(#422006 on 어두운 노랑 1.0) · 찾은 글자 표시(노랑 바탕 위 밝은 글자 1.1) */
   html[data-mt="dark"] .mbx-res b, html[data-mt="dark"] .mbx-res-n{ color:#f1e3a8; }
   html[data-mt="dark"] mark.mbx-hl{ color:#1f2937; }
+  /* 11-28 1단계: 어두운 화면 안 밝은 상자(흰 카드·옅은 안내 상자)에서 쓰는 밝은 테마 글자 값 — 아래 상자들이 --mt-* 별칭으로 씀 */
+  html[data-mt="dark"]{ --knk-mail-light-text:#111827; --knk-mail-light-text2:#374151; --knk-mail-light-mute:#56606e; --knk-mail-light-link:#1d4ed8;
+    --knk-mail-light2-text:#1d2228; --knk-mail-light2-text2:#3f4652; --knk-mail-light2-mute:#5f6774; --knk-mail-light2-link:#2556c4; }
   /* 3 밝은 상자 안에 어두운 테마 글자색이 내려간 곳 → 그 상자 안에서만 밝은 테마 글자색 */
   html[data-mt="dark"] .hp-btn,
   html[data-mt="dark"] .gn-rb,
   html[data-mt="dark"] .mi-pick label:has(input:checked),
   html[data-mt="dark"] .co-card > .co-h, html[data-mt="dark"] .co-card > .co-d{
-    --mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e; --mute:#56606e; --ink:#111827; color:#111827; }
+    --mt-text:var(--knk-mail-light-text); --mt-text2:var(--knk-mail-light-text2); --mt-mute:var(--knk-mail-light-mute); --mute:#56606e; --ink:#111827; color:#111827; }
   html[data-mt="dark"] #sigDefBar{ color:#111827; }
   html[data-mt="dark"] .co-card > .co-d, html[data-mt="dark"] #sigDefMsg,
   html[data-mt="dark"] .mi-pick label:has(input:checked) small{ color:#56606e !important; }
@@ -100,7 +103,7 @@
   html[data-mt="dark"] .mv-more-box .warn, html[data-mt="dark"] .mv-more-box .mv-fu-row button.x{ color:#fdba74; }
   /* 어둡게: 오른쪽 클릭으로 고른 줄 바탕이 옅은 남색(#eef2ff)인데 글자는 밝은 글자(1.1) → 그 줄 안만 밝은 테마 글자색 */
   html[data-md="v1"][data-mt="dark"] .mbx-row.picked, html[data-md="v1"][data-mt="dark"] .mbx-headlink.picked{
-    --mt-text:#111827; --mt-text2:#374151; --mt-mute:#56606e; --mt-unread:#1d4ed8; --ink:#111827; --mute:#56606e; color:#111827; }
+    --mt-text:var(--knk-mail-light-text); --mt-text2:var(--knk-mail-light-text2); --mt-mute:var(--knk-mail-light-mute); --mt-unread:var(--knk-mail-light-link); --ink:#111827; --mute:#56606e; color:#111827; }
   html[data-md="v1"][data-mt="dark"] .mbx-row.picked :is(.mbx-from,.mbx-subj,.mbx-time,.mbx-pv),
   html[data-md="v1"][data-mt="dark"] .mbx-headlink.picked :is(.mbx-from,.mbx-subj,.mbx-time,.mbx-pv){ color:#1f2937 !important; }
   /* ════ 11-27 2차 — 관리자 메일 화면(/admin/mail-* · 차단 목록 · 용량 · 회사 서명 틀 · 아웃룩 채우기) ════ */
@@ -109,7 +112,7 @@
   /*   ⚠ .mi-card(아웃룩 가져오기) · .mf-help(폴더 관리) · .mp-card(메일 쓰기)는 다른 화면에도 같은 이름이 있어 그 관리 화면 안에서만(:has 표시) */
   html[data-mt="dark"] :is(.bl-card,.ms-card,.vf-card,.vf-box,.vf-emp,.bl-help,.mf-status,.cs-info,.mi-val),
   html[data-mt="dark"] main:has(.mi-key) .mi-card, html[data-mt="dark"] main:has(#mpTrashN) .mp-card, html[data-mt="dark"] main:has(#mfUser) .mf-help{
-    --mt-text:#1d2228; --mt-text2:#3f4652; --mt-mute:#5f6774; --mt-link:#2556c4; --ink:#111827; --ink-soft:#374151; --mute:#5f6774; color:#1d2228; }
+    --mt-text:var(--knk-mail-light2-text); --mt-text2:var(--knk-mail-light2-text2); --mt-mute:var(--knk-mail-light2-mute); --mt-link:var(--knk-mail-light2-link); --ink:#111827; --ink-soft:#374151; --mute:#5f6774; color:#1d2228; }
   html[data-mt="dark"] :is(.bl-card,.ms-card,main:has(.mi-key) .mi-card,main:has(#mpTrashN) .mp-card) :is(input:not([type=checkbox]):not([type=radio]),select,textarea),
   html[data-mt="dark"] :is(.bl-card,.ms-card,main:has(.mi-key) .mi-card,main:has(#mpTrashN) .mp-card) .btn:not(.btn-primary){ color:#e8ebef; }
   html[data-mt="dark"] main:has(#mpTrashN) .mp-card .btn.danger{ color:#ff8a8f !important; }

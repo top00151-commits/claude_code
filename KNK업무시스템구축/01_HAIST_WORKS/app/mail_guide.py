@@ -94,8 +94,15 @@ def _img_src(fn: str) -> str:
     return _LOGO[fn]
 
 
+# 11-28 대표 「이음메일 디자인을 코드로」 0단계 — 서명 로고 = 스킬 knk-brand 원본 파일 그대로(다시 그리거나 줄인 그림 아님)
+#   knk-slogan-best(Human & Ai create the Best / HAIST Innovation) = 스킬 「메일 서명」 자리 · PNG(받는 쪽 메일 프로그램은 SVG 를 못 보여 줌)
+#   파일은 static/img/brand/ (검사기 ⑤-3 이 원본과 바이트까지 같은지 봄 · 메일 몫 M-4 가 이 줄을 봄)
+SIG_LOGO_FILE = "img/brand/knk-slogan-best_full.png"
+SIG_LOGO_W = 282          # 예전 그림(440×66 을 220 으로 · 높이 33px)과 같은 높이가 되게 — 원본 비율 2055×240
+
+
 def logo_src() -> str:
-    return _img_src("mail_sig_logo.png")
+    return _img_src(SIG_LOGO_FILE)
 
 
 def qr_src() -> str:
@@ -124,8 +131,8 @@ def design_html(text: str, corp: str, lang: str = "ko") -> str:
         cells = ""
         if src:
             cells += ('<td style="vertical-align:middle;padding:0 14px 0 0"><a href="%s" target="_blank" style="text-decoration:none">'
-                      '<img src="%s" width="220" alt="KNK HAIST Innovation" style="display:block;width:220px;height:auto;border:0"></a></td>'
-                      % (WEB_URL, src))
+                      '<img src="%s" width="%d" alt="KNK HAIST Innovation" style="display:block;width:%dpx;height:auto;border:0"></a></td>'
+                      % (WEB_URL, src, SIG_LOGO_W, SIG_LOGO_W))
         if qr:
             cells += ('<td style="vertical-align:middle;padding:0"><a href="%s" target="_blank" title="%s" style="text-decoration:none">'
                       '<img src="%s" width="56" height="56" alt="QR %s" style="display:block;width:56px;height:56px;border:0"></a></td>'

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>이음메일 디자인 기준 · KNK 메일</title>
+{% include "_v5_partials/styles.html" %}
+{% include "_v5_partials/mail_theme.html" %}
+{#═══════════════════════════════════════════════════════════════════════════
+  이음메일 디자인 기준 = 살아 있는 견본 (세션 15 · 대표 2026-11-28 「이음메일 디자인을 코드로」 6단계)
+  · 이 화면은 메일 화면이 실제로 쓰는 것만 그대로 그린다: 메일 테마(_v5_partials/mail_theme.html — 테마마다 --knk-* 값)
+    → 별칭 --mt-* · --md-* → 공용 모양 static/css/knk-mail.css(.m-*) · 대화 흐름(mail_view_styles.html .mv-flow) · 선 아이콘(mail_design_icons.html)
+  · 색 칸 옆 숫자는 화면에서 읽은 값(getComputedStyle) — 손으로 적은 값이 아니다. 테마 단추를 누르면 그 테마 값으로 다시 읽는다.
+  · 「3단계 미리 보기」(?ci=1) = 대표 「올려」 전 새 모양(_v5_partials/mail_ci.html)을 이 화면에서만 켠다 — 직원 메일 화면은 그대로.
+  · 기준 문서: HAIST WORKS디자인변경/2026-11-28_이음메일_디자인시안/2026-11-28_1135_세션15_넘김_이음메일_디자인을_코드로.md
+  · 회사 색·로고·패턴 원본: 00_스킬규정/knk-brand (brand.json · assets) → static/img/brand/
+═══════════════════════════════════════════════════════════════════════════#}
+{% include "_v5_partials/mail_view_styles.html" %}
+<style>
+  /* 이 화면만의 진열 배치 — 색·크기는 var(--knk-*)·var(--mt-*) 만 */
+  html, body{ height:auto; overflow:auto; }
+  .mk{ padding:16px var(--knk-sp-4) 48px; display:flex; flex-direction:column; gap:var(--knk-sp-4); color:var(--mt-text); }
+  .mk-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--knk-sp-3); }
+  .mk-head h1{ margin:0; font-size:20px; font-weight:800; display:flex; align-items:center; gap:10px; }
+  .mk-head h1 img{ height:18px; width:auto; }
+  .mk-tools{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .mk-tools .on{ border-color:var(--md-mark) !important; color:var(--mt-text) !important; font-weight:800; }
+  .mk-sec{ background:var(--mt-surface); border:1px solid var(--mt-line); border-radius:var(--knk-radius-card); padding:var(--knk-sp-4); display:flex; flex-direction:column; gap:var(--knk-sp-3); }
+  .mk-sec > h2{ margin:0; font-size:15px; font-weight:800; display:flex; align-items:center; gap:8px; }
+  .mk-sec > h2 .tri{ display:inline-flex; gap:2px; } .mk-sec > h2 .tri i{ display:block; width:3px; height:14px; background:var(--md-mark); border-radius:1px; }
+  .mk-sec > p{ margin:0; font-size:13px; line-height:1.6; color:var(--mt-mute); }
+  .mk-sw{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+  .mk-sw > div{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .mk-sw i{ display:block; height:36px; border-radius:var(--knk-radius-control); border:1px solid var(--mt-line); }
+  .mk-sw b{ font-size:12px; word-break:break-all; } .mk-sw small{ font-size:12px; color:var(--mt-mute); font-variant-numeric:tabular-nums; word-break:break-all; }
+  .mk-logos{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+  .mk-logos figure{ margin:0; display:flex; flex-direction:column; gap:6px; }
+  .mk-logos .pad{ height:80px; display:flex; align-items:center; justify-content:center; padding:14px; border:1px solid var(--mt-line); border-radius:var(--knk-radius-card); background:var(--knk-bg-white); }
+  .mk-logos .pad.pat{ background:url('/static/img/brand/knk-pattern-tile_red.png') 0 0/var(--knk-pattern-w) auto repeat; }
+  .mk-logos img{ max-width:100%; max-height:100%; }
+  .mk-logos figcaption{ font-size:12px; color:var(--mt-mute); word-break:break-all; }
+  .mk-ic{ display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:6px; }
+  .mk-ic > span{ display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--mt-line); border-radius:var(--knk-radius-control); font-size:12px; color:var(--mt-text2); min-width:0; }
+  .mk-ic svg{ width:18px; height:18px; flex:none; }
+  .mk-frame{ height:520px; border:1px solid var(--mt-line); border-radius:var(--knk-radius-card); overflow:hidden; }
+  .mk-row2{ display:flex; flex-wrap:wrap; gap:var(--knk-sp-4); align-items:flex-start; }
+  .mk-note{ font-size:12px; color:var(--mt-mute); }
+  @media (max-width:640px){ .mk-frame{ height:auto; } }
+</style>
+</head><body>
+<main class="mk" id="mkRoot">
+  <div class="mk-head">
+    <h1><img src="/static/img/brand/knk-symbol_full.svg" alt="KNK">이음메일 디자인 기준</h1>
+    <div class="mk-tools">
+      <span class="mk-note">테마</span>
+      <button type="button" class="btn btn-secondary" data-t="clear" onclick="mkTheme('clear')">밝게</button>
+      <button type="button" class="btn btn-secondary" data-t="soft" onclick="mkTheme('soft')">부드럽게</button>
+      <button type="button" class="btn btn-secondary" data-t="dark" onclick="mkTheme('dark')">어둡게</button>
+      <span class="mk-note">모양</span>
+      <a class="btn btn-secondary{{ ' on' if not mail_ci_preview else '' }}" href="/mail/design-kit">지금(직원 화면)</a>
+      <a class="btn btn-secondary{{ ' on' if mail_ci_preview else '' }}" href="/mail/design-kit?ci=1" title="대표 「올려」 전 — 이 화면에서만 켜짐">3단계 미리 보기</a>
+      {% set close_fallback = '/mail/inbox' %}{% include "_v5_partials/knk_close_btn.html" %}
+    </div>
+  </div>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>이 화면이 이음메일 디자인 문서입니다</h2>
+    <p>그림(디자인 판)은 참고용이고 <b>기준은 코드</b>입니다. 층: <code>brand.json</code> → <code>v5_tokens.css</code>(--knk-*) → 메일 테마(테마마다 --knk-* 값) → 별칭 --mt-*·--md-* → <code>knk-mail.css</code>(.m-*) → 메일 화면.
+      검사: <code>deploy/check_standards.py</code> 메일 몫(M-1 색 이름은 별칭만 · M-2 단추 이름에 새 그림 문자 금지 · M-3 회사 색 = brand.json · M-4 서명 로고 = 원본 파일).
+      지금 보는 모양: <b>{{ '3단계 미리 보기(대표 확인 전)' if mail_ci_preview else '지금 직원 화면과 같은 값' }}</b>.</p>
+  </section>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>회사 표식 — 원본 파일만(static/img/brand/)</h2>
+    <div class="mk-logos">
+      <figure><div class="pad"><img src="/static/img/brand/knk-symbol_full.svg" alt="KNK 심볼"></div><figcaption>knk-symbol_full.svg · 메일 머리(3단계)</figcaption></figure>
+      <figure><div class="pad"><img src="/static/img/brand/knk-slogan-best_full.png" alt="KNK HAIST Innovation 서명 로고"></div><figcaption>knk-slogan-best_full.png · 회사 서명(받는 쪽 메일 프로그램용 PNG)</figcaption></figure>
+      <figure><div class="pad"><img src="/static/img/brand/knk-sig-h-ko-en_full.svg" alt="KNK 국문 시그니처"></div><figcaption>knk-sig-h-ko-en_full.svg · 국문 시그니처</figcaption></figure>
+      <figure><div class="pad pat"></div><figcaption>knk-pattern-tile_red.png · 자동 일(머리 띠·자동 저장)에만 옅게 · 목록·본문 뒤 금지</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>색 이름 — 지금 테마에서 읽은 값</h2>
+    <p>메일 화면은 아래 이름만 씁니다. 왼쪽 = 메일 별칭, 괄호 = 그 값이 오는 기준 이름.</p>
+    <div class="mk-sw" id="mkSw"></div>
+  </section>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>받은편지함 3칸 — .m-* 공용 모양</h2>
+    <div class="mk-frame">
+      <div class="m-app">
+        <div class="m-top"><span class="m-brand"><img src="/static/img/brand/knk-symbol_full.svg" alt="KNK">이음메일</span></div>
+        <div class="m-body">
+          <nav class="m-side">
+            <div class="m-side-h">메일함</div>
+            <button type="button" class="m-f on"><svg class="m-ic" viewBox="0 0 24 24" data-i="inbox"></svg><span>받은편지함</span><b class="m-u">12</b></button>
+            <button type="button" class="m-f"><svg class="m-ic" viewBox="0 0 24 24" data-i="star"></svg><span>중요</span><span class="m-n">4</span></button>
+            <button type="button" class="m-f"><svg class="m-ic" viewBox="0 0 24 24" data-i="send"></svg><span>보낸편지함</span></button>
+            <button type="button" class="m-f"><svg class="m-ic" viewBox="0 0 24 24" data-i="file-pen"></svg><span>임시보관함</span><span class="m-n">2</span></button>
+            <div class="m-side-h">폴더</div>
+            <button type="button" class="m-f"><svg class="m-ic" viewBox="0 0 24 24" data-i="folder"></svg><span>1.고객사</span><span class="m-n">340</span></button>
+          </nav>
+          <section class="m-list">
+            <div class="m-today"><button type="button" class="m-chip hot">회신 필요 <b>3</b></button><button type="button" class="m-chip">기한 <b>2</b></button><button type="button" class="m-chip on">안 읽음 <b>12</b></button></div>
+            <div class="m-list-scroll">
+              <button type="button" class="m-row unread"><span class="m-dot"></span><span class="m-from">안 읽은 메일(보낸 사람)</span><span class="m-time">10:24</span><span class="m-subj">안 읽음 = 굵게 + 점</span><span class="m-snip">미리 보기 한 줄</span></button>
+              <button type="button" class="m-row on"><span class="m-dot"></span><span class="m-from">고른 줄</span><span class="m-time">09:10</span><span class="m-subj">고른 줄 = 옅은 바탕 + 왼쪽 줄</span><span class="m-snip">미리 보기 한 줄</span></button>
+              <button type="button" class="m-row"><span class="m-dot"></span><span class="m-from">읽은 메일</span><span class="m-time">어제</span><span class="m-subj">읽은 줄 = 보통 글자</span><span class="m-snip">미리 보기 한 줄</span><span class="m-tags"><span class="m-person">거래처</span></span></button>
+            </div>
+          </section>
+          <article class="m-read">
+            <div class="m-tool"><button type="button" class="btn btn-primary">답장</button><button type="button" class="btn btn-secondary">전달</button></div>
+            <div class="m-read-in">
+              <h3 class="m-subject">읽기 칸 제목</h3>
+              <dl class="m-meta"><dt>보낸 사람</dt><dd><span class="m-person"><span class="m-av sm">가</span>가짜 거래처 담당</span></dd>
+                <dt>받는 사람</dt><dd><span class="m-person me"><span class="m-av sm">나</span>나</span></dd></dl>
+              <div class="m-bodytext"><p>본문 글자(받는 사람이 보는 모양 그대로 — 메일 테마 글꼴·색을 덮지 않음).</p></div>
+              <div class="mk-row2"><a class="m-att" href="#" onclick="return false"><i class="pdf">PDF</i><span><b>견적서.pdf</b><small>320KB</small></span></a>
+                <a class="m-att" href="#" onclick="return false"><i class="xls">XLS</i><span><b>단가표.xlsx</b><small>48KB</small></span></a></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>대화 흐름 · 오른쪽 클릭 메뉴</h2>
+    <p>대화 흐름 = 받은 메일(아래 빈 점)·내가 보낸 메일(위 찬 점)을 사선으로 이어 한 줄(로고 N = 연결) · 마지막이 받은 메일이면 회색 점선 「내 답장 아직」 · 큰 점 = 지금 보는 메일.</p>
+    <div class="mk-row2">
+      <span class="mv-flow"><svg class="mv-flow-svg" width="102" height="20" viewBox="0 0 102 20" aria-hidden="true"><line class="ln" x1="6" y1="16" x2="24" y2="4"/><line class="ln" x1="24" y1="4" x2="42" y2="16"/><line class="ln" x1="42" y1="16" x2="60" y2="4"/><line class="ln" x1="60" y1="4" x2="78" y2="16"/><line class="wait" x1="78" y1="16" x2="96" y2="4"/><circle class="w" cx="96" cy="4" r="3"/><circle class="i" cx="6" cy="16" r="3"/><circle class="o" cx="24" cy="4" r="3"/><circle class="i" cx="42" cy="16" r="3"/><circle class="o" cx="60" cy="4" r="3"/><circle class="i cur" cx="78" cy="16" r="4.5"/></svg><span class="mv-flow-wait">내 답장 아직</span></span>
+      <div class="m-menu" role="menu"><button type="button" class="on"><svg class="m-ic sm" viewBox="0 0 24 24" data-i="reply"></svg>답장<kbd>R</kbd></button>
+        <button type="button"><svg class="m-ic sm" viewBox="0 0 24 24" data-i="forward"></svg>전달<kbd>F</kbd></button><hr>
+        <button type="button"><svg class="m-ic sm" viewBox="0 0 24 24" data-i="folder"></svg>다른 폴더로…</button>
+        <button type="button"><svg class="m-ic sm" viewBox="0 0 24 24" data-i="trash-2"></svg>휴지통으로<kbd>Del</kbd></button></div>
+    </div>
+  </section>
+
+  <section class="mk-sec">
+    <h2><span class="tri"><i></i><i></i><i></i></span>선 아이콘 — 단추·폴더 이름은 그림 문자 대신 이것(상태 글 ✅ ⏳ 👉 만 글자)</h2>
+    <div class="mk-ic" id="mkIc"></div>
+  </section>
+</main>
+<script>
+(function(){
+  var I=window.MD_ICONS||{};
+  document.querySelectorAll('svg[data-i]').forEach(function(s){ var n=s.getAttribute('data-i'); if(I[n]) s.innerHTML=I[n]; });
+  var box=document.getElementById('mkIc');
+  if(box) Object.keys(I).sort().forEach(function(n){ var sp=document.createElement('span');
+    sp.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+I[n]+'</svg>';
+    sp.appendChild(document.createTextNode(n)); box.appendChild(sp); });
+  var NAMES=[['--mt-bg','--knk-bg-page'],['--mt-surface','--knk-bg-surface'],['--mt-panel','--knk-bg-inset'],['--mt-hover','--knk-bg-hover'],
+    ['--mt-sel','--knk-bg-selected'],['--mt-line','--knk-border-default'],['--mt-sep','--knk-border-strong'],['--mt-text','--knk-text-primary'],
+    ['--mt-text2','--knk-text-secondary'],['--mt-mute','--knk-text-muted'],['--mt-link','--knk-mail-link'],['--md-mark','--knk-mail-mark'],
+    ['--md-dot','--knk-mail-dot'],['--md-chip','--knk-mail-chip'],['--md-warn','--knk-mail-warn'],['--knk-brand','brand.json 빨강(3단계)'],['--knk-brand-red','brand.json']];
+  function draw(){ var cs=getComputedStyle(document.documentElement), el=document.getElementById('mkSw'); if(!el) return; el.innerHTML='';
+    NAMES.forEach(function(p){ var d=document.createElement('div'); var v=(cs.getPropertyValue(p[0])||'').trim();
+      d.innerHTML='<i style="background:var('+p[0]+')"></i><b></b><small></small>'; d.querySelector('b').textContent=p[0]+' ('+p[1]+')'; d.querySelector('small').textContent=v||'(없음)'; el.appendChild(d); });
+    document.querySelectorAll('.mk-tools [data-t]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-t')===document.documentElement.getAttribute('data-mt')); }); }
+  window.mkTheme=function(t){ if(window.mailThemeSet) mailThemeSet(t); else document.documentElement.setAttribute('data-mt', t); setTimeout(draw, 30); };
+  draw();
+})();
+</script>
+</body></html>

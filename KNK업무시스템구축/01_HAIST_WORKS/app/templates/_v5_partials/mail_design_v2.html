@@ -20,12 +20,15 @@ window.MD_SWITCH={{ 'true' if mail_design_switch|default(false) else 'false' }};
     src:url('/static/fonts/pretendard/PretendardVariable.woff2') format('woff2-variations'), url('/static/fonts/pretendard/PretendardVariable.woff2') format('woff2'); }
 
   /* ── 색 바탕값: 밝게 테마만 새 값(부드럽게·어둡게는 각 테마 값 그대로 쓰고 역할만 맞춤) ── */
-  html[data-md="v2"][data-mt]{ --mt-unread:var(--mt-text); --md-dot:#3b82f6; --md-chip:var(--mt-hover); --md-chip-t:var(--mt-text2); --md-mark:var(--knk-red,#a5282c); --md-warn:#a15c07; }
+  /* 11-28 1단계 — --mt-* · --md-* 는 별칭만(값은 --knk-* · 메일 몫 --knk-mail-*) */
+  html[data-md="v2"][data-mt]{ --mt-unread:var(--knk-text-primary); --md-dot:var(--knk-mail-dot); --md-chip:var(--knk-mail-chip); --md-chip-t:var(--knk-mail-chip-text);
+    --md-mark:var(--knk-mail-mark); --md-warn:var(--knk-mail-warn); --mt-link:var(--knk-mail-link);
+    --knk-mail-dot:#3b82f6; --knk-mail-chip:var(--knk-bg-hover); --knk-mail-chip-text:var(--knk-text-secondary); --knk-mail-warn:#a15c07; --knk-mail-link:var(--knk-info); }
   html[data-md="v2"][data-mt="clear"]{
-    --mt-bg:#f2f3f5; --mt-surface:#ffffff; --mt-panel:#f7f8fa; --mt-hover:#f0f2f5; --mt-line:#e4e7eb; --mt-sep:#d9dde3; --mt-gutter:#f2f3f5;
-    --mt-thumb:#c3c9d1; --mt-track:#f2f3f5; --mt-text:#1d2228; --mt-text2:#3f4652; --mt-mute:#6b7380; --mt-sel:#e9eef7; --mt-link:#2556c4;
-    --md-chip:#eef0f3; --md-chip-t:#4b5360; }
-  html[data-md="v2"][data-mt="dark"]{ --md-dot:#7fb0ff; --md-chip:#262b32; --md-chip-t:#c6ccd4; --md-mark:#e0666b; --md-warn:#f0c27a; }
+    --knk-bg-page:#f2f3f5; --knk-bg-surface:#ffffff; --knk-bg-inset:#f7f8fa; --knk-bg-hover:#f0f2f5; --knk-border-default:#e4e7eb; --knk-border-strong:#d9dde3; --knk-mail-gutter:#f2f3f5;
+    --knk-mail-thumb:#c3c9d1; --knk-mail-track:#f2f3f5; --knk-text-primary:#1d2228; --knk-text-secondary:#3f4652; --knk-text-muted:#6b7380; --knk-bg-selected:#e9eef7; --knk-mail-link:#2556c4;
+    --knk-mail-chip:#eef0f3; --knk-mail-chip-text:#4b5360; }
+  html[data-md="v2"][data-mt="dark"]{ --knk-mail-dot:#7fb0ff; --knk-mail-chip:#262b32; --knk-mail-chip-text:#c6ccd4; --knk-mail-mark:#e0666b; --knk-mail-warn:#f0c27a; }
 
   /* ── ① 글꼴 — 메일 화면 글자만(본문·쓰는 칸 안 글자는 손대지 않음) ── */
   html[data-md="v2"] body, html[data-md="v2"] body *:not(.cmp-editor):not(.cmp-editor *):not(.mv-body *){
