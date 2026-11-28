@@ -64,8 +64,12 @@ def _src_of(f):   # z1191z205: 더한 파일도 스킬 knk-brand 원본(로고 s
         o = os.path.join(SRC, sub, f)
         if os.path.isfile(o): return o
     return None
-_extra = sorted(set(have) - set(want))
+_icons = set(getattr(CS, "APP_ICON_SHA256", {}))   # z1191z207: 앱 아이콘 = knk-brand 원본이 아니라 디자인 원본(지문 대조 · 아래 줄)
+_extra = sorted(set(have) - set(want) - _icons)
 check("더한 파일 %d개도 스킬 원본과 같음 %s" % (len(_extra), _extra), all(_src_of(f) and open(_src_of(f), "rb").read() == open(os.path.join(bdir, f), "rb").read() for f in _extra))
+if _icons:
+    import hashlib as _hl207
+    check("앱 아이콘 %d개 = 디자인 원본 지문(z207 · ⑤-3)" % len(_icons), all(os.path.isfile(os.path.join(bdir, f)) and _hl207.sha256(open(os.path.join(bdir, f), "rb").read()).hexdigest() == CS.APP_ICON_SHA256[f] for f in _icons))
 for f in want:
     sub = "pattern" if f.startswith("knk-pattern") else os.path.join("logo", "svg")
     o = os.path.join(SRC, sub, f)

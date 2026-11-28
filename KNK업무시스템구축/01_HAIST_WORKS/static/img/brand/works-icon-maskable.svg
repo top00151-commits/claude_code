@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- 이음웍스 앱 아이콘 · 업무 가방 + 세 줄 (대표 선택 2026-11-28) — 바탕화면 · 홈 화면 「maskable」용 꽉 찬 네모
+     휴대폰이 원 · 둥근 네모로 잘라도 그림은 가운데 80%(반지름 205) 안에 있어 잘리지 않음 · PNG 180/192/512 는 이 파일에서 뽑음 -->
+<rect width="512" height="512" fill="#AE2025"/>
+<path d="M200 160v-26a24 24 0 0 1 24-24h64a24 24 0 0 1 24 24v26" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round"/>
+<rect x="108" y="160" width="296" height="232" rx="40" fill="#FFFFFF"/>
+<polygon points="197,218 229,218 219,334 187,334" fill="#AE2025"/>
+<polygon points="245,218 277,218 267,334 235,334" fill="#AE2025"/>
+<polygon points="293,218 325,218 315,334 283,334" fill="#AE2025"/>
+</svg>

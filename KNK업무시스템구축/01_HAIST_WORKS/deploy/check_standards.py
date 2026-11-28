@@ -1800,6 +1800,37 @@ LOGO_URL_RE = re.compile(r"url\(\s*[\"']?([^)\"']*logo[^)\"']*)", re.I)
 KNK_TEXT_RE = re.compile(r"color\s*:\s*(?:#a5282c|#ae2025|#ae2b30|var\(--knk-(?:red|brand)[\w-]*[^)]*\))[^<>]{0,120}>\s*KNK\s*<", re.I)
 
 
+# ⑤-3 앱 아이콘(z1191z207 · 대표 11-28 「업무 가방 + 세 줄」) — 이음웍스 앱 아이콘은 knk-brand 원본(로고·패턴)이 아니라
+#   디자인 원본 HAIST WORKS디자인변경/2026-11-28_이음웍스_앱아이콘/ 의 파일. 그 폴더는 git 에 안 올라가므로(.gitignore) 지문(sha256)으로 대조하고,
+#   폴더가 있는 PC 에서는 바이트도 대조한다. 서버 /icon.svg · /icon-{180,192,512}.png 가 이 파일을 그대로 돌려주므로 빠져도 위반.
+#   ⚠ 아이콘을 바꿀 땐 디자인 원본(SVG → PNG 다시 뽑기)을 먼저 바꾸고 이 지문을 함께 바꾼다(여기 숫자만 바꾸기 금지).
+APP_ICON_SRC_REL = "HAIST WORKS디자인변경/2026-11-28_이음웍스_앱아이콘"
+APP_ICON_SHA256 = {
+    "works-icon.svg": "d3eee0d280cc33807b66537e7d8ef22d05e5a7f5444548c26a1fc9993f2eeba8",
+    "works-icon-maskable.svg": "a9d7c2744838643264cd934fb146506f115647980106137b087eb235808c1c66",
+    "works-icon-180.png": "6ae0575aa3b15859c9d8f774ec3834fbfefc0018b04819211ede365dd39ee2c9",
+    "works-icon-192.png": "e4be9788a4246e4ccc6fc0540feeeb987b07bbd0ca27bb032be20c7396731b6a",
+    "works-icon-512.png": "20a3e4805a9e151485cfb8526787f0cd6bc5b1ad174e60fa03bced278731a701",
+}
+
+
+def _check_app_icon(bdir, root, fixed):
+    import hashlib
+    sdir = os.path.join(root, *APP_ICON_SRC_REL.split("/"))
+    for f, want in sorted(APP_ICON_SHA256.items()):
+        p = os.path.join(bdir, f)
+        if not os.path.isfile(p):
+            fixed.append((p, 0, "앱 아이콘 %s 없음 — 서버 /icon.svg · /icon-N.png 가 이 파일을 돌려줌(디자인 원본 %s/ 에서 복사)" % (f, APP_ICON_SRC_REL)))
+            continue
+        b = open(p, "rb").read()
+        if hashlib.sha256(b).hexdigest() != want:
+            fixed.append((p, 0, "앱 아이콘 %s 가 디자인 원본과 다름(지문) — %s/ 파일을 그대로 복사 · 다시 그리기 금지" % (f, APP_ICON_SRC_REL)))
+            continue
+        o = os.path.join(sdir, f)
+        if os.path.isfile(o) and open(o, "rb").read() != b:
+            fixed.append((p, 0, "앱 아이콘 %s 가 디자인 원본 폴더 파일과 다름 — 원본을 바꿨으면 지문도 함께" % f))
+
+
 def check_logo_files(files, root=None):
     """⑤-3 — ① static/img/brand/ 파일 = 스킬 원본과 바이트까지 같음 ② 로고 <img>·url() = static/img/brand/ ③ 「KNK」 빨간 글씨 흉내.
     ① 은 바로 위반 · ②③ 은 면제(파일 이름별 지금 개수 · rule "logo") 넘으면 위반."""
@@ -1808,8 +1839,11 @@ def check_logo_files(files, root=None):
     bdir = os.path.join(root, *BRAND_DIR_REL.split("/"))
     src = _brand_src_dir(root)
     if os.path.isdir(bdir):
+        _check_app_icon(bdir, root, fixed)
         for f in sorted(os.listdir(bdir)):
             p = os.path.join(bdir, f)
+            if f in APP_ICON_SHA256:
+                continue   # 앱 아이콘 = 위 _check_app_icon(디자인 원본 지문)
             cands = [os.path.join(src, "pattern", f), os.path.join(src, "logo", "svg", f), os.path.join(src, "logo", "png", f)]
             orig = next((c for c in cands if os.path.exists(c)), None)
             if not orig:

@@ -25805,44 +25805,25 @@ _MAIL_PWA_ICON_CACHE = {}
 # =====================================================
 # v5H226z422 (대표 지시): KNK Eum WORKS — 설치형 앱(PWA). 시스템 기본 이름 'KNK Eum' 아래
 #   WORKS/MAIL/메신저 통일. WORKS도 메일(KNK Eum MAIL)·메신저(KNK Eum)처럼 바탕화면/홈 아이콘·
-#   독립 창으로 설치 가능. scope '/' (앱 전체). 아이콘=KNK 빨강 라운드 + 흰 '음'(KNK Eum 정체성).
+#   독립 창으로 설치 가능. scope '/' (앱 전체).
 # =====================================================
-#   v5H226z426 (대표 지시): 아이콘이 빨강만 나오는 문제 — NAS 에 한글폰트가 없어 PNG '음' 렌더 실패.
-#   → '음'(ㅇ 원 + ㅡ 가로획 + ㅁ 네모)을 **폰트 없이 도형으로** 그림(어느 서버에서나 동일).
-_WORKS_PWA_ICON_SVG = (
-    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>"
-    "<rect width='512' height='512' rx='104' fill='#A5282C'/>"
-    "<ellipse cx='256' cy='150' rx='92' ry='68' fill='none' stroke='#fff' stroke-width='26'/>"
-    "<rect x='148' y='236' width='216' height='26' rx='13' fill='#fff'/>"
-    "<rect x='170' y='292' width='172' height='122' rx='12' fill='none' stroke='#fff' stroke-width='26'/>"
-    "</svg>"
-)
-_WORKS_PWA_ICON_CACHE = {}
+#   z1191z207 (대표 11-28 「이음웍스에 맞게 다시 구성」 → 선택 「1 업무 가방」): 아이콘 = 회사 빨강 #AE2025 + 흰 업무 가방 + 빨간 세 줄.
+#   서버가 그리던 「음」(z422 SVG 글 · z426 PIL 도형)을 지우고 디자인 원본 파일을 바이트 그대로 돌려준다(그리기·글꼴 의존 없음).
+#   파일 = static/img/brand/works-icon.svg(탭·any) · works-icon-maskable.svg · works-icon-180/192/512.png(maskable 에서 뽑음)
+#   원본 = HAIST WORKS디자인변경/2026-11-28_이음웍스_앱아이콘/ · 고칠 땐 SVG 를 고치고 PNG 를 다시 뽑는다 · 검사기 ⑤-3 이 지문(sha256)으로 대조.
+_WORKS_ICON_DIR = os.path.join(BASE, "static", "img", "brand")
+_WORKS_ICON_PNG = {180: "works-icon-180.png", 192: "works-icon-192.png", 512: "works-icon-512.png"}
+_WORKS_ICON_CACHE = {}
 
 
-def _works_pwa_icon_png(size: int) -> bytes:
-    """KNK 빨강 라운드(풀블리드 maskable) + 흰 '음'. 폰트 의존 없이 도형(ㅇ 원·ㅡ 가로획·ㅁ 네모)으로
-    그림 → NAS 등 한글폰트 없는 환경에서도 항상 '음'이 보임(폰트 폴백으로 빨강만 나오던 문제 해결)."""
-    if size in _WORKS_PWA_ICON_CACHE:
-        return _WORKS_PWA_ICON_CACHE[size]
-    from PIL import Image, ImageDraw
-    import io as _io
-    S = size
-    W = (255, 255, 255, 255)
-    img = Image.new("RGBA", (S, S), (165, 40, 44, 255))   # KNK 빨강 #A5282C 풀블리드
-    d = ImageDraw.Draw(img)
-    sw = max(3, int(round(S * 0.05)))
-    # ㅇ (원/링)
-    d.ellipse([int(S * 0.320), int(S * 0.160), int(S * 0.680), int(S * 0.426)], outline=W, width=sw)
-    # ㅡ (가로획)
-    by = int(S * 0.460)
-    d.rounded_rectangle([int(S * 0.289), by, int(S * 0.711), by + sw], radius=sw // 2, fill=W)
-    # ㅁ (네모)
-    d.rounded_rectangle([int(S * 0.332), int(S * 0.570), int(S * 0.668), int(S * 0.808)],
-                        radius=max(2, int(S * 0.024)), outline=W, width=sw)
-    buf = _io.BytesIO(); img.save(buf, "PNG")
-    data = buf.getvalue(); _WORKS_PWA_ICON_CACHE[size] = data
-    return data
+def _works_icon_bytes(name: str) -> bytes:
+    """static/img/brand/ 의 앱 아이콘 파일 그대로(한 번 읽어 기억)."""
+    b = _WORKS_ICON_CACHE.get(name)
+    if b is None:
+        with open(os.path.join(_WORKS_ICON_DIR, name), "rb") as f:
+            b = f.read()
+        _WORKS_ICON_CACHE[name] = b
+    return b
 
 
 @app.get("/manifest.webmanifest")
@@ -25865,12 +25846,12 @@ async def works_manifest():
         },
         "display": "standalone",
         "background_color": "#ffffff",
-        "theme_color": "#A5282C",
+        "theme_color": "#AE2025",   # z1191z207: 회사 빨강(brand.json · 아이콘 바탕과 같은 값)
         "lang": "ko",
         "icons": [
-            {"src": "/icon-192.png?v=2", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-            {"src": "/icon-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
-            {"src": "/icon.svg?v=2", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+            {"src": "/icon-192.png?v=3", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/icon-512.png?v=3", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/icon.svg?v=3", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
         ],
         "categories": ["business", "productivity"],
         # v5H226z424 (대표 지시): 메신저 등에서 앱 범위(/) 링크 클릭 시 '브라우저'가 아니라
@@ -25902,13 +25883,13 @@ async def works_sw():
 async def works_icon_png(size: int):
     if size not in (180, 192, 512):
         size = 192
-    return Response(_works_pwa_icon_png(size), media_type="image/png",
+    return Response(_works_icon_bytes(_WORKS_ICON_PNG[size]), media_type="image/png",
                     headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/icon.svg")
 async def works_icon_svg():
-    return Response(_WORKS_PWA_ICON_SVG, media_type="image/svg+xml",
+    return Response(_works_icon_bytes("works-icon.svg"), media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=604800"})
 
 
