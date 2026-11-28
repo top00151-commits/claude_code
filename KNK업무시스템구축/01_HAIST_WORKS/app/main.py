@@ -1890,6 +1890,15 @@ def startup():
             print(f"[MEETING-END-MIG-Z1131] {_rmend}")
     except Exception as _e:
         print(f"[MEETING-END-MIG-Z1131 ERR] {_e}")
+    # z1213 (대표 2026-11-28): 할 일 담당 = 「외부(직원 아님)」로 사람이 정했는지 — meeting_actions.assignee_ext (idempotent)
+    try:
+        from .migrations.m_z1213_meeting_action_ext import migrate as _mae_migrate
+        from .database import DB_PATH as _DB_PATH_MAE
+        _rmae = _mae_migrate(_DB_PATH_MAE)
+        if _rmae.get('added'):
+            print(f"[MEETING-ACT-EXT-MIG-Z1213] {_rmae}")
+    except Exception as _e:
+        print(f"[MEETING-ACT-EXT-MIG-Z1213 ERR] {_e}")
     # z1144 (대표 지시 2026-10-08): 🎤 음성 메모 — voice_notes 새 표 (idempotent)
     try:
         from .migrations.m_z1144_voice_note import migrate as _vn_migrate
@@ -5483,6 +5492,68 @@ def _meeting_att_view_emps(c, emps, exts, lang="ko") -> list:
     return out
 
 
+def _mtg_norm_name(v) -> str:
+    """z1213: 이름 견주기용 — 앞뒤·사이 공백 하나로 · 대소문자 무시(베트남 이름). 그 밖의 손질(직책 떼기 등)은 하지 않는다."""
+    return " ".join(str(v or "").split()).casefold()
+
+
+def _mtg_assignee_from_attendees(c, mid, name):
+    """z1213 (대표 결정 2026-11-28): AI 정리 결과의 담당 이름 → **그 회의 참석자(번호가 있는 줄) 안에서만** 찾는다.
+    견주는 이름 = users.name(한국 이름·한국 발음) · users.name_vi(베트남 이름) · 「베트남 이름 (한국 발음)」 표시 이름 ·
+                 참석자 줄 name(이음·화면이 적은 이름). 모두 공백·대소문자만 맞춘 **정확히 같은 글자**.
+    · 참석자 안에서 정확히 한 사람일 때만 그 번호 · 없거나 둘 이상이면 None(화면이 「👤 담당 확인」).
+    · 참석자 밖 직원은 찾지 않는다(직원 전체 이름 맞추기 없음) · 잠긴 계정은 빼고 본다."""
+    key = _mtg_norm_name(name)
+    if not key:
+        return None
+    hits = set()
+    try:
+        for r in c.execute(
+                "SELECT a.user_id, a.name AS aname, u.name AS uname, COALESCE(" + _mtg_vi_col(c) + ",'') AS vname "
+                "FROM meeting_attendees a JOIN users u ON u.id=a.user_id "
+                "WHERE a.meeting_id=? AND a.user_id IS NOT NULL AND COALESCE(u.is_active,1)=1", (mid,)):
+            keys = {_mtg_norm_name(r["aname"]), _mtg_norm_name(r["uname"]), _mtg_norm_name(r["vname"]),
+                    _mtg_norm_name(vname({"name": r["uname"], "name_vi": r["vname"]}))}
+            if key in keys - {""}:
+                hits.add(r["user_id"])
+    except Exception as _e:
+        print(f"[MTG-ASSIGNEE-Z1213] 참석자 읽기 실패: {type(_e).__name__}", flush=True)
+        return None
+    return next(iter(hits)) if len(hits) == 1 else None
+
+
+def _mtg_assignee_wanted(c, d):
+    """z1213: 할 일 담당 새 형식 — assignee_user_id(숫자 · 활성 직원만) 또는 assignee_ext(외부 이름 글자).
+    둘 다 없으면 None(옛 형식 → 옛 동작). 돌려줌 (이름, 번호 또는 None, 외부 0/1) · 고를 수 없는 번호면 ValueError."""
+    if not isinstance(d, dict) or ("assignee_user_id" not in d and "assignee_ext" not in d):
+        return None
+    raw = d.get("assignee_user_id")
+    if raw not in (None, "", 0):
+        if isinstance(raw, bool):
+            raise ValueError("담당 번호가 맞지 않습니다.")
+        try:
+            uid = int(raw)
+        except (TypeError, ValueError):
+            raise ValueError("담당 번호가 맞지 않습니다.")
+        r = c.execute("SELECT id, name FROM users WHERE id=? AND COALESCE(is_active,1)=1", (uid,)).fetchone()
+        if not r:
+            raise ValueError("고를 수 없는 직원입니다(없는 번호·잠긴 계정).")
+        return (str(r["name"] or "").strip(), int(r["id"]), 0)
+    nm = " ".join(str(d.get("assignee_ext") or "").replace("\r", " ").replace("\n", " ").split())[:60]
+    return (nm, None, 1 if nm else 0)
+
+
+def _mtg_actions_view(c, rows, lang="ko") -> list:
+    """z1213: 화면용 — 연결된 담당은 「이름 직책 부서」(vname_full) 를 assignee_disp 로 붙인다(저장값은 그대로)."""
+    out = []
+    for a in rows:
+        a = dict(a)
+        if a.get("assignee_user_id"):
+            a["assignee_disp"] = user_disp_by_id(c, a["assignee_user_id"], a.get("assignee_name") or "", lang=lang)
+        out.append(a)
+    return out
+
+
 def _meeting_att_view_txt(text) -> list:
     """z1211: 새 회의록 미리 채움(이음 「📋 회의록」 ?attendees=) — 이름 글자 칩(아직 연결 안 함)."""
     raw = str(text or "")
@@ -6153,8 +6224,8 @@ async def meeting_detail_page(req: Request, mid: int):
             return RedirectResponse("/meetings", 303)
         decisions = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_decisions WHERE meeting_id=? ORDER BY id", (mid,))]
-        actions = [dict(r) for r in c.execute(
-            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
+        actions = _mtg_actions_view(c, c.execute(
+            "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,)), lang=(u.get("lang") or "ko"))   # z1213
         attendees = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,))]
         att_view = _meeting_att_view(c, mid, lang=(u.get("lang") or "ko"))   # z1211: 참석자 칩(읽기만)
@@ -7506,7 +7577,7 @@ def _mtg_sum_worker(mid: int):
                         c.execute(
                             """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
                                VALUES(?,?,?,?,?,'ai')""",
-                            (mid, act["assignee"], _meeting_match_user_id(c, act["assignee"]),
+                            (mid, act["assignee"], _mtg_assignee_from_attendees(c, mid, act["assignee"]),   # z1213: 참석자 안에서만
                              act["task"], act["due"]),
                         )
                     if result["summary"]:
@@ -7672,16 +7743,29 @@ async def api_meeting_action_add(req: Request, mid: int):
         m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
         if not m or not _can_edit_meeting(u, dict(m), c):
             return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
-        assignee = (d.get("assignee") or "").strip()
-        cur = c.execute(
-            """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
-               VALUES(?,?,?,?,?,'manual')""",
-            (mid, assignee, _meeting_match_user_id(c, assignee), task, (d.get("due") or "").strip()),
-        )
+        try:
+            _aw = _mtg_assignee_wanted(c, d)   # z1213: 새 형식(번호·외부) · None = 옛 형식
+        except ValueError as _e:
+            return JSONResponse({"ok": False, "error": str(_e)}, 400)
+        if _aw is not None:
+            cur = c.execute(
+                """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, assignee_ext, task, due_date, source)
+                   VALUES(?,?,?,?,?,?,'manual')""",
+                (mid, _aw[0], _aw[1], _aw[2], task, (d.get("due") or "").strip()),
+            )
+        else:
+            assignee = (d.get("assignee") or "").strip()
+            cur = c.execute(
+                """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
+                   VALUES(?,?,?,?,?,'manual')""",
+                (mid, assignee, _meeting_match_user_id(c, assignee), task, (d.get("due") or "").strip()),
+            )
         aid = cur.lastrowid
+        _arow = _mtg_actions_view(c, c.execute("SELECT * FROM meeting_actions WHERE id=?", (aid,)),
+                                  lang=(u.get("lang") or "ko"))[0]   # z1213: 화면이 그대로 그린다
         # 자식 목록 추가는 meetings.updated_at 을 바꾸지 않음(편집 중 base_ts 드리프트 방지).
     _tr_kick("mtg", mid, "edit")   # z1199
-    return JSONResponse({"ok": True, "id": aid})
+    return JSONResponse({"ok": True, "id": aid, "action": _arow})
 
 
 @app.delete("/api/meeting/{mid:int}/action/{aid:int}")
@@ -7696,6 +7780,40 @@ async def api_meeting_action_del(req: Request, mid: int, aid: int):
         c.execute("DELETE FROM meeting_actions WHERE id=? AND meeting_id=?", (aid, mid))
     _tr_kick("mtg", mid, "edit")   # z1199
     return JSONResponse({"ok": True})
+
+
+@app.post("/api/meeting/{mid:int}/action/{aid:int}/assignee")
+async def api_meeting_action_assignee(req: Request, mid: int, aid: int):
+    """z1213: 할 일 담당 바꾸기 — body {assignee_user_id: 번호} 또는 {assignee_ext: "외부 이름"} (이름 맞추기 없음).
+    일일카드로 이미 보낸 할 일은 바꾸지 않는다(카드 담당과 어긋나지 않게)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    try:
+        d = await req.json()
+    except Exception:
+        d = None
+    with db_session() as c:
+        m = c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone()
+        if not m or not _can_edit_meeting(u, dict(m), c):
+            return JSONResponse({"ok": False, "error": "권한이 없습니다."}, 403)
+        a = c.execute("SELECT * FROM meeting_actions WHERE id=? AND meeting_id=?", (aid, mid)).fetchone()
+        if not a:
+            return JSONResponse({"ok": False, "error": "없는 할 일입니다."}, 404)
+        if a["linked_task_id"]:
+            return JSONResponse({"ok": False, "error": "이미 일일카드로 보낸 할 일이라 담당을 바꾸지 않았습니다."}, 409)
+        try:
+            _aw = _mtg_assignee_wanted(c, d)
+        except ValueError as _e:
+            return JSONResponse({"ok": False, "error": str(_e)}, 400)
+        if _aw is None:
+            return JSONResponse({"ok": False, "error": "담당(assignee_user_id 또는 assignee_ext)이 없습니다."}, 400)
+        c.execute("UPDATE meeting_actions SET assignee_name=?, assignee_user_id=?, assignee_ext=? WHERE id=? AND meeting_id=?",
+                  (_aw[0], _aw[1], _aw[2], aid, mid))
+        row = _mtg_actions_view(c, c.execute("SELECT * FROM meeting_actions WHERE id=?", (aid,)),
+                                lang=(u.get("lang") or "ko"))[0]
+    _tr_kick("mtg", mid, "edit")
+    return JSONResponse({"ok": True, "action": row})
 
 
 @app.post("/api/meeting/{mid:int}/action/{aid:int}/to-daily")
@@ -7719,6 +7837,16 @@ async def api_meeting_action_to_daily(req: Request, mid: int, aid: int):
         if a.get("linked_task_id"):
             return JSONResponse({"ok": False, "error": "이미 일일카드로 등록된 할 일입니다.",
                                  "task_id": a["linked_task_id"]}, 409)
+        # 🔴 z1213 (대표 결정 2026-11-28): 담당이 연결 안 된 할 일은 누른 사람 카드로 **조용히** 넣지 않는다.
+        #   「내 카드로 받기」를 고른 경우(to_me: true)에만 누른 사람 카드로 · 아니면 400 + 안내(need=assignee).
+        if not a.get("assignee_user_id"):
+            try:
+                _dd = await req.json()
+            except Exception:
+                _dd = None
+            if not (isinstance(_dd, dict) and _dd.get("to_me") is True):
+                return JSONResponse({"ok": False, "need": "assignee",
+                                     "error": "담당자가 정해지지 않은 할 일입니다 — 담당자를 먼저 고르거나 「내 카드로 받기」를 골라 주세요."}, 400)
         target_uid = a.get("assignee_user_id") or u["id"]
         title = (a.get("task") or "")[:200]
         note = f"[회의록] {m['title']} ({m['meeting_date']})"

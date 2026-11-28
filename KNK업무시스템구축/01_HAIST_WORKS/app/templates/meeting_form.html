@@ -146,6 +146,15 @@
 .add-row input { flex:1; min-width:110px; border:1px solid var(--qv-line); border-radius:7px; padding:7px 10px; font-size:12.5px; font-family:inherit; background: var(--qv-surface); color: var(--qv-ink); outline:none; }
 .add-row input.who { flex:0 0 120px; }
 .add-row input.due { flex:0 0 130px; }
+/* z1213: 할 일 담당 고르기 줄 · 「👤 담당 확인」 — 색은 기존 이름(.mf-offtag · .vw-mini)만 */
+.ac-who-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+.ac-who-row .ac-lbl { font-size:12.5px; font-weight:700; color: var(--qv-ink-2, var(--qv-ink)); }
+.ac-who-row .vw-mini { height:32px; box-sizing:border-box; }
+.ri-chk { cursor:pointer; border:1px dashed var(--qv-line-3); font-family:inherit; }
+button.ri-chk:hover { border-style:solid; }
+.ri-chg { border:none; background:none; color: var(--qv-ink-2, var(--qv-ink)); font-size:11.5px; font-weight:700; cursor:pointer;
+  padding:2px 4px; text-decoration:underline; font-family:inherit; }
+.ri-ask { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; font-size:12.5px; font-weight:700; }
 .add-row button { border:1px dashed var(--qv-line-3); background: var(--qv-surface-2); color: var(--qv-ink-2); font-size:12.5px; font-weight:700; cursor:pointer; padding:7px 12px; border-radius:7px; }
 .add-row button:hover { background: var(--qv-surface-3); }
 .mf-actions { display:flex; gap:10px; align-items:center; margin:18px 0; }
@@ -705,8 +714,22 @@
       </div>
       <div id="actList"></div>
       {% if can_edit %}
+      {# z1213: 담당 = 직원 고르기(번호 · 이 회의 참석자 맨 위) · 직원이 아닌 담당만 글자(외부) — 이름 맞추기 없음 #}
+      <div class="ac-who-row" id="acWhoRow">
+        <span class="ac-lbl">{{ i.mf_ac_lbl }}</span>
+        <span class="vw-chips" id="acWho"><span class="mf-hint">{{ i.mf_ac_none }}</span></span>
+        <button type="button" class="vw-mini" id="acOpen">{{ i.mf_ac_pick }}</button>
+        <button type="button" class="vw-mini" id="acExtOpen">{{ i.mf_ac_ext }}</button>
+      </div>
+      <div class="mf-hint" id="acFor" hidden></div>
+      <div class="at-ext" id="acExtRow" hidden>
+        <input type="text" id="acExtQ" maxlength="60" placeholder="{{ i.mf_ac_ext_ph }}" autocomplete="off">
+        <button type="button" class="vw-mini on" id="acExtAdd">{{ i.mf_at_ext_add }}</button>
+        <button type="button" class="vw-mini" id="acExtX" title="{{ i.mf_at_close }}" aria-label="{{ i.mf_at_close }}">✕</button>
+      </div>
+{{ people_panel('ac', i.mf_at_tab_hq, i.mf_at_tab_vn, true) }}
+      <div class="mf-hint" id="acSt" style="margin-top:6px;"></div>
       <div class="add-row">
-        <input class="who" id="actAssignee" type="text" placeholder="{{ i.mf_ph_who }}">
         <input id="actTask" type="text" placeholder="{{ i.mf_ph_act }}">
         <input class="due" id="actDue" type="text" placeholder="{{ i.mf_ph_due }}">
         <button id="btnAddAct">{{ i.mf_add }}</button>
@@ -1052,7 +1075,11 @@ var MF = {
   at_none: {{ i.mf_at_none|tojson }}, at_rm: {{ i.mf_at_rm|tojson }}, at_ext_tag: {{ i.mf_at_ext_tag|tojson }},   {# z1211 #}
   at_same: {{ i.mf_at_same|tojson }}, at_dup: {{ i.mf_at_dup|tojson }}, at_picked: {{ i.mf_at_picked|tojson }},
   at_dropped: {{ i.mf_at_dropped|tojson }},
-  at_q_tag: {{ i.mf_at_q_tag|tojson }}, at_q_emp: {{ i.mf_at_q_emp|tojson }}, at_q_ask: {{ i.mf_at_q_ask|tojson }}   {# z1212 #}
+  at_q_tag: {{ i.mf_at_q_tag|tojson }}, at_q_emp: {{ i.mf_at_q_emp|tojson }}, at_q_ask: {{ i.mf_at_q_ask|tojson }},   {# z1212 #}
+  at_q_ask2: {{ i.mf_at_q_ask2|tojson }}, at_q_nostart: {{ i.mf_at_q_nostart|tojson }},   {# z1213 #}
+  ac_none: {{ i.mf_ac_none|tojson }}, ac_chk: {{ i.mf_ac_chk|tojson }}, ac_chk_t: {{ i.mf_ac_chk_t|tojson }}, ac_chg: {{ i.mf_ac_chg|tojson }},
+  ac_att: {{ i.mf_ac_att|tojson }}, ac_for: {{ i.mf_ac_for|tojson }}, ac_saved: {{ i.mf_ac_saved|tojson }},
+  ac_ask: {{ i.mf_ac_ask|tojson }}, ac_ask_pick: {{ i.mf_ac_ask_pick|tojson }}, ac_ask_me: {{ i.mf_ac_ask_me|tojson }}, ac_cancel: {{ i.mf_cancel|tojson }}
 };
 </script>
 <script>
@@ -1278,14 +1305,29 @@ window.__MTG = {
     var box = $('actList'); if(!box) return;
     if (!M.actions.length){ box.innerHTML = '<div class="ri-empty">'+MF.act_empty+'</div>'; return; }
     box.innerHTML = M.actions.map(function(a){
-      var sub = '';
-      if (a.assignee_name) sub += '<span class="ri-sub">👤 '+esc(a.assignee_name)+'</span>';
+      // z1213: 담당 — 연결된 번호면 「이름 직책 부서」 · 사람이 외부로 정했으면 「외부」 · 연결 안 됐으면 「👤 담당 확인」(옛 줄도 표시만)
+      var sub = '', canChg = CAN_EDIT && !a.linked_task_id;
+      if (a.assignee_user_id) sub += '<span class="ri-sub">👤 '+esc(a.assignee_disp || a.assignee_name)+'</span>';
+      else if (+a.assignee_ext === 1) sub += '<span class="ri-sub">👤 '+esc(a.assignee_name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span></span>';
+      else {
+        if (a.assignee_name) sub += '<span class="ri-sub">👤 '+esc(a.assignee_name)+'</span>';
+        if (!a.linked_task_id) sub += canChg
+          ? '<button type="button" class="mf-offtag ri-chk" data-act="pick-as" data-id="'+a.id+'" title="'+esc(MF.ac_chk_t)+'">'+esc(MF.ac_chk)+'</button>'
+          : '<span class="mf-offtag ri-chk" title="'+esc(MF.ac_chk_t)+'">'+esc(MF.ac_chk)+'</span>';
+      }
+      if (canChg && (a.assignee_user_id || +a.assignee_ext === 1)) sub += '<button type="button" class="ri-chg" data-act="pick-as" data-id="'+a.id+'">'+esc(MF.ac_chg)+'</button>';
       if (a.due_date) sub += '<span class="ri-sub">⏰ '+esc(a.due_date)+'</span>';
       var right = a.linked_task_id
         ? '<span class="ri-linked">'+MF.daily_done+'</span>'
         : '<button class="ri-daily" data-act="to-daily" data-id="'+a.id+'">'+MF.to_daily+'</button>';
-      return '<div class="row-item"><div class="ri-main"><b>'+esc(a.task)
-        + (a.source==='ai'?'<span class="ri-ai">' + MF.ai_tag + '</span>':'') + '</b>'+sub+'</div>'
+      var ask = (AC.ask === a.id && !a.linked_task_id)
+        ? '<div class="ri-ask"><span>'+esc(MF.ac_ask)+'</span>'
+          + (CAN_EDIT ? '<button type="button" class="vw-mini on" data-act="ask-pick" data-id="'+a.id+'">'+esc(MF.ac_ask_pick)+'</button>' : '')
+          + '<button type="button" class="vw-mini" data-act="ask-me" data-id="'+a.id+'">'+esc(MF.ac_ask_me)+'</button>'
+          + '<button type="button" class="vw-mini" data-act="ask-no" data-id="'+a.id+'">'+esc(MF.ac_cancel)+'</button></div>'
+        : '';
+      return '<div class="row-item" data-aid="'+a.id+'"><div class="ri-main"><b>'+esc(a.task)
+        + (a.source==='ai'?'<span class="ri-ai">' + MF.ai_tag + '</span>':'') + '</b>'+sub+ask+'</div>'   // z1213: 물음 줄은 본문 칸 안(줄 모양 그대로)
         + right
         + (CAN_EDIT?'<button class="ri-del" data-act="del-act" data-id="'+a.id+'" title="'+MF.del_t+'">✕</button>':'')
         + '</div>';
@@ -1584,19 +1626,28 @@ window.__MTG = {
   async function addAct(){
     var task = ($('actTask')||{}).value || '';
     if (!task.trim()){ ($('actTask')||{}).focus && $('actTask').focus(); return; }
-    var body = { assignee: ($('actAssignee')||{}).value||'', task: task, due: ($('actDue')||{}).value||'' };
+    // z1213: 담당 = 고른 번호(assignee_user_id) 또는 외부 글자(assignee_ext) — 서버는 이름으로 직원을 찾지 않는다
+    var body = { task: task, due: ($('actDue')||{}).value||'' };
+    if (AC.choice && AC.choice.k === 'u') body.assignee_user_id = AC.choice.id;
+    else body.assignee_ext = (AC.choice && AC.choice.k === 'x') ? AC.choice.name : '';
     var res = await jreq('POST', '/api/meeting/'+M.id+'/action', body);
     if (res.ok && res.data.ok){
-      M.actions.push({ id: res.data.id, assignee_name: body.assignee, task: body.task, due_date: body.due, source:'manual', linked_task_id:null });
-      $('actAssignee').value=''; $('actTask').value=''; $('actDue').value='';
+      M.actions.push(res.data.action || { id: res.data.id, assignee_name: '', task: body.task, due_date: body.due, source:'manual', linked_task_id:null });
+      $('actTask').value=''; $('actDue').value='';
+      acSetChoice(null);
       renderActions();
     } else { status(res.data.error||MF.add_fail,'err'); }
   }
 
   // ── 일일카드로 보내기 ──
-  async function toDaily(aid){
+  async function toDaily(aid, toMe){
+    // z1213: 담당이 연결 안 된 할 일 → 「담당자 먼저 고르기 / 내 카드로 받기」를 먼저 보여 준다
+    var _a13 = null; M.actions.forEach(function(a){ if (a.id === aid) _a13 = a; });
+    if (!toMe && _a13 && !_a13.assignee_user_id){ AC.ask = aid; renderActions(); status(''); return; }
+    AC.ask = null;
     status(MF.daily_busy, 'busy');
-    var res = await jreq('POST', '/api/meeting/'+M.id+'/action/'+aid+'/to-daily', {});
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/action/'+aid+'/to-daily', toMe ? { to_me: true } : {});
+    if (!res.ok && res.data && res.data.need === 'assignee'){ AC.ask = aid; renderActions(); status(''); return; }
     if (res.ok && res.data.ok){
       M.actions.forEach(function(a){ if (a.id===aid) a.linked_task_id = res.data.task_id; });
       renderActions();
@@ -1897,6 +1948,9 @@ window.__MTG = {
     if (act==='del-dec') delDec(id);
     else if (act==='del-act') delAct(id);
     else if (act==='to-daily') toDaily(id);
+    else if (act==='pick-as' || act==='ask-pick') acEdit(id);   // z1213
+    else if (act==='ask-me') toDaily(id, true);
+    else if (act==='ask-no'){ AC.ask = null; renderActions(); }
   }); }
   delegate($('decList')); delegate($('actList'));
 
@@ -2285,7 +2339,18 @@ window.__MTG = {
     }
     el.hidden=false;
   }
+  // z1213: 새 회의록에 「확인 필요」 사번 칩이 있으면 시작 전에 한 번 묻는다(저장 때와 같은 물음 · 취소 = 시작 안 함)
+  var _q13ok = false;
+  function atQAskStart(){
+    if (M.id || _q13ok) return true;
+    var n = ATS.items.filter(function(a){ return a.k === 'q'; }).length;
+    if (!n) return true;
+    if (window.confirm(MF.at_q_ask2.replace('{n}', n))){ _q13ok = true; return true; }
+    recSt(MF.at_q_nostart, 'err');
+    return false;
+  }
   async function recStart(){
+    if (!atQAskStart()) return false;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==='undefined'){recSt(MF.no_support,'err');return false;}
     // 크롬 허용 창을 기다리는 동안 화면 버튼을 또 누르면 녹음기가 둘 생겨 소리가 섞인다 → 한 번만
     if(_micBusy){ if(_micPerm&&_micPerm.state==='prompt') micHelp('ask'); return false; }
@@ -2358,6 +2423,7 @@ window.__MTG = {
   // 새 회의(미저장)에서 녹음/업로드하면 회의를 자동 생성(제목 비면 기본값 — AI 정리 때 자동 제목).
   async function ensureMeetingSaved(){
     if(M.id) return true;
+    if(!atQAskStart()) return false;   // z1213: 휴대폰 녹음기 길도
     var f=collectForm();
     if(!f.title.trim()){ f.title=MF.untitled+' '+((($('mtgDate')||{}).value)||''); }
     var res=await jreq('POST','/api/meeting',f);
@@ -2408,6 +2474,7 @@ window.__MTG = {
   }
   function onPickFile(e){
     var f=e.target.files&&e.target.files[0];if(!f){return;}
+    if (!atQAskStart()){ e.target.value=''; return; }   // z1213
     _recHandoff=false; _phrecChosen=false;   // z1116: 녹음기 파일이 왔다 — 넘기기 끝
     if(AUDIO_MAX_MB&&f.size>AUDIO_MAX_MB*1024*1024){
       recSt(MF.max_a+AUDIO_MAX_MB+MF.max_b+Math.round(f.size/1024/1024)+MF.max_c,'err');
@@ -2658,12 +2725,26 @@ window.__MTG = {
       var q = (((g('Q') || {}).value) || '').trim().toLowerCase();
       var qc = (opt.cho && /^[ㄱ-ㅎ]+$/.test(q.replace(/\s+/g, ''))) ? q.replace(/\s+/g, '') : '';
       var html = '', team = null, shown = 0, otherHit = 0;
+      // z1213: opt.top() = 맨 위 묶음 번호(할 일 담당 = 이 회의 참석자) — 지금 책갈피 · 찾기 안에서만
+      var topSet = {}; ((opt.top && opt.top()) || []).forEach(function(i){ topSet[i] = 1; });
+      var topHtml = '';
+      P.all.forEach(function(r){
+        if (!topSet[r.id]) return;
+        var hay = (r.label + ' ' + r.team).toLowerCase();
+        var hit = !q || hay.indexOf(q) >= 0 || (!!qc && _cho(r.label).replace(/\s+/g, '').indexOf(qc) >= 0);
+        if ((r.entity === 'VN' ? 'VN' : 'KOR') !== P.tab || !hit) return;
+        shown++;
+        topHtml += '<label class="vw-row"><input type="checkbox" data-uid="' + r.id + '"' + (P.sel[r.id] ? ' checked' : '') + '>'
+                 + '<span>' + esc(r.label) + '</span></label>';
+      });
+      if (topHtml) html += '<div class="vw-team">' + esc(opt.topLabel || '') + '</div>' + topHtml;
       P.all.forEach(function(r){
         var hay = (r.label + ' ' + r.team).toLowerCase();
         var hit = !q || hay.indexOf(q) >= 0 || (!!qc && _cho(r.label).replace(/\s+/g, '').indexOf(qc) >= 0);
         var mine = (r.entity === 'VN' ? 'VN' : 'KOR') === P.tab;
         if (!mine){ if (hit) otherHit++; return; }
         if (!hit) return;
+        if (topSet[r.id]) return;   // z1213: 맨 위 묶음에 이미 보임
         if (r.team !== team){ team = r.team; html += '<div class="vw-team">' + esc(team) + '</div>'; }
         shown++;
         html += '<label class="vw-row"><input type="checkbox" data-uid="' + r.id + '"' + (P.sel[r.id] ? ' checked' : '') + '>'
@@ -2721,6 +2802,7 @@ window.__MTG = {
       var ls = g('List'); if (ls) ls.addEventListener('change', function(e){
         var cb = e.target; if (!cb || cb.type !== 'checkbox') return;
         var id = parseInt(cb.getAttribute('data-uid'), 10); if (!id) return;
+        if (opt.single && cb.checked){ P.sel = {}; P.sel[id] = true; P.render(); return; }   // z1213: 하나 고르기
         P.sel[id] = cb.checked;
         P.count();
       });
@@ -2792,6 +2874,82 @@ window.__MTG = {
       P.close(); atChanged();
       atSt(isDirty() ? MF.at_picked : '', 'ok');
     } });
+  // ── z1213 (대표 2026-11-28): 할 일 담당 = 직원 고르기(하나) · 참석자 맨 위 · 외부만 글자 ─────────────
+  //   AC.target = null(새 할 일 담당) / 할 일 번호(그 할 일 담당 바꾸기 — 바로 저장)
+  var AC = { choice: null, target: null, ask: null };
+  function acSt(msg, kind){ var el=$('acSt'); if(el){ el.textContent=msg||''; el.classList.toggle('at-st-w', kind==='err'); el.classList.toggle('at-st-ok', kind==='ok'); } }
+  function acSetChoice(c){
+    AC.choice = c;
+    var box=$('acWho'); if(!box) return;
+    if (!c) box.innerHTML = '<span class="mf-hint">'+esc(MF.ac_none)+'</span>';
+    else box.innerHTML = '<span class="vw-chip at-chip'+(c.k==='x'?' at-chip-x':'')+'">'+(c.k==='u' ? '👤 '+esc(c.label) : esc(c.name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span>')
+      + '<button type="button" class="at-x" id="acWhoX" title="'+esc(MF.at_rm)+'" aria-label="'+esc(MF.at_rm)+'">✕</button></span>';
+  }
+  function acMode(aid){
+    AC.target = aid || null;
+    var f=$('acFor'); if(!f) return;
+    var a=null; M.actions.forEach(function(x){ if (x.id === aid) a = x; });
+    f.hidden = !a; f.textContent = a ? (MF.ac_for + a.task) : '';
+  }
+  async function acApply(body){
+    if (!AC.target) return false;
+    var res = await jreq('POST', '/api/meeting/'+M.id+'/action/'+AC.target+'/assignee', body);
+    if (res.ok && res.data.ok){
+      var row = res.data.action;
+      M.actions = M.actions.map(function(a){ return a.id === row.id ? row : a; });
+      if (AC.ask === row.id) AC.ask = null;
+      acMode(null); renderActions(); acSt(MF.ac_saved, 'ok');
+      return true;
+    }
+    acSt((res.data && res.data.error) || MF.save_fail, 'err');
+    return false;
+  }
+  var ACP = mkPick('ac', { cho:true, single:true, topLabel: MF.ac_att,
+    url:function(){ return '/api/meeting/people'; },
+    top:function(){ return ATS.items.filter(function(a){ return a.k === 'u'; }).map(function(a){ return a.id; }); },
+    onOpen:function(){ acSt(''); }, onCancel:function(){ acSt(''); acMode(null); },
+    onOk:async function(P){
+      var id = P.picked()[0], r = null;
+      (P.all || []).forEach(function(x){ if (x.id === id) r = x; });
+      if (AC.target){ if (r){ if (await acApply({ assignee_user_id: r.id })) P.close(); } else { P.close(); acMode(null); } return; }
+      acSetChoice(r ? { k:'u', id:r.id, label:r.label } : null);
+      P.close();
+    } });
+  function acEdit(aid){
+    var a=null; M.actions.forEach(function(x){ if (x.id === aid) a = x; });
+    if (!a || !CAN_EDIT || a.linked_task_id) return;
+    acMode(aid);
+    var r=$('acExtRow'); if(r) r.hidden = true;
+    ACP.open(a.assignee_user_id ? [a.assignee_user_id] : []);
+    var pn=$('acWhoRow'); if(pn && pn.scrollIntoView) pn.scrollIntoView({block:'nearest'});
+  }
+  async function acExtAdd(){
+    var q=$('acExtQ'); if(!q) return;
+    var nm = String(q.value || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!nm){ q.focus(); return; }
+    if (AC.target){ if (await acApply({ assignee_ext: nm })){ q.value=''; var r=$('acExtRow'); if(r) r.hidden = true; } return; }
+    acSetChoice({ k:'x', name:nm }); q.value=''; var r2=$('acExtRow'); if(r2) r2.hidden = true;
+  }
+  (function(){
+    var o=$('acOpen'); if(o) o.addEventListener('click', function(){
+      acMode(null); var r=$('acExtRow'); if(r) r.hidden = true;
+      ACP.open(AC.choice && AC.choice.k === 'u' ? [AC.choice.id] : []);
+    });
+    var eo=$('acExtOpen'); if(eo) eo.addEventListener('click', function(){
+      ACP.close(); if (!AC.target) acMode(null);
+      var r=$('acExtRow'); if(r){ r.hidden = false; var q=$('acExtQ'); if(q) q.focus(); }
+    });
+    var ea=$('acExtAdd'); if(ea) ea.addEventListener('click', acExtAdd);
+    var eq=$('acExtQ'); if(eq) eq.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.keyCode === 13){ e.preventDefault(); acExtAdd(); }
+      else if (e.key === 'Escape'){ e.preventDefault(); var r=$('acExtRow'); if(r) r.hidden = true; acMode(null); }
+    });
+    var ex=$('acExtX'); if(ex) ex.addEventListener('click', function(){ var r=$('acExtRow'); if(r) r.hidden = true; acMode(null); acSt(''); });
+    var wb=$('acWho'); if(wb) wb.addEventListener('click', function(e){
+      var b = e.target.closest ? e.target.closest('#acWhoX') : null; if (b) acSetChoice(null);
+    });
+  })();
+
   function atExtAdd(){
     var q=$('atExtQ'); if(!q) return;
     var parts = String(q.value || '').split(/[,;\n\r、]+/).map(function(x){ return x.replace(/\s+/g, ' ').trim().slice(0, 60); }).filter(Boolean);
