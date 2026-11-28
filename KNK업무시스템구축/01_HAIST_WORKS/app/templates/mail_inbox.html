@@ -665,6 +665,14 @@
     <a href="/mail/sent" class="mbx-day-i{{ ' zero' if not (day.sched or day.sched_fail) else (' red' if day.sched_fail else '') }}" title="오늘 서버가 보낼 예약 메일 — 📤 보낸편지함 맨 위에서 바꾸거나 취소">{{ mi('timer') }} 오늘 예약 <b>{{ day.sched }}</b>{% if day.sched_fail %} <em>{{ mi('triangle-alert') }} 못 보냄 {{ day.sched_fail }}</em>{% endif %}</a>
   </nav>
   {% endif %}
+  {% if autodel_notice|default(none) and box|default('in') == 'in' %}{# 11-28 대표 「오래된 메일 자동 삭제」 — 처음 한 번(닫거나 바꾸면 다시 안 나옴) #}
+  <div id="mbxAutodelNote" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 8px;padding:8px 12px;border:1px solid var(--knk-info-line,var(--line));background:var(--knk-info-subtle,var(--knk-bg-subtle));border-radius:9px;font-size:12.5px;">
+    <span style="flex:1;min-width:200px;">{{ mi('timer') }} 오래된 메일 자동 삭제가 <b>{{ autodel_notice.years ~ '년' if autodel_notice.years else '꺼짐' }}</b>으로 설정돼 있습니다 · 광고·알림·스팸함은 <b>{{ (autodel_notice.ad_months ~ '개월') if autodel_notice.ad_months else '꺼짐' }}</b> · 바로 지우지 않고 30일 보관 · {{ mi('star') }} 별표 메일은 남음</span>
+    <a class="btn btn-secondary" href="/mail/tools#autodel" onclick="mbxAutodelSeen()">{{ mi('settings') }} 바꾸기</a>
+    <button type="button" class="btn btn-secondary" onclick="mbxAutodelSeen(true)" aria-label="닫기">✕ 닫기</button>
+  </div>
+  <script>function mbxAutodelSeen(hide){ try{ var fd=new FormData(); fd.append('seen','1'); fetch('/mail/autodel',{method:'POST',body:fd,keepalive:true}); }catch(e){} if(hide){ var el=document.getElementById('mbxAutodelNote'); if(el) el.remove(); } }</script>
+  {% endif %}
   {% if not ai_on %}
   <div style="border:1px solid var(--amber);border-radius:8px;background:var(--knk-mail-c-yellow-04);padding:6px 12px;margin:0 2px 8px;font-size:12px;color:var(--amber-deep);">{{ mi('info') }} AI 자동 분류·요약·번역은 관리자가 AI 설정을 켜 두었을 때 작동합니다.</div>
   {% endif %}
@@ -680,7 +688,7 @@
   {% if box=='trash' and pending and pending.n %}
   <div id="mbxPending" style="margin:0 2px 8px;padding:8px 12px;border:1px solid var(--knk-mail-c-gray-09);background:var(--knk-mail-c-gray-02);border-radius:9px;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <span style="font-size:12.5px;">{{ mi('hourglass') }} <b>완전 삭제 대기 <span id="mbxPendN">{{ '{:,}'.format(pending.n) }}</span>통</b> · {{ purge_days|default(30) }}일 보관 뒤 밤에 지워집니다{% if pending.first_label %}(가장 먼저 {{ pending.first_label }}){% endif %} · 되살리면 원래 자리(휴지통·받은편지함)로 돌아옵니다</span>
+      <span style="font-size:12.5px;">{{ mi('hourglass') }} <b>완전 삭제 대기 <span id="mbxPendN">{{ '{:,}'.format(pending.n) }}</span>통</b> · {{ purge_days|default(30) }}일 보관 뒤 밤에 지워집니다{% if pending.first_label %}(가장 먼저 {{ pending.first_label }}){% endif %} · 되살리면 원래 자리(휴지통·받은편지함)로 돌아옵니다{% for a in pending.auto|default([]) %} · <b>{{ a.label }}로 {{ '{:,}'.format(a.n) }}통</b>{% endfor %}</span>
       <span style="flex:1"></span>
       <button type="button" class="btn btn-secondary" onclick="pendingToggle()" id="mbxPendBtn">{{ mi('list-filter') }} 목록 보기</button>
       <button type="button" class="btn btn-secondary" onclick="pendingRestore(null)">{{ mi('rotate-ccw') }} 모두 되살리기</button>

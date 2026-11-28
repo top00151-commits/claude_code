@@ -2457,6 +2457,215 @@ def purge_expired_pending(session, now=None, chunk: int = 300) -> dict:
     return {"deleted": deleted, "kept": kept, "skip": ""}
 
 
+# ─── 11-28 대표 「사람마다 오래된 메일 자동 삭제 · 광고·알림·스팸함 자동 삭제」 ───
+#   사람마다 고름: 오래된 받은 메일 1·2·3·4·5년 / 끄기(처음 값 3년) · 광고·알림·스팸함 3·6개월 / 끄기(처음 값 3개월).
+#   대상 = 받은 메일(direction='in')만 — 받은편지함·보관함·폴더(모두 is_deleted=0). 보낸 메일·임시보관·예약은 대상 아님.
+#   별표(is_starred=1) 메일은 빼고 · 이미 휴지통·대기인 것은 안 건드림.
+#   바로 지우지 않고 「완전 삭제 대기 30일」(is_deleted=2 · purge_prev=0 → 되살리면 원래 자리)로만 보낸다 · 누른 사람 = NULL(시스템).
+#   「광고·알림」 = 📢 광고·알림 칸과 같은 기준(mail_find.bulk_map: 자동 판단 + 내가 표시 · 그때부터) · 「스팸함」 = is_blocked=1.
+#   밤 23:30 틀에서 purge_expired_pending 보다 먼저 · 금지 시간 안 돎 · 한 사람 한 밤 상한 AUTODEL_MAX_PER_USER → 다음 밤에 이어서.
+AUTODEL_YEARS = (0, 1, 2, 3, 4, 5)       # 0 = 끄기
+AUTODEL_AD_MONTHS = (0, 3, 6)             # 0 = 끄기
+AUTODEL_DEFAULT = {"years": 3, "ad_months": 3}
+AUTODEL_MAX_PER_USER = 5000               # 한 사람 한 밤(두 규칙 합)
+_AUTO_BASE = ("user_id=? AND direction='in' AND COALESCE(is_deleted,0)=0 AND COALESCE(is_starred,0)=0 "
+              "AND COALESCE(received_at,'')<>'' AND received_at < ?")
+
+
+def get_autodel(c, user_id) -> dict:
+    """내 자동 삭제 설정 — 저장한 적 없으면 처음 값(3년 · 3개월). saved = 저장한 적 있음 · seen = 처음 안내를 봄."""
+    out = dict(AUTODEL_DEFAULT, saved=False, seen=False)
+    if not user_id:
+        return out
+    from . import mail_ui_prefs as _mup
+    d = _mup._load(c, user_id).get("autodel")
+    if isinstance(d, dict):
+        if d.get("years") in AUTODEL_YEARS:
+            out["years"] = d["years"]
+            out["saved"] = True
+        if d.get("ad_months") in AUTODEL_AD_MONTHS:
+            out["ad_months"] = d["ad_months"]
+            out["saved"] = True
+        out["seen"] = bool(d.get("seen"))
+    return out
+
+
+def save_autodel(c, user_id, years=None, ad_months=None, seen=None) -> dict:
+    """내 설정만 저장(정해진 값만 받음 · 그 밖은 ValueError)."""
+    import json as _json
+    from . import mail_ui_prefs as _mup
+    cur = _mup._load(c, user_id)
+    d = cur.get("autodel") if isinstance(cur.get("autodel"), dict) else {}
+    if years is not None:
+        y = int(years)
+        if y not in AUTODEL_YEARS:
+            raise ValueError("years")
+        d["years"] = y
+    if ad_months is not None:
+        a = int(ad_months)
+        if a not in AUTODEL_AD_MONTHS:
+            raise ValueError("ad_months")
+        d["ad_months"] = a
+    if seen:
+        d["seen"] = 1
+    cur["autodel"] = d
+    c.execute("INSERT INTO mail_ui_prefs(user_id, prefs, updated_at) VALUES(?,?,datetime('now','localtime')) "
+              "ON CONFLICT(user_id) DO UPDATE SET prefs=excluded.prefs, updated_at=excluded.updated_at",
+              (int(user_id), _json.dumps(cur, ensure_ascii=False)))
+    return get_autodel(c, user_id)
+
+
+def _minus_months(now, months: int):
+    import calendar as _cal
+    y, m = divmod(now.month - 1 - int(months), 12)
+    y += now.year
+    m += 1
+    return now.replace(year=y, month=m, day=min(now.day, _cal.monthrange(y, m)[1]))
+
+
+def autodel_cuts(now, years, ad_months):
+    """(오래된 메일 기준 시각, 광고·스팸 기준 시각) — '' = 끔. 받은 시각(received_at)과 같은 모양."""
+    f = "%Y-%m-%d %H:%M:%S"
+    oc = _minus_months(now, 12 * int(years)).strftime(f) if years else ""
+    ac = _minus_months(now, int(ad_months)).strftime(f) if ad_months else ""
+    return oc, ac
+
+
+def autodel_label(how_or_years, ad=False) -> str:
+    """'자동 삭제 3년' · '자동 삭제(광고·알림·스팸) 3개월'."""
+    return ("자동 삭제(광고·알림·스팸) %d개월" % int(how_or_years)) if ad else ("자동 삭제 %d년" % int(how_or_years))
+
+
+def _ad_where(c, user_id, tb="_autodel_ad"):
+    """광고·알림(📢 칸과 같은 기준) 또는 스팸함 — SQL 조각 · 임시 표는 이 연결에만."""
+    try:
+        from . import mail_find as _mf
+        admap = _mf.bulk_map(c, user_id) or {}
+    except Exception as e:
+        print("[MAIL-AUTODEL] 광고·알림 목록 못 읽음(스팸함만 봄): %s" % str(e)[:80], flush=True)
+        admap = {}
+    pairs = sorted({((x or "").strip().lower(), (admap.get(x) or "")) for x in admap if x})
+    c.execute("CREATE TEMP TABLE IF NOT EXISTS " + tb + "(e TEXT PRIMARY KEY, s TEXT NOT NULL DEFAULT '')")
+    c.execute("DELETE FROM " + tb)
+    if pairs:
+        c.executemany("INSERT OR REPLACE INTO " + tb + "(e, s) VALUES(?,?)", pairs)
+    return ("(COALESCE(is_blocked,0)=1 OR EXISTS(SELECT 1 FROM " + tb + " t WHERE t.e=lower(mail_messages.from_email) "
+            "AND COALESCE(mail_messages.received_at,'') >= t.s))")
+
+
+def autodel_targets(c, user_id, years, ad_months, now, limit=None) -> dict:
+    """그 설정이면 지울 메일 — {"old": [번호], "ad": [번호], "star_old": n, "star_ad": n}(광고 쪽은 오래된 쪽과 겹치지 않게)."""
+    _ensure_security_cols(c)
+    oc, ac = autodel_cuts(now, years, ad_months)
+    lim = "" if limit is None else " LIMIT %d" % int(limit)
+    out = {"old": [], "ad": [], "star_old": 0, "star_ad": 0, "old_cut": oc, "ad_cut": ac}
+    star = _AUTO_BASE.replace("COALESCE(is_starred,0)=0", "COALESCE(is_starred,0)=1")
+    if oc:
+        out["old"] = [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE " + _AUTO_BASE + " ORDER BY received_at, id" + lim,
+                                              (user_id, oc)).fetchall()]
+        out["star_old"] = c.execute("SELECT COUNT(*) FROM mail_messages WHERE " + star, (user_id, oc)).fetchone()[0]
+    if ac:
+        aw = _ad_where(c, user_id)
+        rest = None if limit is None else max(0, int(limit) - len(out["old"]))
+        if rest is None or rest > 0:
+            notold = (" AND NOT (received_at < ?)" if oc else "")
+            args = (user_id, ac) + ((oc,) if oc else ())
+            out["ad"] = [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE " + _AUTO_BASE + " AND " + aw + notold
+                                                 + " ORDER BY received_at, id" + ("" if rest is None else " LIMIT %d" % rest),
+                                                 args).fetchall()]
+        out["star_ad"] = c.execute("SELECT COUNT(*) FROM mail_messages WHERE " + star + " AND " + aw
+                                   + (" AND NOT (received_at < ?)" if oc else ""),
+                                   (user_id, ac) + ((oc,) if oc else ())).fetchone()[0]
+    return out
+
+
+def autodel_preview(c, user_id, years=None, ad_months=None, now=None) -> dict:
+    """설정 카드 미리 세기(지우지 않음) — 지금 설정이면 오늘 밤 몇 통 · 30일 뒤 날짜(서버 계산) · 별표 남는 수."""
+    import datetime as _d
+    cfg = get_autodel(c, user_id)
+    y = cfg["years"] if years is None else int(years)
+    a = cfg["ad_months"] if ad_months is None else int(ad_months)
+    if y not in AUTODEL_YEARS or a not in AUTODEL_AD_MONTHS:
+        raise ValueError("value")
+    t = autodel_targets(c, user_id, y, a, now or _d.datetime.now())
+    _ensure_purge(c)
+    until = purge_until(c)
+    n = len(t["old"]) + len(t["ad"])
+    return {"years": y, "ad_months": a, "old_n": len(t["old"]), "ad_n": len(t["ad"]), "n": n,
+            "tonight": min(n, AUTODEL_MAX_PER_USER), "over": n > AUTODEL_MAX_PER_USER, "cap": AUTODEL_MAX_PER_USER,
+            "star_n": t["star_old"] + t["star_ad"], "until": until, "until_label": purge_date_label(until),
+            "saved": cfg["saved"], "days": PURGE_KEEP_DAYS}
+
+
+def run_auto_delete(session, now=None, max_per_user: int = AUTODEL_MAX_PER_USER, chunk: int = CHUNK) -> dict:
+    """밤 자동 삭제 — 사람마다 설정대로 완전 삭제 대기(30일)로. 반환 {"n", "users", "capped", "skip"}.
+    now = 한국시간(시험용 · 받은 시각 비교에도 씀). 없으면 금지 시간은 한국시간 · 기준 시각은 서버 현지 시계(받은 시각과 같은 시계)."""
+    import datetime as _d
+    from . import mail_vacuum as _mvac
+    given = now is not None
+    q = _mvac.quiet_reason(now if given else _mvac.kst_now())
+    if q:
+        print("[MAIL-AUTODEL] 돌면 안 되는 시간 — 건너뜀(%s)" % q, flush=True)
+        return {"n": 0, "users": 0, "capped": 0, "skip": q}
+    base_now = now if given else _d.datetime.now()
+    with session() as c:
+        _ensure_purge(c)
+        users = [r[0] for r in c.execute("SELECT DISTINCT user_id FROM mail_messages WHERE direction='in' "
+                                         "AND COALESCE(is_deleted,0)=0 AND user_id IS NOT NULL ORDER BY user_id").fetchall()]
+    total, nusers, capped = 0, 0, 0
+    for uid in users:
+        if _mvac.quiet_reason(now if given else _mvac.kst_now()):
+            print("[MAIL-AUTODEL] 금지 시간에 들어감 — 다음 밤에 이어서", flush=True)
+            break
+        with session() as c:
+            cfg = get_autodel(c, uid)
+            if not cfg["years"] and not cfg["ad_months"]:
+                continue
+            t = autodel_targets(c, uid, cfg["years"], cfg["ad_months"], base_now, limit=max_per_user)
+            until = purge_until(c)
+            req = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+            more = (len(t["old"]) + len(t["ad"])) >= max_per_user
+        did = 0
+        for ids, cut, how, label in ((t["old"], t["old_cut"], "auto_old_%dy" % cfg["years"], autodel_label(cfg["years"])),
+                                     (t["ad"], t["ad_cut"], "auto_ad_%dm" % cfg["ad_months"], autodel_label(cfg["ad_months"], ad=True))):
+            if not ids:
+                continue
+            n = 0
+            for i in range(0, len(ids), chunk):
+                part = ids[i:i + chunk]
+                with session() as c:   # 고른 뒤 바뀐 것(별표·휴지통 등)은 건너뜀 — 같은 조건 다시 붙임
+                    n += c.execute("UPDATE mail_messages SET purge_prev=COALESCE(is_deleted,0), is_deleted=?, purge_at=?, purge_req_at=?, "
+                                   "purge_by=NULL, purge_how=?, deleted_at=COALESCE(deleted_at, datetime('now','localtime')) "
+                                   "WHERE id IN (" + ",".join("?" * len(part)) + ") AND " + _AUTO_BASE,
+                                   (PURGE_PENDING, until, req, how, *part, uid, cut)).rowcount or 0
+            if n:
+                with session() as c:
+                    _purge_log(c, uid, None, how, n, until,
+                               note=label + ((" · 한 밤 상한 %d통 → 다음 밤에 이어서" % max_per_user) if more else ""))
+            did += n
+        if did:
+            nusers += 1
+            total += did
+        if more:
+            capped += 1
+    print("[MAIL-AUTODEL] 자동 삭제 %d통(%d명) → 완전 삭제 대기 30일 · 상한 걸린 사람 %d명" % (total, nusers, capped), flush=True)
+    return {"n": total, "users": nusers, "capped": capped, "skip": ""}
+
+
+def pending_auto_breakdown(c, user_id) -> list:
+    """완전 삭제 대기 중 자동 삭제로 들어온 것 — [{"label": '자동 삭제(3년)', "n"}]."""
+    _ensure_purge(c)
+    out = []
+    for how, n in c.execute("SELECT purge_how, COUNT(*) FROM mail_messages WHERE user_id=? AND is_deleted=? "
+                            "AND purge_how LIKE 'auto_%' GROUP BY purge_how ORDER BY purge_how DESC", (user_id, PURGE_PENDING)).fetchall():
+        m = re.match(r"^auto_(old|ad)_(\d+)([ym])$", how or "")
+        if not m:
+            continue
+        lab = ("자동 삭제(%s년)" % m.group(2)) if m.group(1) == "old" else ("자동 삭제(광고·알림·스팸 %s개월)" % m.group(2))
+        out.append({"label": lab, "n": n, "how": how})
+    return out
+
+
 # ─── 11-28 대표 「정리」 — 어느 메일도 쓰지 않는 첨부 파일(디스크) 밤 정리 (스킬 knk-safe-delete 3절) ───
 #   첨부 파일은 내용 지문 경로(data/mail_att/sha256/<앞2>/<지문>)에 하나만 두고 여러 메일이 함께 쓴다.
 #   메일 줄이 지워져도 파일은 남는다 → 「쓰는 곳 0」을 센 뒤에만 지운다.

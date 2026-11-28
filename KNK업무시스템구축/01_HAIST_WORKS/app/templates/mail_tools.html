@@ -102,6 +102,14 @@
       <div class="why">지운 메일 되살리기 · 완전히 지우기 · 휴지통 비우기</div>
       <a class="go sub" href="/mail/trash">열어 보기</a>
     </div>
+    {# 11-28 대표 「개인별로 오래된 메일 자동 삭제 · 광고·알림·스팸함 3·6개월」 — 바로 안 지우고 30일 보관(휴지통 위 「완전 삭제 대기」에서 되살리기) #}
+    {% set _ad = autodel|default({'years': 3, 'ad_months': 3, 'saved': false}) %}
+    <div class="mt-tile" id="autodel">
+      <div class="mt-tt"><span class="ic">{{ mi('timer') }}</span>오래된 메일 자동 삭제</div>
+      <div class="why">받은 지 <select id="mtAdY" onchange="mtAdCount()" aria-label="오래된 메일 기간">{% for y in [0,1,2,3,4,5] %}<option value="{{ y }}"{{ ' selected' if _ad.years == y else '' }}>{{ (y ~ '년') if y else '끄기' }}</option>{% endfor %}</select> 지난 받은 메일 · 광고·알림·스팸함은 <select id="mtAdA" onchange="mtAdCount()" aria-label="광고·알림·스팸함 기간">{% for a in [0,3,6] %}<option value="{{ a }}"{{ ' selected' if _ad.ad_months == a else '' }}>{{ (a ~ '개월') if a else '끄기' }}</option>{% endfor %}</select> 지나면 매일 밤 지움({{ mi('star') }} 별표 메일·보낸 메일은 그대로 · 30일 동안 되살리기 가능)</div>
+      <div class="why" id="mtAdPv" style="min-height:38px">{{ mi('hourglass') }} 세는 중…</div>
+      <button type="button" class="go sub" id="mtAdSave" onclick="mtAdSave()">{{ mi('save') }} 이대로 저장</button>
+    </div>
     <div class="mt-tile">
       <div class="mt-tt"><span class="ic">{{ mi('repeat') }}</span>같은 메일 여러 통</div>
       <div class="num" id="mtDupN" style="font-size:17px;color:var(--mute)">눌러서 검사</div>
@@ -206,6 +214,36 @@ mtNotiShow();
 (function(){ var s=document.getElementById('mtView'); if(!s) return; var v='auto'; try{ v=localStorage.getItem('knkmail.view')||'auto'; }catch(e){} s.value=v; })();
 function mtViewSet(v){ try{ localStorage.setItem('knkmail.view', v); }catch(e){} var m=document.getElementById('mtViewMsg'); if(m){ m.textContent='✓ 저장 — 받은편지함에 바로 적용'; setTimeout(function(){ m.textContent=''; }, 2500); } }
 /* 오래된 메일 한 번에 보관 — 먼저 몇 통인지 보여 주고, 누르면 보관 */
+/* 11-28 오래된 메일 자동 삭제 — 고르면 바로 미리 세기(저장 안 함) · 「이대로 저장」으로 내 설정만 저장 · 날짜는 서버가 계산 */
+var MT_AD_SAVED = {{ 'true' if (autodel|default({})).saved else 'false' }};
+var MT_AD_CUR = {y:'{{ (autodel|default({})).years|default(3) }}', a:'{{ (autodel|default({})).ad_months|default(3) }}'};
+function _mtAdTxt(j, head){
+  if (!j.years && !j.ad_months) return (head||'') + '자동 삭제 꺼짐 · 아무것도 지우지 않습니다';
+  var s = (head||'') + '오늘 밤 <b>' + j.tonight.toLocaleString() + '통</b> 대기로(오래된 ' + j.old_n.toLocaleString()
+    + ' · 광고·스팸 ' + j.ad_n.toLocaleString() + ') · <b>' + j.until_label + '</b> 완전히 지움 · 별표 ' + j.star_n.toLocaleString() + '통 남음';
+  if (j.over) s += ' · 나머지 ' + (j.n - j.tonight).toLocaleString() + '통은 다음 밤부터(하룻밤 ' + j.cap.toLocaleString() + '통씩)';
+  return s;
+}
+async function mtAdCount(){
+  var el=document.getElementById('mtAdPv'); if(!el) return;
+  var y=document.getElementById('mtAdY').value, a=document.getElementById('mtAdA').value;
+  try{ var r=await fetch('/mail/autodel?years='+encodeURIComponent(y)+'&ad_months='+encodeURIComponent(a)); var j=await r.json();
+    if(!j.ok){ el.textContent='⚠ 세지 못했습니다 — '+(j.message||''); return; }
+    var chg=(y!==MT_AD_CUR.y || a!==MT_AD_CUR.a);
+    el.innerHTML=_mtAdTxt(j, chg ? '「이대로 저장」을 누르면 → ' : (MT_AD_SAVED ? '지금 설정 · ' : '처음 값(3년 · 3개월)으로 돕니다 · '));
+  }catch(e){ el.textContent='⚠ 네트워크 오류 — 세지 못했습니다'; }
+}
+async function mtAdSave(){
+  var el=document.getElementById('mtAdPv'), b=document.getElementById('mtAdSave');
+  var fd=new FormData(); fd.append('years', document.getElementById('mtAdY').value); fd.append('ad_months', document.getElementById('mtAdA').value);
+  b.disabled=true;
+  try{ var r=await fetch('/mail/autodel',{method:'POST',body:fd}); var j=await r.json();
+    if(j.ok){ MT_AD_SAVED=true; MT_AD_CUR={y:String(j.years), a:String(j.ad_months)}; el.innerHTML=_mtAdTxt(j, '✅ 완료 — 저장했습니다 · '); }
+    else el.textContent='⚠ 저장하지 못했습니다 — '+(j.message||'');
+  }catch(e){ el.textContent='⚠ 네트워크 오류 — 저장하지 못했습니다'; }
+  b.disabled=false;
+}
+mtAdCount();
 async function mtOldCount(){
   var m=document.getElementById('mtOldM').value, n=document.getElementById('mtOldN'), b=document.getElementById('mtOldGo'), tile=document.getElementById('mtOldTile');
   n.textContent='세는 중…'; b.disabled=true;

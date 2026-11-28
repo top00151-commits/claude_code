@@ -50,6 +50,10 @@
           <option value="12" selected>1년(12개월) 이전</option>
           <option value="24">2년(24개월) 이전</option>
           <option value="36">3년(36개월) 이전</option>
+          <option value="48">4년(48개월) 이전</option>
+          <option value="60">5년(60개월) 이전</option>
+          <option value="72">6년(72개월) 이전</option>
+          <option value="84">7년(84개월) 이전</option>
         </select>
         <button type="button" class="btn btn-secondary" onclick="mpPreview()">{{ mi('search') }} 통수 미리보기</button>
         <button type="button" class="btn btn-secondary danger" onclick="mpRun()" id="mpRunBtn" disabled>{{ mi('trash-2') }} 완전 삭제({{ purge_days|default(30) }}일 보관 뒤)</button>

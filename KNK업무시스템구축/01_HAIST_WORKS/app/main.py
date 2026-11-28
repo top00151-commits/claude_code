@@ -2848,6 +2848,10 @@ def _mail_vacuum_tick():
                             os.remove(os.path.join(data_dir, f))
                         except OSError as e:
                             print("[MAIL-VACUUM] 지난 표시 파일 못 지움 %s: %s" % (f, e), flush=True)
+                try:   # 11-28 대표 「사람마다 오래된 메일·광고·스팸 자동 삭제」 — 바로 안 지우고 완전 삭제 대기 30일로(별표 빼고 · 금지 시간은 안에서도 봄)
+                    _mailbox.run_auto_delete(db_session)
+                except Exception as _e:
+                    print("[MAIL-AUTODEL] 밤 자동 삭제 실패(다음 밤에 다시): %s" % str(_e)[:160], flush=True)
                 try:   # 11-28 완전 삭제 대기(30일 보관)가 끝난 메일만 실제로 지움 — 줄이기(VACUUM) 전에 · 금지 시간은 안에서도 다시 봄
                     _mailbox.purge_expired_pending(db_session)
                 except Exception as _e:
@@ -25738,6 +25742,12 @@ def mail_inbox_page(req: Request, cat: str = "", q: str = "", star: int = 0, unr
     if frag:
         return ctx(req, "_v5_partials/mail_inbox_rows.html", user=u, mails=mails, box="in",
                    thread_on=thread_on, threads=threads, **_ctx_more)
+    try:   # 11-28 처음 한 번 「오래된 메일 자동 삭제가 3년으로 설정돼 있습니다 · 바꾸기」(닫거나 바꾸면 다시 안 나옴)
+        with db_session() as c:
+            _ad_cfg = _mailbox.get_autodel(c, u["id"])
+        _ctx_more["autodel_notice"] = _ad_cfg if not (_ad_cfg["seen"] or _ad_cfg["saved"]) else None
+    except Exception as _e:
+        print("[MAIL-AUTODEL] 안내 띠 판단 못 함: %s" % str(_e)[:100], flush=True)
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread_n,
                cat_counts=cat_counts, cur_cat=cat, categories=_MAIL_CATEGORIES, cur_df=df, cur_dt=dt, cur_att=bool(att),
                ai_on=mail_ai_enabled_for(u), q=q, cur_star=bool(star), cur_unread=bool(unread),
@@ -25807,6 +25817,7 @@ async def mail_tools_page(req: Request):
             st["sig_n"] = 1
     with db_session() as c:
         _inb_owner = (_mailbox.default_owner(c) == u["id"])   # 11-27 받기 설정 줄 = 대표에게만
+        st["autodel"] = _mailbox.get_autodel(c, u["id"])   # 11-28 오래된 메일·광고·스팸 자동 삭제 설정
     return ctx(req, "mail_tools.html", user=u, has_tree=has_tree, gen_n=gen_n, blocked_n=blocked_n,
                is_inbound_owner=_inb_owner, owner_only=(req.query_params.get("owner_only") == "1"), **st)
 
@@ -30478,6 +30489,7 @@ async def mail_trash_page(req: Request):
         unread = _mail_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
         pending = _mailbox.count_pending(c, u["id"])   # 11-28 완전 삭제 대기(30일 보관) 통수 · 되살리기 자리
+        pending["auto"] = _mailbox.pending_auto_breakdown(c, u["id"])   # 11-28 자동 삭제로 들어온 것 따로
         purge_label = _mailbox.purge_date_label(_mailbox.purge_until(c))
     if pending.get("first"):
         pending["first_label"] = _mailbox.purge_date_label(pending["first"])
@@ -31216,7 +31228,7 @@ async def mail_dedup(req: Request):
 def _purge_cutoff_iso(months) -> str:
     from datetime import datetime, timedelta
     try:
-        m = max(1, int(months or 12))
+        m = min(84, max(1, int(months or 12)))   # 11-28 대표 「최장 7년까지」(84개월)
     except Exception:
         m = 12
     return (datetime.now() - timedelta(days=m * 30)).strftime("%Y-%m-%d %H:%M:%S")
@@ -31237,6 +31249,41 @@ async def admin_mail_purge_page(req: Request):
         att_last = _mailbox.last_orphan_result(c)   # 11-28 안 쓰는 첨부 파일 밤 정리 마지막 결과
     return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n, vac_last=vac_last,
                pending=pending, purge_label=purge_label, purge_days=_mailbox.PURGE_KEEP_DAYS, att_last=att_last)
+
+
+@app.get("/mail/autodel")
+async def mail_autodel_get(req: Request, years: str = "", ad_months: str = ""):
+    """11-28 내 자동 삭제 설정 + 미리 세기(지우지 않음) — years·ad_months 를 주면 그 값으로 셈(저장 안 함)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다"}, 401)
+    try:
+        with db_session() as c:
+            pv = _mailbox.autodel_preview(c, u["id"], int(years) if years != "" else None, int(ad_months) if ad_months != "" else None)
+    except ValueError:
+        return JSONResponse({"ok": False, "message": "고를 수 있는 값이 아닙니다"}, 400)
+    pv["ok"] = True
+    return JSONResponse(pv)
+
+
+@app.post("/mail/autodel")
+async def mail_autodel_save(req: Request):
+    """11-28 내 자동 삭제 설정 저장 — 늘 내 메일함 것만(남의 번호를 보내도 무시)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인이 필요합니다"}, 401)
+    form = await req.form()
+    try:
+        with db_session() as c:
+            if form.get("seen") == "1" and form.get("years") is None:
+                _mailbox.save_autodel(c, u["id"], seen=True)
+            else:
+                _mailbox.save_autodel(c, u["id"], years=form.get("years"), ad_months=form.get("ad_months"), seen=True)
+            pv = _mailbox.autodel_preview(c, u["id"])
+    except (ValueError, TypeError):
+        return JSONResponse({"ok": False, "message": "고를 수 있는 값이 아닙니다"}, 400)
+    pv["ok"] = True
+    return JSONResponse(pv)
 
 
 @app.get("/admin/mail-purge/orphan-files")
