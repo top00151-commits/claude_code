@@ -110,5 +110,24 @@ for rel in ("app/templates/sales_quotations.html", "app/templates/home.html", "a
 check("⑤-2 _knk_picker 면제값 = 지금 수(%d)" % len(hexes("app/templates/_knk_picker.html")), C.COLOR_BASE.get("app/templates/_knk_picker.html") == len(hexes("app/templates/_knk_picker.html")))
 
 
+# ── 8. 3판 — 대표 결정 2가지 + 매출 홈 · 프로젝트 상세 · 수출 준비 상세 · HS 채우기 ──
+check("로그인 문의 = 010-3540-1552 · top0015@knknara.co.kr (자리 채움 02-3142-XXXX 없음)", "문의 <b>010-3540-1552</b> · top0015@knknara.co.kr" in lg and "3142-XXXX" not in lg and "helpdesk@knk" not in lg)
+check("홈 빠른 입력 「등록」 = 흰 바탕 + 빨간 글자·테두리 · 「＋ 새 업무 등록」 은 채움 그대로",
+      '<button class="btn-submit btn-line" onclick="addTask()">등록</button>' in hm and '<button class="btn-submit" onclick="document.getElementById(\'newTitle\').focus()">＋ 새 업무 등록</button>' in hm
+      and ".btn-submit.btn-line { background: var(--knk-bg-surface); color: var(--knk-brand); box-shadow: inset 0 0 0 1px var(--knk-brand); }" in hm)
+for rel in ("app/templates/sales_home.html", "app/templates/project_detail.html", "static/css/project_detail.css", "app/templates/export_prep_detail.html", "app/templates/export_hs_fill.html"):
+    check("3판 직접 색 0 · 면제값 줄 뺌: %s" % rel, hexes(rel) == [] and rel not in C.COLOR_BASE)
+check("프로젝트 상세 --amber 0 (강조 → --knk-brand* · 확인 필요 띠 → --knk-warning*)", "--amber" not in rd("app/templates/project_detail.html") and "--amber" not in rd("static/css/project_detail.css")
+      and "color:var(--knk-warning-text);\">호기 상태 일괄 적용" in rd("app/templates/project_detail.html"))
+sh2 = rd("app/templates/sales_home.html")
+check("매출 홈 3지표 색: 수주=정보 · 출하=완료 · 최종=강조(빨강 진하게)", 'color:var(--knk-info);">{{ money(s3.kpi.order' in sh2 and 'color:var(--knk-brand-hover);">{{ money(s3.kpi.final' in sh2)
+hf = rd("app/templates/export_hs_fill.html"); tk = rd("static/css/v5_tokens.css")
+check("HS 채우기 노랑·주황 견본 = 엑셀 칠 색 이름(hs_fill.py 와 같은 값)", ".sw.y { background:var(--knk-xl-yellow); } .sw.o { background:var(--knk-xl-orange); }" in hf
+      and "--knk-xl-yellow:         #FFFF00" in tk and "--knk-xl-orange:         #FFC000" in tk and 'YELLOW = "FFFFFF00"' in rd("app/hs_fill.py") and 'ORANGE = "FFFFC000"' in rd("app/hs_fill.py"))
+check("제목 앞 세 줄 — 매출 홈·프로젝트 상세·수출 준비·HS 채우기",
+      T3 + "매출영업센터</h1>" in sh2 and T3 + '<span class="mgmt-pill lg' in rd("app/templates/project_detail.html")
+      and T3 + "{{ p.name }} <em>통관 입력</em>" in rd("app/templates/export_prep_detail.html") and T3 + "🇻🇳 인보이스 HS 자동 채움" in hf)
+
+
 print("결과: %d 통과 / %d 실패" % (ok, fail))
 sys.exit(1 if fail else 0)

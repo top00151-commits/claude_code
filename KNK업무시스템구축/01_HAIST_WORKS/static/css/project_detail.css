@@ -20,22 +20,22 @@ body { overflow: hidden !important; }
    → 표준: 페이지 머리글은 고정하지 않는다(전 화면 static). 고정이 꼭 필요하면 top 은
      셸 고정영역 높이를 변수로 참조할 것 — 매직넘버 0/임의값 금지. */
 .main > .page-head {
-  background: var(--paper-3, #fff);
+  background: var(--paper-3);
   padding: 14px 0 6px var(--content-pad, 24px) !important;
 }
 /* v5H226z41: 시안1 디자인 토큰 — 본 페이지 한정 도입 (다른 partial 미접촉, body 스코프) */
 /* 발주서 INSTRUCTIONS.md 라인 105 정의값 그대로. _STANDARDS/디자인_의뢰서_HAIST_WORKS_v1.md 정합. */
 body {
-  --qv-surface:   #ffffff;
-  --qv-surface-2: #f7f8fa;
-  --qv-line:      #eef0f4;
-  --qv-ink:       #0f172a;
-  --qv-ink-2:     #334155;
-  --qv-ink-3:     #64748b;
-  --biz-t: #c2410c;  /* New Equipment (Tech, 호박)  */
-  --biz-m: #1e40af;  /* Maintenance/Service (네이비) */
-  --biz-e: #6d28d9;  /* Export (자주)              */
-  --biz-c: #047857;  /* Consumable (그린)           */
+  --qv-surface:   var(--knk-bg-surface);
+  --qv-surface-2: var(--knk-bg-inset);
+  --qv-line:      var(--knk-border-subtle);
+  --qv-ink:       var(--knk-text-primary);
+  --qv-ink-2:     var(--knk-text-secondary);
+  --qv-ink-3:     var(--knk-text-muted);
+  --biz-t: var(--knk-cat-orange);  /* New Equipment (Tech, 호박)  */
+  --biz-m: var(--knk-info);  /* Maintenance/Service (네이비) */
+  --biz-e: var(--knk-cat-violet);  /* Export (자주)              */
+  --biz-c: var(--knk-success);  /* Consumable (그린)           */
 }
 
 /* v5H226z41: 관리번호 잉크 알약 — 시안1 디자인 시스템 표준 컴포넌트 */
@@ -50,25 +50,25 @@ body {
 table.so-units.parts-excel { border-collapse: separate; border-spacing: 0; font-size: 11.5px; }
 table.so-units.parts-excel th,
 table.so-units.parts-excel td {
-  border-right: 1px solid #d4d4d4;
-  border-bottom: 1px solid #d4d4d4;
+  border-right: 1px solid var(--knk-border-default);
+  border-bottom: 1px solid var(--knk-border-default);
   padding: 4px 6px;
   position: relative;
   vertical-align: middle;
 }
 table.so-units.parts-excel th {
-  background: #f4f1e8;
+  background: var(--knk-bg-subtle);
   font-weight: 700;
-  color: #4a4030;
+  color: var(--knk-text-secondary);
   text-align: center;
-  border-top: 1px solid #d4d4d4;
+  border-top: 1px solid var(--knk-border-default);
 }
 table.so-units.parts-excel th:first-child,
 table.so-units.parts-excel td:first-child {
-  border-left: 1px solid #d4d4d4;
+  border-left: 1px solid var(--knk-border-default);
 }
 table.so-units.parts-excel tbody tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
-table.so-units.parts-excel tbody tr:hover td { background: #fef9c3 !important; }
+table.so-units.parts-excel tbody tr:hover td { background: var(--knk-warning-subtle) !important; }
 table.so-units.parts-excel tbody tr.row-collapsed td { display: none; }
 /* v5H226z608: 접힌 행은 #(1)+품명(4) 만 — 사진(2)은 px-x 숨김이라 자재번호(3)+품명(4)로 식별 */
 table.so-units.parts-excel tbody tr.row-collapsed td:first-child,
@@ -105,11 +105,11 @@ table.so-units:not(.parts-excel) th .col-resize-handle {
 table.so-units:not(.parts-excel) th .col-resize-handle:hover,
 table.so-units:not(.parts-excel) th .col-resize-handle.dragging { background: rgba(176,122,24,0.55); }
 /* 항상 보이는 가는 가로 스크롤바 (PWA 자동숨김을 이 표에 한해 무력화) */
-.so-units-wrapper.so-scroll-visible { scrollbar-width: thin; scrollbar-color: #c9a85a #efe7d2; }
+.so-units-wrapper.so-scroll-visible { scrollbar-width: thin; scrollbar-color: var(--knk-border-strong) var(--knk-bg-subtle); }
 .so-units-wrapper.so-scroll-visible::-webkit-scrollbar { display: block; height: 11px; width: 11px; }
-.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-track { background: #efe7d2; border-radius: 6px; }
-.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-thumb { background: #c9a85a; border-radius: 6px; border: 2px solid #efe7d2; }
-.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-thumb:hover { background: #b07a18; }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-track { background: var(--knk-bg-subtle); border-radius: 6px; }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-thumb { background: var(--knk-border-strong); border-radius: 6px; border: 2px solid var(--knk-bg-subtle); }
+.so-units-wrapper.so-scroll-visible::-webkit-scrollbar-thumb:hover { background: var(--knk-text-muted); }
 
 /* 컬럼 그룹 hide 클래스 */
 table.so-units.parts-excel.hide-basic   [data-pgroup~="basic"],
@@ -138,7 +138,7 @@ table.so-units.parts-excel td.right .display-val,
 table.so-units.parts-excel td.right input.unit-edit { text-align: left !important; }
 .so-card.editable table.so-units.parts-excel input.unit-edit:focus,
 .so-card.editable table.so-units.parts-excel select.unit-edit:focus {
-  background: #fffbe6 !important; box-shadow: inset 0 0 0 2px #f59e0b; outline: none;
+  background: var(--knk-warning-subtle) !important; box-shadow: inset 0 0 0 2px var(--knk-highlight); outline: none;
 }
 .so-card.editable table.so-units.parts-excel input.unit-edit.amt { color: var(--knk-red) !important; font-weight: 700 !important; }
 /* v5H226z609: 부품표 금액 칸 — 값 옆에 통화 단위 항상 표시(보기·편집 공통). td 직접 flex 는 표 깨짐→내부 래퍼 flex */
@@ -149,7 +149,7 @@ table.so-units.parts-excel td.money-cell .ccy-u { color: var(--mute); font-weigh
 /* 행 접기 토글 버튼 (행 좌측 3행번호 영역) */
 table.so-units.parts-excel .row-toggle {
   background: transparent; border: 0; cursor: pointer; padding: 0 4px;
-  font-size: 10px; color: #888; user-select: none;
+  font-size: 10px; color: var(--knk-text-muted); user-select: none;
 }
 table.so-units.parts-excel .row-toggle:hover { color: var(--knk-red); }
 
@@ -157,23 +157,23 @@ table.so-units.parts-excel .row-toggle:hover { color: var(--knk-red); }
 .parts-col-toggle {
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   padding: 8px 12px; margin-bottom: 8px;
-  background: #f5efde; border: 1px solid #d4b75a; border-radius: 6px;
+  background: var(--knk-bg-subtle); border: 1px solid var(--knk-warning-line); border-radius: 6px;
   font-size: 11.5px;
 }
-.parts-col-toggle .lbl { font-weight: 700; color: #5a4a00; margin-right: 4px; }
+.parts-col-toggle .lbl { font-weight: 700; color: var(--knk-warning); margin-right: 4px; }
 .parts-col-toggle button {
-  padding: 3px 10px; border: 1px solid #b07a18; border-radius: 14px;
-  background: #fff; color: #7c4a03; font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border: 1px solid var(--knk-warning); border-radius: 14px;
+  background: var(--knk-bg-surface); color: var(--knk-warning); font-size: 11px; font-weight: 600;
   cursor: pointer; transition: all .12s;
 }
-.parts-col-toggle button.active { background: #b07a18; color: #fff; }
+.parts-col-toggle button.active { background: var(--knk-brand); color: var(--knk-text-inverse); }
 .parts-col-toggle button:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.parts-col-toggle button.reset { margin-left: auto; background: #fff; color: #555; border-color: #ccc; }
+.parts-col-toggle button.reset { margin-left: auto; background: var(--knk-bg-surface); color: var(--knk-text-secondary); border-color: var(--knk-border-default); }
 /* v5H226z1085 (안지연 프로 요청·대표 "a,c 적용"): 중복만 보기 — 같은 규격 2줄 이상(data-dupgrp 있는 행)만 남김.
    이 표(tbody tr)에만 적용 — 다른 표·카드 무영향. 화면 필터일 뿐 저장·데이터 무관. */
 table.so-units.parts-excel.dup-only tbody tr:not([data-dupgrp]) { display: none !important; }
-.parts-col-toggle button.dup-only-toggle { border-color: #d97706; }
-.parts-col-toggle button.dup-only-toggle.active { background: #d97706; border-color: #d97706; color: #fff; }
+.parts-col-toggle button.dup-only-toggle { border-color: var(--knk-warning); }
+.parts-col-toggle button.dup-only-toggle.active { background: var(--knk-brand); border-color: var(--knk-brand); color: var(--knk-text-inverse); }
 /* v5H226z1085b: 배지 클릭 = 같은 묶음 다음 줄로 이동 — 클릭 가능 표시 + 도착 줄 깜빡임.
    깜빡임도 덧칠(box-shadow inset) 방식 — 배경을 덮지 않아 원가색·줄무늬 보존(z1029 표준). */
 table.so-units.parts-excel tr[data-dupgrp] .knk-flag-badge { cursor: pointer; user-select: none; }
@@ -191,7 +191,7 @@ table.so-units.parts-excel tbody tr.dup-jump-flash > td { animation: knkDupFlash
   width: 100vw !important;
   height: 100vh !important;
   z-index: 9990;
-  background: #fff;
+  background: var(--knk-bg-surface);
   box-shadow: 0 12px 50px rgba(0,0,0,0.35);
   overflow: auto;
   border: 0;
@@ -205,17 +205,17 @@ body.so-fs-on { overflow: hidden; }
 /* 풀스크린에선 SO 카드 내부 콘텐츠가 화면 전체 폭 사용 — 가로 스크롤 영역도 viewport 폭 #1 */
 .so-card.so-fullscreen > div { max-width: 100% !important; }
 .so-fs-btn {
-  padding: 4px 10px; border: 1px solid #b07a18; border-radius: 5px;
-  background: #fff7e0; color: #7c4a03; font-size: 12px; font-weight: 700;
+  padding: 4px 10px; border: 1px solid var(--knk-warning); border-radius: 5px;
+  background: var(--knk-warning-subtle); color: var(--knk-warning); font-size: 12px; font-weight: 700;
   cursor: pointer; transition: all .12s;
 }
-.so-fs-btn:hover { background: #b07a18; color: #fff; }
+.so-fs-btn:hover { background: var(--knk-brand); color: var(--knk-text-inverse); }
 .section-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: var(--space-5); margin-bottom: var(--space-3); }
 .section-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--knk-warning); border-radius: 2px; }
+.section-card h3::before { content: ""; width: 4px; height: 16px; background: var(--knk-brand); border-radius: 2px; }
 /* v5H226z642: 전폭 배치 라벨·값 3쌍/행. v5H226z644(대표 지시): 라벨=작은 회색·값=진한 글씨 + 행 구분선(표처럼)으로 라벨/값 한눈 구분 */
 .def { display: grid; grid-template-columns: 88px 1fr 88px 1fr 88px 1fr; gap: 0; font-size: 13px; align-items: stretch; }
-.def dt { color: #94a3b8; font-weight: 700; font-size: 10.5px; letter-spacing: 0.2px; padding: 11px 8px 9px 0; border-bottom: 1px solid var(--line); }
+.def dt { color: var(--knk-text-muted); font-weight: 700; font-size: 10.5px; letter-spacing: 0.2px; padding: 11px 8px 9px 0; border-bottom: 1px solid var(--line); }
 .def dd { color: var(--ink); font-weight: 600; margin: 0; padding: 9px 24px 9px 0; border-bottom: 1px solid var(--line); }
 /* v5H226z818 (대표 지시): 자료 경로(긴 서버경로)는 값이 3열 중 1칸이라 좁게 접힘 → 라벨은 왼쪽 그대로, 값은 오른쪽 끝(견적서 열)까지 전체 폭으로 펼침 */
 .def dt.fullw { grid-column: 1 / 2; }
@@ -225,7 +225,7 @@ body.so-fs-on { overflow: hidden; }
 .proj-info-left { min-width: 0; }
 .proj-grid-wrap { display: grid; grid-template-columns: 1fr auto; gap: 0 18px; align-items: start; }
 .def-sono { align-self: start; min-width: 96px; }
-.def-sono dt { color: #94a3b8; font-weight: 700; font-size: 10.5px; letter-spacing: 0.2px; padding: 11px 0 0; border-bottom: 1px solid var(--line); }
+.def-sono dt { color: var(--knk-text-muted); font-weight: 700; font-size: 10.5px; letter-spacing: 0.2px; padding: 11px 0 0; border-bottom: 1px solid var(--line); }
 .def-sono dd { margin: 7px 0 0; }
 .def-sono dd > div { color: var(--knk-red); font-weight: 700; font-family: monospace; line-height: 1.75; font-size: 13px; }
 @media (max-width: 700px) { .proj-grid-wrap { grid-template-columns: 1fr; } }
@@ -280,13 +280,13 @@ table.so-units.parts-excel tbody td:nth-child(4) { position: sticky; left: 120px
 /* sticky 셀 배경 — zebra/hover 동작 보존 (sticky 는 inherit 못 받음). 2번(사진)은 숨김이라 제외 */
 table.so-units.parts-excel tbody td:nth-child(1),
 table.so-units.parts-excel tbody td:nth-child(3),
-table.so-units.parts-excel tbody td:nth-child(4) { background: #ffffff; }
+table.so-units.parts-excel tbody td:nth-child(4) { background: var(--knk-bg-surface); }
 table.so-units.parts-excel tbody tr:nth-child(even) td:nth-child(1),
 table.so-units.parts-excel tbody tr:nth-child(even) td:nth-child(3),
-table.so-units.parts-excel tbody tr:nth-child(even) td:nth-child(4) { background: #fafafa; }
+table.so-units.parts-excel tbody tr:nth-child(even) td:nth-child(4) { background: var(--knk-bg-inset); }
 table.so-units.parts-excel tbody tr:hover td:nth-child(1),
 table.so-units.parts-excel tbody tr:hover td:nth-child(3),
-table.so-units.parts-excel tbody tr:hover td:nth-child(4) { background: #fef9c3; }
+table.so-units.parts-excel tbody tr:hover td:nth-child(4) { background: var(--knk-warning-subtle); }
 /* sticky thead 좌측은 thead 위에 (행/열 sticky 교차 시 thead 우선) */
 table.so-units.parts-excel thead th:nth-child(1),
 table.so-units.parts-excel thead th:nth-child(3),
@@ -315,18 +315,18 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
 .presales-card { background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-bottom: var(--space-3); box-shadow: var(--shadow-sm); }
           .presales-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--paper-2); border-bottom: 1px solid var(--line); user-select: none; }
           .presales-head .head-toggle { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
-          .presales-head .head-toggle:hover { color: var(--amber-deep); }
+          .presales-head .head-toggle:hover { color: var(--knk-brand-hover); }
           .presales-head .ttl { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
-          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: var(--amber-glow); color: var(--amber-deep); }
+          .presales-head .stage-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: var(--knk-brand-subtle); color: var(--knk-brand-hover); }
           .presales-head .toggle { font-size: 14px; color: var(--mute); transition: transform .2s; }
           .presales-card.collapsed .toggle { transform: rotate(-90deg); }
           .presales-card.collapsed .presales-body { display: none; }
           .presales-card.collapsed .presales-head { border-bottom: none; }
           .presales-head .head-actions { display: flex; gap: 6px; }
           .presales-head .btn-mini { font-size: 12.5px; padding: 5px 11px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
-          .presales-head .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
-          .presales-head .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
-          .presales-head .btn-mini.primary:hover { background: var(--amber); }
+          .presales-head .btn-mini:hover { background: var(--knk-brand-subtle); border-color: var(--knk-brand); }
+          .presales-head .btn-mini.primary { background: var(--knk-brand-hover); color: white; border-color: var(--knk-brand-hover); }
+          .presales-head .btn-mini.primary:hover { background: var(--knk-brand); }
           .presales-body { padding: 12px 18px; }
           .ps-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: nowrap; }
           .ps-row:last-child { border-bottom: none; }
@@ -338,7 +338,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           .ps-row.submitted .chk-label { color: var(--success); }
           .ps-row .memo-wrap { flex: 1; min-width: 0; }
           .ps-row .memo-wrap input { width: 100%; padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); color: var(--ink); transition: border-color .15s; }
-          .ps-row .memo-wrap input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
+          .ps-row .memo-wrap input:focus { outline: none; border-color: var(--knk-focus); box-shadow: 0 0 0 2px var(--knk-focus-ring); }
           /* 잠금 상태 — 체크박스·메모 input 비활성화 (가독성 유지: 텍스트는 진하게 + 점선 테두리) */
           .presales-card:not(.unlocked) .ps-row input[type="checkbox"] { pointer-events: none; }
           .presales-card:not(.unlocked) .ps-row .memo-wrap input { background: transparent; border-style: dashed; pointer-events: none; }
@@ -366,9 +366,9 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         @media (max-width:1100px){ .so-meta { font-size: 11.5px; gap: 2px 10px; } .so-meta .item:nth-child(4) { margin-left: 0; } }
         .so-actions { display: flex; gap: 6px; }
         .so-actions .btn-mini { font-size: 12.5px; padding: 5px 10px; border-radius: 5px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-weight: 600; transition: all .15s; }
-        .so-actions .btn-mini:hover { background: var(--amber-glow); border-color: var(--amber); }
-        .so-actions .btn-mini.primary { background: var(--amber-deep); color: white; border-color: var(--amber-deep); }
-        .so-actions .btn-mini.danger:hover { background: #fff1f1; border-color: var(--knk-red); color: var(--knk-red); }
+        .so-actions .btn-mini:hover { background: var(--knk-brand-subtle); border-color: var(--knk-brand); }
+        .so-actions .btn-mini.primary { background: var(--knk-brand-hover); color: white; border-color: var(--knk-brand-hover); }
+        .so-actions .btn-mini.danger:hover { background: var(--knk-danger-subtle); border-color: var(--knk-red); color: var(--knk-red); }
 
         /* v5H226z85: table-layout fixed — th width 강제 준수 (auto는 콘텐츠 따라 늘어남) */
         /* v5H226z87: padding 축소 — 9px 14px → 6px 8px (셀당 좌우 12px 절감) */
@@ -380,7 +380,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         /* v5H226z117: PARTS 표 가로 스크롤바 중복 제거 — wrapper 스크롤바 시각 숨김 (sticky proxy 만 노출) */
         .so-units-wrapper { scrollbar-width: none; -ms-overflow-style: none; }
         .so-units-wrapper::-webkit-scrollbar { display: none; width: 0; height: 0; }
-        .so-units th { text-align: center; padding: 6px 8px; font-size: 11px; color: var(--amber-deep); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
+        .so-units th { text-align: center; padding: 6px 8px; font-size: 11px; color: var(--knk-brand-hover); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--paper); border-bottom: 1px solid var(--line); }
         .so-units th.num { text-align: center; }
         .so-units th.center { text-align: center; }
         .so-units th.left { text-align: left; }
@@ -394,11 +394,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-units .price { color: var(--knk-red); }
         .so-units .note { color: var(--mute); font-size: 12px; }
         .so-units input.unit-edit { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; background: var(--paper); }
-        .so-units input.unit-edit:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-glow); }
+        .so-units input.unit-edit:focus { outline: none; border-color: var(--knk-focus); box-shadow: 0 0 0 2px var(--knk-focus-ring); }
         .so-units input.unit-edit.amt { width: 130px; text-align: right; font-family: monospace; font-weight: 700; color: var(--knk-red); }
         .so-units input.unit-edit.lbl-inp { width: 90px; }
         .so-units input.unit-edit.note-inp { width: 100%; min-width: 140px; }
-        .so-units .row-save { display: none; padding: 4px 8px; background: var(--amber-deep); color: white; border: 0; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .so-units .row-save { display: none; padding: 4px 8px; background: var(--knk-brand-hover); color: white; border: 0; border-radius: 4px; font-size: 12px; font-weight: 700; cursor: pointer; }
 
         .so-card-foot { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--paper); border-top: 1px solid var(--line); font-size: 13px; }
         .so-card-foot .summary { color: var(--ink); }
@@ -412,7 +412,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .add-unit-card input, .add-unit-card select { padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; font-size: 13px; background: var(--paper); }
         .add-unit-card input.amt { width: 130px; text-align: right; }
         .add-unit-card input.note { flex: 1; min-width: 140px; }
-        .add-unit-card .save-btn { background: var(--amber-deep); color: white; border: 0; border-radius: 5px; padding: 7px 16px; font-weight: 700; cursor: pointer; }
+        .add-unit-card .save-btn { background: var(--knk-brand-hover); color: white; border: 0; border-radius: 5px; padding: 7px 16px; font-weight: 700; cursor: pointer; }
         .add-unit-card .cancel-btn { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 5px; padding: 7px 12px; cursor: pointer; }
 
         .so-grand-total { padding: 14px 18px; background: var(--paper-3); border: 1px solid var(--line); border-radius: var(--radius-lg); margin-top: var(--space-3); display: flex; justify-content: space-between; align-items: center; }
@@ -457,7 +457,7 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable.unlocked table.so-units:not(.parts-excel) td.edit-only { position: sticky; right: 0; z-index: 3; width: 46px !important; min-width: 46px; background: var(--paper); box-shadow: -3px 0 5px rgba(0,0,0,0.07); }
         /* v5H226z88: 카드 상단 "💾 모두 저장" — 편집 모드 시만 노출 */
         .so-card .save-all-btn { display: none; }
-        .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: #15803d; color: #fff; border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .so-card.editable .save-all-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; background: var(--knk-success); color: var(--knk-text-inverse); border: 0; border-radius: 5px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .so-card.editable .save-all-btn:hover { filter: brightness(1.1); }
         .so-card.editable .save-all-btn:disabled { opacity: 0.6; cursor: wait; }
         /* v5H226z92: 호기별 인라인 삭제 회수 — 상태 컬럼의 "취소"로 대체 */
@@ -510,17 +510,17 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable.unlocked select.unit-edit:focus,
         .so-card.editable.unlocked select.unit-status-sel:focus {
           outline: none;
-          background: #fff;
-          border-color: #2563eb !important;
-          box-shadow: inset 0 0 0 1px #2563eb;
+          background: var(--knk-bg-surface);
+          border-color: var(--knk-info) !important;
+          box-shadow: inset 0 0 0 1px var(--knk-info);
         }
         /* 수정 모드 셀에 마우스 올리면 옅은 강조(편집 가능 힌트·엑셀 느낌) */
         .so-card.editable.unlocked td:hover input.unit-edit:not(:focus),
-        .so-card.editable.unlocked td:hover select.unit-edit:not(:focus) { background: #f4f8ff; }
+        .so-card.editable.unlocked td:hover select.unit-edit:not(:focus) { background: var(--knk-info-subtle); }
         /* 날짜칸 브라우저 달력 아이콘 숨김(수정 모드도) — KNK 달력 팝업으로 선택 */
         .so-card.editable.unlocked input.unit-edit::-webkit-calendar-picker-indicator { display: none !important; }
         /* 엑셀 느낌 — 칸 세로 구분선(그리드). 부품(parts-excel)은 자체 스타일이라 제외. */
-        .so-units:not(.parts-excel) td, .so-units:not(.parts-excel) th { border-right: 1px solid #ece6d6; }
+        .so-units:not(.parts-excel) td, .so-units:not(.parts-excel) th { border-right: 1px solid var(--knk-border-subtle); }
         .so-units:not(.parts-excel) td:last-child, .so-units:not(.parts-excel) th:last-child { border-right: 0; }
         /* 잠금 상태에서 일괄적용 / 호기 추가 / 라인삭제 / 호기 상태 일괄 모두 숨김 */
         .so-card.editable:not(.unlocked) .bulk-status-tools,
@@ -528,36 +528,36 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
         .so-card.editable:not(.unlocked) .row-del { display: none !important; }
         /* z1191z4: 「＋ 호기 추가」는 잠금 상태에서도 보인다 — 누르면 수정 모드가 자동으로 켜지고 추가 칸이 열린다 */
         /* '✏️ 수정' / '💾 변경사항 저장' 토글 버튼 */
-        .so-card .toggle-edit { background: var(--paper); border: 1px solid var(--line); color: #475569; border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .so-card .toggle-edit { background: var(--paper); border: 1px solid var(--line); color: var(--knk-text-secondary); border-radius: 5px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
         .so-card .toggle-edit:hover { background: var(--paper-2); }
-        .so-card.editable.unlocked .toggle-edit { background: var(--amber-deep); border-color: var(--amber-deep); color: #fff; }
+        .so-card.editable.unlocked .toggle-edit { background: var(--knk-brand-hover); border-color: var(--knk-brand-hover); color: var(--knk-text-inverse); }
         .so-card.editable.unlocked .toggle-edit:hover { filter: brightness(1.05); }
         /* v5H226z690 (대표 지시): 수주내역 상세 호기별 세금계산서·거래명세서 발행 — '수정'(unlocked) 시 칸 클릭→발행일/금액 팝업. */
         .ti-cell { display: inline-block; line-height: 1.3; }
         .so-card.editable.unlocked .ti-cell { cursor: pointer; border: 1px solid transparent; border-radius: 3px; padding: 1px 6px; min-width: 48px; }
-        .so-card.editable.unlocked .ti-cell:hover { background: #eef6ff; box-shadow: inset 0 0 0 1px #60a5fa; }
-        .ti-pop { position: absolute; z-index: 100060; background: #fff; border: 1px solid #e2d9c4; border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,0.20); padding: 12px 14px; width: 300px; }
-        .ti-pop .ti-pop-ttl { font-weight: 800; font-size: 13px; color: #b91c1c; margin-bottom: 10px; }
+        .so-card.editable.unlocked .ti-cell:hover { background: var(--knk-info-subtle); box-shadow: inset 0 0 0 1px var(--knk-info-line); }
+        .ti-pop { position: absolute; z-index: 100060; background: var(--knk-bg-surface); border: 1px solid var(--knk-border-subtle); border-radius: 10px; box-shadow: 0 12px 34px rgba(0,0,0,0.20); padding: 12px 14px; width: 300px; }
+        .ti-pop .ti-pop-ttl { font-weight: 800; font-size: 13px; color: var(--knk-danger); margin-bottom: 10px; }
         .ti-pop .ti-pop-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
-        .ti-pop .ti-pop-row label { width: 46px; font-size: 12px; color: #475569; font-weight: 700; }
-        .ti-pop .ti-pop-row input { flex: 1; padding: 6px 8px; border: 1px solid #d6cdb6; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-        .ti-pop .ti-cur { color: #64748b; font-weight: 700; font-size: 13px; }
-        .ti-pop .ti-pop-hint { font-size: 11px; color: #94a3b8; margin: 2px 0 10px; line-height: 1.45; }
+        .ti-pop .ti-pop-row label { width: 46px; font-size: 12px; color: var(--knk-text-secondary); font-weight: 700; }
+        .ti-pop .ti-pop-row input { flex: 1; padding: 6px 8px; border: 1px solid var(--knk-border-default); border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+        .ti-pop .ti-cur { color: var(--knk-text-muted); font-weight: 700; font-size: 13px; }
+        .ti-pop .ti-pop-hint { font-size: 11px; color: var(--knk-text-muted); margin: 2px 0 10px; line-height: 1.45; }
         .ti-pop .ti-pop-btns { display: flex; justify-content: flex-end; gap: 6px; align-items: center; }
-        .ti-pop .ti-pop-btns button { padding: 6px 14px; border-radius: 6px; border: 1px solid #d6cdb6; background: #fafaf7; font-size: 12.5px; font-weight: 700; cursor: pointer; }
-        .ti-pop .ti-pop-btns .ti-save { background: #15803d; color: #fff; border-color: #15803d; }
-        .ti-pop .ti-pop-btns .ti-clear { color: #b91c1c; margin-right: auto; border-color: transparent; background: transparent; }
+        .ti-pop .ti-pop-btns button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--knk-border-default); background: var(--knk-bg-inset); font-size: 12.5px; font-weight: 700; cursor: pointer; }
+        .ti-pop .ti-pop-btns .ti-save { background: var(--knk-success); color: var(--knk-text-inverse); border-color: var(--knk-success); }
+        .ti-pop .ti-pop-btns .ti-clear { color: var(--knk-danger); margin-right: auto; border-color: transparent; background: transparent; }
 /* z742 block 4 from project_detail */
 /* v5H226z641 (대표 지시): 참고(추가 수주) 영역 — 또렷한 연한 회색(헤더 배경 명시·본 카드와 확실히 구분) */
-          .ref-sos-wrap { border:1px solid #c4cad3; border-radius:10px; margin:10px 0 4px; background:#e9ebef; }
-          .ref-sos-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:11px 16px; cursor:pointer; font-weight:700; color:#475569; font-size:13px; user-select:none; background:#e3e6ea; border-radius:10px; }
-          .ref-sos-head:hover { background:#d8dce2; }
+          .ref-sos-wrap { border:1px solid var(--knk-border-strong); border-radius:10px; margin:10px 0 4px; background:var(--knk-bg-subtle); }
+          .ref-sos-head { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:11px 16px; cursor:pointer; font-weight:700; color:var(--knk-text-secondary); font-size:13px; user-select:none; background:var(--knk-bg-subtle); border-radius:10px; }
+          .ref-sos-head:hover { background:var(--knk-border-default); }
           .ref-sos-body { display:none; padding:2px 8px 8px; }
           .ref-sos-wrap.open .ref-sos-body { display:block; }
           .ref-sos-arrow { transition:transform .15s; font-size:12px; }
           .ref-sos-wrap.open .ref-sos-arrow { transform:rotate(90deg); }
           /* v5H226z650 (대표 지시): 참고 수주번호 옆 이동 힌트 칩(↗ 일정표 / ↗ 이력) */
-          .so-no .ref-go { font-size:10px; font-weight:600; color:#94a3b8; margin-left:4px; vertical-align:middle; }
+          .so-no .ref-go { font-size:10px; font-weight:600; color:var(--knk-text-muted); margin-left:4px; vertical-align:middle; }
           .ref-so .so-no a:hover .ref-go { color:var(--knk-red); }
           /* v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 한 관리번호에 발주마다 형태 달라도 한눈에(완제품/제품/상품/기타/소모품) */
           .so-form-badge { display:inline-block; padding:2px 9px; border-radius:11px; font-size:11px; font-weight:700; margin-left:2px; vertical-align:middle; border:1px solid transparent; }
@@ -569,11 +569,11 @@ table.so-units.parts-excel tbody td:nth-child(4) { box-shadow: 2px 0 4px -2px rg
           .amt-breakdown .ab-lbl { color:var(--ink); font-weight:600; white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }   /* v5H226z717: 평소엔 박스가 커져 전체 표시·컨테이너 한계 넘으면 말줄임(넘침 방지) */
           .amt-breakdown .ab-amt { color:var(--knk-red); font-weight:700; text-align:right; white-space:nowrap; }
           .amt-breakdown .ab-ccy { color:var(--mute); font-weight:600; font-size:9.5px; }
-          .so-form-badge.sf-assembly, .amt-form-badge.sf-assembly { background:#dbeafe; color:#1e40af; border-color:#bfdbfe; }   /* 완제품 */
-          .so-form-badge.sf-semi, .amt-form-badge.sf-semi { background:#cffafe; color:#155e75; border-color:#a5f3fc; }        /* 제품 */
-          .so-form-badge.sf-parts, .amt-form-badge.sf-parts { background:#fef3c7; color:#92400e; border-color:#fde68a; }       /* 상품 */
-          .so-form-badge.sf-etc, .amt-form-badge.sf-etc { background:#f1f5f9; color:#475569; border-color:#e2e8f0; }         /* 기타 */
-          .so-form-badge.sf-consumable, .amt-form-badge.sf-consumable { background:#dcfce7; color:#166534; border-color:#bbf7d0; }  /* 소모품 */
+          .so-form-badge.sf-assembly, .amt-form-badge.sf-assembly { background:var(--knk-info-subtle); color:var(--knk-info); border-color:var(--knk-info-line); }   /* 완제품 */
+          .so-form-badge.sf-semi, .amt-form-badge.sf-semi { background:var(--knk-cat-violet-subtle); color:var(--knk-cat-violet); border-color:var(--knk-cat-violet-line); }        /* 제품 */
+          .so-form-badge.sf-parts, .amt-form-badge.sf-parts { background:var(--knk-cat-orange-subtle); color:var(--knk-cat-orange); border-color:var(--knk-cat-orange-line); }       /* 상품 */
+          .so-form-badge.sf-etc, .amt-form-badge.sf-etc { background:var(--knk-bg-subtle); color:var(--knk-text-secondary); border-color:var(--knk-border-subtle); }         /* 기타 */
+          .so-form-badge.sf-consumable, .amt-form-badge.sf-consumable { background:var(--knk-success-subtle); color:var(--knk-success); border-color:var(--knk-success-line); }  /* 소모품 */
 
           /* v5H226z1026 규격 중복 표시 → v5H226z1029 에서 **공용 표준으로 승격**.
              정의 위치 = `_v5_partials/knk_rowflag.html` (styles.html 전역 include)

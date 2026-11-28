@@ -54,8 +54,8 @@ async function knkTbd117(cb){
 <style>.so-card:not(.unlocked) .tbd117{display:none !important;}
 .so-card:not(.unlocked) .ow-need-edit{opacity:.4;filter:grayscale(.4);}
 /* z1191z117 ④: 확인할 줄 */
-tr[data-chk117] > td:first-child{box-shadow:inset 5px 0 #dc2626;}
-tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
+tr[data-chk117] > td:first-child{box-shadow:inset 5px 0 var(--knk-danger);}
+tr[data-chk117] > td{background-color:var(--knk-danger-subtle) !important;}</style></head>
 <body>
 {% set s = stats or {} %}
 <div class="app">{% include "_v5_partials/chrome.html" with context %}
@@ -65,10 +65,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       {# v5H226z1020 (대표 지시): 이 화면 '찾아가는 길'을 경로줄로 온전히 표현 + 직원에게 보낼 안내문 복사.
          링크만 보내면 권한 없는 직원은 못 여니, 경로를 알려주면 본인 권한 내에서 찾아갈 수 있음. #}
       <div class="crumbs">
-        <a href="/sales">매출영업센터</a> › <a href="/projects">프로젝트</a> › <b>{{ p.mgmt_code|default(p.id) }}</b>{% if p.name %} <span style="color:var(--ink,#1f2937);font-weight:600;">{{ p.name }}</span>{% endif %}
+        <a href="/sales">매출영업센터</a> › <a href="/projects">프로젝트</a> › <b>{{ p.mgmt_code|default(p.id) }}</b>{% if p.name %} <span style="color:var(--ink);font-weight:600;">{{ p.name }}</span>{% endif %}
         <button type="button" id="prjPathCopy" data-mgmt="{{ p.mgmt_code|default('') }}" data-name="{{ p.name|default('') }}"
                 title="이 화면 '찾아가는 길'을 복사해서 직원에게 이음 메신저로 보낼 수 있습니다"
-                style="margin-left:8px;border:1px solid var(--qv-line,#d9d2c4);background:var(--paper-2,#f4f1e8);color:var(--mute,#64748b);cursor:pointer;font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;vertical-align:middle;">📋 찾아가는 길 복사</button>
+                style="margin-left:8px;border:1px solid var(--qv-line);background:var(--paper-2);color:var(--mute);cursor:pointer;font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;vertical-align:middle;">📋 찾아가는 길 복사</button>
         <script>
         (function(){
           var btn = document.getElementById('prjPathCopy');
@@ -90,7 +90,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       </div>
       <h1 class="page-title" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         {# v5H226z41: amber-deep 텍스트 → 잉크 알약 (시안1 표준 컴포넌트) #}
-        <span class="mgmt-pill lg{% if not p.mgmt_code %} empty{% endif %}" title="관리번호">{{ p.mgmt_code|default('—') }}</span>
+        <span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span><span class="mgmt-pill lg{% if not p.mgmt_code %} empty{% endif %}" title="관리번호">{{ p.mgmt_code|default('—') }}</span>
         <span id="hf_title_name">{{ p.name }}</span>
         {# v5H185: 프로젝트명 인라인 편집 ✏️ — 우측 패널에서 이동 #}
         {% if can_sales %}<button type="button" id="hf_title_edit" data-pid="{{ p.id }}" title="프로젝트명 편집"
@@ -116,7 +116,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       <a class="btn btn-secondary" href="/dept/schedule" title="전사 일정표 열기 — 작업일정표 접근이 어려운 분은 여기로">🗓 전사일정표</a>
       {# v5H226z841 (대표 지시): 발행된 제작요청서 '보기' 바로가기 — 누르면 제작요청서 페이지(읽기모드·사진2). 등록분 있을 때만·전원 열람. #}
       {% if prod_requests %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit" title="발행된 제작요청서 보기">📋 제작요청서 보기</a>{% endif %}
-      {% if can_sales %}<a class="btn btn-primary" style="background:#c2410c;" href="/project/{{ p.id }}/prod-request/edit?new=1" title="이 프로젝트(관리번호 유지)에 제작요청서를 새로 작성·발행 — 관련 부서 통보">＋ 제작요청서 작성</a>{% endif %}
+      {% if can_sales %}<a class="btn btn-primary" style="background:var(--knk-action);" href="/project/{{ p.id }}/prod-request/edit?new=1" title="이 프로젝트(관리번호 유지)에 제작요청서를 새로 작성·발행 — 관련 부서 통보">＋ 제작요청서 작성</a>{% endif %}
       {% if prod_requests and can_sales %}<a class="btn btn-secondary" href="/project/{{ p.id }}/prod-request/edit?edit=1" title="제작요청서 수정">✏️ 제작요청서 수정</a>{% endif %}
       {# 2026-07-06 (대표 지시): 프로젝트 정보 수정 진입점 복원 — z787로 '수정'이 제작요청서 편집으로 바뀌며 빠졌던 것. 고객사·모델·사업부·상태 등 프로젝트 자체 정보 수정. #}
       {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 버튼은 **관리번호 전체**를 고친다. 수주 하나만 고치려는 사람이
@@ -124,10 +124,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       {% if can_sales %}<a class="btn btn-secondary" href="/projects/{{ p.id }}/quick-edit{% if focus_so and project_orders and project_orders|length > 1 %}?so={{ focus_so|urlencode }}{% endif %}" title="관리번호 {{ p.mgmt_code }} 전체의 공통 정보(고객사·모델·사업부·상태 등)를 고칩니다{% if project_orders and project_orders|length > 1 %} — 수주번호 {{ project_orders|length }}건 모두에 영향.
 특정 수주 하나만 고치려면 아래 [수주 내역]의 그 카드에서 고치세요.{% endif %}">✏️ 프로젝트 정보 수정{% if project_orders and project_orders|length > 1 %} <span style="font-size:10px;opacity:.75;">(전체 {{ project_orders|length }}건)</span>{% endif %}</a>{% endif %}
       {# v5H226z946 (대표 지시): 수출 건 → 수출 서류(통관 입력·패킹리스트·인보이스·출고 QR)로 바로가기. '다음 단계' 연결. #}
-      {% if can_sales and z177_exp_n %}<a class="btn btn-primary" style="background:#0369a1;" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
+      {% if can_sales and z177_exp_n %}<a class="btn btn-primary" style="background:var(--knk-info);" href="/export/prep/{{ p.id }}" title="수출 통관 입력 · 패킹리스트 · 인보이스 · 출고 QR 생성">📦 수출 서류</a>{% endif %}
       {# v5H226z872 (2026-07-08 대표 지시): 폐기(완전삭제) 버튼은 헤더에서 제거 → 페이지 최하단 '위험 구역'으로 이동(실수 클릭 방지).
          경고 → 본인 비밀번호 확인 2단계 + 출하·세금계산서·수금 이력 있으면 아예 불가. 숨김해제는 옛 폐기(숨김)건 정리용만 헤더 유지. #}
-      {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:#15803d;" onclick="unarchiveProject()" title="옛 숨김(폐기)을 해제 — 다시 목록·일정표에 표시(삭제 아님)">♻ 숨김해제</button>{% endif %}
+      {% if can_sales and p.is_archived %}<button type="button" class="btn btn-primary" style="background:var(--knk-success);" onclick="unarchiveProject()" title="옛 숨김(폐기)을 해제 — 다시 목록·일정표에 표시(삭제 아님)">♻ 숨김해제</button>{% endif %}
       {# z984c 규정: 목록 복귀 버튼 data-knk-back — 직전 화면이 프로젝트 목록이면 그 주소(검색·필터 포함) 그대로 복귀 #}
       <a class="btn btn-secondary" href="/projects" data-knk-back>↩ 목록</a>
     </div>
@@ -157,7 +157,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 
   {# v5H226z871: 옛 폐기(숨김)건 배너 — 이제 폐기=완전삭제로 바뀜. 이 건은 숨김만 된 상태라 완전삭제 또는 숨김해제 안내. #}
   {% if p.is_archived %}
-  <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.6;">
+  <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);color:var(--knk-warning);font-size:13px;line-height:1.6;">
     🗑 <b>숨김(옛 폐기) 처리된 프로젝트입니다</b> — 목록·일정표·최근 프로젝트에서 숨겨져 있습니다(데이터는 아직 보존됨).
     {% if can_sales %}이 페이지 <b>최하단 '위험 구역'</b>의 <b>"🗑 폐기(완전삭제)"</b>로 영구 삭제하거나(삭제한 관리번호는 겹치는 데이터가 없으면 재사용 가능), 상단 <b>"♻ 숨김해제"</b>로 다시 표시할 수 있습니다.{% endif %}
   </div>
@@ -165,40 +165,40 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 
   {# v5H226z623 (대표 지시): 제작요청 승격 시 고객사 미등록 알람 — 등록·연결 유도 #}
   {% if request.query_params.get('cust_unreg') %}
-  <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:13px;line-height:1.6;">
+  <div style="margin:0 0 14px;padding:11px 15px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:13px;line-height:1.6;">
     ⚠ <b>고객사 미등록 알람</b> — 고객사 <b>"{{ request.query_params.get('cust') or '(미지정)' }}"</b> 가 등록된 고객사와 맞지 않습니다(신규고객으로 입력된 건).<br>
-    작업일정표·매출에서 <b>미연결(적색)</b>로 표시됩니다. <a href="/customers/new" style="color:#b91c1c;font-weight:800;text-decoration:underline;">고객사 등록</a> 후, 작업일정표/상세에서 이 고객사를 <b>등록 목록으로 다시 선택</b>해 연결하세요.
+    작업일정표·매출에서 <b>미연결(적색)</b>로 표시됩니다. <a href="/customers/new" style="color:var(--knk-danger);font-weight:800;text-decoration:underline;">고객사 등록</a> 후, 작업일정표/상세에서 이 고객사를 <b>등록 목록으로 다시 선택</b>해 연결하세요.
   </div>
   {% endif %}
   {# v5H226z421 (대표 지시): 출처 '영업 기회(수주 전)'로 가는 역링크 — 수주 전 업무 내용 다시 보기 #}
   {% if origin_opp %}
-  <div style="margin:0 0 14px;padding:10px 15px;border-radius:9px;background:#eef6ff;border:1px solid #b9d2ff;color:#1e40af;font-size:13px;line-height:1.55;">
+  <div style="margin:0 0 14px;padding:10px 15px;border-radius:9px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);color:var(--knk-info);font-size:13px;line-height:1.55;">
     🎯 이 프로젝트는 <b>수주 전 영업 기회</b>에서 승격된 건입니다 —
-    <a href="/sales/opportunities/{{ origin_opp.id }}" style="color:#1d4ed8;font-weight:800;text-decoration:underline;">[{{ origin_opp.opp_no }}] {{ origin_opp.title }} · 수주 전 내용 보기 →</a>
-    <span style="color:#64748b;">(미팅·제안·견적 메모, 부서 요청·활동 등 수주 전 업무가 거기 그대로 보존돼 있습니다)</span>
+    <a href="/sales/opportunities/{{ origin_opp.id }}" style="color:var(--knk-action);font-weight:800;text-decoration:underline;">[{{ origin_opp.opp_no }}] {{ origin_opp.title }} · 수주 전 내용 보기 →</a>
+    <span style="color:var(--knk-text-muted);">(미팅·제안·견적 메모, 부서 요청·활동 등 수주 전 업무가 거기 그대로 보존돼 있습니다)</span>
   </div>
   {% endif %}
 
   {# v5H226z373(대표 지시): 제작요청 발행은 '신규 등록(제작요청서)' 흐름으로 일원화 — 상세 모달/버튼 폐기. 발행 결과 배너만 표시. #}
   {% if request.query_params.get('prod_updated') %}
-  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13.5px;font-weight:600;line-height:1.5;">
-    ✏️ 제작요청서 수정 완료{% if request.query_params.get('prod_sent') is not none %} — {{ request.query_params.get('prod_dept','0') }}개 부서 · {{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% if request.query_params.get('prod_msg') is not none %} · 📱 KNK Eum {{ request.query_params.get('prod_msg','0') }}명 푸시{% endif %}{% endif %}{% if request.query_params.get('prod_renotifyerr') %} <span style="color:#b45309;">(재통보 일부 실패 — 확인 필요)</span>{% endif %}
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);color:var(--knk-info);font-size:13.5px;font-weight:600;line-height:1.5;">
+    ✏️ 제작요청서 수정 완료{% if request.query_params.get('prod_sent') is not none %} — {{ request.query_params.get('prod_dept','0') }}개 부서 · {{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% if request.query_params.get('prod_msg') is not none %} · 📱 KNK Eum {{ request.query_params.get('prod_msg','0') }}명 푸시{% endif %}{% endif %}{% if request.query_params.get('prod_renotifyerr') %} <span style="color:var(--knk-warning);">(재통보 일부 실패 — 확인 필요)</span>{% endif %}
   </div>
   {% elif request.query_params.get('prod_sent') is not none %}
-  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13.5px;font-weight:600;line-height:1.5;">
-    📋 제작요청 발행 완료 — {{ request.query_params.get('prod_dept','0') }}개 부서 · {{ request.query_params.get('prod_sent','0') }}명에게 통보 + 작업일정표 '제작요청' 자동기록{% if request.query_params.get('prod_msg') is not none %} · 📱 KNK Eum 메신저 {{ request.query_params.get('prod_msg','0') }}명 푸시{% if request.query_params.get('prod_msgerr') %} <span style="color:#b45309;">(메신저 통보 일부 실패 — 사번 미연결·메신저 준비 전일 수 있음)</span>{% endif %}{% endif %}{% if request.query_params.get('prod_stagewarn') %} <span style="color:#b45309;">(일정표 기록 경고 — 확인 필요)</span>{% endif %}
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:var(--knk-success-subtle);border:1px solid var(--knk-success-line);color:var(--knk-success);font-size:13.5px;font-weight:600;line-height:1.5;">
+    📋 제작요청 발행 완료 — {{ request.query_params.get('prod_dept','0') }}개 부서 · {{ request.query_params.get('prod_sent','0') }}명에게 통보 + 작업일정표 '제작요청' 자동기록{% if request.query_params.get('prod_msg') is not none %} · 📱 KNK Eum 메신저 {{ request.query_params.get('prod_msg','0') }}명 푸시{% if request.query_params.get('prod_msgerr') %} <span style="color:var(--knk-warning);">(메신저 통보 일부 실패 — 사번 미연결·메신저 준비 전일 수 있음)</span>{% endif %}{% endif %}{% if request.query_params.get('prod_stagewarn') %} <span style="color:var(--knk-warning);">(일정표 기록 경고 — 확인 필요)</span>{% endif %}
   </div>
   {% elif request.query_params.get('prod_need') %}
   {# z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」) #}
-  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13.5px;font-weight:600;">⚠ 제작요청서를 발행하지 못했습니다 — {% if request.query_params.get('prod_need') == 'mgmt' %}관리번호가 없습니다(필수).{% else %}등록된 수주가 없습니다 · 수주번호는 필수입니다.{% endif %} 등록한 뒤 「제작요청서」에서 다시 발행하세요.</div>
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:13.5px;font-weight:600;">⚠ 제작요청서를 발행하지 못했습니다 — {% if request.query_params.get('prod_need') == 'mgmt' %}관리번호가 없습니다(필수).{% else %}등록된 수주가 없습니다 · 수주번호는 필수입니다.{% endif %} 등록한 뒤 「제작요청서」에서 다시 발행하세요.</div>
   {% elif request.query_params.get('prod_err') %}
-  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13.5px;font-weight:600;">⚠ 제작요청 통보 중 오류가 발생했습니다 — 관리자에게 문의하세요.</div>
+  <div style="margin:0 0 14px;padding:11px 16px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:13.5px;font-weight:600;">⚠ 제작요청 통보 중 오류가 발생했습니다 — 관리자에게 문의하세요.</div>
   {% endif %}
   {% if request.query_params.get('prod_saveerr') %}
-  <div style="margin:0 0 14px;padding:9px 14px;border-radius:9px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;font-weight:600;">⚠ 통보는 됐지만 <b>제작요청서 저장에 실패</b>했습니다 — 아래 이력에 안 남았을 수 있습니다(관리자 문의).</div>
+  <div style="margin:0 0 14px;padding:9px 14px;border-radius:9px;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);color:var(--knk-warning);font-size:12.5px;font-weight:600;">⚠ 통보는 됐지만 <b>제작요청서 저장에 실패</b>했습니다 — 아래 이력에 안 남았을 수 있습니다(관리자 문의).</div>
   {% endif %}
   {% if request.query_params.get('prod_upderr') %}
-  <div style="margin:0 0 14px;padding:9px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 제작요청서 수정에 실패했습니다 — 관리자에게 문의하세요.</div>
+  <div style="margin:0 0 14px;padding:9px 14px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:12.5px;font-weight:600;">⚠ 제작요청서 수정에 실패했습니다 — 관리자에게 문의하세요.</div>
   {% endif %}
 
   {# v5H196: 수주 확정 모달 폐기. 버튼 클릭 시 등록값 기준 직접 발행 #}
@@ -241,11 +241,11 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">고객사 PO 번호</label>
           <input type="text" id="fup_po_number" placeholder="예: SAMSUNG-PO-2026-002" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;"></div>
         {# z1191z166 (대표 11-27): 추가 발주 = 1차 고객사(세금계산서 받는 곳) 필수 · 관리번호 처음 고객으로 채우지 않음(빈칸에서 시작 · 사람이 고름) #}
-        <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">1차 고객사 <b style="color:#dc2626;">*</b> <span style="font-weight:400;">(이 수주의 세금계산서를 받는 곳 · 등록 목록에서 선택)</span></label>
+        <div style="grid-column:1/-1;"><label style="font-size:11px; color:var(--mute);">1차 고객사 <b style="color:var(--knk-brand);">*</b> <span style="font-weight:400;">(이 수주의 세금계산서를 받는 곳 · 등록 목록에서 선택)</span></label>
           <input type="text" id="fup_cust" data-cust-picker data-cust-name="fup_customer_name" data-cust-id="fup_customer_id" data-cust-required="1" placeholder="고객사명·시스템명 입력 → 목록 선택" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;">
-          <div style="font-size:11px; color:var(--mute); margin-top:3px;">목록에 없는 새 고객이면 <a href="/customers/new" target="_blank" style="color:#1d4ed8;font-weight:700;">고객사 등록</a>(새 탭)에서 먼저 등록한 뒤 여기서 고르세요.</div></div>
+          <div style="font-size:11px; color:var(--mute); margin-top:3px;">목록에 없는 새 고객이면 <a href="/customers/new" target="_blank" style="color:var(--knk-action);font-weight:700;">고객사 등록</a>(새 탭)에서 먼저 등록한 뒤 여기서 고르세요.</div></div>
       </div>
-      <div id="fup_err" style="display:none; margin:-2px 0 10px; padding:8px 11px; border:1px solid #fca5a5; background:#fef2f2; color:#b91c1c; border-radius:7px; font-size:12.5px; font-weight:700;"></div>
+      <div id="fup_err" style="display:none; margin:-2px 0 10px; padding:8px 11px; border:1px solid var(--knk-danger-line); background:var(--knk-danger-subtle); color:var(--knk-danger); border-radius:7px; font-size:12.5px; font-weight:700;"></div>
       <!-- v5H131: 단가 × 수량 = 총액 라이브 표시 + 안내 -->
       <div style="background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:14px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -259,7 +259,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       </div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="document.getElementById('followupOrderModal').style.display='none'">취소</button>
-        <button class="btn btn-primary" onclick="submitFollowupOrder()" style="background:var(--amber-deep);">추가 발주 발행</button>
+        <button class="btn btn-primary" onclick="submitFollowupOrder()" style="background:var(--knk-brand-hover);">추가 발주 발행</button>
       </div>
     </div>
   </div>
@@ -380,7 +380,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     var _cid166 = ((document.querySelector('#followupOrderModal input[data-cust-h="fup_customer_id"]') || {}).value || '').trim();
     var _cin166 = document.getElementById('fup_cust');
     if (!_cid166 || (_cin166 && _cin166.getAttribute('data-cust-ok') !== '1')) {
-      if (_fe166) { _fe166.innerHTML = '👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 목록에 없으면 <a href="/customers/new" target="_blank" style="color:#1d4ed8;">고객사 등록</a> 후 고르세요.'; _fe166.style.display = 'block'; }
+      if (_fe166) { _fe166.innerHTML = '👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 목록에 없으면 <a href="/customers/new" target="_blank" style="color:var(--knk-action);">고객사 등록</a> 후 고르세요.'; _fe166.style.display = 'block'; }
       try { if (_cin166) { _cin166.classList.add('knkcust-bad'); _cin166.focus(); } } catch (e) {}
       return;
     }
@@ -413,10 +413,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 
   {# z1191z153 (대표 11-25 「이상하면 알람만」 · 원칙 ③): 화면을 열 때 고치던 값은 저장하지 않고 알림만 — 사람이 「맞추기」를 누를 때만 저장(이력 = 누른 사람) #}
   {% if heal153 %}
-  <div id="heal153" style="margin:0 var(--content-pad,24px) 10px;padding:9px 13px;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;font-size:12.5px;color:#92400e;">
+  <div id="heal153" style="margin:0 var(--content-pad,24px) 10px;padding:9px 13px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:10px;font-size:12.5px;color:var(--knk-warning);">
     <b>⚠ 저장된 값과 수주 기준 계산이 다릅니다</b> — 화면을 여는 것만으로는 바꾸지 않습니다. 맞는지 보시고 필요하면 「맞추기」를 누르세요.
     <ul style="margin:5px 0 6px 18px;padding:0;">{% for h in heal153 %}<li>{{ h }}</li>{% endfor %}</ul>
-    {% if can_sales %}<button type="button" id="heal153Go" data-pid="{{ p.id }}" style="padding:4px 12px;border:1px solid #d97706;background:#fff;color:#92400e;border-radius:7px;font-weight:800;cursor:pointer;">맞추기</button>
+    {% if can_sales %}<button type="button" id="heal153Go" data-pid="{{ p.id }}" style="padding:4px 12px;border:1px solid var(--knk-warning);background:var(--knk-bg-surface);color:var(--knk-warning);border-radius:7px;font-weight:800;cursor:pointer;">맞추기</button>
     <span id="heal153Msg" style="margin-left:8px;"></span>{% endif %}
   </div>
   <script>(function(){
@@ -457,7 +457,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 
   {# v5H124: 통화 혼합 경고 + 통화별 합계 분리 #}
   {% if currency_warning %}
-  <div style="margin: var(--space-3) var(--content-pad,16px); padding: 10px 14px; background: #FFF7E6; border: 1px solid #F59E0B; border-radius: 8px; font-size: 13px; color: #92400E;">
+  <div style="margin: var(--space-3) var(--content-pad,16px); padding: 10px 14px; background: var(--knk-warning-subtle); border: 1px solid var(--knk-highlight); border-radius: 8px; font-size: 13px; color: var(--knk-warning);">
     <b>{{ currency_warning }}</b>
     <div style="margin-top:6px; display:flex; gap:14px; flex-wrap:wrap; font-size:12px;">
     {% for r in currency_mix %}
@@ -483,7 +483,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             <span class="ttl">
               🗂 수주 전 내역
               {% if p.stage %}<span class="stage-pill">{{ p.stage }}</span>{% endif %}
-              {% if _is_won %}<span class="stage-pill" style="background:#d1fae5;color:#065f46;">수주 확정됨</span>{% endif %}
+              {% if _is_won %}<span class="stage-pill" style="background:var(--knk-success-subtle);color:var(--knk-success);">수주 확정됨</span>{% endif %}
             </span>
             <span class="toggle">▼</span>
           </div>
@@ -638,7 +638,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           <span>📋 수주 내역 ({{ project_orders|default([])|length }}건)</span>
           {% if p.mgmt_code %}<span style="font-size:11px;font-weight:500;color:var(--mute);">관리번호 {{ p.mgmt_code }}</span>{% endif %}
           {# v5H226z1053 (ERP V1 WP-03): 호기·일련번호(제작 단위) 관리 — 조회 권한자에게만 노출(게이트 8.3) #}
-          {% if can_view_units %}<a href="/project/{{ p.id }}/units" style="margin-left:auto;font-size:12px;font-weight:600;color:#1e5fbf;text-decoration:none;border:1px solid #bfdbfe;background:#eff6ff;padding:4px 10px;border-radius:7px;">🔧 호기·일련번호 관리 ↗</a>{% endif %}
+          {% if can_view_units %}<a href="/project/{{ p.id }}/units" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--knk-info);text-decoration:none;border:1px solid var(--knk-info-line);background:var(--knk-info-subtle);padding:4px 10px;border-radius:7px;">🔧 호기·일련번호 관리 ↗</a>{% endif %}
         </h3>
         {% if project_orders %}
         {# v5H226z637 (대표 지시): 최초(메인) 수주는 그대로, 추가 수주는 '참고'로 접어 표시(같은 관리번호에 딸린 건임을 구분). 최초 = 가장 오래된 SO(목록 마지막). #}
@@ -655,7 +655,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         {% set _tcw178 = trade_ccy_warn(p.id) %}{# z1191z178: 통화·거래구분 안 맞음(수주마다 · 확인한 것은 회색) #}
         {% set _tcw178_open = _tcw178.values()|rejectattr('acked')|list %}
         {% if _tcw178_open %}
-        <div class="tcw178-sum" style="margin:0 0 8px;padding:7px 12px;border:1px solid #facc15;background:#fef9c3;border-radius:8px;color:#713f12;font-size:12.5px;font-weight:700;">
+        <div class="tcw178-sum" style="margin:0 0 8px;padding:7px 12px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:8px;color:var(--knk-warning);font-size:12.5px;font-weight:700;">
           ⚠ 통화·거래구분이 안 맞는 수주 {{ _tcw178_open|length }}건 — {% for w in _tcw178_open %}<span style="font-family:Consolas,monospace;">{{ w.order_no }}</span> {{ w.msg|replace('💱 ', '') }}({{ w.items_txt }}){% if not loop.last %} · {% endif %}{% endfor %}
           <span style="font-weight:500;"> · 👉 아래 그 수주 카드에서 맞는지 보고 「확인했음」(틀렸으면 거래구분·통화를 고쳐 주세요 · 저장은 막지 않습니다){% if _tcw178_open|selectattr('order_id', 'ne', (_ord|first).id)|list %} · 참고·추가 수주는 「📎 참고」를 펼쳐 보세요{% endif %}</span>
         </div>
@@ -694,25 +694,25 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               {% with status=so.status %}{% include '_v5_partials/so_status_pill.html' %}{% endwith %}
               {# z1191z122 (대표 11-24 「1번 진행」): 수주 상태 ↔ 호기 상태가 다르면 알림 — 작업일정표는 호기 상태를 보여 준다(입력 실수 알림 원칙 · 막지 않음) #}
               {% set _ust122 = (so.units or [])|map(attribute='unit_status')|map('default', '진행중', true)|list %}{% set _sst122 = (so.status or '')|upper %}
-              {% if _ust122 and (_ust122|unique|list) == ['출하'] and _sst122 not in ['SHIPPED','INVOICED','PAID','CANCELLED'] %}<span class="so-st-diff122" title="이 수주의 호기(품목 줄)가 모두 「출하」인데 수주 상태는 출하 전입니다. 작업일정표에는 「출하」로 보입니다. 실제로 출하했으면 작업일정표 그 줄의 🚦 상태 변경으로 「출하」를 한 번 적용하면 수주 상태도 맞춰집니다. 아직이면 호기 상태를 「진행중」으로 바꿔 주세요." style="margin-left:6px;padding:1px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;white-space:nowrap;">⚠ 호기는 모두 출하</span>
-              {% elif _ust122 and (_ust122|unique|list) == ['진행중'] and _sst122 == 'SHIPPED' %}<span class="so-st-diff122" title="수주 상태는 「출하」인데 호기(품목 줄)는 모두 「진행중」입니다. 작업일정표에는 「진행」으로 보입니다." style="margin-left:6px;padding:1px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;white-space:nowrap;">⚠ 호기는 모두 진행중</span>{% endif %}
+              {% if _ust122 and (_ust122|unique|list) == ['출하'] and _sst122 not in ['SHIPPED','INVOICED','PAID','CANCELLED'] %}<span class="so-st-diff122" title="이 수주의 호기(품목 줄)가 모두 「출하」인데 수주 상태는 출하 전입니다. 작업일정표에는 「출하」로 보입니다. 실제로 출하했으면 작업일정표 그 줄의 🚦 상태 변경으로 「출하」를 한 번 적용하면 수주 상태도 맞춰집니다. 아직이면 호기 상태를 「진행중」으로 바꿔 주세요." style="margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--knk-warning-subtle);color:var(--knk-warning);font-size:11px;font-weight:800;white-space:nowrap;">⚠ 호기는 모두 출하</span>
+              {% elif _ust122 and (_ust122|unique|list) == ['진행중'] and _sst122 == 'SHIPPED' %}<span class="so-st-diff122" title="수주 상태는 「출하」인데 호기(품목 줄)는 모두 「진행중」입니다. 작업일정표에는 「진행」으로 보입니다." style="margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--knk-warning-subtle);color:var(--knk-warning);font-size:11px;font-weight:800;white-space:nowrap;">⚠ 호기는 모두 진행중</span>{% endif %}
               {# v5H226z884 (대표 지시): SO 종류 pill(so_type=EQUIPMENT/CONSUMABLE/…) 제거 — 아래 '형태 배지'(form_label)가 단일 진실.
                  so_type 은 일괄등록이 '제품 1줄'을 호기오염 방지로 CONSUMABLE 로 강제저장한 내부 저장값(사용자 선택 아님·z873)이라,
                  실제 형태가 '제품'인 수주 옆에 'CONSUMABLE 소모품'이 같이 떠 오해를 유발했음(대표 지적). 데이터(so_type)는 불변·표시만 제거. #}
               {# v5H226z699 (대표 지시): 수주(발주)별 형태 배지 — 서버가 표시(호기별=완제품/1줄=제품)와 일치하게 계산(get_project_orders form_label/form_key). 한 관리번호에 발주마다 형태 다를 수 있어 명확히. #}
               {% if so.form_label %}<span class="so-form-badge sf-{{ so.form_key }}" title="형태: {{ so.form_label }} — 이 수주(발주) 기준">{{ so.form_label }}</span>{% endif %}
-              {% if so.price_tbd and not (so.total_amount|float) %}<span class="so-form-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;" title="단가 미정 — 정해지면 단가를 넣어 주세요(작업일정표에 [미정])">단가 미정</span>{% endif %}{# z1191z117 ⑤ #}
-              {% if _editable %}<label class="edit-only tbd117" style="font-size:11.5px;color:#92400e;display:inline-flex;gap:3px;align-items:center;cursor:pointer;" title="단가가 아직 안 정해졌으면 체크 — 작업일정표에 [무상] 대신 [미정]"><input type="checkbox" class="tbd117-cb" data-soid="{{ so.id }}" {% if so.price_tbd %}checked{% endif %} onchange="knkTbd117(this)" style="margin:0;"> 단가 미정</label>{% endif %}
+              {% if so.price_tbd and not (so.total_amount|float) %}<span class="so-form-badge" style="background:var(--knk-warning-subtle);color:var(--knk-warning);border:1px solid var(--knk-warning-line);" title="단가 미정 — 정해지면 단가를 넣어 주세요(작업일정표에 [미정])">단가 미정</span>{% endif %}{# z1191z117 ⑤ #}
+              {% if _editable %}<label class="edit-only tbd117" style="font-size:11.5px;color:var(--knk-warning);display:inline-flex;gap:3px;align-items:center;cursor:pointer;" title="단가가 아직 안 정해졌으면 체크 — 작업일정표에 [무상] 대신 [미정]"><input type="checkbox" class="tbd117-cb" data-soid="{{ so.id }}" {% if so.price_tbd %}checked{% endif %} onchange="knkTbd117(this)" style="margin:0;"> 단가 미정</label>{% endif %}
               <div class="so-meta">
                 {% if can_money %}{% set _qfs160 = (_sq105.get(so.id) or {}).fs or [] %}{# z1191z160: 이 수주에 올린 견적서 모두(최근 위) #}
                 <span class="item" title="z1191z105·z160: 이 수주번호에 올린 견적서(엑셀) — 여러 장이면 모두 · 올리기는 위 「견적서」 칸 또는 🎯 수주 전 → 📋 견적서(견적 관리)"><span class="k">📋 견적서{% if _qfs160|length > 1 %} {{ _qfs160|length }}장{% endif %}</span>
-                  {% for _qf105 in _qfs160 %}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 올린 견적서 — 내용 바로 보기 · {{ _qf105.by_name or '' }} {{ (_qf105.created_at or '')[:16] }}" style="font-weight:700;color:#166534;text-decoration:none;">{{ _qf105.orig_name }}</a>{% if not loop.last %}<span style="color:#94a3b8;"> · </span>{% endif %}{% endfor %}
-                  {% if not _qfs160 %}<a class="v" href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" style="color:#b45309;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
+                  {% for _qf105 in _qfs160 %}<a class="v" href="/quotes/{{ _qf105.id }}" title="이 수주에 올린 견적서 — 내용 바로 보기 · {{ _qf105.by_name or '' }} {{ (_qf105.created_at or '')[:16] }}" style="font-weight:700;color:var(--knk-success);text-decoration:none;">{{ _qf105.orig_name }}</a>{% if not loop.last %}<span style="color:var(--knk-text-muted);"> · </span>{% endif %}{% endfor %}
+                  {% if not _qfs160 %}<a class="v" href="/sales/quotations?q={{ so.order_no|urlencode }}&period=all" style="color:var(--knk-warning);text-decoration:none;">없음 · 올리기 →</a>{% endif %}
                 </span>{% endif %}
                 {% if can_money %}{% set _pfs143 = (_po143so.so.get(so.id) or {}).files or [] %}{# z1191z143·z160: 이 수주의 고객 발주서 모두(최근 위) · 올리기 = 수주 상세 #}
                 <span class="item" title="z1191z143·z160: 이 수주번호의 고객 발주서 — 여러 장이면 모두 · 올리기는 수주 상세(수주번호 누르기) 또는 견적 관리"><span class="k">📄 발주서{% if _pfs143|length > 1 %} {{ _pfs143|length }}장{% endif %}</span>
-                  {% for _x143 in _pfs143 %}<a class="v" href="/customer-po/{{ _x143.id }}" title="고객 발주서 바로 보기 · {{ _x143.by_name or '' }} {{ (_x143.created_at or '')[:16] }}" style="font-weight:700;color:#166534;text-decoration:none;">{{ _x143.orig_name }}</a>{% if not loop.last %}<span style="color:#94a3b8;"> · </span>{% endif %}{% endfor %}
-                  {% if not _pfs143 %}<a class="v" href="/sales/orders/{{ so.id }}#po143" style="color:#64748b;text-decoration:none;">없음 · 올리기 →</a>{% endif %}
+                  {% for _x143 in _pfs143 %}<a class="v" href="/customer-po/{{ _x143.id }}" title="고객 발주서 바로 보기 · {{ _x143.by_name or '' }} {{ (_x143.created_at or '')[:16] }}" style="font-weight:700;color:var(--knk-success);text-decoration:none;">{{ _x143.orig_name }}</a>{% if not loop.last %}<span style="color:var(--knk-text-muted);"> · </span>{% endif %}{% endfor %}
+                  {% if not _pfs143 %}<a class="v" href="/sales/orders/{{ so.id }}#po143" style="color:var(--knk-text-muted);text-decoration:none;">없음 · 올리기 →</a>{% endif %}
                 </span>{% endif %}
                 {# v5H226z1034 (안지연 프로 신고·대표 지시): **수주(SO)별 PO유형** — 이 화면은 PO유형을
                    프로젝트 한 줄로만 보여주고 **고칠 자리가 없었다**. 그래서 직원이 [프로젝트 정보 수정]으로
@@ -758,7 +758,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 {% set _so_mdl = so.model_name or '' %}{% set _so_eqp = so.equip_name or '' %}
                 {% set _meq_m = _so_mdl or p.model_name or '' %}{% set _meq_e = _so_eqp or p.equip_name or '' %}
                 <span class="item" title="이 수주의 모델명/장비명 (프로젝트 대표값과 별개 · 비면 프로젝트 값을 따름)"><span class="k">📦 모델/장비</span>
-                  <span class="v display-val" style="{% if (_so_mdl and _so_mdl != p.model_name) or (_so_eqp and _so_eqp != p.equip_name) %}font-weight:700;color:#7c2d12;{% endif %}">{{ _meq_m or '—' }}{% if _meq_e and _meq_e != _meq_m %} · {{ _meq_e }}{% endif %}{% if not _so_meq %} <span class="so-meq-inherit" style="font-size:10px;color:var(--mute);cursor:help" title="이 수주에 따로 적은 모델명·장비명이 없어 프로젝트 대표값을 보이고 있습니다. ✏️ 수정에서 적으면 이 수주만의 값이 됩니다.">(기본값)</span>{% endif %}</span>
+                  <span class="v display-val" style="{% if (_so_mdl and _so_mdl != p.model_name) or (_so_eqp and _so_eqp != p.equip_name) %}font-weight:700;color:var(--knk-warning);{% endif %}">{{ _meq_m or '—' }}{% if _meq_e and _meq_e != _meq_m %} · {{ _meq_e }}{% endif %}{% if not _so_meq %} <span class="so-meq-inherit" style="font-size:10px;color:var(--mute);cursor:help" title="이 수주에 따로 적은 모델명·장비명이 없어 프로젝트 대표값을 보이고 있습니다. ✏️ 수정에서 적으면 이 수주만의 값이 됩니다.">(기본값)</span>{% endif %}</span>
                   {% if _editable %}<input type="text" class="so-meta-edit" data-field="model_name" data-orig="{{ _so_mdl }}" value="{{ _so_mdl }}" placeholder="모델명{% if p.model_name %} (기본 {{ p.model_name }}){% endif %}" autocomplete="off" title="이 수주번호({{ so.order_no }})의 모델명 — 비우면 프로젝트 대표값을 따릅니다" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:120px;"><input type="text" class="so-meta-edit" data-field="equip_name" data-orig="{{ _so_eqp }}" value="{{ _so_eqp }}" placeholder="장비명{% if p.equip_name %} (기본 {{ p.equip_name }}){% endif %}" autocomplete="off" title="이 수주번호({{ so.order_no }})의 장비명 — 비우면 프로젝트 대표값을 따릅니다" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:120px;margin-left:3px;">{% endif %}
                 </span>
                 {# v5H226z202: SO별 발주처(구매대행사) — 프로젝트 대표 고객과 다를 수 있음
@@ -767,7 +767,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                    프로젝트 고객 상속. 일정표 고객사1=SO 발주처 우선(z705)이라 여기서 고치면 일정표도 따라온다. #}
                 {% set _so_cust_disp = ((cust_alias|default({},true)).get(so.customer_id) or so.so_customer or '') %}{# v5H226z1079b: 편집칸도 배지와 같은 '시스템명 우선' — 정식명은 종사업장끼리 동일해 어느 지점인지 특정 못 함 #}
                 <span class="item"><span class="k">🏢 발주처</span>
-                  <span class="v display-val" {% if so.so_customer %}style="font-weight:700;color:#1d4ed8;" title="정식: {{ so.so_customer }}"{% else %}style="color:var(--mute);"{% endif %}>{% if so.so_customer %}{{ _so_cust_disp }}{% else %}(프로젝트 고객){% endif %}</span>{# v5H226z706: 발주처도 시스템명 우선 #}
+                  <span class="v display-val" {% if so.so_customer %}style="font-weight:700;color:var(--knk-info);" title="정식: {{ so.so_customer }}"{% else %}style="color:var(--mute);"{% endif %}>{% if so.so_customer %}{{ _so_cust_disp }}{% else %}(프로젝트 고객){% endif %}</span>{# v5H226z706: 발주처도 시스템명 우선 #}
                   {% if _editable %}<input type="text" class="so-meta-edit" data-field="order_customer" data-orig="{{ _so_cust_disp }}" value="{{ _so_cust_disp }}" placeholder="(프로젝트 고객 상속)" title="이 수주(발주)의 발주처 — 등록 고객사 시스템명(예: 드림텍(아산)) 그대로 입력. 비우면 프로젝트 고객사를 따릅니다" style="padding:2px 6px;border:1px solid var(--line);border-radius:4px;font-size:12px;background:var(--paper);width:150px;">{% endif %}
                 </span>
                 {# z1190 (대표 「수주마다 1차·2차 발주처」): 이 수주의 2차 발주처(최종 고객) — 적힌 값 ·
@@ -775,8 +775,8 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 {% set _so_end = (so.end_customer or '') %}
                 {% set _so_end_inh = (p.secondary_customer or '') if ((so.end_customer is none) and ((not so.customer_id) or so.customer_id == p.customer_id)) else '' %}{# z1191z153: '' = 일부러 비움 #}
                 <span class="item" title="이 수주의 2차 발주처(최종 고객) — 비우면 1차가 프로젝트 고객과 같을 때만 프로젝트 값을 따릅니다"><span class="k">🌐 2차</span>
-                  <span class="v display-val">{% if _so_end %}<b style="color:#1d4ed8;">{{ _so_end }}</b>{% elif _so_end_inh %}<span style="color:#b45309;" title="이 수주에는 2차 고객이 아직 한 번도 정해지지 않아 관리번호 값을 대신 보여 줍니다 — 이 수주 값이 아닙니다">{{ _so_end_inh }} <span style="font-size:10.5px;">(대표값 · 확인 필요)</span></span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span>
-                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="end_customer" data-orig="{{ _so_end }}" value="{{ _so_end }}" placeholder="(최종 고객 · 여러 곳: SEV 8대, SEVT 3대)" autocomplete="off" title="이 수주의 2차 발주처(최종 고객) · 여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)">{% endif %}{% if _editable and so.end_customer is none and _so_end_inh %}<button type="button" class="z153-blank" style="margin-left:4px;padding:1px 7px;border:1px solid #cbd5e1;background:#fff;border-radius:6px;font-size:11px;cursor:pointer;" title="이 수주는 2차 고객이 없다고 정합니다(대표값을 따라 보이지 않게) — 저장하면 빈칸으로 남고 이력에 남습니다" onclick="var i=this.parentElement.querySelector('.so-meta-edit[data-field=end_customer]');if(i){i.value='';i.dataset.orig='(안 정함)';i.dispatchEvent(new Event('input',{bubbles:true}));}this.textContent='✓ 저장하면 「2차 없음」';">2차 없음으로 정하기</button>{% endif %}{# z1191z153 (대표 「비워놓은 건 비우고」) #}
+                  <span class="v display-val">{% if _so_end %}<b style="color:var(--knk-info);">{{ _so_end }}</b>{% elif _so_end_inh %}<span style="color:var(--knk-warning);" title="이 수주에는 2차 고객이 아직 한 번도 정해지지 않아 관리번호 값을 대신 보여 줍니다 — 이 수주 값이 아닙니다">{{ _so_end_inh }} <span style="font-size:10.5px;">(대표값 · 확인 필요)</span></span>{% else %}<span style="color:var(--mute);">—</span>{% endif %}</span>
+                  {% if _editable %}<input type="text" class="so-meta-edit" data-field="end_customer" data-orig="{{ _so_end }}" value="{{ _so_end }}" placeholder="(최종 고객 · 여러 곳: SEV 8대, SEVT 3대)" autocomplete="off" title="이 수주의 2차 발주처(최종 고객) · 여러 곳이면 대수를 함께 — 예: SEV 8대, SEVT 3대 (매출 보고서가 총 금액을 대수로 나눠 회사별로 넣습니다)">{% endif %}{% if _editable and so.end_customer is none and _so_end_inh %}<button type="button" class="z153-blank" style="margin-left:4px;padding:1px 7px;border:1px solid var(--knk-border-default);background:var(--knk-bg-surface);border-radius:6px;font-size:11px;cursor:pointer;" title="이 수주는 2차 고객이 없다고 정합니다(대표값을 따라 보이지 않게) — 저장하면 빈칸으로 남고 이력에 남습니다" onclick="var i=this.parentElement.querySelector('.so-meta-edit[data-field=end_customer]');if(i){i.value='';i.dataset.orig='(안 정함)';i.dispatchEvent(new Event('input',{bubbles:true}));}this.textContent='✓ 저장하면 「2차 없음」';">2차 없음으로 정하기</button>{% endif %}{# z1191z153 (대표 「비워놓은 건 비우고」) #}
                 </span>
                 <span class="item"><span class="k">{# v5H226z695: 메인=누른 수주(선택)일 수 있음 → '최초 수주' 표식은 실제 가장 오래된 카드에만, 나머지는 정확히 구분 #}{% if loop.first %}{% if so.id == _oldest_id %}🆕 최초 수주{% else %}📌 보던 수주 (선택){% endif %}{% else %}{% if so.id == _oldest_id %}🆕 최초 수주 · 참고{% else %}📎 참고 (추가 #{{ loop.index0 }}) · 읽기전용{% endif %}{% endif %}</span></span>
               </div>
@@ -806,10 +806,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                    업로드는 상품 양식을 받는 이 버튼 하나로(overwrite-product·상품 파서). 관리번호·수주번호 유지·부품 채움(있으면 교체). #}
                 {# v5H226z943 (대표 지시): 부품은 추가 업로드 가능 → '추가'(기존 유지·append) + '전체 교체'(삭제 후 채움) 두 버튼. 둘 다 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신. #}
                 {# v5H226z971 (대표 지적): 두 버튼은 [✏️ 수정] 후에만(ow-need-edit — 잠금 시 흐림+knkOwClick 가드) #}
-                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'update', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 「📥 상품 양식 받기」로 받은 파일에서 값(수량·매입가·마진·판매가·환율·인보이스·규격·납기 등)만 고쳐 올립니다. 줄을 지우지 않아 세금계산서 발행 기록이 그대로 남고, 저장 전에 바뀌는 줄을 먼저 보여 줍니다." style="background:#ecfdf5;border-color:#6ee7b7;color:#047857;font-weight:700;">📝 값만 고치기(엑셀)</button>{# z1191z117 ③ #}
-                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:#eef5ff;border-color:#93c5fd;color:#1d4ed8;font-weight:700;">📤 부품 추가 업로드</button>
+                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'update', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 「📥 상품 양식 받기」로 받은 파일에서 값(수량·매입가·마진·판매가·환율·인보이스·규격·납기 등)만 고쳐 올립니다. 줄을 지우지 않아 세금계산서 발행 기록이 그대로 남고, 저장 전에 바뀌는 줄을 먼저 보여 줍니다." style="background:var(--knk-success-subtle);border-color:var(--knk-success-line);color:var(--knk-success);font-weight:700;">📝 값만 고치기(엑셀)</button>{# z1191z117 ③ #}
+                <button type="button" class="btn-mini ow-need-edit" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'add')" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주에 부품을 '추가'합니다(기존 부품 유지·여러 번 나눠 올리기 가능). 관리번호·수주번호 유지 / 고객사·프로젝트명·PO유형·영업담당자는 엑셀값으로 갱신" style="background:var(--knk-info-subtle);border-color:var(--knk-info-line);color:var(--knk-info);font-weight:700;">📤 부품 추가 업로드</button>
                 {# z1191z30 (대표 2026-11-16): 세금계산서가 발행된 수주는 「전체 교체」 금지 — 파일 고르기 전에 안내(서버도 한 번 더 막음) · 「부품 추가」는 그대로 #}
-                <button type="button" class="btn-mini ow-need-edit{% if ti_so_issued(so.id) %} ow-tax-issued{% endif %}" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;font-weight:700;">🔄 전체 교체</button>
+                <button type="button" class="btn-mini ow-need-edit{% if ti_so_issued(so.id) %} ow-tax-issued{% endif %}" onclick="knkOwClick({{ so.id }}, '{{ so.order_no }}', 'replace', this)" title="[✏️ 수정]을 먼저 누른 뒤 사용 — 상품 양식을 올려 이 수주의 부품을 '전부 교체'합니다(기존 부품 삭제 후 엑셀로 채움). 관리번호·수주번호 유지 / 메타는 엑셀값으로 갱신" style="background:var(--knk-warning-subtle);border-color:var(--knk-warning-line);color:var(--knk-warning);font-weight:700;">🔄 전체 교체</button>
                 <button type="button" class="btn-mini primary add-unit">＋ 부품 추가</button>
                 {% elif (so.form_key == 'semi' or (p.shipment_form or '')|upper == 'SEMI') %}
                 {# z1191z4c (이새롬 프로 요청 · 대표 결정): 제품 수주는 호기가 없다 — 「＋ 품목 추가」(1줄 · 수량 N) #}
@@ -838,18 +838,18 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {# v5H177: 호기별 발주일/납기/납품처 컬럼 추가. override 가 있으면 ◆ 표시. #}
             {# v5H186: 호기 일괄 상태 적용 툴바 — v5H197: 잠금 시 숨김 #}
             {% if _editable %}
-            <div class="bulk-status-tools" data-dn="bulk-status-tools" data-dn-tone="amber" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#fff8e8;border-bottom:1px solid var(--amber);font-size:12px;flex-wrap:wrap;">
-              <span style="font-weight:700;color:var(--amber-deep);">호기 상태 일괄 적용:</span>
-              <select class="bulk-status-sel" style="padding:4px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:#fff;">
+            <div class="bulk-status-tools" data-dn="bulk-status-tools" data-dn-tone="amber" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--knk-warning-subtle);border-bottom:1px solid var(--knk-warning-line);font-size:12px;flex-wrap:wrap;">
+              <span style="font-weight:700;color:var(--knk-warning-text);">호기 상태 일괄 적용:</span>
+              <select class="bulk-status-sel" style="padding:4px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px;background:var(--knk-bg-surface);">
                 <option value="진행중">진행중</option>
                 <option value="출하">출하</option>
                 <option value="취소">취소</option>
                 <option value="보류">보류</option>
               </select>
               <button type="button" class="bulk-status-apply" data-pid="{{ p.id }}" data-oid="{{ so.id }}"
-                      style="padding:4px 12px;background:var(--amber-deep);color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 수주번호 전체 적용</button>
+                      style="padding:4px 12px;background:var(--knk-brand-hover);color:var(--knk-text-inverse);border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">이 수주번호 전체 적용</button>
               <button type="button" class="bulk-status-apply-all" data-pid="{{ p.id }}"
-                      style="padding:4px 12px;background:#1e3a8a;color:#fff;border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">프로젝트 전체 호기 적용</button>
+                      style="padding:4px 12px;background:var(--knk-info);color:var(--knk-text-inverse);border:0;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;">프로젝트 전체 호기 적용</button>
               <span style="color:var(--mute);margin-left:auto;">또는 행별로 개별 변경 ↓</span>
             </div>
             {% endif %}
@@ -910,16 +910,16 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {% set _chk117 = z117_parts_checks(so, _so_ccy) if can_sales_amt else {} %}
             {% if _chk117 %}{# z1191z117 ④ (안지연 프로 「200개 이상이면 잘못 입력된 건을 찾기 힘들다」): 잘못 넣었을 수 있는 줄을 서버가 찾아 알린다(막지 않음) #}
             {% set _byid117 = {} %}{% for _u in (so.units|sort(attribute='id')) %}{% set _ = _byid117.update({_u.id: loop.index}) %}{% endfor %}
-            <div class="chk117" data-so="{{ so.id }}" style="margin:6px 0;padding:8px 12px;border:1px solid #fca5a5;background:#fff1f2;border-radius:6px;font-size:12.5px;">
+            <div class="chk117" data-so="{{ so.id }}" style="margin:6px 0;padding:8px 12px;border:1px solid var(--knk-danger-line);background:var(--knk-danger-subtle);border-radius:6px;font-size:12.5px;">
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <b style="color:#b91c1c;">⚠ 확인할 줄 {{ _chk117|length }}개</b>
-                <span style="color:#7f1d1d;">— 판매가·환율·인보이스·마진·금액이 서로 안 맞거나 같은 품목인데 단가가 다른 줄입니다. 맞게 넣은 것이면 그대로 두셔도 됩니다.</span>
+                <b style="color:var(--knk-danger);">⚠ 확인할 줄 {{ _chk117|length }}개</b>
+                <span style="color:var(--knk-danger);">— 판매가·환율·인보이스·마진·금액이 서로 안 맞거나 같은 품목인데 단가가 다른 줄입니다. 맞게 넣은 것이면 그대로 두셔도 됩니다.</span>
                 <button type="button" class="btn-mini chk117-only" style="margin-left:auto;">확인할 줄만 보기</button>
                 <button type="button" class="btn-mini chk117-list-tg">목록 펼치기 ▾</button>
               </div>
               <div class="chk117-list" style="display:none;margin-top:6px;max-height:260px;overflow:auto;">
                 {% for _uid, _ms in _chk117|dictsort(by='key') %}{% set _no = _byid117.get(_uid, '') %}
-                <div style="padding:3px 0;border-top:1px dashed #fecaca;"><a href="#" class="chk117-go" data-uid="{{ _uid }}" style="font-weight:700;color:#1d4ed8;text-decoration:none;">{{ _no }}번 {{ ((so.units|selectattr('id','equalto',_uid)|first) or {}).unit_label or '' }}</a> — {{ _ms|join(' · ') }}</div>
+                <div style="padding:3px 0;border-top:1px dashed var(--knk-danger-line);"><a href="#" class="chk117-go" data-uid="{{ _uid }}" style="font-weight:700;color:var(--knk-action);text-decoration:none;">{{ _no }}번 {{ ((so.units|selectattr('id','equalto',_uid)|first) or {}).unit_label or '' }}</a> — {{ _ms|join(' · ') }}</div>
                 {% endfor %}
               </div>
             </div>
@@ -930,9 +930,9 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               {# 가로 스크롤이 viewport 하단에 항상 보이도록 sticky horizontal proxy 추가. #}
               {# v5H226z634: 완제품도 칸 늘어 가로 스크롤(부품처럼). 단 table-layout:고정/min-width는 안 줌(자연 폭). #}
               {# v5H226z1023 (대표 지시): 좌우 스크롤바를 화면 하단에 항상 — 공용 표준 data-knk-hscroll(조상 overflow:hidden 무관) #}
-              <div{% if _is_parts %} class="so-units-wrapper" data-knk-hscroll style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid #b07a18;border-radius:4px;"{% elif _is_equip or _is_co %} class="so-units-wrapper so-scroll-visible" data-knk-hscroll style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
+              <div{% if _is_parts %} class="so-units-wrapper" data-knk-hscroll style="overflow-x:auto;overflow-y:visible;max-width:100%;border:1px solid var(--knk-warning);border-radius:4px;"{% elif _is_equip or _is_co %} class="so-units-wrapper so-scroll-visible" data-knk-hscroll style="overflow-x:auto;overflow-y:visible;max-width:100%;"{% endif %}>
             <table class="so-units{% if _is_parts %} parts-excel{% endif %}" data-soid="{{ so.id }}"{% if _is_parts %} style="white-space:nowrap;min-width:1500px;table-layout:fixed;"{% elif _is_equip %} style="white-space:nowrap;"{% endif %}>
-              <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:#f4f1e8;"{% endif %}>
+              <thead{% if _is_parts %} style="position:sticky;top:0;z-index:5;background:var(--knk-bg-subtle);"{% endif %}>
                 <tr>
                   {% if _is_parts %}<th style="width:30px;" data-pgroup="basic" title="행 번호">#</th>{% endif %}
                   {% if _is_co or _is_parts %}<th class="px-x" style="width:60px;" data-pgroup="basic">사진</th>{% endif %}
@@ -956,24 +956,24 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                      v5H226z829(대표 지시·열별 분리): 매입단가·마진%=구매단가 정책(can_purchase_price) / 판매단가·환율·인보이스=매출금액 정책(can_sales_amt).
                      ⚠헤더 th 와 본문 td 는 반드시 같은 조건·같은 순서(칼럼 정렬). #}
                   {% if can_purchase_price %}
-                  <th class="num" style="width:86px;background:#fff7ed;" data-pgroup="basic"{{ ct('parts.cost_krw') }}>매입단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
-                  <th class="num" style="width:56px;background:#fff7ed;" data-pgroup="basic"{{ ct('parts.margin_pct') }}>마진%</th>
+                  <th class="num" style="width:86px;background:var(--knk-warning-subtle);" data-pgroup="basic"{{ ct('parts.cost_krw') }}>매입단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
+                  <th class="num" style="width:56px;background:var(--knk-warning-subtle);" data-pgroup="basic"{{ ct('parts.margin_pct') }}>마진%</th>
                   {% endif %}
                   {% if can_sales_amt %}
                   <th class="num" style="width:96px;" data-pgroup="basic"{{ ct('parts.sell_krw') }}>판매단가{% if _pfx or _so_has_krworig %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(KRW)</span>{% endif %}</th>
                   {% if _is_fx_view %}
                   <th class="num" style="width:72px;" data-pgroup="basic"{{ ct('parts.fx_rate') }}>환율</th>
-                  <th class="num" style="width:96px;background:#eef6ff;" data-pgroup="basic"{{ ct('parts.invoice_unit') }}>인보이스<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ _so_ccy }})</span></th>
+                  <th class="num" style="width:96px;background:var(--knk-info-subtle);" data-pgroup="basic"{{ ct('parts.invoice_unit') }}>인보이스<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ _so_ccy }})</span></th>
                   {% endif %}
                   {% endif %}
                   {# v5H226z440(대표 지시): 금액=기본 그룹. 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD)은 PACKING LIST 에서 제거→수출 문서 모듈에서 입력 #}
-                  <th class="num px-x" style="width:90px;background:#fef9e6;" data-pgroup="basic"{{ ct('parts.amount') }}>금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(수량×판매)</span></th>
+                  <th class="num px-x" style="width:90px;background:var(--knk-warning-subtle);" data-pgroup="basic"{{ ct('parts.amount') }}>금액<br><span style="font-size:10px;font-weight:400;color:var(--mute);">(수량×판매)</span></th>
                   <th class="px-x" style="width:160px;" data-pgroup="basic">상세 내용</th>
                   {% endif %}
                   {% if _is_co %}<th style="width:130px;">연결 관리코드</th>{% endif %}
                   <th class="num px-x" style="width:120px;" {% if _is_parts %}data-pgroup="somet"{% endif %}{{ ct('line.unit_price') }}>단가{% if _is_equip %}<br><span style="font-size:10px;font-weight:400;color:var(--mute);">({{ qtyu(1, sounit(so)) }})</span>{% endif %}</th>{# z1191z4c: 제품 = 1개 단가 · z1191z89: 수주 단위(일정표와 같은 규칙) #}
                   {# v5H226z634 (대표 지시): 완제품 금액 칸(=호기 라인 금액) #}
-                  {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:#fef9e6;"{{ ct('line.amount') }}>금액</th>{% endif %}
+                  {% if _is_equip and can_sales_amt %}<th class="num px-x" style="width:120px;background:var(--knk-warning-subtle);"{{ ct('line.amount') }}>금액</th>{% endif %}
                   <th class="px-x" style="width:74px;" {% if _is_parts %}data-pgroup="somet"{% endif %}>통화</th>
                   {# v5H226z84: 거래방식 컬럼 너비 88→70px #}
                   {% if not _is_parts %}<th style="width:70px;">거래방식</th>{% endif %}
@@ -991,7 +991,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% if _is_equip and can_sales_amt %}
                   <th class="px-x center" style="width:92px;">거래명세서</th>
                   {# z1191z24 (대표 2026-11-16): 세금계산서 1칸 — 첫 장 + 「＋N장 · 합」 · 눌러서 1~10차(＋로 한 장씩) #}
-                  <th class="px-x center" style="width:130px;background:#f4faf4;">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">최대 {{ TI_MAX }}장</span></th>
+                  <th class="px-x center" style="width:130px;background:var(--knk-success-subtle);">세금계산서<br><span style="font-size:10px;font-weight:400;color:var(--mute);">최대 {{ TI_MAX }}장</span></th>
                   {% endif %}
                   {# v5H226z86: 동작 → 수정 (호기별 개별 저장/삭제이지만 사용자 인지 일관성) #}
                   {# v5H226z1018b: 상품(PARTS)은 이 컬럼이 행 삭제(×) 전용으로 복원(CSS) — 헤더도 '삭제'로 #}
@@ -1013,7 +1013,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 {% set _dmark = ((_GRP_MARKS[_dgrp-1]) if _dgrp <= 50 else ('#' ~ _dgrp)) if _dgrp else '' %}
                 <tr data-uid="{{ u.id }}" data-ts="{{ u.updated_at or '' }}"{% if _is_parts and _chk117 is defined and _chk117.get(u.id) %} data-chk117="{{ _chk117.get(u.id)|join(' · ') }}"{% endif %}{% if _spec_dup %} class="knk-row-flag" data-dupgrp="{{ _dgrp }}" title="같은 규격이 이 수주에 {{ _spec_cnt.get((u.spec or '')|trim, 0) }}줄 있습니다 (중복 묶음 {{ _dmark }} — 같은 번호끼리 같은 규격) — 납기가 달라 나눠 적은 것이면 정상입니다"{% endif %}>{# v5H226z1029: 공용 강조 클래스로 통일(덧칠 방식) #}
                   {% if _is_parts %}
-                  <td style="text-align:center;color:#888;font-size:10.5px;font-family:monospace;background:#f4f1e8;cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
+                  <td style="text-align:center;color:var(--knk-text-muted);font-size:10.5px;font-family:monospace;background:var(--knk-bg-subtle);cursor:pointer;" class="row-num-cell" title="행 번호 — 클릭하면 이 행 접기/펴기">
                     <button type="button" class="row-toggle" title="행 접기/펴기">{{ loop.index }}</button>
                   </td>
                   {% endif %}
@@ -1110,13 +1110,13 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% set _sell_orig = ('%.0f'|format(_sell_ed)) if _sell_ed else (('%.0f'|format(u.unit_price * _pfx)) if (u.unit_price and _pfx) else (('%.2f'|format(u.unit_price)) if (u.unit_price and _is_fx_view) else (('%.0f'|format(u.unit_price)) if u.unit_price else ''))) %}
                   {% set _sell_val = ('{:,.0f}'.format(_sell_ed)) if _sell_ed else (('{:,.0f}'.format(u.unit_price * _pfx)) if (u.unit_price and _pfx) else (('{:,.2f}'.format(u.unit_price)) if (u.unit_price and _is_fx_view) else (('{:,.0f}'.format(u.unit_price)) if u.unit_price else ''))) %}
                   {% if can_purchase_price %}
-                  <td class="num money-cell" style="font-size:11.5px;background:#fff7ed;">
+                  <td class="num money-cell" style="font-size:11.5px;background:var(--knk-warning-subtle);">
                     <div class="mc-wrap">
                     <span class="display-val">{% if _ckrw and _is_fx_view %}{{ money(_ckrw, 'KRW') }}{% elif _cp and _pfx %}{{ money(_cp * _pfx, 'KRW') }}{% elif _cp and _is_fx_view %}{{ money(_cp, _so_ccy) }}{% elif _cp %}{{ money(_cp, 'KRW') }}{% else %}—{% endif %}</span>
                     {% if _editable %}<span class="ccy-pre">{{ _krw_col_ccy|ccysym }}</span><input type="text" class="unit-edit cost-inp knk-money"{% if _cost_fx %} data-fx="{{ _cost_fx }}"{% endif %} data-orig="{{ _cost_orig }}" value="{{ _cost_val }}" placeholder="매입가" style="width:78px;font-size:11.5px;text-align:right;">{% endif %}
                     </div>
                   </td>
-                  <td class="num" style="font-size:11.5px;background:#fff7ed;text-align:center;">
+                  <td class="num" style="font-size:11.5px;background:var(--knk-warning-subtle);text-align:center;">
                     <span class="display-val">{{ ('%g'|format(_mp)) ~ '%' if (_mp is not none) else '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit margin-inp" data-orig="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" value="{{ '%g'|format(_mp) if (_mp is not none) else '' }}" placeholder="%" style="width:48px;font-size:11.5px;text-align:right;">{% endif %}
                   </td>
@@ -1135,11 +1135,11 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {# z1191z118 (대표 11-23 「[수정]을 누르면 모든 항목 수정 가능하게」): 환율·인보이스 칸도 고침 —
                      매입·마진 → 판매가(원) → 인보이스 = 판매가 ÷ 환율 → 금액 = 수량 × 인보이스 가 화면에서 바로 따라간다(저장 규칙과 같음). #}
                   <td class="num" style="font-size:11.5px;color:var(--mute);"><span class="display-val">{{ '{:,.2f}'.format(_row_fx) if _row_fx else '—' }}</span>{% if _editable %}<input type="text" class="unit-edit fx-inp" inputmode="decimal" data-orig="{{ _row_fx if _row_fx else '' }}" value="{{ _row_fx if _row_fx else '' }}" placeholder="환율" title="환율을 고치면 인보이스 = 판매가(원) ÷ 환율 로 다시 계산됩니다" style="width:64px;font-size:11.5px;text-align:right;">{% endif %}</td>
-                  <td class="num money-cell" style="font-size:11.5px;background:#eef6ff;font-weight:600;color:#1d4ed8;"><div class="mc-wrap"><span class="display-val">{% if u.unit_price %}{{ money(u.unit_price, _so_ccy) }}{% else %}—{% endif %}</span>{% if _editable %}<span class="ccy-pre">{{ _so_ccy|ccysym }}</span><input type="text" class="unit-edit inv-up-usd-inp knk-money" data-orig="{{ '%.2f'|format(u.unit_price) if u.unit_price else '' }}" value="{{ '{:,.2f}'.format(u.unit_price) if u.unit_price else '' }}" placeholder="인보이스" title="인보이스를 고치면 판매가(원) = 인보이스 × 환율 · 마진도 다시 계산됩니다" style="width:74px;font-size:11.5px;text-align:right;color:#1d4ed8;font-weight:600;">{% endif %}</div></td>
+                  <td class="num money-cell" style="font-size:11.5px;background:var(--knk-info-subtle);font-weight:600;color:var(--knk-info);"><div class="mc-wrap"><span class="display-val">{% if u.unit_price %}{{ money(u.unit_price, _so_ccy) }}{% else %}—{% endif %}</span>{% if _editable %}<span class="ccy-pre">{{ _so_ccy|ccysym }}</span><input type="text" class="unit-edit inv-up-usd-inp knk-money" data-orig="{{ '%.2f'|format(u.unit_price) if u.unit_price else '' }}" value="{{ '{:,.2f}'.format(u.unit_price) if u.unit_price else '' }}" placeholder="인보이스" title="인보이스를 고치면 판매가(원) = 인보이스 × 환율 · 마진도 다시 계산됩니다" style="width:74px;font-size:11.5px;text-align:right;color:var(--knk-info);font-weight:600;">{% endif %}</div></td>
                   {% endif %}
                   {% endif %}
                   {# v5H226z6: 금액 — 수량 × 판매단가. _pfx면 KRW환산·_is_fx_view면 USD 2자리·그외 KRW. #}
-                  <td class="num px-x" style="font-size:11.5px;background:#fef9e6;">
+                  <td class="num px-x" style="font-size:11.5px;background:var(--knk-warning-subtle);">
                     <span class="display-val pamt-disp" style="font-weight:600;">{% if can_sales_amt %}{{ money((u.amount or 0) * _pfx, 'KRW') if _pfx else (money(u.amount or 0, _so_ccy) if _is_fx_view else money(u.amount or 0, 'KRW')) }}{% else %}🔒{% endif %}</span>                  </td>
                   {# v5H226z440(대표 지시): 수출/통관(HS·DUTY·VAT·인보이스·관세·최종 USD) PACKING LIST 에서 제거 → 수출 문서 모듈에서 입력. DB 컬럼·데이터는 보존(저장 시 미전송→백엔드 보존). #}
                   {# 상세 내용 #}
@@ -1151,7 +1151,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% if _is_co %}
                   <td style="font-size:11.5px;">
                     {% if u.linked_mgmt_code %}
-                    <a href="/project/{{ u.linked_project_id }}" style="color:#1e3a8a;font-weight:600;text-decoration:none;" title="{{ u.linked_project_name or '' }}">🔗 {{ u.linked_mgmt_code }}</a>
+                    <a href="/project/{{ u.linked_project_id }}" style="color:var(--knk-info);font-weight:600;text-decoration:none;" title="{{ u.linked_project_name or '' }}">🔗 {{ u.linked_mgmt_code }}</a>
                     {% else %}<span style="color:var(--mute);">—</span>{% endif %}
                   </td>
                   {% endif %}
@@ -1169,12 +1169,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {# v5H226z634 (대표 지시): 완제품 금액 칸 = 호기 라인 금액(u.amount). 원화 무소수점·외화 2자리 · z829: can_sales_amt #}
                   {# v5H226z1076: span+data-ccysym — 제품(SEMI) 편집 중 단가×수량 라이브 표시용 #}
                   {% if _is_equip and can_sales_amt %}
-                  <td class="num px-x" style="background:#fef9e6;font-weight:600;"><span class="equip-amt-disp" data-ccysym="{{ _u_ccy|ccysym }}">{{ money(u.amount or 0, _u_ccy) }}</span></td>
+                  <td class="num px-x" style="background:var(--knk-warning-subtle);font-weight:600;"><span class="equip-amt-disp" data-ccysym="{{ _u_ccy|ccysym }}">{{ money(u.amount or 0, _u_ccy) }}</span></td>
                   {% endif %}
                   {# v5H189: 호기별 통화 select — 일부 호기를 USD로 결제하는 등 시나리오 지원 #}
                   {# v5H226z83: 통화 td 중앙 정렬 #}
                   <td class="center px-x">
-                    <span class="display-val" {% if _ov_c %}style="color:#1e3a8a;font-weight:700;" title="◆ 이 호기만 따로 지정한 통화입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
+                    <span class="display-val" {% if _ov_c %}style="color:var(--knk-info);font-weight:700;" title="◆ 이 호기만 따로 지정한 통화입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_c %}◆ {% endif %}{{ _u_ccy }}</span>
                     {% if _editable %}
                     <select class="unit-edit cur-sel" data-orig="{{ _u_ccy }}" style="font-size:12px;padding:5px 6px;width:74px;">
                       <option value="KRW" {% if _u_ccy == 'KRW' %}selected{% endif %}>KRW</option>
@@ -1193,7 +1193,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% if not _is_parts %}
                   {# v5H226z83: 거래방식 td 중앙 정렬 #}
                   <td class="center">
-                    <span class="display-val" {% if _ov_iex %}style="color:#1e3a8a;font-weight:700;" title="◆ 이 호기만 따로 지정한 거래방식입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
+                    <span class="display-val" {% if _ov_iex %}style="color:var(--knk-info);font-weight:700;" title="◆ 이 호기만 따로 지정한 거래방식입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_iex %}◆ {% endif %}{% if _u_iex_eff %}수출{% else %}내수{% endif %}</span>
                     {% if _editable %}
                     <select class="unit-edit iex-sel" data-orig="{{ _u_iex_eff }}" style="font-size:11.5px;padding:5px 4px;width:60px;">
                       <option value="0" {% if not _u_iex_eff %}selected{% endif %}>내수</option>
@@ -1204,11 +1204,11 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   {% endif %}
                   {# v5H226z83: 발주일/납기일 td 중앙 정렬 #}
                   <td class="center px-x">
-                    <span class="display-val" {% if _ov_o %}style="color:#1e3a8a;font-weight:600;" title="◆ 이 호기만 따로 지정한 발주일입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
+                    <span class="display-val" {% if _ov_o %}style="color:var(--knk-info);font-weight:600;" title="◆ 이 호기만 따로 지정한 발주일입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_o %}◆ {% endif %}{{ u.eff_order_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit ord-inp knk-cal" data-orig="{{ u.eff_order_date or '' }}" value="{{ u.eff_order_date or '' }}" style="font-size:11.5px;padding:4px 4px;width:118px;box-sizing:border-box;">{% endif %}
                   </td>
                   <td class="center">
-                    <span class="display-val" {% if _ov_d %}style="color:#1e3a8a;font-weight:600;" title="◆ 이 호기만 따로 지정한 납기일입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
+                    <span class="display-val" {% if _ov_d %}style="color:var(--knk-info);font-weight:600;" title="◆ 이 호기만 따로 지정한 납기일입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_d %}◆ {% endif %}{{ u.eff_due_date or '—' }}</span>
                     {% if _editable %}<input type="date" class="unit-edit due-inp knk-cal" data-orig="{{ u.eff_due_date or '' }}" value="{{ u.eff_due_date or '' }}" style="font-size:11.5px;padding:4px 4px;width:118px;box-sizing:border-box;">{% endif %}
                   </td>
                   {% if _is_parts %}
@@ -1218,7 +1218,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   </td>
                   {% else %}
                   <td>
-                    <span class="display-val" {% if _ov_s %}style="color:#1e3a8a;font-weight:600;" title="◆ 이 호기만 따로 지정한 납품처입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
+                    <span class="display-val" {% if _ov_s %}style="color:var(--knk-info);font-weight:600;" title="◆ 이 호기만 따로 지정한 납품처입니다 (수주번호 값을 물려받지 않음)"{% endif %}>{% if _ov_s %}◆ {% endif %}{{ u.eff_ship_to or '—' }}</span>
                     {% if _editable %}<input type="text" class="unit-edit ship-inp" data-orig="{{ u.eff_ship_to or '' }}" value="{{ u.eff_ship_to or '' }}" style="font-size:12px;padding:5px 6px;">{% endif %}
                   </td>
                   {% endif %}
@@ -1228,7 +1228,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                     {% if can_sales and _is_main_so %}{# v5H226z650b: 참고(추가) 수주는 상태도 읽기전용 — 최초(메인) 수주만 인라인 변경 가능 #}
                     <select class="unit-status-sel" data-uid="{{ u.id }}" data-orig="{{ _ust }}"
                             style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;font-size:11.5px;font-weight:700;background:
-                              {%- if _ust == '출하' %}#dcfce7;color:#15803d{% elif _ust == '취소' %}#fee2e2;color:#991b1b{% elif _ust == '보류' %}#f3f4f6;color:#6b7280{% else %}#fef3c7;color:#7c4a03{% endif %};cursor:pointer;">
+                              {%- if _ust == '출하' %}var(--knk-success-subtle);color:var(--knk-success-text){% elif _ust == '취소' %}var(--knk-danger-subtle);color:var(--knk-danger-text){% elif _ust == '보류' %}var(--knk-bg-subtle);color:var(--knk-text-muted){% else %}var(--knk-warning-subtle);color:var(--knk-warning-text){% endif %};cursor:pointer;">
                       <option value="진행중" {% if _ust == '진행중' %}selected{% endif %}>진행중</option>
                       <option value="출하" {% if _ust == '출하' %}selected{% endif %}>출하</option>
                       <option value="취소" {% if _ust == '취소' %}selected{% endif %}>취소</option>
@@ -1249,7 +1249,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                   <td class="center px-x" style="font-size:11px;white-space:nowrap;"><span class="ti-cell" data-iid="{{ u.id }}" data-datefield="statement_date" data-date="{{ u.statement_date or '' }}" data-title="거래명세서">{{ u.statement_date or '—' }}</span></td>
                   {# z1191z24: 세금계산서 1칸(data-multi) — 누르면 1~10차 입력 창 · 저장은 그대로 /unit-field(호기) #}
                   {% set _tih24 = ti_cell_html(u, _u_ccy, False) %}
-                  <td class="center px-x" style="font-size:11px;background:#f8fcf8;white-space:nowrap;"><span class="ti-cell" data-multi="1" data-iid="{{ u.id }}" data-tis="{{ ti_json(u) }}" data-total="{{ u.amount if u.amount is not none else '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서" title="{{ ti_title(u, _u_ccy) }}">{% if _tih24 != '＋' %}{{ _tih24 }}{% else %}—{% endif %}</span></td>
+                  <td class="center px-x" style="font-size:11px;background:var(--knk-success-subtle);white-space:nowrap;"><span class="ti-cell" data-multi="1" data-iid="{{ u.id }}" data-tis="{{ ti_json(u) }}" data-total="{{ u.amount if u.amount is not none else '' }}" data-ccy="{{ _u_ccy }}" data-title="세금계산서" title="{{ ti_title(u, _u_ccy) }}">{% if _tih24 != '＋' %}{{ _tih24 }}{% else %}—{% endif %}</span></td>
                   {% endif %}
                   {% if _editable %}
                   <td class="center edit-only">
@@ -1264,15 +1264,15 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               </div>{# /inner overflow-x:auto #}
               {# v5H226z19: sticky 가로 스크롤 프록시 — viewport 하단 고정 #}
               {% if _is_parts %}
-              <div class="parts-h-proxy" style="position:sticky;bottom:0;left:0;width:100%;height:18px;overflow-x:auto;overflow-y:hidden;background:#f4f1e8;border-top:1px solid #b07a18;border-bottom:1px solid #b07a18;z-index:8;">
+              <div class="parts-h-proxy" style="position:sticky;bottom:0;left:0;width:100%;height:18px;overflow-x:auto;overflow-y:hidden;background:var(--knk-bg-subtle);border-top:1px solid var(--knk-warning);border-bottom:1px solid var(--knk-warning);z-index:8;">
                 <div class="parts-h-proxy-inner" style="height:1px;"></div>
               </div>
               {% endif %}
             </div>{# /outer width:100%;overflow:hidden — 부모 늘어남 방지 #}
             <div style="font-size:11px;color:var(--mute);padding:6px 14px;border-top:1px dashed var(--line);background:var(--paper-2);">
-              ⓘ 발주일/납기/납품처 빈 칸은 수주번호 부모값을 상속합니다. <span style="color:#1e3a8a;font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
+              ⓘ 발주일/납기/납품처 빈 칸은 수주번호 부모값을 상속합니다. <span style="color:var(--knk-info);font-weight:600;">◆</span> 표시는 호기별로 다르게 지정된 값입니다.
               · 호기별 상태는 행에서 즉시 변경되며, 일괄 적용은 위 툴바에서.
-              {% if _is_parts %}<br><span style="color:#7c4a03;">📦 부품 모드 — 가로 스크롤로 통관 정보(HS/DUTY/VAT/인보이스/관세/최종 USD/상세/PALLET/중량) 확인.</span>{% endif %}
+              {% if _is_parts %}<br><span style="color:var(--knk-warning);">📦 부품 모드 — 가로 스크롤로 통관 정보(HS/DUTY/VAT/인보이스/관세/최종 USD/상세/PALLET/중량) 확인.</span>{% endif %}
             </div>
             {% else %}
             {% set _is_co = (p.project_type or '')|upper == 'CONSUMABLE' %}
@@ -1302,8 +1302,8 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 <span style="color:var(--mute);font-size:12px;">EA ×</span>
                 {# v5H226z460(대표 지시): 상품 원가관리 — 매입단가·마진%→판매단가. 마진 비우면 판매가 미정으로 등록 가능. z829: 매입 입력=구매단가 정책 #}
                 {% if can_purchase_price %}
-                <input type="text" name="cost_price" inputmode="numeric" placeholder="매입단가" class="knk-money add-cost" style="width:92px;text-align:right;background:#fff7ed;" title="매입단가(협력사가)">
-                <input type="text" name="margin_pct" inputmode="numeric" placeholder="마진%" class="add-margin" style="width:62px;text-align:right;background:#fff7ed;" title="마진%(매입가에 가산)">
+                <input type="text" name="cost_price" inputmode="numeric" placeholder="매입단가" class="knk-money add-cost" style="width:92px;text-align:right;background:var(--knk-warning-subtle);" title="매입단가(협력사가)">
+                <input type="text" name="margin_pct" inputmode="numeric" placeholder="마진%" class="add-margin" style="width:62px;text-align:right;background:var(--knk-warning-subtle);" title="마진%(매입가에 가산)">
                 {% endif %}
                 {% elif _is_co %}
                 <input type="text" name="label" placeholder="품명 (예: 릴레이 24V)" style="flex:1;min-width:200px;" title="소모품 항목명">
@@ -1458,7 +1458,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         </script>
         <div class="so-grand-total">
           <div>
-            <div class="label"{{ ct('proj.total_qty') }} data-calc-name="총 수량">총 수주번호 {{ project_orders|length }}건{% set _gq89 = soqty_join(project_orders, p.po_type, True) %}{% if _gq89 %} · 총 수량 {{ _gq89 }}{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% endif %}{% if _gtotal.pm and _gtotal.pk %} · {% endif %}{% if _gtotal.pk %}{{ _gtotal.pk }}식{% endif %}{% if _gtotal.pmiss %} · <span style="color:#b91c1c;">⚠ 수량 미입력 {{ _gtotal.pmiss }}건</span>{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
+            <div class="label"{{ ct('proj.total_qty') }} data-calc-name="총 수량">총 수주번호 {{ project_orders|length }}건{% set _gq89 = soqty_join(project_orders, p.po_type, True) %}{% if _gq89 %} · 총 수량 {{ _gq89 }}{% endif %}{% if _gtotal.ps %} · {% if _gtotal.pm %}완제품 {{ _gtotal.pm }}대분{% endif %}{% if _gtotal.pm and _gtotal.pk %} · {% endif %}{% if _gtotal.pk %}{{ _gtotal.pk }}식{% endif %}{% if _gtotal.pmiss %} · <span style="color:var(--knk-danger);">⚠ 수량 미입력 {{ _gtotal.pmiss }}건</span>{% endif %}{% if _gtotal.pp %} <span style="font-weight:500;color:var(--mute);">(부품 {{ '{:,}'.format(_gtotal.pp|int) }}개)</span>{% endif %}{% endif %}</div>
           </div>
           <div class="value">
             {% if can_sales_amt %}
@@ -1469,7 +1469,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {# z1191z104 (대표 11-22): 「≈ ₩」 = 월 기준환율(각 수주 발주 달 · z1191z115 대표 11-23 「발주달로 통일」) · 마우스 → 몇 월 기준환율·얼마.
                예전엔 프로젝트에 적은 환율(fx_rate)로 계산해 매출 홈 숫자와 달랐다. #}
             {% if so_total_bd and so_total_bd.by_ccy and not so_total_bd.mixed and so_total_bd.by_ccy[0].currency != 'KRW' %}
-            <div style="font-size:12px;color:#1e3a8a;font-weight:600;margin-top:3px;">{{ _fx.krw_line(so_total_bd) }}</div>
+            <div style="font-size:12px;color:var(--knk-info);font-weight:600;margin-top:3px;">{{ _fx.krw_line(so_total_bd) }}</div>
             {% endif %}
             {% else %}🔒 <span style="font-size:11px;color:var(--mute);font-weight:500;" title="단가·금액은 영업·관리 권한자만">(수주번호 합계)</span>{% endif %}
           </div>
@@ -1918,18 +1918,18 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 const ov = document.createElement('div');
                 ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:99990;display:flex;align-items:center;justify-content:center;';
                 const box = document.createElement('div');
-                box.style.cssText = 'background:#fff;border:1px solid #d5cfc0;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.25);padding:18px 20px;max-width:420px;min-width:280px;';
+                box.style.cssText = 'background:var(--knk-bg-surface);border:1px solid var(--knk-border-default);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.25);padding:18px 20px;max-width:420px;min-width:280px;';
                 const msg = document.createElement('div');
-                msg.style.cssText = 'font-size:13.5px;color:#333;white-space:pre-line;line-height:1.5;margin-bottom:14px;';
+                msg.style.cssText = 'font-size:13.5px;color:var(--knk-text-primary);white-space:pre-line;line-height:1.5;margin-bottom:14px;';
                 msg.textContent = message;
                 const btns = document.createElement('div');
                 btns.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
                 const bCancel = document.createElement('button');
                 bCancel.type = 'button'; bCancel.textContent = '취소';
-                bCancel.style.cssText = 'padding:6px 14px;border:1px solid #ccc;background:#f5f5f5;border-radius:5px;font-size:12.5px;cursor:pointer;';
+                bCancel.style.cssText = 'padding:6px 14px;border:1px solid var(--knk-border-default);background:var(--knk-bg-inset);border-radius:5px;font-size:12.5px;cursor:pointer;';
                 const bOk = document.createElement('button');
                 bOk.type = 'button'; bOk.className = 'knk-rowdel-ok'; bOk.textContent = '🗑 삭제';
-                bOk.style.cssText = 'padding:6px 14px;border:0;background:#b91c1c;color:#fff;border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer;';
+                bOk.style.cssText = 'padding:6px 14px;border:0;background:var(--knk-danger);color:var(--knk-text-inverse);border-radius:5px;font-size:12.5px;font-weight:700;cursor:pointer;';
                 const close = () => { try { document.body.removeChild(ov); } catch(_){} };
                 bCancel.addEventListener('click', close);
                 ov.addEventListener('click', e => { if (e.target === ov) close(); });
@@ -2157,11 +2157,11 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 
       {# v5H137 (2026-05-05): 부모 프로젝트(장비) 안내 배너 — 소모품·수리 유형일 때 #}
       {% if (p.project_type in ('CONSUMABLE','SERVICE')) and parent_project %}
-      <div class="section-card" style="background:#fff7e6;border-color:var(--amber);">
+      <div class="section-card" style="background:var(--knk-warning-subtle);border-color:var(--knk-warning-line);">
         <div style="font-size:13px;line-height:1.6;color:var(--ink);">
           {% if p.project_type == 'CONSUMABLE' %}📦 이 프로젝트는{% else %}🔨 이 프로젝트는{% endif %}
           <a href="/project/{{ parent_project.id }}"
-             style="font-family:monospace;color:var(--amber-deep);font-weight:700;text-decoration:none;">
+             style="font-family:monospace;color:var(--knk-brand-hover);font-weight:700;text-decoration:none;">
             [{{ parent_project.mgmt_code|default('—') }} {{ parent_project.name }}]
           </a>
           {% if p.project_type == 'CONSUMABLE' %}의 <b>소모품/부품</b> 발주 건입니다{% else %}의 <b>수리·유지보수</b> 건입니다{% endif %}.
@@ -2187,12 +2187,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               <td>{% with ptype=cp.project_type %}{% include '_v5_partials/project_type_pill.html' %}{% endwith %}</td>
               <td>{{ cp.name }}{% if cp.customer_name %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ cp.customer_name }}</span>{% endif %}</td>
               <td><span style="font-size:11px;">{{ cp.status|default('—') }}</span></td>
-              <td style="font-family:inherit;font-size:11px;color:var(--knk-warning);">{{ cp.latest_so_no|default('—') }}</td>
+              <td style="font-family:inherit;font-size:11px;color:var(--knk-brand-hover);">{{ cp.latest_so_no|default('—') }}</td>
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ cp.last_so_date|default('—') }}</td>
               <td class="num" style="font-weight:700;">{% if can_sales_amt %}{{ money(cp.total_so_amount|default(0), cp.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
             </tr>
           {% endfor %}
-            <tr style="background:#fef3c7;font-weight:700;">
+            <tr style="background:var(--knk-warning-subtle);font-weight:700;">
               <td colspan="6" style="text-align:right;">소모품·수리 누적</td>
               <td class="num" style="color:var(--knk-red);">{% if can_sales_amt %}{{ _ccy.ccy_total(child_total_bd) }}{% else %}🔒{% endif %}</td>
             </tr>
@@ -2216,12 +2216,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           {% for r in consumables.rows %}
             <tr>
               <td style="font-family:monospace;font-size:11px;color:var(--mute);">{{ r.order_date|default('—') }}</td>
-              <td style="font-family:monospace;color:var(--amber-deep);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
+              <td style="font-family:monospace;color:var(--knk-brand-hover);">{{ r.part_code|default(r.part_no_snapshot|default('—')) }}</td>
               <td><b>{{ r.part_name|default(r.part_name_snapshot|default('—')) }}</b>{% if r.spec_snapshot %}<span style="display:block;font-size:10.5px;color:var(--mute);">{{ r.spec_snapshot }}</span>{% endif %}</td>
               <td class="num">{{ (r.effective_qty or 0)|qtyfmt }}{% if r.unit %} {{ r.unit }}{% endif %}{% if r.allocated_qty is not none and r.quantity and r.allocated_qty != r.quantity %}<span style="display:block;font-size:10px;color:var(--mute);">/ {{ '{:,.0f}'.format(r.quantity) }} 분배</span>{% elif r.allocation_pct %}<span style="display:block;font-size:10px;color:var(--mute);">{{ r.allocation_pct }}% 분배</span>{% endif %}</td>
               <td class="num">{% if can_sales_amt %}{{ money(r.unit_price|default(0), r.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
               <td class="num" style="font-weight:700;">{% if can_sales_amt %}{{ money(r.effective_amount|default(0), r.currency|default('KRW')) }}{% else %}🔒{% endif %}</td>
-              <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--amber-deep);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
+              <td><a href="/po/{{ r.po_id }}" style="font-family:monospace;color:var(--knk-brand-hover);text-decoration:none;">{{ r.po_number|default('PO-' ~ r.po_id) }}</a></td>
               <td>{{ r.supplier_name|default('—') }}</td>
               <td style="color:var(--mute);font-size:11px;">{{ r.link_note|default('') }}</td>
             </tr>
@@ -2230,7 +2230,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
               <td colspan="3" style="text-align:right;">합계 ({{ consumables.count }}건)</td>
               <td class="num">{{ (consumables.total_qty or 0)|qtyfmt }}</td>
               <td></td>
-              <td class="num" style="color:var(--amber-deep);">{% if can_sales_amt %}{{ money(consumables.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
+              <td class="num" style="color:var(--knk-brand-hover);">{% if can_sales_amt %}{{ money(consumables.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
               <td colspan="3"></td>
             </tr>
           </tbody>
@@ -2247,7 +2247,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       {# v5H142 (2026-05-05): 소모품 수주 도메인(consumable_orders) 라인 #}
       {% if consumable_orders and consumable_orders.rows %}
       <div class="section-card">
-        <h3>📦 소모품 수주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--amber-deep);font-size:13px;">전체보기</a>)</h3>
+        <h3>📦 소모품 수주 이력 ({{ consumable_orders.count }}건 · <a href="/consumables" style="color:var(--knk-brand-hover);font-size:13px;">전체보기</a>)</h3>
         <div style="overflow-x:auto;"><table style="width:100%;font-size:12.5px;border-collapse:collapse;">
           <thead><tr style="border-bottom:2px solid var(--line);">
             <th style="text-align:left;padding:6px;">수주번호</th>
@@ -2261,7 +2261,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           <tbody>
           {% for r in consumable_orders.rows %}
             <tr style="border-bottom:1px solid var(--line);">
-              <td style="padding:6px;"><a href="/consumables/{{ r.co_id }}" style="color:var(--amber-deep);font-weight:600;">{{ r.co_no }}</a></td>
+              <td style="padding:6px;"><a href="/consumables/{{ r.co_id }}" style="color:var(--knk-brand-hover);font-weight:600;">{{ r.co_no }}</a></td>
               <td style="padding:6px;">{% if r.image_thumb_path %}<a href="{{ r.image_path or r.image_thumb_path }}" target="_blank"><img src="{{ r.image_thumb_path }}" style="width:40px;height:30px;object-fit:cover;border-radius:3px;" /></a>{% else %}—{% endif %}</td>
               <td style="padding:6px;"><b>{{ r.part_name }}</b>{% if r.model_use %}<div style="font-size:10px;color:var(--mute);">{{ r.model_use }}</div>{% endif %}</td>
               <td class="num" style="text-align:right;padding:6px;">{{ '{:,.0f}'.format(r.qty or 0) }} {{ r.unit }}</td>
@@ -2271,9 +2271,9 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             </tr>
           {% endfor %}
           </tbody>
-          <tfoot><tr style="background:#fafafa;font-weight:700;">
+          <tfoot><tr style="background:var(--knk-bg-inset);font-weight:700;">
             <td colspan="5" style="text-align:right;padding:6px;">합계</td>
-            <td class="num" style="text-align:right;padding:6px;color:var(--amber-deep);">{% if can_sales_amt %}{{ money(consumable_orders.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
+            <td class="num" style="text-align:right;padding:6px;color:var(--knk-brand-hover);">{% if can_sales_amt %}{{ money(consumable_orders.total_amount, 'KRW') }}{% else %}🔒{% endif %}</td>
             <td></td>
           </tr></tfoot>
         </table></div>
@@ -2306,10 +2306,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         {% set _hso_on = (focus_so|default('')) and project_orders and project_orders|length > 1 %}
         {% set _hso = (project_orders|selectattr('order_no', 'equalto', focus_so)|first) if (_hso_on and not _hdr_rep) else none %}
         {% if _hso_on and (_hso or _hdr_rep) %}
-        <div class="hso-bar" style="margin:0 0 10px;padding:8px 12px;border:2px solid #c2410c;border-radius:8px;background:#fff7ed;font-size:12.5px;color:#7c2d12;">
+        <div class="hso-bar" style="margin:0 0 10px;padding:8px 12px;border:2px solid var(--knk-warning);border-radius:8px;background:var(--knk-warning-subtle);font-size:12.5px;color:var(--knk-warning);">
           {% if _hso %}📌 <b>수주 {{ _hso.order_no }}</b> 기준으로 보는 중 — 고객사·PO유형·형태·모델·장비·거래 구분·2차·수량은 <b>이 수주 값</b>입니다
-            <a href="?so={{ focus_so|urlencode }}&hdr=rep" style="margin-left:8px;color:#1d4ed8;font-weight:700;">관리번호 대표값 보기</a>
-          {% else %}🗂 <b>관리번호 대표값</b>을 보는 중 <a href="?so={{ focus_so|urlencode }}" style="margin-left:8px;color:#1d4ed8;font-weight:700;">수주 {{ focus_so }} 기준으로 보기</a>{% endif %}
+            <a href="?so={{ focus_so|urlencode }}&hdr=rep" style="margin-left:8px;color:var(--knk-action);font-weight:700;">관리번호 대표값 보기</a>
+          {% else %}🗂 <b>관리번호 대표값</b>을 보는 중 <a href="?so={{ focus_so|urlencode }}" style="margin-left:8px;color:var(--knk-action);font-weight:700;">수주 {{ focus_so }} 기준으로 보기</a>{% endif %}
         </div>
         {% endif %}
         <div class="proj-info-2col">
@@ -2317,57 +2317,57 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         {# v5H226z649 (대표 지시): 1·2·3열 줄 맞춤 — 필드는 단일 3열 .def 하나로(완전 정렬), 수주번호는 오른쪽 .def-sono 로 분리(세로 나열) #}
         <div class="proj-grid-wrap">
         <dl class="def">
-          <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--knk-warning);">{{ p.mgmt_code|default('—') }}</dd>
-          <dt>고객사{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% endif %}</dt>{% if _hso %}<dd title="이 수주의 발주처 — 비어 있으면 프로젝트 고객">{{ (((cust_alias|default({},true)).get(_hso.customer_id) or _hso.so_customer) if _hso.customer_id else ((cust_alias|default({},true)).get(p.customer_id) or p.customer_name)) or '—' }}</dd>{% else %}<dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}{% set _oth1191 = (project_orders or [])|selectattr('customer_id')|rejectattr('customer_id', 'equalto', p.customer_id)|map(attribute='customer_id')|unique|list %}{% if _oth1191 %} <span class="cust-oth1191" style="font-size:11px;color:#64748b;font-weight:500;" title="이 관리번호의 다른 발주처(수주별) — 수주 카드 「🏢 발주처」에서 고칩니다">외 {{ _oth1191|length }}곳 ({% for _c1191 in _oth1191 %}{{ (cust_alias|default({},true)).get(_c1191) or ((project_orders|selectattr('customer_id', 'equalto', _c1191)|first).so_customer) or '—' }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}{# z1191c: 수주번호 기준 — 다른 발주처가 있으면 외 n곳 #}</dd>{% endif %}{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
+          <dt>관리번호</dt><dd style="font-family:inherit;font-weight:700;color:var(--knk-brand-hover);">{{ p.mgmt_code|default('—') }}</dd>
+          <dt>고객사{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span>{% endif %}</dt>{% if _hso %}<dd title="이 수주의 발주처 — 비어 있으면 프로젝트 고객">{{ (((cust_alias|default({},true)).get(_hso.customer_id) or _hso.so_customer) if _hso.customer_id else ((cust_alias|default({},true)).get(p.customer_id) or p.customer_name)) or '—' }}</dd>{% else %}<dd title="정식: {{ p.customer_name|default('—') }}">{{ (cust_alias|default({},true)).get(p.customer_id) or p.customer_name|default('—') }}{% if p.two_tier_order %} <span style="font-size:10px;color:var(--knk-info);background:var(--knk-info-subtle);padding:1px 6px;border-radius:4px;font-weight:700;">1차·발주처</span>{% endif %}{% set _oth1191 = (project_orders or [])|selectattr('customer_id')|rejectattr('customer_id', 'equalto', p.customer_id)|map(attribute='customer_id')|unique|list %}{% if _oth1191 %} <span class="cust-oth1191" style="font-size:11px;color:var(--knk-text-muted);font-weight:500;" title="이 관리번호의 다른 발주처(수주별) — 수주 카드 「🏢 발주처」에서 고칩니다">외 {{ _oth1191|length }}곳 ({% for _c1191 in _oth1191 %}{{ (cust_alias|default({},true)).get(_c1191) or ((project_orders|selectattr('customer_id', 'equalto', _c1191)|first).so_customer) or '—' }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}{# z1191c: 수주번호 기준 — 다른 발주처가 있으면 외 n곳 #}</dd>{% endif %}{# v5H226z706: 표시는 시스템명 우선(정식명은 title) #}
           {# v5H226z1034 (안지연 프로 신고·대표 지시): 이 값은 **프로젝트 기본값**이다 — 수주마다 자기 값이 있으면 그게 우선.
              이걸 '이 관리번호의 PO유형' 하나로 읽고 [프로젝트 정보 수정]에서 고쳐, 수주 4건이 통째로 바뀐 사고가 났다.
              → 수주가 2건 이상이면 '기본값'임을 밝히고 수주별로 고치라고 안내한다. #}
-          <dt>PO유형{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;">(기본값)</span>{% endif %}</dt>
+          <dt>PO유형{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">(기본값)</span>{% endif %}</dt>
           <dd>{% set _pt2 = ((_hso.po_type or p.po_type) if _hso else p.po_type)|default('신규') %}{% if _pt2 and _pt2 != '신규' %}<span class="pill pill-warn" style="font-size:11.5px;font-weight:700;">{{ _pt2 }}</span>{% else %}<span style="color:var(--mute);font-size:12.5px;">신규</span>{% endif %}{% if project_orders and project_orders|length > 1 and not _hso %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 값은 자기 값이 없는 수주에만 적용되는 기본값입니다. 수주마다 다르면 아래 [수주 내역]의 각 카드에서 'PO유형'을 고르면 그 수주만 바뀝니다.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% endif %}</dd>
           <dt>프로젝트명</dt><dd><b id="hf_name_disp">{{ p.name }}</b></dd>
           <dt>사업부</dt><dd>{% if p.biz_div == 'T' %}T (검사기){% elif p.biz_div == 'M' %}M (자동화){% elif p.biz_div == 'L' %}L (라이프밸류){% else %}{{ p.biz_div|default('—') }}{% endif %}</dd>
           {# v5H226z645/z1058: 형태 — 수주별 so_form 분포(form_summary). 섞이면 '혼합 · 완제품 N · 제품 M' + 안내(PO유형과 동일 손길).
              수주가 없으면(빈 프로젝트) 프로젝트 shipment_form 폴백(완제품/제품/상품/기타/소모품). #}
-          <dt>형태{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% elif form_summary and form_summary.mixed %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;">(혼합)</span>{% endif %}</dt>
-          <dd>{% if _hso %}{{ _hso.form_label or '—' }}{% elif form_summary and form_summary.has_orders %}{% if form_summary.mixed %}<b style="color:var(--amber-deep);">혼합</b>{% for lbl, n in form_summary.breakdown %} · {{ lbl }} {{ n }}{% endfor %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 관리번호에 형태가 다른 수주가 섞여 있습니다. 각 수주의 형태는 아래 [수주 내역]의 카드 배지에서 확인·수정하세요.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% else %}{{ form_summary.label }}{% endif %}{% else %}{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}{% endif %}</dd>
+          <dt>형태{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span>{% elif form_summary and form_summary.mixed %} <span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">(혼합)</span>{% endif %}</dt>
+          <dd>{% if _hso %}{{ _hso.form_label or '—' }}{% elif form_summary and form_summary.has_orders %}{% if form_summary.mixed %}<b style="color:var(--knk-brand-hover);">혼합</b>{% for lbl, n in form_summary.breakdown %} · {{ lbl }} {{ n }}{% endfor %}<span style="display:block;font-size:10.5px;color:var(--mute);font-weight:500;margin-top:2px;" title="이 관리번호에 형태가 다른 수주가 섞여 있습니다. 각 수주의 형태는 아래 [수주 내역]의 카드 배지에서 확인·수정하세요.">수주마다 다르면 <b>아래 수주 내역</b>에서</span>{% else %}{{ form_summary.label }}{% endif %}{% else %}{% set _sf2 = (p.shipment_form or '')|upper %}{% if (p.project_type or '')|upper == 'CONSUMABLE' %}소모품{% elif _sf2 == 'PARTS' %}상품{% elif _sf2 == 'ETC' %}기타{% elif _sf2 == 'SEMI' %}제품{% else %}완제품{% endif %}{% endif %}</dd>
           {# v5H226z994: 유형(제목 옆 알약에서 이동) — 한글만, 시스템 코드 비노출 #}
           <dt>유형</dt><dd>{% set _pty994 = (p.project_type or 'NEW_EQUIP')|upper %}{% if _pty994 == 'CONSUMABLE' %}소모품·부품{% elif _pty994 == 'SERVICE' %}수리·유지보수{% elif _pty994 == 'OTHER' %}기타{% else %}신규 장비{% endif %}</dd>
-          <dt>모델명{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{% if _hso %}{{ _hso.model_name or p.model_name or '—' }}{% else %}{{ p.model_name|default('—') }}{% endif %}</dd>
+          <dt>모델명{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{% if _hso %}{{ _hso.model_name or p.model_name or '—' }}{% else %}{{ p.model_name|default('—') }}{% endif %}</dd>
           {# z1191d (대표 2026-10-19 「내수,수출 섞임(수출2건,내수1대)으로」): 호기 거래구분이 섞였는지 센다 — 취소 수주·취소 호기 제외 · 비면 프로젝트 값(수주 카드와 같은 규칙) · 장비 호기=대 · 상품 수주=건 #}{% set _ix1191 = namespace(eu=0, du=0, es=0, ds=0) %}{% for _s1191 in (project_orders or []) %}{% if (_s1191.status or '')|upper != 'CANCELLED' %}{% set _sx1191 = namespace(e=0, d=0) %}{% for _u1191 in (_s1191.units or []) %}{% if (_u1191.unit_status or '') != '취소' %}{% if (_u1191.is_export if _u1191.is_export is not none else (1 if p.is_export else 0)) %}{% set _sx1191.e = _sx1191.e + 1 %}{% else %}{% set _sx1191.d = _sx1191.d + 1 %}{% endif %}{% endif %}{% endfor %}{% if ((_s1191.so_type or '')|upper == 'PARTS_EXPORT') or ((p.shipment_form or '')|upper == 'PARTS') %}{% if _sx1191.e %}{% set _ix1191.es = _ix1191.es + 1 %}{% endif %}{% if _sx1191.d %}{% set _ix1191.ds = _ix1191.ds + 1 %}{% endif %}{% else %}{% set _ix1191.eu = _ix1191.eu + _sx1191.e %}{% set _ix1191.du = _ix1191.du + _sx1191.d %}{% endif %}{% endif %}{% endfor %}
-          <dt>거래 구분{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% endif %}</dt><dd>{% if _hso %}{% set _hx16 = namespace(e=0, d=0) %}{% for _u16 in (_hso.units or []) %}{% if (_u16.unit_status or '') != '취소' %}{% if (_u16.is_export if _u16.is_export is not none else (1 if p.is_export else 0)) %}{% set _hx16.e = _hx16.e + 1 %}{% else %}{% set _hx16.d = _hx16.d + 1 %}{% endif %}{% endif %}{% endfor %}{% if _hx16.e and _hx16.d %}<span style="background:#f3e8ff;color:#6b21a8;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수·수출 섞임</span>{% elif _hx16.e or ((not _hx16.d) and p.is_export) %}<span style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}{% elif (_ix1191.eu + _ix1191.es) > 0 and (_ix1191.du + _ix1191.ds) > 0 %}<span id="hf_export_disp" title="이 관리번호는 호기마다 거래구분이 다릅니다 — 아래 수주 카드의 「거래방식」" style="background:#f3e8ff;color:#6b21a8;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;white-space:nowrap;">내수·수출 섞임</span> <span class="trade-mix1191" style="font-size:11px;color:#64748b;font-weight:500;white-space:nowrap;">(수출 {% if _ix1191.eu %}{{ _ix1191.eu }}대{% endif %}{% if _ix1191.eu and _ix1191.es %}+{% endif %}{% if _ix1191.es %}{{ _ix1191.es }}건{% endif %} · 내수 {% if _ix1191.du %}{{ _ix1191.du }}대{% endif %}{% if _ix1191.du and _ix1191.ds %}+{% endif %}{% if _ix1191.ds %}{{ _ix1191.ds }}건{% endif %})</span>{% elif p.is_export %}<span id="hf_export_disp" style="background:#ecf5ff;color:#1f5fc6;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:#fff7e6;color:#c64c1f;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}</dd>
+          <dt>거래 구분{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span>{% endif %}</dt><dd>{% if _hso %}{% set _hx16 = namespace(e=0, d=0) %}{% for _u16 in (_hso.units or []) %}{% if (_u16.unit_status or '') != '취소' %}{% if (_u16.is_export if _u16.is_export is not none else (1 if p.is_export else 0)) %}{% set _hx16.e = _hx16.e + 1 %}{% else %}{% set _hx16.d = _hx16.d + 1 %}{% endif %}{% endif %}{% endfor %}{% if _hx16.e and _hx16.d %}<span style="background:var(--knk-cat-violet-subtle);color:var(--knk-cat-violet);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수·수출 섞임</span>{% elif _hx16.e or ((not _hx16.d) and p.is_export) %}<span style="background:var(--knk-info-subtle);color:var(--knk-info);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span style="background:var(--knk-warning-subtle);color:var(--knk-warning);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}{% elif (_ix1191.eu + _ix1191.es) > 0 and (_ix1191.du + _ix1191.ds) > 0 %}<span id="hf_export_disp" title="이 관리번호는 호기마다 거래구분이 다릅니다 — 아래 수주 카드의 「거래방식」" style="background:var(--knk-cat-violet-subtle);color:var(--knk-cat-violet);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;white-space:nowrap;">내수·수출 섞임</span> <span class="trade-mix1191" style="font-size:11px;color:var(--knk-text-muted);font-weight:500;white-space:nowrap;">(수출 {% if _ix1191.eu %}{{ _ix1191.eu }}대{% endif %}{% if _ix1191.eu and _ix1191.es %}+{% endif %}{% if _ix1191.es %}{{ _ix1191.es }}건{% endif %} · 내수 {% if _ix1191.du %}{{ _ix1191.du }}대{% endif %}{% if _ix1191.du and _ix1191.ds %}+{% endif %}{% if _ix1191.ds %}{{ _ix1191.ds }}건{% endif %})</span>{% elif p.is_export %}<span id="hf_export_disp" style="background:var(--knk-info-subtle);color:var(--knk-info);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">수출</span>{% else %}<span id="hf_export_disp" style="background:var(--knk-warning-subtle);color:var(--knk-warning);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11.5px;">내수</span>{% endif %}</dd>
           {# v5H200/z645: 상태 pill + 1줄 분포(진행/완료/취소/보류) #}
           {% set _pds = project_display_status|default({'label': p.status|default('—'), 'tone':'muted', 'dist': {'진행중':0,'출하':0,'취소':0,'보류':0}, 'total': 0}) %}
           <dt>상태</dt><dd><span class="pill {% if _pds.tone == 'done' %}pill-done{% elif _pds.tone == 'danger' %}pill-danger{% elif _pds.tone == 'warn' %}pill-warn{% elif _pds.tone == 'progress' %}pill-progress{% else %}pill-muted{% endif %}" style="font-size:12px;font-weight:700;">{{ _pds.label }}</span>{% if _pds.total > 0 %}<span style="margin-left:8px;font-size:11px;color:var(--mute);font-weight:600;white-space:nowrap;">진행 {{ _pds.dist['진행중'] }} · 완료 {{ _pds.dist['출하'] }} · 취소 {{ _pds.dist['취소'] }} · 보류 {{ _pds.dist['보류'] }}</span>{% endif %}</dd>
-          <dt>장비명{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:#94a3b8;font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{% if _hso %}{{ _hso.equip_name or p.equip_name or '—' }}{% else %}{{ p.equip_name|default('—') }}{% endif %}</dd>
-          {% if _hso %}<dt>수량 <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>{% if _hso.form_key == 'parts' %}{% set _hq16 = partsqty(_hso.unit_qty, _hso.po_type or p.po_type) %}<span{% if _hq16.missing %} style="color:#b91c1c;font-weight:700;"{% endif %}>{{ _hq16.label }}</span>{% elif _hso.form_key == 'assembly' %}{{ (_hso.units|length) if _hso.units else (_hso.unit_qty or 1) }}대{% elif _hso.form_key == 'consumable' and not _hso.board_unit %}{{ qtyu((_hso.units|length) or 1, '건') }}{% else %}{{ qtyu(soqty(_hso), sounit(_hso)) }}{% if soqty_note(_hso) %} <span style="color:var(--mute);font-size:11px;">{{ soqty_note(_hso) }}</span>{% endif %}{% endif %}</dd>{% endif %}{# z1191z16 · z1191z89: 단위 = 일정표와 같은 규칙 #}
+          <dt>장비명{% if _hso %} <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span>{% elif project_orders and project_orders|length > 1 %} <span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;" title="프로젝트 대표값입니다. 수주마다 다르면 아래 [수주 내역] 카드의 📦 모델/장비에서 그 수주만 고칩니다(z1191z5)">(대표값)</span>{% endif %}</dt><dd>{% if _hso %}{{ _hso.equip_name or p.equip_name or '—' }}{% else %}{{ p.equip_name|default('—') }}{% endif %}</dd>
+          {% if _hso %}<dt>수량 <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span></dt><dd>{% if _hso.form_key == 'parts' %}{% set _hq16 = partsqty(_hso.unit_qty, _hso.po_type or p.po_type) %}<span{% if _hq16.missing %} style="color:var(--knk-danger);font-weight:700;"{% endif %}>{{ _hq16.label }}</span>{% elif _hso.form_key == 'assembly' %}{{ (_hso.units|length) if _hso.units else (_hso.unit_qty or 1) }}대{% elif _hso.form_key == 'consumable' and not _hso.board_unit %}{{ qtyu((_hso.units|length) or 1, '건') }}{% else %}{{ qtyu(soqty(_hso), sounit(_hso)) }}{% if soqty_note(_hso) %} <span style="color:var(--mute);font-size:11px;">{{ soqty_note(_hso) }}</span>{% endif %}{% endif %}</dd>{% endif %}{# z1191z16 · z1191z89: 단위 = 일정표와 같은 규칙 #}
           {# v5H201: 제안 단계 일정 #}
           <dt>제안서</dt><dd>{{ p.proposal_date or '—' }}</dd>
           <dt class="fullw" title="z1191z156: 견적서는 수주번호마다 붙습니다 — 올릴 때 수주번호를 고릅니다">견적서</dt><dd class="fullw">{# z1191z61·z62·z63 (대표 11-18 「등록된 견적은 프로젝트 정보에서 볼수있게」 · 「견적빼기는 견적 등록하는 화면에는 무조건」): 견적일 · 견적서 줄(_v5_partials/quote_rows.html · 👁 보기 · 🗑 빼기) · ＋ 올리기 — 파일은 금액 볼 권한자만 #}
   <span style="font-weight:700;">{{ p.quotation_date or '—' }}</span>
   {% if can_money %}
   {% set qr_pid = p.id %}{% include "_v5_partials/quote_rows.html" %}
-  {% if request.query_params.get('z156') == 'need_so' %}<div class="z156-need" style="margin-top:6px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12px;color:#92400e;font-weight:700;">👉 남은 일 — 수정 화면에서 올린 견적서는 수주번호를 고르지 않아 붙이지 않았습니다(다른 칸은 저장됨). 아래에서 수주번호를 고르고 견적서 엑셀을 다시 올려 주세요.</div>{% endif %}
+  {% if request.query_params.get('z156') == 'need_so' %}<div class="z156-need" style="margin-top:6px;padding:6px 10px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:8px;font-size:12px;color:var(--knk-warning);font-weight:700;">👉 남은 일 — 수정 화면에서 올린 견적서는 수주번호를 고르지 않아 붙이지 않았습니다(다른 칸은 저장됨). 아래에서 수주번호를 고르고 견적서 엑셀을 다시 올려 주세요.</div>{% endif %}
   {% if z62_can_upload(user) %}{# z1191z62: 등록된 프로젝트에 견적서만 붙이기 — 칸 채우기 없이 보관 · z1191z156: 수주번호를 골라 그 수주에만 #}
   {% set _sos156 = z156_sos(p.id) %}
-  {% if not _sos156 %}<div style="margin-top:6px;font-size:12px;color:#b45309;font-weight:700;">👉 이 관리번호에는 아직 수주번호가 없어 견적서를 올릴 수 없습니다 — 수주를 먼저 등록하세요(견적서는 수주번호마다 붙습니다).</div>
+  {% if not _sos156 %}<div style="margin-top:6px;font-size:12px;color:var(--knk-warning);font-weight:700;">👉 이 관리번호에는 아직 수주번호가 없어 견적서를 올릴 수 없습니다 — 수주를 먼저 등록하세요(견적서는 수주번호마다 붙습니다).</div>
   {% else %}
   {% from "_v5_partials/step_z156.html" import z156_steps %}
-  <div class="z62-up" data-pid="{{ p.id }}" style="margin-top:6px;padding:6px 9px;border:1px dashed #bfdbfe;border-radius:8px;">
+  <div class="z62-up" data-pid="{{ p.id }}" style="margin-top:6px;padding:6px 9px;border:1px dashed var(--knk-info-line);border-radius:8px;">
     {{ z156_steps('z156QStep', ['수주번호 고르기', '견적서 엑셀 올리기', '다시 올리기(안 올라갔을 때만)', '끝'], (2 if _sos156|length == 1 else 1), ('👉 지금 하실 일: 「＋ 견적서 엑셀 올리기」를 누르거나 엑셀을 여기에 끌어다 놓으세요 — ' ~ _sos156[0].order_no ~ ' 에 붙습니다') if _sos156|length == 1 else '👉 지금 하실 일: 아래 칸에서 이 견적서를 붙일 수주번호를 고르세요') }}
     <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
-    <select class="z156-so-sel" title="견적서를 붙일 수주번호 — 수주가 2개 이상이면 꼭 고르세요" style="padding:2px 6px;border:1px solid #93c5fd;border-radius:6px;font-size:12px;">
+    <select class="z156-so-sel" title="견적서를 붙일 수주번호 — 수주가 2개 이상이면 꼭 고르세요" style="padding:2px 6px;border:1px solid var(--knk-info-line);border-radius:6px;font-size:12px;">
       {% if _sos156|length != 1 %}<option value="">— 수주번호 고르기 —</option>{% endif %}
       {% for o in _sos156 %}<option value="{{ o.id }}"{% if _sos156|length == 1 %} selected{% endif %}>{{ o.order_no }}{% if o.units %} · {{ o.units }}{% endif %}</option>{% endfor %}
     </select>
-    <button type="button" class="z62-up-btn" title="엑셀 파일(xlsx·xls)만 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게" style="padding:3px 10px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">＋ 견적서 엑셀 올리기</button>
+    <button type="button" class="z62-up-btn" title="엑셀 파일(xlsx·xls)만 — 나중에 고칠 때 최종 견적서를 그대로 고칠 수 있게" style="padding:3px 10px;border:1px solid var(--knk-info-line);background:var(--knk-info-subtle);color:var(--knk-info);border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;">＋ 견적서 엑셀 올리기</button>
     <input type="file" class="z62-up-file" accept=".xlsx,.xlsm,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12" data-knk-no-dropzone style="display:none;">
-    <span class="z62-up-msg" style="font-size:11.5px;color:#475569;">엑셀 · 끌어다 놓기 · 한 수주에 여러 장 올려도 모두 남습니다</span></span></div>
+    <span class="z62-up-msg" style="font-size:11.5px;color:var(--knk-text-secondary);">엑셀 · 끌어다 놓기 · 한 수주에 여러 장 올려도 모두 남습니다</span></span></div>
   <script>(function(){
     var w=document.querySelector('.z62-up[data-pid="{{ p.id }}"]');
     if(!w || w.__z62) return; w.__z62=1;
     var b=w.querySelector('.z62-up-btn'), fi=w.querySelector('.z62-up-file'), m=w.querySelector('.z62-up-msg'), sel=w.querySelector('.z156-so-sel');
     function soName(){ var o=sel&&sel.options[sel.selectedIndex]; return o&&o.value ? (o.textContent||'').split(' · ')[0] : ''; }
-    function needSo(){ if(sel && !sel.value){ m.style.color='#b45309'; m.textContent='👉 수주번호를 골라 주세요 — 견적서는 수주번호에만 붙습니다(저장하지 않았습니다).'; z156Step('z156QStep', 1, '👉 지금 하실 일: 위 칸에서 수주번호를 고른 뒤 다시 올리세요'); try{ sel.focus(); }catch(e){} return true; } return false; }
+    function needSo(){ if(sel && !sel.value){ m.style.color='var(--knk-warning)'; m.textContent='👉 수주번호를 골라 주세요 — 견적서는 수주번호에만 붙습니다(저장하지 않았습니다).'; z156Step('z156QStep', 1, '👉 지금 하실 일: 위 칸에서 수주번호를 고른 뒤 다시 올리세요'); try{ sel.focus(); }catch(e){} return true; } return false; }
     if(sel) sel.addEventListener('change', function(){ if(sel.value) z156Step('z156QStep', 2, '👉 지금 하실 일: 「＋ 견적서 엑셀 올리기」를 누르거나 엑셀을 끌어다 놓으세요 — '+soName()+' 에 붙습니다'); else z156Step('z156QStep', 1, '👉 지금 하실 일: 이 견적서를 붙일 수주번호를 고르세요'); });
     b.addEventListener('click', function(){ if(needSo()) return; fi.click(); });
     /* z1191z147 (대표 11-25 「견적서 올리기는 끌어다 놓기가 안 돼」): 관리번호 견적서 칸 전체에 끌어다 놓기 — 발주서 칸과 따로 */
@@ -2377,23 +2377,23 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     zone.addEventListener('drop', function(e){ if(e.target.closest&&e.target.closest('.z143-box')) return; e.preventDefault(); e.stopPropagation(); zone.classList.remove('z62-over'); var x=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(x) send(x); });
     fi.addEventListener('change', function(){ var x=fi.files&&fi.files[0]; fi.value=''; if(x) send(x); });
     function send(x){
-      if(!/\.(xlsx|xlsm|xls)$/i.test(x.name||'')){ m.style.color='#b91c1c'; m.textContent='견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.'; return; }   /* z1191z76 */
-      if(x.size>20*1024*1024){ m.style.color='#b91c1c'; m.textContent='20MB 보다 큰 파일은 올릴 수 없습니다.'; return; }
+      if(!/\.(xlsx|xlsm|xls)$/i.test(x.name||'')){ m.style.color='var(--knk-danger)'; m.textContent='견적서는 엑셀 파일(xlsx·xls)만 올릴 수 있습니다.'; return; }   /* z1191z76 */
+      if(x.size>20*1024*1024){ m.style.color='var(--knk-danger)'; m.textContent='20MB 보다 큰 파일은 올릴 수 없습니다.'; return; }
       if(needSo()) return;   /* z1191z156: 수주 2개 이상인데 안 골랐으면 올리지 않음 */
-      var fd=new FormData(); fd.append('file', x); if(sel) fd.append('order_id', sel.value); b.disabled=true; m.style.color='#475569'; m.textContent='⏳ 올리는 중…';
+      var fd=new FormData(); fd.append('file', x); if(sel) fd.append('order_id', sel.value); b.disabled=true; m.style.color='var(--knk-text-secondary)'; m.textContent='⏳ 올리는 중…';
       z156Step('z156QStep', 2, '⏳ 진행 중 — 「'+(x.name||'')+'」을 '+soName()+' 에 올리는 중입니다(10~30초)');
       fetch('/api/project-quote/attach/'+w.getAttribute('data-pid'),{method:'POST',body:fd,credentials:'same-origin'})
         .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); })
         .then(function(j){ b.disabled=false;
           if(j&&j.ok){   /* z1191z160: 금액 비교 알림 없음 — 올린 사람을 믿고 보관만 · 같은 수주 예전 견적서도 그대로 */
             var n=(j.n_so>1)?(' · 이 수주 견적서 모두 '+j.n_so+'장'):'';
-            m.style.color='#166534'; m.textContent='✅ 완료 — '+(j.slot||'')+' 에 보관했습니다'+n; z156Step('z156QStep', 4, '✅ 완료 — '+(j.slot||'')+' 에 붙었습니다'+n); setTimeout(function(){ location.reload(); }, 1200); }
-          else if(j&&(j.need_so||j.no_so)){ m.style.color='#b45309'; m.textContent=j.message||'👉 수주번호를 골라 주세요.'; z156Step('z156QStep', 1, j.message||'👉 수주번호를 골라 주세요'); }
-          else { m.style.color='#b91c1c'; m.textContent='⚠ 끝나지 않았습니다 — '+((j&&j.message)||'올리지 못했습니다 — 다시 해 보세요.'); z156Step('z156QStep', 3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); } })
-        .catch(function(){ b.disabled=false; m.style.color='#b91c1c'; m.textContent='⚠ 인터넷 연결이 끊겨 올리지 못했습니다 — 다시 올려 주세요.'; z156Step('z156QStep', 3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); });
+            m.style.color='var(--knk-success)'; m.textContent='✅ 완료 — '+(j.slot||'')+' 에 보관했습니다'+n; z156Step('z156QStep', 4, '✅ 완료 — '+(j.slot||'')+' 에 붙었습니다'+n); setTimeout(function(){ location.reload(); }, 1200); }
+          else if(j&&(j.need_so||j.no_so)){ m.style.color='var(--knk-warning)'; m.textContent=j.message||'👉 수주번호를 골라 주세요.'; z156Step('z156QStep', 1, j.message||'👉 수주번호를 골라 주세요'); }
+          else { m.style.color='var(--knk-danger)'; m.textContent='⚠ 끝나지 않았습니다 — '+((j&&j.message)||'올리지 못했습니다 — 다시 해 보세요.'); z156Step('z156QStep', 3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); } })
+        .catch(function(){ b.disabled=false; m.style.color='var(--knk-danger)'; m.textContent='⚠ 인터넷 연결이 끊겨 올리지 못했습니다 — 다시 올려 주세요.'; z156Step('z156QStep', 3, '⚠ 끝나지 않았습니다 — 다시 올려 주세요'); });
     }
   })();</script>
-  <style>.z62-over{ outline:2px dashed #2563eb; outline-offset:3px; background:#eff6ff; border-radius:8px; } .z62-over .z62-up-btn{ outline:2px solid #2563eb; } .z62-over .z62-up-btn::after{ content:'  ← 여기에 놓으면 견적서'; }</style>
+  <style>.z62-over{ outline:2px dashed var(--knk-info); outline-offset:3px; background:var(--knk-info-subtle); border-radius:8px; } .z62-over .z62-up-btn{ outline:2px solid var(--knk-info); } .z62-over .z62-up-btn::after{ content:'  ← 여기에 놓으면 견적서'; }</style>
   {% endif %}{# /z156 수주 있음 #}
   {% endif %}
   {% endif %}
@@ -2405,19 +2405,19 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           <dt class="fullw" title="z1191z150: 수주번호마다 견적서·발주서가 있는지 한눈에 — 칩을 누르면 웍스 안에서 보기 · ⬇ 원본 받기">수주별 견적·발주서</dt><dd class="fullw" id="docs150">{{ dc_style() }}
             {% if _d150 and _d150.sos %}
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span style="font-size:12px;color:#475569;">수주 {{ _d150.sos|length }}건 · 견적 없는 수주 <b style="color:{{ '#b91c1c' if _d150.miss_q else '#166534' }};">{{ _d150.miss_q }}</b> · 발주서 없는 수주 <b style="color:{{ '#b91c1c' if _d150.miss_p else '#166534' }};">{{ _d150.miss_p }}</b></span>
+              <span style="font-size:12px;color:var(--knk-text-secondary);">수주 {{ _d150.sos|length }}건 · 견적 없는 수주 <b style="color:{{ 'var(--knk-danger)' if _d150.miss_q else 'var(--knk-success-text)' }};">{{ _d150.miss_q }}</b> · 발주서 없는 수주 <b style="color:{{ 'var(--knk-danger)' if _d150.miss_p else 'var(--knk-success-text)' }};">{{ _d150.miss_p }}</b></span>
               <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip" title="이 관리번호의 견적서·발주서 모두를 한 파일(zip)로 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇ 한꺼번에 받기(zip)</a>
             </div>
             <table class="dc150-t"><thead><tr><th>수주번호</th><th>호기·품목</th><th>견적서</th><th>고객 발주서</th></tr></thead><tbody>
             {% for s in _d150.sos %}<tr>
               <td><a href="/sales/orders/{{ s.id }}" style="font-weight:700;color:inherit;">{{ s.order_no }}</a></td>
-              <td style="color:#64748b;">{{ s.units or '—' }}</td>
+              <td style="color:var(--knk-text-muted);">{{ s.units or '—' }}</td>
               <td>{{ qchip(p.id, s.q) }}</td>
               <td>{# z1191z162 (안지연 프로 요청 · 대표 11-26 「수주번호별 발주서 삭제 · 부분/전체」): 발주서마다 🗑 · 2장 이상이면 「이 수주 발주서 모두 빼기」 #}
                 {%- set _pfs162 = (s.p.files if (s.p and s.p.files) else []) -%}
                 {%- if _pfs162 -%}
-                <span class="po162" data-ono="{{ s.order_no }}">{% for f in _pfs162 %}<span class="po162-one" style="white-space:nowrap;">{% if not loop.first %} {% endif %}<a class="dc150 ok" href="/customer-po/{{ f.id }}" title="고객 발주서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📄 {{ f.orig_name|truncate(22, True, '…') }}</a> <a class="dc150dl" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% if z63_can_remove(user, f) %} <button type="button" class="dc150dl po162-rm" data-fid="{{ f.id }}" data-name="{{ f.orig_name }}" title="이 발주서만 빼기(올린 사람·기술영업팀) — 목록에서 바로 빠짐 · 파일은 30일 보관 뒤 완전 삭제 · 이력 남음" style="cursor:pointer;color:#b91c1c;">🗑</button>{% endif %}</span>{% endfor %}
-                {%- if _pfs162|length > 1 %} <button type="button" class="dc150dl po162-rmall" title="이 수주번호의 고객 발주서 {{ _pfs162|length }}장을 모두 빼기(뺄 수 있는 것만) — 목록에서 바로 빠짐 · 파일은 30일 보관 뒤 완전 삭제 · 이력 남음" style="cursor:pointer;color:#b91c1c;font-weight:700;">🗑 모두 빼기({{ _pfs162|length }})</button>{% endif %}
+                <span class="po162" data-ono="{{ s.order_no }}">{% for f in _pfs162 %}<span class="po162-one" style="white-space:nowrap;">{% if not loop.first %} {% endif %}<a class="dc150 ok" href="/customer-po/{{ f.id }}" title="고객 발주서 · {{ f.orig_name }} · {{ f.by_name or '' }} {{ (f.created_at or '')[:16] }}">📄 {{ f.orig_name|truncate(22, True, '…') }}</a> <a class="dc150dl" href="/customer-po/{{ f.id }}/file?dl=1" title="원본 받기 — 파일 이름에 관리번호·수주번호가 붙습니다">⬇</a>{% if z63_can_remove(user, f) %} <button type="button" class="dc150dl po162-rm" data-fid="{{ f.id }}" data-name="{{ f.orig_name }}" title="이 발주서만 빼기(올린 사람·기술영업팀) — 목록에서 바로 빠짐 · 파일은 30일 보관 뒤 완전 삭제 · 이력 남음" style="cursor:pointer;color:var(--knk-danger);">🗑</button>{% endif %}</span>{% endfor %}
+                {%- if _pfs162|length > 1 %} <button type="button" class="dc150dl po162-rmall" title="이 수주번호의 고객 발주서 {{ _pfs162|length }}장을 모두 빼기(뺄 수 있는 것만) — 목록에서 바로 빠짐 · 파일은 30일 보관 뒤 완전 삭제 · 이력 남음" style="cursor:pointer;color:var(--knk-danger);font-weight:700;">🗑 모두 빼기({{ _pfs162|length }})</button>{% endif %}
                 <span class="po162-msg" style="font-size:11.5px;margin-left:4px;"></span></span>
                 {%- else -%}{{ pchip(s.p) }}{%- endif -%}
               </td>
@@ -2432,17 +2432,17 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
                 if (!one && !all) return;
                 var box = (one || all).closest('.po162'), msg = box.querySelector('.po162-msg');
                 var btns = one ? [one] : Array.prototype.slice.call(box.querySelectorAll('.po162-rm'));
-                if (!btns.length) { msg.style.color = '#b91c1c'; msg.textContent = '⚠ 뺄 수 있는 발주서가 없습니다(올린 사람·기술영업팀만 뺄 수 있습니다)'; return; }
+                if (!btns.length) { msg.style.color = 'var(--knk-danger)'; msg.textContent = '⚠ 뺄 수 있는 발주서가 없습니다(올린 사람·기술영업팀만 뺄 수 있습니다)'; return; }
                 window.z201.remove('po', btns.map(function(b){ return {fid: b.getAttribute('data-fid'), name: b.getAttribute('data-name')}; }),
                   {src: btns[0], where: '이 화면 「고객 발주서」 칸 아래 「뺀 파일」', onClose: function(){ location.reload(); }});
               });
             })();</script>
-            {% else %}<span style="font-size:12px;color:#64748b;">수주가 아직 없습니다 — 견적서·발주서는 수주번호가 생기면 그 수주번호에 올립니다.</span>{% if _d150 and (_d150.pqs or _d150.po.files) %} <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip">⬇ 한꺼번에 받기(zip)</a>{% endif %}{% endif %}
+            {% else %}<span style="font-size:12px;color:var(--knk-text-muted);">수주가 아직 없습니다 — 견적서·발주서는 수주번호가 생기면 그 수주번호에 올립니다.</span>{% if _d150 and (_d150.pqs or _d150.po.files) %} <a class="dc150zip" href="/projects/{{ p.id }}/docs.zip">⬇ 한꺼번에 받기(zip)</a>{% endif %}{% endif %}
           </dd>
           {% endif %}
           {# 조건부: 최종 고객(2단계)·연관 관리번호. v5H226z814(대표 지시): 각인 제거 · 자료 경로는 항상 표시(모두 포함) #}
-          {% if _hso %}{% set _hend_inh16 = (_hso.end_customer is none) %}{% set _hend16 = (_hso.end_customer or '') if not _hend_inh16 else ((p.secondary_customer or '') if ((not _hso.customer_id) or _hso.customer_id == p.customer_id) else '') %}{# z1191z153: 비움 = 빈칸 · 안 정함 = 대표값(표시) #}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span> <span class="hso-tag" style="font-size:9.5px;color:#c2410c;font-weight:700;">(수주)</span></dt><dd>🌐 {{ _hend16 or '—' }}{% if _hend_inh16 and _hend16 %} <span style="font-size:10.5px;color:var(--mute);">(대표값)</span>{% endif %}</dd>{% elif p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:#94a3b8;font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}
-          {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:inherit;color:var(--amber-deep);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
+          {% if _hso %}{% set _hend_inh16 = (_hso.end_customer is none) %}{% set _hend16 = (_hso.end_customer or '') if not _hend_inh16 else ((p.secondary_customer or '') if ((not _hso.customer_id) or _hso.customer_id == p.customer_id) else '') %}{# z1191z153: 비움 = 빈칸 · 안 정함 = 대표값(표시) #}<dt>최종 고객<span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;"> (2차)</span> <span class="hso-tag" style="font-size:9.5px;color:var(--knk-brand-hover);font-weight:700;">(수주)</span></dt><dd>🌐 {{ _hend16 or '—' }}{% if _hend_inh16 and _hend16 %} <span style="font-size:10.5px;color:var(--mute);">(대표값)</span>{% endif %}</dd>{% elif p.two_tier_order %}<dt>최종 고객<span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;"> (2차)</span></dt><dd>🌐 {{ p.secondary_customer or '—' }}</dd>{% endif %}
+          {% if parent_project %}<dt>연관 관리번호</dt><dd><a href="/project/{{ parent_project.id }}" style="font-family:inherit;color:var(--knk-brand-hover);font-weight:700;text-decoration:none;">{{ parent_project.mgmt_code|default('#'~parent_project.id) }}</a> <span style="font-size:11px;color:var(--mute);">· {{ parent_project.name }}</span></dd>{% endif %}
           <dt class="fullw">자료 경로</dt><dd class="fullw"><span style="font-size:11.5px;color:var(--ink);word-break:break-all;font-family:monospace;">{{ p.server_path or '—' }}</span></dd>
         </dl>
         {# v5H226z649→z702 (대표 지시): 수주번호는 수주액 분해 목록 각 줄에 줄맞춰 합쳤으므로 별도 목록은 제거.
@@ -2464,7 +2464,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {% set _is_mixed = (currency_mix and currency_mix|length > 1) %}
             {% if _is_mixed %}
               {% for r in currency_mix %}
-              <div>{{ money(r.total, r.currency) }} <span style="font-size:10px;color:#94a3b8;font-weight:500;">({{ r.cnt }}건)</span></div>
+              <div>{{ money(r.total, r.currency) }} <span style="font-size:10px;color:var(--knk-text-muted);font-weight:500;">({{ r.cnt }}건)</span></div>
               {% endfor %}
               {% if proj_fx_bd_z104 and proj_fx_bd_z104.mixed %}<div style="font-size:11px;font-weight:600;margin-top:3px;">{{ _fx.krw_line(proj_fx_bd_z104) }}</div>{% endif %}{# z1191z104 #}
             {% else %}
@@ -2515,8 +2515,8 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {% set _abK = 5 %}
             {% set _abMany = (all_units_sorted|length) > (_abK + 1) %}
             {% if _abMany %}<style>#abList.ab-collapsed > *:nth-child(n+{{ _abK * 4 + 1 }}){display:none!important;}
-            .ab-toggle{display:block;width:100%;margin-top:7px;padding:5px 8px;font-size:11px;font-weight:800;color:#7c4a03;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;cursor:pointer;text-align:center;}
-            .ab-toggle:hover{background:#ffedd5;}</style>{% endif %}
+            .ab-toggle{display:block;width:100%;margin-top:7px;padding:5px 8px;font-size:11px;font-weight:800;color:var(--knk-warning);background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:7px;cursor:pointer;text-align:center;}
+            .ab-toggle:hover{background:var(--knk-warning-subtle);}</style>{% endif %}
             <div class="amt-breakdown{% if _abMany %} ab-collapsed{% endif %}" id="abList" style="margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;">
               {# v5H226z702 (대표 지시): [수주번호 · 형태 · 호기/모델 · 금액] 4열 그리드로 줄맞춤 — 호기마다 그 수주번호가 왼쪽에 정렬. z701 형태 배지·z696 호기 실통화 유지. #}
               {% for u in all_units_sorted %}
@@ -2537,17 +2537,17 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
             {% elif all_units_sorted and (_is_parts_panel or _is_co_panel) %}
             {# v5H226z9: 라인 다수형 — 요약만 표시, 상세는 SO 카드 #}
             <div style="font-size:11px;color:var(--mute);font-weight:500;margin-top:6px;line-height:1.5;border-top:1px dashed var(--line);padding-top:6px;">
-              📦 총 <b style="color:var(--ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:#7c4a03;">[수주 내역]</span> 표 참조
+              📦 총 <b style="color:var(--ink);">{{ all_units_sorted|length }}</b>개 라인 — 상세는 <span style="color:var(--knk-brand-hover);">[수주 내역]</span> 표 참조
             </div>
             {% endif %}
           {% else %}<span title="매출금액은 보기 권한이 있는 분만 보입니다">🔒</span>{% endif %}</dd>
           {# v5H226z195 (대표 지시): 2단계 발주 — 최종 고객 매출(참고·합계제외) + 차액 #}
           {% if p.two_tier_order %}
-          <dt>최종 고객 매출<br><span style="font-size:9px;color:#94a3b8;font-weight:400;">(참고 · 합계 제외)</span></dt>
-          <dd style="font-weight:700;color:#1d4ed8;">{% if can_sales_amt %}
+          <dt>최종 고객 매출<br><span style="font-size:9px;color:var(--knk-text-muted);font-weight:400;">(참고 · 합계 제외)</span></dt>
+          <dd style="font-weight:700;color:var(--knk-info);">{% if can_sales_amt %}
             {% if p.final_amount %}{{ money(p.final_amount, p.currency or 'KRW') }}{% else %}—{% endif %}
             {% if p.final_amount and _displayed_amt %}
-            <div style="font-size:10.5px;color:#64748b;font-weight:500;margin-top:3px;">↳ 차액(법인 가공분) <b>{{ money(p.final_amount - _displayed_amt, p.currency or 'KRW') }}</b></div>
+            <div style="font-size:10.5px;color:var(--knk-text-muted);font-weight:500;margin-top:3px;">↳ 차액(법인 가공분) <b>{{ money(p.final_amount - _displayed_amt, p.currency or 'KRW') }}</b></div>
             {% endif %}
           {% else %}🔒{% endif %}</dd>
           {% endif %}
@@ -2647,10 +2647,10 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
   });
   // v5H186: 호기별 상태 변경 (개별 select)
   function _statusBg(st){
-    if (st === '출하') return ['#dcfce7','#15803d'];
-    if (st === '취소') return ['#fee2e2','#991b1b'];
-    if (st === '보류') return ['#f3f4f6','#6b7280'];
-    return ['#fef3c7','#7c4a03'];  // 진행중
+    if (st === '출하') return ['var(--knk-success-subtle)','var(--knk-success-text)'];
+    if (st === '취소') return ['var(--knk-danger-subtle)','var(--knk-danger-text)'];
+    if (st === '보류') return ['var(--knk-bg-subtle)','var(--knk-text-muted)'];
+    return ['var(--knk-warning-subtle)','var(--knk-warning-text)'];  // 진행중
   }
   // v5H199: 호기 상태 select — 색상만 즉시 갱신, 저장은 [💾 저장] 버튼이 일괄 commit
   document.querySelectorAll('.unit-status-sel').forEach(sel => {
@@ -2696,12 +2696,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
           setTimeout(function(){ if (note) note.textContent = ''; }, 4000);
         } else {
           sel.value = prev;
-          note.style.color = '#b91c1c';
+          note.style.color = 'var(--knk-danger)';
           note.textContent = '⚠ ' + ((j && j.error) || '저장 실패');
         }
       } catch (e) {
         sel.value = prev;
-        note.style.color = '#b91c1c';
+        note.style.color = 'var(--knk-danger)';
         note.textContent = '⚠ 통신 오류';
       }
       sel.disabled = false;
@@ -2731,7 +2731,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     if (!ack) {
       ack = document.createElement('span');
       ack.className = 'bulk-ack';
-      ack.style.cssText = 'margin-left:8px;font-size:11.5px;color:#15803d;font-weight:700;';
+      ack.style.cssText = 'margin-left:8px;font-size:11.5px;color:var(--knk-success);font-weight:700;';
       btn.parentElement.appendChild(ack);
     }
     if (n === 0) {
@@ -2739,7 +2739,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       ack.style.color = 'var(--mute)';
     } else {
       ack.innerHTML = '· ✓ ' + n + '건 적용됨 — <span style="color:var(--knk-red);">[💾 저장] 눌러야 확정</span>';
-      ack.style.color = '#15803d';
+      ack.style.color = 'var(--knk-success)';
     }
     // 카드 상단 토글 버튼이 'unlocked' 상태가 아니면 자동 unlock (저장 가능 상태로 진입)
     var card = btn.closest('.so-card');
@@ -2849,7 +2849,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 {# v5H226: 소모품 엑셀 업로드 모달 #}
 {% if (p.project_type or '')|upper == 'CONSUMABLE' %}
 <div id="coImportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:12px;width:min(720px, 92vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+  <div style="background:var(--knk-bg-surface);border-radius:12px;width:min(720px, 92vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
     <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:15px;font-weight:800;color:var(--ink);">📤 소모품 엑셀 일괄 업로드</div>
       <button type="button" onclick="closeConsumableImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--mute);">✕</button>
@@ -2863,7 +2863,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
         <input type="file" id="coImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
       </div>
       <div id="coImportPreview" style="margin-top:14px;display:none;">
-        <div id="coImportMapping" style="margin-bottom:10px;padding:8px 10px;background:#fef9e6;border:1px solid #f0d97a;border-radius:6px;font-size:11.5px;line-height:1.6;color:#5a4a00;"></div>
+        <div id="coImportMapping" style="margin-bottom:10px;padding:8px 10px;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:6px;font-size:11.5px;line-height:1.6;color:var(--knk-warning);"></div>
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="coImportCount">0</span> 건)<span id="coImportImgCount" style="font-weight:500;color:var(--mute);font-size:11.5px;margin-left:8px;"></span></div>
         <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -2886,7 +2886,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;">
       <button type="button" onclick="closeConsumableImport()" style="padding:8px 16px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
       <button type="button" id="coImportConfirmBtn" onclick="confirmConsumableImport()" disabled
-              style="padding:8px 16px;border:0;background:var(--amber-deep);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
+              style="padding:8px 16px;border:0;background:var(--knk-brand-hover);color:var(--knk-text-inverse);border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
     </div>
   </div>
 </div>
@@ -2930,12 +2930,12 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       const missing = ['part_name','qty'].filter(k => !mp[k]);
       let mapHtml = '<b>📋 헤더 자동 인식</b> (헤더 행 ' + (j.header_row || '?') + ')';
       if (mappedKeys.length){
-        mapHtml += '<br>' + mappedKeys.map(k => `<span style="display:inline-block;margin:2px 4px;padding:2px 7px;background:#fff;border:1px solid #d4b75a;border-radius:4px;"><b>${labels[k]||k}</b> ← ${mp[k].col} <span style="color:#888;">(${mp[k].header || '?'})</span></span>`).join('');
+        mapHtml += '<br>' + mappedKeys.map(k => `<span style="display:inline-block;margin:2px 4px;padding:2px 7px;background:var(--knk-bg-surface);border:1px solid var(--knk-warning-line);border-radius:4px;"><b>${labels[k]||k}</b> ← ${mp[k].col} <span style="color:var(--knk-text-muted);">(${mp[k].header || '?'})</span></span>`).join('');
       }
       if (missing.length){
-        mapHtml += '<br><span style="color:#b91c1c;font-weight:600;">⚠ 미매핑: ' + missing.map(k => labels[k]||k).join(', ') + ' — 헤더 행 또는 컬럼명을 확인해 주세요.</span>';
+        mapHtml += '<br><span style="color:var(--knk-danger);font-weight:600;">⚠ 미매핑: ' + missing.map(k => labels[k]||k).join(', ') + ' — 헤더 행 또는 컬럼명을 확인해 주세요.</span>';
       } else {
-        mapHtml += '<br><span style="color:#666;">매핑이 잘못되었으면 알려 주세요 — 다음 업로드부터 학습 반영합니다.</span>';
+        mapHtml += '<br><span style="color:var(--knk-text-muted);">매핑이 잘못되었으면 알려 주세요 — 다음 업로드부터 학습 반영합니다.</span>';
       }
       mapBox.innerHTML = mapHtml;
       // 이미지 카운트
@@ -3304,24 +3304,24 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     box.className = 'ow117-modal';
     box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;');
     var rows = (j.diffs || []).map(function(d){
-      return '<tr><td style="padding:4px 6px;border-top:1px solid #eee;white-space:nowrap;font-weight:700;">' + d.no + '</td>'
-        + '<td style="padding:4px 6px;border-top:1px solid #eee;">' + _e117(d.name) + '</td>'
-        + '<td style="padding:4px 6px;border-top:1px solid #eee;">' + d.changes.map(function(x){ return '<b>' + _e117(x.f) + '</b> ' + _e117(_v117(x.old)) + ' → <span style="color:#047857;font-weight:700;">' + _e117(_v117(x.new)) + '</span>'; }).join('<br>')
-        + (d.auto ? '<div style="color:#1d4ed8;">↻ 자동 계산: ' + _e117(d.auto) + '</div>' : '')   // z1191z118
-        + (d.warn ? '<div style="color:#b45309;">⚠ ' + _e117(d.warn) + '</div>' : '') + '</td></tr>';
+      return '<tr><td style="padding:4px 6px;border-top:1px solid var(--knk-border-subtle);white-space:nowrap;font-weight:700;">' + d.no + '</td>'
+        + '<td style="padding:4px 6px;border-top:1px solid var(--knk-border-subtle);">' + _e117(d.name) + '</td>'
+        + '<td style="padding:4px 6px;border-top:1px solid var(--knk-border-subtle);">' + d.changes.map(function(x){ return '<b>' + _e117(x.f) + '</b> ' + _e117(_v117(x.old)) + ' → <span style="color:var(--knk-success);font-weight:700;">' + _e117(_v117(x.new)) + '</span>'; }).join('<br>')
+        + (d.auto ? '<div style="color:var(--knk-info);">↻ 자동 계산: ' + _e117(d.auto) + '</div>' : '')   // z1191z118
+        + (d.warn ? '<div style="color:var(--knk-warning);">⚠ ' + _e117(d.warn) + '</div>' : '') + '</td></tr>';
     }).join('');
     var chks = (j.checks || []).map(function(c){ return '<div style="padding:2px 0;"><b>' + c.no + '번 ' + _e117(c.name) + '</b> — ' + _e117(c.msgs.join(' · ')) + '</div>'; }).join('');
     var fmt = function(n){ return Number(n || 0).toLocaleString(undefined, {minimumFractionDigits: j.currency === 'KRW' ? 0 : 2, maximumFractionDigits: j.currency === 'KRW' ? 0 : 2}); };
-    box.innerHTML = '<div style="background:#fff;border-radius:10px;max-width:980px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
-      + '<div style="padding:12px 16px;border-bottom:1px solid #eee;position:relative;"><b style="font-size:15px;">📝 값만 고치기 — 바뀌는 줄 확인</b>'
+    box.innerHTML = '<div style="background:var(--knk-bg-surface);border-radius:10px;max-width:980px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
+      + '<div style="padding:12px 16px;border-bottom:1px solid var(--knk-border-subtle);position:relative;"><b style="font-size:15px;">📝 값만 고치기 — 바뀌는 줄 확인</b>'
       + '<button type="button" class="ow117-x" style="position:absolute;right:10px;top:8px;border:0;background:none;font-size:20px;cursor:pointer;">✕</button>'
-      + '<div style="font-size:12.5px;color:#555;margin-top:4px;">전체 ' + j.n_rows + '줄 중 <b style="color:#047857;">' + j.n_changed + '줄</b>이 바뀝니다 · 합계 ' + fmt(j.total_old) + ' → <b>' + fmt(j.total_new) + '</b> ' + _e117(j.currency)
-      + ' · 줄과 세금계산서 발행 기록은 그대로입니다' + (j.closed ? ' · <b style="color:#b91c1c;">' + (j.status === 'PAID' ? '입금 완료' : '계산서 발행') + ' 수주</b>' : '') + '</div></div>'
+      + '<div style="font-size:12.5px;color:var(--knk-text-secondary);margin-top:4px;">전체 ' + j.n_rows + '줄 중 <b style="color:var(--knk-success);">' + j.n_changed + '줄</b>이 바뀝니다 · 합계 ' + fmt(j.total_old) + ' → <b>' + fmt(j.total_new) + '</b> ' + _e117(j.currency)
+      + ' · 줄과 세금계산서 발행 기록은 그대로입니다' + (j.closed ? ' · <b style="color:var(--knk-danger);">' + (j.status === 'PAID' ? '입금 완료' : '계산서 발행') + ' 수주</b>' : '') + '</div></div>'
       + '<div style="overflow:auto;padding:8px 16px;flex:1;">'
-      + (j.n_changed ? '<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:4px 6px;">#</th><th style="text-align:left;padding:4px 6px;">품명</th><th style="text-align:left;padding:4px 6px;">바뀌는 값</th></tr></thead><tbody>' + rows + '</tbody></table>'
-                     : '<div style="padding:16px;color:#555;">바뀌는 값이 없습니다(엑셀과 저장된 값이 같습니다).</div>')
-      + (chks ? '<div style="margin-top:10px;padding:8px 10px;background:#fff1f2;border:1px solid #fca5a5;border-radius:6px;font-size:12.5px;"><b style="color:#b91c1c;">⚠ 고친 뒤에도 확인할 줄 ' + j.checks.length + '개</b> (맞게 넣은 것이면 그대로 두셔도 됩니다)' + chks + '</div>' : '')
-      + '</div><div style="padding:10px 16px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">'
+      + (j.n_changed ? '<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><thead><tr style="background:var(--knk-bg-inset);"><th style="text-align:left;padding:4px 6px;">#</th><th style="text-align:left;padding:4px 6px;">품명</th><th style="text-align:left;padding:4px 6px;">바뀌는 값</th></tr></thead><tbody>' + rows + '</tbody></table>'
+                     : '<div style="padding:16px;color:var(--knk-text-secondary);">바뀌는 값이 없습니다(엑셀과 저장된 값이 같습니다).</div>')
+      + (chks ? '<div style="margin-top:10px;padding:8px 10px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);border-radius:6px;font-size:12.5px;"><b style="color:var(--knk-danger);">⚠ 고친 뒤에도 확인할 줄 ' + j.checks.length + '개</b> (맞게 넣은 것이면 그대로 두셔도 됩니다)' + chks + '</div>' : '')
+      + '</div><div style="padding:10px 16px;border-top:1px solid var(--knk-border-subtle);display:flex;gap:8px;justify-content:flex-end;">'
       + '<button type="button" class="btn-mini ow117-x">취소</button>'
       + (j.n_changed ? '<button type="button" class="btn-mini primary ow117-ok" style="font-weight:700;">이대로 ' + j.n_changed + '줄 고치기</button>' : '')
       + '</div></div>';
@@ -3354,7 +3354,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       var tr = card.querySelector('tr[data-uid="' + a.dataset.uid + '"]'); if(!tr) return;
       var refw = card.closest('.ref-sos-wrap'); if(refw) refw.classList.add('open');
       tr.style.display = ''; tr.scrollIntoView({block: 'center'});
-      tr.style.outline = '3px solid #dc2626'; setTimeout(function(){ tr.style.outline = ''; }, 2500);
+      tr.style.outline = '3px solid var(--knk-brand)'; setTimeout(function(){ tr.style.outline = ''; }, 2500);
     }; });
   });
 })();
@@ -3428,7 +3428,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
   function _tiToast(msg){
     try{
       var t=document.createElement('div'); t.textContent=msg;
-      t.style.cssText='position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:#1f2937;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:100070;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .15s;';
+      t.style.cssText='position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:var(--knk-text-primary);color:var(--knk-text-inverse);padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:100070;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .15s;';
       document.body.appendChild(t); requestAnimationFrame(function(){ t.style.opacity='1'; });
       setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },220); },1800);
     }catch(e){}
@@ -3457,7 +3457,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
   function _tiRender(cell){
     var dv=cell.dataset.date||'', av=cell.dataset.amt||'', ccy=cell.dataset.ccy||'KRW', hasAmt=!!cell.dataset.amtfield;
     if(hasAmt){
-      cell.innerHTML=(dv||av)?('<div>'+(dv||'–')+'</div>'+(av?'<div style="color:#1d4ed8;font-weight:700;">'+_tiFmtAmt(av,ccy)+'</div>':'')):'—';
+      cell.innerHTML=(dv||av)?('<div>'+(dv||'–')+'</div>'+(av?'<div style="color:var(--knk-info);font-weight:700;">'+_tiFmtAmt(av,ccy)+'</div>':'')):'—';
     }else{
       cell.textContent=dv||'—';
     }
@@ -3549,7 +3549,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 {% if (p.project_type or '')|upper == 'NEW_EQUIP' and (p.shipment_form or '')|upper == 'PARTS' %}
 <!-- v5H226z: 부품 형태 출고 (정식 PACKING LIST) 엑셀 업로드 모달 -->
 <div id="partsImportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:12px;width:min(900px, 94vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+  <div style="background:var(--knk-bg-surface);border-radius:12px;width:min(900px, 94vw);max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
     <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:15px;font-weight:800;color:var(--ink);">📤 정식 PACKING LIST 엑셀 업로드 (부품 수출)</div>
       <button type="button" onclick="closePartsImport()" style="background:transparent;border:0;cursor:pointer;font-size:18px;color:var(--mute);">✕</button>
@@ -3557,13 +3557,13 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     <div style="padding:18px;">
       <div style="font-size:12.5px;color:var(--mute);line-height:1.7;margin-bottom:12px;">
         ⓘ <b>정식 PACKING LIST 표준 양식</b> — 헤더 자동 인식: 순번/관리코드/품명/규격/메이커/원산지/출고수량/단가/금액/입고일정 등.<br>
-        <span style="color:#7c4a03;">📥 [엑셀 다운로드]</span> 로 받은 양식을 채워서 업로드하면 라인이 일괄 추가됩니다.
+        <span style="color:var(--knk-warning);">📥 [엑셀 다운로드]</span> 로 받은 양식을 채워서 업로드하면 라인이 일괄 추가됩니다.
       </div>
       <div style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;background:var(--paper-2);">
         <input type="file" id="partsImportFile" accept=".xlsx,.xls" style="display:block;margin:0 auto;">
       </div>
       <div id="partsImportPreview" style="margin-top:14px;display:none;">
-        <div id="partsImportMapping" style="margin-bottom:10px;padding:8px 10px;background:#fef9e6;border:1px solid #f0d97a;border-radius:6px;font-size:11.5px;line-height:1.6;color:#5a4a00;"></div>
+        <div id="partsImportMapping" style="margin-bottom:10px;padding:8px 10px;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:6px;font-size:11.5px;line-height:1.6;color:var(--knk-warning);"></div>
         <div style="font-size:13px;font-weight:700;margin-bottom:8px;">미리보기 (<span id="partsImportCount">0</span> 건)<span id="partsImportImgCount" style="font-weight:500;color:var(--mute);font-size:11.5px;margin-left:8px;"></span></div>
         <div style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:6px;">
           <table style="width:100%;border-collapse:collapse;font-size:11px;">
@@ -3592,7 +3592,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
     <div style="padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;">
       <button type="button" onclick="closePartsImport()" style="padding:8px 16px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-weight:600;">취소</button>
       <button type="button" id="partsImportConfirmBtn" onclick="confirmPartsImport()" disabled
-              style="padding:8px 16px;border:0;background:var(--amber-deep);color:#fff;border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
+              style="padding:8px 16px;border:0;background:var(--knk-brand-hover);color:var(--knk-text-inverse);border-radius:6px;cursor:pointer;font-weight:700;opacity:0.5;">✓ 확정 등록</button>
     </div>
   </div>
 </div>
@@ -3630,7 +3630,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       const labels = {part_name:'품명', qty:'수량', spec:'규격', maker:'메이커', origin:'원산지', box_no:'BOX', unit_price:'단가', amount:'금액', arrival_status:'입고일정', mgmt_code:'관리코드', supplier:'업체명', unit:'단위', no:'순번'};
       const mp = j.mapping || {};
       let mapHtml = '<b>📋 헤더 자동 인식</b> (헤더 행 ' + (j.header_row || '?') + ')<br>';
-      mapHtml += Object.keys(mp).map(k => `<span style="display:inline-block;margin:2px 4px;padding:2px 7px;background:#fff;border:1px solid #d4b75a;border-radius:4px;"><b>${labels[k]||k}</b> ← ${mp[k]}</span>`).join('');
+      mapHtml += Object.keys(mp).map(k => `<span style="display:inline-block;margin:2px 4px;padding:2px 7px;background:var(--knk-bg-surface);border:1px solid var(--knk-warning-line);border-radius:4px;"><b>${labels[k]||k}</b> ← ${mp[k]}</span>`).join('');
       mapBox.innerHTML = mapHtml;
       const _imgPref = j.image_url_prefix || '';
       const tbody = document.getElementById('partsImportRows');
@@ -3704,7 +3704,7 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
       try { target.scrollIntoView({behavior:'smooth', block:'center'}); } catch(_){ target.scrollIntoView(); }
       var prev = target.style.boxShadow;
       target.style.transition = 'box-shadow .35s';
-      target.style.boxShadow = '0 0 0 3px #f0b429, 0 0 22px rgba(240,180,41,.55)';
+      target.style.boxShadow = '0 0 0 3px var(--knk-highlight), 0 0 22px rgba(240,180,41,.55)';
       setTimeout(function(){ target.style.boxShadow = prev; }, 2800);
     }
     setTimeout(go, 400);
@@ -3714,16 +3714,16 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 {# v5H226z872 (대표 지시): 폐기(완전삭제) = 페이지 최하단 오른쪽 '위험 구역'. 실수 클릭 방지 + 출하·세금계산서·수금 이력이면 비활성. #}
 {% if can_sales %}
 <div style="margin:40px 0 16px;display:flex;justify-content:flex-end;">
-  <div style="max-width:440px;border:1px solid #f0b4b4;border-radius:12px;background:#fff5f5;padding:14px 16px;text-align:right;">
-    <div style="font-size:12px;color:#9a3412;font-weight:800;margin-bottom:8px;letter-spacing:.02em;">⚠ 위험 구역</div>
+  <div style="max-width:440px;border:1px solid var(--knk-danger-line);border-radius:12px;background:var(--knk-danger-subtle);padding:14px 16px;text-align:right;">
+    <div style="font-size:12px;color:var(--knk-warning);font-weight:800;margin-bottom:8px;letter-spacing:.02em;">⚠ 위험 구역</div>
     {% if retire_blocked %}
-      <button type="button" class="btn btn-secondary" disabled style="color:#b0b0b0;border-color:#e5e5e5;cursor:not-allowed;background:#f4f4f4;">🗑 폐기 불가</button>
-      <div style="font-size:11.5px;color:#b45309;margin-top:7px;line-height:1.55;">
+      <button type="button" class="btn btn-secondary" disabled style="color:var(--knk-text-muted);border-color:var(--knk-border-subtle);cursor:not-allowed;background:var(--knk-bg-inset);">🗑 폐기 불가</button>
+      <div style="font-size:11.5px;color:var(--knk-warning);margin-top:7px;line-height:1.55;">
         <b>{{ retire_block_reasons|join('·') }}</b> 이력이 있어 완전삭제할 수 없습니다.<br>실거래 기록 보호를 위해 상태를 '취소'로 변경하세요.
       </div>
     {% else %}
-      <button type="button" class="btn btn-secondary" onclick="retireProject()" style="color:#dc2626;border-color:#f0b4b4;">🗑 폐기(완전삭제)</button>
-      <div style="font-size:11.5px;color:#9a3412;margin-top:7px;line-height:1.55;">
+      <button type="button" class="btn btn-secondary" onclick="retireProject()" style="color:var(--knk-danger);border-color:var(--knk-danger-line);">🗑 폐기(완전삭제)</button>
+      <div style="font-size:11.5px;color:var(--knk-warning);margin-top:7px;line-height:1.55;">
         완전삭제(복구 불가) — 경고 확인 + <b>본인 비밀번호 입력</b>이 필요합니다.{% if p.mgmt_code %}<br>관리번호 <b>{{ p.mgmt_code }}</b> 는 봉인되어 다시 사용되지 않습니다.{% endif %}
       </div>
     {% endif %}
@@ -3732,17 +3732,17 @@ tr[data-chk117] > td{background-color:#fff5f5 !important;}</style></head>
 
 {% if not retire_blocked %}
 <div id="retirePwModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;max-width:390px;width:90%;padding:22px 24px;box-shadow:0 12px 44px rgba(0,0,0,.32);">
-    <div style="font-size:15.5px;font-weight:800;color:#b91c1c;margin-bottom:9px;">🗑 완전삭제 — 본인 확인</div>
-    <div style="font-size:12.5px;color:#444;line-height:1.65;margin-bottom:13px;">
+  <div style="background:var(--knk-bg-surface);border-radius:14px;max-width:390px;width:90%;padding:22px 24px;box-shadow:0 12px 44px rgba(0,0,0,.32);">
+    <div style="font-size:15.5px;font-weight:800;color:var(--knk-danger);margin-bottom:9px;">🗑 완전삭제 — 본인 확인</div>
+    <div style="font-size:12.5px;color:var(--knk-text-secondary);line-height:1.65;margin-bottom:13px;">
       이 작업은 <b>되돌릴 수 없습니다.</b> 계속하려면 <b>본인 로그인 비밀번호</b>를 입력하세요.
     </div>
     <input id="retirePwInput" type="password" autocomplete="current-password" placeholder="로그인 비밀번호"
-      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ccc;border-radius:9px;font-size:14px;">
-    <div id="retirePwErr" style="display:none;font-size:12px;color:#dc2626;margin-top:7px;"></div>
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--knk-border-default);border-radius:9px;font-size:14px;">
+    <div id="retirePwErr" style="display:none;font-size:12px;color:var(--knk-danger);margin-top:7px;"></div>
     <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:15px;">
       <button type="button" class="btn btn-secondary" onclick="closeRetirePw()">취소</button>
-      <button type="button" id="retirePwGo" class="btn btn-primary" style="background:#b91c1c;border-color:#b91c1c;" onclick="submitRetirePw()">완전삭제</button>
+      <button type="button" id="retirePwGo" class="btn btn-primary" style="background:var(--knk-danger);border-color:var(--knk-danger);" onclick="submitRetirePw()">완전삭제</button>
     </div>
   </div>
 </div>

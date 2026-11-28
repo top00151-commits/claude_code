@@ -6,59 +6,59 @@
    기존 엑셀 양식과 조작감을 맞춰 도입 거부감↓ (대표 판단). schedule_board.css 와 동일 방식:
    얇은 격자선(셀 아래+오른쪽)·컴팩트 행·셀을 꽉 채우는 입력칸(포커스 시 파란 셀선택)·헤더=paper-2 배경·KNK적 글자·중앙·sticky.
    값 단위: 판매단가/금액=money()로 통화기호($ ) / 입력칸=셀 안 회색 $·%·kg 표기. cf [[knk_qty_price_format]] money(v,ccy)/qtyfmt(z750·절대준수). */
-.ex-grid { border-collapse:separate; border-spacing:0; white-space:nowrap; font-size:12px; min-width:1280px; background:#fff; table-layout:fixed; }
-.ex-grid th, .ex-grid td { border-bottom:1px solid var(--line,#e7e2d6); border-right:1px solid #eee5d4; padding:0; overflow:hidden; }  /* v5H226z953: overflow:hidden 필수 — 컬럼 숨김(폭 0)/폭 좁힘 시 셀 내용이 삐져나오지 않고 접힘(작업일정표 .sched 와 동일) */
-.ex-grid thead th { position:sticky; top:0; z-index:6; background:var(--paper-2,#f4f1e8); color:var(--knk-red,#b0271f); font-size:10.5px; font-weight:700; text-align:center; height:34px; padding:0 5px; white-space:normal; line-height:1.15; }
-.ex-grid tbody td { padding:4px 8px; vertical-align:middle; color:var(--qv-ink,#0f172a); }
-.ex-grid tbody tr:hover > td { background:#f7fbff; }
+.ex-grid { border-collapse:separate; border-spacing:0; white-space:nowrap; font-size:12px; min-width:1280px; background:var(--knk-bg-surface); table-layout:fixed; }
+.ex-grid th, .ex-grid td { border-bottom:1px solid var(--line); border-right:1px solid var(--knk-border-subtle); padding:0; overflow:hidden; }  /* v5H226z953: overflow:hidden 필수 — 컬럼 숨김(폭 0)/폭 좁힘 시 셀 내용이 삐져나오지 않고 접힘(작업일정표 .sched 와 동일) */
+.ex-grid thead th { position:sticky; top:0; z-index:6; background:var(--paper-2); color:var(--knk-red); font-size:10.5px; font-weight:700; text-align:center; height:34px; padding:0 5px; white-space:normal; line-height:1.15; }
+.ex-grid tbody td { padding:4px 8px; vertical-align:middle; color:var(--qv-ink); }
+.ex-grid tbody tr:hover > td { background:var(--knk-info-subtle); }
 .ex-grid td.read { font-weight:600; }
 .ex-grid td.num, .ex-grid td.sale { text-align:right; font-variant-numeric:tabular-nums; }
-.ex-grid td.sale { color:var(--qv-ink-2,#334155); }
+.ex-grid td.sale { color:var(--qv-ink-2); }
 /* 입력칸 = 셀을 꽉 채움(엑셀 셀). 평소 테두리 없음(격자선이 경계) → 포커스 시 파란 셀선택(작업일정표 편집 셀과 동일). */
 .ex-grid td.inp { padding:0; position:relative; }
-.ex-grid td.inp:hover { background:#dbeafe; box-shadow:inset 0 0 0 1px #3b82f6; }
-.ex-grid td.inp:focus-within { background:#bfdbfe; box-shadow:inset 0 0 0 2px #2563eb; }
-.ex-grid input.exin { width:100%; box-sizing:border-box; border:0; background:transparent; padding:6px 8px; font:inherit; font-size:12px; color:var(--qv-ink,#0f172a); }
+.ex-grid td.inp:hover { background:var(--knk-info-subtle); box-shadow:inset 0 0 0 1px var(--knk-info); }
+.ex-grid td.inp:focus-within { background:var(--knk-info-line); box-shadow:inset 0 0 0 2px var(--knk-info); }
+.ex-grid input.exin { width:100%; box-sizing:border-box; border:0; background:transparent; padding:6px 8px; font:inherit; font-size:12px; color:var(--qv-ink); }
 .ex-grid input.exin.num { text-align:right; }
-.ex-grid input.exin::placeholder { color:#c4ccd6; }
+.ex-grid input.exin::placeholder { color:var(--knk-text-muted); }
 /* 셀 안 단위 표기 — 회색 소자($ 앞 · %·kg 뒤) */
-.ex-grid td.uc .uaf { position:absolute; top:0; height:100%; display:flex; align-items:center; color:#94a3b8; font-size:10px; font-style:normal; pointer-events:none; }
+.ex-grid td.uc .uaf { position:absolute; top:0; height:100%; display:flex; align-items:center; color:var(--knk-text-muted); font-size:10px; font-style:normal; pointer-events:none; }
 .ex-grid td.uc.pre .uaf { left:6px; }
 .ex-grid td.uc.suf .uaf { right:6px; }
 .ex-grid td.uc.pre input.exin { padding-left:15px; }
 .ex-grid td.uc.suf input.exin { padding-right:20px; text-align:right; }
-.ex-grid tr.dirty td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
+.ex-grid tr.dirty td:first-child { box-shadow:inset 3px 0 0 var(--knk-highlight); }
 /* v5H226z966: AI 추정 행 — 노란 배경('검토 필요' 표시. 저장 전까지 반영 안 됨) */
-.ex-grid tr.ai-sug td.inp { background:#fef9c3; }
-.ex-grid tr.ai-sug td:first-child { box-shadow:inset 3px 0 0 #eab308; }
-.ex-sect-h { margin:16px 0 8px; font-size:13.5px; font-weight:800; color:var(--qv-ink-2,#334155); }
+.ex-grid tr.ai-sug td.inp { background:var(--knk-warning-subtle); }
+.ex-grid tr.ai-sug td:first-child { box-shadow:inset 3px 0 0 var(--knk-warning-line); }
+.ex-sect-h { margin:16px 0 8px; font-size:13.5px; font-weight:800; color:var(--qv-ink-2); }
 .ex-note { font-size:11.5px; color:var(--mute); margin-top:10px; line-height:1.6; }
-.bulk-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; padding:11px 13px; background:#eef6ff; border:1px solid #b9d2ff; border-radius:9px; margin:6px 0 14px; }
+.bulk-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; padding:11px 13px; background:var(--knk-info-subtle); border:1px solid var(--knk-info-line); border-radius:9px; margin:6px 0 14px; }
 .bulk-bar .f { display:flex; flex-direction:column; gap:3px; }
-.bulk-bar .f label { font-size:11px; font-weight:700; color:#1e40af; }
-.bulk-bar .f input { padding:6px 8px; border:1px solid #b9d2ff; border-radius:6px; font-size:12.5px; }
+.bulk-bar .f label { font-size:11px; font-weight:700; color:var(--knk-info); }
+.bulk-bar .f input { padding:6px 8px; border:1px solid var(--knk-info-line); border-radius:6px; font-size:12.5px; }
 .bulk-bar button { padding:7px 13px; border-radius:7px; font-size:12.5px; font-weight:700; cursor:pointer; border:1px solid; }
-.bulk-bar .apply { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
-.bulk-bar .fill { background:#fff; color:#1d4ed8; border-color:#b9d2ff; }
-.pmodel { display:block; font-size:10px; color:#94a3b8; font-weight:500; margin-top:1px; }
+.bulk-bar .apply { background:var(--knk-info); color:var(--knk-text-inverse); border-color:var(--knk-info); }
+.bulk-bar .fill { background:var(--knk-bg-surface); color:var(--knk-info); border-color:var(--knk-info-line); }
+.pmodel { display:block; font-size:10px; color:var(--knk-text-muted); font-weight:500; margin-top:1px; }
 /* v5H226z951 (대표 지시·2단계): 통관 표 컬럼 폭조절·숨김·순서(작업일정표식). table-layout:fixed + colgroup 폭(px)로 한 칸 조정해도 다른 칸 불변. th-wrap 안 그립(순서)·리사이저(폭). */
 .ex-grid thead th { padding:0; }
 .ex-grid .th-wrap { position:relative; display:flex; align-items:center; justify-content:center; gap:2px; height:34px; padding:0 11px 0 5px; box-sizing:border-box; white-space:nowrap; overflow:hidden; }
-.ex-grid .col-grip { cursor:grab; color:#c9b79a; font-size:11px; line-height:1; user-select:none; -webkit-user-drag:element; }
-.ex-grid .col-grip:hover { color:var(--knk-red,#b0271f); }
+.ex-grid .col-grip { cursor:grab; color:var(--knk-text-muted); font-size:11px; line-height:1; user-select:none; -webkit-user-drag:element; }
+.ex-grid .col-grip:hover { color:var(--knk-red); }
 .ex-grid .col-grip:active { cursor:grabbing; }
 .ex-grid .col-resizer { position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
 .ex-grid .col-resizer:hover { background:rgba(176,16,16,.25); }
 .ex-grid th.col-dragging { opacity:.45; }
-.ex-grid th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 #2563eb; }
+.ex-grid th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 var(--knk-info); }
 .ex-grid th.col-collapsed, .ex-grid td.col-collapsed { padding:0 !important; border-right:0 !important; }
 .ex-grid th.col-collapsed .th-wrap { padding:0; }
 .excol-bar { display:flex; align-items:center; gap:8px; margin:2px 0 8px; flex-wrap:wrap; }
-.excol-btn { padding:5px 12px; border:1px solid #d9cfbe; border-radius:7px; background:#fff; font-size:12px; font-weight:700; color:var(--qv-ink-2,#334155); cursor:pointer; }
-.excol-btn:hover { border-color:var(--knk-red,#b0271f); color:var(--knk-red,#b0271f); }
-.excol-panel { border:1px solid #e2ddd0; border-radius:9px; background:#fff; padding:10px 12px; margin:0 0 10px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
+.excol-btn { padding:5px 12px; border:1px solid var(--knk-border-subtle); border-radius:7px; background:var(--knk-bg-surface); font-size:12px; font-weight:700; color:var(--qv-ink-2); cursor:pointer; }
+.excol-btn:hover { border-color:var(--knk-red); color:var(--knk-red); }
+.excol-panel { border:1px solid var(--knk-border-subtle); border-radius:9px; background:var(--knk-bg-surface); padding:10px 12px; margin:0 0 10px; box-shadow:0 4px 14px rgba(0,0,0,.06); }
 .excol-panel .excol-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:2px 14px; margin-bottom:8px; }
-.excol-hint { font-size:11px; color:var(--mute,#94a3b8); }
+.excol-hint { font-size:11px; color:var(--mute); }
 /* z1009 (대표 지시): 통관 표 = 화면 남은 높이 자동 채움 — 노트북(13")~데스크탑(30") 모니터 크기에 자동 적응.
    공용 자동높이 헬퍼(_v5_partials/knk_autofill.html · data-knk-fill="grow")가 표의 실제 시작위치를 재서 화면 아래까지 채운다.
    이 CSS는 JS가 안 돌 때의 안전 폴백: ①최소 높이 보장(flex 눌림 방지) ②표가 화면보다 크면 페이지가 스크롤(잘림 방지). */
@@ -72,16 +72,16 @@
   <div class="page-head" data-dn="page-head">
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/export/prep">출하 전 수출 정리</a> · <b>{{ p.mgmt_code|default('—') }}</b></div>
-      <h1 class="page-title" data-dn="title">🚢 {{ p.name }} <em>통관 입력</em></h1>
+      <h1 class="page-title" data-dn="title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>{{ p.name }} <em>통관 입력</em></h1>
       <div class="page-meta" style="margin-top:6px;letter-spacing:0;text-transform:none;font-size:12px;color:var(--mute);">
         {# z1191z165 (대표 11-27): 고객사·모델·납기 = 수주마다(관리번호에는 고객사가 없다) · 여럿이면 「외 N곳」(마우스 올리면 전부) · 취소 수주는 빼고 그 수를 밝힘 #}
         {% set _s165 = s165|default(none) or z165_so(p.id) %}
-        고객사 <span title="수주별 1차 고객사: {{ _s165.cust_all or '—' }}">{{ _s165.cust_txt or '—' }}</span>{% if _s165.n_cust_missing %} <span style="color:#b45309;">(고객 미정 수주 {{ _s165.n_cust_missing }}건)</span>{% endif %}
-        {% if _s165.models %} · 모델 <span title="{{ _s165.models|join(' · ') }}">{{ _s165.model_txt }}</span>{% elif p.model_name %} · 모델 {{ p.model_name }} <span style="color:#94a3b8;">(처음 등록 때 값)</span>{# z165-ok #}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
-        {% if _s165.n_cancelled %} · <span style="color:#64748b;">취소 수주 {{ _s165.n_cancelled }}건 숨김</span>{% endif %}
+        고객사 <span title="수주별 1차 고객사: {{ _s165.cust_all or '—' }}">{{ _s165.cust_txt or '—' }}</span>{% if _s165.n_cust_missing %} <span style="color:var(--knk-warning);">(고객 미정 수주 {{ _s165.n_cust_missing }}건)</span>{% endif %}
+        {% if _s165.models %} · 모델 <span title="{{ _s165.models|join(' · ') }}">{{ _s165.model_txt }}</span>{% elif p.model_name %} · 모델 {{ p.model_name }} <span style="color:var(--knk-text-muted);">(처음 등록 때 값)</span>{# z165-ok #}{% endif %}{% if p.equip_name %} · {{ p.equip_name }}{% endif %}
+        {% if _s165.n_cancelled %} · <span style="color:var(--knk-text-muted);">취소 수주 {{ _s165.n_cancelled }}건 숨김</span>{% endif %}
         {% set _ccys155 = (sos|default([], true))|map(attribute='currency')|select|map('upper')|unique|list %}
-        · 통화 <b>{{ (_ccys155|join(' · ')) if _ccys155 else p.currency|default('KRW') }}</b>{% if _ccys155|length > 1 %} <span style="color:#b45309;">(수주마다 다름 · 줄마다 그 수주 통화)</span>{% endif %}{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
-        · 납기 {{ _s165.due_txt or '—' }} · <b style="color:#c2410c;">인보이스 금액은 USD 기준</b>
+        · 통화 <b>{{ (_ccys155|join(' · ')) if _ccys155 else p.currency|default('KRW') }}</b>{% if _ccys155|length > 1 %} <span style="color:var(--knk-warning);">(수주마다 다름 · 줄마다 그 수주 통화)</span>{% endif %}{% if p.fx_rate %} · 환율 {{ '{:,.2f}'.format(p.fx_rate) }}{% endif %}
+        · 납기 {{ _s165.due_txt or '—' }} · <b style="color:var(--knk-warning);">인보이스 금액은 USD 기준</b>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -89,15 +89,15 @@
       {# z1191z166 (대표 11-27): 서류 = 수주별 — 고른 수주(하나뿐이면 그 수주)로 · 수출 수주가 여럿이고 안 골랐으면 「수주 고르기」 화면이 열림 #}
       {% set _q166 = ('?so=' ~ sel166.id) if sel166 else '' %}
       {% set _t166 = ('수주 ' ~ (sel166.order_no or sel166.id) ~ ' 서류') if sel166 else '수출 수주가 여럿 — 누르면 수주 고르기 화면' %}
-      <a class="btn" href="/export/prep/{{ p.id }}/packing-list{{ _q166 }}" target="_blank" title="{{ _t166 }}" style="border:1px solid #0f172a;background:#0f172a;color:#fff;">📦 패킹리스트</a>
-      <a class="btn" href="/export/prep/{{ p.id }}/packing-list.xlsx{{ _q166 }}" title="{{ _t166 }}" style="border:1px solid #047857;background:#047857;color:#fff;">📥 엑셀</a>
+      <a class="btn" href="/export/prep/{{ p.id }}/packing-list{{ _q166 }}" target="_blank" title="{{ _t166 }}" style="border:1px solid var(--knk-text-primary);background:var(--knk-text-primary);color:var(--knk-text-inverse);">📦 패킹리스트</a>
+      <a class="btn" href="/export/prep/{{ p.id }}/packing-list.xlsx{{ _q166 }}" title="{{ _t166 }}" style="border:1px solid var(--knk-success);background:var(--knk-success);color:var(--knk-text-inverse);">📥 엑셀</a>
       {# v5H226z946 (대표 지시): 인보이스(품목명세 포함) — 인쇄/엑셀. 통관 입력 저장 후 누르면 최신 금액으로 생성. #}
-      <a class="btn" href="/export/prep/{{ p.id }}/invoice{{ _q166 }}" target="_blank" title="{{ _t166 }}" style="border:1px solid #7c3aed;background:#7c3aed;color:#fff;">🧾 인보이스</a>
-      <a class="btn" href="/export/ship/{{ p.id }}/qr/print{{ _q166 }}" target="_blank" title="{{ _t166 }}" style="border:1px solid #1d4ed8;background:#1d4ed8;color:#fff;">🏷 출고 QR</a>
+      <a class="btn" href="/export/prep/{{ p.id }}/invoice{{ _q166 }}" target="_blank" title="{{ _t166 }}" style="border:1px solid var(--knk-cat-violet);background:var(--knk-cat-violet);color:var(--knk-text-inverse);">🧾 인보이스</a>
+      <a class="btn" href="/export/ship/{{ p.id }}/qr/print{{ _q166 }}" target="_blank" title="{{ _t166 }}" style="border:1px solid var(--knk-info);background:var(--knk-info);color:var(--knk-text-inverse);">🏷 출고 QR</a>
       {# v5H226z967: HS 사전 관리(확인 대기·AI 추정 검토·최종파일 업로드) #}
-      <a class="btn" href="/export/hs-dict" style="border:1px solid #7c3aed;color:#7c3aed;background:#fff;">📖 HS 사전</a>
+      <a class="btn" href="/export/hs-dict" style="border:1px solid var(--knk-cat-violet);color:var(--knk-cat-violet);background:var(--knk-bg-surface);">📖 HS 사전</a>
       {# v5H226z968: 신고용 실물 양식(시트 2장 INVOICE+PACKING LIST) — 베트남 전달 파일 그대로 #}
-      <a class="btn" href="/export/prep/{{ p.id }}/invoice-pl.xlsx{{ _q166 }}" title="{{ _t166 }}" style="border:1px solid #b91c1c;background:#b91c1c;color:#fff;">📄 Invoice&amp;PL (신고용)</a>
+      <a class="btn" href="/export/prep/{{ p.id }}/invoice-pl.xlsx{{ _q166 }}" title="{{ _t166 }}" style="border:1px solid var(--knk-danger);background:var(--knk-danger);color:var(--knk-text-inverse);">📄 Invoice&amp;PL (신고용)</a>
     </div>
   </div>
 
@@ -110,22 +110,22 @@
     <button type="button" class="apply" onclick="bulkApply()">⬇ 전 품목 적용</button>
     {# v5H226z966 (대표 지시): HS 사전 자동 채움 — 과거 통관 실적(741종~)으로 빈 칸 채움 + 신규는 AI 추정(노란 표시·검토 후 저장)
        z1191t (대표 2026-10-28 「AI확정 … 앞으로도 기록하지 말고 보류하자」): 신규 AI 추정은 보류 — 사전에 없는 품목은 비워 둔다 #}
-    <button type="button" class="apply" style="background:#7c3aed;border-color:#7c3aed;" onclick="hsAutofill()" title="과거 통관 실적 사전(확정)으로 HS·베트남어명·원산지·세율 빈 칸을 채웁니다. 사전에 없는 신규 품목은 비워 둡니다(AI 추정 보류 — 베트남 법인이 통관 업체에 확인한 HS 를 입력).">🤖 HS 자동 채움</button>
+    <button type="button" class="apply" style="background:var(--knk-cat-violet);border-color:var(--knk-cat-violet);" onclick="hsAutofill()" title="과거 통관 실적 사전(확정)으로 HS·베트남어명·원산지·세율 빈 칸을 채웁니다. 사전에 없는 신규 품목은 비워 둡니다(AI 추정 보류 — 베트남 법인이 통관 업체에 확인한 HS 를 입력).">🤖 HS 자동 채움</button>
     {# v5H226z969 (대표 지적): '계수%'가 어려움 → '가산율%(신고가 올림)' + 실제 숫자 예시로 안내 #}
     <div class="f"><label>가산율% <span style="font-weight:400;">(신고가 올림)</span></label><input id="bulkUplift" inputmode="decimal" style="width:64px;text-align:right;" placeholder="예:16" title="인보이스(신고서)에 적을 단가를 판매단가보다 몇 % 올려 만들지 입력합니다.&#10;예: 16 입력 → 단가 4,000원이면 4,640원을 달러로 바꿔 $3.20 기재.&#10;비우면 판매단가를 그대로 달러로 바꿉니다."></div>
     <button type="button" class="fill" onclick="fillInvoiceFromSale()" title="전 품목의 인보이스단가(USD)를 한 번에 채웁니다 = 판매단가 + 가산율% → 환율로 달러 환산 (통화가 USD면 환산 없이 그대로)">💵 판매단가 → 인보이스단가</button>
-    <span style="font-size:11px;color:#64748b;margin-left:auto;align-self:center;">같은 장비 호기는 한 번에 채우고, 다른 것만 행에서 수정하세요.</span>
+    <span style="font-size:11px;color:var(--knk-text-muted);margin-left:auto;align-self:center;">같은 장비 호기는 한 번에 채우고, 다른 것만 행에서 수정하세요.</span>
   </div>
   <div style="margin:2px 0 12px;font-size:11.5px;color:var(--mute);">💡 통관 입력을 <b>저장</b>한 뒤 <b>패킹리스트</b>를 누르면 입력한 품목·중량·박스로 포장명세서가 만들어집니다.</div>
 
   {# z1191z166 (대표 11-27 「수출 서류는 수주(구매자)별로」): 수주마다 서류 단추 · 내수 수주는 회색 · 관리번호는 늘 함께 #}
   {% set _L166 = L166|default(none) %}
   {% if _L166 %}
-  <div id="so166" style="margin:0 0 12px;border:1px solid #c7d2fe;border-radius:9px;background:#f8faff;padding:10px 14px;">
-    <div style="font-size:13px;font-weight:800;color:#3730a3;margin-bottom:6px;">📄 수주별 수출 서류 <span style="font-weight:500;color:#64748b;font-size:11.5px;">— 관리번호 {{ p.mgmt_code|default('—') }} · 서류는 수주(구매자)마다 따로 만듭니다{% if _L166.doc|length > 1 %} · 수출 수주 {{ _L166.doc|length }}건{% endif %}</span></div>
+  <div id="so166" style="margin:0 0 12px;border:1px solid var(--knk-cat-violet-line);border-radius:9px;background:var(--knk-info-subtle);padding:10px 14px;">
+    <div style="font-size:13px;font-weight:800;color:var(--knk-cat-violet);margin-bottom:6px;">📄 수주별 수출 서류 <span style="font-weight:500;color:var(--knk-text-muted);font-size:11.5px;">— 관리번호 {{ p.mgmt_code|default('—') }} · 서류는 수주(구매자)마다 따로 만듭니다{% if _L166.doc|length > 1 %} · 수출 수주 {{ _L166.doc|length }}건{% endif %}</span></div>
     <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead><tr style="background:#eef2ff;color:#475569;">
+      <thead><tr style="background:var(--knk-cat-violet-subtle);color:var(--knk-text-secondary);">
         <th style="padding:5px 8px;text-align:left;">수주번호</th><th style="padding:5px 8px;text-align:left;">구매자(1차 고객)</th><th style="padding:5px 8px;text-align:left;">통화</th>
         <th style="padding:5px 8px;text-align:right;">수주 금액</th><th style="padding:5px 8px;text-align:right;">품목</th><th style="padding:5px 8px;text-align:left;">납기</th>
         <th style="padding:5px 8px;text-align:left;">거래구분</th><th style="padding:5px 8px;text-align:left;">서류</th>
@@ -134,24 +134,24 @@
       {% set _tcw178 = trade_ccy_warn(p.id) %}{# z1191z178 #}
       {% for o in _L166.orders %}
         {% set _on166 = sel166 and sel166.id == o.id %}
-        <tr style="border-top:1px solid #e0e7ff;{% if not o.doc %}color:#94a3b8;background:#fafafa;{% elif _on166 %}background:#fef9c3;{% endif %}">
-          <td style="padding:5px 8px;font-family:Consolas,monospace;font-weight:800;">{{ o.order_no or ('SO' ~ o.id) }}{% if _on166 %} <span style="font-family:inherit;font-size:10.5px;color:#a16207;font-weight:700;">◀ 서류 정보 보는 중</span>{% endif %}</td>
-          <td style="padding:5px 8px;">{% if o.customer_id %}<b>{{ o.cust or o.buyer }}</b>{% else %}<span style="color:#b45309;font-weight:700;">⚠ 1차 고객 미정</span>{% endif %}</td>
+        <tr style="border-top:1px solid var(--knk-border-subtle);{% if not o.doc %}color:var(--knk-text-muted);background:var(--knk-bg-inset);{% elif _on166 %}background:var(--knk-warning-subtle);{% endif %}">
+          <td style="padding:5px 8px;font-family:Consolas,monospace;font-weight:800;">{{ o.order_no or ('SO' ~ o.id) }}{% if _on166 %} <span style="font-family:inherit;font-size:10.5px;color:var(--knk-warning);font-weight:700;">◀ 서류 정보 보는 중</span>{% endif %}</td>
+          <td style="padding:5px 8px;">{% if o.customer_id %}<b>{{ o.cust or o.buyer }}</b>{% else %}<span style="color:var(--knk-warning);font-weight:700;">⚠ 1차 고객 미정</span>{% endif %}</td>
           <td style="padding:5px 8px;"><b>{{ o.currency }}</b></td>
           <td style="padding:5px 8px;text-align:right;white-space:nowrap;">{% if can_money %}{{ money(o.total_amount, o.currency) }}{% else %}—{% endif %}</td>
           <td style="padding:5px 8px;text-align:right;">{{ o.n_items }}</td>
           <td style="padding:5px 8px;">{{ o.due_date or '—' }}</td>
-          <td style="padding:5px 8px;">{{ o.trade or '미기재' }}{% if o.why %}<div style="font-size:10.5px;color:#94a3b8;">{{ o.why }}</div>{% endif %}{% set _tcw = _tcw178.get(o.id) %}{% set _tcw_small = true %}{% include "_v5_partials/trade_ccy_warn.html" %}</td>
+          <td style="padding:5px 8px;">{{ o.trade or '미기재' }}{% if o.why %}<div style="font-size:10.5px;color:var(--knk-text-muted);">{{ o.why }}</div>{% endif %}{% set _tcw = _tcw178.get(o.id) %}{% set _tcw_small = true %}{% include "_v5_partials/trade_ccy_warn.html" %}</td>
           <td style="padding:5px 8px;">
             {% if o.doc %}
             <span style="display:inline-flex;gap:4px;flex-wrap:wrap;">
-              <a href="/export/prep/{{ p.id }}/packing-list?so={{ o.id }}" target="_blank" style="padding:2px 8px;border-radius:5px;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;">📦 PL</a>
-              <a href="/export/prep/{{ p.id }}/invoice?so={{ o.id }}" target="_blank" style="padding:2px 8px;border-radius:5px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;">🧾 CI</a>
-              <a href="/export/prep/{{ p.id }}/packing-list.xlsx?so={{ o.id }}" style="padding:2px 8px;border-radius:5px;border:1px solid #047857;color:#047857;text-decoration:none;font-weight:700;">PL 엑셀</a>
-              <a href="/export/prep/{{ p.id }}/invoice.xlsx?so={{ o.id }}" style="padding:2px 8px;border-radius:5px;border:1px solid #047857;color:#047857;text-decoration:none;font-weight:700;">CI 엑셀</a>
-              <a href="/export/prep/{{ p.id }}/invoice-pl.xlsx?so={{ o.id }}" style="padding:2px 8px;border-radius:5px;background:#b91c1c;color:#fff;text-decoration:none;font-weight:700;">📄 신고용</a>
-              <a href="/export/ship/{{ p.id }}/qr/print?so={{ o.id }}" target="_blank" style="padding:2px 8px;border-radius:5px;border:1px solid #1d4ed8;color:#1d4ed8;text-decoration:none;font-weight:700;">🏷 QR</a>
-              {% if not _on166 %}<a href="/export/prep/{{ p.id }}?so={{ o.id }}#dm166" style="padding:2px 8px;border-radius:5px;border:1px solid #b91c1c;color:#b91c1c;text-decoration:none;font-weight:700;" title="이 수주의 신고 서류 정보(받는 곳·선적 정보 등)를 보고 고칩니다">🧾 서류 정보</a>{% endif %}
+              <a href="/export/prep/{{ p.id }}/packing-list?so={{ o.id }}" target="_blank" style="padding:2px 8px;border-radius:5px;background:var(--knk-text-primary);color:var(--knk-text-inverse);text-decoration:none;font-weight:700;">📦 PL</a>
+              <a href="/export/prep/{{ p.id }}/invoice?so={{ o.id }}" target="_blank" style="padding:2px 8px;border-radius:5px;background:var(--knk-cat-violet);color:var(--knk-text-inverse);text-decoration:none;font-weight:700;">🧾 CI</a>
+              <a href="/export/prep/{{ p.id }}/packing-list.xlsx?so={{ o.id }}" style="padding:2px 8px;border-radius:5px;border:1px solid var(--knk-success);color:var(--knk-success);text-decoration:none;font-weight:700;">PL 엑셀</a>
+              <a href="/export/prep/{{ p.id }}/invoice.xlsx?so={{ o.id }}" style="padding:2px 8px;border-radius:5px;border:1px solid var(--knk-success);color:var(--knk-success);text-decoration:none;font-weight:700;">CI 엑셀</a>
+              <a href="/export/prep/{{ p.id }}/invoice-pl.xlsx?so={{ o.id }}" style="padding:2px 8px;border-radius:5px;background:var(--knk-danger);color:var(--knk-text-inverse);text-decoration:none;font-weight:700;">📄 신고용</a>
+              <a href="/export/ship/{{ p.id }}/qr/print?so={{ o.id }}" target="_blank" style="padding:2px 8px;border-radius:5px;border:1px solid var(--knk-info);color:var(--knk-info);text-decoration:none;font-weight:700;">🏷 QR</a>
+              {% if not _on166 %}<a href="/export/prep/{{ p.id }}?so={{ o.id }}#dm166" style="padding:2px 8px;border-radius:5px;border:1px solid var(--knk-danger);color:var(--knk-danger);text-decoration:none;font-weight:700;" title="이 수주의 신고 서류 정보(받는 곳·선적 정보 등)를 보고 고칩니다">🧾 서류 정보</a>{% endif %}
             </span>
             {% else %}<span style="font-size:11.5px;">내수 — 수출 서류 없음</span>{% endif %}
           </td>
@@ -160,36 +160,36 @@
       </tbody>
     </table>
     </div>
-    {% if _L166.n_cancelled %}<div style="font-size:11px;color:#94a3b8;margin-top:4px;">취소된 수주 {{ _L166.n_cancelled }}건은 뺐습니다.</div>{% endif %}
+    {% if _L166.n_cancelled %}<div style="font-size:11px;color:var(--knk-text-muted);margin-top:4px;">취소된 수주 {{ _L166.n_cancelled }}건은 뺐습니다.</div>{% endif %}
   </div>
   {% endif %}
 
   {# v5H226z968 (대표 지시): 신고 서류 정보 — 실물 Invoice&PL 헤더블록(수신처·항구·선적일·INCOTERMS 등). 저장 후 [📄 Invoice&PL] 파일에 반영
      z1191z166: 수주별로 저장 — 수출 수주가 여럿이면 위 표에서 「🧾 서류 정보」로 수주를 고른 뒤 #}
   {% if not dm %}
-  <div id="dm166" style="margin:0 0 14px;border:1px dashed #f3d4d4;border-radius:9px;background:#fffafa;padding:10px 14px;font-size:12.5px;color:#92400e;">
+  <div id="dm166" style="margin:0 0 14px;border:1px dashed var(--knk-danger-line);border-radius:9px;background:var(--knk-danger-subtle);padding:10px 14px;font-size:12.5px;color:var(--knk-warning);">
     🧾 <b>신고 서류 정보 (인보이스 헤더)</b> — 👉 수출 수주가 여럿입니다. 위 표에서 서류를 만들 수주 줄의 <b>「🧾 서류 정보」</b>를 눌러 고른 뒤 그 수주의 받는 곳·선적 정보를 적으세요. (수주마다 따로 저장됩니다)
   </div>
   {% else %}
-  <details id="dm166" {% if request.query_params.get('so') %}open{% endif %} style="margin:0 0 14px;border:1px solid #f3d4d4;border-radius:9px;background:#fffafa;">
-    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:#b91c1c;">🧾 신고 서류 정보 (인보이스 헤더) — 수주 <span style="font-family:Consolas,monospace;">{{ sel166.order_no or sel166.id }}</span>{% if sel166.cust %} · {{ sel166.cust }}{% endif %} — Invoice No <span style="font-family:Consolas,monospace;">{{ dm.invoice_no }}</span> · {{ dm.incoterms }} <span style="font-weight:500;color:#94a3b8;">(클릭해 펼치기 · 저장하면 이 수주의 [📄 Invoice&amp;PL] 파일에 들어갑니다)</span></summary>
-    {% if dm._src == 'old' %}<div style="margin:0 14px 6px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:7px;font-size:12px;color:#92400e;">⏳ 아직 이 수주 값으로 저장하지 않았습니다 — 예전에 <b>관리번호 하나로 저장한 값</b>을 처음 값으로 보여 드립니다{% if sel166.n_doc > 1 %}(Invoice No 는 겹치지 않게 끝에 -{{ sel166.seq }} 을 붙였습니다){% endif %}. 맞는지 보시고 「💾 서류 정보 저장」을 누르면 이 수주 값으로 저장됩니다.</div>
-    {% elif dm._src == 'new' %}<div style="margin:0 14px 6px;font-size:11.5px;color:#64748b;">아직 저장한 값이 없어 기본값(받는 곳 = 이 수주 구매자)으로 채웠습니다 — 저장해야 남습니다.</div>{% endif %}
-    {% if dm._consignee_warn %}<div style="margin:0 14px 6px;padding:6px 10px;border:1px solid #fca5a5;background:#fef2f2;border-radius:7px;font-size:12px;color:#b91c1c;">⚠ 받는 곳(Consignee)에 이 수주 구매자 「{{ sel166.buyer }}」 이름이 보이지 않습니다 — 다른 수주 구매자가 아닌지 확인하세요(막지는 않습니다).</div>{% endif %}
+  <details id="dm166" {% if request.query_params.get('so') %}open{% endif %} style="margin:0 0 14px;border:1px solid var(--knk-danger-line);border-radius:9px;background:var(--knk-danger-subtle);">
+    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:var(--knk-danger);">🧾 신고 서류 정보 (인보이스 헤더) — 수주 <span style="font-family:Consolas,monospace;">{{ sel166.order_no or sel166.id }}</span>{% if sel166.cust %} · {{ sel166.cust }}{% endif %} — Invoice No <span style="font-family:Consolas,monospace;">{{ dm.invoice_no }}</span> · {{ dm.incoterms }} <span style="font-weight:500;color:var(--knk-text-muted);">(클릭해 펼치기 · 저장하면 이 수주의 [📄 Invoice&amp;PL] 파일에 들어갑니다)</span></summary>
+    {% if dm._src == 'old' %}<div style="margin:0 14px 6px;padding:6px 10px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:7px;font-size:12px;color:var(--knk-warning);">⏳ 아직 이 수주 값으로 저장하지 않았습니다 — 예전에 <b>관리번호 하나로 저장한 값</b>을 처음 값으로 보여 드립니다{% if sel166.n_doc > 1 %}(Invoice No 는 겹치지 않게 끝에 -{{ sel166.seq }} 을 붙였습니다){% endif %}. 맞는지 보시고 「💾 서류 정보 저장」을 누르면 이 수주 값으로 저장됩니다.</div>
+    {% elif dm._src == 'new' %}<div style="margin:0 14px 6px;font-size:11.5px;color:var(--knk-text-muted);">아직 저장한 값이 없어 기본값(받는 곳 = 이 수주 구매자)으로 채웠습니다 — 저장해야 남습니다.</div>{% endif %}
+    {% if dm._consignee_warn %}<div style="margin:0 14px 6px;padding:6px 10px;border:1px solid var(--knk-danger-line);background:var(--knk-danger-subtle);border-radius:7px;font-size:12px;color:var(--knk-danger);">⚠ 받는 곳(Consignee)에 이 수주 구매자 「{{ sel166.buyer }}」 이름이 보이지 않습니다 — 다른 수주 구매자가 아닌지 확인하세요(막지는 않습니다).</div>{% endif %}
     <div style="padding:4px 14px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;" id="dmForm" data-so="{{ sel166.id }}">
-      <label style="font-size:11px;color:#64748b;">Invoice No<input name="invoice_no" value="{{ dm.invoice_no|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">Invoice 날짜<input name="invoice_date" type="date" value="{{ (dm.invoice_date or '')[:10] }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">선적 예정일 (Sailing)<input name="sailing_date" type="date" value="{{ (dm.sailing_date or '')[:10] }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">운송사 (Carrier)<input name="carrier" value="{{ (dm.carrier or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;grid-column:1/3;">수신처 (Consignee — 회사명·주소 여러 줄)<textarea name="consignee" rows="4" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;resize:vertical;">{{ (dm.consignee or '')|e }}</textarea></label>
-      <label style="font-size:11px;color:#64748b;">Notify Party<input name="notify" value="{{ (dm.notify or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">INCOTERMS<input name="incoterms" value="{{ (dm.incoterms or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">선적항 (Port of Loading)<input name="port_loading" value="{{ (dm.port_loading or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">도착지 (Final Destination)<input name="final_dest" value="{{ (dm.final_dest or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">결제 (Payment)<input name="payment" value="{{ (dm.payment or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">L/C No<input name="lc_no" value="{{ (dm.lc_no or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;">발행은행 (Issuing Bank)<input name="issuing_bank" value="{{ (dm.issuing_bank or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
-      <label style="font-size:11px;color:#64748b;grid-column:1/4;">Remarks<input name="remarks" value="{{ (dm.remarks or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid #e2ddd0;border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">Invoice No<input name="invoice_no" value="{{ dm.invoice_no|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">Invoice 날짜<input name="invoice_date" type="date" value="{{ (dm.invoice_date or '')[:10] }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">선적 예정일 (Sailing)<input name="sailing_date" type="date" value="{{ (dm.sailing_date or '')[:10] }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">운송사 (Carrier)<input name="carrier" value="{{ (dm.carrier or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);grid-column:1/3;">수신처 (Consignee — 회사명·주소 여러 줄)<textarea name="consignee" rows="4" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;resize:vertical;">{{ (dm.consignee or '')|e }}</textarea></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">Notify Party<input name="notify" value="{{ (dm.notify or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">INCOTERMS<input name="incoterms" value="{{ (dm.incoterms or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">선적항 (Port of Loading)<input name="port_loading" value="{{ (dm.port_loading or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">도착지 (Final Destination)<input name="final_dest" value="{{ (dm.final_dest or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">결제 (Payment)<input name="payment" value="{{ (dm.payment or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">L/C No<input name="lc_no" value="{{ (dm.lc_no or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);">발행은행 (Issuing Bank)<input name="issuing_bank" value="{{ (dm.issuing_bank or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
+      <label style="font-size:11px;color:var(--knk-text-muted);grid-column:1/4;">Remarks<input name="remarks" value="{{ (dm.remarks or '')|e }}" style="width:100%;padding:6px 8px;border:1px solid var(--knk-border-subtle);border-radius:6px;font:inherit;font-size:12.5px;"></label>
       <div style="display:flex;align-items:flex-end;gap:8px;">
         <button type="button" class="btn btn-primary" onclick="dmSave()" id="dmSaveBtn" style="padding:8px 18px;">💾 서류 정보 저장</button>
         <span id="dmMsg" style="font-size:12px;"></span>
@@ -200,40 +200,40 @@
 
   {# v5H226z970 (대표 지시): 박스별 무게·크기 — 실무는 부품별이 아니라 '박스 단위' 계량. 표의 '박스' 칸 번호를 자동 수집 → 박스마다 무게만 입력. 신고용 패킹리스트가 이 무게를 우선 사용. #}
   {% if box_src == 'pick' %}{# z1191z177: 박스 무게 = 수주마다 — 수출 수주가 여럿이면 먼저 고름 #}
-  <div style="margin:0 0 14px;border:1px dashed #b9d2ff;border-radius:9px;background:#fbfdff;padding:10px 14px;font-size:12.5px;color:#1e3a8a;">📦 <b>박스별 무게·크기</b> — 👉 수출 수주가 여럿입니다. 위 「수주별 수출 서류」 표에서 수주 줄의 「🧾 서류 정보」를 눌러 고르면, 그 수주의 박스 무게를 적습니다.</div>
+  <div style="margin:0 0 14px;border:1px dashed var(--knk-info-line);border-radius:9px;background:var(--knk-info-subtle);padding:10px 14px;font-size:12.5px;color:var(--knk-info);">📦 <b>박스별 무게·크기</b> — 👉 수출 수주가 여럿입니다. 위 「수주별 수출 서류」 표에서 수주 줄의 「🧾 서류 정보」를 눌러 고르면, 그 수주의 박스 무게를 적습니다.</div>
   {% else %}
-  <details style="margin:0 0 14px;border:1px solid #b9d2ff;border-radius:9px;background:#fbfdff;"{% if box_src == 'old' %} open{% endif %}>
-    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:#1d4ed8;">📦 박스별 무게·크기{% if sel166 %} — 수주 <span style="font-family:Consolas,monospace;">{{ sel166.order_no }}</span>{% endif %} — <span id="bxHead">{{ boxes|length }}박스 등록됨</span> <span style="font-weight:500;color:#94a3b8;">(부품별 중량 대신 박스 단위로 — 저장하면 [📄 Invoice&amp;PL] 패킹리스트에 사용)</span></summary>
+  <details style="margin:0 0 14px;border:1px solid var(--knk-info-line);border-radius:9px;background:var(--knk-info-subtle);"{% if box_src == 'old' %} open{% endif %}>
+    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:800;color:var(--knk-info);">📦 박스별 무게·크기{% if sel166 %} — 수주 <span style="font-family:Consolas,monospace;">{{ sel166.order_no }}</span>{% endif %} — <span id="bxHead">{{ boxes|length }}박스 등록됨</span> <span style="font-weight:500;color:var(--knk-text-muted);">(부품별 중량 대신 박스 단위로 — 저장하면 [📄 Invoice&amp;PL] 패킹리스트에 사용)</span></summary>
     <div style="padding:4px 14px 12px;">
-      {% if box_src == 'old' %}<div style="margin:0 0 8px;padding:6px 10px;border:1px solid #fcd34d;background:#fffbeb;border-radius:7px;font-size:12px;color:#92400e;">⏳ 아직 이 수주로 저장한 박스 무게가 없어, 예전(관리번호 하나로 적던) 값 가운데 이 수주 품목 박스만 보여 줍니다 — 확인하고 「💾 박스 저장」을 누르면 이 수주 것으로 저장됩니다.</div>{% endif %}
-      <div style="font-size:11.5px;color:#475569;margin-bottom:8px;line-height:1.7;">
+      {% if box_src == 'old' %}<div style="margin:0 0 8px;padding:6px 10px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:7px;font-size:12px;color:var(--knk-warning);">⏳ 아직 이 수주로 저장한 박스 무게가 없어, 예전(관리번호 하나로 적던) 값 가운데 이 수주 품목 박스만 보여 줍니다 — 확인하고 「💾 박스 저장」을 누르면 이 수주 것으로 저장됩니다.</div>{% endif %}
+      <div style="font-size:11.5px;color:var(--knk-text-secondary);margin-bottom:8px;line-height:1.7;">
         박스 무게는 <b>수주마다</b> 따로 적습니다(같은 관리번호의 다른 수주와 섞이지 않음).
         ① 표의 <b>박스</b> 칸에 품목마다 박스번호(BOX-1, BOX-2…)를 적고 저장 → ② <b>[표에서 박스 불러오기]</b> → ③ 박스마다 <b>무게(kg)</b>·크기만 입력 후 저장.
         부품별 중량은 몰라도 됩니다 — 안 쓰는 '중량' 칸은 [⚙ 컬럼 설정]에서 숨기세요.
       </div>
       <table style="border-collapse:collapse;font-size:12px;" id="bxTbl">
         <thead><tr>
-          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">박스번호</th>
-          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">담긴 품목</th>
-          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">무게(kg)</th>
-          <th style="padding:5px 10px;background:#eef4fb;border:1px solid #d9e6fb;font-size:11px;">크기(가로*세로*높이)</th>
-          <th style="border:1px solid #d9e6fb;"></th>
+          <th style="padding:5px 10px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);font-size:11px;">박스번호</th>
+          <th style="padding:5px 10px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);font-size:11px;">담긴 품목</th>
+          <th style="padding:5px 10px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);font-size:11px;">무게(kg)</th>
+          <th style="padding:5px 10px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);font-size:11px;">크기(가로*세로*높이)</th>
+          <th style="border:1px solid var(--knk-info-line);"></th>
         </tr></thead>
         <tbody id="bxBody">
         {% for b in boxes %}
           <tr>
-            <td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_no" value="{{ (b.box_no or '')|e }}" style="width:110px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>
-            <td class="bx-cnt" style="padding:3px 10px;border:1px solid #e6eefb;text-align:right;color:#64748b;">-</td>
-            <td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_w" inputmode="decimal" value="{{ b.weight_kg if b.weight_kg is not none else '' }}" style="width:80px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;text-align:right;"></td>
-            <td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_sz" value="{{ (b.box_size or '')|e }}" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>
-            <td style="padding:3px 6px;border:1px solid #e6eefb;"><button type="button" onclick="this.closest('tr').remove();bxHeadUpd();" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:13px;">✕</button></td>
+            <td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><input name="bx_no" value="{{ (b.box_no or '')|e }}" style="width:110px;padding:4px 7px;border:1px solid var(--knk-info-line);border-radius:5px;font:inherit;font-size:12px;"></td>
+            <td class="bx-cnt" style="padding:3px 10px;border:1px solid var(--knk-info-line);text-align:right;color:var(--knk-text-muted);">-</td>
+            <td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><input name="bx_w" inputmode="decimal" value="{{ b.weight_kg if b.weight_kg is not none else '' }}" style="width:80px;padding:4px 7px;border:1px solid var(--knk-info-line);border-radius:5px;font:inherit;font-size:12px;text-align:right;"></td>
+            <td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><input name="bx_sz" value="{{ (b.box_size or '')|e }}" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid var(--knk-info-line);border-radius:5px;font:inherit;font-size:12px;"></td>
+            <td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><button type="button" onclick="this.closest('tr').remove();bxHeadUpd();" style="border:none;background:transparent;color:var(--knk-danger);cursor:pointer;font-size:13px;">✕</button></td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
       <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button type="button" class="fill" onclick="bxCollect()" style="padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid #b9d2ff;background:#fff;color:#1d4ed8;">⬇ 표에서 박스 불러오기</button>
-        <button type="button" onclick="bxAddRow()" style="padding:7px 13px;border-radius:7px;font-size:12.5px;cursor:pointer;border:1px dashed #b9d2ff;background:#fff;color:#1d4ed8;">＋ 박스 추가</button>
+        <button type="button" class="fill" onclick="bxCollect()" style="padding:7px 13px;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid var(--knk-info-line);background:var(--knk-bg-surface);color:var(--knk-info);">⬇ 표에서 박스 불러오기</button>
+        <button type="button" onclick="bxAddRow()" style="padding:7px 13px;border-radius:7px;font-size:12.5px;cursor:pointer;border:1px dashed var(--knk-info-line);background:var(--knk-bg-surface);color:var(--knk-info);">＋ 박스 추가</button>
         <button type="button" class="btn btn-primary" onclick="bxSave()" id="bxSaveBtn" style="padding:8px 18px;">💾 박스 저장</button>
         <span id="bxMsg" style="font-size:12px;"></span>
       </div>
@@ -247,7 +247,7 @@
     <span class="excol-hint">헤더의 ⠿ 를 끌어 <b>순서</b> 변경 · 헤더 오른쪽 경계를 끌어 <b>폭</b> 조절 · 아래에서 <b>숨김</b>. (계정별 자동 저장)</span>
   </div>
   <div class="excol-panel" id="exColPanel" hidden>
-    <div style="font-size:12px;font-weight:700;color:var(--qv-ink-2,#334155);margin-bottom:6px;">보이는 컬럼 <span style="font-weight:500;color:var(--mute,#94a3b8);">(체크 해제 = 숨김)</span></div>
+    <div style="font-size:12px;font-weight:700;color:var(--qv-ink-2);margin-bottom:6px;">보이는 컬럼 <span style="font-weight:500;color:var(--mute);">(체크 해제 = 숨김)</span></div>
     <div class="excol-list"></div>
     <button type="button" class="excol-btn" onclick="exColReset()">↺ 기본값으로</button>
   </div>
@@ -260,7 +260,7 @@
     {% set _tcw = trade_ccy_warn(none, [so.id]).get(so.id) if so.id else none %}{% set _tcw_small = false %}{% include "_v5_partials/trade_ccy_warn.html" %}{# z1191z178 #}
     {# v5H226z947→z1009: 표 자체가 세로+가로 스크롤 박스(thead sticky top:0 로 제목행 고정).
        z1009(대표 지시): 높이=화면 남은 공간 자동 채움(data-knk-fill·모니터 크기 자동 적응). 기존 max-height:calc(100vh-290px) 매직넘버는 노트북에서 flex 눌림으로 1~2줄만 보임 → 폐지. #}
-    <div class="tbl-wrap ex-fill" data-knk-fill="grow" style="overflow:auto;border:1px solid #e2e8f0;border-radius:7px;">
+    <div class="tbl-wrap ex-fill" data-knk-fill="grow" style="overflow:auto;border:1px solid var(--knk-border-subtle);border-radius:7px;">
       <table class="ex-grid" id="exGrid">
         <colgroup>
           <col data-col="name" width="190"><col data-col="spec" width="150"><col data-col="qty" width="54">
@@ -492,11 +492,11 @@
   function bxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function bxRowHtml(bn, w, sz){
     return '<tr>'
-      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_no" value="'+bxEsc(bn)+'" style="width:110px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>'
-      +'<td class="bx-cnt" style="padding:3px 10px;border:1px solid #e6eefb;text-align:right;color:#64748b;">-</td>'
-      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_w" inputmode="decimal" value="'+bxEsc(w)+'" style="width:80px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;text-align:right;"></td>'
-      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><input name="bx_sz" value="'+bxEsc(sz)+'" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid #d9e6fb;border-radius:5px;font:inherit;font-size:12px;"></td>'
-      +'<td style="padding:3px 6px;border:1px solid #e6eefb;"><button type="button" onclick="this.closest(\'tr\').remove();bxHeadUpd();" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:13px;">✕</button></td></tr>';
+      +'<td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><input name="bx_no" value="'+bxEsc(bn)+'" style="width:110px;padding:4px 7px;border:1px solid var(--knk-info-line);border-radius:5px;font:inherit;font-size:12px;"></td>'
+      +'<td class="bx-cnt" style="padding:3px 10px;border:1px solid var(--knk-info-line);text-align:right;color:var(--knk-text-muted);">-</td>'
+      +'<td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><input name="bx_w" inputmode="decimal" value="'+bxEsc(w)+'" style="width:80px;padding:4px 7px;border:1px solid var(--knk-info-line);border-radius:5px;font:inherit;font-size:12px;text-align:right;"></td>'
+      +'<td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><input name="bx_sz" value="'+bxEsc(sz)+'" placeholder="1,100*1,100*1,700(H)" style="width:180px;padding:4px 7px;border:1px solid var(--knk-info-line);border-radius:5px;font:inherit;font-size:12px;"></td>'
+      +'<td style="padding:3px 6px;border:1px solid var(--knk-info-line);"><button type="button" onclick="this.closest(\'tr\').remove();bxHeadUpd();" style="border:none;background:transparent;color:var(--knk-danger);cursor:pointer;font-size:13px;">✕</button></td></tr>';
   }
   var BX_SO = '{{ sel166.id if sel166 else "" }}';   /* z1191z177: 박스 무게 = 이 수주 */
   function bxInputs(){
@@ -543,9 +543,9 @@
     try {
       var r = await fetch('/export/prep/{{ p.id }}/boxes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({boxes: rows, so: BX_SO}), credentials:'same-origin'});
       var j = await r.json();
-      if(j.ok){ msg.textContent = '✅ 완료 — 수주 ' + (j.order_no||'') + ' 박스 ' + j.saved + '개 저장 · 이 수주 [📄 신고용] 패킹리스트에 들어갑니다'; msg.style.color = '#15803d'; }
-      else { msg.textContent = '실패: ' + (j.error||''); msg.style.color = '#dc2626'; }
-    } catch(e){ msg.textContent = '통신 오류: ' + e; msg.style.color = '#dc2626'; }
+      if(j.ok){ msg.textContent = '✅ 완료 — 수주 ' + (j.order_no||'') + ' 박스 ' + j.saved + '개 저장 · 이 수주 [📄 신고용] 패킹리스트에 들어갑니다'; msg.style.color = 'var(--knk-success)'; }
+      else { msg.textContent = '실패: ' + (j.error||''); msg.style.color = 'var(--knk-danger)'; }
+    } catch(e){ msg.textContent = '통신 오류: ' + e; msg.style.color = 'var(--knk-danger)'; }
     btn.disabled = false; bxHeadUpd();
   }
   window.bxCollect = bxCollect; window.bxAddRow = bxAddRow; window.bxSave = bxSave; window.bxHeadUpd = bxHeadUpd;
@@ -561,9 +561,9 @@
     try {
       var r = await fetch('/export/prep/{{ p.id }}/doc-meta', {method:'POST', body:fd, credentials:'same-origin'});
       var j = await r.json();
-      if(j.ok){ msg.textContent = '✅ 저장됨 — 수주 ' + (j.order_no||'') + ' 의 [📄 Invoice&PL] 파일에 들어갑니다'; msg.style.color = '#15803d'; }
-      else { msg.textContent = '실패: ' + (j.error||''); msg.style.color = '#dc2626'; }
-    } catch(e){ msg.textContent = '통신 오류: ' + e; msg.style.color = '#dc2626'; }
+      if(j.ok){ msg.textContent = '✅ 저장됨 — 수주 ' + (j.order_no||'') + ' 의 [📄 Invoice&PL] 파일에 들어갑니다'; msg.style.color = 'var(--knk-success)'; }
+      else { msg.textContent = '실패: ' + (j.error||''); msg.style.color = 'var(--knk-danger)'; }
+    } catch(e){ msg.textContent = '통신 오류: ' + e; msg.style.color = 'var(--knk-danger)'; }
     btn.disabled = false;
   };
 })();

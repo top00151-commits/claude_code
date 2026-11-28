@@ -2015,7 +2015,7 @@ def split_by_path(hits, base, root=None):
 
 
 # ⑤-2 · ⑤-3 면제 — 2026-11-28 규칙 만들 때 센 개수(파일 경로별 · 주석 뺌). ⚠ 늘리지 말 것 — 그 화면을 손볼 때 var(--knk-*) · 로고 파일로 옮기고 숫자를 줄일 것.
-COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
+COLOR_BASE = {   # z1191z205 3판: 매출 홈·프로젝트 상세·수출 준비·HS 채우기 0 · z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
     'app/templates/_admin_z83.html': 25, 'app/templates/_contact_styles.html': 4, 'app/templates/_export_price_z86.html': 33,
     'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 17, 'app/templates/_legacy_admin_v4.html': 26,
     'app/templates/_legacy_daily_v4.html': 1, 'app/templates/_legacy_guide_v4.html': 30,
@@ -2080,10 +2080,10 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/error_simple.html': 11, 'app/templates/export_bl_customs.html': 10,
     'app/templates/export_bl_print.html': 38, 'app/templates/export_board.html': 3, 'app/templates/export_ci.html': 10,
     'app/templates/export_ci_print.html': 37, 'app/templates/export_doc_pick.html': 37, 'app/templates/export_home.html': 18,
-    'app/templates/export_hs_dict.html': 46, 'app/templates/export_hs_fill.html': 106,
+    'app/templates/export_hs_dict.html': 46,
     'app/templates/export_order_detail.html': 15, 'app/templates/export_order_form.html': 10,
     'app/templates/export_pl.html': 10, 'app/templates/export_pl_print.html': 38, 'app/templates/export_prep.html': 7,
-    'app/templates/export_prep_detail.html': 190, 'app/templates/export_prep_invoice_print.html': 46,
+    'app/templates/export_prep_invoice_print.html': 46,
     'app/templates/export_prep_packing_print.html': 46, 'app/templates/export_rules.html': 17,
     'app/templates/export_ship.html': 2, 'app/templates/export_ship_qr_print.html': 22,
     'app/templates/export_ship_view.html': 13, 'app/templates/fta_form.html': 10, 'app/templates/fta_list.html': 24,
@@ -2102,7 +2102,7 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/prod_request_edit.html': 218, 'app/templates/prod_requests_list.html': 79,
     'app/templates/profile.html': 1, 'app/templates/progress_dashboard.html': 2, 'app/templates/progress_detail.html': 2,
     'app/templates/project_baseline.html': 21, 'app/templates/project_bom.html': 33,
-    'app/templates/project_detail.html': 301, 'app/templates/project_form.html': 109,
+    'app/templates/project_form.html': 109,
     'app/templates/project_new_chooser.html': 117, 'app/templates/project_quick_form.html': 231,
     'app/templates/project_unit_candidates.html': 18, 'app/templates/project_unit_status_sync.html': 27,
     'app/templates/project_units.html': 39, 'app/templates/projects.html': 44, 'app/templates/qc_report_form.html': 21,
@@ -2113,7 +2113,7 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/rates_history.html': 18, 'app/templates/rnd_detail.html': 43, 'app/templates/rnd_list.html': 34,
     'app/templates/sales_aging.html': 12, 'app/templates/sales_dashboard.html': 12, 'app/templates/sales_drill.html': 59,
     'app/templates/sales_flow_guide.html': 18, 'app/templates/sales_fx_gain.html': 30, 'app/templates/sales_glance.html': 40,
-    'app/templates/sales_home.html': 155, 'app/templates/sales_opportunities.html': 76,
+    'app/templates/sales_opportunities.html': 76,
     'app/templates/sales_opportunity_form.html': 99, 
     'app/templates/sales_outstanding.html': 19,
     'app/templates/sales_production.html': 12,
@@ -2132,7 +2132,7 @@ COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 �
     'app/templates/workflow/ic_pairs.html': 15, 'app/templates/workflow/my.html': 17,
     'app/templates/workflow/node_detail.html': 46, 'app/templates/workflow/project.html': 45,
     'app/templates/workflow/scenarios.html': 17, 'app/templates/workflow/team.html': 11,
-    'app/templates/workflow/wizard.html': 14, 'static/css/knk-components.css': 3, 'static/css/project_detail.css': 99,
+    'app/templates/workflow/wizard.html': 14, 'static/css/knk-components.css': 3,
     'static/css/v5_base.css': 22, 'static/css/v5_form.css': 1,
     'static/css/v5_login.css': 2, 'static/css/v5_main.css': 14
 }   # __COLOR_BASE__
