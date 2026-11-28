@@ -12,8 +12,8 @@
 @media (max-width: 520px) { .pc-grid { grid-template-columns: 1fr; } }
 .pc-card {
   display: flex; flex-direction: column; gap: 10px;
-  background: var(--paper-3, #fffaf0);
-  border: 1px solid var(--cream-line, #e6dcc0);
+  background: var(--paper-3);
+  border: 1px solid var(--cream-line);
   border-radius: var(--radius-xl, 14px);
   padding: 22px 20px 20px;
   text-decoration: none; color: inherit;
@@ -22,40 +22,40 @@
 }
 .pc-card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-  background: var(--amber, #f5b942); opacity: 0.65;
+  background: var(--knk-brand); opacity: 0.65;
 }
 .pc-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 24px -8px rgba(180, 130, 40, 0.22);
-  border-color: var(--knk-warning, #f5b942);
+  border-color: var(--knk-warning);
 }
 .pc-card .ic { font-size: 38px; line-height: 1; margin-bottom: 4px; }
-.pc-card .code { font-family: Consolas, monospace; font-size: 11px; color: #8a7842; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
-.pc-card h3 { margin: 0; font-size: 17px; font-weight: 800; color: var(--ink, #2a2418); letter-spacing: -0.01em; }
-.pc-card .desc { font-size: 13px; color: var(--mute, #6b6353); line-height: 1.55; flex: 1; }
-.pc-card .hint { font-size: 11.5px; color: #8a7842; padding: 8px 10px; background: rgba(245, 185, 66, 0.10); border-radius: 6px; line-height: 1.45; }
+.pc-card .code { font-family: Consolas, monospace; font-size: 11px; color: var(--knk-text-muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.pc-card h3 { margin: 0; font-size: 17px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.pc-card .desc { font-size: 13px; color: var(--mute); line-height: 1.55; flex: 1; }
+.pc-card .hint { font-size: 11.5px; color: var(--knk-text-muted); padding: 8px 10px; background: rgba(245, 185, 66, 0.10); border-radius: 6px; line-height: 1.45; }
 .pc-card .go {
   margin-top: 4px; align-self: flex-end;
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 700; color: var(--amber-deep, #b07a18);
+  font-size: 13px; font-weight: 700; color: var(--knk-brand-hover);
 }
-.pc-card:hover .go { color: #8a5a08; }
-.pc-card.consumable::before { background: #4a90e2; }
-.pc-card.consumable .hint { background: rgba(74, 144, 226, 0.08); color: #2a5a8a; }
-.pc-card.consumable .go { color: #2a5a8a; }
-.pc-card.other::before { background: #7d6cb1; }
-.pc-card.other .hint { background: rgba(125, 108, 177, 0.08); color: #4a3d80; }
-.pc-card.other .go { color: #4a3d80; }
-.pc-card.lifevalue::before { background: #db2777; }
-.pc-card.lifevalue .hint { background: rgba(219, 39, 119, 0.08); color: #9d174d; }
-.pc-card.lifevalue .go { color: #9d174d; }
+.pc-card:hover .go { color: var(--knk-warning); }
+.pc-card.consumable::before { background: var(--knk-info); }
+.pc-card.consumable .hint { background: rgba(74, 144, 226, 0.08); color: var(--knk-info); }
+.pc-card.consumable .go { color: var(--knk-info); }
+.pc-card.other::before { background: var(--knk-cat-violet); }
+.pc-card.other .hint { background: rgba(125, 108, 177, 0.08); color: var(--knk-cat-violet); }
+.pc-card.other .go { color: var(--knk-cat-violet); }
+.pc-card.lifevalue::before { background: var(--knk-brand); }
+.pc-card.lifevalue .hint { background: rgba(219, 39, 119, 0.08); color: var(--knk-brand-hover); }
+.pc-card.lifevalue .go { color: var(--knk-brand-hover); }
 </style></head>
 <body>
 {% if embed %}<style>/* v5H226z274: 모달 임베드 — 메뉴·상단바 숨기고 폼만 */
 .top,.sidebar,.victor-dock,#victorDock{display:none!important;}
 .app{display:block!important;min-width:0!important;height:auto!important;}
 .main{height:auto!important;overflow:visible!important;}
-html,body{background:#fff!important;overflow:auto!important;}
+html,body{background:var(--knk-bg-surface)!important;overflow:auto!important;}
 .page-head .crumbs{display:none!important;}</style>{% endif %}
 <div class="app">{% set active_tab = 'sales' %}
 {% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -63,7 +63,7 @@ html,body{background:#fff!important;overflow:auto!important;}
   <div class="page-head">
     <div>
       <div class="crumbs"><a href="/sales">매출·영업</a> · <b>🆕 등록</b></div>
-      <h1 class="page-title">🆕 등록 — <em>무엇을 등록하나요?</em></h1>
+      <h1 class="page-title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>등록 — <em>무엇을 등록하나요?</em></h1>
     </div>
   </div>
 
@@ -74,14 +74,14 @@ html,body{background:#fff!important;overflow:auto!important;}
       <b>새로 만드는 일은 모두 여기서</b> 합니다(다른 화면에는 등록 단추가 없습니다). 프로젝트·소모품 <b>5종</b>은 <b>관리코드</b>(예:
       <span style="font-family:Consolas,monospace;">001T2605 / 001M2605 / 001L2605 / 001E2605 / 001C2605</span>)가
       자동 발급되며, <b>수주확정</b> 시점에 수주번호도 자동 발행됩니다.
-      <span style="color:#8a7842;">· E 기타 / C 소모품은 진행 사업부(검사기/자동화)를 함께 선택하세요.</span>
-      <span style="color:#8a7842;">· 다수 건 일괄 등록은 아래 [엑셀 일괄 등록]을 이용하세요(소모품 제외 — 관리번호로 사업부 자동 인식).</span>
-      <span style="color:#8a7842;">· {% if can_reg_customer_z102(user) %}새 거래처는 <b>🤝 고객사</b> · {% else %}새 거래처(고객사) 등록은 기술영업팀에서 합니다 · {% endif %}수주 전 건은 <b>🎯 영업 기회</b> · <b>📋 견적서</b> 카드.</span>
+      <span style="color:var(--knk-text-muted);">· E 기타 / C 소모품은 진행 사업부(검사기/자동화)를 함께 선택하세요.</span>
+      <span style="color:var(--knk-text-muted);">· 다수 건 일괄 등록은 아래 [엑셀 일괄 등록]을 이용하세요(소모품 제외 — 관리번호로 사업부 자동 인식).</span>
+      <span style="color:var(--knk-text-muted);">· {% if can_reg_customer_z102(user) %}새 거래처는 <b>🤝 고객사</b> · {% else %}새 거래처(고객사) 등록은 기술영업팀에서 합니다 · {% endif %}수주 전 건은 <b>🎯 영업 기회</b> · <b>📋 견적서</b> 카드.</span>
     </p>
 
     {# z1191z101: 매출 등록 권한이 없는 분 = 🤝 고객사 카드만 #}
     {% if can_reg_proj is defined and not can_reg_proj %}
-    <div style="margin:0 0 12px;padding:9px 14px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12.5px;color:#92400e;">
+    <div style="margin:0 0 12px;padding:9px 14px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:8px;font-size:12.5px;color:var(--knk-warning);">
       ⓘ 프로젝트 · 소모품 · 영업 기회 · 견적서 등록은 <b>매출 등록 권한</b>이 있어야 합니다(관리자에게 요청). 새 거래처(🤝 고객사)는 여기서 등록할 수 있습니다.
     </div>
     {% endif %}
@@ -177,34 +177,34 @@ html,body{background:#fff!important;overflow:auto!important;}
     {# v5H226z449 (대표 지시): 엑셀 일괄 등록도 자주 쓰지 않으니 평소엔 접기(details, open 없음=기본 닫힘) — 제목 클릭하면 펼침 #}
     {# z1191z101: 엑셀 일괄 등록은 엑셀의 관리번호를 그대로 쓴다 → 관리번호 수동발행 권한이 있는 분만(서버도 같은 판정) #}
     {% if can_manual is not defined or can_manual %}
-    <details style="margin-top:14px;background:#fffaf0;border:1px solid #e6dcc0;border-radius:8px;">
-      <summary style="cursor:pointer;padding:14px 20px;font-size:14px;font-weight:700;color:#8a6a1a;">
-        📥 엑셀 일괄 등록 <span style="font-weight:400;font-size:12px;color:#9a8a5a;">— 여러 건을 한 번에 (통합 양식 1종 · 자주 안 쓰면 접어두세요 · 클릭하면 펼침)</span>
+    <details style="margin-top:14px;background:var(--knk-bg-inset);border:1px solid var(--knk-border-subtle);border-radius:8px;">
+      <summary style="cursor:pointer;padding:14px 20px;font-size:14px;font-weight:700;color:var(--knk-warning);">
+        📥 엑셀 일괄 등록 <span style="font-weight:400;font-size:12px;color:var(--knk-text-muted);">— 여러 건을 한 번에 (통합 양식 1종 · 자주 안 쓰면 접어두세요 · 클릭하면 펼침)</span>
       </summary>
       {# v5H226z415 (대표 지시 'A로 통일'): 초기 화면도 구분 안(등록 폼)·작업일정표와 '같은 통합 양식 1종'으로 통일.
          (기존 출고형태별 3종 ASS'Y/부품/기타는 업로드 파서가 시트명을 인식 못 해 0건이던 미완성 → 폐기) #}
       <div style="padding:4px 20px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-      <div style="font-size:13px;color:#555;line-height:1.6;max-width:560px;">
-        <div style="font-size:11.5px;color:#8a7842;margin-top:6px;line-height:1.7;">
+      <div style="font-size:13px;color:var(--knk-text-secondary);line-height:1.6;max-width:560px;">
+        <div style="font-size:11.5px;color:var(--knk-text-muted);margin-top:6px;line-height:1.7;">
           · <b>관리번호</b>를 입력하세요 — <b>사업부(T 검사기 / M 자동화 / L 라이프밸류 / E 기타)는 관리번호에서 자동 인식</b>됩니다.<br>
           · <b>고객사1</b>은 등록된 고객사명과 정확히 일치해야 자동 연결됩니다.<br>
           · <b>발주일</b>이 있으면 그 시점 기준으로 <b>수주번호 자동 발행</b>(없으면 헤더만 등록).<br>
-          <span style="color:#15803d;font-weight:700;">※ 소모품은 여기가 아니라 위 [📦 C 소모품] 카드에서 올립니다.</span><br>
-          <span style="color:#9a8a5a;">흐름: 양식 다운로드 → 입력(2행 예시 삭제) → 업로드 → 미리보기 → 확정</span>
+          <span style="color:var(--knk-success);font-weight:700;">※ 소모품은 여기가 아니라 위 [📦 C 소모품] 카드에서 올립니다.</span><br>
+          <span style="color:var(--knk-text-muted);">흐름: 양식 다운로드 → 입력(2행 예시 삭제) → 업로드 → 미리보기 → 확정</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         {# v5H226z415 (대표 지시 'A로 통일'): 구분 안(등록 폼)·작업일정표와 동일한 통합 양식 1종 다운로드(/projects/import-template-mgmt). 출고형태 3종 폐기. #}
-        <a href="/projects/import-template-mgmt" style="padding:8px 14px;background:#e0edff;border:1px solid #b9d2ff;border-radius:6px;font-size:13px;font-weight:700;color:#1d4ed8;text-decoration:none;">📥 양식 다운로드</a>
-        <span style="width:1px;height:22px;background:#e6dcc0;margin:0 2px;"></span>
-        <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 14px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
+        <a href="/projects/import-template-mgmt" style="padding:8px 14px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);border-radius:6px;font-size:13px;font-weight:700;color:var(--knk-info);text-decoration:none;">📥 양식 다운로드</a>
+        <span style="width:1px;height:22px;background:var(--knk-bg-subtle);margin:0 2px;"></span>
+        <button type="button" onclick="document.getElementById('importXlsx').click()" style="padding:8px 14px;background:var(--knk-warning);color:var(--knk-text-inverse);border:1px solid var(--knk-warning);border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 엑셀 업로드</button>
         <input type="file" id="importXlsx" accept=".xlsx" style="display:none;" onchange="uploadProjectsXlsx(this.files[0])">
       </div>
       {# v5H226z234: 과거 데이터 일괄이관 모드 — 평상시 OFF, 전체 이관 때만 체크 #}
       {# v5H226z449 (대표 지시): 체크=ON / 해제=OFF 를 명확히 — 상태 배지(기본 OFF)가 체크에 따라 ON(초록)/OFF(회색)로 즉시 바뀜 #}
-      <label id="migModeLabel" style="display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:#fff8ed;border:1px dashed #e0b96a;border-radius:6px;font-size:12.5px;color:#8a6a1a;cursor:pointer;">
+      <label id="migModeLabel" style="display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:var(--knk-warning-subtle);border:1px dashed var(--knk-warning-line);border-radius:6px;font-size:12.5px;color:var(--knk-warning);cursor:pointer;">
         <input type="checkbox" id="importMigrateMode" onchange="updateMigMode()" style="width:16px;height:16px;cursor:pointer;">
-        <span id="migModeBadge" style="display:inline-block;min-width:40px;text-align:center;padding:2px 9px;border-radius:11px;font-weight:800;font-size:11.5px;background:#e5e7eb;color:#6b7280;">OFF</span>
+        <span id="migModeBadge" style="display:inline-block;min-width:40px;text-align:center;padding:2px 9px;border-radius:11px;font-weight:800;font-size:11.5px;background:var(--knk-bg-subtle);color:var(--knk-text-muted);">OFF</span>
         <span>📦 <b>과거 데이터 일괄이관 모드</b> — '추가발주'인데 신규 원본이 없으면 <b>발주일 가장 빠른 1줄을 신규로 자동 승격</b>. <b>평상시엔 OFF</b>(체크 안 함)로 두세요.</span>
       </label>
       </div>
@@ -214,36 +214,36 @@ html,body{background:#fff!important;overflow:auto!important;}
 
   <!-- v5H152: 미리보기 모달 -->
   <div id="importPreviewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;overflow-y:auto;padding:30px 20px;">
-    <div style="max-width:1200px;margin:0 auto;background:#fff;border-radius:10px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+    <div style="max-width:1200px;margin:0 auto;background:var(--knk-bg-surface);border-radius:10px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <h2 style="margin:0;font-size:18px;font-weight:800;">엑셀 일괄 등록 — 미리보기</h2>
-        <button type="button" onclick="closeImportPreview()" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:#666;">×</button>
+        <button type="button" onclick="closeImportPreview()" style="border:none;background:transparent;font-size:22px;cursor:pointer;color:var(--knk-text-muted);">×</button>
       </div>
-      <div id="importPreviewSummary" style="padding:10px 14px;background:#f7f3e8;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
-      <div style="max-height:60vh;overflow:auto;border:1px solid #e6dcc0;border-radius:6px;">
+      <div id="importPreviewSummary" style="padding:10px 14px;background:var(--knk-bg-subtle);border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+      <div style="max-height:60vh;overflow:auto;border:1px solid var(--knk-border-subtle);border-radius:6px;">
         <table id="importPreviewTable" style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead style="background:#f5efde;position:sticky;top:0;">
+          <thead style="background:var(--knk-bg-subtle);position:sticky;top:0;">
             <tr>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">행</th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">사업부</th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">프로젝트명</th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">모델명<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(품명)</span></th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">1차 고객사<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(본사 매출)</span></th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">2차 고객사<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(최종)</span></th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">PO유형</th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">출고형태</th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">상태</th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6cdb6;">금액(본사)<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">단가×수량</span></th>
-              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #d6cdb6;">최종매출<br><span style="font-size:9.5px;color:#8a7842;font-weight:400;">(참고)</span></th>
-              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #d6cdb6;">검증</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">행</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">사업부</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">프로젝트명</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">모델명<br><span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">(품명)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">1차 고객사<br><span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">(본사 매출)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">2차 고객사<br><span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">(최종)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">PO유형</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">출고형태</th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">상태</th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--knk-border-default);">금액(본사)<br><span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">단가×수량</span></th>
+              <th style="padding:6px 8px;text-align:right;border-bottom:1px solid var(--knk-border-default);">최종매출<br><span style="font-size:9.5px;color:var(--knk-text-muted);font-weight:400;">(참고)</span></th>
+              <th style="padding:6px 8px;text-align:left;border-bottom:1px solid var(--knk-border-default);">검증</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
       <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:10px;">
-        <button type="button" onclick="closeImportPreview()" style="padding:9px 20px;background:#fff;border:1px solid #ccc;border-radius:6px;font-size:13px;cursor:pointer;">취소</button>
-        <button type="button" id="importConfirmBtn" onclick="confirmImport()" disabled style="padding:9px 20px;background:#b07a18;color:#fff;border:1px solid #b07a18;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;opacity:0.5;">등록 확정</button>
+        <button type="button" onclick="closeImportPreview()" style="padding:9px 20px;background:var(--knk-bg-surface);border:1px solid var(--knk-border-default);border-radius:6px;font-size:13px;cursor:pointer;">취소</button>
+        <button type="button" id="importConfirmBtn" onclick="confirmImport()" disabled style="padding:9px 20px;background:var(--knk-warning);color:var(--knk-text-inverse);border:1px solid var(--knk-warning);border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;opacity:0.5;">등록 확정</button>
       </div>
     </div>
   </div>
@@ -257,11 +257,11 @@ html,body{background:#fff!important;overflow:auto!important;}
     var lab = document.getElementById('migModeLabel');
     if (!cb || !b) return;
     if (cb.checked){
-      b.textContent = 'ON';  b.style.background = '#15803d'; b.style.color = '#fff';
-      if (lab){ lab.style.background = '#eafaf0'; lab.style.borderColor = '#15803d'; lab.style.color = '#15803d'; }
+      b.textContent = 'ON';  b.style.background = 'var(--knk-success)'; b.style.color = 'var(--knk-text-inverse)';
+      if (lab){ lab.style.background = 'var(--knk-success-subtle)'; lab.style.borderColor = 'var(--knk-success)'; lab.style.color = 'var(--knk-success)'; }
     } else {
-      b.textContent = 'OFF'; b.style.background = '#e5e7eb'; b.style.color = '#6b7280';
-      if (lab){ lab.style.background = '#fff8ed'; lab.style.borderColor = '#e0b96a'; lab.style.color = '#8a6a1a'; }
+      b.textContent = 'OFF'; b.style.background = 'var(--knk-bg-subtle)'; b.style.color = 'var(--knk-text-muted)';
+      if (lab){ lab.style.background = 'var(--knk-warning-subtle)'; lab.style.borderColor = 'var(--knk-warning-line)'; lab.style.color = 'var(--knk-warning)'; }
     }
   }
   updateMigMode();  // 진입 시 기본 OFF 상태 명시
@@ -289,54 +289,54 @@ html,body{background:#fff!important;overflow:auto!important;}
     const sum = document.getElementById('importPreviewSummary');
     // v5H226z231: 인식된 행이 0건이면 빈 화면 대신 원인 안내
     if (!j.total) {
-      sum.innerHTML = '<div style="color:#b91c1c;font-weight:700;">⚠ 인식된 데이터가 없습니다 (0건).</div>'
-        + '<div style="font-size:12px;color:#7c4a03;margin-top:4px;line-height:1.6;">'
+      sum.innerHTML = '<div style="color:var(--knk-danger);font-weight:700;">⚠ 인식된 데이터가 없습니다 (0건).</div>'
+        + '<div style="font-size:12px;color:var(--knk-warning);margin-top:4px;line-height:1.6;">'
         + '· 위 <b>[📥 양식 다운로드]</b>로 받은 <b>통합 양식</b>(시트명 <b>일괄등록</b>)에 입력했는지 확인하세요.<br>'
         + '· <b>2행 예시 행은 삭제</b>하고 그 아래부터 입력하세요. <b>관리번호·고객사1</b> 등 필수 칸이 채워졌는지 확인하세요.</div>';
     } else {
-      sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:#2a7a2a;">' + j.valid_count + '</b>건 · 오류 <b style="color:#c33;">' + j.error_count + '</b>건';
+      sum.innerHTML = '총 <b>' + j.total + '</b>건 · 정상 <b style="color:var(--knk-success);">' + j.valid_count + '</b>건 · 오류 <b style="color:var(--knk-danger);">' + j.error_count + '</b>건';
     }
     const tb = document.querySelector('#importPreviewTable tbody');
     tb.innerHTML = '';
     j.rows.forEach((r, idx) => {
       const tr = document.createElement('tr');
       const hasErr = r._errors && r._errors.length > 0;
-      tr.style.background = hasErr ? '#fff0f0' : (idx % 2 ? '#fafaf5' : '#fff');
+      tr.style.background = hasErr ? 'var(--knk-danger-subtle)' : (idx % 2 ? 'var(--knk-bg-inset)' : 'var(--knk-bg-surface)');
       const fmt = (n) => Number(n||0).toLocaleString();
       // z103: 화면 금액 = 화폐 기호 앞(₩·$·₫ …) · KRW 정수 · 외화 소수 2자리(서버 money() 와 같은 규칙)
       const _SYM = {KRW:'₩',USD:'$',VND:'₫',EUR:'€',JPY:'¥',CNY:'元'};
       const fmtM = (n, ccy) => { const c = String(ccy||'KRW').toUpperCase(), sy = _SYM[c] || (c + ' '); let x = Number(n||0); const neg = x < 0; x = Math.abs(x);
         return (neg ? '-' : '') + sy + (c === 'KRW' ? Math.round(x).toLocaleString('en-US') : x.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})); };
       const errHtml = hasErr
-        ? r._errors.map(e => '<div style="color:#c33;font-size:11px;">⚠ ' + e + '</div>').join('')
+        ? r._errors.map(e => '<div style="color:var(--knk-danger);font-size:11px;">⚠ ' + e + '</div>').join('')
         : (r._promoted_new
-            ? '<span style="color:#b45309;font-size:11px;font-weight:700;">★ 신규 승격</span><div style="font-size:10px;color:#888;">발주일 최선두 → ' + escapeHtml(r.mgmt_code_input||'') + ' 프로젝트 생성</div>'
+            ? '<span style="color:var(--knk-warning);font-size:11px;font-weight:700;">★ 신규 승격</span><div style="font-size:10px;color:var(--knk-text-muted);">발주일 최선두 → ' + escapeHtml(r.mgmt_code_input||'') + ' 프로젝트 생성</div>'
             : (r._auto_merge
-            ? '<span style="color:#7c3aed;font-size:11px;font-weight:700;">↪ 같은 관리번호 합침</span><div style="font-size:10px;color:#888;">' + escapeHtml(r.mgmt_code_input||'') + ' 같은 프로젝트에 품목 추가</div>'
+            ? '<span style="color:var(--knk-cat-violet);font-size:11px;font-weight:700;">↪ 같은 관리번호 합침</span><div style="font-size:10px;color:var(--knk-text-muted);">' + escapeHtml(r.mgmt_code_input||'') + ' 같은 프로젝트에 품목 추가</div>'
             : (r._followup
-                ? '<span style="color:#1d4ed8;font-size:11px;font-weight:700;">↪ 추가발주</span><div style="font-size:10px;color:#888;">기존 ' + escapeHtml(r.mgmt_code_input||'') + ' 에 SO 추가</div>'
-                : '<span style="color:#2a7a2a;font-size:11px;">✓ 정상</span>')));
+                ? '<span style="color:var(--knk-info);font-size:11px;font-weight:700;">↪ 추가발주</span><div style="font-size:10px;color:var(--knk-text-muted);">기존 ' + escapeHtml(r.mgmt_code_input||'') + ' 에 SO 추가</div>'
+                : '<span style="color:var(--knk-success);font-size:11px;">✓ 정상</span>')));
       // 출고형태 코드 → 라벨
       const sfMap = { 'ASSEMBLY': "ASS'Y", 'PARTS': '부품', 'ETC': '기타' };
       const sfLabel = sfMap[r.shipment_form] || "ASS'Y";
       // 2차 고객사 / 최종매출 (2단계 발주면 강조)
-      const sec = r.secondary_customer ? escapeHtml(r.secondary_customer) : '<span style="color:#bbb;">-</span>';
+      const sec = r.secondary_customer ? escapeHtml(r.secondary_customer) : '<span style="color:var(--knk-text-muted);">-</span>';
       const finA = (r.final_amount && Number(r.final_amount) > 0)
-        ? '<b style="color:#1d4ed8;">' + fmtM(r.final_amount, 'VND') + '</b>'
-        : '<span style="color:#bbb;">-</span>';
+        ? '<b style="color:var(--knk-info);">' + fmtM(r.final_amount, 'VND') + '</b>'
+        : '<span style="color:var(--knk-text-muted);">-</span>';
       tr.innerHTML =
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + r.row_no + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;"><b>' + r.biz_div + '</b></td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.name) + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.model_name ? escapeHtml(r.model_name) : '<span style="color:#bbb;">-</span>') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.customer_name || '-') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + sec + (r.two_tier_order ? ' <span style="font-size:9px;color:#1d4ed8;background:#eff6ff;padding:0 4px;border-radius:3px;">2단계</span>' : '') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + (r.po_type ? escapeHtml(r.po_type) : '<span style="color:#bbb;">신규</span>') + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + sfLabel + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + escapeHtml(r.status) + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + fmtM(r.unit_price, r.currency) + ' × ' + r.unit_qty + ' = <b>' + fmtM(r.amount, r.currency) + '</b></td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right;">' + finA + '</td>' +
-        '<td style="padding:5px 8px;border-bottom:1px solid #eee;">' + errHtml + '</td>';
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + r.row_no + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);"><b>' + r.biz_div + '</b></td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + escapeHtml(r.name) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + (r.model_name ? escapeHtml(r.model_name) : '<span style="color:var(--knk-text-muted);">-</span>') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + escapeHtml(r.customer_name || '-') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + sec + (r.two_tier_order ? ' <span style="font-size:9px;color:var(--knk-info);background:var(--knk-info-subtle);padding:0 4px;border-radius:3px;">2단계</span>' : '') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + (r.po_type ? escapeHtml(r.po_type) : '<span style="color:var(--knk-text-muted);">신규</span>') + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + sfLabel + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + escapeHtml(r.status) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);text-align:right;">' + fmtM(r.unit_price, r.currency) + ' × ' + r.unit_qty + ' = <b>' + fmtM(r.amount, r.currency) + '</b></td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);text-align:right;">' + finA + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid var(--knk-border-subtle);">' + errHtml + '</td>';
       tb.appendChild(tr);
     });
     const btn = document.getElementById('importConfirmBtn');

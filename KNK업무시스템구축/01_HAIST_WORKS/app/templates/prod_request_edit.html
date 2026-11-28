@@ -8,39 +8,39 @@
 /* v5H226z769/z773/z774→z788: 제작요청서 단독 편집 페이지. z788(대표 지시 '비율 안 맞음·우측 여백 과다·세로 과다'):
    시트여백 표준(작업기록/시트여백_표준.md·절대준수)대로 풀폭 전환 — max-width 캡·align-self 제거. 필드는 auto-fit 반응형(넓으면 열 늘어 세로 단축). 보기/수정 토글 유지. */
 .prq-wrap { width:100%; margin:0; padding:0 32px; box-sizing:border-box; }
-.prq-box { background: var(--paper, #fff); border:1px solid var(--line,#eef0f4); border-radius:11px; overflow:hidden; margin:0 0 14px; }
+.prq-box { background: var(--paper); border:1px solid var(--line); border-radius:11px; overflow:hidden; margin:0 0 14px; }
 @media (max-width:640px){ .prq-wrap { padding:0 16px; } }
-.prq-hd { padding:9px 13px; background:#fff7ed; border-bottom:1px solid #fed7aa; font-size:13.5px; font-weight:800; color:#9a3412; }
+.prq-hd { padding:9px 13px; background:var(--knk-warning-subtle); border-bottom:1px solid var(--knk-warning-line); font-size:13.5px; font-weight:800; color:var(--knk-warning); }
 .prq-bd { padding:13px; }
-.prq-meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--mute,#64748b); margin-bottom:10px; }
-.prq-lbl { font-size:11.5px; font-weight:700; color:#9a3412; margin:10px 0 3px; }
-.prq-in { width:100%; padding:7px 9px; border:1px solid var(--line,#eef0f4); border-radius:6px; font-size:13px; box-sizing:border-box; background:#fff; color:#1f2937; }
+.prq-meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--mute); margin-bottom:10px; }
+.prq-lbl { font-size:11.5px; font-weight:700; color:var(--knk-warning); margin:10px 0 3px; }
+.prq-in { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-size:13px; box-sizing:border-box; background:var(--knk-bg-surface); color:var(--knk-text-primary); }
 textarea.prq-in { resize:vertical; }
 select.prq-in { appearance:auto; }
 .prq-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 @media (max-width:560px){ .prq-grid { grid-template-columns:1fr; } }
-.prq-ro { white-space:pre-wrap; font-size:12.5px; line-height:1.55; color:#334155; background:var(--paper-2,#f7f8fa); border:1px solid var(--line,#eef0f4); border-radius:7px; padding:9px 11px; }
+.prq-ro { white-space:pre-wrap; font-size:12.5px; line-height:1.55; color:var(--knk-text-secondary); background:var(--paper-2); border:1px solid var(--line); border-radius:7px; padding:9px 11px; }
 /* 참고 이미지 썸네일 */
 .prq-imgs { display:flex; flex-wrap:wrap; gap:7px; margin:2px 0 6px; }
-.prq-imgcell { position:relative; width:74px; height:74px; border-radius:7px; overflow:hidden; border:1px solid var(--line,#eef0f4); background:var(--paper-2,#f7f8fa); }
+.prq-imgcell { position:relative; width:74px; height:74px; border-radius:7px; overflow:hidden; border:1px solid var(--line); background:var(--paper-2); }
 .prq-imgcell img { width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
-.prq-imgdel { display:none; position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:16px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:13px; cursor:pointer; padding:0; text-align:center; }
+.prq-imgdel { display:none; position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:16px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:var(--knk-text-inverse); font-size:13px; cursor:pointer; padding:0; text-align:center; }
 .prq-imgs.editing .prq-imgdel { display:block; }
-.prq-imgdel:hover { background:#dc2626; }
-.prq-imgempty { font-size:11.5px; color:var(--mute,#64748b); font-style:italic; padding:3px 0; }
+.prq-imgdel:hover { background:var(--knk-danger); }
+.prq-imgempty { font-size:11.5px; color:var(--mute); font-style:italic; padding:3px 0; }
 /* 등록 정보 요약(금액 제외) */
-.prq-sec { font-size:12px; font-weight:800; color:#9a3412; margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid #fde7d3; }
-.prq-sec-sub { font-weight:600; font-size:11px; color:var(--mute,#64748b); }
+.prq-sec { font-size:12px; font-weight:800; color:var(--knk-warning); margin:14px 0 6px; padding-bottom:4px; border-bottom:1px solid var(--knk-warning-line); }
+.prq-sec-sub { font-weight:600; font-size:11px; color:var(--mute); }
 .prq-info { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0 16px; margin-bottom:2px; }
-.prq-ir { display:flex; gap:8px; font-size:12.5px; padding:4px 2px; border-bottom:1px dashed var(--line,#eef0f4); }
-.prq-ir .k { flex:0 0 78px; color:var(--mute,#64748b); font-weight:700; font-size:11.5px; }
-.prq-ir .v { flex:1; color:#1f2937; word-break:break-word; }
+.prq-ir { display:flex; gap:8px; font-size:12.5px; padding:4px 2px; border-bottom:1px dashed var(--line); }
+.prq-ir .k { flex:0 0 78px; color:var(--mute); font-weight:700; font-size:11.5px; }
+.prq-ir .v { flex:1; color:var(--knk-text-primary); word-break:break-word; }
 /* 편집 모드 필드(전부 편집) */
 .prq-info-edit { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:8px 14px; margin-bottom:4px; }
 .pe-f { display:flex; flex-direction:column; gap:3px; }
-.pe-f > label { font-size:11px; font-weight:700; color:#9a3412; }
-.pe-fixed { font-size:13px; font-weight:800; color:#9a3412; padding:6px 0; }
-.pe-fixed span { font-weight:600; font-size:11px; color:var(--mute,#64748b); }
+.pe-f > label { font-size:11px; font-weight:700; color:var(--knk-warning); }
+.pe-fixed { font-size:13px; font-weight:800; color:var(--knk-warning); padding:6px 0; }
+.pe-fixed span { font-weight:600; font-size:11px; color:var(--mute); }
 /* 버튼 줄 — 신규 작성 폼(create) 전용(2버튼 우측). */
 .prq-btns { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
 /* z790: 보기/수정 푸터 — 좌 이동링크 / 우 모드별 액션. hidden-attr CSS트랩 해결(액션그룹 [hidden] 확실 숨김) */
@@ -48,148 +48,148 @@ select.prq-in { appearance:auto; }
 .prq-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
 .prq-actgrp { display:inline-flex; gap:8px; }
 .prq-actgrp[hidden] { display:none !important; }
-.prq-edithint { font-size:11px; color:var(--mute,#64748b); text-align:right; margin-top:6px; }
+.prq-edithint { font-size:11px; color:var(--mute); text-align:right; margin-top:6px; }
 /* z1191z48 (대표 2026-11-17 「기존에 쓰는 제작 요청서와 최대한 비슷하게」): 종이 양식(엑셀 「제작 요청서」「소모품 요청서」) 배치 —
    파란 머리칸 · 검은 줄 표. 넓은 화면 = 표(.z48-desk) · 휴대폰 폭 = 카드(.z48-mob) · 인쇄 = 표만 A4. */
-.z48-prs { width:100%; border-collapse:collapse; background:#fff; table-layout:fixed; border:2px solid #222; margin:0; }
+.z48-prs { width:100%; border-collapse:collapse; background:var(--knk-bg-surface); table-layout:fixed; border:2px solid var(--knk-text-primary); margin:0; }
 .z48-prs + .z48-prs { border-top:0; }
-.z48-prs td { border:1px solid #222; padding:7px 10px; font-size:13.5px; text-align:center; vertical-align:middle; word-break:break-word; color:#1f2937; }
-.z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:#111; position:relative; }
+.z48-prs td { border:1px solid var(--knk-text-primary); padding:7px 10px; font-size:13.5px; text-align:center; vertical-align:middle; word-break:break-word; color:var(--knk-text-primary); }
+.z48-prs td.z48-tt { font-size:26px; font-weight:800; letter-spacing:6px; padding:9px; color:var(--knk-text-primary); position:relative; }
 /* z1191z69: 작성자 = 제목 줄 오른쪽 아래에 칸 없이 작게 */
-.z69-writer { position:absolute; right:10px; bottom:4px; font-size:11.5px; font-weight:500; letter-spacing:0; color:#475569; }
-.z69-writer-m { font-size:11.5px; font-weight:500; letter-spacing:0; color:#475569; margin-top:2px; }
-.z69-hint { font-weight:400; font-size:11px; color:var(--mute,#64748b); }
-.z48-prs td.z48-h { background:#b8cce4; font-weight:700; white-space:nowrap; }
-.z48-prs td.z48-hk { background:#e6b8b7; font-weight:700; white-space:nowrap; }
+.z69-writer { position:absolute; right:10px; bottom:4px; font-size:11.5px; font-weight:500; letter-spacing:0; color:var(--knk-text-secondary); }
+.z69-writer-m { font-size:11.5px; font-weight:500; letter-spacing:0; color:var(--knk-text-secondary); margin-top:2px; }
+.z69-hint { font-weight:400; font-size:11px; color:var(--mute); }
+.z48-prs td.z48-h { background:var(--knk-xl-head-blue); font-weight:700; white-space:nowrap; }
+.z48-prs td.z48-hk { background:var(--knk-xl-head-rose); font-weight:700; white-space:nowrap; }
 .z48-prs td.z48-l { text-align:left; }
 .z48-prs td.z48-r { text-align:right; font-variant-numeric:tabular-nums; }
 .z48-prs td.z48-req { text-align:left; vertical-align:top; white-space:pre-wrap; line-height:1.7; height:150px; }
-.z48-prs td.z48-gist { text-align:left; font-weight:700; color:#7c2d12; background:#fff7ed; }
+.z48-prs td.z48-gist { text-align:left; font-weight:700; color:var(--knk-warning); background:var(--knk-warning-subtle); }
 .z48-prs td.z48-info { text-align:left; padding:5px 10px; }
-.z48-mgc, .z48-prs td.z48-mgc { font-weight:800; color:#9a3412; letter-spacing:1px; white-space:nowrap; }
-.z48-so, .z48-prs td.z48-so { font-weight:700; color:#1d4ed8; white-space:nowrap; }
-.z48-sub, .z48-prs td.z48-sub { font-size:12px; color:#475569; }
-.z48-pn { display:inline-block; font-size:11px; font-weight:700; color:#475569; background:#eef2f7; border-radius:4px; padding:0 5px; margin-right:6px; }
+.z48-mgc, .z48-prs td.z48-mgc { font-weight:800; color:var(--knk-warning); letter-spacing:1px; white-space:nowrap; }
+.z48-so, .z48-prs td.z48-so { font-weight:700; color:var(--knk-info); white-space:nowrap; }
+.z48-sub, .z48-prs td.z48-sub { font-size:12px; color:var(--knk-text-secondary); }
+.z48-pn { display:inline-block; font-size:11px; font-weight:700; color:var(--knk-text-secondary); background:var(--knk-bg-subtle); border-radius:4px; padding:0 5px; margin-right:6px; }
 .z48-bdg { display:inline-block; font-size:13px; font-weight:800; border-radius:6px; padding:2px 10px; margin-left:12px; vertical-align:middle; letter-spacing:0; }
-.z48-new { background:#bbf7d0; color:#166534; } .z48-add { background:#bfdbfe; color:#1e40af; } .z48-mod { background:#fde68a; color:#92400e; } .z48-etc { background:#e5e7eb; color:#374151; }
-.z48-dd { display:inline-block; font-size:11px; font-weight:800; color:#b45309; background:#fef3c7; border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap; }
+.z48-new { background:var(--knk-success-line); color:var(--knk-success); } .z48-add { background:var(--knk-info-line); color:var(--knk-info); } .z48-mod { background:var(--knk-warning-line); color:var(--knk-warning); } .z48-etc { background:var(--knk-bg-subtle); color:var(--knk-text-secondary); }
+.z48-dd { display:inline-block; font-size:11px; font-weight:800; color:var(--knk-warning); background:var(--knk-warning-subtle); border-radius:5px; padding:1px 6px; margin-left:6px; white-space:nowrap; }
 /* z1191z65 (대표 11-19 「보기가 어렵네 · 바로 눈에 안 들어와」): 맨 아래 정보 = 종이 양식 칸(파란 이름 칸 위 · 진한 값 아래) */
 .z48-prs td.z65-cell { padding:0; }
 .z65-meta { width:100%; border-collapse:collapse; table-layout:auto; margin:0; }
-.z48-prs .z65-meta td { border:1px solid #222; padding:6px 8px; font-size:13.5px; }
+.z48-prs .z65-meta td { border:1px solid var(--knk-text-primary); padding:6px 8px; font-size:13.5px; }
 .z48-prs .z65-meta td.z48-h { white-space:normal; }
 .z65-meta tr:first-child td { border-top:0; }
 .z65-meta tr:last-child td { border-bottom:0; }
 .z65-meta td:first-child { border-left:0; }
 .z65-meta td:last-child { border-right:0; }
-.z65-meta .z65-v td { font-weight:600; color:#111827; }
+.z65-meta .z65-v td { font-weight:600; color:var(--knk-text-primary); }
 .z48-kv { display:inline-flex; gap:6px; margin:1px 16px 1px 0; font-size:12.5px; align-items:baseline; }
-.z48-kv .k { color:#64748b; font-weight:700; font-size:11.5px; }
-.z48-kv .v { color:#1f2937; }
-.z48-copy { font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px; padding:2px 9px; margin-left:8px; white-space:nowrap; }
-.z48-copy:hover { border-color:#c2410c; color:#c2410c; }
-.z48-rev { background:#eff6ff; border:1px solid #93c5fd; color:#1e3a8a; border-radius:8px; padding:8px 12px; font-size:12.5px; margin:0 0 8px; line-height:1.6; }
-.z48-nl { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:3px 0; border-bottom:1px dashed #e2e8f0; text-align:left; font-size:13px; }
+.z48-kv .k { color:var(--knk-text-muted); font-weight:700; font-size:11.5px; }
+.z48-kv .v { color:var(--knk-text-primary); }
+.z48-copy { font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; border:1px solid var(--knk-border-default); background:var(--knk-bg-surface); color:var(--knk-text-secondary); border-radius:6px; padding:2px 9px; margin-left:8px; white-space:nowrap; }
+.z48-copy:hover { border-color:var(--knk-warning); color:var(--knk-warning); }
+.z48-rev { background:var(--knk-info-subtle); border:1px solid var(--knk-info-line); color:var(--knk-info); border-radius:8px; padding:8px 12px; font-size:12.5px; margin:0 0 8px; line-height:1.6; }
+.z48-nl { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:3px 0; border-bottom:1px dashed var(--knk-border-subtle); text-align:left; font-size:13px; }
 .z48-nl:last-child { border-bottom:0; }
 .z48-nl span { word-break:break-all; }
-.z48-thumb { width:56px; height:42px; object-fit:cover; border-radius:5px; border:1px solid #cbd5e1; cursor:zoom-in; display:block; margin:0 auto; }
-.z48-imgband { background:#b8cce4; border:2px solid #222; border-bottom-width:1px; font-weight:700; text-align:center; padding:6px; font-size:13.5px; color:#1f2937; margin-top:10px; }
-.z48-imghint { font-weight:400; font-size:11.5px; color:#475569; margin-left:6px; }
-.prq-imgs.z48-imgs { border:2px solid #222; border-top:0; padding:10px; margin:0 0 6px; background:#fff; gap:9px; }
+.z48-thumb { width:56px; height:42px; object-fit:cover; border-radius:5px; border:1px solid var(--knk-border-default); cursor:zoom-in; display:block; margin:0 auto; }
+.z48-imgband { background:var(--knk-xl-head-blue); border:2px solid var(--knk-text-primary); border-bottom-width:1px; font-weight:700; text-align:center; padding:6px; font-size:13.5px; color:var(--knk-text-primary); margin-top:10px; }
+.z48-imghint { font-weight:400; font-size:11.5px; color:var(--knk-text-secondary); margin-left:6px; }
+.prq-imgs.z48-imgs { border:2px solid var(--knk-text-primary); border-top:0; padding:10px; margin:0 0 6px; background:var(--knk-bg-surface); gap:9px; }
 .prq-imgs.z48-imgs .prq-imgcell { width:150px; height:110px; }
 /* z1191z50 작성 화면 편의 — 발행 전 이미지 · 품목 번호 넣기 · 지난 요청서 불러오기 */
-.z50-drop { border:1.5px dashed #fdba74; background:#fff; border-radius:10px; padding:14px 12px; cursor:pointer; transition:background .15s,border-color .15s; outline:none; }
-.z50-drop:focus-visible, .z50-drop.drag { background:#fff7ed; border-color:#f97316; }
-.z50-drop-hint { font-size:12.5px; color:#c2772a; text-align:center; font-weight:700; }
+.z50-drop { border:1.5px dashed var(--knk-warning-line); background:var(--knk-bg-surface); border-radius:10px; padding:14px 12px; cursor:pointer; transition:background .15s,border-color .15s; outline:none; }
+.z50-drop:focus-visible, .z50-drop.drag { background:var(--knk-warning-subtle); border-color:var(--knk-highlight); }
+.z50-drop-hint { font-size:12.5px; color:var(--knk-warning); text-align:center; font-weight:700; }
 .z50-mo { display:none; }
 @media (hover:none) and (pointer:coarse) { .z50-pc { display:none; } .z50-mo { display:inline; } }   /* 휴대폰은 「사진 찍기·고르기」 */
 .z50-prev { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 .z50-prev:empty { display:none; }
-.z50-cell { position:relative; width:96px; height:84px; border-radius:8px; overflow:hidden; border:1px solid #fed7aa; background:#f7f8fa; }
+.z50-cell { position:relative; width:96px; height:84px; border-radius:8px; overflow:hidden; border:1px solid var(--knk-warning-line); background:var(--knk-bg-inset); }
 .z50-cell img { width:100%; height:100%; object-fit:cover; display:block; }
-.z50-del { position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:18px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:14px; cursor:pointer; padding:0; text-align:center; }
-.z50-del:hover { background:#dc2626; }
-.z50-msg { font-size:11.5px; color:#9a3412; margin-top:4px; }
+.z50-del { position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:18px; border:none; border-radius:50%; background:rgba(0,0,0,.6); color:var(--knk-text-inverse); font-size:14px; cursor:pointer; padding:0; text-align:center; }
+.z50-del:hover { background:var(--knk-danger); }
+.z50-msg { font-size:11.5px; color:var(--knk-warning); margin-top:4px; }
 .z50-msg:empty { display:none; }
-.z50-btn { margin-left:8px; border:1px solid #fdba74; background:#fff7ed; color:#9a3412; border-radius:6px; padding:2px 9px; font-size:11.5px; font-weight:700; cursor:pointer; vertical-align:1px; }
-.z50-btn:hover { background:#ffedd5; }
-.z50-past { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:12px 0 2px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; font-size:12.5px; font-weight:700; color:#334155; }
-.z50-past select { flex:1 1 260px; min-width:0; max-width:100%; padding:5px 7px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; background:#fff; }
-.z50-past-msg { flex-basis:100%; font-weight:600; font-size:11.5px; color:#047857; }
+.z50-btn { margin-left:8px; border:1px solid var(--knk-warning-line); background:var(--knk-warning-subtle); color:var(--knk-warning); border-radius:6px; padding:2px 9px; font-size:11.5px; font-weight:700; cursor:pointer; vertical-align:1px; }
+.z50-btn:hover { background:var(--knk-warning-subtle); }
+.z50-past { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:12px 0 2px; padding:8px 10px; border:1px solid var(--knk-border-subtle); border-radius:9px; background:var(--knk-bg-inset); font-size:12.5px; font-weight:700; color:var(--knk-text-secondary); }
+.z50-past select { flex:1 1 260px; min-width:0; max-width:100%; padding:5px 7px; border:1px solid var(--knk-border-default); border-radius:6px; font-size:12.5px; background:var(--knk-bg-surface); }
+.z50-past-msg { flex-basis:100%; font-weight:600; font-size:11.5px; color:var(--knk-success); }
 .z50-past-msg:empty { display:none; }
-.prq-imgs.z50-drag { outline:2px dashed #f97316; outline-offset:2px; background:#fff7ed; }
+.prq-imgs.z50-drag { outline:2px dashed var(--knk-highlight); outline-offset:2px; background:var(--knk-warning-subtle); }
 /* z1191z51 재발행 — 수정 사유 · 바뀐 줄 · 취소 · 묶음에서 빼기 */
-.z51-why { border:1px solid #bfdbfe; background:#eff6ff; border-radius:10px; padding:10px 12px; margin:0 0 12px; }
+.z51-why { border:1px solid var(--knk-info-line); background:var(--knk-info-subtle); border-radius:10px; padding:10px 12px; margin:0 0 12px; }
 .z51-chips { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 6px; }
-.z51-chip { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:999px; padding:3px 11px; font-size:12px; font-weight:700; cursor:pointer; }
-.z51-chip.on { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
-.z51-x { margin-left:5px; border:none; background:#e2e8f0; color:#475569; border-radius:50%; width:17px; height:17px; line-height:15px; padding:0; font-size:12px; cursor:pointer; }
-.z51-x:hover { background:#dc2626; color:#fff; }
-.z49-chip.z51-off { text-decoration:line-through; opacity:.55; background:#fee2e2; }
-.z51-l.z51-add { background:#fef08a; border-radius:3px; }
-.z51-l.z51-del { color:#b91c1c; text-decoration:line-through; opacity:.75; }
+.z51-chip { border:1px solid var(--knk-border-default); background:var(--knk-bg-surface); color:var(--knk-text-secondary); border-radius:999px; padding:3px 11px; font-size:12px; font-weight:700; cursor:pointer; }
+.z51-chip.on { background:var(--knk-info); border-color:var(--knk-info); color:var(--knk-text-inverse); }
+.z51-x { margin-left:5px; border:none; background:var(--knk-bg-subtle); color:var(--knk-text-secondary); border-radius:50%; width:17px; height:17px; line-height:15px; padding:0; font-size:12px; cursor:pointer; }
+.z51-x:hover { background:var(--knk-danger); color:var(--knk-text-inverse); }
+.z49-chip.z51-off { text-decoration:line-through; opacity:.55; background:var(--knk-danger-subtle); }
+.z51-l.z51-add { background:var(--knk-warning-line); border-radius:3px; }
+.z51-l.z51-del { color:var(--knk-danger); text-decoration:line-through; opacity:.75; }
 #prqView.z51-plain .z51-l.z51-add { background:none; }
 #prqView.z51-plain .z51-l.z51-del { display:none; }
-.z51-legend { font-weight:400; font-size:11.5px; color:#475569; }
-.z51-legend button { margin-left:6px; border:1px solid #93c5fd; background:#fff; color:#1e3a8a; border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
-.z51-cxband { background:#fef2f2; border:2px solid #dc2626; color:#991b1b; border-radius:10px; padding:10px 14px; margin:0 0 10px; font-size:13.5px; line-height:1.6; }
-.z51-cxband a { color:#9a3412; font-weight:800; margin-left:8px; }
+.z51-legend { font-weight:400; font-size:11.5px; color:var(--knk-text-secondary); }
+.z51-legend button { margin-left:6px; border:1px solid var(--knk-info-line); background:var(--knk-bg-surface); color:var(--knk-info); border-radius:6px; padding:1px 8px; font-size:11px; cursor:pointer; }
+.z51-cxband { background:var(--knk-danger-subtle); border:2px solid var(--knk-danger); color:var(--knk-danger); border-radius:10px; padding:10px 14px; margin:0 0 10px; font-size:13.5px; line-height:1.6; }
+.z51-cxband a { color:var(--knk-warning); font-weight:800; margin-left:8px; }
 #z48Paper.z51-cxp { position:relative; }
 #z48Paper.z51-cxp > * { opacity:.55; }
 #z48Paper.z51-cxp::after { content:"취소"; position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) rotate(-14deg); font-size:110px; font-weight:900; color:rgba(220,38,38,.55); border:10px solid rgba(220,38,38,.55); border-radius:18px; padding:0 34px; letter-spacing:18px; pointer-events:none; }
-.z51-cancel { border:2px solid #fca5a5; background:#fff5f5; border-radius:10px; padding:12px 14px; margin:10px 0 4px; }
-.z51-ct { font-weight:800; color:#991b1b; font-size:14px; }
-.z51-cnote { font-size:11.5px; color:#7f1d1d; margin-top:6px; line-height:1.6; }
+.z51-cancel { border:2px solid var(--knk-danger-line); background:var(--knk-danger-subtle); border-radius:10px; padding:12px 14px; margin:10px 0 4px; }
+.z51-ct { font-weight:800; color:var(--knk-danger); font-size:14px; }
+.z51-cnote { font-size:11.5px; color:var(--knk-danger); margin-top:6px; line-height:1.6; }
 .z51-cbtns { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; flex-wrap:wrap; }
-.z51-cxbtn { color:#b91c1c !important; border-color:#fca5a5 !important; }
+.z51-cxbtn { color:var(--knk-danger) !important; border-color:var(--knk-danger-line) !important; }
 /* z1191z58: 묶어서 다시 발행 */
-.z51-cxband.z58-repband { background:#eff6ff; border-color:#2563eb; color:#1e3a8a; }
+.z51-cxband.z58-repband { background:var(--knk-info-subtle); border-color:var(--knk-info); color:var(--knk-info); }
 #z48Paper.z51-cxp.z58-rep::after { content:"묶음으로 바뀜"; font-size:64px; white-space:nowrap; color:rgba(37,99,235,.5); border-color:rgba(37,99,235,.5); }
-.z58-rebox { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 8px; font-size:12px; color:#475569; }
-.z58-rebtn { display:inline-block; padding:5px 11px; border-radius:7px; border:1px solid #2563eb; background:#eff6ff; color:#1d4ed8 !important; font-weight:800; font-size:12.5px; text-decoration:none; }
-.z58-rebtn:hover { background:#2563eb; color:#fff !important; }
-.z58-renote { margin:0 0 7px; padding:7px 10px; border-radius:7px; background:#eff6ff; border:1px solid #93c5fd; color:#1e3a8a; font-size:12.5px; line-height:1.5; }
+.z58-rebox { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 8px; font-size:12px; color:var(--knk-text-secondary); }
+.z58-rebtn { display:inline-block; padding:5px 11px; border-radius:7px; border:1px solid var(--knk-info); background:var(--knk-info-subtle); color:var(--knk-info) !important; font-weight:800; font-size:12.5px; text-decoration:none; }
+.z58-rebtn:hover { background:var(--knk-info); color:var(--knk-text-inverse) !important; }
+.z58-renote { margin:0 0 7px; padding:7px 10px; border-radius:7px; background:var(--knk-info-subtle); border:1px solid var(--knk-info-line); color:var(--knk-info); font-size:12.5px; line-height:1.5; }
 .z58-renote[hidden] { display:none; }
-.z58-preband { margin:0 0 10px; padding:9px 12px; border-radius:9px; background:#eff6ff; border:1px solid #93c5fd; color:#1e3a8a; font-size:13px; line-height:1.55; }
-.z51-hist { margin:10px 0 4px; font-size:12.5px; color:#334155; }
-.z51-hist summary { cursor:pointer; font-weight:700; color:#1e3a8a; }
+.z58-preband { margin:0 0 10px; padding:9px 12px; border-radius:9px; background:var(--knk-info-subtle); border:1px solid var(--knk-info-line); color:var(--knk-info); font-size:13px; line-height:1.55; }
+.z51-hist { margin:10px 0 4px; font-size:12.5px; color:var(--knk-text-secondary); }
+.z51-hist summary { cursor:pointer; font-weight:700; color:var(--knk-info); }
 .z51-hist ol { margin:6px 0 0 18px; padding:0; line-height:1.7; }
 @media print { .z51-l.z51-add { background:none !important; } .z51-l.z51-del { display:none !important; } #z48Paper.z51-cxp > * { opacity:1; } }
 /* 수주 고르기(작성·수정) */
-.z48-ol { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto; border:1px solid var(--line,#eef0f4); border-radius:7px; padding:7px 10px; background:#fff; }
-.z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:#1f2937; cursor:pointer; }
-.z48-od { color:var(--mute,#64748b); font-size:11.5px; margin-left:auto; }
-.z48-hint { font-size:11.5px; color:var(--mute,#64748b); margin:4px 0 2px; line-height:1.5; }
-.z48-need { font-size:12.5px; font-weight:700; color:#991b1b; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:8px 11px; margin:4px 0 2px; line-height:1.6; }
-.z48-need a { color:#1d4ed8; margin-left:6px; white-space:nowrap; }
+.z48-ol { display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto; border:1px solid var(--line); border-radius:7px; padding:7px 10px; background:var(--knk-bg-surface); }
+.z48-oc { display:flex; align-items:center; gap:7px; font-size:13px; color:var(--knk-text-primary); cursor:pointer; }
+.z48-od { color:var(--mute); font-size:11.5px; margin-left:auto; }
+.z48-hint { font-size:11.5px; color:var(--mute); margin:4px 0 2px; line-height:1.5; }
+.z48-need { font-size:12.5px; font-weight:700; color:var(--knk-danger); background:var(--knk-danger-subtle); border:1px solid var(--knk-danger-line); border-radius:8px; padding:8px 11px; margin:4px 0 2px; line-height:1.6; }
+.z48-need a { color:var(--knk-info); margin-left:6px; white-space:nowrap; }
 /* z1191z49 묶음 발행 */
-.z48-prs tr.z49-me td, .z48-it.z49-me { background:#fff7d6; }
-.z49-box { border:1px solid var(--line,#eef0f4); border-radius:8px; background:#fff; padding:8px 10px; }
-.z49-sug { background:#fffbeb; border:1px solid #f59e0b; border-radius:7px; padding:7px 10px; font-size:12.5px; color:#92400e; margin:0 0 7px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.z49-sug button { font:inherit; font-size:12px; font-weight:700; cursor:pointer; border:1px solid #c2410c; background:#c2410c; color:#fff; border-radius:6px; padding:3px 10px; }
+.z48-prs tr.z49-me td, .z48-it.z49-me { background:var(--knk-warning-subtle); }
+.z49-box { border:1px solid var(--line); border-radius:8px; background:var(--knk-bg-surface); padding:8px 10px; }
+.z49-sug { background:var(--knk-warning-subtle); border:1px solid var(--knk-highlight); border-radius:7px; padding:7px 10px; font-size:12.5px; color:var(--knk-warning); margin:0 0 7px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.z49-sug button { font:inherit; font-size:12px; font-weight:700; cursor:pointer; border:1px solid var(--knk-warning); background:var(--knk-warning); color:var(--knk-text-inverse); border-radius:6px; padding:3px 10px; }
 .z49-item.z186-off { display:none !important; }   /* z1191z186: 고른 수주의 고객과 다른 후보 */
 .z49-list { display:flex; flex-direction:column; gap:2px; max-height:210px; overflow:auto; margin-top:6px; }
-.z49-item { display:flex; align-items:center; gap:8px; font-size:13px; color:#1f2937; cursor:pointer; padding:3px 2px; border-bottom:1px dashed #eef0f4; flex-wrap:wrap; }
-.z49-item.is-sug { background:#fffbeb; }
-.z49-item .z49-d { color:var(--mute,#64748b); font-size:11.5px; }
-.z49-item select { font:inherit; font-size:12px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:5px; margin-left:auto; max-width:260px; }
-.z49-item .z49-so1 { margin-left:auto; font-weight:700; color:#1d4ed8; font-size:12.5px; }
+.z49-item { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--knk-text-primary); cursor:pointer; padding:3px 2px; border-bottom:1px dashed var(--knk-border-subtle); flex-wrap:wrap; }
+.z49-item.is-sug { background:var(--knk-warning-subtle); }
+.z49-item .z49-d { color:var(--mute); font-size:11.5px; }
+.z49-item select { font:inherit; font-size:12px; padding:2px 4px; border:1px solid var(--knk-border-default); border-radius:5px; margin-left:auto; max-width:260px; }
+.z49-item .z49-so1 { margin-left:auto; font-weight:700; color:var(--knk-info); font-size:12.5px; }
 .z49-chips { display:flex; flex-wrap:wrap; gap:5px; margin:0 0 6px; }
-.z49-chip { font-size:12px; font-weight:700; color:#9a3412; background:#fff7ed; border:1px solid #fed7aa; border-radius:999px; padding:2px 9px; }
+.z49-chip { font-size:12px; font-weight:700; color:var(--knk-warning); background:var(--knk-warning-subtle); border:1px solid var(--knk-warning-line); border-radius:999px; padding:2px 9px; }
 /* 휴대폰 폭 — 여러 칸짜리 표는 못 읽으므로 카드로 */
 .z48-mob { display:none; }
-.z48-card { background:#fff; border:2px solid #222; margin:0 0 8px; }
-.z48-card .z48-ch { background:#b8cce4; font-weight:700; font-size:13px; text-align:center; padding:5px; border-bottom:1px solid #222; color:#1f2937; }
-.z48-card .z48-cb { padding:8px 11px; font-size:13.5px; line-height:1.7; color:#1f2937; white-space:pre-wrap; word-break:break-word; }
-.z48-mkv { display:flex; border-bottom:1px solid #222; font-size:13.5px; color:#1f2937; }
+.z48-card { background:var(--knk-bg-surface); border:2px solid var(--knk-text-primary); margin:0 0 8px; }
+.z48-card .z48-ch { background:var(--knk-xl-head-blue); font-weight:700; font-size:13px; text-align:center; padding:5px; border-bottom:1px solid var(--knk-text-primary); color:var(--knk-text-primary); }
+.z48-card .z48-cb { padding:8px 11px; font-size:13.5px; line-height:1.7; color:var(--knk-text-primary); white-space:pre-wrap; word-break:break-word; }
+.z48-mkv { display:flex; border-bottom:1px solid var(--knk-text-primary); font-size:13.5px; color:var(--knk-text-primary); }
 .z48-mkv:last-child { border-bottom:0; }
-.z48-mkv .k { flex:0 0 92px; background:#b8cce4; font-weight:700; padding:6px 8px; text-align:center; border-right:1px solid #222; }
+.z48-mkv .k { flex:0 0 92px; background:var(--knk-xl-head-blue); font-weight:700; padding:6px 8px; text-align:center; border-right:1px solid var(--knk-text-primary); }
 .z48-mkv .v { flex:1; padding:6px 10px; word-break:break-word; }
-.z48-it { border-bottom:1px solid #222; padding:8px 11px; color:#1f2937; }
+.z48-it { border-bottom:1px solid var(--knk-text-primary); padding:8px 11px; color:var(--knk-text-primary); }
 .z48-it:last-child { border-bottom:0; }
 .z48-it .l1 { display:flex; justify-content:space-between; align-items:center; gap:8px; }
 .z48-it .l2 { font-size:13.5px; margin-top:2px; }
-.z48-it .l3 { font-size:12.5px; color:#475569; margin-top:2px; }
+.z48-it .l3 { font-size:12.5px; color:var(--knk-text-secondary); margin-top:2px; }
 /* z1191z48b: 종이 표는 칸이 많아 양식 폭이 820px 아래로 내려가면(휴대폰 · 좁힌 창 · 태블릿) 머리글이 글자마다 꺾인다 →
    「화면 폭」이 아니라 「양식이 놓인 자리의 폭」으로 카드 전환(왼쪽 메뉴가 있든 없든 맞음). 아래 @media 는 옛 브라우저용. */
 #z48Paper { container-type:inline-size; }
@@ -221,7 +221,7 @@ select.prq-in { appearance:auto; }
 </head>
 {# z1191z48 (대표 2026-11-17): 작성·수정 폼 공통 — 이 요청서가 가리키는 수주(수주가 여러 건일 때만 고름) + 요지 한 줄 #}
 {% macro z48_fields(gist_val) %}
-          <div class="prq-sec">🧾 수주번호 <span style="color:#dc2626;">(필수)</span> · 요지</div>
+          <div class="prq-sec">🧾 수주번호 <span style="color:var(--knk-danger);">(필수)</span> · 요지</div>
           {% if z48.orders|length > 1 %}
           <div class="z48-ol">
             {# 최근 수주가 맨 위 — 기본으로 체크되는 것이 스크롤 없이 보이게 #}
@@ -232,13 +232,13 @@ select.prq-in { appearance:auto; }
           <div class="z48-hint">이 관리번호에는 수주가 {{ z48.orders|length }}건 있습니다 — <b>이번 요청서에 해당하는 수주만</b> 체크하세요. 제작요청서와 알림에 그 수주번호만 나갑니다.</div>
           {% elif z48.orders %}
           <input type="hidden" name="order_ids" value="{{ z48.orders[0].id }}" data-hogi="{{ z48.orders[0].hogi }}" data-cid="{{ z48.orders[0].customer_id or '' }}">
-          <div class="z48-hint">수주번호 <b style="color:#1d4ed8;">{{ z48.orders[0].order_no }}</b> — 등록된 수주에서 자동으로 들어갑니다.</div>
+          <div class="z48-hint">수주번호 <b style="color:var(--knk-info);">{{ z48.orders[0].order_no }}</b> — 등록된 수주에서 자동으로 들어갑니다.</div>
           {% else %}
           <div class="z48-need">⚠ {{ z48.need_now or '이 관리번호에 등록된 수주가 없습니다 — 수주를 먼저 등록해야 발행할 수 있습니다(수주번호는 필수).' }} <a href="/project/{{ p.id }}">프로젝트 화면에서 수주 등록 →</a></div>
           {% endif %}
           {# z1191z49 (대표 2026-11-17 2차 · 묶음 발행): 함께 묶을 관리번호 — 같은 고객사 · 수주가 있는 것만 · 같은 날 발주·요청서 없는 것을 먼저 권함 #}
           {% if z48.cands or z48.bitems|length > 1 %}
-          <div class="prq-lbl">함께 묶을 관리번호 <span style="font-weight:400;color:var(--mute,#64748b);">— 같은 고객사 · 한 장으로 발행 · 통보 한 번 (안 묶어도 됩니다)</span></div>
+          <div class="prq-lbl">함께 묶을 관리번호 <span style="font-weight:400;color:var(--mute);">— 같은 고객사 · 한 장으로 발행 · 통보 한 번 (안 묶어도 됩니다)</span></div>
           <div class="z49-box">
             {% if z48.bitems|length > 1 %}
             <div class="z49-chips">{% for it in z48.bitems %}<span class="z49-chip" data-qtytxt="{{ it.qty_txt|default('') }}" data-mgmt="{{ it.mgmt }}" data-equip="{{ it.equip }}" data-qty="{{ it.qty }}" data-hogi="{{ it.hogi|join(', ') }}"{% if loop.first %} data-lead="1" title="대표 관리번호 — 뺄 수 없습니다(요청서 전체를 취소하려면 「🚫 취소 발행」)"{% endif %}>{{ it.mgmt }}{% if not loop.first %}<button type="button" class="z51-x" onclick="z51Remove(this)" title="이 관리번호를 묶음에서 뺍니다(수정발행할 때 적용)">×</button><input type="checkbox" name="remove_pids" value="{{ it.pid }}" hidden>{% endif %}</span>{% endfor %}<span class="z48-hint" style="margin:0;">이미 묶인 관리번호입니다 — × 로 뺄 수 있고(대표 관리번호는 못 뺌), 아래에서 더 붙일 수 있습니다.</span></div>
@@ -257,7 +257,7 @@ select.prq-in { appearance:auto; }
             <div class="z49-list">
               {% for d in z48.cands %}
               <label class="z49-item{% if d.suggest %} is-sug{% endif %}" data-cids="{{ (d.cids or [])|join(',') }}" data-qtytxt="{{ d.qty_txt|default('') }}" data-npr="{{ d.n_pr or 0 }}" data-pid="{{ d.id }}" data-mgmt="{{ d.mgmt_code }}" data-equip="{{ d.equip_name or d.name or '' }}" data-qty="{{ d.unit_qty or 1 }}" data-t="{{ ((d.mgmt_code or '') ~ ' ' ~ (d.model_name or '') ~ ' ' ~ (d.equip_name or ''))|lower }}">
-                <input type="checkbox" name="bundle_pids" value="{{ d.id }}"> <b>{{ d.mgmt_code }}</b> <span>{{ d.equip_name or d.name or '' }}</span>{% if d.model_name %}<span class="z49-d">{{ d.model_name }}</span>{% endif %}<span class="z49-d">발주 {{ d.so_date or (d.order_date or '')[:10] or '—' }}{% if d.n_pr %} · 요청서 있음{% endif %}</span>{% if d.wait %}<span class="z49-d" style="color:#b45309;font-weight:700;">⏳ 묶어서 발행 기다림</span>{% endif %}
+                <input type="checkbox" name="bundle_pids" value="{{ d.id }}"> <b>{{ d.mgmt_code }}</b> <span>{{ d.equip_name or d.name or '' }}</span>{% if d.model_name %}<span class="z49-d">{{ d.model_name }}</span>{% endif %}<span class="z49-d">발주 {{ d.so_date or (d.order_date or '')[:10] or '—' }}{% if d.n_pr %} · 요청서 있음{% endif %}</span>{% if d.wait %}<span class="z49-d" style="color:var(--knk-warning);font-weight:700;">⏳ 묶어서 발행 기다림</span>{% endif %}
                 {% if d.orders|length > 1 %}
                 <select name="m_order_{{ d.id }}" title="이 관리번호의 어느 수주인지 고릅니다(기본 = 가장 최근)">{% for o in d.orders|reverse %}<option value="{{ o.id }}" data-hogi="{{ o.hogi }}">{{ o.order_no }}{% if o.po_type %} · {{ o.po_type }}{% endif %}{% if o.label_short %} · {{ o.label_short }}{% endif %}</option>{% endfor %}</select>
                 {% else %}
@@ -267,11 +267,11 @@ select.prq-in { appearance:auto; }
               {% endfor %}
             </div>
             {% endif %}
-            <div class="prq-lbl" style="margin-top:8px;">MODEL <span style="font-weight:400;color:var(--mute,#64748b);">— 묶음 이름 · 묶을 때만 씁니다 · 비우면 첫 관리번호의 모델명</span></div>
+            <div class="prq-lbl" style="margin-top:8px;">MODEL <span style="font-weight:400;color:var(--mute);">— 묶음 이름 · 묶을 때만 씁니다 · 비우면 첫 관리번호의 모델명</span></div>
             <input class="prq-in" type="text" name="bundle_model" maxlength="120" value="{{ (pr.bundle_model if pr else '') or '' }}" placeholder="예) VPL2132_2138-0126000">
           </div>
           {% endif %}
-          <div class="prq-lbl">요지 <span style="font-weight:400;color:var(--mute,#64748b);">— 한 줄 · 안 써도 됩니다</span></div>
+          <div class="prq-lbl">요지 <span style="font-weight:400;color:var(--mute);">— 한 줄 · 안 써도 됩니다</span></div>
           <input class="prq-in" type="text" name="gist" maxlength="200" value="{{ gist_val }}" placeholder="예) 적층도 및 두께 변경으로 신규 가공 진행">
 {% endmacro %}
 <body>
@@ -282,7 +282,7 @@ select.prq-in { appearance:auto; }
   <div class="page-head">
     <div>
       <div class="crumbs"><a href="/projects">프로젝트</a> · <a href="/project/{{ p.id }}">{{ p.mgmt_code }}</a> · <b>제작요청서</b></div>
-      <h1 class="page-title">📋 제작요청서 <span style="font-size:14px;font-weight:600;color:var(--mute,#64748b);">— {{ p.name }}</span></h1>
+      <h1 class="page-title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>제작요청서 <span style="font-size:14px;font-weight:600;color:var(--mute);">— {{ p.name }}</span></h1>
     </div>
     <div style="display:flex;gap:8px;">
       {# v5H226z842 (대표 지시): 제작요청서 목록 바로가기 — '프로젝트로' 왼쪽. z984c: data-knk-back — 직전 화면이 목록이면 그 주소(필터·기간 포함) 그대로 복귀. #}
@@ -294,25 +294,25 @@ select.prq-in { appearance:auto; }
 
   <div class="prq-wrap">
     {% if request.query_params.get('rebundled') and request.query_params.get('prod_created') %}
-    <div style="margin:0 0 8px;padding:9px 14px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:700;">🔗 묶어서 다시 발행 — 앞서 따로 보낸 요청서 {{ request.query_params.get('rebundled') }}장은 이 묶음 요청서로 바뀌었습니다(「묶음으로 바뀜」 · 취소 아님)</div>
+    <div style="margin:0 0 8px;padding:9px 14px;border-radius:9px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);color:var(--knk-info);font-size:13px;font-weight:700;">🔗 묶어서 다시 발행 — 앞서 따로 보낸 요청서 {{ request.query_params.get('rebundled') }}장은 이 묶음 요청서로 바뀌었습니다(「묶음으로 바뀜」 · 취소 아님)</div>
     {% endif %}
     {% if request.query_params.get('prod_created') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;font-weight:700;">📤 제작요청서 발행 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 통보{% endif %}{% if request.query_params.get('prod_img') %} · 참고 이미지 {{ request.query_params.get('prod_img') }}장{% endif %}.{% if request.query_params.get('prod_imgskip') %}<div style="margin-top:4px;font-weight:600;color:#9a3412;">⚠ 이미지 {{ request.query_params.get('prod_imgskip') }}장은 붙이지 못했습니다 — JPG·PNG 로 「✏️ 수정하기」에서 다시 붙여 주세요.</div>{% endif %}</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-success-subtle);border:1px solid var(--knk-success-line);color:var(--knk-success);font-size:13px;font-weight:700;">📤 제작요청서 발행 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 통보{% endif %}{% if request.query_params.get('prod_img') %} · 참고 이미지 {{ request.query_params.get('prod_img') }}장{% endif %}.{% if request.query_params.get('prod_imgskip') %}<div style="margin-top:4px;font-weight:600;color:var(--knk-warning);">⚠ 이미지 {{ request.query_params.get('prod_imgskip') }}장은 붙이지 못했습니다 — JPG·PNG 로 「✏️ 수정하기」에서 다시 붙여 주세요.</div>{% endif %}</div>
     {% elif request.query_params.get('prod_updated') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);color:var(--knk-info);font-size:13px;font-weight:600;">✏️ 저장 완료{% if request.query_params.get('prod_sent') is not none %} — 관련 부서 {{ request.query_params.get('prod_dept','0') }}곳·{{ request.query_params.get('prod_sent','0') }}명에게 다시 통보{% endif %}.</div>
     {% elif request.query_params.get('prod_cxdone') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13px;font-weight:700;">🚫 취소 발행 완료{% if request.query_params.get('prod_sent') is not none %} — {{ request.query_params.get('prod_dept','0') }}부서·{{ request.query_params.get('prod_sent','0') }}명에게 「취소」로 알렸습니다{% endif %}.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:13px;font-weight:700;">🚫 취소 발행 완료{% if request.query_params.get('prod_sent') is not none %} — {{ request.query_params.get('prod_dept','0') }}부서·{{ request.query_params.get('prod_sent','0') }}명에게 「취소」로 알렸습니다{% endif %}.</div>
     {% elif request.query_params.get('prod_cxneed') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 취소 사유를 고르거나 적어야 취소할 수 있습니다.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:12.5px;font-weight:600;">⚠ 취소 사유를 고르거나 적어야 취소할 수 있습니다.</div>
     {% elif request.query_params.get('prod_cancelled') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 이미 취소된 제작요청서라 고칠 수 없습니다 — 「📋 새로 작성」으로 다시 발행하세요.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:12.5px;font-weight:600;">⚠ 이미 취소된 제작요청서라 고칠 수 없습니다 — 「📋 새로 작성」으로 다시 발행하세요.</div>
     {% elif request.query_params.get('prod_upderr') %}
-    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:12.5px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
+    <div style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:12.5px;font-weight:600;">⚠ 저장에 실패했습니다 — 관리자에게 문의하세요.</div>
     {% endif %}
 
     {# z1191z48c (대표 2026-11-17 「관리번호 수주번호는 필수 입력 사항임」): 막힌 까닭 #}
     {% if z48.need_msg %}
-    <div id="z48NeedMsg" style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;font-size:13px;font-weight:700;">⚠ 발행하지 못했습니다 — {{ z48.need_msg }}</div>
+    <div id="z48NeedMsg" style="margin:0 0 12px;padding:10px 14px;border-radius:9px;background:var(--knk-danger-subtle);border:1px solid var(--knk-danger-line);color:var(--knk-danger);font-size:13px;font-weight:700;">⚠ 발행하지 못했습니다 — {{ z48.need_msg }}</div>
     {% endif %}
     {% if create_mode %}
     {# v5H226z787 (대표 지시): 신규 작성 — 이 프로젝트(관리번호 유지)에 제작요청서를 새로 써서 발행. 프로젝트 정보 프리필·요청사항 빈칸. #}
@@ -320,7 +320,7 @@ select.prq-in { appearance:auto; }
       <div class="prq-hd">📋 새 제작요청서 작성 · {{ p.mgmt_code or '—' }}</div>
       <div class="prq-bd">
         {% if can_edit %}
-        <div class="prq-meta"><span>이 프로젝트(관리번호 <b style="color:#334155;">{{ p.mgmt_code or '—' }}</b>)에 제작요청서를 새로 작성해 발행합니다. 발행하면 관련 부서(사업부)에 통보됩니다.</span></div>
+        <div class="prq-meta"><span>이 프로젝트(관리번호 <b style="color:var(--knk-text-secondary);">{{ p.mgmt_code or '—' }}</b>)에 제작요청서를 새로 작성해 발행합니다. 발행하면 관련 부서(사업부)에 통보됩니다.</span></div>
         <form id="prqNewForm" method="post" action="/project/{{ p.id }}/prod-request/new" enctype="multipart/form-data" onsubmit="return prqValidate(this);">
           <input type="hidden" name="_back" value="/project/{{ p.id }}/prod-request/edit">
           <input type="hidden" name="full_edit" value="1">
@@ -354,7 +354,7 @@ select.prq-in { appearance:auto; }
               <select class="prq-in" name="is_export">
                 <option value="0"{% if not _iex155 %} selected{% endif %}>🏠 내수</option>
                 <option value="1"{% if _iex155 %} selected{% endif %}>🚢 수출</option>
-              </select>{% if not (z48 and z48.iex155 is not none) %}<div style="font-size:11px;color:#b45309;">(대표값 · 확인 필요 — 고른 수주에 거래구분이 없거나 줄마다 다름)</div>{% endif %}
+              </select>{% if not (z48 and z48.iex155 is not none) %}<div style="font-size:11px;color:var(--knk-warning);">(대표값 · 확인 필요 — 고른 수주에 거래구분이 없거나 줄마다 다름)</div>{% endif %}
             </div>
             <div class="pe-f"><label>발주(PO)번호</label><input class="prq-in" type="text" name="customer_po" value="{{ p.customer_po or '' }}"></div>
             <div class="pe-f"><label>발주일</label><input class="prq-in" type="date" name="order_date" value="{{ (p.order_date or '')[:10] }}"></div>
@@ -382,7 +382,7 @@ select.prq-in { appearance:auto; }
           <div class="prq-lbl">기타 요청사항</div>
           <textarea class="prq-in" name="note" rows="3"></textarea>
           {# z1191z50 (대표 2026-11-17 2차 · 작성 화면 편의): 발행 전에 참고 이미지 — 고르기 · 끌어다 놓기 · 캡처 붙여넣기(Ctrl+V). 발행과 함께 보냄 #}
-          <div class="prq-lbl">📷 참고 이미지<b id="z50ImgN"></b> <span style="font-weight:400;color:var(--mute,#64748b);">— 도면·케이스·사진 · 여러 장(20장까지) · 발행할 때 함께 붙습니다</span></div>
+          <div class="prq-lbl">📷 참고 이미지<b id="z50ImgN"></b> <span style="font-weight:400;color:var(--mute);">— 도면·케이스·사진 · 여러 장(20장까지) · 발행할 때 함께 붙습니다</span></div>
           <div id="z50Drop" class="z50-drop" tabindex="0" onclick="document.getElementById('z50ImgInput').click()">
             <div class="z50-drop-hint"><span class="z50-pc">＋ 이미지 고르기 · 여기로 끌어다 놓기 · 캡처한 화면은 <b>Ctrl+V</b> 로 붙여넣기</span><span class="z50-mo">📷 사진 찍기 · 앨범에서 고르기</span></div>
             <input type="file" id="z50ImgInput" name="pr_images" accept="image/*" multiple data-knk-no-dropzone style="display:none;">

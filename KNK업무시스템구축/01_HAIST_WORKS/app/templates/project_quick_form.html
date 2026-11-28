@@ -10,7 +10,7 @@
    여백=좌우 var(--content-pad)(=page-head 와 동일 정렬)만, 폭은 모니터 따라 자동. 캡 금지. */
 .qf-wrap { margin: 0 0 var(--space-6); padding: 0 var(--content-pad); }
 .qf-intro { font-size: 12.5px; color: var(--qv-ink-3); margin: 6px 0 14px; }
-.qf-card { background:#fff; border:1px solid var(--qv-line); border-radius:12px; padding:18px 20px; }
+.qf-card { background:var(--knk-bg-surface); border:1px solid var(--qv-line); border-radius:12px; padding:18px 20px; }
 /* v5H226z351(대표 지시): 12열 그리드 — 행별 4/3/2등분 비율 정렬 (c3=4등분·c4=3등분·c6=2등분) */
 .qf-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:12px 14px; }
 .qf-f { display:flex; flex-direction:column; min-width:0; }
@@ -24,57 +24,57 @@
 .qf-f label { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:3px; }
 .qf-f label .req { color:var(--knk-red); }
 /* v5H226z810 (대표 지시): 입력칸이 회색 패널과 구분 안 됨 → 흰 배경 + 또렷한 테두리 + 살짝 그림자 + 포커스 링 */
-.qf-f input, .qf-f select, .qf-f textarea { padding:8px 10px; border:1px solid #c4ccd8; border-radius:7px; font:inherit; font-size:13px; background:#fff; box-sizing:border-box; box-shadow:0 1px 2px rgba(16,24,40,.05); }
-.qf-f input:focus, .qf-f select:focus, .qf-f textarea:focus { outline:none; border-color:#2563eb; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.14); }
+.qf-f input, .qf-f select, .qf-f textarea { padding:8px 10px; border:1px solid var(--knk-border-default); border-radius:7px; font:inherit; font-size:13px; background:var(--knk-bg-surface); box-sizing:border-box; box-shadow:0 1px 2px rgba(16,24,40,.05); }
+.qf-f input:focus, .qf-f select:focus, .qf-f textarea:focus { outline:none; border-color:var(--knk-info); background:var(--knk-bg-surface); box-shadow:0 0 0 3px rgba(37,99,235,.14); }
 /* v5H226z721(대표 지시): 자재 목록 = 표(컬럼 헤더 + 입력 행). 엑셀 일괄등록 양식 컬럼 순서와 동일.
    헤더가 항상 입력칸과 정렬되도록 table 구조. 좁은 화면은 가로 스크롤. */
-.qf-parts-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--qv-line); border-radius:8px; background:#fff; }
+.qf-parts-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--qv-line); border-radius:8px; background:var(--knk-bg-surface); }
 .qf-parts-tbl { border-collapse:separate; border-spacing:0; min-width:max-content; width:100%; }
-.qf-parts-tbl thead th { background:var(--qv-surface-2,#f1f5f9); color:var(--qv-ink-2); font-size:11px; font-weight:700; padding:6px 6px; white-space:nowrap; text-align:center; border-bottom:2px solid var(--knk-red,#c2410c); position:sticky; top:0; z-index:2; }
+.qf-parts-tbl thead th { background:var(--qv-surface-2); color:var(--qv-ink-2); font-size:11px; font-weight:700; padding:6px 6px; white-space:nowrap; text-align:center; border-bottom:2px solid var(--knk-red); position:sticky; top:0; z-index:2; }
 .qf-parts-tbl thead th .req { color:var(--knk-red); }
 .qf-parts-tbl thead th small { display:block; font-weight:600; color:var(--qv-ink-3); font-size:10px; }
 .qf-parts-tbl tbody td { padding:3px 4px; vertical-align:middle; white-space:nowrap; }
-.qf-parts-tbl tbody td input { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid #c4ccd8; border-radius:6px; font:inherit; font-size:12.5px; background:#fff; }
-.qf-parts-tbl tbody td input:focus { outline:none; border-color:#2563eb; }
+.qf-parts-tbl tbody td input { width:100%; box-sizing:border-box; padding:6px 8px; border:1px solid var(--knk-border-default); border-radius:6px; font:inherit; font-size:12.5px; background:var(--knk-bg-surface); }
+.qf-parts-tbl tbody td input:focus { outline:none; border-color:var(--knk-info); }
 .qf-parts-tbl .qf-pk-amt { display:block; text-align:right; font-size:12.5px; color:var(--qv-ink-2); font-weight:600; padding-right:4px; white-space:nowrap; }
-.qf-parts-tbl .pk-del { border:1px solid #fca5a5; background:#fff; color:#b91c1c; border-radius:6px; padding:5px 9px; font-size:12px; cursor:pointer; }
+.qf-parts-tbl .pk-del { border:1px solid var(--knk-danger-line); background:var(--knk-bg-surface); color:var(--knk-danger); border-radius:6px; padding:5px 9px; font-size:12px; cursor:pointer; }
 /* v5H226z459(대표 지시): 형태 커스텀 드롭다운 — 기존 select 와 같은 높이/스타일(정렬 복구).
    열면 각 항목에 설명이 함께 보이고(오버레이·다른 칸 안 밀림), 선택하면 라벨만. */
 .qfsel { position:relative; }
-.qfsel-btn { width:100%; display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid #c4ccd8; border-radius:7px; font:inherit; font-size:13px; background:#fff; color:var(--qv-ink); cursor:pointer; text-align:left; box-sizing:border-box; box-shadow:0 1px 2px rgba(16,24,40,.05); }
+.qfsel-btn { width:100%; display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--knk-border-default); border-radius:7px; font:inherit; font-size:13px; background:var(--knk-bg-surface); color:var(--qv-ink); cursor:pointer; text-align:left; box-sizing:border-box; box-shadow:0 1px 2px rgba(16,24,40,.05); }
 .qfsel-btn .qfsel-caret { margin-left:auto; color:var(--qv-ink-3); font-size:11px; transition:transform .15s; }
-.qfsel.open .qfsel-btn { border-color:#2563eb; background:#fff; }
+.qfsel.open .qfsel-btn { border-color:var(--knk-info); background:var(--knk-bg-surface); }
 .qfsel.open .qfsel-caret { transform:rotate(180deg); }
-.qfsel-list { display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:200; min-width:320px; max-width:min(380px,86vw); background:#fff; border:1px solid var(--qv-line); border-radius:10px; box-shadow:0 12px 34px rgba(0,0,0,.20); padding:4px; }
+.qfsel-list { display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:200; min-width:320px; max-width:min(380px,86vw); background:var(--knk-bg-surface); border:1px solid var(--qv-line); border-radius:10px; box-shadow:0 12px 34px rgba(0,0,0,.20); padding:4px; }
 .qfsel.open .qfsel-list { display:block; }
 .qfsel-opt { display:flex; flex-direction:column; gap:2px; width:100%; text-align:left; padding:8px 10px; border:0; background:transparent; border-radius:7px; cursor:pointer; font:inherit; }
-.qfsel-opt:hover { background:var(--qv-surface-2,#f1f3f7); }
-.qfsel-opt.sel { background:#eaf1fe; }
+.qfsel-opt:hover { background:var(--qv-surface-2); }
+.qfsel-opt.sel { background:var(--knk-info-subtle); }
 .qfsel-opt .o-lbl { font-size:13px; font-weight:700; color:var(--qv-ink); }
 .qfsel-opt .o-desc { font-size:11px; line-height:1.45; color:var(--qv-ink-3); white-space:normal; }
 .qf-sec { grid-column:1/-1; font-size:11px; font-weight:800; color:var(--knk-red); letter-spacing:.08em; margin:8px 0 -2px; }
 /* v5H226z722(대표 선택): 등록폼을 그룹별 박스(카드)로 분리 — 한눈에 그룹 구분.
    흰 카드(.qf-card) 위에 옅은 회색 그룹 박스, 그 안에 흰 입력칸으로 3단계 위계. */
-.qf-group { background:var(--qv-surface-2,#f7f8fa); border:1px solid var(--qv-line); border-radius:10px; padding:12px 15px 15px; margin:0 0 13px; }
+.qf-group { background:var(--qv-surface-2); border:1px solid var(--qv-line); border-radius:10px; padding:12px 15px 15px; margin:0 0 13px; }
 .qf-group:last-of-type { margin-bottom:0; }
 .qf-group-ttl { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; color:var(--knk-red); letter-spacing:.03em; margin:0 0 12px; padding-bottom:9px; border-bottom:1px solid var(--qv-line); }
 .qf-group-ttl::before { content:''; width:4px; height:13px; background:var(--knk-red); border-radius:2px; flex:none; }
-.qf-group .qf-f input:not([type=checkbox]):not([type=radio]), .qf-group .qf-f select, .qf-group .qf-f textarea, .qf-group .qfsel-btn { background:#fff; }
-.qf-code { font-family:Consolas,monospace; font-weight:800; color:#1e40af; background:#eef2ff; padding:8px 10px; border-radius:7px; font-size:13px; }
+.qf-group .qf-f input:not([type=checkbox]):not([type=radio]), .qf-group .qf-f select, .qf-group .qf-f textarea, .qf-group .qfsel-btn { background:var(--knk-bg-surface); }
+.qf-code { font-family:Consolas,monospace; font-weight:800; color:var(--knk-info); background:var(--knk-cat-violet-subtle); padding:8px 10px; border-radius:7px; font-size:13px; }
 .qf-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
 .qf-btns button, .qf-btns a { padding:10px 22px; border-radius:8px; font-size:14px; font-weight:800; cursor:pointer; border:1px solid var(--qv-line); text-decoration:none; }
-.qf-save { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
-.qf-cancel { background:#fff; color:var(--qv-ink-2); }
+.qf-save { background:var(--knk-red); color:var(--knk-text-inverse); border-color:var(--knk-red); }
+.qf-cancel { background:var(--knk-bg-surface); color:var(--qv-ink-2); }
 .qf-links { font-size:12px; color:var(--qv-ink-3); margin-top:10px; }
-.qf-links a { color:#1d4ed8; font-weight:700; text-decoration:none; margin-right:14px; }
-.qf-err { display:none; background:#fee2e2; color:#991b1b; padding:9px 14px; border-radius:8px; font-size:13px; margin-bottom:10px; }
+.qf-links a { color:var(--knk-info); font-weight:700; text-decoration:none; margin-right:14px; }
+.qf-err { display:none; background:var(--knk-danger-subtle); color:var(--knk-danger); padding:9px 14px; border-radius:8px; font-size:13px; margin-bottom:10px; }
 .qf-err.show { display:block; }
 /* v5H226z436(대표 지시): 등록 실패 시 빨간 안내가 안 보여 '그냥 다시 열린 줄' 오인 → 위로 스크롤 + 강조 흔들림 */
-.qf-err { scroll-margin-top: 90px; border:1px solid #f5b5b5; font-weight:700; }
+.qf-err { scroll-margin-top: 90px; border:1px solid var(--knk-danger-line); font-weight:700; }
 @keyframes qErrShake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
 @media (max-width:820px){ .qf-grid{ grid-template-columns: repeat(2,1fr);} .qf-f.c2,.qf-f.c3,.qf-f.c4{grid-column:span 1;} .qf-f.c6,.qf-f.c9,.qf-f.c12,.qf-f.span2{grid-column:span 2;} }
 /* v5H226z319(대표 지시): 두 등록 폼 통일 — 고급 항목(출고형태·2차고객사)을 접이식 상세 입력으로 흡수 */
-.qf-adv { margin-top:12px; border:1px dashed var(--qv-line); border-radius:9px; padding:0 12px; background:var(--qv-surface-2,#f7f8fa); }
+.qf-adv { margin-top:12px; border:1px dashed var(--qv-line); border-radius:9px; padding:0 12px; background:var(--qv-surface-2); }
 .qf-adv > summary { cursor:pointer; padding:11px 4px; font-size:12.5px; font-weight:800; color:var(--qv-ink-2); list-style:none; }
 .qf-adv > summary::-webkit-details-marker { display:none; }
 .qf-adv > summary::before { content:"▸ "; }
@@ -84,7 +84,7 @@
 .qf-adv-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px 14px; padding:2px 0 14px; }
 .qf-adv-grid .qf-f.span2 { grid-column:span 2; }
 .qf-ship { display:flex; gap:16px; flex-wrap:wrap; padding:6px 2px; }
-.qf-ship label { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; cursor:pointer; color:var(--qv-ink-1,#1f2937); }
+.qf-ship label { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; cursor:pointer; color:var(--qv-ink-1); }
 .qf-ship label span { font-weight:400; color:var(--qv-ink-3); font-size:11.5px; }
 @media (max-width:820px){ .qf-adv-grid{ grid-template-columns:repeat(2,1fr);} }
 </style></head>
@@ -93,7 +93,7 @@
 .top,.sidebar,.victor-dock,#victorDock{display:none!important;}
 .app{display:block!important;min-width:0!important;height:auto!important;}
 .main{height:auto!important;overflow:visible!important;}
-html,body{background:#fff!important;overflow:auto!important;}
+html,body{background:var(--knk-bg-surface)!important;overflow:auto!important;}
 .page-head .crumbs{display:none!important;}</style>{% endif %}
 <div class="app">{% set active_tab = 'sales' %}
 {% if not embed %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
@@ -102,8 +102,8 @@ html,body{background:#fff!important;overflow:auto!important;}
     <div class="crumbs"><a href="/sales">매출·영업</a> · <a href="/projects">프로젝트</a> · <b>간편 {% if project is defined and project %}수정{% else %}등록{% endif %}</b></div>
     {# v5H226z323(대표 지시): 제목을 선택 유형에 맞게 — 색상 배지로 탭 전환 시 변화 체감 #}
     {# v5H226z355(대표 지시): 기타(E) 뱃지 추가 #}
-    {% set _tt = {'T':('🔬','검사기','#c2410c'),'M':('⚙','자동화','#1e40af'),'L':('💄','라이프밸류','#db2777'),'E':('🗂','기타','#6b7280')}.get(preset_biz, ('🔬','검사기','#c2410c')) %}
-    <h1 class="page-title"><span style="display:inline-block;background:{{ _tt[2] }};color:#fff;padding:4px 14px;border-radius:9px;font-size:19px;font-weight:800;vertical-align:middle;">{{ _tt[0] }} {{ preset_biz }} {{ _tt[1] }}</span> <em>{% if project is defined and project %}수정{% else %}등록{% endif %}</em> <span style="font-size:13px;color:var(--qv-ink-3);font-weight:500;">{% if project is defined and project %}— 관리번호 {{ project.mgmt_code }} · 기본 정보 수정{% else %}— 엑셀 한 줄처럼 채우세요{% endif %}</span></h1>
+    {% set _tt = {'T':('🔬','검사기','var(--knk-cat-orange)'),'M':('⚙','자동화','var(--knk-info)'),'L':('💄','라이프밸류','var(--knk-brand)'),'E':('🗂','기타','var(--knk-text-muted)')}.get(preset_biz, ('🔬','검사기','var(--knk-cat-orange)')) %}
+    <h1 class="page-title"><span style="display:inline-block;background:{{ _tt[2] }};color:var(--knk-text-inverse);padding:4px 14px;border-radius:9px;font-size:19px;font-weight:800;vertical-align:middle;">{{ _tt[0] }} {{ preset_biz }} {{ _tt[1] }}</span> <em>{% if project is defined and project %}수정{% else %}등록{% endif %}</em> <span style="font-size:13px;color:var(--qv-ink-3);font-weight:500;">{% if project is defined and project %}— 관리번호 {{ project.mgmt_code }} · 기본 정보 수정{% else %}— 엑셀 한 줄처럼 채우세요{% endif %}</span></h1>
   </div></div>
 
   <div class="qf-wrap">
@@ -112,20 +112,20 @@ html,body{background:#fff!important;overflow:auto!important;}
     <div class="qf-card">
       <div class="qf-err" id="qfErr"></div>
       {# v5H226z386(대표 지시): 검증 모드 ON 표시 — 이 등록 관리번호는 A 접두(테스트)로 발급됨 #}
-      {% if test_on %}<div style="background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:700;margin-bottom:12px;line-height:1.6;">🧪 검증(테스트) 모드 — 이 등록의 관리번호는 <b>A 접두</b>(예: A01T2606)로 발급됩니다. 검증 끝나면 <a href="/admin/test-data" style="color:#92400e;text-decoration:underline;">관리자 → 검증 데이터 관리</a>에서 <b>끄고 A 관리번호 삭제</b>하세요.</div>{% endif %}
+      {% if test_on %}<div style="background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);color:var(--knk-warning);border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:700;margin-bottom:12px;line-height:1.6;">🧪 검증(테스트) 모드 — 이 등록의 관리번호는 <b>A 접두</b>(예: A01T2606)로 발급됩니다. 검증 끝나면 <a href="/admin/test-data" style="color:var(--knk-warning);text-decoration:underline;">관리자 → 검증 데이터 관리</a>에서 <b>끄고 A 관리번호 삭제</b>하세요.</div>{% endif %}
       {# v5H226z354(대표 지시): 빠른 폼을 신규/수정 양용으로 — project 가 오면 '수정 모드'. 저장은 기존 /projects/{id}/edit 재사용 #}
       {% set ed = (project is defined and project) %}
       <form id="quickForm" method="post" enctype="multipart/form-data" action="{% if ed %}/projects/{{ project.id }}/edit{% else %}/projects/new{% endif %}">
         {% if embed %}<input type="hidden" name="embed" value="1">{% endif %}
         <input type="hidden" name="quick" value="1">
   {% if ed and (sos117|default([]))|length >= 1 %}{# z1191z118: 수주 1건이어도 보임(상품은 ☐ 단가 미정이 이 줄에) · z1191z117k: 고치는 수주 고르기(안지연 프로 「E-260624-1 단위 식→SET」) #}
-  <div class="so117-pick" style="margin:0 0 10px;padding:9px 12px;border:2px solid #f97316;background:#fff7ed;border-radius:8px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-    <b style="color:#9a3412;">✏️ 고치는 수주:</b>
-    {% for s in sos117 %}<a href="/projects/{{ project.id }}/quick-edit?so={{ s.no|urlencode }}" style="padding:3px 10px;border-radius:14px;text-decoration:none;font-weight:700;{% if s.no == so_no %}background:#c2410c;color:#fff;{% else %}background:#fff;color:#9a3412;border:1px solid #fdba74;{% endif %}">{{ s.no }}{% if s.form %} <span style="font-weight:500;font-size:11px;">{{ s.form }}</span>{% endif %}</a>{% endfor %}
-    <span style="color:#7c2d12;font-size:12px;">— {% if v152 %}고객사·2차 고객·거래구분·형태·통화·PO유형·모델·장비와 {% endif %}수량 단위·납품처·발주일·납기는 이 수주에만 저장</span>
+  <div class="so117-pick" style="margin:0 0 10px;padding:9px 12px;border:2px solid var(--knk-warning);background:var(--knk-warning-subtle);border-radius:8px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+    <b style="color:var(--knk-warning);">✏️ 고치는 수주:</b>
+    {% for s in sos117 %}<a href="/projects/{{ project.id }}/quick-edit?so={{ s.no|urlencode }}" style="padding:3px 10px;border-radius:14px;text-decoration:none;font-weight:700;{% if s.no == so_no %}background:var(--knk-warning);color:var(--knk-text-inverse);{% else %}background:var(--knk-bg-surface);color:var(--knk-warning);border:1px solid var(--knk-warning-line);{% endif %}">{{ s.no }}{% if s.form %} <span style="font-weight:500;font-size:11px;">{{ s.form }}</span>{% endif %}</a>{% endfor %}
+    <span style="color:var(--knk-warning);font-size:12px;">— {% if v152 %}고객사·2차 고객·거래구분·형태·통화·PO유형·모델·장비와 {% endif %}수량 단위·납품처·발주일·납기는 이 수주에만 저장</span>
   </div>
   {% if v152 and v152.notes %}{# z1191z152 (대표 11-25 「사용자가 확정하지 않은 데이터를 마음대로 연결해서 틀어 버리면 신뢰할 수 없어」) #}
-  <div class="v152-warn" style="margin:-4px 0 10px;padding:9px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:12.5px;color:#92400e;line-height:1.6;">
+  <div class="v152-warn" style="margin:-4px 0 10px;padding:9px 12px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:8px;font-size:12.5px;color:var(--knk-warning);line-height:1.6;">
     ⚠ 같은 관리번호의 다른 수주는 값이 다릅니다 —
     {% for n in v152.notes %}<b>{{ n.no }}</b> = {{ n.diff }}{% if not loop.last %} · {% endif %}{% endfor %}
     <br>여기서 고치면 지금 고르신 <b>{{ v152.so }}</b> 만 바뀝니다. 다른 수주와 프로젝트 대표값은 그대로입니다.
@@ -212,19 +212,19 @@ html,body{background:#fff!important;overflow:auto!important;}
             {% endif %}
             {# v5H226z384(대표 지시): PO유형이 추가/개조/수리/기타면 '기존 관리번호 검색'으로 전환 — 같은 관리번호 + 새 수주번호 자동. #}
             <input type="text" name="mgmt_code" id="qMgmtInput" placeholder="관리번호·고객사·모델로 검색" autocomplete="off" disabled style="display:none;font-family:Consolas,monospace;font-weight:700;" oninput="qMgmtSearch()" onfocus="qMgmtSearch()" onblur="setTimeout(qMgmtHide,180)">
-            <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>
+            <div id="qMgmtList" style="display:none;position:absolute;top:100%;left:0;z-index:50;min-width:300px;max-height:240px;overflow:auto;background:var(--knk-bg-surface);border:1px solid var(--qv-line);border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px;"></div>
             {% endif %}</div>
           <div class="qf-f c2"><label>수주번호</label>
-            {% if ed %}<div class="qf-code" style="color:#7c4a03;background:#fdf3e3;">{{ so_no|default('—') or '—' }}</div>{% else %}<div class="qf-code" id="qSoAuto" style="color:#7c4a03;background:#fdf3e3;" title="저장 시 발주일 기준 자동 발행">자동 발급</div>{% endif %}</div>
+            {% if ed %}<div class="qf-code" style="color:var(--knk-warning);background:var(--knk-warning-subtle);">{{ so_no|default('—') or '—' }}</div>{% else %}<div class="qf-code" id="qSoAuto" style="color:var(--knk-warning);background:var(--knk-warning-subtle);" title="저장 시 발주일 기준 자동 발행">자동 발급</div>{% endif %}</div>
           {# v5H226z621 (대표 지시): 고객사1 = 등록 고객사(시스템명) 자동완성 콤보 — 미매칭이면 적색·저장차단. customer_id 바인딩 #}
           {# z1191: 추가 발주 「지난 발주처」 단추 — 관리번호를 고르면 그 수주들의 1차·2차를 보이고 사람이 고른다(몰래 채우지 않음) #}
           <style>
             .qf-chips{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:5px;}
             .qf-chips[hidden]{display:none;}
-            .qf-chips-h{font-size:11px;color:var(--qv-ink-3,#64748b);margin-right:2px;}
-            .qf-chip{font:inherit;font-size:12px;line-height:1.5;padding:2px 10px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:999px;cursor:pointer;}
-            .qf-chip:hover{background:#dbeafe;}
-            .qf-chip.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
+            .qf-chips-h{font-size:11px;color:var(--qv-ink-3);margin-right:2px;}
+            .qf-chip{font:inherit;font-size:12px;line-height:1.5;padding:2px 10px;border:1px solid var(--knk-info-line);background:var(--knk-info-subtle);color:var(--knk-info);border-radius:999px;cursor:pointer;}
+            .qf-chip:hover{background:var(--knk-info-subtle);}
+            .qf-chip.on{background:var(--knk-info);color:var(--knk-text-inverse);border-color:var(--knk-info);}
           </style>
           <div class="qf-f c4"><label>고객사1 <span class="req">*</span> <span style="font-weight:400;color:var(--qv-ink-3);font-size:11px;">(등록 목록에서 선택)</span></label>
             <input type="text" data-cust-picker data-cust-name="customer_name" data-cust-id="customer_id" data-cust-required="1" data-cust-initial="{{ (project.customer_name or '') if ed else '' }}" placeholder="고객사명·시스템명 입력 → 목록 선택" autocomplete="off">
@@ -274,7 +274,7 @@ html,body{background:#fff!important;overflow:auto!important;}
           </div>
           <div class="qf-f c2"><label>거래구분 <span id="qIexHint" style="display:none;font-weight:400;color:var(--qv-ink-3);font-size:11px;">(발주처 기준 · 바꿀 수 있음)</span></label>
             <select name="is_export" id="qIsExport"><option value="0" {% if ed and not (project.is_export|int) %}selected{% endif %}>내수</option><option value="1" {% if ed and (project.is_export|int) %}selected{% endif %}>수출</option>{% if not ed %}<option value="" id="qIexBlank" hidden>— 고르세요 —</option>{% endif %}</select>
-            <div id="qTcm178" role="status" style="display:none;margin-top:4px;padding:4px 8px;border:1px solid #facc15;background:#fef9c3;color:#713f12;border-radius:6px;font-size:11.5px;font-weight:700;line-height:1.45;"></div>
+            <div id="qTcm178" role="status" style="display:none;margin-top:4px;padding:4px 8px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);color:var(--knk-warning);border-radius:6px;font-size:11.5px;font-weight:700;line-height:1.45;"></div>
             {# z1191z178 (대표 11-27): 통화·거래구분이 안 맞으면 고르는 즉시 노란 알림 — 막지 않음(원화 수출 등 맞는 경우도 있음) · 저장하면 그대로 저장 #}
             <script>(function(){
               function z178(){
@@ -341,7 +341,7 @@ html,body{background:#fff!important;overflow:auto!important;}
                    value="{{ ('{:,.2f}'.format(_sl127.unit_price)).rstrip('0').rstrip('.') }}" {% if _sl127.closed %}readonly style="background:var(--qv-surface-3);" title="입금 완료·계산서 발행 수주 — 프로젝트 상세의 그 수주 카드 [✏️ 수정]에서 한 번 확인하고 고칩니다"{% endif %}></div>
           {% elif ed and tso117 and (tso117.semi_lines|default(0)) > 1 %}
           <div class="qf-f c3" id="qSemiPriceCell" style="display:none;"><label>1개 단가</label>
-            <div style="min-height:38px;display:flex;align-items:center;font-size:12px;color:#9a3412;">품목 {{ tso117.semi_lines }}줄 — 줄별 단가는 프로젝트 상세 수주 카드 [✏️ 수정]</div></div>
+            <div style="min-height:38px;display:flex;align-items:center;font-size:12px;color:var(--knk-warning);">품목 {{ tso117.semi_lines }}줄 — 줄별 단가는 프로젝트 상세 수주 카드 [✏️ 수정]</div></div>
           {% endif %}
           <div class="qf-f c4" id="qSemiAmtCell" style="display:none;"><label>금액 <span style="font-weight:400;color:var(--qv-ink-3);">({% if ed %}수주 금액{% else %}항목 합계 · 자동{% endif %})</span></label>
             <div id="qSemiAmt" style="min-height:38px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px;background:var(--qv-surface-3);border:1px solid var(--qv-line);border-radius:8px;font-weight:700;">₩0 <span id="qSemiAmtCur" style="display:none;font-weight:400;font-size:11px;color:var(--qv-ink-3);">KRW</span></div></div>
@@ -353,20 +353,20 @@ html,body{background:#fff!important;overflow:auto!important;}
           <div class="qf-f" id="qPartsBox" style="display:none;grid-column:1/-1;">
             {# v5H226z974 (대표 지시): 상품 = '완제품 몇 대분' 수량 — 작업일정표·상세의 수량은 부품 개수가 아니라 이 값.
                비우면 1(=1식, 부품만 출하). 등록 후엔 작업일정표 수량 칸에서 바로 수정 가능. #}
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 8px;padding:8px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;">
-              <span style="font-weight:700;color:#9a3412;font-size:13px;">🏭 완제품 장비 수량</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 8px;padding:8px 12px;background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:8px;">
+              <span style="font-weight:700;color:var(--knk-warning);font-size:13px;">🏭 완제품 장비 수량</span>
               <input type="number" name="parts_units" min="1" max="100" placeholder="비우면 1"
                      value="{% if ed and project.shipment_form == 'PARTS' and (project.unit_qty or 0)|int >= 1 %}{{ project.unit_qty }}{% endif %}"
                      style="width:110px;text-align:center;">
-              <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 <span style="color:#9a3412;">(PO유형 개조면 식)</span> — 신규·추가 = 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지(1대분도 1) · 개조 = <b>몇 식</b>인지(1식·2식…).</span>
+              <span style="color:var(--qv-ink-3);font-size:12.5px;">대분 <span style="color:var(--knk-warning);">(PO유형 개조면 식)</span> — 신규·추가 = 이 상품(부품 묶음)으로 만드는 <b>완제품 장비가 몇 대</b>인지(1대분도 1) · 개조 = <b>몇 식</b>인지(1식·2식…).</span>
             </div>
-            <label>자재 목록 <span style="font-weight:400;color:var(--qv-ink-3);">{% if can_money %}(<b style="color:#c2410c;">매입단가·마진%</b> 입력 → 판매단가 자동. 수량×판매단가 = 금액, 합산은 아래 합계. 통화는 상단 통화칸 / 마진은 비워도 OK, 등록 후 상세에서 정리){% else %}(수량·단가 입력 → 금액 자동. 통화는 상단 통화칸){% endif %}</span></label>
+            <label>자재 목록 <span style="font-weight:400;color:var(--qv-ink-3);">{% if can_money %}(<b style="color:var(--knk-warning);">매입단가·마진%</b> 입력 → 판매단가 자동. 수량×판매단가 = 금액, 합산은 아래 합계. 통화는 상단 통화칸 / 마진은 비워도 OK, 등록 후 상세에서 정리){% else %}(수량·단가 입력 → 금액 자동. 통화는 상단 통화칸){% endif %}</span></label>
             {# v5H226z460(대표 지시): 상품=매입가에 마진% 가산 → 판매가. 마진 일괄적용 후 행별 개별 조정. 원가는 영업·관리(can_money)만. #}
             {% if can_money %}
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap;">
               <span style="font-size:12px;color:var(--qv-ink-2);font-weight:600;">마진 일괄</span>
               <input id="qBulkMarginPct" type="text" inputmode="numeric" placeholder="%" style="width:64px;text-align:right;padding:5px 8px;border:1px solid var(--qv-line);border-radius:6px;font-size:12.5px;">
-              <button type="button" onclick="qBulkMargin()" style="padding:5px 12px;border:1px solid #fdba74;background:#fff7ed;color:#c2410c;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">전 행 적용</button>
+              <button type="button" onclick="qBulkMargin()" style="padding:5px 12px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);color:var(--knk-warning);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">전 행 적용</button>
               <span style="font-size:11px;color:var(--qv-ink-3);">매입단가 있는 행은 판매단가 자동(매입×(1+마진%)). 판매단가를 직접 고치면 마진% 역산.</span>
             </div>
             {% endif %}
@@ -402,10 +402,10 @@ html,body{background:#fff!important;overflow:auto!important;}
               </table>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;flex-wrap:wrap;gap:8px;">
-              <button type="button" onclick="qAddPart()" style="padding:6px 13px;border:1px solid #b9d2ff;background:#e0edff;color:#1d4ed8;border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 부품 추가</button>
+              <button type="button" onclick="qAddPart()" style="padding:6px 13px;border:1px solid var(--knk-info-line);background:var(--knk-info-subtle);color:var(--knk-info);border-radius:7px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 부품 추가</button>
               <div style="font-size:12.5px;color:var(--qv-ink-2);">합계 <b id="qPartsSum" class="q103m" style="color:var(--knk-red);font-size:14px;">₩0</b></div>
             </div>
-            <div style="background:#eef6ff;border:1px solid #b9d2ff;border-radius:8px;padding:8px 11px;font-size:12px;color:#1e40af;line-height:1.5;margin-top:8px;">
+            <div style="background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);border-radius:8px;padding:8px 11px;font-size:12px;color:var(--knk-info);line-height:1.5;margin-top:8px;">
               💡 입력한 자재는 <b>등록 시 함께 저장</b>됩니다. 많거나 사진·통관 등 상세가 필요하면 <b>등록 후 상세 → PACKING LIST</b>에서 추가하세요.
             </div>
           </div>
@@ -434,7 +434,7 @@ html,body{background:#fff!important;overflow:auto!important;}
     </div>
     <div id="qItemRows" style="max-height:300px;overflow-y:auto;padding-right:2px;"></div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-      <button type="button" id="qItemAdd" style="padding:7px 15px;background:var(--qv-ink-2);color:#fff;border:0;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 항목 추가</button>
+      <button type="button" id="qItemAdd" style="padding:7px 15px;background:var(--qv-ink-2);color:var(--knk-text-inverse);border:0;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">＋ 항목 추가</button>
       <span style="font-size:11.5px;color:var(--qv-ink-3);">
         {# v5H226z1088: 수량·금액 구획이 사라져 안내 갱신 — 금액=항목 합계 자동, 일정표 수량=위 표시수량 #}
         금액은 항목 합계로 <b>자동</b> 계산되어 위 <b>금액</b> 칸에 표기됩니다 · 작업일정표에는 위 <b>작업일정표 수량·단위</b>가 한 줄로 나옵니다(비우면 품명별 줄)
@@ -465,7 +465,7 @@ html,body{background:#fff!important;overflow:auto!important;}
               <option value="CNY" {% if ed and project.currency == 'CNY' %}selected{% endif %}>¥ CNY (위안)</option><option value="EUR" {% if ed and project.currency == 'EUR' %}selected{% endif %}>€ EUR (유로)</option>
             </select>
           </div>
-          <div class="qf-f c3" id="qTopPriceCell"><label>단가 {% if not ed or tso117 %}<label id="qPriceTbdLbl" style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;font-weight:600;color:#92400e;cursor:pointer;" title="단가가 아직 정해지지 않았으면 체크 — 단가를 비워도 등록되고, 작업일정표에 [무상] 대신 [미정]으로 보입니다. 정해지면 상세·작업일정표에서 단가를 넣으세요.{% if ed %} (수정 화면: 위에서 고른 수주에 저장){% endif %}"><input type="checkbox" name="price_tbd" value="1" id="qPriceTbd" onchange="qTbd117()" style="margin:0;"{% if ed and tso117 and tso117.tbd %} checked{% endif %}> 단가 미정</label>{% if ed and tso117 %}<input type="hidden" name="price_tbd_seen" value="1">{% endif %}{% endif %}</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="무상이면 0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>{# z1191z117 ⑤ #}
+          <div class="qf-f c3" id="qTopPriceCell"><label>단가 {% if not ed or tso117 %}<label id="qPriceTbdLbl" style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;font-weight:600;color:var(--knk-warning);cursor:pointer;" title="단가가 아직 정해지지 않았으면 체크 — 단가를 비워도 등록되고, 작업일정표에 [무상] 대신 [미정]으로 보입니다. 정해지면 상세·작업일정표에서 단가를 넣으세요.{% if ed %} (수정 화면: 위에서 고른 수주에 저장){% endif %}"><input type="checkbox" name="price_tbd" value="1" id="qPriceTbd" onchange="qTbd117()" style="margin:0;"{% if ed and tso117 and tso117.tbd %} checked{% endif %}> 단가 미정</label>{% if ed and tso117 %}<input type="hidden" name="price_tbd_seen" value="1">{% endif %}{% endif %}</label><input type="text" inputmode="numeric" name="unit_price" id="qUnitPrice" class="knk-money" placeholder="무상이면 0" value="{{ project.unit_price|round|int if (ed and project.unit_price) else '' }}"></div>{# z1191z117 ⑤ #}
           <div class="qf-f c4" id="qTopAmtCell"><label>금액</label><input type="text" inputmode="numeric" name="order_amount" id="qAmount" class="knk-money" placeholder="0" value="{{ project.order_amount|round|int if (ed and project.order_amount) else '' }}"></div>
           <div class="qf-f c4" id="qFxWrap" style="display:none;"><label>환율 <span class="req">*</span> (1단위=?원)</label>
             <input type="text" inputmode="numeric" name="fx_rate" id="qFx" class="knk-money" placeholder="예: 1,350" value="{{ project.fx_rate if (ed and project.fx_rate) else '' }}"></div>
@@ -478,9 +478,9 @@ html,body{background:#fff!important;overflow:auto!important;}
           {% if not ed and can_money %}
           <div class="qf-f c12" id="qUnitWrap" style="display:none;">
             <label style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;">호기별 금액 · 납기 <span style="font-weight:400;color:var(--qv-ink-3);">(호기마다 금액 입력 — 단가·금액 칸은 자동 잠금)</span>
-              <span style="margin-left:auto;font-weight:600;color:#1e293b;font-size:12px;cursor:pointer;"><input type="checkbox" id="qUnitDueAll" checked onchange="qUnitDueSync()" style="vertical-align:middle;margin-right:3px;">납기일 일괄 적용 (전체 동일)</span>
+              <span style="margin-left:auto;font-weight:600;color:var(--knk-text-primary);font-size:12px;cursor:pointer;"><input type="checkbox" id="qUnitDueAll" checked onchange="qUnitDueSync()" style="vertical-align:middle;margin-right:3px;">납기일 일괄 적용 (전체 동일)</span>
             </label>
-            <div id="qUnitRows" style="display:flex;flex-direction:column;gap:6px;border:1px solid var(--qv-line);border-radius:8px;padding:9px 11px;background:var(--qv-surface-2,#f7f8fa);"></div>
+            <div id="qUnitRows" style="display:flex;flex-direction:column;gap:6px;border:1px solid var(--qv-line);border-radius:8px;padding:9px 11px;background:var(--qv-surface-2);"></div>
             <div style="text-align:right;font-size:13px;margin-top:6px;">호기 합계 <b id="qUnitSum" class="q103m" style="color:var(--knk-red);font-size:14px;">₩0</b></div>
           </div>
           {% endif %}
@@ -517,9 +517,9 @@ html,body{background:#fff!important;overflow:auto!important;}
         {# v5H226z373(대표 지시): 제작요청 발행 — 등록(발행)과 동시에 ① 작업일정표 '제작요청' 자동기록
            ② 관련부서 WORKS 통보(단가·금액 제외). 제작메일 대체. 신규 등록 전용(수정 모드 숨김). #}
         {% if not ed %}
-        <div style="margin-top:14px;border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:14px 16px;">
+        <div style="margin-top:14px;border:1px solid var(--knk-warning-line);background:var(--knk-warning-subtle);border-radius:10px;padding:14px 16px;">
           {# z1191z58 (대표 11-18 「처음부터 발행할 때 묶어서」): 지금 발행 / 묶어서 발행(기다림) / 발행 안 함 — 체크 칸(prod_notify)은 「지금 발행」과 같이 움직임 #}
-          <div style="font-size:14px;font-weight:800;color:#9a3412;line-height:1.4;">📋 제작요청서</div>
+          <div style="font-size:14px;font-weight:800;color:var(--knk-warning);line-height:1.4;">📋 제작요청서</div>
           <input type="checkbox" name="prod_notify" value="1" id="qProdNotify" checked onchange="qToggleProd()" hidden>
           <div class="z58-modes">
             <label><input type="radio" name="prod_mode" value="now" checked onchange="z58Mode()"> <b>지금 발행</b> <span>관련부서 통보 + 작업일정표 자동기록</span></label>
@@ -527,31 +527,31 @@ html,body{background:#fff!important;overflow:auto!important;}
             <label><input type="radio" name="prod_mode" value="none" onchange="z58Mode()"> <b>발행 안 함</b> <span>제안 단계 등</span></label>
           </div>
           <div id="z58WaitMsg" class="z58-waitmsg" hidden>⏳ 이 관리번호는 제작요청서를 <b>아직 보내지 않고 기다립니다</b>. 같은 발주의 <b>마지막 관리번호를 등록할 때 「지금 발행」</b>을 고르면 기다리던 관리번호와 <b>한 장으로 처음 발행</b>됩니다. (작업일정표에서 ☑ 골라 [📋 골라서 제작요청서]로 내도 됩니다)</div>
-          <div style="font-size:11.5px;color:#9a3412;opacity:.9;margin:6px 0 0 24px;">제작메일 대체 · 통보에는 <b>단가·금액이 포함되지 않습니다</b>(자료경로·모델·품명·수량·납기·요청사항만). 제안 단계 등록이면 「발행 안 함」을 고르세요.</div>
+          <div style="font-size:11.5px;color:var(--knk-warning);opacity:.9;margin:6px 0 0 24px;">제작메일 대체 · 통보에는 <b>단가·금액이 포함되지 않습니다</b>(자료경로·모델·품명·수량·납기·요청사항만). 제안 단계 등록이면 「발행 안 함」을 고르세요.</div>
           <div id="qProdBox" style="margin-top:10px;">
             <div id="z58Waits" class="z58-waits" hidden>
               <div class="z58-wt">🔗 같은 고객사로 <b>「묶어서 발행」을 기다리는 관리번호</b> — 고르면 이 등록과 <b>한 장으로 처음 발행</b>합니다(같은 발주일은 미리 골라 둠)</div>
               <div id="z58WaitList"></div>
-              <div class="qf-f" style="margin-top:6px;"><label>MODEL <span style="font-weight:400;color:#9a3412;">(묶음 이름 · 선택 · 비우면 이 관리번호 모델명)</span></label><input name="pr_bundle_model" maxlength="120" placeholder="예) VPL2132_2138-0126000"></div>
+              <div class="qf-f" style="margin-top:6px;"><label>MODEL <span style="font-weight:400;color:var(--knk-warning);">(묶음 이름 · 선택 · 비우면 이 관리번호 모델명)</span></label><input name="pr_bundle_model" maxlength="120" placeholder="예) VPL2132_2138-0126000"></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr;gap:10px;">
-              <div class="qf-f"><label>고객사 요청사항 <span style="font-weight:400;color:#9a3412;">(케이스·개조·반출일정 등 상세 사양 — 여러 줄 OK)</span></label><textarea name="pr_cust_req" rows="8" placeholder="예:&#10;1. S3908 ASSY 검사기 1호기&#10;-. 케이스 제외.&#10;-. S3916A 모델 → S3908 모델로 개조 진행.&#10;-. 검사기·시료·IC보드 반출일정: 06/18~19" style="resize:vertical;"></textarea></div>
+              <div class="qf-f"><label>고객사 요청사항 <span style="font-weight:400;color:var(--knk-warning);">(케이스·개조·반출일정 등 상세 사양 — 여러 줄 OK)</span></label><textarea name="pr_cust_req" rows="8" placeholder="예:&#10;1. S3908 ASSY 검사기 1호기&#10;-. 케이스 제외.&#10;-. S3916A 모델 → S3908 모델로 개조 진행.&#10;-. 검사기·시료·IC보드 반출일정: 06/18~19" style="resize:vertical;"></textarea></div>
               <div class="qf-f"><label>기타 요청사항</label><textarea name="pr_note" rows="3" placeholder="(선택)" style="resize:vertical;"></textarea></div>
             </div>
             {# v5H226z772 (대표 지시): 제작요청 참고 이미지 첨부 — 여러 장·드래그·미리보기·개별 제거. 등록과 함께 멀티파트 전송. #}
             <style>
-              .pr-imgdrop{ margin-top:4px;border:1.5px dashed #fdba74;background:#fff;border-radius:10px;padding:14px 12px;cursor:pointer;transition:background .15s,border-color .15s; }
-              .pr-imgdrop.drag{ background:#fff7ed;border-color:#f97316; }
-              .pr-imgdrop-hint{ font-size:12.5px;color:#c2772a;text-align:center;font-weight:700; }
+              .pr-imgdrop{ margin-top:4px;border:1.5px dashed var(--knk-warning-line);background:var(--knk-bg-surface);border-radius:10px;padding:14px 12px;cursor:pointer;transition:background .15s,border-color .15s; }
+              .pr-imgdrop.drag{ background:var(--knk-warning-subtle);border-color:var(--knk-highlight); }
+              .pr-imgdrop-hint{ font-size:12.5px;color:var(--knk-warning);text-align:center;font-weight:700; }
               .pr-imgprev{ display:flex;flex-wrap:wrap;gap:8px;margin-top:10px; }
               .pr-imgprev:empty{ display:none; }
-              .pr-imgcell{ position:relative;width:84px;height:84px;border-radius:8px;overflow:hidden;border:1px solid #fed7aa;background:#f7f8fa; }
+              .pr-imgcell{ position:relative;width:84px;height:84px;border-radius:8px;overflow:hidden;border:1px solid var(--knk-warning-line);background:var(--knk-bg-inset); }
               .pr-imgcell img{ width:100%;height:100%;object-fit:cover;display:block; }
-              .pr-imgdel{ position:absolute;top:2px;right:2px;width:20px;height:20px;line-height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;cursor:pointer;padding:0;text-align:center; }
-              .pr-imgdel:hover{ background:#dc2626; }
+              .pr-imgdel{ position:absolute;top:2px;right:2px;width:20px;height:20px;line-height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:var(--knk-text-inverse);font-size:14px;cursor:pointer;padding:0;text-align:center; }
+              .pr-imgdel:hover{ background:var(--knk-danger); }
             </style>
             <div class="qf-f" style="margin-top:12px;">
-              <label>📷 참고 이미지 <span style="font-weight:400;color:#9a3412;">(케이스·도면·IC보드 사진 등 · 여러 장 · JPG/PNG · 장당 25MB)</span></label>
+              <label>📷 참고 이미지 <span style="font-weight:400;color:var(--knk-warning);">(케이스·도면·IC보드 사진 등 · 여러 장 · JPG/PNG · 장당 25MB)</span></label>
               <div id="prImgDrop" class="pr-imgdrop" onclick="document.getElementById('prImgInput').click()">
                 <div class="pr-imgdrop-hint">＋ 이미지 선택 또는 여기로 드래그해서 놓기</div>
                 <input type="file" id="prImgInput" name="pr_images" accept="image/*" multiple data-knk-no-dropzone style="display:none;">
@@ -834,7 +834,7 @@ function qItemRowHtml(){
     + '<input type="number" name="it_qty[]" class="qi-qty" value="1" min="1" style="width:100%;padding:6px;text-align:center;">'
     + '<input type="text" name="it_price[]" class="qi-price knk-money" inputmode="numeric" placeholder="무상이면 0" style="width:100%;padding:6px;text-align:right;">'
     + '<input type="text" class="qi-amt" readonly value="0" style="width:100%;padding:6px;text-align:right;background:var(--qv-surface-3);color:var(--qv-ink-2);font-weight:700;">'
-    + '<button type="button" class="qi-del" title="이 항목 삭제" style="width:26px;height:32px;border:1px solid var(--qv-line);background:#fff;border-radius:6px;cursor:pointer;color:var(--knk-red);font-weight:700;">×</button>'
+    + '<button type="button" class="qi-del" title="이 항목 삭제" style="width:26px;height:32px;border:1px solid var(--qv-line);background:var(--knk-bg-surface);border-radius:6px;cursor:pointer;color:var(--knk-red);font-weight:700;">×</button>'
     + '</div>';
 }
 function qItemNum(v){ return Number(String(v==null?'':v).replace(/[^0-9.-]/g,''))||0; }
@@ -870,7 +870,7 @@ document.addEventListener('DOMContentLoaded', function(){
   if(typeof qSemiAmtSync === 'function') try{ qSemiAmtSync(); }catch(_e){}
   if(g && !document.getElementById('qSo117Hint')){
     var d = document.createElement('div'); d.id = 'qSo117Hint';
-    d.setAttribute('style', 'margin:4px 0 0;font-size:11.5px;color:#9a3412;');
+    d.setAttribute('style', 'margin:4px 0 0;font-size:11.5px;color:var(--knk-warning);');
     d.textContent = 'ⓘ 위 수량·단가·금액 = 수주 ' + T.no + ' 값(' + (T.qty || '') + ' ' + (T.unit || '') + ') — 고치려면 프로젝트 상세의 그 수주 카드 [✏️ 수정]. 「☐ 단가 미정」은 여기서 체크하면 수주 ' + T.no + '에 저장됩니다.';
     g.appendChild(d);
   }
@@ -922,7 +922,7 @@ document.addEventListener('submit', function(e){
   var tag = function(){ KEYS.forEach(function(k){
     var el = f.querySelector('[name="' + k[0] + '"]'); if(k[0] === 'customer_id') el = f.querySelector('input[data-cust-picker]') || el;
     if(!el) return; var box = el.closest('.qf-f'); var lb = box && box.querySelector('label');
-    if(lb && !lb.querySelector('.tag152')){ var s = document.createElement('span'); s.className = 'tag152'; s.textContent = ' (이 수주)'; s.style.cssText = 'color:#c2410c;font-size:10.5px;font-weight:800;'; lb.appendChild(s); }
+    if(lb && !lb.querySelector('.tag152')){ var s = document.createElement('span'); s.className = 'tag152'; s.textContent = ' (이 수주)'; s.style.cssText = 'color:var(--knk-warning);font-size:10.5px;font-weight:800;'; lb.appendChild(s); }
   }); };
   tag(); setTimeout(tag, 300);
   document.addEventListener('submit', function(e){
@@ -1066,8 +1066,8 @@ function qPartRowHtml(){
   // v5H226z721(대표 지시): 표 행(<tr><td>) — 너비/공통스타일은 CSS(.qf-parts-tbl), 특수 배경(원가=주황·인보이스=파랑)만 인라인
   var _cm='';
   if(qCanMoney){
-    _cm = '<td><input name="pk_cost[]" type="text" inputmode="numeric" class="knk-money" placeholder="매입단가" oninput="qPartCost(this)" title="매입단가(협력사가)" style="text-align:right;background:#fff7ed;"></td>'
-        + '<td><input name="pk_margin[]" type="text" inputmode="numeric" placeholder="%" oninput="qPartMargin(this)" title="마진%(매입가에 가산)" style="text-align:right;background:#fff7ed;"></td>';
+    _cm = '<td><input name="pk_cost[]" type="text" inputmode="numeric" class="knk-money" placeholder="매입단가" oninput="qPartCost(this)" title="매입단가(협력사가)" style="text-align:right;background:var(--knk-warning-subtle);"></td>'
+        + '<td><input name="pk_margin[]" type="text" inputmode="numeric" placeholder="%" oninput="qPartMargin(this)" title="마진%(매입가에 가산)" style="text-align:right;background:var(--knk-warning-subtle);"></td>';
   }
   return '<tr class="qf-part-row">'
     + '<td><input name="pk_matno[]" placeholder="자재번호"></td>'
@@ -1079,8 +1079,8 @@ function qPartRowHtml(){
     + _cm
     + '<td><input name="pk_price[]" type="text" inputmode="numeric" class="knk-money" placeholder="'+(qCanMoney?'판매단가':'단가')+'" oninput="qPartPrice(this);qPartInv(this)" title="판매단가(KRW)" style="text-align:right;"></td>'
     + (qCanMoney ? ('<td><input name="pk_fx[]" type="text" inputmode="numeric" placeholder="환율" oninput="qPartInv(this)" title="환율(1 USD = ? 원) — 수출 USD 건만" style="text-align:right;"></td>'
-       + '<td><input name="pk_inv[]" type="text" readonly placeholder="USD" title="인보이스단가(USD) = 판매단가(KRW) ÷ 환율 (자동)" style="text-align:right;background:#eef6ff;color:#1d4ed8;font-weight:600;"></td>') : '')
-    + '<td><select name="pk_status[]" title="상태(진행중/출하/취소/보류)" style="width:100%;padding:4px 2px;border:1px solid var(--qv-line);border-radius:5px;font-size:12px;background:#fff;"><option value="진행중">진행중</option><option value="출하">출하</option><option value="취소">취소</option><option value="보류">보류</option></select></td>'
+       + '<td><input name="pk_inv[]" type="text" readonly placeholder="USD" title="인보이스단가(USD) = 판매단가(KRW) ÷ 환율 (자동)" style="text-align:right;background:var(--knk-info-subtle);color:var(--knk-info);font-weight:600;"></td>') : '')
+    + '<td><select name="pk_status[]" title="상태(진행중/출하/취소/보류)" style="width:100%;padding:4px 2px;border:1px solid var(--qv-line);border-radius:5px;font-size:12px;background:var(--knk-bg-surface);"><option value="진행중">진행중</option><option value="출하">출하</option><option value="취소">취소</option><option value="보류">보류</option></select></td>'
     + '<td><span class="qf-pk-amt">0</span></td>'
     + '<td><input name="pk_due[]" type="date" title="납기(부품별)"></td>'
     + '<td><input name="pk_note[]" placeholder="비고"></td>'
@@ -1184,20 +1184,20 @@ function qManualToggle(){
 }
 function qManualReset(){
   window._qManualOK = null;
-  var m=document.getElementById('qManualMsg'); if(m){ m.textContent='변경됨 — [검증]을 다시 눌러 주세요.'; m.style.color='#b45309'; }
+  var m=document.getElementById('qManualMsg'); if(m){ m.textContent='변경됨 — [검증]을 다시 눌러 주세요.'; m.style.color='var(--knk-warning)'; }
 }
 function qManualValidate(){
   var i=document.getElementById('qManualCode'), m=document.getElementById('qManualMsg');
   if(!i||!m) return;
   var code=(i.value||'').trim().toUpperCase(); i.value=code;
-  if(!code){ m.textContent='관리번호를 입력하세요.'; m.style.color='#b45309'; window._qManualOK=null; return; }
+  if(!code){ m.textContent='관리번호를 입력하세요.'; m.style.color='var(--knk-warning)'; window._qManualOK=null; return; }
   var bd=((document.getElementById('qBizDiv')||{}).value||'T');
   var pt=((document.getElementById('qPtype')||{}).value||'NEW_EQUIP');
   m.textContent='검증 중…'; m.style.color='var(--qv-ink-3)';
   fetch('/api/mgmt-code/check?code='+encodeURIComponent(code)+'&biz_div='+encodeURIComponent(bd)+'&ptype='+encodeURIComponent(pt), {headers:{'Accept':'application/json'}})
     .then(function(r){ return r.ok ? r.json() : r.json().then(function(j){ throw new Error((j&&j.error)||('HTTP '+r.status)); }); })
     .then(function(j){
-      if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='#15803d'; window._qManualOK=code; }
+      if(j && j.available){ m.textContent='✅ 사용 가능 — 이 번호로 등록됩니다.'; m.style.color='var(--knk-success)'; window._qManualOK=code; }
       else {
         // v5H226z1059(대표 지시): '어디서 쓰는지' + 그 프로젝트/소모품으로 가는 링크(XSS안전=textContent+DOM)
         m.textContent='❌ '+((j&&j.reason)||'사용할 수 없는 번호');
@@ -1207,13 +1207,13 @@ function qManualValidate(){
           a.href=(ub.type==='consumable'?'/consumables/':'/project/')+ub.id;
           a.target='_blank'; a.rel='noopener';
           a.textContent=' → 그 '+(ub.type==='consumable'?'소모품 발주':'프로젝트')+' 열기';
-          a.style.color='#1d4ed8'; a.style.textDecoration='underline'; a.style.marginLeft='4px';
+          a.style.color='var(--knk-info)'; a.style.textDecoration='underline'; a.style.marginLeft='4px';
           m.appendChild(a);
         }
-        m.style.color='#dc2626'; window._qManualOK=null;
+        m.style.color='var(--knk-danger)'; window._qManualOK=null;
       }
     })
-    .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='#dc2626'; window._qManualOK=null; });
+    .catch(function(e){ m.textContent='검증 실패: '+((e&&e.message)||'네트워크 오류'); m.style.color='var(--knk-danger)'; window._qManualOK=null; });
 }
 function qEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function qMgmtPick(rw){
@@ -1289,17 +1289,17 @@ function qMgmtSearch(){
   var q=(inp.value||'').trim();   // v5H226z385: 비어 있어도(포커스) 최근 프로젝트 표시 — 관리번호 몰라도 고르기 쉽게
   fetch('/api/projects/search?q='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(j){
     var rows=(j&&j.rows)||[]; lst.innerHTML='';
-    if(!rows.length){ lst.innerHTML='<div style="padding:7px 10px;color:#999;font-size:12px;">'+(q?'일치하는 항목 없음':'등록된 프로젝트 없음')+'</div>'; lst.style.display='block'; return; }
+    if(!rows.length){ lst.innerHTML='<div style="padding:7px 10px;color:var(--knk-text-muted);font-size:12px;">'+(q?'일치하는 항목 없음':'등록된 프로젝트 없음')+'</div>'; lst.style.display='block'; return; }
     var bizMap={T:'검사기',M:'자동화',L:'라이프밸류',E:'기타',C:'소모품'};
-    if(!q){ var hd=document.createElement('div'); hd.style.cssText='padding:5px 10px;color:#94a3b8;font-size:11px;background:#f8fafc;border-bottom:1px solid #eee;'; hd.textContent='최근 프로젝트 — 관리번호·고객사·모델·장비명으로 검색'; lst.appendChild(hd); }
+    if(!q){ var hd=document.createElement('div'); hd.style.cssText='padding:5px 10px;color:var(--knk-text-muted);font-size:11px;background:var(--knk-bg-inset);border-bottom:1px solid var(--knk-border-subtle);'; hd.textContent='최근 프로젝트 — 관리번호·고객사·모델·장비명으로 검색'; lst.appendChild(hd); }
     rows.slice(0,20).forEach(function(rw){
       var bz=bizMap[rw.biz_div]||rw.biz_div||'';
       var sub=[qEsc(rw.customer_name||''), rw.model_name?qEsc(rw.model_name):'', bz, rw.status?qEsc(rw.status):''].filter(Boolean).join(' · ');
       var d=document.createElement('div');
-      d.style.cssText='padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f1f1;background:#fff;';
-      d.onmouseenter=function(){ d.style.background='#eff6ff'; }; d.onmouseleave=function(){ d.style.background='#fff'; };
-      d.innerHTML='<div><b style="font-family:Consolas,monospace;color:#1e40af;">'+qEsc(rw.mgmt_code||'')+'</b> · '+qEsc(rw.name||'')+'</div>'
-        +(sub?'<div style="color:#999;font-size:11px;margin-top:1px;">'+sub+'</div>':'');
+      d.style.cssText='padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--knk-border-subtle);background:var(--knk-bg-surface);';
+      d.onmouseenter=function(){ d.style.background='var(--knk-info-subtle)'; }; d.onmouseleave=function(){ d.style.background='var(--knk-bg-surface)'; };
+      d.innerHTML='<div><b style="font-family:Consolas,monospace;color:var(--knk-info);">'+qEsc(rw.mgmt_code||'')+'</b> · '+qEsc(rw.name||'')+'</div>'
+        +(sub?'<div style="color:var(--knk-text-muted);font-size:11px;margin-top:1px;">'+sub+'</div>':'');
       d.onmousedown=function(e){ e.preventDefault(); qMgmtPick(rw); };
       lst.appendChild(d);
     });
@@ -1310,8 +1310,8 @@ function qMgmtSearch(){
 function qUnitRowHTML(i, amt, due, ship, cur){
   return '<div class="qf-unit-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
     + '<span style="width:52px;flex:none;font-size:12.5px;font-weight:700;color:var(--qv-ink-2);">'+i+'호기</span>'
-    + '<input type="text" inputmode="numeric" name="unit_amount[]" class="qf-unit-amt knk-money" value="'+(amt||'')+'" placeholder="금액" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;text-align:right;background:#fff;">'
-    + '<input type="date" name="unit_due[]" class="qf-unit-due" value="'+(due||'')+'" title="이 호기 납기(출하일)" style="flex:none;width:158px;padding:6px 8px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12px;background:#fff;">'
+    + '<input type="text" inputmode="numeric" name="unit_amount[]" class="qf-unit-amt knk-money" value="'+(amt||'')+'" placeholder="금액" style="flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12.5px;text-align:right;background:var(--knk-bg-surface);">'
+    + '<input type="date" name="unit_due[]" class="qf-unit-due" value="'+(due||'')+'" title="이 호기 납기(출하일)" style="flex:none;width:158px;padding:6px 8px;border:1px solid var(--qv-line);border-radius:6px;font:inherit;font-size:12px;background:var(--knk-bg-surface);">'
     + '<input type="hidden" name="unit_label[]" value="'+i+'호기">'
     + '<input type="hidden" name="unit_ship[]" class="qf-unit-ship" value="'+(ship||'')+'">'
     + '<input type="hidden" name="unit_currency[]" class="qf-unit-cur" value="'+(cur||'KRW')+'">'
@@ -1359,8 +1359,8 @@ function qLockHeaderPrice(lock){
   ['qUnitPrice','qAmount'].forEach(function(id){
     var el=document.getElementById(id); if(!el) return;
     el.readOnly=!!lock;
-    el.style.background = lock ? '#eef0f3' : '';
-    el.style.color = lock ? '#64748b' : '';
+    el.style.background = lock ? 'var(--knk-bg-subtle)' : '';
+    el.style.color = lock ? 'var(--knk-text-muted)' : '';
     el.style.cursor = lock ? 'not-allowed' : '';
     el.title = lock ? '여러 대(호기별) — 아래 호기별 칸에서 입력. 단가=호기 평균(자동)·금액=합계(자동).' : '';
   });
@@ -1371,8 +1371,8 @@ function qUnitDueSync(){
   var on = all ? all.checked : true;
   var hdr=(document.getElementById('qDueDate')||{}).value||'';
   document.querySelectorAll('#qUnitRows .qf-unit-due').forEach(function(d){
-    if(on){ d.value=hdr; d.readOnly=true; d.style.background='#eef0f3'; d.style.color='#64748b'; d.title='납기일 일괄 적용 중 — 헤더 납품일과 동일'; }
-    else { d.readOnly=false; d.style.background='#fff'; d.style.color=''; d.title='이 호기 납기(출하일)'; }
+    if(on){ d.value=hdr; d.readOnly=true; d.style.background='var(--knk-bg-subtle)'; d.style.color='var(--knk-text-muted)'; d.title='납기일 일괄 적용 중 — 헤더 납품일과 동일'; }
+    else { d.readOnly=false; d.style.background='var(--knk-bg-surface)'; d.style.color=''; d.title='이 호기 납기(출하일)'; }
   });
 }
 function qBuildUnits(){
@@ -1428,7 +1428,7 @@ document.getElementById('quickForm').addEventListener('submit',function(e){
   var _custBad = window.KNKCust && KNKCust.validate(this);
   if(_custBad){ e.preventDefault(); try{ _custBad.focus(); }catch(_e){}
     if(qIsFollowup()){   /* z1191z166 (대표 11-27): 추가 발주 = 이 수주의 1차 고객사 필수 */
-      err.innerHTML='👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 목록에 없는 새 고객이면 <a href="/customers/new" target="_blank" style="color:#1d4ed8;font-weight:800;">고객사 등록</a>(새 탭) 후 고르세요.';
+      err.innerHTML='👉 고객사를 등록(선택)해 주세요 — 이 수주의 세금계산서를 받는 1차 고객사입니다. 목록에 없는 새 고객이면 <a href="/customers/new" target="_blank" style="color:var(--knk-info);font-weight:800;">고객사 등록</a>(새 탭) 후 고르세요.';
     } else {
     err.textContent='고객사를 등록된 목록에서 선택하세요(빨간 칸). 없으면 먼저 고객사를 등록하세요.';
     }
@@ -1713,14 +1713,14 @@ function qfShowRestoredBar(d){
   var bar=document.createElement('div');
   bar.id='qfRestoredBar';
   bar.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;'
-    + 'padding:9px 14px;border-radius:8px;background:#eff6ff;border:1px solid #93c5fd;'
-    + 'color:#1e3a8a;font-size:12.5px;font-weight:600;line-height:1.5;';
+    + 'padding:9px 14px;border-radius:8px;background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);'
+    + 'color:var(--knk-info);font-size:12.5px;font-weight:600;line-height:1.5;';
   var msg=document.createElement('span');
   msg.innerHTML='✏️ <b>이전에 쓰다 만 내용</b>을 불러왔습니다. 새로 작성하시려면 오른쪽 버튼을 누르세요.';
   var btn=document.createElement('button');
   btn.type='button'; btn.id='qfRestoredClear'; btn.textContent='🗑 지우고 새로 시작';
-  btn.style.cssText='margin-left:auto;padding:5px 13px;border:1px solid #93c5fd;background:#fff;'
-    + 'color:#1d4ed8;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;';
+  btn.style.cssText='margin-left:auto;padding:5px 13px;border:1px solid var(--knk-info-line);background:var(--knk-bg-surface);'
+    + 'color:var(--knk-info);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;';
   btn.addEventListener('click', function(){
     try{ qfClear(); }catch(e){}
     try{ location.reload(); }catch(e){}
@@ -1840,16 +1840,16 @@ function qIexApply(){
 <style>
 /* z1191z58 (대표 11-18): 제작요청 = 지금 발행 / 묶어서 발행(기다림) / 발행 안 함 · 기다리던 관리번호와 한 장으로 */
 .z58-modes { display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 0; }
-.z58-modes label { display:flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #fed7aa; background:#fff; border-radius:8px; cursor:pointer; font-size:13px; color:#7c2d12; }
-.z58-modes label span { font-size:11.5px; color:#9a3412; opacity:.85; }
-.z58-modes label:has(input:checked) { border-color:#c2410c; background:#ffedd5; box-shadow:0 0 0 1px #c2410c inset; }
-.z58-waitmsg { margin-top:8px; padding:8px 10px; border-radius:8px; background:#fffbeb; border:1px solid #fcd34d; color:#92400e; font-size:12.5px; line-height:1.55; }
+.z58-modes label { display:flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--knk-warning-line); background:var(--knk-bg-surface); border-radius:8px; cursor:pointer; font-size:13px; color:var(--knk-warning); }
+.z58-modes label span { font-size:11.5px; color:var(--knk-warning); opacity:.85; }
+.z58-modes label:has(input:checked) { border-color:var(--knk-warning); background:var(--knk-warning-subtle); box-shadow:0 0 0 1px var(--knk-warning) inset; }
+.z58-waitmsg { margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--knk-warning-subtle); border:1px solid var(--knk-warning-line); color:var(--knk-warning); font-size:12.5px; line-height:1.55; }
 .z58-waitmsg[hidden], .z58-waits[hidden] { display:none; }
-.z58-waits { margin:0 0 10px; padding:9px 11px; border-radius:9px; background:#fff; border:1.5px solid #fb923c; }
-.z58-wt { font-size:12.5px; color:#9a3412; margin-bottom:6px; }
-.z58-wi { display:flex; align-items:center; gap:8px; font-size:13px; padding:3px 2px; border-bottom:1px dashed #fde4cc; cursor:pointer; flex-wrap:wrap; }
-.z58-wi .d { font-size:11.5px; color:#64748b; }
-.z58-wi.other .d.od { color:#b45309; font-weight:700; }
+.z58-waits { margin:0 0 10px; padding:9px 11px; border-radius:9px; background:var(--knk-bg-surface); border:1.5px solid var(--knk-warning-line); }
+.z58-wt { font-size:12.5px; color:var(--knk-warning); margin-bottom:6px; }
+.z58-wi { display:flex; align-items:center; gap:8px; font-size:13px; padding:3px 2px; border-bottom:1px dashed var(--knk-warning-line); cursor:pointer; flex-wrap:wrap; }
+.z58-wi .d { font-size:11.5px; color:var(--knk-text-muted); }
+.z58-wi.other .d.od { color:var(--knk-warning); font-weight:700; }
 </style>
 <script>
 /* z1191z141 등록 화면 — 고객사·모델·장비명을 고르면 비슷한 지난 최종 견적(최대 3건) · 화면 바꿈(spa)으로 열어도 바로 돎 */
@@ -1924,60 +1924,60 @@ function qIexApply(){
 </script>
 <style>
 /* z1191z141 비슷한 지난 최종 견적 */
-.z141-sim { padding:8px 10px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:10px; }
+.z141-sim { padding:8px 10px; border:1px solid var(--knk-info-line); background:var(--knk-info-subtle); border-radius:10px; }
 .z141-sim[hidden] { display:none; }
-.z141-sim-ttl { font-size:12.5px; font-weight:800; color:#075985; margin-bottom:4px; }
-.z141-sim-ttl span { font-weight:400; color:#64748b; font-size:11.5px; }
-.z141-si { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 8px; margin-top:4px; border:1px solid #e0f2fe; background:#fff; border-radius:8px; text-decoration:none; color:#0f172a; font-size:12px; }
-.z141-si:hover { border-color:#38bdf8; }
-.z141-si .sl { color:#475569; } .z141-si .d { color:#64748b; } .z141-si .am { font-weight:800; margin-left:auto; }
-.z141-si .tg { padding:0 6px; border-radius:999px; background:#f1f5f9; color:#475569; font-size:11px; }
-.z141-si .tg.cu { background:#dcfce7; color:#166534; } .z141-si .tg.md { background:#e0e7ff; color:#3730a3; }
-.z141-si .od { padding:0 7px; border-radius:999px; background:#f1f5f9; color:#64748b; font-size:11px; font-weight:700; }
-.z141-si .od.ok { background:#dcfce7; color:#166534; }
+.z141-sim-ttl { font-size:12.5px; font-weight:800; color:var(--knk-info); margin-bottom:4px; }
+.z141-sim-ttl span { font-weight:400; color:var(--knk-text-muted); font-size:11.5px; }
+.z141-si { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:5px 8px; margin-top:4px; border:1px solid var(--knk-info-line); background:var(--knk-bg-surface); border-radius:8px; text-decoration:none; color:var(--knk-text-primary); font-size:12px; }
+.z141-si:hover { border-color:var(--knk-info-line); }
+.z141-si .sl { color:var(--knk-text-secondary); } .z141-si .d { color:var(--knk-text-muted); } .z141-si .am { font-weight:800; margin-left:auto; }
+.z141-si .tg { padding:0 6px; border-radius:999px; background:var(--knk-bg-subtle); color:var(--knk-text-secondary); font-size:11px; }
+.z141-si .tg.cu { background:var(--knk-success-subtle); color:var(--knk-success); } .z141-si .tg.md { background:var(--knk-bg-subtle); color:var(--knk-cat-violet); }
+.z141-si .od { padding:0 7px; border-radius:999px; background:var(--knk-bg-subtle); color:var(--knk-text-muted); font-size:11px; font-weight:700; }
+.z141-si .od.ok { background:var(--knk-success-subtle); color:var(--knk-success); }
 /* z1191z57 (대표 11-18): 등록 화면 한 번에 한 사람 · 다음 번호 · 입력 기준 ⓘ */
 #quickForm { position:relative; }
 .z57-cover { position:absolute; inset:-6px; z-index:60; background:rgba(248,250,252,.86); backdrop-filter:blur(2px); border-radius:12px; }
 .z57-cover[hidden], .z57-bar[hidden] { display:none; }
-.z57-card { position:sticky; top:90px; margin:40px auto 0; max-width:560px; background:#fff; border:1px solid #fcd34d; border-left:5px solid #f59e0b;
+.z57-card { position:sticky; top:90px; margin:40px auto 0; max-width:560px; background:var(--knk-bg-surface); border:1px solid var(--knk-warning-line); border-left:5px solid var(--knk-highlight);
   border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.14); padding:18px 20px; }
-.z57-ttl { font-size:16px; font-weight:800; color:#92400e; margin-bottom:8px; line-height:1.45; }
-.z57-sub { font-size:13px; color:#334155; line-height:1.6; }
-.z57-dim { color:#64748b; font-size:12px; margin-top:4px; }
+.z57-ttl { font-size:16px; font-weight:800; color:var(--knk-warning); margin-bottom:8px; line-height:1.45; }
+.z57-sub { font-size:13px; color:var(--knk-text-secondary); line-height:1.6; }
+.z57-dim { color:var(--knk-text-muted); font-size:12px; margin-top:4px; }
 /* z1191z70: 기다리는 분 알림(열고 있는 사람) · 가림막 안내 줄 */
 .z70-ask { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:9999; width:min(520px, calc(100vw - 32px)); box-sizing:border-box;
-  background:#fff; border:1px solid #fca5a5; border-left:6px solid #A5282C; border-radius:12px; padding:16px 18px 12px; box-shadow:0 12px 32px rgba(15,23,42,.25); }
+  background:var(--knk-bg-surface); border:1px solid var(--knk-danger-line); border-left:6px solid var(--knk-brand); border-radius:12px; padding:16px 18px 12px; box-shadow:0 12px 32px rgba(15,23,42,.25); }
 .z70-ask[hidden] { display:none; }
-.z70-ask-ttl { font-size:15.5px; font-weight:800; color:#7f1d1d; line-height:1.5; }
-.z70-ask-sub { font-size:13px; color:#334155; line-height:1.6; margin-top:6px; }
+.z70-ask-ttl { font-size:15.5px; font-weight:800; color:var(--knk-danger); line-height:1.5; }
+.z70-ask-sub { font-size:13px; color:var(--knk-text-secondary); line-height:1.6; margin-top:6px; }
 .z70-ask-btn { text-align:right; margin-top:10px; }
-.z70-ask-btn button { padding:7px 22px; font-size:13.5px; font-weight:700; border-radius:8px; border:1px solid #A5282C; background:#A5282C; color:#fff; cursor:pointer; }
-.z70-told { margin-top:6px; color:#7f1d1d; }
+.z70-ask-btn button { padding:7px 22px; font-size:13.5px; font-weight:700; border-radius:8px; border:1px solid var(--knk-brand); background:var(--knk-brand); color:var(--knk-text-inverse); cursor:pointer; }
+.z70-told { margin-top:6px; color:var(--knk-danger); }
 .z70-other { margin-top:2px; }
-.z57-bar { margin:0 0 10px; padding:7px 12px; border-radius:8px; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; font-size:12.5px; }
-.z57-bar b { color:#047857; }
-.z57-wait { margin-left:8px; padding:1px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-weight:700; }
+.z57-bar { margin:0 0 10px; padding:7px 12px; border-radius:8px; background:var(--knk-success-subtle); border:1px solid var(--knk-success-line); color:var(--knk-success); font-size:12.5px; }
+.z57-bar b { color:var(--knk-success); }
+.z57-wait { margin-left:8px; padding:1px 8px; border-radius:999px; background:var(--knk-warning-subtle); color:var(--knk-warning); font-weight:700; }
 .z57-next { font-family:Consolas,monospace; font-weight:800; }
 .z57-next-sub { display:block; font-size:10.5px; font-weight:600; opacity:.75; font-family:inherit; margin-top:1px; }
 .qf-gi { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; margin-left:3px; padding:0; border-radius:50%;
-  border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:800; cursor:pointer; vertical-align:middle; line-height:1; }
-.qf-gi.empty { border-color:#cbd5e1; background:#f8fafc; color:#64748b; }
-.qf-gi:hover { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
-.z57-pop { position:absolute; z-index:80; width:min(440px, calc(100vw - 32px)); background:#fff; border:1px solid #cbd5e1; border-radius:10px;
-  box-shadow:0 12px 32px rgba(15,23,42,.18); padding:12px 14px; font-size:13px; color:#1f2937; }
-.z57-pop h4 { margin:0 0 6px; font-size:14px; color:#1d4ed8; }
-.z57-pop .gb { white-space:pre-wrap; line-height:1.6; background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:8px 10px; max-height:240px; overflow:auto; }
-.z57-pop .gb.none { color:#64748b; }
-.z57-pop .gm { font-size:11.5px; color:#64748b; margin-top:4px; }
+  border:1px solid var(--knk-info-line); background:var(--knk-info-subtle); color:var(--knk-info); font-size:11px; font-weight:800; cursor:pointer; vertical-align:middle; line-height:1; }
+.qf-gi.empty { border-color:var(--knk-border-default); background:var(--knk-bg-inset); color:var(--knk-text-muted); }
+.qf-gi:hover { background:var(--knk-info); color:var(--knk-text-inverse); border-color:var(--knk-info); }
+.z57-pop { position:absolute; z-index:80; width:min(440px, calc(100vw - 32px)); background:var(--knk-bg-surface); border:1px solid var(--knk-border-default); border-radius:10px;
+  box-shadow:0 12px 32px rgba(15,23,42,.18); padding:12px 14px; font-size:13px; color:var(--knk-text-primary); }
+.z57-pop h4 { margin:0 0 6px; font-size:14px; color:var(--knk-info); }
+.z57-pop .gb { white-space:pre-wrap; line-height:1.6; background:var(--knk-bg-inset); border:1px solid var(--knk-border-subtle); border-radius:7px; padding:8px 10px; max-height:240px; overflow:auto; }
+.z57-pop .gb.none { color:var(--knk-text-muted); }
+.z57-pop .gm { font-size:11.5px; color:var(--knk-text-muted); margin-top:4px; }
 .z57-pop .gx { margin-top:8px; font-size:12px; }
-.z57-pop .gx b { color:#334155; }
+.z57-pop .gx b { color:var(--knk-text-secondary); }
 .z57-pop .gx ul { margin:4px 0 0; padding-left:16px; max-height:150px; overflow:auto; }
 .z57-pop .gx li { margin:1px 0; }
-.z57-pop .gx code { font-size:11px; color:#64748b; }
-.z57-pop textarea { width:100%; min-height:120px; box-sizing:border-box; font:inherit; font-size:13px; padding:8px; border:1px solid #93c5fd; border-radius:7px; }
+.z57-pop .gx code { font-size:11px; color:var(--knk-text-muted); }
+.z57-pop textarea { width:100%; min-height:120px; box-sizing:border-box; font:inherit; font-size:13px; padding:8px; border:1px solid var(--knk-info-line); border-radius:7px; }
 .z57-pop .gbtn { display:flex; gap:6px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap; }
-.z57-pop .gbtn button { padding:5px 11px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; }
-.z57-pop .gbtn button.pri { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+.z57-pop .gbtn button { padding:5px 11px; font-size:12px; border-radius:6px; border:1px solid var(--knk-border-default); background:var(--knk-bg-surface); cursor:pointer; }
+.z57-pop .gbtn button.pri { background:var(--knk-info); color:var(--knk-text-inverse); border-color:var(--knk-info); }
 </style>
 <script>
 /* z1191z57 ① 등록 화면 한 번에 한 사람 + 다음 번호 */
@@ -2064,11 +2064,11 @@ function qIexApply(){
     pop.innerHTML='<h4>ⓘ '+esc(g.label)+' — 입력 기준</h4>'
       +'<div class="gb'+(body?'':' none')+'">'+(body? esc(body) : '아직 정한 기준이 없습니다.'+(CAN?' [기준 정하기]를 눌러 처음 정해 주세요 — 저장하면 모두에게 같은 기준이 보입니다.':''))+'</div>'
       +(g.at? '<div class="gm">마지막으로 고친 사람: '+esc(g.by)+' · '+esc(g.at)+'</div>':'')
-      +'<div class="gx"><b>최근 등록 예'+(BZ[bz]?' ('+BZ[bz]+')':'')+'</b><ul><li style="color:#94a3b8">불러오는 중…</li></ul></div>'
+      +'<div class="gx"><b>최근 등록 예'+(BZ[bz]?' ('+BZ[bz]+')':'')+'</b><ul><li style="color:var(--knk-text-muted)">불러오는 중…</li></ul></div>'
       +'<div class="gbtn">'+(g.at?'<button type="button" data-a="hist">이력</button>':'')+(CAN?'<button type="button" class="pri" data-a="edit">'+(body?'✏ 기준 고치기':'기준 정하기')+'</button>':'')+'<button type="button" data-a="close">닫기</button></div>';
     fetch('/api/field-guides/examples?key='+encodeURIComponent(k)+'&biz='+encodeURIComponent(bz)).then(function(r){ return r.json(); }).then(function(j){
       if(!pop) return; var ul=pop.querySelector('.gx ul'); if(!ul) return;
-      ul.innerHTML=(j.items||[]).length? j.items.map(function(x){ return '<li>'+esc(x.v)+' <code>'+esc(x.mgmt)+'</code></li>'; }).join('') : '<li style="color:#94a3b8">아직 없음</li>';
+      ul.innerHTML=(j.items||[]).length? j.items.map(function(x){ return '<li>'+esc(x.v)+' <code>'+esc(x.mgmt)+'</code></li>'; }).join('') : '<li style="color:var(--knk-text-muted)">아직 없음</li>';
     }).catch(function(){});
     pop.onclick=function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return; e.preventDefault();
       if(a==='close') close(); else if(a==='edit') edit(b); else if(a==='hist') hist(b); };
@@ -2092,10 +2092,10 @@ function qIexApply(){
   }
   function hist(b){
     var k=b.dataset.gk, g=FG[k]||{label:k};
-    pop.innerHTML='<h4>'+esc(g.label)+' — 기준 이력</h4><div class="gx"><ul><li style="color:#94a3b8">불러오는 중…</li></ul></div><div class="gbtn"><button type="button" data-a="back">돌아가기</button></div>';
+    pop.innerHTML='<h4>'+esc(g.label)+' — 기준 이력</h4><div class="gx"><ul><li style="color:var(--knk-text-muted)">불러오는 중…</li></ul></div><div class="gbtn"><button type="button" data-a="back">돌아가기</button></div>';
     fetch('/api/field-guides/'+encodeURIComponent(k)+'/history').then(function(r){ return r.json(); }).then(function(j){
       var ul=pop && pop.querySelector('.gx ul'); if(!ul) return;
-      ul.innerHTML=(j.items||[]).map(function(x){ return '<li><b>'+esc(x.at)+' · '+esc(x.by)+'</b><div style="white-space:pre-wrap;color:#334155;margin:2px 0 6px;">'+(esc(x.body)||'<i>(비움)</i>')+'</div></li>'; }).join('') || '<li>없음</li>';
+      ul.innerHTML=(j.items||[]).map(function(x){ return '<li><b>'+esc(x.at)+' · '+esc(x.by)+'</b><div style="white-space:pre-wrap;color:var(--knk-text-secondary);margin:2px 0 6px;">'+(esc(x.body)||'<i>(비움)</i>')+'</div></li>'; }).join('') || '<li>없음</li>';
     }).catch(function(){});
     pop.onclick=function(e){ var a=e.target.getAttribute && e.target.getAttribute('data-a'); if(a==='back'){ e.preventDefault(); view(b); } };
   }

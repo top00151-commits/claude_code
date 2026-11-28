@@ -129,5 +129,27 @@ check("제목 앞 세 줄 — 매출 홈·프로젝트 상세·수출 준비·HS
       and T3 + "{{ p.name }} <em>통관 입력</em>" in rd("app/templates/export_prep_detail.html") and T3 + "🇻🇳 인보이스 HS 자동 채움" in hf)
 
 
+# ── 9. 4판 — 수출 준비 「신고용」 단추 + 빠른 등록 · 제작요청서 · 전사 일정표 · 등록 고르기 ──
+ep = rd("app/templates/export_prep_detail.html")
+check("수출 준비 「Invoice&PL(신고용)」 = 흰 바탕 + 빨간 글자·테두리 · 「전체 저장」은 채움 그대로",
+      'style="border:1px solid var(--knk-brand);background:var(--knk-bg-surface);color:var(--knk-brand);">📄 Invoice&amp;PL (신고용)' in ep)
+for rel in ("app/templates/project_quick_form.html", "app/templates/prod_request_edit.html", "app/templates/dept_schedule.html", "app/templates/project_new_chooser.html"):
+    check("4판 직접 색 0 · 면제값 줄 뺌: %s" % rel, hexes(rel) == [] and rel not in C.COLOR_BASE)
+ds = rd("app/templates/dept_schedule.html")
+check("전사 일정표 달력 머리 = knk-calendar 이름(일·휴일·토·V·오늘)",
+      ".dsx th.day.redday{color:var(--knk-cal-holiday)" in ds and ".dsx th.day.satday{color:var(--knk-cal-sat)" in ds and ".dsx th.day .hb i.v{background:var(--knk-cal-vn);}" in ds
+      and "box-shadow:inset 2px 0 0 var(--knk-cal-today),inset -2px 0 0 var(--knk-cal-today)" in ds)
+pr = rd("app/templates/prod_request_edit.html")
+check("제작요청서 엑셀 모양 머리 칸 = --knk-xl-head-blue/rose(#B8CCE4·#E6B8B7)", "background:var(--knk-xl-head-blue)" in pr and "background:var(--knk-xl-head-rose)" in pr
+      and "--knk-xl-head-blue:      #B8CCE4" in tk and "--knk-xl-head-rose:      #E6B8B7" in tk)
+check("빠른 등록 사업부 머리 색 = 뜻 이름(검사기 주황·자동화 정보·라이프밸류 빨강·기타 흐림)",
+      "{'T':('🔬','검사기','var(--knk-cat-orange)'),'M':('⚙','자동화','var(--knk-info)'),'L':('💄','라이프밸류','var(--knk-brand)'),'E':('🗂','기타','var(--knk-text-muted)')}" in rd("app/templates/project_quick_form.html"))
+check("등록 고르기 --amber 0", "--amber" not in rd("app/templates/project_new_chooser.html"))
+check("제목 앞 세 줄 — 제작요청서·전사 일정표·등록 고르기(빠른 등록은 사업부 색 머리가 있고 360 폭에서 제목 띠가 두 줄이 되어 넣지 않음)",
+      T3 not in rd("app/templates/project_quick_form.html")
+      and '<h1 class="page-title">' + T3 + "제작요청서 <span" in pr and '<h1 class="page-title">' + T3 + "등록 — <em>" in rd("app/templates/project_new_chooser.html")
+      and '<i></i><i></i><i></i></span>전사 일정표</h2>' in ds)
+
+
 print("결과: %d 통과 / %d 실패" % (ok, fail))
 sys.exit(1 if fail else 0)

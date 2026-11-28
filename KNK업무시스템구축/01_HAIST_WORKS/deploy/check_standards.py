@@ -2049,7 +2049,7 @@ def split_by_path(hits, base, root=None):
 
 
 # ⑤-2 · ⑤-3 면제 — 2026-11-28 규칙 만들 때 센 개수(파일 경로별 · 주석 뺌). ⚠ 늘리지 말 것 — 그 화면을 손볼 때 var(--knk-*) · 로고 파일로 옮기고 숫자를 줄일 것.
-COLOR_BASE = {   # z1191z205 3판: 매출 홈·프로젝트 상세·수출 준비·HS 채우기 0 · z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
+COLOR_BASE = {   # z1191z205 4판: 빠른 등록·제작요청서·전사 일정표·등록 고르기 0 · 3판: 매출 홈·프로젝트 상세·수출 준비·HS 채우기 0 · z1191z205: 일정표·수주 목록·수주 상세·상태 알약 · 2판 견적·홈·로그인·영업 책갈피 내림(0 은 줄을 뺌) · _knk_picker 24→17(z204)
     'app/templates/_admin_z83.html': 25, 'app/templates/_contact_styles.html': 4, 'app/templates/_export_price_z86.html': 33,
     'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 17, 'app/templates/_legacy_admin_v4.html': 26,
     'app/templates/_legacy_daily_v4.html': 1, 'app/templates/_legacy_guide_v4.html': 30,
@@ -2109,7 +2109,7 @@ COLOR_BASE = {   # z1191z205 3판: 매출 홈·프로젝트 상세·수출 준�
     'app/templates/contacts_list.html': 72, 'app/templates/contacts_scan.html': 15, 'app/templates/customer_detail.html': 28,
     'app/templates/customer_form.html': 51, 'app/templates/customer_po_view.html': 31,
     'app/templates/customers_list.html': 46, 'app/templates/daily.html': 37, 'app/templates/dashboard.html': 1,
-    'app/templates/dept_requests.html': 69, 'app/templates/dept_schedule.html': 135,
+    'app/templates/dept_requests.html': 69,
     'app/templates/dept_stage_work.html': 40, 'app/templates/design_samples.html': 151, 'app/templates/error.html': 12,
     'app/templates/error_simple.html': 11, 'app/templates/export_bl_customs.html': 10,
     'app/templates/export_bl_print.html': 38, 'app/templates/export_board.html': 3, 'app/templates/export_ci.html': 10,
@@ -2133,11 +2133,11 @@ COLOR_BASE = {   # z1191z205 3판: 매출 홈·프로젝트 상세·수출 준�
     'app/templates/parts_import.html': 46, 'app/templates/parts_reclassify.html': 27, 'app/templates/po_detail.html': 27,
     'app/templates/po_form.html': 28, 'app/templates/po_list.html': 33, 'app/templates/po_qr_print.html': 28,
     'app/templates/po_receive.html': 22, 'app/templates/presales_activity_dashboard.html': 41,
-    'app/templates/prod_request_edit.html': 218, 'app/templates/prod_requests_list.html': 79,
+    'app/templates/prod_requests_list.html': 79,
     'app/templates/profile.html': 1, 'app/templates/progress_dashboard.html': 2, 'app/templates/progress_detail.html': 2,
     'app/templates/project_baseline.html': 21, 'app/templates/project_bom.html': 33,
     'app/templates/project_form.html': 109,
-    'app/templates/project_new_chooser.html': 117, 'app/templates/project_quick_form.html': 231,
+    
     'app/templates/project_unit_candidates.html': 18, 'app/templates/project_unit_status_sync.html': 27,
     'app/templates/project_units.html': 39, 'app/templates/projects.html': 44, 'app/templates/qc_report_form.html': 21,
     'app/templates/qc_report_list.html': 10, 'app/templates/qc_report_print.html': 73, 'app/templates/qms_capa.html': 20,
