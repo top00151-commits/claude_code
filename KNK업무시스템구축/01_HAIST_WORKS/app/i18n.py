@@ -920,6 +920,11 @@ T = {
     "mf_at_dup": {"ko": "이미 들어 있습니다: ", "vi": "Đã có trong danh sách: "},
     "mf_at_picked": {"ko": "참석자를 바꿨습니다 — 회의록을 저장하면 반영됩니다.", "vi": "Đã đổi người tham dự — lưu biên bản để áp dụng."},
     "mf_at_dropped": {"ko": "명은 지금 고를 수 없는 계정이라 넣지 않았습니다.", "vi": " người là tài khoản hiện không chọn được nên chưa thêm."},
+    # z1212 이음 미리 채움 사번 — 맞는 직원이 없는 사번(확인 필요)
+    "mf_at_q_tag": {"ko": "확인 필요", "vi": "Cần xác nhận"},
+    "mf_at_q_emp": {"ko": "사번", "vi": "Mã NV"},
+    "mf_at_q_note": {"ko": "⚠ 「확인 필요」 칩 = 이음이 넘겨 준 사번과 맞는 직원이 없습니다(퇴사·사번 바뀜 등). 이 칩은 저장되지 않습니다 — ✕ 로 빼고, 직원이면 「👥 직원 고르기」에서 골라 주세요.", "vi": "⚠ Chip «Cần xác nhận» = không có nhân viên khớp với mã NV từ Eum (đã nghỉ, đổi mã...). Chip này sẽ không được lưu — hãy bỏ (✕), nếu là nhân viên thì chọn trong «👥 Chọn nhân viên»."},
+    "mf_at_q_ask": {"ko": "「확인 필요」 사번 {n}개는 맞는 직원이 없어 참석자로 저장되지 않습니다. 그래도 저장할까요?", "vi": "{n} mã NV «Cần xác nhận» không khớp nhân viên nào nên sẽ không được lưu làm người tham dự. Vẫn lưu?"},
     # z1199 (대표 2026-10-28): 회의록 베트남어 번역 보기 — 상세(A안) · 회의록 양식 · 한눈에 보기 화면 글자
     "mf_tr_note": {"ko": "🌐 빅터AI 자동 번역 · 원문은 한국어", "vi": "🌐 Bản dịch tự động (Victor AI) · bản gốc tiếng Hàn"},
     "mf_tr_orig": {"ko": "한국어 원문 보기", "vi": "Xem bản gốc tiếng Hàn"},

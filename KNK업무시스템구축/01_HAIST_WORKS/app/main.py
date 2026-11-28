@@ -5371,6 +5371,48 @@ def _meeting_att_view(c, mid, lang="ko") -> list:
     return out
 
 
+def _mtg_vi_col(c) -> str:
+    """z1212: users.name_vi 칸이 있으면 그 칸 · 없으면 빈 글(옛 DB 보호)."""
+    try:
+        return "u.name_vi" if "name_vi" in {r[1] for r in c.execute("PRAGMA table_info(users)")} else "''"
+    except Exception:
+        return "''"
+
+
+def _mtg_split_list(v, cap, width) -> list:
+    """z1212: 쉼표 목록 글 → 앞뒤 공백 뺀 목록(빈 것·같은 것 빼고 · 차례 유지)."""
+    out = []
+    for x in str(v or "").replace(";", ",").replace("\n", ",").replace("\r", ",").split(","):
+        x = " ".join(x.split())[:width]
+        if x and x not in out:
+            out.append(x)
+        if len(out) >= cap:
+            break
+    return out
+
+
+def _meeting_att_view_emps(c, emps, exts, lang="ko") -> list:
+    """z1212 (대표 결정 2026-11-28): 이음 「📋 회의록」 미리 채움 = 사번(att_emps) + 외부 이름(att_ext).
+    · 사번은 _msg_user_by_empno 와 같은 규칙(앞뒤 공백 빼고 · 대소문자 무관 · 활성 직원 정확히 1명)일 때만 직원 칩(번호).
+      이름으로 찾지 않는다(z1209 상태 답 att_emps 와 같은 사번 규칙).
+    · 맞는 사람이 없는 사번은 버리지 않는다 → 「확인 필요」 칩(k='q') — 화면이 보여 주고 저장 전에 묻는다(저장은 안 됨).
+    · 외부 이름 = 외부 칩(k='x' · user_id NULL)."""
+    out, seen = [], set()
+    for e in emps:
+        au = _msg_user_by_empno(c, e)
+        if au:
+            if au["id"] in seen:
+                continue
+            seen.add(au["id"])
+            out.append({"k": "u", "id": int(au["id"]),
+                        "label": user_disp_by_id(c, au["id"], fallback=au.get("name") or "", lang=lang) or (au.get("name") or "")})
+        else:
+            out.append({"k": "q", "emp": e})
+    for nm in exts:
+        out.append({"k": "x", "name": nm})
+    return out
+
+
 def _meeting_att_view_txt(text) -> list:
     """z1211: 새 회의록 미리 채움(이음 「📋 회의록」 ?attendees=) — 이름 글자 칩(아직 연결 안 함)."""
     raw = str(text or "")
@@ -6011,8 +6053,16 @@ async def meeting_new_page(req: Request):
         "attendees": (_qp.get("attendees") or "")[:500],
         "body": (_qp.get("body") or "")[:4000],
     }
+    # z1212: 이음이 사번(att_emps)·외부 이름(att_ext)을 넘기면 그것으로 칩을 만든다(이름 글자 attendees 는 쓰지 않음)
+    if ("att_emps" in _qp) or ("att_ext" in _qp):
+        with db_session() as _c12:
+            _av = _meeting_att_view_emps(_c12, _mtg_split_list(_qp.get("att_emps"), 200, 40),
+                                         _mtg_split_list(_qp.get("att_ext"), 100, 60), lang=(u.get("lang") or "ko"))
+        _at = ""
+    else:
+        _av, _at = _meeting_att_view_txt(prefill["attendees"]), prefill["attendees"]
     return ctx(req, "meeting_form.html", user=u, meeting=None, prefill=prefill,
-               att_view=_meeting_att_view_txt(prefill["attendees"]), att_txt=prefill["attendees"],   # z1211
+               att_view=_av, att_txt=_at,   # z1211 · z1212
                decisions=[], actions=[], attendees=[], can_edit=True,
                ai_on=ai_client.ai_available(), transcribe_on=ai_client.transcribe_available())
 
@@ -6043,7 +6093,7 @@ async def meeting_detail_page(req: Request, mid: int):
         try:
             viewers = [{"id": r["id"], "label": vname_full(dict(r), lang=(u.get("lang") or "ko"))}
                        for r in c.execute(
-                "SELECT u.id, u.name, u.rank, t.name AS team_name "
+                "SELECT u.id, u.name, COALESCE(" + _mtg_vi_col(c) + ",'') AS name_vi, u.rank, t.name AS team_name "   # z1212
                 "FROM meeting_viewers mv JOIN users u ON u.id=mv.user_id "
                 "LEFT JOIN teams t ON t.id=u.team_id "
                 "WHERE mv.meeting_id=? ORDER BY u.name", (mid,))]
@@ -9969,7 +10019,7 @@ def _meeting_viewer_rows(c, mid: int, lang: str = "ko") -> list:
     z1163: lang 을 주면 직책만 그 사람 말로(기본 ko = 지금까지와 같다)."""
     try:
         return [{"id": r["id"], "label": vname_full(dict(r), lang=lang)} for r in c.execute(
-            "SELECT u.id, u.name, u.rank, t.name AS team_name "
+            "SELECT u.id, u.name, COALESCE(" + _mtg_vi_col(c) + ",'') AS name_vi, u.rank, t.name AS team_name "   # z1212: 베트남 이름
             "FROM meeting_viewers mv JOIN users u ON u.id=mv.user_id "
             "LEFT JOIN teams t ON t.id=u.team_id "
             "WHERE mv.meeting_id=? ORDER BY u.name", (mid,))]
@@ -10021,12 +10071,13 @@ async def api_meeting_viewers_get(req: Request, mid: int):
         chosen = set(_meeting_viewer_ids(c, mid))
         _me_ent = _meeting_user_entity(c, u)   # z1151: 'KOR' / 'VN' — 먼저 열 탭
         rows = [dict(r) for r in c.execute(
-            "SELECT u.id, u.name, u.rank, u.team_id, u.role, t.name AS team_name, "
+            "SELECT u.id, u.name, COALESCE(" + _mtg_vi_col(c) + ",'') AS name_vi, "   # z1212: 베트남 이름(베트남 이름 (한국 발음))
+            "       u.rank, u.team_id, u.role, t.name AS team_name, "
             "       COALESCE(t.display_order, 999) AS t_ord, "
             "       COALESCE(t.entity,'KOR') AS t_ent "
             "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
             "WHERE COALESCE(u.is_active,1)=1 "
-            "ORDER BY t_ord, u.name")]
+            "ORDER BY t_ord, COALESCE(t.id, 999999), u.name")]   # z1212: 같은 순서 값 부서가 섞이지 않게(참석자 명단과 같은 순)
         out = []
         for r in rows:
             already = False
@@ -10044,7 +10095,9 @@ async def api_meeting_viewers_get(req: Request, mid: int):
                         "team": (r.get("team_name") or "부서 없음"),
                         "entity": ("VN" if str(r.get("t_ent") or "KOR").strip().upper() == "VN"
                                    else "KOR"),
-                        "on": r["id"] in chosen, "already": bool(already)})
+                        "on": r["id"] in chosen, "already": bool(already),
+                        "name": str(r.get("name") or "").strip(),          # z1212: 칸 더함(기존 칸 그대로)
+                        "name_vi": str(r.get("name_vi") or "").strip()})
     # me_entity = 보는 사람의 법인 — 그 탭이 먼저 열린다(대표 결정)
     return JSONResponse({"ok": True, "users": out, "me_entity": _me_ent})
 
