@@ -2092,7 +2092,7 @@ COLOR_BASE = {   # z1191z205 5판: 소모품 올리기·프로젝트 양식·영
     'app/templates/admin_field_access.html': 4, 'app/templates/admin_fx_rates.html': 21,
     'app/templates/admin_handover.html': 4, 'app/templates/admin_home.html': 3,
     'app/templates/admin_mail_blocklist.html': 10, 'app/templates/admin_mail_fetch.html': 15,
-    'app/templates/admin_mail_inbound.html': 18, 'app/templates/admin_mail_purge.html': 7,
+    'app/templates/admin_mail_inbound.html': 18,
     'app/templates/admin_mail_send.html': 27, 'app/templates/admin_person.html': 11,
     'app/templates/admin_reset_demo.html': 70, 'app/templates/admin_sso_key.html': 29, 'app/templates/admin_staff.html': 1,
     'app/templates/admin_sync_employees.html': 54, 'app/templates/admin_test_data.html': 33,
@@ -2178,6 +2178,7 @@ LOGO_BASE = {
 #   11-28 4단계 「화면 옮기기」 202 → 1 — 남은 1 = mail_kinds.html 종류 그림 고르기 단추(사용자가 고른 그림 = 자료 · 화면은 그리기 전에 선 아이콘으로 바꿈)
 #   ⑤-2 메일 몫(COLOR_BASE): 4단계에서 메일 화면 직접 색 1,694 → 513 — mail_palette.html(메일 색판 = 값 한 곳 · 193) · mail_theme/mail_contrast/mail_design_v2(테마 값 자리) ·
 #     mail_compose.html 46(보내는 메일 본문에 들어가는 글자색·형광펜·표 선 — 받는 쪽 메일 프로그램은 CSS 이름을 몰라 숫자 그대로) · mail_view_body 2(메일 본문 칸 안 인쇄 서명 줄) · mail_settings 6(안 쓰는 옛 화면 · /mail/settings 는 홈으로 넘김) · mail_pwa_head 1(theme-color 메타)
+#   11-28 삭제 30일 보관(세션 15): admin_mail_purge.html 직접 색 7 → 0(줄 뺌)
 MAIL_EMOJI_BASE = {
     'app/templates/mail_kinds.html': 1
 }    # __MAIL_EMOJI_BASE__

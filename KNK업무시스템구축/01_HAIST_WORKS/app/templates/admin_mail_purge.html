@@ -3,41 +3,46 @@
 {% include "_v5_partials/styles.html" %}
 <style>
   .mp-wrap{margin:0 0 var(--space-6);padding:0 var(--content-pad)} /* 대표 11-20: 폭 상한 없앰(창 폭 꽉) */
-  .mp-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:16px 18px;margin-bottom:14px}
-  .mp-card h3{margin:0 0 4px;font-size:14.5px}
+  .mp-card{border:1px solid var(--line);border-radius:12px;background:var(--knk-bg-surface);padding:16px 18px;margin-bottom:14px}
+  .mp-card h3{margin:0 0 4px;font-size:14.5px;display:flex;gap:6px;align-items:center}
   .mp-card .sub{font-size:12px;color:var(--mute);line-height:1.7;margin-bottom:12px}
   .mp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .mp-row select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .mp-row select,.mp-row .btn{height:var(--knk-h-control,34px);box-sizing:border-box}
+  .mp-row select{padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
   .mp-msg{margin-top:10px;font-size:12.5px;min-height:18px}
-  .danger{color:var(--knk-red)!important;border-color:#fca5a5!important}
-  .warn{font-size:12px;color:#b91c1c;background:#fef2f2;border:1px solid #fca5a5;border-radius:9px;padding:9px 12px;line-height:1.7}
+  .danger{color:var(--knk-danger-text,var(--knk-red))!important;border-color:var(--knk-danger-line,var(--knk-red))!important}
+  .warn{font-size:12px;color:var(--knk-info-text,var(--knk-text-primary));background:var(--knk-info-subtle,var(--knk-bg-subtle));border:1px solid var(--knk-info-line,var(--line));border-radius:9px;padding:9px 12px;line-height:1.7}
+  .mp-msg.ok{color:var(--knk-success-text,var(--knk-success))} .mp-msg.bad{color:var(--knk-danger-text,var(--knk-red))}
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab='home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}
 <main class="main" data-dn="main">
+  {% include "_v5_partials/mail_purge_ask.html" %}
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">KNK Eum MAIL</a> · 관리</div>
-    <h1 class="page-title">🧹 메일 <em>정리</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">— 오래된 메일 완전삭제·휴지통·디스크 정리</span></h1>
+    <h1 class="page-title">{{ mi('eraser') }} 메일 <em>정리</em> <span style="font-size:13px;color:var(--mute);font-weight:500;">— 오래된 메일 완전 삭제·휴지통·디스크 정리</span></h1>
   </div></div>
 
   <div class="mp-wrap">
-    <div class="warn" style="margin-bottom:14px;">⚠ <b>완전삭제는 서버(NAS)에서 영구 제거</b>되어 되돌릴 수 없습니다. 하이웍스 원본과는 무관합니다(우리 시스템만).</div>
+    {# 11-28 대표 「삭제 = 30일 보관 후 · 안내문 · 되살리기」(스킬 knk-safe-delete) #}
+    <div class="warn" style="margin-bottom:14px;">{{ mi('info') }} 완전 삭제하면 목록에서 바로 빠지고 <b>{{ purge_days|default(30) }}일 보관</b> 뒤 밤(23:30)에 서버에서 지워집니다. 그 전에는 <a href="/mail/trash">휴지통</a> 화면 위 「완전 삭제 대기」에서 되살릴 수 있습니다. 하이웍스 원본과는 무관합니다(우리 시스템만).
+      {% if pending and pending.n %}<br>{{ mi('hourglass') }} 지금 완전 삭제 대기 <b>{{ '{:,}'.format(pending.n) }}</b>통.{% endif %}</div>
 
     {# ① 휴지통 #}
     <div class="mp-card">
-      <h3>🗑 휴지통</h3>
-      <div class="sub">삭제(숨김)한 메일이 <b id="mpTrashN">{{ trash_n|default(0) }}</b>통 있습니다. 받은편지함 왼쪽 <b>🗑 휴지통</b>에서 개별 복원·완전삭제할 수 있습니다.</div>
+      <h3>{{ mi('trash-2') }} 휴지통</h3>
+      <div class="sub">삭제(숨김)한 메일이 <b id="mpTrashN">{{ trash_n|default(0) }}</b>통 있습니다. 받은편지함 왼쪽 <b>휴지통</b>에서 한 통씩 복원·완전 삭제할 수 있습니다.</div>
       <div class="mp-row">
-        <a href="/mail/trash" class="btn btn-secondary">🗑 휴지통 열기</a>
-        <button type="button" class="btn btn-secondary danger" onclick="mpEmpty()">휴지통 비우기(완전삭제)</button>
+        <a href="/mail/trash" class="btn btn-secondary">{{ mi('trash-2') }} 휴지통 열기</a>
+        <button type="button" class="btn btn-secondary danger" onclick="mpEmpty()">{{ mi('trash-2') }} 휴지통 비우기({{ purge_days|default(30) }}일 보관 뒤)</button>
       </div>
       <div class="mp-msg" id="mpEmptyMsg"></div>
     </div>
 
     {# ② 오래된 메일 일괄정리 #}
     <div class="mp-card">
-      <h3>📅 오래된 받은 메일 일괄 완전삭제</h3>
-      <div class="sub">선택한 기간보다 <b>이전에 받은 메일</b>을 한 번에 서버에서 완전삭제합니다. 먼저 <b>건수 미리보기</b>로 확인하세요.</div>
+      <h3>{{ mi('calendar') }} 오래된 받은 메일 일괄 완전 삭제</h3>
+      <div class="sub">선택한 기간보다 <b>이전에 받은 메일</b>(내 메일함)을 한 번에 완전 삭제 대기로 옮깁니다 — {{ purge_days|default(30) }}일 보관 뒤 밤에 지워집니다. 먼저 <b>통수 미리보기</b>로 확인하세요.</div>
       <div class="mp-row">
         <select id="mpMonths">
           <option value="3">3개월 이전</option>
@@ -46,20 +51,20 @@
           <option value="24">2년(24개월) 이전</option>
           <option value="36">3년(36개월) 이전</option>
         </select>
-        <button type="button" class="btn btn-secondary" onclick="mpPreview()">🔍 건수 미리보기</button>
-        <button type="button" class="btn btn-secondary danger" onclick="mpRun()" id="mpRunBtn" disabled>🗑 완전삭제 실행</button>
+        <button type="button" class="btn btn-secondary" onclick="mpPreview()">{{ mi('search') }} 통수 미리보기</button>
+        <button type="button" class="btn btn-secondary danger" onclick="mpRun()" id="mpRunBtn" disabled>{{ mi('trash-2') }} 완전 삭제({{ purge_days|default(30) }}일 보관 뒤)</button>
       </div>
       <div class="mp-msg" id="mpMsg"></div>
     </div>
 
     {# ③ 디스크 정리 #}
     <div class="mp-card">
-      <h3>💾 디스크 공간 회수(VACUUM)</h3>
-      <div class="sub">완전삭제해도 데이터베이스 <b>파일 크기</b>는 바로 줄지 않습니다(빈 공간은 새 메일이 재사용). 파일 크기까지 줄이려면 디스크 정리를 실행하세요. <b>잠깐(수 초~수십 초) 시스템이 느려질 수 있어</b> 사용량 적은 시간에 권장합니다.</div>
-      <button type="button" class="btn btn-secondary" onclick="mpVacuum()" id="mpVacBtn">💾 디스크 정리 실행</button>
+      <h3>{{ mi('hard-drive') }} 디스크 공간 회수(VACUUM)</h3>
+      <div class="sub">보관 30일이 지나 지워져도 데이터베이스 <b>파일 크기</b>는 바로 줄지 않습니다(빈 공간은 새 메일이 재사용). 파일 크기까지 줄이려면 디스크 정리를 실행하세요. <b>잠깐(수 초~수십 초) 시스템이 느려질 수 있어</b> 사용량 적은 시간에 권장합니다.</div>
+      <button type="button" class="btn btn-secondary" onclick="mpVacuum()" id="mpVacBtn">{{ mi('hard-drive') }} 디스크 정리 실행</button>
       <div class="mp-msg" id="mpVacMsg"></div>
       {# 11-25 밤 자동 줄이기(매일 23:30) 마지막 결과 한 줄 — 관리자 화면에만 #}
-      <div class="sub" id="mpVacLast" style="margin:10px 0 0;">🌙 마지막 밤 자동 줄이기(매일 23:30):
+      <div class="sub" id="mpVacLast" style="margin:10px 0 0;">{{ mi('moon') }} 마지막 밤 자동 줄이기(매일 23:30):
         {% if vac_last %}<b>{{ vac_last.started_at[:16] }}</b> · {{ vac_last.text }}{% else %}아직 기록이 없습니다 · 오늘 밤 23:30에 처음 판단합니다.{% endif %}</div>
     </div>
   </div>
@@ -69,32 +74,57 @@ function _mpPost(url, body){
   var fd=new FormData(); for(var k in (body||{})){ fd.append(k, body[k]); }
   return fetch(url,{method:'POST',body:fd}).then(function(r){return r.json();});
 }
-function _mpShow(id, ok, msg){ var el=document.getElementById(id); if(!el) return; el.style.color=ok?'#15803d':'#b91c1c'; el.textContent=msg; }
+function _mpShow(id, ok, msg){ var el=document.getElementById(id); if(!el) return; el.className='mp-msg '+(ok?'ok':'bad'); el.textContent=msg; }
+var PURGE_DAYS={{ purge_days|default(30) }}, PURGE_LABEL={{ (purge_label|default(''))|tojson }};
+function _mpEsc(t){ return String(t==null?'':t).replace(/[&<>"]/g,function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+function _mpNotice(what, label){
+  return [what, '목록·검색·폴더 숫자에서 <b>바로 빠집니다</b>.',
+    '<b>'+PURGE_DAYS+'일 동안 보관</b>한 뒤 <b>'+_mpEsc(label||PURGE_LABEL)+'</b> 밤에 완전히 지워집니다(첨부 포함).',
+    '그 전에는 휴지통 화면 위 「완전 삭제 대기」에서 <b>되살릴 수 있습니다</b>.', '이미 보낸 메일(받는 사람 쪽)은 그대로입니다.'];
+}
+async function _mpRestoreBatch(batch){
+  try{ var j=await _mpPost('/mail/trash/pending/restore', {batch:batch}); if(j.ok){ _mpShow('mpMsg', true, '✅ 완료 — '+j.count.toLocaleString()+'통을 원래 자리로 되살렸습니다.'); return true; }
+    alert('⚠ '+(j.message||'되살리지 못했습니다')); }catch(e){ alert('네트워크 오류'); }
+  return false;
+}
+var _mpPrevLabel = '';
 var _mpPreviewed = 0;
 async function mpPreview(){
   var months=document.getElementById('mpMonths').value;
   _mpShow('mpMsg', true, '확인 중…');
   try{ var j=await _mpPost('/admin/mail-purge/preview', {months:months});
-    if(j.ok){ _mpPreviewed=j.count; _mpShow('mpMsg', true, '📦 '+j.before+' 이전 받은 메일 '+j.count+'통 — 완전삭제 대상입니다.');
+    if(j.ok){ _mpPreviewed=j.count; _mpPrevLabel=j.until_label||''; _mpShow('mpMsg', true, '✅ 완료 — '+j.before+' 이전 받은 메일 '+j.count.toLocaleString()+'통이 대상입니다 · 지우면 '+PURGE_DAYS+'일 보관 뒤 '+(j.until_label||'')+' 밤에 완전히 지워집니다.');
       document.getElementById('mpRunBtn').disabled = (j.count===0); }
     else _mpShow('mpMsg', false, '⚠ '+(j.message||'실패'));
   }catch(e){ _mpShow('mpMsg', false, '⚠ 네트워크 오류'); }
 }
 async function mpRun(){
   var months=document.getElementById('mpMonths').value;
-  if(!confirm('선택한 기간 이전 받은 메일을 서버에서 완전삭제합니다.\n되돌릴 수 없습니다. 진행할까요?')) return;
-  _mpShow('mpMsg', true, '완전삭제 중…');
+  var sel=document.getElementById('mpMonths'), lab=sel.options[sel.selectedIndex].text;
+  var ok=await mailPurgeAsk({title:'오래된 받은 메일 일괄 완전 삭제', ok:'완전 삭제('+PURGE_DAYS+'일 보관 뒤)',
+    lines:_mpNotice('지울 메일: 내 메일함에서 <b>'+_mpEsc(lab)+'</b>에 받은 메일 <b>'+(_mpPreviewed||0).toLocaleString()+'통</b>(휴지통 포함)', _mpPrevLabel)});
+  if(!ok) return;
+  _mpShow('mpMsg', true, '⏳ 진행 중 — 옮기는 중입니다…');
   try{ var j=await _mpPost('/admin/mail-purge/run', {months:months});
-    if(j.ok){ _mpShow('mpMsg', true, '✅ '+j.count+'통을 완전삭제했습니다. (필요하면 아래 디스크 정리)');
-      document.getElementById('mpRunBtn').disabled=true; }
+    if(j.ok){ _mpShow('mpMsg', true, '✅ 완료 — '+j.count.toLocaleString()+'통을 완전 삭제 대기로 옮겼습니다 · '+PURGE_DAYS+'일 보관 뒤 '+(j.until_label||'')+' 밤에 지워집니다 · 그 전에는 휴지통 화면 위 「완전 삭제 대기」에서 되살릴 수 있습니다.');
+      document.getElementById('mpRunBtn').disabled=true;
+      await mailPurgeDone({title:'일괄 완전 삭제', lines:['✅ 완료 — '+j.count.toLocaleString()+'통을 완전 삭제 대기로 옮겼습니다.',
+        PURGE_DAYS+'일 보관 뒤 <b>'+_mpEsc(j.until_label)+'</b> 밤에 완전히 지워집니다 · 그 전에는 되살릴 수 있습니다.'],
+        undo:(j.count?{label:'방금 지운 '+j.count.toLocaleString()+'통 되살리기', fn:function(){ return _mpRestoreBatch(j.batch); }}:null)}); }
     else _mpShow('mpMsg', false, '⚠ '+(j.message||'실패'));
   }catch(e){ _mpShow('mpMsg', false, '⚠ 네트워크 오류'); }
 }
 async function mpEmpty(){
-  if(!confirm('휴지통의 모든 메일을 서버에서 완전삭제할까요?\n되돌릴 수 없습니다.')) return;
-  _mpShow('mpEmptyMsg', true, '비우는 중…');
+  var tn=(document.getElementById('mpTrashN')||{}).textContent||'0';
+  var ok=await mailPurgeAsk({title:'휴지통 비우기', ok:'휴지통 비우기('+PURGE_DAYS+'일 보관 뒤)',
+    lines:_mpNotice('지울 메일: 내 휴지통의 <b>모든 메일 '+_mpEsc(tn)+'통</b>')});
+  if(!ok) return;
+  _mpShow('mpEmptyMsg', true, '⏳ 진행 중 — 비우는 중입니다…');
   try{ var j=await _mpPost('/mail/trash/empty', {});
-    if(j.ok){ _mpShow('mpEmptyMsg', true, '✅ '+j.count+'통을 완전삭제했습니다.'); var t=document.getElementById('mpTrashN'); if(t) t.textContent='0'; }
+    if(j.ok){ _mpShow('mpEmptyMsg', true, '✅ 완료 — '+j.count.toLocaleString()+'통을 완전 삭제 대기로 옮겼습니다 · '+PURGE_DAYS+'일 보관 뒤 '+(j.until_label||'')+' 밤에 지워집니다.'); var t=document.getElementById('mpTrashN'); if(t) t.textContent='0';
+      await mailPurgeDone({title:'휴지통 비우기', lines:['✅ 완료 — '+j.count.toLocaleString()+'통을 완전 삭제 대기로 옮겼습니다.',
+        PURGE_DAYS+'일 보관 뒤 <b>'+_mpEsc(j.until_label)+'</b> 밤에 완전히 지워집니다 · 그 전에는 되살릴 수 있습니다.'],
+        undo:(j.count?{label:'방금 지운 '+j.count.toLocaleString()+'통 되살리기', fn:function(){ return _mpRestoreBatch(j.batch); }}:null)}); }
     else _mpShow('mpEmptyMsg', false, '⚠ 실패');
   }catch(e){ _mpShow('mpEmptyMsg', false, '⚠ 네트워크 오류'); }
 }

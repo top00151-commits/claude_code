@@ -1,0 +1,78 @@
+{# 11-28 대표 「삭제 점검 3가지 고쳐」(스킬 knk-safe-delete) — 완전 삭제 안내문 창 하나(휴지통 한 통 · 휴지통 비우기 · 관리 일괄 삭제 · 되살리기).
+   window.mailPurgeAsk({title, lines:[html…], ok:'단추 글'}) → 누르면 true · ✕/취소/바깥/Esc 면 false
+   window.mailPurgeDone({title, lines:[html…], undo:{label, fn}}) → 결과 창(첫 줄 ✅ · 되살리기 단추 · ✕ 닫기)
+   색 = var(--knk-*) · 그림 = 선 아이콘(mi) · 단추 높이 하나(var(--knk-h-control,34px)) #}
+<style>
+  .mpa-bg{position:fixed;inset:0;background:var(--knk-scrim,rgba(15,23,42,.35));z-index:9991;display:flex;align-items:center;justify-content:center;padding:16px}
+  .mpa{position:relative;background:var(--mt-surface,var(--knk-bg-surface));color:var(--ink,var(--knk-text-primary));border-radius:14px;box-shadow:var(--knk-shadow-modal,0 18px 50px rgba(0,0,0,.25));
+       width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;overscroll-behavior:contain;padding:18px 18px 16px;font-size:13.5px;line-height:1.6}
+  .mpa h3{margin:0 34px 10px 0;font-size:16px;font-weight:800;overflow-wrap:anywhere;display:flex;gap:6px;align-items:center}
+  .mpa .x{position:absolute;top:10px;right:10px;height:28px;padding:0 8px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;font-weight:700;color:var(--mute,var(--knk-text-muted));cursor:pointer}
+  .mpa .x:hover{background:var(--mt-hover,var(--knk-bg-subtle));color:var(--ink,var(--knk-text-primary))}
+  .mpa ul{margin:0 0 14px;padding:10px 12px 10px 28px;border:1px solid var(--knk-danger-line,var(--line));border-radius:10px;background:var(--knk-danger-subtle,var(--knk-bg-subtle))}
+  .mpa li{margin:2px 0;overflow-wrap:anywhere}
+  .mpa li b{color:var(--knk-danger-text,var(--knk-red))}
+  .mpa .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .mpa .row button{height:var(--knk-h-control,34px);padding:0 14px;border-radius:8px;font:inherit;font-weight:700;cursor:pointer;display:inline-flex;gap:6px;align-items:center;
+       border:1px solid var(--line,var(--knk-border-default));background:var(--mt-surface,var(--knk-bg-surface));color:var(--ink,var(--knk-text-primary))}
+  .mpa .row button.red{border-color:var(--knk-danger-line,var(--knk-red));color:var(--knk-danger-text,var(--knk-red))}
+  .mpa .row button.red:hover{background:var(--knk-danger-subtle,var(--knk-bg-subtle))}
+  .mpa .row button:disabled{opacity:.5;cursor:wait}
+  .mpa .done{margin:0 0 14px;padding:10px 12px;border:1px solid var(--knk-success-line,var(--line));border-radius:10px;background:var(--knk-success-subtle,var(--knk-bg-subtle))}
+  .mpa .done p{margin:2px 0;overflow-wrap:anywhere}
+  .mpa .done p:first-child{font-weight:800;color:var(--knk-success-text,var(--knk-success))}
+</style>
+<script>
+(function(){
+  if(window.mailPurgeAsk) return;
+  var IC_TRASH={{ mi('trash-2')|tojson }}, IC_UNDO={{ mi('rotate-ccw')|tojson }};
+  function box(html, focusSel){
+    var bg=document.createElement('div'); bg.className='mpa-bg';
+    bg.innerHTML='<div class="mpa" role="dialog" aria-modal="true">'+html+'</div>';
+    document.body.appendChild(bg);
+    var f=bg.querySelector(focusSel||'button'); if(f) try{ f.focus(); }catch(_){}
+    return bg;
+  }
+  function lis(lines){ return '<ul>'+(lines||[]).map(function(t){ return '<li>'+t+'</li>'; }).join('')+'</ul>'; }
+  window.mailPurgeAsk=function(o){
+    return new Promise(function(resolve){
+      var bg=box('<button type="button" class="x" data-a="no" aria-label="닫기">✕ 닫기</button>'+
+        '<h3>'+IC_TRASH+' '+(o.title||'완전 삭제')+'</h3>'+lis(o.lines)+
+        '<div class="row"><button type="button" data-a="no">취소</button>'+
+        '<button type="button" class="red" data-a="yes">'+IC_TRASH+' '+(o.ok||'완전 삭제')+'</button></div>', 'button[data-a="no"]:not(.x)');
+      function end(v){ document.removeEventListener('keydown', key, true); bg.remove(); resolve(v); }
+      function key(e){ if(e.key==='Escape'){ e.preventDefault(); end(false); } }
+      document.addEventListener('keydown', key, true);
+      bg.addEventListener('click', function(e){
+        if(e.target===bg) return end(false);
+        var b=e.target.closest('button[data-a]'); if(!b) return;
+        end(b.getAttribute('data-a')==='yes');
+      });
+    });
+  };
+  window.mailPurgeDone=function(o){
+    return new Promise(function(resolve){
+      var u=o.undo;
+      var bg=box('<button type="button" class="x" data-a="close" aria-label="닫기">✕ 닫기</button>'+
+        '<h3>'+(o.title||'완전 삭제')+'</h3>'+
+        '<div class="done">'+(o.lines||[]).map(function(t){ return '<p>'+t+'</p>'; }).join('')+'</div>'+
+        '<div class="row">'+(u?'<button type="button" data-a="undo">'+IC_UNDO+' '+(u.label||'되살리기')+'</button>':'')+
+        '<button type="button" data-a="close">닫기</button></div>', 'button[data-a="close"]:not(.x)');
+      function end(v){ document.removeEventListener('keydown', key, true); bg.remove(); resolve(v); }
+      function key(e){ if(e.key==='Escape'){ e.preventDefault(); end('close'); } }
+      document.addEventListener('keydown', key, true);
+      bg.addEventListener('click', async function(e){
+        if(e.target===bg) return end('close');
+        var b=e.target.closest('button[data-a]'); if(!b) return;
+        if(b.getAttribute('data-a')==='undo' && u && u.fn){
+          b.disabled=true;
+          var ok=false; try{ ok=await u.fn(); }catch(_){}
+          if(ok){ end('undo'); } else { b.disabled=false; }
+          return;
+        }
+        end('close');
+      });
+    });
+  };
+})();
+</script>

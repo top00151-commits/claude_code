@@ -620,6 +620,7 @@
   {% include "_v5_partials/mail_fs.html" %}
   {% include "_v5_partials/mail_popx.html" %}
   {% include "_v5_partials/mail_move_ask.html" %}
+  {% if box|default('in')=='trash' %}{% include "_v5_partials/mail_purge_ask.html" %}{% endif %}
   {% set box = box|default('in') %}
   {% set BG = {'견적':'var(--knk-mail-c-blue-03-2)','발주':'var(--knk-mail-c-teal-04)','세금계산서':'var(--knk-mail-c-yellow-11)','일반':'var(--knk-mail-c-gray-04-2)'} %}
   {% set FG = {'견적':'var(--knk-mail-c-blue-52)','발주':'var(--knk-mail-c-teal-76)','세금계산서':'var(--knk-mail-c-orange-69)','일반':'var(--knk-mail-c-gray-66)'} %}
@@ -670,9 +671,21 @@
 
   {% if box=='trash' and mails %}
   <div style="display:flex;align-items:center;gap:10px;margin:0 2px 8px;padding:8px 12px;border:1px solid var(--knk-mail-c-red-18);background:var(--knk-mail-c-red-03);border-radius:9px;flex-wrap:wrap;">
-    <span style="font-size:12.5px;color:var(--knk-mail-c-red-58);">{{ mi('triangle-alert') }} 완전삭제하면 서버에서 <b>영구 제거</b>됩니다(되돌리기 불가).</span>
+    {# 11-28 대표 「삭제 = 30일 보관 후 · 안내문」 #}
+    <span style="font-size:12.5px;color:var(--knk-mail-c-red-58);">{{ mi('info') }} 완전 삭제하면 목록에서 바로 빠지고 <b>{{ purge_days|default(30) }}일 보관</b> 뒤 밤에 지워집니다 · 그 전에는 이 화면 위 「완전 삭제 대기」에서 되살릴 수 있습니다.</span>
     <span style="flex:1"></span>
     <button type="button" class="btn btn-secondary" style="color:var(--knk-red);border-color:var(--knk-mail-c-red-18)" onclick="emptyTrash()">{{ mi('trash-2') }} 휴지통 비우기</button>
+  </div>
+  {% endif %}
+  {% if box=='trash' and pending and pending.n %}
+  <div id="mbxPending" style="margin:0 2px 8px;padding:8px 12px;border:1px solid var(--knk-mail-c-gray-09);background:var(--knk-mail-c-gray-02);border-radius:9px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:12.5px;">{{ mi('hourglass') }} <b>완전 삭제 대기 <span id="mbxPendN">{{ '{:,}'.format(pending.n) }}</span>통</b> · {{ purge_days|default(30) }}일 보관 뒤 밤에 지워집니다{% if pending.first_label %}(가장 먼저 {{ pending.first_label }}){% endif %} · 되살리면 원래 자리(휴지통·받은편지함)로 돌아옵니다</span>
+      <span style="flex:1"></span>
+      <button type="button" class="btn btn-secondary" onclick="pendingToggle()" id="mbxPendBtn">{{ mi('list-filter') }} 목록 보기</button>
+      <button type="button" class="btn btn-secondary" onclick="pendingRestore(null)">{{ mi('rotate-ccw') }} 모두 되살리기</button>
+    </div>
+    <div id="mbxPendList" hidden style="margin-top:8px;max-height:260px;overflow:auto;overscroll-behavior:contain;"></div>
   </div>
   {% endif %}
 
@@ -963,7 +976,7 @@
             </div>
           </div>
           <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" onclick="restoreMail(event,{{ m.id }})">↩ 복원</button>
-          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:var(--knk-red);border-color:var(--knk-mail-c-red-18);white-space:nowrap" onclick="purgeMail(event,{{ m.id }})">{{ mi_ref('trash-2') }} 완전삭제</button>
+          <button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;color:var(--knk-red);border-color:var(--knk-mail-c-red-18);white-space:nowrap" onclick="purgeMail(event,{{ m.id }})">{{ mi_ref('trash-2') }} 완전 삭제</button>
         </div>
         {% endfor %}
       {% elif box=='blocked' %}
@@ -1010,7 +1023,7 @@
       {% elif box=='draft' %}
       {{ mi('file-pen') }} 임시보관함이 비어 있습니다.
       {% elif box=='trash' %}
-      {{ mi('trash-2') }} 휴지통이 비어 있습니다.<br><br><span style="font-size:12.5px;">메일을 삭제하면 여기로 옮겨지고, 여기서 완전삭제할 수 있습니다.</span>
+      {{ mi('trash-2') }} 휴지통이 비어 있습니다.<br><br><span style="font-size:12.5px;">메일을 삭제하면 여기로 옮겨집니다. 여기서 완전 삭제하면 {{ purge_days|default(30) }}일 보관 뒤 밤에 지워집니다.</span>
       {% else %}
       {{ mi('mail-open') }} 받은 메일이 없습니다.<br><br><span style="font-size:12.5px;">메일을 받으면 여기에 쌓입니다.</span>
       {% endif %}
@@ -1042,18 +1055,72 @@ async function restoreMail(ev, id){
     if(j.ok){ var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'); if(row) row.remove(); }
     else alert('복원 실패'); }catch(e){ alert('네트워크 오류'); }
 }
+/* 11-28 대표 「삭제 = 30일 보관 후 · 안내문 · 되살리기」(스킬 knk-safe-delete) — 날짜는 서버가 계산한 값 */
+var PURGE_DAYS={{ purge_days|default(30) }}, PURGE_LABEL={{ (purge_label|default(''))|tojson }};
+function _pgEsc(t){ return String(t==null?'':t).replace(/[&<>"]/g,function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+function _pgNotice(what){
+  return [what,
+    '목록·검색·폴더 숫자에서 <b>바로 빠집니다</b>.',
+    '<b>'+PURGE_DAYS+'일 동안 보관</b>한 뒤 <b>'+_pgEsc(PURGE_LABEL)+'</b> 밤에 완전히 지워집니다(첨부 포함).',
+    '그 전에는 휴지통 화면 위 「완전 삭제 대기」에서 <b>되살릴 수 있습니다</b>.',
+    '이미 보낸 메일(받는 사람 쪽)은 그대로입니다.'];
+}
+async function _pgRestore(ids, batch){
+  var fd=new FormData(); if(batch) fd.append('batch', batch); else if(ids) fd.append('ids', ids.join(',')); else fd.append('all','1');
+  try{ var r=await fetch('/mail/trash/pending/restore',{method:'POST',body:fd}); var j=await r.json();
+    if(j.ok) return j.count; alert('⚠ '+(j.message||'되살리지 못했습니다')); }catch(e){ alert('네트워크 오류'); }
+  return 0;
+}
 async function purgeMail(ev, id){
   if(ev) ev.preventDefault();
-  if(!confirm('이 메일을 서버에서 완전삭제할까요?\n되돌릴 수 없습니다.')) return;
+  var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'), sj=row?((row.querySelector('.mbx-subj')||{}).textContent||'').trim():'';
+  var ok=await mailPurgeAsk({title:'이 메일 완전 삭제', ok:'완전 삭제('+PURGE_DAYS+'일 보관 뒤)',
+    lines:_pgNotice('지울 메일: <b>1통</b>'+(sj?' — 「'+_pgEsc(sj.slice(0,80))+'」':''))});
+  if(!ok) return;
   try{ var r=await fetch('/mail/'+id+'/purge',{method:'POST'}); var j=await r.json();
-    if(j.ok){ var row=document.querySelector('.mbx-row[data-mail-id="'+id+'"]'); if(row) row.remove(); }
-    else alert('삭제 실패'); }catch(e){ alert('네트워크 오류'); }
+    if(!j.ok){ alert('⚠ '+(j.message||'삭제하지 못했습니다')); return; }
+    if(row) row.remove();
+    await mailPurgeDone({title:'완전 삭제', lines:['✅ 완료 — 1통을 완전 삭제 대기로 옮겼습니다.',
+      PURGE_DAYS+'일 보관 뒤 <b>'+_pgEsc(j.until_label)+'</b> 밤에 완전히 지워집니다 · 그 전에는 되살릴 수 있습니다.'],
+      undo:{label:'되살리기', fn:async function(){ return (await _pgRestore([id]))>0; }}});
+    location.reload();
+  }catch(e){ alert('네트워크 오류'); }
 }
 async function emptyTrash(){
-  if(!confirm('휴지통의 모든 메일을 서버에서 완전삭제할까요?\n되돌릴 수 없습니다.')) return;
+  var n=document.querySelectorAll('.mbx-list .mbx-row[data-mail-id]').length;
+  var ok=await mailPurgeAsk({title:'휴지통 비우기', ok:'휴지통 비우기('+PURGE_DAYS+'일 보관 뒤)',
+    lines:_pgNotice('지울 메일: 휴지통의 <b>모든 메일</b>(지금 보이는 '+n.toLocaleString()+'통)')});
+  if(!ok) return;
   try{ var r=await fetch('/mail/trash/empty',{method:'POST'}); var j=await r.json();
-    if(j.ok){ alert(j.count+'통을 완전삭제했습니다.'); location.reload(); }
-    else alert('실패'); }catch(e){ alert('네트워크 오류'); }
+    if(!j.ok){ alert('⚠ '+(j.message||'비우지 못했습니다')); return; }
+    await mailPurgeDone({title:'휴지통 비우기', lines:['✅ 완료 — '+(j.count||0).toLocaleString()+'통을 완전 삭제 대기로 옮겼습니다.',
+      PURGE_DAYS+'일 보관 뒤 <b>'+_pgEsc(j.until_label)+'</b> 밤에 완전히 지워집니다 · 그 전에는 되살릴 수 있습니다.'],
+      undo:(j.count?{label:'방금 지운 '+j.count.toLocaleString()+'통 되살리기', fn:async function(){ return (await _pgRestore(null, j.batch))>0; }}:null)});
+    location.reload();
+  }catch(e){ alert('네트워크 오류'); }
+}
+async function pendingToggle(){
+  var box=document.getElementById('mbxPendList'); if(!box) return;
+  if(!box.hidden){ box.hidden=true; return; }
+  box.hidden=false; box.textContent='불러오는 중…';
+  try{ var r=await fetch('/mail/trash/pending'); var j=await r.json();
+    if(!j.ok){ box.textContent='⚠ '+(j.message||'불러오지 못했습니다'); return; }
+    if(!j.rows.length){ box.textContent='완전 삭제 대기 메일이 없습니다.'; return; }
+    box.innerHTML=j.rows.map(function(x){
+      var who=x.direction==='out'?('→ '+(x.to_email||'')):(x.from_name||x.from_email||'');
+      return '<div class="mbx-row" data-pend-id="'+x.id+'" style="align-items:center;gap:8px">'+
+        '<div class="mbx-main"><div class="mbx-r1"><span class="mbx-subj">'+_pgEsc(x.subject||'(제목 없음)')+'</span>'+
+        '<span class="mbx-time">'+_pgEsc(x.until_label)+' 지워짐</span></div>'+
+        '<div class="mbx-r2"><span class="mbx-from">'+_pgEsc(who)+'</span></div></div>'+
+        '<button type="button" class="btn btn-secondary" style="padding:3px 9px;font-size:11.5px;white-space:nowrap" onclick="pendingRestore('+x.id+')">'+PG_IC_UNDO+' 되살리기</button></div>';
+    }).join('')+(j.count>j.rows.length?'<div style="font-size:12px;padding:6px 4px;color:var(--mute)">먼저 지워질 '+j.rows.length+'통만 보입니다(모두 '+j.count.toLocaleString()+'통) · 「모두 되살리기」는 전부 되살립니다.</div>':'');
+  }catch(e){ box.textContent='⚠ 네트워크 오류'; }
+}
+var PG_IC_UNDO={{ mi('rotate-ccw')|tojson }};
+async function pendingRestore(id){   /* 되살리기 = 원래 자리로 옮기기만(지우지 않음) → 묻지 않고 바로 · 결과 창 */
+  var n=await _pgRestore(id===null?null:[id]);
+  if(n){ await mailPurgeDone({title:'되살리기', lines:['✅ 완료 — '+n.toLocaleString()+'통을 원래 자리로 되살렸습니다.',
+    '휴지통에서 지운 것은 휴지통으로, 「오래된 메일 일괄 삭제」로 지운 것은 받은편지함으로 돌아갑니다.']}); location.reload(); }
 }
 /* ── ✓ 스팸 아님(11-18) — 받은편지함으로 + 이 사람은 다시 안 옮김(나에게만) ── */
 async function notSpam(ev, id){
@@ -1907,7 +1974,7 @@ async function mbxDropDo(tg, ids){
     } else if(BOX==='trash'){
       item('↩ 복원(원래 자리로)', function(){ restoreMail(null, id); });
       hr();
-      item('🗑 완전삭제(되돌릴 수 없음)', function(){ purgeMail(null, id); }, {cls:'red'});
+      item('🗑 완전 삭제(30일 보관 뒤 지워짐)', function(){ purgeMail(null, id); }, {cls:'red'});
     } else if(BOX==='blocked'){
       item('📄 열기(주의해서)', function(){ location.href='/mail/'+id; });
       item('✓ 스팸 아님(받은편지함으로 · 이 사람 다시 안 옮김)', function(){ notSpam(null, id); });

@@ -2848,6 +2848,10 @@ def _mail_vacuum_tick():
                             os.remove(os.path.join(data_dir, f))
                         except OSError as e:
                             print("[MAIL-VACUUM] 지난 표시 파일 못 지움 %s: %s" % (f, e), flush=True)
+                try:   # 11-28 완전 삭제 대기(30일 보관)가 끝난 메일만 실제로 지움 — 줄이기(VACUUM) 전에 · 금지 시간은 안에서도 다시 봄
+                    _mailbox.purge_expired_pending(db_session)
+                except Exception as _e:
+                    print("[MAIL-PURGE] 밤 지우기 실패(다음 밤에 다시): %s" % str(_e)[:160], flush=True)
                 try:   # 11-27 기한 지난 큰 파일 지우기(기한 뒤 7일 여유 · 표의 줄은 남김)
                     _lp = _mailbox.purge_expired_large(db_session)
                     print("[MAIL-LARGE] 기한 지난 큰 파일 %d개 지움" % _lp, flush=True)
@@ -30469,9 +30473,14 @@ async def mail_trash_page(req: Request):
         mails = _mailbox.list_trash(c, u["id"])
         unread = _mail_unread(c, u["id"])
         drafts_n = _mailbox.count_drafts(c, u["id"])
+        pending = _mailbox.count_pending(c, u["id"])   # 11-28 완전 삭제 대기(30일 보관) 통수 · 되살리기 자리
+        purge_label = _mailbox.purge_date_label(_mailbox.purge_until(c))
+    if pending.get("first"):
+        pending["first_label"] = _mailbox.purge_date_label(pending["first"])
     return ctx(req, "mail_inbox.html", user=u, mails=mails, unread=unread,
                cat_counts={}, cur_cat="", categories=_MAIL_CATEGORIES,
-               ai_on=mail_ai_enabled_for(u), box="trash", drafts_n=drafts_n)
+               ai_on=mail_ai_enabled_for(u), box="trash", drafts_n=drafts_n,
+               pending=pending, purge_label=purge_label, purge_days=_mailbox.PURGE_KEEP_DAYS)
 
 
 @app.post("/mail/{mail_id:int}/restore")
@@ -30489,9 +30498,15 @@ async def mail_purge_one(req: Request, mail_id: int):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    # 11-28 대표 「삭제 = 30일 보관 후」 — 휴지통에 있는 내 메일만 · 바로 지우지 않고 완전 삭제 대기(30일 뒤 밤에 지움)
     with db_session() as c:
-        ok_r = _mailbox.hard_delete_mail(c, mail_id, u["id"])
-    return JSONResponse({"ok": ok_r})
+        r = _mailbox.hard_delete_mail(c, mail_id, u["id"])
+    if r["why"] == "none":
+        return JSONResponse({"ok": False, "message": "메일을 찾을 수 없습니다."}, 404)
+    if r["why"] == "not_trash":
+        return JSONResponse({"ok": False, "message": "휴지통에 있는 메일만 완전 삭제할 수 있습니다. 먼저 휴지통으로 옮겨 주세요."}, 400)
+    return JSONResponse({"ok": r["ok"], "count": r["n"], "until": r["until"], "batch": r["batch"],
+                         "until_label": _mailbox.purge_date_label(r["until"]), "days": _mailbox.PURGE_KEEP_DAYS})
 
 
 @app.post("/mail/trash/empty")
@@ -30499,8 +30514,45 @@ async def mail_trash_empty(req: Request):
     u = get_user(req)
     if not u:
         return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    from starlette.concurrency import run_in_threadpool as _ritp
+    r = await _ritp(_mailbox.empty_trash_run, db_session, u["id"])   # 많은 통은 500통씩 나눠 저장
+    return JSONResponse({"ok": True, "count": r["n"], "until": r["until"], "batch": r["batch"],
+                         "until_label": _mailbox.purge_date_label(r["until"]), "days": _mailbox.PURGE_KEEP_DAYS})
+
+
+@app.get("/mail/trash/pending")
+async def mail_trash_pending(req: Request):
+    """완전 삭제 대기(30일 보관) 목록 — 내 메일만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
     with db_session() as c:
-        n = _mailbox.empty_trash(c, u["id"])
+        rows = _mailbox.list_pending(c, u["id"])
+        cnt = _mailbox.count_pending(c, u["id"])
+    for x in rows:
+        x["until_label"] = _mailbox.purge_date_label(x.get("purge_at") or "")
+    return JSONResponse({"ok": True, "count": cnt["n"], "rows": rows})
+
+
+@app.post("/mail/trash/pending/restore")
+async def mail_trash_pending_restore(req: Request):
+    """완전 삭제 대기 → 원래 자리로 되살리기(ids=1,2,3 · batch=방금 지운 묶음 · all=1 이면 전부) — 내 메일만."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"ok": False, "message": "로그인 필요"}, 401)
+    form = await req.form()
+    from starlette.concurrency import run_in_threadpool as _ritp
+    if (form.get("batch") or "").strip():
+        n = await _ritp(_mailbox.restore_pending_run, db_session, u["id"], None, (form.get("batch") or "").strip()[:80])
+    elif (form.get("all") or "") == "1":
+        n = await _ritp(_mailbox.restore_pending_run, db_session, u["id"])
+    else:
+        ids = [x for x in (form.get("ids") or "").split(",") if x.strip()]
+        if not ids:
+            return JSONResponse({"ok": False, "message": "되살릴 메일을 골라 주세요."}, 400)
+        n = await _ritp(_mailbox.restore_pending_run, db_session, u["id"], ids)
+    if not n:
+        return JSONResponse({"ok": False, "message": "되살릴 메일이 없습니다(이미 되살렸거나 지워졌습니다)."}, 404)
     return JSONResponse({"ok": True, "count": n})
 
 
@@ -31174,9 +31226,12 @@ async def admin_mail_purge_page(req: Request):
         return RedirectResponse(role_home(_au) if _au else "/login", 303)
     with db_session() as c:
         trash_n = _mailbox.count_trash(c, u["id"])
+        pending = _mailbox.count_pending(c, u["id"])   # 11-28 완전 삭제 대기(30일 보관)
+        purge_label = _mailbox.purge_date_label(_mailbox.purge_until(c))
         from . import mail_vacuum as _mvac
         vac_last = _mvac.last_result(c)   # 11-25 밤 줄이기 마지막 결과 한 줄(관리자 화면만)
-    return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n, vac_last=vac_last)
+    return ctx(req, "admin_mail_purge.html", user=u, active="admin", trash_n=trash_n, vac_last=vac_last,
+               pending=pending, purge_label=purge_label, purge_days=_mailbox.PURGE_KEEP_DAYS)
 
 
 @app.post("/admin/mail-purge/preview")
@@ -31188,7 +31243,9 @@ async def admin_mail_purge_preview(req: Request):
     before = _purge_cutoff_iso(form.get("months") or 12)
     with db_session() as c:
         n = _mailbox.purge_old_count(c, u["id"], before)
-    return JSONResponse({"ok": True, "count": n, "before": before[:10]})
+        until = _mailbox.purge_until(c)
+    return JSONResponse({"ok": True, "count": n, "before": before[:10], "until": until,
+                         "until_label": _mailbox.purge_date_label(until), "days": _mailbox.PURGE_KEEP_DAYS})
 
 
 @app.post("/admin/mail-purge/run")
@@ -31198,9 +31255,11 @@ async def admin_mail_purge_run(req: Request):
         return JSONResponse({"ok": False, "message": "권한 없음"}, 403)
     form = await req.form()
     before = _purge_cutoff_iso(form.get("months") or 12)
-    with db_session() as c:
-        n = _mailbox.purge_old(c, u["id"], before)
-    return JSONResponse({"ok": True, "count": n, "before": before[:10]})
+    # 11-28 — 바로 지우지 않고 완전 삭제 대기(30일 보관) · 관리자 본인 메일함만(예전과 같은 범위)
+    from starlette.concurrency import run_in_threadpool as _ritp
+    r = await _ritp(_mailbox.purge_old_run, db_session, u["id"], before, u["id"])   # 500통씩 나눠 저장(웍스 저장을 오래 막지 않게)
+    return JSONResponse({"ok": True, "count": r["n"], "before": before[:10], "until": r["until"], "batch": r["batch"],
+                         "until_label": _mailbox.purge_date_label(r["until"]), "days": _mailbox.PURGE_KEEP_DAYS})
 
 
 @app.post("/admin/mail-purge/vacuum")

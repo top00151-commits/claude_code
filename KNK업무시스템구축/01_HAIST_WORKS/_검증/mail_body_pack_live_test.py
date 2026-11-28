@@ -137,14 +137,22 @@ print("⑥ 되돌리기 · 보관함 청소")
 n = mbp.undo(_db.db_session)
 ck("밤 정리 되돌리기 = 그 묶음 2통만", n == 2 and row(late)["body_html"] == H_ONE.replace("개별", "늦게"), n)
 ck("받을 때 압축한 메일은 되돌리기에 안 섞임(그대로 열림)", row(g1)["html_sha"] and row(a1)["html_sha"])
-with _db.db_session() as c:
-    ms.hard_delete_mail(c, g1, A)
+def _gone(pairs):
+    """11-28 완전 삭제 = 30일 보관 후 — 휴지통 → 완전 삭제 → (보관 끝난 셈 치고) 밤 정리로 실제로 지움."""
+    import datetime as _dt
+    with _db.db_session() as c:
+        for mid, uid in pairs:
+            ms.soft_delete(c, mid, uid)
+            ms.hard_delete_mail(c, mid, uid)
+            c.execute("UPDATE mail_messages SET purge_at='2000-01-01 00:00:00' WHERE id=? AND is_deleted=2", (mid,))
+    ms.purge_expired_pending(_db.db_session, now=_dt.datetime(2026, 12, 30, 23, 30))
+
+
+_gone([(g1, A)])
 mbp.gc_store(_db.db_session)
 with _db.db_session() as c:
     ck("⭐한 사람이 완전히 지워도 다른 사람 그룹 메일 본문은 남음", ms.get_mail(c, g2, B)["body_html"] == H_GROUP)
-with _db.db_session() as c:
-    ms.hard_delete_mail(c, g2, B)
-    ms.hard_delete_mail(c, g3, C3)
+_gone([(g2, B), (g3, C3)])
 mbp.gc_store(_db.db_session)
 with _db.db_session() as c:
     left = c.execute("SELECT COUNT(*) FROM mail_body_store WHERE sha IN (%s)" % ",".join("?" * len(shas)), list(shas)).fetchone()[0]

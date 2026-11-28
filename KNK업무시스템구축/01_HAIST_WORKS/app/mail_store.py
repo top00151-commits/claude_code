@@ -455,7 +455,10 @@ def _ensure_security_cols(c):
             "sched_at": "TEXT DEFAULT ''", "sched_state": "TEXT DEFAULT ''", "sched_err": "TEXT DEFAULT ''", "sched_meta": "TEXT DEFAULT ''",
             # 11-22 대표 「자동 분류 · 옮기면 옮긴 위치가 기준 · 부서 이동은 바뀐 날부터」 — 메일 한 통마다 정한 폴더 열쇠(mail_folders.classify 가 적음)
             #   · 받은 때 보낸 직원의 부서(사내 메일 · 받을 때 적음 → 부서가 바뀌어도 지난 메일은 그 부서 폴더)
-            "fd_key": "TEXT DEFAULT ''", "fd_team": "INTEGER"}
+            "fd_key": "TEXT DEFAULT ''", "fd_team": "INTEGER",
+            # 11-28 대표 「삭제 = 30일 보관 후」 — 완전 삭제 대기(is_deleted=2)일 때만 씀: 지울 날 · 누른 때 · 누른 사람 · 어디서
+            "purge_at": "TEXT DEFAULT ''", "purge_req_at": "TEXT DEFAULT ''", "purge_by": "INTEGER",
+            "purge_how": "TEXT DEFAULT ''", "purge_prev": "INTEGER"}
     try:
         have = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
     except Exception:
@@ -2164,40 +2167,284 @@ def restore_mail(c, mail_id: int, user_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def hard_delete_mail(c, mail_id: int, user_id: int) -> bool:
-    """1건 완전삭제 — 본인 메일만(첨부 blob + 본문 행 진짜 제거)."""
-    own = c.execute("SELECT id FROM mail_messages WHERE id=? AND user_id=?", (mail_id, user_id)).fetchone()
-    if not own:
-        return False
-    c.execute("DELETE FROM mail_attachments WHERE mail_id=?", (mail_id,))
-    cur = c.execute("DELETE FROM mail_messages WHERE id=? AND user_id=?", (mail_id, user_id))
-    return cur.rowcount > 0
+# ─── 11-28 대표 「삭제 점검 3가지 고쳐」 — 완전 삭제 = 30일 보관 후 (스킬 knk-safe-delete) ───
+#   휴지통 「완전 삭제」 · 「휴지통 비우기」 · 관리 「오래된 받은 메일 일괄 삭제」 셋 다 바로 지우지 않는다.
+#   is_deleted 값: 0 = 보임 · 1 = 휴지통 · 2 = 완전 삭제 대기(30일 보관 · 목록·휴지통·검색·세기 모두에서 빠짐 —
+#   모든 화면 질의가 is_deleted=0 또는 =1 로 거르므로 2 는 저절로 빠진다).
+#   보관 중에는 휴지통 화면 위 「완전 삭제 대기」 띠에서 되살릴 수 있다 — 되살리면 **원래 자리**(purge_prev:
+#   휴지통에서 온 것 = 휴지통 · 일괄 삭제로 받은편지함에서 온 것 = 받은편지함 · 보관함·폴더 표시는 안 건드렸으니 그대로).
+#   30일이 지난 것만 밤 23:30 정리(purge_expired_pending)가 줄과 첨부 줄을 실제로 지운다 — 지우기 전에 「아직 쓰는 곳」을 다시 센다.
+#   디스크의 첨부 파일(내용 지문 경로 · 같은 내용 = 파일 1개 공유)은 예전처럼 건드리지 않는다(다른 메일이 같은 파일을 쓸 수 있음).
+PURGE_KEEP_DAYS = 30
+PURGE_PENDING = 2
 
 
-def empty_trash(c, user_id: int) -> int:
-    """휴지통(is_deleted=1) 전부 완전삭제. 반환 삭제 건수."""
-    c.execute("DELETE FROM mail_attachments WHERE mail_id IN "
-              "(SELECT id FROM mail_messages WHERE user_id=? AND is_deleted=1)", (user_id,))
-    cur = c.execute("DELETE FROM mail_messages WHERE user_id=? AND is_deleted=1", (user_id,))
-    return cur.rowcount
+def _ensure_purge(c):
+    _ensure_security_cols(c)
+    c.execute("""CREATE TABLE IF NOT EXISTS mail_purge_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,                 -- 메일함 주인
+        actor_id INTEGER,                -- 누른 사람(밤 정리 = NULL · 시스템)
+        action TEXT NOT NULL,            -- trash_one · trash_empty · old_bulk · restore · night_delete · night_keep
+        n INTEGER DEFAULT 0,             -- 몇 통
+        keep_until TEXT DEFAULT '',      -- 완전히 지워질 날(보관 끝)
+        note TEXT DEFAULT '',
+        at TEXT DEFAULT (datetime('now','localtime')))""")
+
+
+def _purge_log(c, user_id, actor_id, action, n, keep_until="", note=""):
+    c.execute("INSERT INTO mail_purge_log(user_id, actor_id, action, n, keep_until, note) VALUES(?,?,?,?,?,?)",
+              (user_id, actor_id, action, int(n or 0), keep_until or "", (note or "")[:300]))
+
+
+def purge_until(c) -> str:
+    """지금 누르면 완전히 지워질 때(서버 현지 시각 + 30일 · deleted_at 과 같은 시계)."""
+    return c.execute("SELECT datetime('now','localtime', ?)", ("+%d days" % PURGE_KEEP_DAYS,)).fetchone()[0]
+
+
+def purge_date_label(until: str) -> str:
+    """'2026-12-28 17:05:00' → '12월 28일'(안내문용)."""
+    try:
+        return "%d월 %d일" % (int(until[5:7]), int(until[8:10]))
+    except Exception:
+        return until[:10]
+
+
+def _mark_pending(c, user_id, where, args, how, actor_id):
+    """where 에 맞는 내 메일을 완전 삭제 대기로. 반환 (통수, 지울 날, 묶음 열쇠).
+    묶음 열쇠 = 누른 시각(purge_req_at) + 「어디서」 — 결과 창 「되살리기」가 방금 지운 것만 되살리게."""
+    _ensure_purge(c)
+    until = purge_until(c)
+    req = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+    # purge_prev = 바꾸기 전 is_deleted(SQLite 는 SET 안에서 옛 값을 읽음) → 되살릴 때 원래 자리로
+    cur = c.execute("UPDATE mail_messages SET purge_prev=COALESCE(is_deleted,0), is_deleted=?, purge_at=?, purge_req_at=?, purge_by=?, "
+                    "purge_how=?, deleted_at=COALESCE(deleted_at, datetime('now','localtime')) "
+                    "WHERE user_id=? AND " + where,
+                    (PURGE_PENDING, until, req, actor_id, how, user_id, *args))
+    n = cur.rowcount or 0
+    if n:
+        _purge_log(c, user_id, actor_id, how, n, until)
+    return n, until, (req + "|" + how) if n else ""
+
+
+def hard_delete_mail(c, mail_id: int, user_id: int) -> dict:
+    """휴지통 한 통 「완전 삭제」 — 휴지통에 있는 내 메일만 받는다 → 완전 삭제 대기(30일 보관).
+    반환 {"ok", "n", "until", "why"} · why = 'none'(없음·남의 메일) | 'not_trash'(휴지통에 없음)."""
+    _ensure_purge(c)
+    r = c.execute("SELECT is_deleted FROM mail_messages WHERE id=? AND user_id=?", (mail_id, user_id)).fetchone()
+    if not r or (r[0] or 0) == PURGE_PENDING:
+        return {"ok": False, "n": 0, "until": "", "why": "none"}
+    if (r[0] or 0) != 1:
+        return {"ok": False, "n": 0, "until": "", "why": "not_trash"}
+    n, until, batch = _mark_pending(c, user_id, "id=? AND is_deleted=1", (mail_id,), "trash_one", user_id)
+    return {"ok": n > 0, "n": n, "until": until, "batch": batch, "why": ""}
 
 
 def purge_old_count(c, user_id: int, before_iso: str) -> int:
-    """받은 메일 중 before_iso(받은시각) 이전 건수(미리보기)."""
+    """받은 메일 중 before_iso(받은시각) 이전 통수(미리보기) — 받은편지함·휴지통에 있는 것(이미 완전 삭제 대기인 것은 뺌)."""
+    _ensure_purge(c)
     r = c.execute("SELECT COUNT(*) AS n FROM mail_messages "
-                  "WHERE user_id=? AND direction='in' AND received_at < ?",
+                  "WHERE user_id=? AND direction='in' AND received_at < ? AND COALESCE(is_deleted,0) IN (0,1)",
                   (user_id, before_iso)).fetchone()
     return (r["n"] if r else 0) or 0
 
 
-def purge_old(c, user_id: int, before_iso: str) -> int:
-    """받은 메일 중 before_iso 이전 완전삭제(첨부 포함). 반환 삭제 건수."""
-    c.execute("DELETE FROM mail_attachments WHERE mail_id IN "
-              "(SELECT id FROM mail_messages WHERE user_id=? AND direction='in' AND received_at < ?)",
-              (user_id, before_iso))
-    cur = c.execute("DELETE FROM mail_messages WHERE user_id=? AND direction='in' AND received_at < ?",
-                    (user_id, before_iso))
-    return cur.rowcount
+def count_pending(c, user_id: int) -> dict:
+    """완전 삭제 대기 통수 · 가장 먼저 지워질 날."""
+    _ensure_purge(c)
+    r = c.execute("SELECT COUNT(*), MIN(NULLIF(purge_at,'')) FROM mail_messages WHERE user_id=? AND is_deleted=?",
+                  (user_id, PURGE_PENDING)).fetchone()
+    return {"n": (r[0] or 0) if r else 0, "first": (r[1] or "") if r else ""}
+
+
+def list_pending(c, user_id: int, *, limit: int = 300):
+    _ensure_purge(c)
+    rows = c.execute(
+        """SELECT id, from_email, from_name, to_email, direction, subject, received_at, deleted_at,
+                  purge_at, purge_req_at, purge_how
+           FROM mail_messages WHERE user_id=? AND is_deleted=?
+           ORDER BY purge_at ASC, id ASC LIMIT ?""", (user_id, PURGE_PENDING, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def restore_pending(c, user_id: int, ids=None, batch: str = "", _log=True) -> int:
+    """완전 삭제 대기 → 원래 자리로 되살림(휴지통에서 왔으면 휴지통 · 받은편지함에서 왔으면 받은편지함).
+    내 메일만 · ids 없으면 전부 · batch = 방금 지운 묶음만. 반환 통수."""
+    _ensure_purge(c)
+    base = ("UPDATE mail_messages SET is_deleted=CASE WHEN purge_prev=0 THEN 0 ELSE 1 END, "
+            "deleted_at=CASE WHEN purge_prev=0 THEN NULL ELSE deleted_at END, "
+            "purge_at='', purge_req_at='', purge_by=NULL, purge_how='', purge_prev=NULL "
+            "WHERE user_id=? AND is_deleted=?")
+    if batch:
+        req, _, how = batch.partition("|")
+        if not req or not how:
+            return 0
+        n = c.execute(base + " AND purge_req_at=? AND purge_how=?", (user_id, PURGE_PENDING, req, how)).rowcount or 0
+    elif ids is None:
+        n = c.execute(base, (user_id, PURGE_PENDING)).rowcount or 0
+    else:
+        nums = []
+        for x in list(ids)[:500]:
+            try:
+                nums.append(int(x))
+            except Exception:
+                pass
+        if not nums:
+            return 0
+        n = c.execute(base + " AND id IN (" + ",".join("?" * len(nums)) + ")", (user_id, PURGE_PENDING, *nums)).rowcount or 0
+    if n and _log:
+        _purge_log(c, user_id, user_id, "restore", n)
+    return n
+
+
+# ── 많은 통을 한 번에(일괄 삭제·비우기·묶음 되살리기) — 500통씩 따로 저장해 웍스 전체 저장을 오래 막지 않게 ──
+#   실측(가짜 4만 통 DB · 이 PC): 1만 8천 통을 한 번에 표시 = 약 29초 동안 쓰기 잠금 → 500통씩 나눔.
+CHUNK = 500
+
+
+def _ids_of(session, sql, args):
+    with session() as c:
+        _ensure_purge(c)
+        return [r[0] for r in c.execute(sql, args).fetchall()]
+
+
+def mark_pending_run(session, user_id, where, args, how, actor_id, chunk=CHUNK) -> dict:
+    """where 에 맞는 내 메일 → 완전 삭제 대기(나눠 저장). 반환 {"n", "until", "batch"}."""
+    with session() as c:
+        _ensure_purge(c)
+        until = purge_until(c)
+        req = c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+        ids = [r[0] for r in c.execute("SELECT id FROM mail_messages WHERE user_id=? AND " + where + " ORDER BY id",
+                                       (user_id, *args)).fetchall()]
+    n = 0
+    for i in range(0, len(ids), chunk):
+        part = ids[i:i + chunk]
+        with session() as c:   # 고른 뒤 바뀐 것은 건너뜀(같은 조건 다시 붙임)
+            n += c.execute("UPDATE mail_messages SET purge_prev=COALESCE(is_deleted,0), is_deleted=?, purge_at=?, purge_req_at=?, "
+                           "purge_by=?, purge_how=?, deleted_at=COALESCE(deleted_at, datetime('now','localtime')) "
+                           "WHERE user_id=? AND id IN (" + ",".join("?" * len(part)) + ") AND " + where,
+                           (PURGE_PENDING, until, req, actor_id, how, user_id, *part, *args)).rowcount or 0
+    if n:
+        with session() as c:
+            _purge_log(c, user_id, actor_id, how, n, until)
+    return {"n": n, "until": until, "batch": (req + "|" + how) if n else ""}
+
+
+def empty_trash_run(session, user_id: int) -> dict:
+    """「휴지통 비우기」 — 휴지통(is_deleted=1) 전부 → 완전 삭제 대기(30일 보관)."""
+    return mark_pending_run(session, user_id, "is_deleted=1", (), "trash_empty", user_id)
+
+
+def purge_old_run(session, user_id: int, before_iso: str, actor_id=None) -> dict:
+    """관리 「오래된 받은 메일 일괄」 — before_iso 이전 받은 메일(받은편지함·휴지통) → 완전 삭제 대기(30일 보관)."""
+    return mark_pending_run(session, user_id, "direction='in' AND received_at < ? AND COALESCE(is_deleted,0) IN (0,1)",
+                            (before_iso,), "old_bulk", actor_id if actor_id is not None else user_id)
+
+
+def restore_pending_run(session, user_id: int, ids=None, batch: str = "", chunk=CHUNK) -> int:
+    """restore_pending 과 같은 일 · 많은 통은 나눠 저장. 반환 통수."""
+    if batch:
+        req, _, how = batch.partition("|")
+        if not req or not how:
+            return 0
+        got = _ids_of(session, "SELECT id FROM mail_messages WHERE user_id=? AND is_deleted=? AND purge_req_at=? AND purge_how=?",
+                      (user_id, PURGE_PENDING, req, how))
+    elif ids is None:
+        got = _ids_of(session, "SELECT id FROM mail_messages WHERE user_id=? AND is_deleted=?", (user_id, PURGE_PENDING))
+    else:
+        with session() as c:
+            return restore_pending(c, user_id, ids)
+    n = 0
+    for i in range(0, len(got), chunk):
+        with session() as c:
+            n += restore_pending(c, user_id, got[i:i + chunk], _log=False)
+    if n:
+        with session() as c:
+            _purge_log(c, user_id, user_id, "restore", n)
+    return n
+
+
+def _pending_in_use(c, ids) -> dict:
+    """「아직 쓰는 곳」 — {메일 번호: 이유}. 쓰는 곳이 있으면 밤 정리가 지우지 않는다.
+    ① 내가 보낸 메일의 「답 기다림」이 이 메일을 답으로 잡고 있음(wait_reply_id · 그 보낸 메일이 살아 있을 때)
+    ② 👉 맡기기(이음 요청)가 아직 처리 중(mail_delegations · working/review)."""
+    out = {}
+    if not ids:
+        return out
+    q = ",".join("?" * len(ids))
+    try:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(mail_messages)").fetchall()}
+        if "wait_reply_id" in cols:
+            for r in c.execute("SELECT DISTINCT wait_reply_id FROM mail_messages WHERE wait_reply_id IN (" + q + ") "
+                               "AND COALESCE(is_deleted,0)<>?", (*ids, PURGE_PENDING)).fetchall():
+                out[r[0]] = "보낸 메일의 답 기다림이 이 메일을 답으로 잡고 있음"
+    except Exception as e:
+        raise RuntimeError("답 기다림 연결 확인 실패: %s" % str(e)[:80])
+    try:
+        has = c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mail_delegations'").fetchone()
+        if has:
+            for r in c.execute("SELECT DISTINCT mail_id FROM mail_delegations WHERE mail_id IN (" + q + ") "
+                               "AND COALESCE(state,'working') IN ('working','review')", ids).fetchall():
+                out.setdefault(r[0], "맡기기(이음 요청)가 아직 처리 중")
+    except Exception as e:
+        raise RuntimeError("맡기기 연결 확인 실패: %s" % str(e)[:80])
+    return out
+
+
+def purge_expired_pending(session, now=None, chunk: int = 300) -> dict:
+    """밤 정리 — 보관 30일이 지난 완전 삭제 대기 메일만 실제로 지운다(첨부 줄 포함 · 디스크 첨부 파일은 그대로).
+    금지 시간(평일·주말 08:50~09:30 · 월 02:00~07:30 NAS 백업)에는 안 돈다. now = 한국시간(시험용).
+    반환 {"deleted", "kept", "skip"}."""
+    from . import mail_vacuum as _mvac
+    given = now is not None
+    now = now or _mvac.kst_now()
+    q = _mvac.quiet_reason(now)
+    if q:
+        print("[MAIL-PURGE] 돌면 안 되는 시간 — 건너뜀(%s)" % q, flush=True)
+        return {"deleted": 0, "kept": 0, "skip": q}
+    with session() as c:
+        _ensure_purge(c)
+        # 지울 날(purge_at)은 서버 현지 시계로 적었으니 같은 시계로 비교(시험은 now 를 그대로 씀)
+        cut = now.strftime("%Y-%m-%d %H:%M:%S") if given else c.execute("SELECT datetime('now','localtime')").fetchone()[0]
+        rows = [(r[0], r[1]) for r in c.execute(
+            "SELECT id, user_id FROM mail_messages WHERE is_deleted=? AND COALESCE(purge_at,'')<>'' AND purge_at <= ? ORDER BY id",
+            (PURGE_PENDING, cut)).fetchall()]
+    deleted, kept = 0, 0
+    per_user, kept_user = {}, {}
+    for i in range(0, len(rows), chunk):
+        part = rows[i:i + chunk]
+        ids = [x[0] for x in part]
+        with session() as c:
+            use = _pending_in_use(c, ids)        # 지우기 바로 전에 다시 셈
+            go = [x for x in part if x[0] not in use]
+            for x in part:
+                if x[0] in use:
+                    kept_user.setdefault(x[1], []).append("%d(%s)" % (x[0], use[x[0]]))
+            if go:
+                gid = [x[0] for x in go]
+                qq = ",".join("?" * len(gid))
+                c.execute("DELETE FROM mail_attachments WHERE mail_id IN (" + qq + ")", gid)
+                n = c.execute("DELETE FROM mail_messages WHERE is_deleted=? AND id IN (" + qq + ")",
+                              (PURGE_PENDING, *gid)).rowcount or 0
+                deleted += n
+                for x in go:
+                    per_user[x[1]] = per_user.get(x[1], 0) + 1
+    with session() as c:
+        _ensure_purge(c)
+        for uid, n in per_user.items():
+            _purge_log(c, uid, None, "night_delete", n)
+        for uid, lst in kept_user.items():
+            kept += len(lst)
+            _purge_log(c, uid, None, "night_keep", len(lst), note="쓰는 곳이 있어 남김: " + ", ".join(lst[:10]))
+        c.execute("DELETE FROM mail_purge_log WHERE id NOT IN (SELECT id FROM mail_purge_log ORDER BY id DESC LIMIT 5000)")
+    if deleted:
+        try:   # 어느 메일도 안 쓰게 된 본문 보관함 줄 치우기(기존 공용 함수)
+            from .mail_body_pack import gc_store
+            gc_store(session)
+        except Exception as e:
+            print("[MAIL-PURGE] 본문 보관함 치우기 다음으로: %s" % str(e)[:120], flush=True)
+    print("[MAIL-PURGE] 보관 30일 지난 메일 %d통 지움 · 쓰는 곳 있어 남김 %d통" % (deleted, kept), flush=True)
+    return {"deleted": deleted, "kept": kept, "skip": ""}
 
 
 # ─── 번역(요청 시) ──────────────────────────────────────────────────
