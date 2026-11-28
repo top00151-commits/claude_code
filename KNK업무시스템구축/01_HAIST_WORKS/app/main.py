@@ -6389,6 +6389,21 @@ async def meeting_detail_page(req: Request, mid: int):
 # ── 회의록 종이 양식(v3 · 대표 확정 2026-09-16) 채움 도우미 ──────────────────
 #   사내에서 실제 쓰는 종이 회의록 양식 그대로 인쇄되게 한다.
 #   참석자 = '부서 | 성명(서명)' 3쌍씩 줄로, 「안 건」 칸 = AI 정리 본문(머리말 포함).
+def _mtg_doc_ext_split(raw):
+    """z1215 (대표 2026-11-28 「앞쪽은 회사 이름이라 부서칸에 적어주고 이름만 성명칸에」):
+    📄 회의록 양식 참석자 표 — 외부 참석자 글자가 맨 앞 [회사] 또는 【회사】 로 시작하면 (회사, 나머지 이름) 으로 나눈다.
+    · 표시만(저장된 meeting_attendees.name 은 그대로) · 괄호 안이나 뒤 이름이 비면 나누지 않는다 · 둥근 괄호 ( ) 는 보지 않는다(베트남 이름 「… (한국 발음)」)."""
+    t = " ".join(str(raw or "").split())
+    for o, cl in (("[", "]"), ("【", "】")):
+        if t.startswith(o):
+            k = t.find(cl, 1)
+            if k > 1:
+                co, nm = t[1:k].strip(), t[k + 1:].strip()
+                if co and nm:
+                    return co, nm
+    return "", t
+
+
 def _mtg_doc_att_rows(atts, per_row=3, min_rows=3):
     """참석자 목록 → 종이 양식 줄 목록. 빈칸을 채우고 최소 min_rows 줄을 보장한다."""
     def _blank():
@@ -6529,7 +6544,10 @@ async def meeting_doc_page(req: Request, mid: int):
                     _anm = (_anm + " " + rank_label(_ar["rank"],
                                                     u.get("lang") or "ko")).strip()
             else:
-                _anm = _ar.get("raw") or ""
+                # z1215 (대표 2026-11-28): 외부 「[한에너지시스템]박예린 차장님」 → 부서 칸 = 회사 · 성명 칸 = 이름(표시만)
+                _xd, _anm = _mtg_doc_ext_split(_ar.get("raw") or "")
+                doc_atts.append({"dept": _xd, "name": _anm})
+                continue
             doc_atts.append({"dept": _ar.get("dept") or "", "name": _anm})
         # v5H226z800 (대표 지시·규칙): 작성자·할일 담당 = 이름 직책 부서 [[knk_name_display_rule]].
         #   할일 담당은 매칭된 사용자(assignee_user_id)일 때만 직책·부서 부착, 아니면 원문 이름 유지.
