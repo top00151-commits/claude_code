@@ -42,6 +42,57 @@
         </div>
 {%- endif %}
 {% endmacro %}
+{# ── z1211 (대표 2026-11-28): 사람 고르기 창 한 벌 — 「👁 이 사람들도 보기」(z1148·z1151)의 창을 매크로로 꺼내
+   참석자 칸도 **같은 것**을 쓴다(화면마다 복사 금지 · knk-staff-list). xbtn = 창 안 「✕ 닫기」(knk-screen-exit). #}
+{% macro people_panel(pre, lbl_hq, lbl_vn, xbtn=false) %}
+            <div class="vw-panel" id="{{ pre }}Panel" style="display:none;">
+              <div class="vw-tabs" id="{{ pre }}Tabs">
+                <button type="button" class="vw-tab on" data-ent="KOR">{{ lbl_hq }}<span class="vw-n" id="{{ pre }}Nk"></span></button>
+                <button type="button" class="vw-tab" data-ent="VN">{{ lbl_vn }}<span class="vw-n" id="{{ pre }}Nv"></span></button>
+                {%- if xbtn %}
+                <button type="button" class="vw-x" id="{{ pre }}X" title="{{ i.mf_at_close }}" aria-label="{{ i.mf_at_close }}">✕</button>
+                {%- endif %}
+              </div>
+              <div class="vw-top">
+                <input type="text" id="{{ pre }}Q" placeholder="{{ i.mf_vw_q }}" autocomplete="off">
+                <span class="mf-hint" id="{{ pre }}Cnt"></span>
+                <button type="button" class="vw-mini on" id="{{ pre }}Save">{{ i.mf_ok }}</button>
+                <button type="button" class="vw-mini" id="{{ pre }}Cancel">{{ i.mf_cancel }}</button>
+              </div>
+              <div class="vw-list" id="{{ pre }}List">{{ i.mt_loading }}</div>
+              <div class="vw-other" id="{{ pre }}Other" style="display:none;"></div>
+            </div>
+{% endmacro %}
+{# z1211: 참석자 칩 — 직원(👤 이름 직책 부서 · 번호) / 외부(이름 + 「외부」) / 이음에서 넘어온 이름(점선 · 아직 연결 안 함)
+   🔴 화면 스크립트 atChip() 과 같은 모양 — 하나를 고치면 다른 하나도 #}
+{% macro att_chip(a, idx, editable) -%}
+<span class="vw-chip at-chip{% if a.k == 'x' %} at-chip-x{% elif a.k == 't' %} at-chip-t{% endif %}" data-k="{{ a.k }}">{% if a.k == 'u' %}👤 {{ a.label }}{% elif a.k == 'x' %}{{ a.name }} <span class="at-tag">{{ i.mf_at_ext_tag }}</span>{% else %}{{ a.name }}{% endif %}{% if editable %}<button type="button" class="at-x" data-i="{{ idx }}" title="{{ i.mf_at_rm }}" aria-label="{{ i.mf_at_rm }}">✕</button>{% endif %}</span>
+{%- endmacro %}
+{% macro att_box(items, editable) %}
+          <div class="mf-fld full" id="atFld">
+            <label>{{ i.mf_f_att }} <span class="mf-hint">{{ i.mf_f_att_hint }}</span></label>
+            <div class="vw-box">
+              <div class="vw-chips" id="atChips">{% for a in items %}{{ att_chip(a, loop.index0, editable) }}{% endfor %}{% if not items %}<span class="mf-hint">{{ i.mf_at_none }}</span>{% endif %}</div>
+              {%- if editable %}
+              <div class="at-btns">
+                <button type="button" class="vw-mini" id="atOpen">{{ i.mf_at_pick }}</button>
+                <button type="button" class="vw-mini" id="atExtOpen">{{ i.mf_at_ext }}</button>
+              </div>
+              {%- endif %}
+            </div>
+            <input type="hidden" id="mtgAttendees" value="">
+            <div class="mf-hint at-note" id="atTxtNote"{% if not (items|selectattr('k', 'equalto', 't')|list) %} hidden{% endif %}>{{ i.mf_at_txt_note }}</div>
+            {%- if editable %}
+            <div class="at-ext" id="atExtRow" hidden>
+              <input type="text" id="atExtQ" maxlength="200" placeholder="{{ i.mf_at_ext_ph }}" autocomplete="off">
+              <button type="button" class="vw-mini on" id="atExtAdd">{{ i.mf_at_ext_add }}</button>
+              <button type="button" class="vw-mini" id="atExtX" title="{{ i.mf_at_close }}" aria-label="{{ i.mf_at_close }}">✕</button>
+            </div>
+{{ people_panel('at', i.mf_at_tab_hq, i.mf_at_tab_vn, true) }}
+            <div class="mf-hint" id="atSt" style="margin-top:6px;"></div>
+            {%- endif %}
+          </div>
+{% endmacro %}
 <style>
 /* z1182 (대표 2026-10-15 「모니터 크기에 맞게 여백이 자동으로 조정되게 해줘.. 오른쪽 여백이 너무 많아」):
    폭 상한 1200px 을 걷었다 — 입력 시트는 모니터 폭 꽉(표준 · 음성 메모 z1177 과 같다) · 휴대폰은 그대로 */
@@ -108,9 +159,9 @@
 .mf-author-opt.auto { border-style:dashed; color: var(--qv-ink-2); }
 .mf-author-opt:hover { background: var(--qv-surface-3); }
 .save-status { font-size:12px; color: var(--qv-ink-3); min-height:16px; }
-.save-status.ok { color:#15803d; } .save-status.err { color: var(--knk-red); } .save-status.busy { color: var(--qv-ink-2); }
+.save-status.ok, #atSt.at-st-ok { color:#15803d; } .save-status.err { color: var(--knk-red); } .save-status.busy { color: var(--qv-ink-2); }
 /* z1106: 고친 칸이 저장 전이면 저장 버튼 옆에 표시 */
-.dirty-flag { font-size:13px; font-weight:700; color:#b45309; }
+.dirty-flag { font-size:13px; font-weight:700; } .dirty-flag, #atSt.at-st-w { color:#b45309; }
 .btn[disabled] { opacity:.5; cursor:not-allowed; }
 .rec-wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .rec-btn.on { background: var(--knk-red) !important; animation: recPulse 1.2s infinite; }
@@ -142,7 +193,7 @@
 @keyframes recBnPulse { 0%,100%{opacity:1;} 50%{opacity:.88;} }
 @keyframes recBlink { 0%,100%{opacity:1;} 50%{opacity:.2;} }
 .rec-file { cursor:pointer; }
-.mf-offtag { font-size:11.5px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:3px 10px; }
+.mf-offtag, .at-tag { font-size:11.5px; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:3px 10px; }
 /* z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 — 참석 안 한 직원도 보게 콕 집어 준다 */
 .vw-box { display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; }
 .vw-chips { display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:160px; align-items:center; }
@@ -164,6 +215,24 @@
 .vw-row:hover { background: var(--qv-surface-2); }
 .vw-row input { width:16px; height:16px; }
 .vw-row .vw-al { font-size:11px; color: var(--qv-ink-3); margin-left:auto; }
+/* z1211: 참석자 칩·외부 참석자 줄 — 「이 사람들도 보기」 모양(.vw-*)을 그대로 쓰고 다른 것만 */
+.vw-x { flex:0 0 auto; width:36px; font-size:14px; font-weight:800; line-height:1; border-radius:8px 8px 0 0;
+  border:1px solid var(--qv-line); border-bottom:none; background: var(--qv-surface-2); color: var(--qv-ink); cursor:pointer; }
+.vw-x:hover { color: var(--knk-red); }
+.at-btns { display:flex; gap:8px; flex-wrap:wrap; }
+.at-chip { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.at-chip .at-x { border:none; background:none; color: var(--qv-ink-2, var(--qv-ink)); font-size:12px; font-weight:800; line-height:1;
+  padding:3px 5px; margin:-3px -6px -3px 0; border-radius:999px; cursor:pointer; }
+.at-chip .at-x:hover { color: var(--knk-red); background: var(--qv-surface-3, transparent); }
+.at-chip-x { border-style:dashed; }
+.at-chip-t { border-style:dotted; border-width:2px; }
+.at-tag { font-size:11px; font-weight:800; padding:1px 7px; }   /* z1211: 색은 .mf-offtag 와 같이(새 직접 색 금지) */
+.at-note { margin-top:6px; line-height:1.6; }
+.at-note[hidden], .at-ext[hidden] { display:none !important; }
+.at-ext { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+.at-ext input { flex:1; min-width:160px; height:32px; box-sizing:border-box; border:1px solid var(--qv-line); border-radius:8px;
+  padding:0 11px; font-size:13.5px; font-family:inherit; background: var(--qv-surface); color: var(--qv-ink); }
+.at-ext .vw-mini, .at-btns .vw-mini { height:32px; box-sizing:border-box; }
 .link-chip { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; font-weight:700; padding:5px 11px; border-radius:999px; background: var(--qv-surface-2); color: var(--qv-ink); border:1px solid var(--qv-line); text-decoration:none; }
 .link-chip:hover { border-color: var(--qv-line-3); background: var(--qv-surface-3); }
 .rec-time { font-size:14px; font-weight:800; color: var(--knk-red); font-family:ui-monospace,Consolas,monospace; }
@@ -425,10 +494,8 @@
             <label>{{ i.mf_f_tags }} <span class="mf-hint">{{ i.mf_opt }}</span></label>
             <input id="mtgTags" type="text" placeholder="{{ i.mf_f_tags_ph }}" value="{{ pf.get('tags','') }}">
           </div>
-          <div class="mf-fld full">
-            <label>{{ i.mf_f_att }} <span class="mf-hint">{{ i.mf_f_att_hint }}</span></label>
-            <input id="mtgAttendees" type="text" placeholder="{{ i.mf_f_att_ph }}" value="{{ pf.get('attendees','') }}">
-          </div>
+          {# z1211: 참석자 = 사람 고르기(번호) · 외부만 이름 — 이음 미리 채움 이름은 점선 칩(그대로 저장하면 옛 동작) #}
+{{ att_box(att_view|default([], true), true) }}
         </div>
       </details>
     </div>
@@ -520,21 +587,9 @@
               {% if can_edit %}<button type="button" class="vw-mini" id="vwOpen">{{ i.mf_vw_pick }}</button>{% endif %}
             </div>
             {% if can_edit %}
-            <div class="vw-panel" id="vwPanel" style="display:none;">
-              {# z1151 (대표 지시 2026-10-08): 같은 이름의 팀이 양쪽 법인에 있어 섞여 보였다 → 탭으로 가른다 #}
-              <div class="vw-tabs" id="vwTabs">
-                <button type="button" class="vw-tab on" data-ent="KOR">{{ i.mf_ent_hq }}<span class="vw-n" id="vwNk"></span></button>
-                <button type="button" class="vw-tab" data-ent="VN">{{ i.mf_ent_vn }}<span class="vw-n" id="vwNv"></span></button>
-              </div>
-              <div class="vw-top">
-                <input type="text" id="vwQ" placeholder="{{ i.mf_vw_q }}" autocomplete="off">
-                <span class="mf-hint" id="vwCnt"></span>
-                <button type="button" class="vw-mini on" id="vwSave">{{ i.mf_ok }}</button>
-                <button type="button" class="vw-mini" id="vwCancel">{{ i.mf_cancel }}</button>
-              </div>
-              <div class="vw-list" id="vwList">{{ i.mt_loading }}</div>
-              <div class="vw-other" id="vwOther" style="display:none;"></div>
-            </div>
+            {# z1151 (대표 지시 2026-10-08): 같은 이름의 팀이 양쪽 법인에 있어 섞여 보였다 → 탭으로 가른다
+               z1211: 창 모양은 매크로 people_panel 한 곳(참석자 고르기와 같은 것) #}
+{{ people_panel('vw', i.mf_ent_hq, i.mf_ent_vn) }}
             <div class="mf-hint" id="vwSt" style="margin-top:6px;"></div>
             {% endif %}
           </div>
@@ -546,10 +601,8 @@
             <label>{{ i.mf_f_tags }} <span class="mf-hint">{{ i.mf_opt }}</span></label>
             <input id="mtgTags" type="text" placeholder="{{ i.mf_f_tags_ph }}" value="{{ meeting.tags }}" {% if not can_edit %}disabled{% endif %}>
           </div>
-          <div class="mf-fld full">
-            <label>{{ i.mf_f_att }} <span class="mf-hint">{{ i.mf_f_att_hint }}</span></label>
-            <input id="mtgAttendees" type="text" placeholder="{{ i.mf_f_att_ph }}" value="{{ meeting.attendees_text }}" {% if not can_edit %}disabled{% endif %}>
-          </div>
+          {# z1211: 참석자 = 표(meeting_attendees) 그대로 칩 · 고칠 권한 없으면 칩만 #}
+{{ att_box(att_view|default([], true), can_edit) }}
           {# z1197 (대표 2026-10-28): 「작성자」= 녹음 파일을 올린 사람이 기본 · 바꾸기는 녹음 올린 사람(관리자/대표)만 — 권한 칸이 아니라 표시용 칸 #}
           <div class="mf-fld full" id="fldAuthor">
             <label>{{ i.mf_f_author }} <span class="mf-hint">{{ i.mf_f_author_hint }}</span></label>
@@ -992,13 +1045,18 @@ var MF = {
   vw_oth_a: {{ i.mf_vw_oth_a|tojson }},
   vw_oth_b: {{ i.mf_vw_oth_b|tojson }},
   vw_picked: {{ i.mf_vw_picked|tojson }},
-  vw_saved: {{ i.mf_vw_saved|tojson }}
+  vw_saved: {{ i.mf_vw_saved|tojson }},
+  at_none: {{ i.mf_at_none|tojson }}, at_rm: {{ i.mf_at_rm|tojson }}, at_ext_tag: {{ i.mf_at_ext_tag|tojson }},   {# z1211 #}
+  at_same: {{ i.mf_at_same|tojson }}, at_dup: {{ i.mf_at_dup|tojson }}, at_picked: {{ i.mf_at_picked|tojson }},
+  at_dropped: {{ i.mf_at_dropped|tojson }}
 };
 </script>
 <script>
 window.__MTG = {
   is_new: {{ 'true' if is_new else 'false' }},
   id: {{ meeting.id if not is_new else 'null' }},
+  att: {{ (att_view|default([], true))|tojson }},     {# z1211: 참석자 칩(직원 = 번호 · 외부 = 이름 · 이음 미리 채움 = 글자) #}
+  att_txt: {{ (att_txt|default('', true))|tojson }},
   {# z1106: 새 회의일 때 빈 값도 tojson 으로 — '""' 를 그냥 쓰면 &#34;&#34; 로 바뀌어 이 스크립트 전체가 멈췄다(06-14 새 회의 저장 실패 원인) #}
   base_ts: {{ ((meeting.updated_at or '') if not is_new else '')|tojson }},
   can_edit: {{ 'true' if (is_new or can_edit) else 'false' }},
@@ -1107,16 +1165,35 @@ window.__MTG = {
     }
   }
 
+  // ── z1211 (대표 2026-11-28): 참석자 = 사람 고르기 — 칩 목록이 기준 · 숨은 칸(mtgAttendees)은 「고쳤나」 판정용 글
+  //   🔴 손대지 않고 저장 = attendees_keep(서버가 참석자 표를 그대로 둔다 · knk-no-silent-change)
+  //   🔵 고쳤으면 attendee_ids(직원 번호) + attendee_ext(외부 이름) — 서버는 이름으로 직원을 찾지 않는다
+  //   🔵 이음 「📋 회의록」이 넘겨 준 이름(점선 칩)을 손대지 않은 새 회의록 = 옛 글자(attendees_text) 그대로 → 옛 동작
+  var ATS = { items: (M.att || []).slice(), txt: String(M.att_txt || '') };
+  function atSer(){ return ATS.items.map(function(a){ return a.k + ':' + (a.k === 'u' ? a.id : a.name); }).join('\n'); }
+  function atSync(){ var h = $('mtgAttendees'); if (h) h.value = atSer(); }
+  atSync();
+  ATS.init = atSer();
+  function atForm(f){
+    var h = $('mtgAttendees');
+    if (!h){ if (!M.is_new) f.attendees_keep = true; return f; }   // 칸이 없으면(다른 화면으로 옮긴 뒤) 참석자는 건드리지 않는다
+    var cur = String(h.value || '');
+    if (!M.is_new && cur === _base['mtgAttendees']){ f.attendees_keep = true; return f; }
+    if (ATS.txt && cur === ATS.init){ f.attendees_text = ATS.txt; return f; }
+    var ids = [], ext = [];
+    ATS.items.forEach(function(a){ if (a.k === 'u') ids.push(a.id); else if (a.name) ext.push(a.name); });
+    f.attendee_ids = ids; f.attendee_ext = ext;
+    return f;
+  }
   function collectForm(){
-    return {
+    return atForm({
       title: ($('mtgTitle')||{}).value || '',
       meeting_date: ($('mtgDate')||{}).value || '',
       visibility: ($('mtgVis')||{}).value || 'team',
       location: ($('mtgLoc')||{}).value || '',
       tags: ($('mtgTags')||{}).value || '',
-      attendees_text: ($('mtgAttendees')||{}).value || '',
       body: ($('mtgBody')||{}).value || ''
-    };
+    });
   }
 
   // ── 저장(신규 생성 / 기존 수정) ──
@@ -1129,7 +1206,12 @@ window.__MTG = {
     if (!f.title.trim()) return { ok:false, error:MF.need_title, focus:'mtgTitle' };
     f.base_ts = M.base_ts;
     var res2 = await jreq('PUT', '/api/meeting/' + M.id, f);
-    if (res2.ok && res2.data.ok) { M.base_ts = res2.data.updated_at || M.base_ts; rebase(null, snap); minutesSync(res2.data); return { ok:true }; }
+    if (res2.ok && res2.data.ok) {
+      M.base_ts = res2.data.updated_at || M.base_ts; rebase(null, snap); minutesSync(res2.data);
+      if (res2.data.att){ ATS.items = res2.data.att; ATS.txt = ''; atPaint(); atSync(); rebase(['mtgAttendees']);   // z1211
+        if (res2.data.att_dropped) atSt(res2.data.att_dropped + MF.at_dropped, 'err'); else atSt(''); }
+      return { ok:true };
+    }
     if (res2.status === 409) return { ok:false, error: res2.data.message || MF.conflict };
     return { ok:false, error: res2.data.error || MF.save_fail };
   }
@@ -2539,7 +2621,108 @@ window.__MTG = {
   //   대표 지시: 「회의 참석하지 않은 특정 인원들에게도 보일 수 있게 … 직원 선택이 가능하도록」
   //   🔴 참석자 칸에 넣지 않는다 — 참석자는 저장 때마다 글자에서 다시 만들어지고 이음이 덮어쓴다.
   //   🔵 명단은 「확인」을 누를 때 바로 저장된다(회의록 「저장」과 따로 — 연결 칸과 같은 방식).
-  var VW = { all:null, sel:null, tab:'KOR' };   // z1151: tab = 'KOR'(본사) / 'VN'(베트남)
+  // ── z1211: 사람 고르기 한 벌 — z1151 「이 사람들도 보기」 창의 동작을 그대로 함수로 꺼냈다(참석자도 이것을 쓴다)
+  //   🔵 탭을 옮겨도 고른 사람은 그대로(P.sel 은 번호로) · 찾기는 지금 탭 안에서만 · 다른 탭에 맞는 사람이 있으면 알려 주고 누르면 건너감
+  //   opt: url() 명단 주소 · already 「이미 볼 수 있음」 표시 · cho 한글 첫소리 찾기 · onOpen · onCancel · onOk(P)
+  function _cho(s){
+    var C = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ', o = ''; s = String(s || '');
+    for (var i = 0; i < s.length; i++){ var c = s.charCodeAt(i) - 0xAC00; o += (c >= 0 && c < 11172) ? C.charAt(Math.floor(c / 588)) : s.charAt(i); }
+    return o;
+  }
+  function mkPick(pre, opt){
+    var P = { all:null, sel:{}, tab:'KOR' };
+    function g(x){ return $(pre + x); }
+    P.count = function(){
+      var n = 0; for (var k in P.sel){ if (P.sel[k]) n++; }
+      var cnt = g('Cnt'); if (cnt) cnt.textContent = n ? (n + MF.vw_picked) : '';
+    };
+    P.tabPaint = function(){
+      var tabs = g('Tabs'); if (!tabs) return;
+      [].forEach.call(tabs.querySelectorAll('.vw-tab'), function(b){
+        b.classList.toggle('on', b.getAttribute('data-ent') === P.tab);
+      });
+      var k = 0, v = 0;
+      (P.all || []).forEach(function(r){ if (r.entity === 'VN') v++; else k++; });
+      var nk = g('Nk'), nv = g('Nv');
+      if (nk) nk.textContent = ' ' + k; if (nv) nv.textContent = ' ' + v;
+    };
+    P.render = function(){
+      var wrap = g('List'); if (!wrap || !P.all) return;
+      var q = (((g('Q') || {}).value) || '').trim().toLowerCase();
+      var qc = (opt.cho && /^[ㄱ-ㅎ]+$/.test(q.replace(/\s+/g, ''))) ? q.replace(/\s+/g, '') : '';
+      var html = '', team = null, shown = 0, otherHit = 0;
+      P.all.forEach(function(r){
+        var hay = (r.label + ' ' + r.team).toLowerCase();
+        var hit = !q || hay.indexOf(q) >= 0 || (!!qc && _cho(r.label).replace(/\s+/g, '').indexOf(qc) >= 0);
+        var mine = (r.entity === 'VN' ? 'VN' : 'KOR') === P.tab;
+        if (!mine){ if (hit) otherHit++; return; }
+        if (!hit) return;
+        if (r.team !== team){ team = r.team; html += '<div class="vw-team">' + esc(team) + '</div>'; }
+        shown++;
+        html += '<label class="vw-row"><input type="checkbox" data-uid="' + r.id + '"' + (P.sel[r.id] ? ' checked' : '') + '>'
+              + '<span>' + esc(r.label) + '</span>'
+              + ((opt.already && r.already) ? '<span class="vw-al">' + MF.vw_already + '</span>' : '') + '</label>';
+      });
+      wrap.innerHTML = shown ? html : '<div class="vw-team">' + MF.vw_notab + '</div>';
+      var oth = g('Other');
+      if (oth){
+        if (otherHit){
+          oth.style.display = 'block';
+          oth.textContent = '→ ' + (P.tab === 'KOR' ? MF.ent_vn : MF.ent_hq) + MF.vw_oth_a + otherHit + MF.vw_oth_b;
+        } else oth.style.display = 'none';
+      }
+      P.count();
+      P.tabPaint();
+    };
+    P.load = async function(){
+      if (P.all) return true;
+      var res = await jreq('GET', opt.url());   // 🔴 jreq 는 null 도 본문으로 싣는다(GET 은 본문 금지)
+      if (!(res.ok && res.data.ok)){ var l = g('List'); if (l) l.textContent = (res.data && res.data.error) || MF.vw_loadfail; return false; }
+      P.all = res.data.users || [];
+      P.tab = (res.data.me_entity === 'VN') ? 'VN' : 'KOR';   // z1151: 보는 사람의 법인부터(대표 결정)
+      return true;
+    };
+    P.open = async function(ids){
+      var pn = g('Panel'); if (!pn) return;
+      pn.style.display = 'block'; if (opt.onOpen) opt.onOpen();
+      if (!(await P.load())) return;
+      P.sel = {}; (ids || []).forEach(function(i){ P.sel[i] = true; });
+      P.render();
+    };
+    P.close = function(){ var pn = g('Panel'); if (pn) pn.style.display = 'none'; };
+    P.picked = function(){ var ids = []; for (var k in P.sel){ if (P.sel[k]) ids.push(parseInt(k, 10)); } return ids; };
+    (function(){
+      function cancel(){ P.close(); if (opt.onCancel) opt.onCancel(); }
+      var cl = g('Cancel'); if (cl) cl.addEventListener('click', cancel);
+      var x = g('X'); if (x) x.addEventListener('click', cancel);
+      var sv = g('Save'); if (sv) sv.addEventListener('click', function(){ opt.onOk(P); });
+      var q = g('Q'); if (q){
+        q.addEventListener('input', P.render);
+        q.addEventListener('keydown', function(e){ if (e.key === 'Escape'){ e.preventDefault(); cancel(); } });
+      }
+      var tb = g('Tabs'); if (tb) tb.addEventListener('click', function(e){
+        var b = e.target.closest ? e.target.closest('.vw-tab') : null; if (!b) return;
+        P.tab = b.getAttribute('data-ent'); P.render();
+        var l = g('List'); if (l) l.scrollTop = 0;
+      });
+      var ot = g('Other'); if (ot) ot.addEventListener('click', function(){
+        P.tab = (P.tab === 'KOR') ? 'VN' : 'KOR'; P.render();
+        var l = g('List'); if (l) l.scrollTop = 0;
+      });
+      var ls = g('List'); if (ls) ls.addEventListener('change', function(e){
+        var cb = e.target; if (!cb || cb.type !== 'checkbox') return;
+        var id = parseInt(cb.getAttribute('data-uid'), 10); if (!id) return;
+        P.sel[id] = cb.checked;
+        P.count();
+      });
+    })();
+    return P;
+  }
+
+  // ── z1148 (대표 지시 2026-10-08): 「이 사람들도 보기」 ───────────────────────
+  //   대표 지시: 「회의 참석하지 않은 특정 인원들에게도 보일 수 있게 … 직원 선택이 가능하도록」
+  //   🔴 참석자 칸에 넣지 않는다 — 참석자는 저장 때마다 다시 만들어지고 이음이 덮어쓴다.
+  //   🔵 명단은 「확인」을 누를 때 바로 저장된다(회의록 「저장」과 따로 — 연결 칸과 같은 방식).
   function vwIds(){
     var box=$('vwChips'); var s=(box&&box.getAttribute('data-ids'))||'';
     return s ? s.split(',').map(function(x){return parseInt(x,10);}).filter(function(n){return n>0;}) : [];
@@ -2552,89 +2735,89 @@ window.__MTG = {
       ? rows.map(function(r){ return '<span class="vw-chip">👤 '+esc(r.label)+'</span>'; }).join('')
       : '<span class="mf-hint">'+MF.vw_none+'</span>';
   }
-  // z1151 (대표 지시 2026-10-08 「본사, 베트남은 탭으로 구분해줘」)
-  //   🔴 같은 이름의 팀이 양쪽 법인에 있다(가공팀·품질팀·관리팀 … 운영 7쌍) → 탭 없이는 구분이 안 된다.
-  //   🔵 탭을 옮겨도 고른 사람은 그대로 남는다(VW.sel 은 번호로 들고 있다).
-  //   🔵 찾기는 **지금 탭 안에서만** — 다른 탭에 맞는 사람이 있으면 아래에 알려 주고, 누르면 건너간다(대표 결정).
-  function vwTabPaint(){
-    var tabs=$('vwTabs'); if(!tabs) return;
-    [].forEach.call(tabs.querySelectorAll('.vw-tab'), function(b){
-      b.classList.toggle('on', b.getAttribute('data-ent')===VW.tab);
-    });
-    var k=0, v=0;
-    (VW.all||[]).forEach(function(r){ if(r.entity==='VN') v++; else k++; });
-    var nk=$('vwNk'), nv=$('vwNv');
-    if(nk) nk.textContent=' '+k; if(nv) nv.textContent=' '+v;
-  }
-  function vwRender(){
-    var wrap=$('vwList'); if(!wrap||!VW.all) return;
-    var q=((($('vwQ')||{}).value)||'').trim().toLowerCase();
-    var html='', team=null, shown=0, otherHit=0;
-    VW.all.forEach(function(r){
-      var hit = !q || (r.label+' '+r.team).toLowerCase().indexOf(q)>=0;
-      var mine = (r.entity==='VN' ? 'VN' : 'KOR')===VW.tab;
-      if(!mine){ if(hit) otherHit++; return; }
-      if(!hit) return;
-      if(r.team!==team){ team=r.team; html+='<div class="vw-team">'+esc(team)+'</div>'; }
-      shown++;
-      html+='<label class="vw-row"><input type="checkbox" data-uid="'+r.id+'"'+(VW.sel[r.id]?' checked':'')+'>'
-          + '<span>'+esc(r.label)+'</span>'
-          + (r.already?'<span class="vw-al">'+MF.vw_already+'</span>':'') + '</label>';
-    });
-    wrap.innerHTML = shown ? html : '<div class="vw-team">'+MF.vw_notab+'</div>';
-    var oth=$('vwOther');
-    if(oth){
-      if(otherHit){
-        oth.style.display='block';
-        oth.textContent='→ '+(VW.tab==='KOR'?MF.ent_vn:MF.ent_hq)+MF.vw_oth_a+otherHit+MF.vw_oth_b;
-      } else oth.style.display='none';
-    }
-    var n=0; for(var k2 in VW.sel){ if(VW.sel[k2]) n++; }
-    var cnt=$('vwCnt'); if(cnt) cnt.textContent = n ? (n+MF.vw_picked) : '';
-    vwTabPaint();
-  }
-  async function vwOpen(){
-    var pn=$('vwPanel'); if(!pn) return;
-    pn.style.display='block'; vwSt('');
-    if(!VW.all){
-      var res=await jreq('GET','/api/meeting/'+M.id+'/viewers');   // 🔴 jreq 는 null 도 본문으로 싣는다(GET 은 본문 금지)
-      if(!(res.ok&&res.data.ok)){ $('vwList').textContent=(res.data&&res.data.error)||MF.vw_loadfail; return; }
-      VW.all=res.data.users||[];
-      VW.tab=(res.data.me_entity==='VN')?'VN':'KOR';   // z1151: 보는 사람의 법인부터(대표 결정)
-    }
-    VW.sel={}; vwIds().forEach(function(i){ VW.sel[i]=true; });
-    vwRender();
-  }
-  async function vwSave(){
-    var ids=[]; for(var k in VW.sel){ if(VW.sel[k]) ids.push(parseInt(k,10)); }
+  async function vwSave(P){
+    var ids=P.picked();
     vwSt(MF.saving);
     var res=await jreq('POST','/api/meeting/'+M.id+'/viewers',{user_ids:ids});
     if(res.ok&&res.data.ok){
       vwPaint(res.data.viewers||[]);
-      $('vwPanel').style.display='none';
+      P.close();
       vwSt(MF.vw_saved,'ok');
     } else vwSt((res.data&&res.data.error)||MF.save_fail,'err');
   }
+  var VW = mkPick('vw', { already:true, url:function(){ return '/api/meeting/'+M.id+'/viewers'; },
+                          onOpen:function(){ vwSt(''); }, onCancel:function(){ vwSt(''); }, onOk:vwSave });
+  (function(){ var o=$('vwOpen'); if(o) o.addEventListener('click',function(){ VW.open(vwIds()); }); })();
+
+  // ── z1211 (대표 2026-11-28): 참석자 = 사람 고르기 · 직원이 아닌 분만 「＋ 외부 참석자」 ────────────
+  //   대표 지시: 오타면 연결이 빠지고 · 동명이인은 안 붙고 · 직원과 이름이 같은 손님이 그 직원에게 붙던 것을 막는다.
+  //   🔵 「확인」은 칩만 바꾼다 — 회의록 「저장」을 눌러야 저장된다(● 저장 안 됨 표시가 뜬다).
+  //   🔵 외부 이름이 직원 이름과 같으면 넣되 알려 준다(입력하는 순간 실수 알리기 · 막지 않는다).
+  function atSt(msg, kind){ var el=$('atSt'); if(el){ el.textContent=msg||''; el.classList.toggle('at-st-w', kind==='err'); el.classList.toggle('at-st-ok', kind==='ok'); } }
+  function atChip(a, i){
+    var x = CAN_EDIT ? '<button type="button" class="at-x" data-i="'+i+'" title="'+esc(MF.at_rm)+'" aria-label="'+esc(MF.at_rm)+'">✕</button>' : '';
+    if (a.k === 'u') return '<span class="vw-chip at-chip" data-k="u">👤 '+esc(a.label)+x+'</span>';
+    if (a.k === 'x') return '<span class="vw-chip at-chip at-chip-x" data-k="x">'+esc(a.name)+' <span class="at-tag">'+esc(MF.at_ext_tag)+'</span>'+x+'</span>';
+    return '<span class="vw-chip at-chip at-chip-t" data-k="t">'+esc(a.name)+x+'</span>';
+  }
+  function atPaint(){
+    var box=$('atChips'); if(!box) return;
+    box.innerHTML = ATS.items.length ? ATS.items.map(atChip).join('') : '<span class="mf-hint">'+esc(MF.at_none)+'</span>';
+    var tn=$('atTxtNote'); if(tn) tn.hidden = !ATS.items.some(function(a){ return a.k === 't'; });
+  }
+  function atChanged(){ atPaint(); atSync(); refreshDirty(); }
+  var AT = mkPick('at', { cho:true, url:function(){ return '/api/meeting/people'; },
+    onOpen:function(){ atSt(''); }, onCancel:function(){ atSt(''); },
+    onOk:function(P){
+      var keep = {}, have = {};
+      P.picked().forEach(function(id){ keep[id] = 1; });
+      // 지금 칩 차례 그대로 · 뺀 직원만 빠지고 · 새로 고른 직원은 뒤에(본사 → 베트남법인 · 각 책갈피의 부서 순)
+      ATS.items = ATS.items.filter(function(a){ if (a.k !== 'u') return true; if (keep[a.id]){ have[a.id] = 1; return true; } return false; });
+      ['KOR', 'VN'].forEach(function(ent){
+        (P.all || []).forEach(function(r){
+          if ((r.entity === 'VN' ? 'VN' : 'KOR') === ent && keep[r.id] && !have[r.id]){ ATS.items.push({k:'u', id:r.id, label:r.label}); have[r.id] = 1; }
+        });
+      });
+      P.close(); atChanged();
+      atSt(isDirty() ? MF.at_picked : '', 'ok');
+    } });
+  function atExtAdd(){
+    var q=$('atExtQ'); if(!q) return;
+    var parts = String(q.value || '').split(/[,;\n\r、]+/).map(function(x){ return x.replace(/\s+/g, ' ').trim().slice(0, 60); }).filter(Boolean);
+    if (!parts.length){ q.focus(); return; }
+    var dup = [], same = [];
+    parts.forEach(function(nm){
+      if (ATS.items.some(function(a){ return a.k !== 'u' && a.name === nm; })){ dup.push(nm); return; }
+      ATS.items.push({k:'x', name:nm});
+      (AT.all || []).forEach(function(r){ if (r.name === nm || (r.name_vi && r.name_vi === nm)) same.push(r.label); });
+    });
+    q.value = ''; q.focus();
+    atChanged();
+    if (same.length) atSt(MF.at_same.replace('{n}', same.join(', ')), 'err');
+    else if (dup.length) atSt(MF.at_dup + dup.join(', '), 'err');
+    else atSt(MF.at_picked, 'ok');
+  }
   (function(){
-    var o=$('vwOpen'); if(o) o.addEventListener('click',vwOpen);
-    var cl=$('vwCancel'); if(cl) cl.addEventListener('click',function(){ $('vwPanel').style.display='none'; vwSt(''); });
-    var sv=$('vwSave'); if(sv) sv.addEventListener('click',vwSave);
-    var q=$('vwQ'); if(q) q.addEventListener('input',vwRender);
-    var tb=$('vwTabs'); if(tb) tb.addEventListener('click',function(e){
-      var b=e.target.closest ? e.target.closest('.vw-tab') : null; if(!b) return;
-      VW.tab=b.getAttribute('data-ent'); vwRender();
-      var l=$('vwList'); if(l) l.scrollTop=0;
+    var o=$('atOpen'); if(o) o.addEventListener('click', function(){
+      var r=$('atExtRow'); if(r) r.hidden = true;
+      AT.open(ATS.items.filter(function(a){ return a.k === 'u'; }).map(function(a){ return a.id; }));
     });
-    var ot=$('vwOther'); if(ot) ot.addEventListener('click',function(){
-      VW.tab=(VW.tab==='KOR')?'VN':'KOR'; vwRender();
-      var l=$('vwList'); if(l) l.scrollTop=0;
+    var eo=$('atExtOpen'); if(eo) eo.addEventListener('click', function(){
+      var r=$('atExtRow'); if(!r) return;
+      AT.close(); r.hidden = false; atSt('');
+      var q=$('atExtQ'); if(q) q.focus();
+      AT.load();   // 같은 이름 직원 알림에 쓴다(창은 열지 않는다)
     });
-    var ls=$('vwList'); if(ls) ls.addEventListener('change',function(e){
-      var cb=e.target; if(!cb||cb.type!=='checkbox') return;
-      var id=parseInt(cb.getAttribute('data-uid'),10); if(!id) return;
-      VW.sel[id]=cb.checked;
-      var n=0; for(var k in VW.sel){ if(VW.sel[k]) n++; }
-      var cnt=$('vwCnt'); if(cnt) cnt.textContent = n ? (n+MF.vw_picked) : '';
+    var ea=$('atExtAdd'); if(ea) ea.addEventListener('click', atExtAdd);
+    var eq=$('atExtQ'); if(eq) eq.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.keyCode === 13){ e.preventDefault(); atExtAdd(); }
+      else if (e.key === 'Escape'){ e.preventDefault(); var r=$('atExtRow'); if(r) r.hidden = true; }
+    });
+    var ex=$('atExtX'); if(ex) ex.addEventListener('click', function(){ var r=$('atExtRow'); if(r) r.hidden = true; atSt(''); });
+    var cb=$('atChips'); if(cb) cb.addEventListener('click', function(e){
+      var b = e.target.closest ? e.target.closest('.at-x') : null; if (!b || !CAN_EDIT) return;
+      var i = parseInt(b.getAttribute('data-i'), 10); if (isNaN(i) || !ATS.items[i]) return;
+      ATS.items.splice(i, 1); atChanged(); atSt(isDirty() ? MF.at_picked : '', 'ok');
     });
   })();
 

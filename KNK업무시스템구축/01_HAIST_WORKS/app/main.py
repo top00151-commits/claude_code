@@ -5267,6 +5267,116 @@ def _meeting_link_attendees(c, mid, attendees_text):
         )
 
 
+# 🔵 z1211 (대표 지시 2026-11-28 「진행해」): 회의록 참석자 = **사람 고르기** · 사용자 번호(users.id)로 저장.
+#   전에는 쉼표로 쓴 이름 글자를 서버가 직원 이름과 맞춰 연결했다(_meeting_link_attendees) →
+#   오타면 연결이 빠지고 · 동명이인은 연결이 안 되고 · 직원과 이름이 같은 손님은 그 직원에게 잘못 붙었다.
+#   🔴 새 형식(attendee_ids · attendee_ext)이 왔을 때만 이 길로 간다. 이름으로 직원을 찾는 일은 하지 않는다.
+#   🔴 옛 형식(attendees_text 만)은 지금 동작 그대로(이음 등 다른 호출자·옛 화면 보호 · knk-no-silent-change).
+#   🔵 바꾸는 것은 사람이 고른 줄만 — 남은 사람의 줄은 그대로 두고(번호·이름·만든 때) 뺀 사람만 빼고 새 사람만 넣는다.
+#   🔵 meetings.attendees_text 는 계속 채운다(AI 정리 문맥·찾기·목록이 읽는다) — 남은 줄 차례대로 ", ".
+_MTG_ATT_SEP = (",", ";", "\n", "\r", "、")
+
+
+def _meeting_att_wanted(d):
+    """요청에서 새 형식 참석자를 읽는다. 새 형식이 아니면 None(→ 옛 동작).
+    돌려줌: (직원 번호 목록, 외부 이름 목록) · 모양이 틀리면 ValueError."""
+    if not isinstance(d, dict) or "attendee_ids" not in d:
+        return None
+    raw_ids, raw_ext = d.get("attendee_ids"), d.get("attendee_ext")
+    if not isinstance(raw_ids, list) or (raw_ext is not None and not isinstance(raw_ext, list)):
+        raise ValueError("참석자 모양이 맞지 않습니다(attendee_ids·attendee_ext 는 목록).")
+    ids = []
+    for x in raw_ids[:300]:
+        if isinstance(x, bool):
+            continue
+        try:
+            n = int(x)
+        except (ValueError, TypeError):
+            continue
+        if n > 0 and n not in ids:
+            ids.append(n)
+    ext = []
+    for x in (raw_ext or [])[:100]:
+        nm = str(x if x is not None else "")
+        for sep in _MTG_ATT_SEP:          # 참석자 글(attendees_text)을 옛 길이 다시 나눠도 한 사람이 둘로 갈리지 않게
+            nm = nm.replace(sep, " ")
+        nm = " ".join(nm.split())[:60]
+        if nm and nm not in ext:
+            ext.append(nm)
+    return ids, ext
+
+
+def _meeting_set_attendees(c, mid, ids, ext) -> dict:
+    """z1211: 사람이 고른 그대로 참석자 표를 맞춘다(번호로만 · 이름 맞추기 없음).
+    · 직원 = 고른 번호. 새로 넣는 번호는 활성 직원만(이미 이 회의에 있던 번호는 잠긴 계정이어도 그대로 둔다).
+    · 외부 = user_id NULL · 이름 글자. 직원과 이름이 같아도 연결하지 않는다.
+    돌려줌: {"text": 참석자 글, "dropped": 넣지 못한 번호 수}"""
+    cur = [dict(r) for r in c.execute(
+        "SELECT id, user_id, name FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,))]
+    have_uid = {r["user_id"] for r in cur if r.get("user_id")}
+    new_ids = [x for x in ids if x not in have_uid]
+    ok_new = {}
+    if new_ids:
+        _q = ",".join("?" * len(new_ids))
+        for r in c.execute("SELECT id, name FROM users WHERE id IN (" + _q + ") "
+                           "AND COALESCE(is_active,1)=1", new_ids):
+            ok_new[r["id"]] = str(r["name"] or "").strip()
+    want_uid = set(x for x in ids if x in have_uid or x in ok_new)
+    want_ext = list(ext)
+    kept_ext = set()
+    for r in cur:
+        uid, nm = r.get("user_id"), str(r.get("name") or "")
+        if uid:
+            if uid in want_uid:
+                continue
+        elif nm.strip() and nm.strip() in want_ext and nm.strip() not in kept_ext:
+            kept_ext.add(nm.strip())
+            continue
+        c.execute("DELETE FROM meeting_attendees WHERE id=?", (r["id"],))
+    for x in ids:
+        if x in ok_new:
+            c.execute("INSERT INTO meeting_attendees(meeting_id, user_id, name) VALUES(?,?,?)",
+                      (mid, x, ok_new[x]))
+    for nm in want_ext:
+        if nm not in kept_ext:
+            c.execute("INSERT INTO meeting_attendees(meeting_id, user_id, name) VALUES(?,?,?)",
+                      (mid, None, nm))
+    seen, names = set(), []
+    for r in c.execute("SELECT name FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,)):
+        n = str(r["name"] or "").strip()
+        if n and n not in seen:
+            seen.add(n)
+            names.append(n)
+    text = ", ".join(names)
+    c.execute("UPDATE meetings SET attendees_text=? WHERE id=?", (text, mid))
+    return {"text": text, "dropped": len([x for x in ids if x not in want_uid])}
+
+
+def _meeting_att_view(c, mid, lang="ko") -> list:
+    """z1211: 화면 참석자 칩 — 표에 있는 그대로(user_id 있으면 직원 칩 · 없으면 외부 칩) · 바꾸지 않는다."""
+    out = []
+    for r in c.execute("SELECT user_id, name FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,)):
+        uid, nm = r["user_id"], str(r["name"] or "")
+        if uid:
+            out.append({"k": "u", "id": int(uid), "label": user_disp_by_id(c, uid, fallback=nm, lang=lang) or nm})
+        elif nm.strip():
+            out.append({"k": "x", "name": nm.strip()})
+    return out
+
+
+def _meeting_att_view_txt(text) -> list:
+    """z1211: 새 회의록 미리 채움(이음 「📋 회의록」 ?attendees=) — 이름 글자 칩(아직 연결 안 함)."""
+    raw = str(text or "")
+    for sep in _MTG_ATT_SEP:
+        raw = raw.replace(sep, ",")
+    out, seen = [], set()
+    for nm in (x.strip() for x in raw.split(",")):
+        if nm and nm not in seen:
+            seen.add(nm)
+            out.append({"k": "t", "name": nm})
+    return out
+
+
 def _can_view_meeting(c, u, m) -> bool:
     """회의록 열람 권한 (제약2 권한 분기).
     - admin/ceo/executive: 전체 열람
@@ -5895,6 +6005,7 @@ async def meeting_new_page(req: Request):
         "body": (_qp.get("body") or "")[:4000],
     }
     return ctx(req, "meeting_form.html", user=u, meeting=None, prefill=prefill,
+               att_view=_meeting_att_view_txt(prefill["attendees"]), att_txt=prefill["attendees"],   # z1211
                decisions=[], actions=[], attendees=[], can_edit=True,
                ai_on=ai_client.ai_available(), transcribe_on=ai_client.transcribe_available())
 
@@ -5919,6 +6030,7 @@ async def meeting_detail_page(req: Request, mid: int):
             "SELECT * FROM meeting_actions WHERE meeting_id=? ORDER BY id", (mid,))]
         attendees = [dict(r) for r in c.execute(
             "SELECT * FROM meeting_attendees WHERE meeting_id=? ORDER BY id", (mid,))]
+        att_view = _meeting_att_view(c, mid, lang=(u.get("lang") or "ko"))   # z1211: 참석자 칩(읽기만)
         # z1148: 「이 사람들도 보기」 — 참석 안 했어도 볼 수 있게 콕 집어 준 사람들
         viewers = []
         try:
@@ -5972,6 +6084,7 @@ async def meeting_detail_page(req: Request, mid: int):
                link_on=_MEETING_LINK_ON,   # z1147: 「🔗 연결」 잠금(한 줄로 되살림)
                autorec_on=_MEETING_AUTOREC_ON,   # z1149: 이음 「▶ 회의 시작」 자동 녹음 잠금
                viewers=viewers,            # z1148: 「이 사람들도 보기」 명단
+               att_view=att_view,          # z1211: 참석자 칩(직원 = 번호 · 외부 = 이름)
                rec=_rec_view(m, u),   # z1113: 「🔴 녹음 중」 복귀 안내
                msg_del=_msg_del)      # z1122: 🗑 삭제 확인 글 — 이음 회의도 함께 지워지나
 
@@ -6775,6 +6888,10 @@ async def api_meeting_create(req: Request):
         mdate = (d.get("meeting_date") or "").strip() or date.today().isoformat()
         vis = d.get("visibility") if d.get("visibility") in _MEETING_VIS else "team"
         attendees_text = (d.get("attendees_text") or "").strip()
+        try:
+            _att_new = _meeting_att_wanted(d)   # z1211: 새 형식(번호) · None 이면 옛 동작
+        except ValueError as _e:
+            return JSONResponse({"ok": False, "error": str(_e)}, 400)
         with db_session() as c:
             cur = c.execute(
                 """INSERT INTO meetings(title, meeting_date, mode, team_id, owner_id,
@@ -6787,10 +6904,13 @@ async def api_meeting_create(req: Request):
             mid = cur.lastrowid
             if (d.get("body") or "").strip():   # z1185: 이음웍스에서 사람이 원문을 쓰고 만들었다(「회의록 작성됨」 판정이 본다)
                 c.execute("UPDATE meetings SET body_edited_at=datetime('now','localtime') WHERE id=?", (mid,))
-            try:  # 참석자 연결 실패는 회의 생성을 막지 않음(비치명)
-                _meeting_link_attendees(c, mid, attendees_text)
-            except Exception:
-                pass
+            if _att_new is not None:   # z1211: 고른 번호 그대로 · 외부는 이름만(이름 맞추기 없음)
+                _meeting_set_attendees(c, mid, _att_new[0], _att_new[1])
+            else:
+                try:  # 참석자 연결 실패는 회의 생성을 막지 않음(비치명)
+                    _meeting_link_attendees(c, mid, attendees_text)
+                except Exception:
+                    pass
             try:
                 log_activity(c, u["id"], "meeting_create",
                              f"{u['name']} 회의록 작성: {title[:60]}",
@@ -6827,6 +6947,15 @@ async def api_meeting_update(req: Request, mid: int):
         vis = d.get("visibility") if d.get("visibility") in _MEETING_VIS else m.get("visibility", "team")
         attendees_text = (d.get("attendees_text") if d.get("attendees_text") is not None
                           else m.get("attendees_text", "")).strip()
+        # z1211: 새 화면은 참석자를 손대지 않았으면 attendees_keep=true 만 보낸다 → 참석자 표·글 모두 그대로(바이트 그대로)
+        #   고쳤으면 attendee_ids·attendee_ext(번호) · 둘 다 없으면(옛 화면·다른 호출자) 지금 동작 그대로
+        try:
+            _att_new = _meeting_att_wanted(d)
+        except ValueError as _e:
+            return JSONResponse({"ok": False, "error": str(_e)}, 400)
+        _att_keep = _att_new is None and d.get("attendees_keep") is True
+        if _att_keep or _att_new is not None:
+            attendees_text = m.get("attendees_text") or ""   # 새 형식이면 아래 _meeting_set_attendees 가 다시 적는다
         status = d.get("status") if d.get("status") in ("draft", "done") else m.get("status", "draft")
         c.execute(
             """UPDATE meetings SET title=?, meeting_date=?, location=?, tags=?,
@@ -6838,7 +6967,12 @@ async def api_meeting_update(req: Request, mid: int):
              (d.get("body") if d.get("body") is not None else m.get("body", "")),
              vis, status, mid),
         )
-        _meeting_link_attendees(c, mid, attendees_text)
+        _att_res = None
+        if _att_new is not None:   # z1211
+            _att_res = _meeting_set_attendees(c, mid, _att_new[0], _att_new[1])
+        elif not _att_keep:
+            _meeting_link_attendees(c, mid, attendees_text)
+        _att_out = _meeting_att_view(c, mid, lang=(u.get("lang") or "ko")) if _att_new is not None else None
         # 🔴 z1185 (대표 2026-10-16 「녹음 원문 또는 수기 작성」): 사람이 원문을 쓰거나 고쳤다 → 그 시각을 남긴다
         #    (「회의록 작성됨」 판정 _meeting_body_written 이 본다). 띄어쓰기·줄바꿈만 다른 것은 고친 것이 아니다
         #    — 이음 메모의 줄바꿈이 화면 칸을 거쳐 바뀌어 돌아와도 「사람이 썼다」가 되지 않게.
@@ -6848,8 +6982,12 @@ async def api_meeting_update(req: Request, mid: int):
         _mw = dict(c.execute("SELECT * FROM meetings WHERE id=?", (mid,)).fetchone())
     # z1185: 화면이 「📄 회의록 양식」 단추를 저장한 그 자리에서 다시 맞춘다(판정은 서버 한 곳)
     _tr_kick("mtg", mid, "edit")   # z1199
-    return JSONResponse({"ok": True, "updated_at": new_ts,
-                         "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)})
+    _resp = {"ok": True, "updated_at": new_ts,
+             "body_written": _meeting_body_written(_mw), "has_minutes": _meeting_has_minutes(_mw)}
+    if _att_out is not None:   # z1211: 저장된 참석자 칩(화면이 그대로 다시 그린다) · 넣지 못한 번호 수
+        _resp["att"] = _att_out
+        _resp["att_dropped"] = (_att_res or {}).get("dropped", 0)
+    return JSONResponse(_resp)
 
 
 # ════ z1202 (대표 2026-11-03): 정리·결정·할 일에서 고친 낱말 → 회의 원문(body)에도 「같은 글자 전부」 ════
@@ -9830,6 +9968,33 @@ def _meeting_viewer_rows(c, mid: int, lang: str = "ko") -> list:
             "WHERE mv.meeting_id=? ORDER BY u.name", (mid,))]
     except Exception:
         return []
+
+
+@app.get("/api/meeting/people")
+async def api_meeting_people(req: Request):
+    """z1211: 참석자 고르기 명단 — 활성 직원만 · 부서 순(teams.display_order — 총괄 -1 맨 앞) ·
+    법인 = teams.entity 단일소스(_meeting_user_entity · 「이 사람들도 보기」와 같다) · 이름 = vname_full.
+    회의 번호가 없어도 된다(새 회의록). 로그인한 직원이면 누구나(회의록은 누구나 새로 쓸 수 있다)."""
+    u = get_user(req)
+    if not u:
+        return JSONResponse({"error": "로그인 필요"}, 401)
+    lang = u.get("lang") or "ko"
+    with db_session() as c:
+        _cols = {r[1] for r in c.execute("PRAGMA table_info(users)")}
+        _vi = "u.name_vi" if "name_vi" in _cols else "''"
+        rows = [dict(r) for r in c.execute(
+            "SELECT u.id, u.name, COALESCE(" + _vi + ",'') AS name_vi, u.rank, t.name AS team_name, "
+            "       COALESCE(t.display_order, 999) AS t_ord, COALESCE(t.entity,'KOR') AS t_ent "
+            "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
+            "WHERE COALESCE(u.is_active,1)=1 "
+            "ORDER BY t_ord, COALESCE(t.id, 999999), u.name")]
+        me_ent = _meeting_user_entity(c, u)
+    out = [{"id": r["id"], "label": vname_full(r, lang=lang),
+            "name": str(r.get("name") or "").strip(), "name_vi": str(r.get("name_vi") or "").strip(),
+            "team": (r.get("team_name") or "부서 없음"),
+            "entity": ("VN" if str(r.get("t_ent") or "KOR").strip().upper() == "VN" else "KOR")}
+           for r in rows]
+    return JSONResponse({"ok": True, "users": out, "me_entity": me_ent})
 
 
 @app.get("/api/meeting/{mid:int}/viewers")
