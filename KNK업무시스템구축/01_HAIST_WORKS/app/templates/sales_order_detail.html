@@ -3,13 +3,10 @@
 {% include "_v5_partials/styles.html" %}
 <style>
 /* v5H226z47: 시안1 토큰 + .mgmt-pill — sales_order_detail v1 차수 */
-body {
-  /* z1016: --qv → knk Sage 브리지 */
-  --qv-surface:var(--knk-bg-surface,#FAFBF9); --qv-surface-2:var(--knk-bg-inset,#F6F7F4); --qv-line:var(--knk-border-subtle,#E2E6E1);
-  --qv-ink:var(--knk-text-primary,#27302B); --qv-ink-2:var(--knk-text-secondary,#46524B); --qv-ink-3:var(--knk-text-muted,#657169);
-  --biz-t:#c2410c; --biz-m:#1e40af; --biz-e:#6d28d9; --biz-c:#047857;
+body {   /* z1191z205: --qv-* 다리(공용 테마와 같은 값)는 뺌 · 사업부 색만 */
+  --biz-t:var(--knk-cat-orange); --biz-m:var(--knk-info); --biz-e:var(--knk-cat-violet); --biz-c:var(--knk-success);
 }
-.main > .knk-page-head { background: var(--knk-bg-surface, #FAFBF9); border-bottom: 1px solid var(--knk-border-subtle, #E2E6E1); padding-left: var(--content-pad); padding-right: var(--content-pad); }
+.main > .knk-page-head { background: var(--knk-bg-surface); border-bottom: 1px solid var(--knk-border-subtle); padding-left: var(--content-pad); padding-right: var(--content-pad); }
 @media (max-width: 1100px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .knk-page-title { font-size: 22px; }
@@ -30,7 +27,7 @@ body {
   <header class="knk-page-head" data-dn="page-head">
     <div>
       <nav class="knk-breadcrumb"><a href="/sales/orders">수주</a> · <b>{{ order.order_no }}</b></nav>
-      <h1 class="knk-page-title">{{ order.order_no }} {{ (cust_alias|default({},true)).get(order.customer_id) or order.customer_name|default('-') }}</h1>
+      <h1 class="knk-page-title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span>{{ order.order_no }} {{ (cust_alias|default({},true)).get(order.customer_id) or order.customer_name|default('-') }}</h1>
       <div class="knk-page-meta" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:13px;margin-top:6px;">
         {% if order.mgmt_code %}
         {# v5H226z47: amber 텍스트 → .mgmt-pill 잉크 알약 #}
@@ -68,7 +65,7 @@ body {
     {% set po_pid = order.project_id %}{% set po_oid = order.id %}{% set po_s = _po143.so.get(order.id) %}{% set po_otxt = money(order.total_amount or 0, order.currency or 'KRW') %}
     {% include "_v5_partials/po_rows.html" %}
     {% set _pp143 = _po143.proj %}{% if _pp143 and _pp143.files %}
-    <div style="margin-top:8px;font-size:12px;color:#475569;">수주번호를 아직 고르지 않은 발주서(관리번호 {{ order.mgmt_code }}): {% for x in _pp143.files %}<a href="/customer-po/{{ x.id }}" style="font-weight:700;color:#166534;text-decoration:none;">📄 {{ x.orig_name }}</a> {% endfor %}<a href="/projects/so-check" style="font-size:11.5px;color:#b45309;font-weight:700;">👉 수주번호 고르기 →</a></div>
+    <div style="margin-top:8px;font-size:12px;color:var(--knk-text-secondary);">수주번호를 아직 고르지 않은 발주서(관리번호 {{ order.mgmt_code }}): {% for x in _pp143.files %}<a href="/customer-po/{{ x.id }}" style="font-weight:700;color:var(--knk-success);text-decoration:none;">📄 {{ x.orig_name }}</a> {% endfor %}<a href="/projects/so-check" style="font-size:11.5px;color:var(--knk-warning);font-weight:700;">👉 수주번호 고르기 →</a></div>
     {% endif %}
   </div>
   {% endif %}
@@ -80,7 +77,7 @@ body {
   {# v5H128: 납품 OVER 자가치유 경고 — shipments 누계 > 수주 수량 #}
   {% if ship_over_warn %}
   <div class="section" style="margin-top:14px;">
-    <div style="border:1px solid var(--knk-red);background:#fff5f5;border-radius:10px;padding:14px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+    <div style="border:1px solid var(--knk-red);background:var(--knk-brand-subtle);border-radius:10px;padding:14px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
       <div style="font-size:22px;">⚠</div>
       <div style="flex:1;min-width:260px;">
         <div style="font-weight:700;color:var(--knk-red);margin-bottom:4px;">납품 누계가 수주 수량을 초과했습니다</div>
@@ -91,7 +88,7 @@ body {
         </div>
         <div style="font-size:11.5px;color:var(--mute);margin-top:4px;">납품 라인 검토 후 수량을 정정하거나 수주 수량을 조정하세요. (자동 보정 안 함)</div>
       </div>
-      <a href="/sales/shipments-receipts?order_id={{ order.id }}" class="btn" style="background:var(--knk-red);color:#fff;">납품 라인 검토 →</a>
+      <a href="/sales/shipments-receipts?order_id={{ order.id }}" class="btn" style="background:var(--knk-red);color:var(--knk-text-inverse);">납품 라인 검토 →</a>
     </div>
   </div>
   {% endif %}
@@ -106,7 +103,7 @@ body {
         <tbody>
         {% for it in items %}
           <tr>
-            <td style="font-family:monospace;font-weight:700;color:var(--amber-deep);">{{ it.unit_label or it.part_no or ('호기 ' ~ loop.index) }}</td>
+            <td style="font-family:monospace;font-weight:700;color:var(--knk-brand-hover);">{{ it.unit_label or it.part_no or ('호기 ' ~ loop.index) }}</td>
             <td>
               <b>{{ it.part_name or it.unit_label or ('호기 ' ~ loop.index) }}</b>
               {% if order.model_name and it.part_name != order.model_name %}<div style="font-size:11px;color:var(--mute);margin-top:2px;">모델 {{ order.model_name }}</div>{% endif %}
@@ -166,7 +163,7 @@ body {
             <thead><tr><th>수금일</th><th class="num">금액</th><th>방법</th><th>비고</th></tr></thead>
             <tbody>
             {% for rp in receipts %}
-            <tr><td>{{ rp.received_at|default('-')|truncate(10, end='') }}</td><td class="num">{% if can_sales_amt %}<b style="color:var(--success);">{{ money(rp.amount or 0, rp.currency or 'KRW') }}</b>{% if rp.fxg %}<div tabindex="0" data-fx-tip="{{ rp.fxg.txt }}" style="font-size:11px;font-weight:600;color:{% if rp.fxg.diff and rp.fxg.diff > 0 %}#15803d{% elif rp.fxg.diff and rp.fxg.diff < 0 %}#b91c1c{% else %}var(--mute){% endif %};">💱 {{ rp.fxg.short }}</div>{% endif %}{% else %}<span title="매출금액은 보기 권한이 있는 분만 보입니다">🔒</span>{% endif %}</td><td>{{ rp.method|default('-') }}</td><td style="font-size:12px;color:var(--mute);">{{ rp.note|default('') }}</td></tr>
+            <tr><td>{{ rp.received_at|default('-')|truncate(10, end='') }}</td><td class="num">{% if can_sales_amt %}<b style="color:var(--success);">{{ money(rp.amount or 0, rp.currency or 'KRW') }}</b>{% if rp.fxg %}<div tabindex="0" data-fx-tip="{{ rp.fxg.txt }}" style="font-size:11px;font-weight:600;color:{% if rp.fxg.diff and rp.fxg.diff > 0 %}var(--knk-success){% elif rp.fxg.diff and rp.fxg.diff < 0 %}var(--knk-danger){% else %}var(--mute){% endif %};">💱 {{ rp.fxg.short }}</div>{% endif %}{% else %}<span title="매출금액은 보기 권한이 있는 분만 보입니다">🔒</span>{% endif %}</td><td>{{ rp.method|default('-') }}</td><td style="font-size:12px;color:var(--mute);">{{ rp.note|default('') }}</td></tr>
             {% endfor %}
             </tbody>
           </table>
@@ -174,7 +171,7 @@ body {
         {% else %}<div class="empty" style="padding:30px;">수금 내역이 없습니다.</div>{% endif %}
         {# v5H126: 다른 통화 수금 분리 표시 + ⚠ 경고 #}
         {% if received_other_ccy %}
-        <div style="margin-top:14px;padding:10px;border:1px solid var(--knk-red);border-radius:6px;background:#fff8f7;">
+        <div style="margin-top:14px;padding:10px;border:1px solid var(--knk-red);border-radius:6px;background:var(--knk-brand-subtle);">
           <div style="font-size:13px;font-weight:700;color:var(--knk-red);margin-bottom:6px;">
             ⚠ 다통화 수금 ({{ received_other_ccy|length }}건) — 수주통화: <b>{{ order.currency or 'KRW' }}</b> 와 다름
           </div>
@@ -220,7 +217,7 @@ body {
   <div class="section">
     <h2>📜 프로젝트 변경 이력 ({{ (project_history or [])|length }}건)
       {% if order.mgmt_code %}
-      <span style="font-size:12px;font-weight:500;color:var(--mute);margin-left:8px;">관리코드 <a href="/project/{{ order.project_id }}" style="color:var(--amber-deep);font-family:monospace;">{{ order.mgmt_code }}</a></span>
+      <span style="font-size:12px;font-weight:500;color:var(--mute);margin-left:8px;">관리코드 <a href="/project/{{ order.project_id }}" style="color:var(--knk-brand-hover);font-family:monospace;">{{ order.mgmt_code }}</a></span>
       {% endif %}
     </h2>
     {% if project_history %}
@@ -232,7 +229,7 @@ body {
         <tr>
           <td style="font-size:12px;font-family:monospace;color:var(--mute);">{{ h.changed_at|default('-') }}</td>
           <td style="font-weight:600;">{{ h.changed_by_name or '시스템' }}</td>
-          <td><span style="background:var(--knk-bg-inset,#F6F7F4);padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:700;color:var(--amber-deep);">{{ h.field|default('-') }}</span></td>
+          <td><span style="background:var(--knk-bg-inset);padding:2px 8px;border-radius:4px;font-size:11.5px;font-weight:700;color:var(--knk-brand-hover);">{{ h.field|default('-') }}</span></td>
           <td>
             {% if h.old_value or h.new_value %}
               <span style="color:var(--mute);text-decoration:line-through;">{{ h.old_value|default('—') }}</span>

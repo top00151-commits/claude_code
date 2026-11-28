@@ -245,7 +245,9 @@ check("수주 달력·옛 수주 달력 조각 안내문에도 국기 그림 없
 css = open(os.path.join(ROOT, "static", "css", "schedule_board.css"), encoding="utf-8").read()
 ds = tpl("dept_schedule.html")
 check("작업일정표 오늘 = 호박색 테두리(빨강 아님)",
-      ".sched .day.today { box-shadow: inset 2px 0 0 #d4a574, inset -2px 0 0 #d4a574;" in css and "today { box-shadow: inset 2px 0 0 #b91c1c" not in css
+      (".sched .day.today { box-shadow: inset 2px 0 0 #d4a574, inset -2px 0 0 #d4a574;" in css
+       or (".sched .day.today { box-shadow: inset 2px 0 0 var(--knk-cal-today), inset -2px 0 0 var(--knk-cal-today);" in css   # z1191z205: 같은 값의 이름(v5_tokens --knk-cal-today #D4A574)
+           and re.search(r"--knk-cal-today:\s*#D4A574", open(os.path.join(ROOT, "static", "css", "v5_tokens.css"), encoding="utf-8").read(), re.I))) and "today { box-shadow: inset 2px 0 0 #b91c1c" not in css
       and "border-left:2px solid #b91c1c" not in css)
 check("전사일정표 오늘 = 호박색 테두리", ".dsx td.day.today,.dsx th.day.today{box-shadow:inset 2px 0 0 #d4a574" in ds)
 

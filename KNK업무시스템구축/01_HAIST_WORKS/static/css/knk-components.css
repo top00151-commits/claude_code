@@ -379,3 +379,6 @@ textarea.k-input{height:auto;padding:10px 12px;resize:vertical}
 .k-modal-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 20px;border-bottom:1px solid var(--knk-border-subtle)}
 .k-modal-b{padding:16px 20px;font-size:14px;color:var(--knk-text-primary)}
 .k-modal-f{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding:12px 20px;background:var(--knk-bg-inset);border-top:1px solid var(--knk-border-subtle)}
+
+/* z1191z205 (디자인 4단계): 화면 제목 앞 세 줄 표식 — 제목 띠 높이·위치는 그대로(대표 11-22 제목 띠 고정) · 줄 높이 안에 들어가는 16px */
+.page-title > .k-tri, .knk-page-title > .k-tri { margin-right:8px; vertical-align:-1px; }

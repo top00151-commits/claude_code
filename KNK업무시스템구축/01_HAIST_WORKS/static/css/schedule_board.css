@@ -8,125 +8,125 @@
 .sched-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 var(--content-pad) 6px; }
 .sched-nav { display:flex; align-items:center; gap:6px; }
 .sched-nav a, .sched-nav .cur { padding:6px 12px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-weight:700; text-decoration:none; color:var(--ink); background:var(--paper-2); }
-.sched-nav .cur { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.sched-nav .cur { background:var(--knk-red); color:var(--knk-text-inverse); border-color:var(--knk-red); }
 /* z275: 사업부 탭 */
 .sched-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
 .sched-tabs .sbm { padding:6px 14px; border:1px solid var(--line); border-radius:18px; font-size:13px; font-weight:700; text-decoration:none; color:var(--qv-ink-2); background:var(--paper-2); }
 .sched-tabs .sbm b { color:var(--qv-ink-3); font-weight:800; margin-left:3px; }
 .sched-tabs .sbm:hover { border-color:var(--knk-red); color:var(--knk-red); }
-.sched-tabs .sbm.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
-.sched-tabs .sbm.on b { color:#fff; }
+.sched-tabs .sbm.on { background:var(--knk-red); color:var(--knk-text-inverse); border-color:var(--knk-red); }
+.sched-tabs .sbm.on b { color:var(--knk-text-inverse); }
 .sched-sum { display:flex; gap:10px; font-size:13px; }
 .sched-sum .pill { padding:5px 12px; border-radius:20px; font-weight:700; }
-.sched-sum .s-deliver { background:#dcfce7; color:#15803d; }
-.sched-sum .s-delay { background:#fee2e2; color:#b91c1c; }
-.sched-sum .s-total { background:#eef2ff; color:#3730a3; }
+.sched-sum .s-deliver { background:var(--knk-success-subtle); color:var(--knk-success); }
+.sched-sum .s-delay { background:var(--knk-danger-subtle); color:var(--knk-danger); }
+.sched-sum .s-total { background:var(--knk-bg-subtle); color:var(--knk-text-primary); }
 .legend { font-size:11.5px; color:var(--qv-ink-3); display:flex; gap:14px; align-items:center; }
 .legend i { width:14px; height:11px; display:inline-block; border-radius:2px; vertical-align:middle; margin-right:4px; }
 
 /* z264/z265 도구 막대 */
 .sched-tools { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 var(--content-pad) 10px; }
 .sched-tools button, .sched-tools .tool-btn { padding:6px 12px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; }
-.sched-tools button:hover, .sched-tools .tool-btn:hover { background:#fff; border-color:var(--knk-red); }
+.sched-tools button:hover, .sched-tools .tool-btn:hover { background:var(--knk-bg-surface); border-color:var(--knk-red); }
 /* z332: 초기화 범위를 명확히 — '표 보기'(칸·날짜) / '정렬' 두 그룹을 각각 박스로 묶음 */
 .tool-box { display:inline-flex; align-items:center; gap:8px; padding:5px 10px; border:1px solid var(--line); border-radius:10px; background:rgba(120,90,40,.04); }
 .tbx-label { font-size:10.5px; font-weight:800; color:var(--qv-ink-3); background:var(--paper-2); padding:2px 7px; border-radius:6px; border:1px solid var(--line); white-space:nowrap; }
 .tbx-cur { font-size:12px; color:var(--qv-ink-3); white-space:nowrap; }
 .tbx-cur #sortNow { font-weight:800; color:var(--knk-red); }
 .sched-tools .tbx-reset { background:var(--paper-3); }
-.sched-tools .tbx-reset:hover { background:#fff; }
+.sched-tools .tbx-reset:hover { background:var(--knk-bg-surface); }
 /* v5H226z472 (대표 지시): 일괄출하 버튼 — 눈에 띄는 청록(출하) 강조·우측 정렬 */
-.sched-tools .bulk-ship-go { background:#0f766e; color:#fff; border-color:#0f766e; font-weight:800; }
-.sched-tools .bulk-ship-go:hover { background:#0e6b63; border-color:#0e6b63; color:#fff; }
+.sched-tools .bulk-ship-go { background:var(--knk-success); color:var(--knk-text-inverse); border-color:var(--knk-success); font-weight:800; }
+.sched-tools .bulk-ship-go:hover { background:var(--knk-success-text); border-color:var(--knk-success-text); color:var(--knk-text-inverse); }
 .sched-tools .bulk-ship-go:disabled { opacity:.55; cursor:default; }
 /* v5H226z488 (대표 지시): 묶어 발행 버튼 + 묶음 세금계산서 칩 */
-.sched-tools .bulk-tax-go { background:#7c3aed; color:#fff; border-color:#7c3aed; font-weight:800; }
-.sched-tools .bulk-tax-go:hover { background:#6d28d9; border-color:#6d28d9; color:#fff; }
+.sched-tools .bulk-tax-go { background:var(--knk-cat-violet); color:var(--knk-text-inverse); border-color:var(--knk-cat-violet); font-weight:800; }
+.sched-tools .bulk-tax-go:hover { background:var(--knk-cat-violet); border-color:var(--knk-cat-violet); color:var(--knk-text-inverse); }
 .sched-tools .bulk-tax-go:disabled { opacity:.55; cursor:default; }
-.sched td.taxinv-bundle { cursor:pointer; text-align:center; background:#f5f3ff; }
-.sched td.taxinv-bundle:hover { background:#ede9fe !important; box-shadow: inset 0 0 0 1px #c4b5fd; }
-.ti-bundle-chip { display:inline-block; padding:2px 8px; border-radius:9px; background:#7c3aed; color:#fff; font-size:11px; font-weight:800; white-space:nowrap; }
+.sched td.taxinv-bundle { cursor:pointer; text-align:center; background:var(--knk-cat-violet-subtle); }
+.sched td.taxinv-bundle:hover { background:var(--knk-cat-violet-subtle) !important; box-shadow: inset 0 0 0 1px var(--knk-cat-violet-line); }
+.ti-bundle-chip { display:inline-block; padding:2px 8px; border-radius:9px; background:var(--knk-cat-violet); color:var(--knk-text-inverse); font-size:11px; font-weight:800; white-space:nowrap; }
 /* v5H226z703 (대표 지시): 수출 행 세금계산서 칸 = 인보이스(세금계산서 아님) 표식 */
-.ti-inv { display:inline-block; padding:0 3px; border-radius:4px; background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; font-size:8.5px; font-weight:800; letter-spacing:.3px; line-height:1.4; }
+.ti-inv { display:inline-block; padding:0 3px; border-radius:4px; background:var(--knk-cat-violet-subtle); color:var(--knk-cat-violet); border:1px solid var(--knk-cat-violet-line); font-size:8.5px; font-weight:800; letter-spacing:.3px; line-height:1.4; }
 /* 묶어발행/구성보기 모달 */
 .ti-modal-back { position:fixed; inset:0; background:rgba(0,0,0,.42); z-index:1200; display:flex; align-items:center; justify-content:center; }
-.ti-modal { background:#fff; border-radius:14px; width:min(640px,94vw); max-height:88vh; overflow:auto; box-shadow:0 18px 50px rgba(0,0,0,.3); }
+.ti-modal { background:var(--knk-bg-surface); border-radius:14px; width:min(640px,94vw); max-height:88vh; overflow:auto; box-shadow:0 18px 50px rgba(0,0,0,.3); }
 .ti-modal h3 { margin:0; padding:14px 18px; border-bottom:1px solid var(--line); font-size:16px; }
 .ti-modal .ti-body { padding:14px 18px; }
 .ti-modal .ti-foot { padding:12px 18px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end; }
 .ti-modal table { width:100%; border-collapse:collapse; font-size:13px; }
-.ti-modal th, .ti-modal td { border-bottom:1px solid #eee; padding:6px 7px; text-align:left; }
+.ti-modal th, .ti-modal td { border-bottom:1px solid var(--knk-border-subtle); padding:6px 7px; text-align:left; }
 .ti-modal td.num, .ti-modal th.num { text-align:right; }
-.ti-modal input.ti-amt { width:120px; text-align:right; border:1px solid #cbd5e1; border-radius:5px; padding:3px 6px; font:inherit; }
+.ti-modal input.ti-amt { width:120px; text-align:right; border:1px solid var(--knk-border-default); border-radius:5px; padding:3px 6px; font:inherit; }
 .ti-modal .ti-row-flex { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
-.ti-modal .ti-row-flex label { font-size:12px; color:#555; font-weight:700; }
-.ti-modal .ti-warn { background:#fef3c7; border:1px solid #fde68a; color:#92400e; padding:8px 10px; border-radius:8px; font-size:12.5px; margin-bottom:10px; }
+.ti-modal .ti-row-flex label { font-size:12px; color:var(--knk-text-secondary); font-weight:700; }
+.ti-modal .ti-warn { background:var(--knk-warning-subtle); border:1px solid var(--knk-warning-line); color:var(--knk-warning); padding:8px 10px; border-radius:8px; font-size:12.5px; margin-bottom:10px; }
 .ti-modal .ti-total { font-size:15px; font-weight:800; }
-.ti-btn { border:1px solid var(--line); background:#fff; border-radius:8px; padding:7px 14px; font-weight:700; cursor:pointer; }
-.ti-btn.primary { background:#7c3aed; color:#fff; border-color:#7c3aed; }
-.ti-btn.danger { background:#fff; color:#dc2626; border-color:#fecaca; }
+.ti-btn { border:1px solid var(--line); background:var(--knk-bg-surface); border-radius:8px; padding:7px 14px; font-weight:700; cursor:pointer; }
+.ti-btn.primary { background:var(--knk-cat-violet); color:var(--knk-text-inverse); border-color:var(--knk-cat-violet); }
+.ti-btn.danger { background:var(--knk-bg-surface); color:var(--knk-danger); border-color:var(--knk-danger-line); }
 /* v5H226z345 (대표 지시): 작업일정표 상단 3개 행 시각 구분 — 역할 띠(라벨 + 옅은 배경)로 한눈에 구분 */
 .sb-band { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:4px 11px; border-radius:11px; border:1px solid var(--line); margin:0 var(--content-pad) 4px; }
 /* v5H226z348 (대표 지시): 3개 띠 라벨(사업부·작업·표 설정) 너비 동일 고정 — 세로로 가지런히 정렬 */
-.sb-band > .band-tag { flex:0 0 auto; box-sizing:border-box; min-width:58px; text-align:center; font-size:11px; font-weight:800; color:#fff; padding:3px 10px; border-radius:7px; white-space:nowrap; letter-spacing:.3px; }
-.band-filter { background:#eef3fa; border-color:#d4e2f2; }  .band-filter > .band-tag { background:#2f6aa8; }
-.band-action { background:#fbf0ed; border-color:#f1d9d3; }  .band-action > .band-tag { background:var(--knk-red,#b0271f); }
-.band-view   { background:#f4f5f7; border-color:#e3e5ea; }  .band-view   > .band-tag { background:#6b7280; }
+.sb-band > .band-tag { flex:0 0 auto; box-sizing:border-box; min-width:58px; text-align:center; font-size:11px; font-weight:800; color:var(--knk-text-inverse); padding:3px 10px; border-radius:7px; white-space:nowrap; letter-spacing:.3px; }
+.band-filter { background:var(--knk-info-subtle); border-color:var(--knk-info-line); }  .band-filter > .band-tag { background:var(--knk-info); }
+.band-action { background:var(--knk-brand-subtle); border-color:var(--knk-brand-line); }  .band-action > .band-tag { background:var(--knk-red); }
+.band-view   { background:var(--knk-bg-inset); border-color:var(--knk-border-subtle); }  .band-view   > .band-tag { background:var(--knk-text-muted); }
 /* v5H226z366 (대표 지시): 찾기·일괄 띠 + 검색창 + 행 선택/일괄수정 바 */
-.band-find   { background:#eef7f0; border-color:#cfe6d6; }  .band-find   > .band-tag { background:#2f8a52; }
-.sched-search { width:260px; max-width:40vw; padding:5px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:#fff; }
+.band-find   { background:var(--knk-success-subtle); border-color:var(--knk-success-line); }  .band-find   > .band-tag { background:var(--knk-success); }
+.sched-search { width:260px; max-width:40vw; padding:5px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; background:var(--knk-bg-surface); }
 /* v5H226z371 (대표 지시): 기간(범위) 찾기 입력 */
-.period-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-.period-grp.on { border-color:#2f8a52; background:#eef7f0; }
-.period-lab { font-size:12px; font-weight:800; color:#2f8a52; }
-.period-inp { padding:3px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px; background:#fff; }
-.period-sep { color:#888; }
-.period-go { padding:4px 11px; border:1px solid #2f8a52; background:#2f8a52; color:#fff; border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; }
-.period-go:hover { background:#256e42; }
-.period-clear { font-size:12px; font-weight:700; color:#6b7280; text-decoration:none; padding:3px 6px; }
+.period-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:8px; background:var(--knk-bg-surface); }
+.period-grp.on { border-color:var(--knk-success); background:var(--knk-success-subtle); }
+.period-lab { font-size:12px; font-weight:800; color:var(--knk-success); }
+.period-inp { padding:3px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px; background:var(--knk-bg-surface); }
+.period-sep { color:var(--knk-text-muted); }
+.period-go { padding:4px 11px; border:1px solid var(--knk-success); background:var(--knk-success); color:var(--knk-text-inverse); border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; }
+.period-go:hover { background:var(--knk-success); }
+.period-clear { font-size:12px; font-weight:700; color:var(--knk-text-muted); text-decoration:none; padding:3px 6px; }
 .find-grp { display:flex; align-items:center; gap:6px; }
-.find-count { font-size:12px; font-weight:700; color:#2f8a52; min-width:52px; }
-.selall-lab { display:flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:#374151; cursor:pointer; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
-.bulk-wrap { display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:4px 10px; border:1px solid #cfe6d6; border-radius:8px; background:#fff; }
-.bulk-cnt { font-size:12px; font-weight:800; color:#2f8a52; }  .bulk-cnt b { color:var(--knk-red,#b0271f); }
-.bulk-sel, .bulk-val { padding:4px 8px; border:1px solid var(--line); border-radius:6px; font-size:12px; background:#fff; }
+.find-count { font-size:12px; font-weight:700; color:var(--knk-success); min-width:52px; }
+.selall-lab { display:flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:var(--knk-text-secondary); cursor:pointer; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:var(--knk-bg-surface); }
+.bulk-wrap { display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:4px 10px; border:1px solid var(--knk-success-line); border-radius:8px; background:var(--knk-bg-surface); }
+.bulk-cnt { font-size:12px; font-weight:800; color:var(--knk-success); }  .bulk-cnt b { color:var(--knk-red); }
+.bulk-sel, .bulk-val { padding:4px 8px; border:1px solid var(--line); border-radius:6px; font-size:12px; background:var(--knk-bg-surface); }
 .bulk-val { width:150px; }
-.bulk-go { padding:5px 12px; border:1px solid #2f8a52; background:#2f8a52; color:#fff; border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; }
-.bulk-go:hover { background:#256e42; }
-.bulk-cl { padding:5px 10px; border:1px solid var(--line); background:#fff; border-radius:7px; font-size:12px; font-weight:700; color:#6b7280; cursor:pointer; }
+.bulk-go { padding:5px 12px; border:1px solid var(--knk-success); background:var(--knk-success); color:var(--knk-text-inverse); border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; }
+.bulk-go:hover { background:var(--knk-success); }
+.bulk-cl { padding:5px 10px; border:1px solid var(--line); background:var(--knk-bg-surface); border-radius:7px; font-size:12px; font-weight:700; color:var(--knk-text-muted); cursor:pointer; }
 .sched td.c1 .row-sel { margin-right:5px; vertical-align:middle; cursor:pointer; }
-.sched tbody tr.row-selected td.c-info { background:#fff7e6 !important; }
-.sched tbody tr.row-selected td.c1 { box-shadow: inset 3px 0 0 var(--knk-red,#b0271f); }
+.sched tbody tr.row-selected td.c-info { background:var(--knk-bg-selected) !important; }
+.sched tbody tr.row-selected td.c1 { box-shadow: inset 3px 0 0 var(--knk-red); }
 .sched tbody tr.search-hide { display:none; }
 /* v5H226z650 (대표 지시): 프로젝트 상세의 참고 수주 '진행중' 클릭 → 해당 관리번호 행 강조(잠깐 노랑 점멸) */
 /* v5H226z697 (대표 지시): 포커스 이동 강조 강화 — 진한 앰버 점멸 3회 + 클릭 전까지 옅은 강조 + 좌측 빨강 막대 */
-@keyframes knkRowFocusPulse { 0%{background:#fde68a;} 50%{background:#f59e0b;} 100%{background:#fde68a;} }
+@keyframes knkRowFocusPulse { 0%{background:var(--knk-highlight-subtle);} 50%{background:var(--knk-highlight);} 100%{background:var(--knk-highlight-subtle);} }
 .sched tbody tr.row-focus-flash > td { animation: knkRowFocusPulse .6s ease-in-out 3; }
-.sched tbody tr.row-focus-hold > td { background:#fff7d6 !important; transition: background .9s ease; }
-.sched tbody tr.row-focus-hold > td:first-child { box-shadow: inset 4px 0 0 0 #dc2626; }
+.sched tbody tr.row-focus-hold > td { background:var(--knk-highlight-subtle) !important; transition: background .9s ease; }
+.sched tbody tr.row-focus-hold > td:first-child { box-shadow: inset 4px 0 0 0 var(--knk-brand); }
 /* v5H226z346 (대표 지시): 아이콘 작고 심플하게 — 작은 크기 + 회색(모노) 톤으로 덜 튀게 */
 .sb-band .ti { font-size:0.78em; opacity:0.62; filter:grayscale(1); margin-right:1px; }
 .tool-grp { display:flex; align-items:center; gap:5px; padding:3px 9px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:12px; font-weight:700; }
-.tool-grp .step { padding:0 8px; line-height:22px; border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; font-weight:800; }
+.tool-grp .step { padding:0 8px; line-height:22px; border:1px solid var(--line); border-radius:5px; background:var(--knk-bg-surface); cursor:pointer; font-weight:800; }
 .tool-grp input { width:38px; text-align:center; border:1px solid var(--line); border-radius:5px; font-size:12px; padding:3px 2px; }
 .cols-menu { position:relative; display:inline-block; }
-.cols-pop { display:none; position:absolute; top:34px; left:0; z-index:30; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:8px 6px; min-width:160px; }
+.cols-pop { display:none; position:absolute; top:34px; left:0; z-index:30; background:var(--knk-bg-surface); border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:8px 6px; min-width:160px; }
 .cols-pop.show { display:block; }
 .cols-pop label { display:flex; align-items:center; gap:7px; font-size:12.5px; padding:4px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
-.cols-pop label:hover { background:#fdf3f3; }
-.cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:#fff; font-size:12px; font-weight:700; cursor:pointer; }
+.cols-pop label:hover { background:var(--knk-brand-subtle); }
+.cols-pop .cols-allbtn { display:block; width:100%; box-sizing:border-box; margin:0 0 6px; padding:6px 8px; border:1px solid var(--knk-red); border-radius:6px; background:var(--knk-red); color:var(--knk-text-inverse); font-size:12px; font-weight:700; cursor:pointer; }
 .cols-pop .cols-allbtn:hover { filter:brightness(.94); }
 /* v5H226z1040: 칸 설정의 📌 고정 단추 — 체크박스(보이기)와 나란히, 이름은 가운데서 늘어난다 */
 .cols-pop label .cols-nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 /* z1040b: ↔ 너비 되돌리기 — 📌 과 같은 모양, 기본값과 다를 때만 진하게 */
 .cols-pop .cols-w { flex-shrink:0; margin-left:6px; padding:1px 5px; font-size:11px; line-height:16px;
-  border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; color:#94a3b8; }
-.cols-pop .cols-w:hover { background:#fdf3f3; color:var(--knk-red); }
-.cols-pop .cols-w.on { color:var(--knk-red); border-color:#f0c9c9; background:#fff8f8; font-weight:800; }
+  border:1px solid var(--line); border-radius:5px; background:var(--knk-bg-surface); cursor:pointer; color:var(--knk-text-muted); }
+.cols-pop .cols-w:hover { background:var(--knk-brand-subtle); color:var(--knk-red); }
+.cols-pop .cols-w.on { color:var(--knk-red); border-color:var(--knk-brand-line); background:var(--knk-brand-subtle); font-weight:800; }
 .cols-pop .cols-pin { flex-shrink:0; margin-left:4px; padding:1px 5px; font-size:11px; line-height:16px;
-  border:1px solid var(--line); border-radius:5px; background:#fff; cursor:pointer; filter:grayscale(1); opacity:.45; }
-.cols-pop .cols-pin:hover:not(:disabled) { opacity:.85; background:#fdf3f3; }
-.cols-pop .cols-pin.on { filter:none; opacity:1; border-color:var(--knk-red); background:#fff5f5; }
+  border:1px solid var(--line); border-radius:5px; background:var(--knk-bg-surface); cursor:pointer; filter:grayscale(1); opacity:.45; }
+.cols-pop .cols-pin:hover:not(:disabled) { opacity:.85; background:var(--knk-brand-subtle); }
+.cols-pop .cols-pin.on { filter:none; opacity:1; border-color:var(--knk-red); background:var(--knk-brand-subtle); }
 .cols-pop .cols-pin:disabled { cursor:default; opacity:.75; filter:none; border-style:dashed; }
 .cols-pop .cols-hint { font-size:10.5px; color:var(--qv-ink-3); line-height:1.45; padding:0 8px 6px; white-space:normal; max-width:230px; }
 .sched-hint { font-size:10px; color:var(--qv-ink-3); line-height:1.2; }
@@ -149,14 +149,14 @@
 
 /* v5H226z547 (대표 지시): '⚙ 도구' 접이 버튼 + 도구 패널(보조 도구 숨김으로 상단 단순화) */
 .sched-gear{ padding:3px 13px; border:1px solid var(--line); border-radius:7px; background:var(--paper-2); font-size:13px; font-weight:800; color:var(--ink); cursor:pointer; }
-.sched-gear:hover{ background:#fff; border-color:var(--knk-red); color:var(--knk-red); }
-.sched-gear.on{ background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
-.sched-toolspanel{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 var(--content-pad) 4px; padding:8px 11px; border:1px solid var(--line); border-radius:11px; background:#f6f7f9; }
+.sched-gear:hover{ background:var(--knk-bg-surface); border-color:var(--knk-red); color:var(--knk-red); }
+.sched-gear.on{ background:var(--knk-red); color:var(--knk-text-inverse); border-color:var(--knk-red); }
+.sched-toolspanel{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 var(--content-pad) 4px; padding:8px 11px; border:1px solid var(--line); border-radius:11px; background:var(--knk-bg-inset); }
 .sched-toolspanel[hidden]{ display:none; }
-.sched-toolspanel > button, .sched-toolspanel .tool-btn{ padding:4px 10px; border:1px solid var(--line); border-radius:7px; background:#fff; font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; }
+.sched-toolspanel > button, .sched-toolspanel .tool-btn{ padding:4px 10px; border:1px solid var(--line); border-radius:7px; background:var(--knk-bg-surface); font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer; }
 .sched-toolspanel > button:hover{ border-color:var(--knk-red); }
-.sched-toolspanel .bulk-tax-go{ background:#7c3aed; color:#fff; border-color:#7c3aed; }
-.sched-toolspanel .bulk-tax-go:hover{ background:#6d28d9; border-color:#6d28d9; }
+.sched-toolspanel .bulk-tax-go{ background:var(--knk-cat-violet); color:var(--knk-text-inverse); border-color:var(--knk-cat-violet); }
+.sched-toolspanel .bulk-tax-go:hover{ background:var(--knk-cat-violet); border-color:var(--knk-cat-violet); }
 /* v5H226z546 (대표 지시): 상단 툴바 높이 ~절반으로 축소 — 행 간격·패딩·버튼 높이 압축 */
 .sched-top { gap:9px; margin-bottom:3px; }
 .sched-nav a, .sched-nav .cur { padding:3px 11px; }
@@ -187,7 +187,7 @@ body.sched-fs .print-modal { z-index:1150; }
 @media (max-width:767px){ .period-grp { flex-wrap:wrap; max-width:100%; } .period-grp .period-inp { min-width:0; flex:1 1 120px; } }
 /* z279: 고정 px + 좌우 스크롤(엑셀식). 표 폭 = 칸 px 합 (JS가 지정). 한 칸 조정해도 다른 칸 불변. */
 table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-layout:fixed; width:0; }
-.sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid #eee5d4; padding:0; height:30px; overflow:hidden; }
+.sched th, .sched td { border-bottom:1px solid var(--line); border-right:1px solid var(--knk-border-subtle); padding:0; height:30px; overflow:hidden; }
 /* v5H226z314(대표 지시): 칸 숨김 = display:none(열 비활성→날짜칸 재분배) 대신 셀을 0폭으로 접되 그리드에 유지(열 활성 유지→재분배 차단). col width:0 과 함께 0px 붕괴. */
 .sched th.col-collapsed, .sched td.col-collapsed { padding:0 !important; border-right:0 !important; }
 .sched thead th { position:sticky; top:0; z-index:6; background:var(--paper-2); color:var(--knk-red);
@@ -208,117 +208,117 @@ table.sched { border-collapse:separate; border-spacing:0; font-size:12px; table-
 /* z1191z4e (대표 지시): 수량 = 숫자(오른쪽 맞춤 · 고정 폭) + 단위(왼쪽 맞춤 · 고정 폭) — 글자 수가 달라도 줄이 맞는다 */
 .qwrap { display:inline-grid; grid-template-columns:2.9em 2.3em; column-gap:3px; align-items:baseline; white-space:nowrap; }
 .qwrap .qn { text-align:right; font-variant-numeric:tabular-nums; }
-.qwrap .qu { text-align:left; color:#64748b; font-size:.92em; }
+.qwrap .qu { text-align:left; color:var(--knk-text-muted); font-size:.92em; }
 .sched .cw-price, .sched .cw-amount { text-align:right; padding:0 8px; font-variant-numeric:tabular-nums; }
 .sched thead .cw-price, .sched thead .cw-amount { text-align:center; padding:0; }
 .sched .cw-ord, .sched .cw-due { text-align:center; }                 /* z282: 발주일·납품일 가운데 */
 .sched .cw-stage { border-right:2px solid var(--knk-red); }           /* z282: 정보/달력 구분선(ship→stage 이동) */
 /* z294: 등록 고객사에 연결 안 된 고객사 — 확인 필요(적색) */
-.sched td.cust-unmatched { color:#b91c1c !important; font-weight:800; background:#fef2f2 !important; }
-.sched tbody tr:hover td.cust-unmatched { background:#fde2e2 !important; }
+.sched td.cust-unmatched { color:var(--knk-danger) !important; font-weight:800; background:var(--knk-danger-subtle) !important; }
+.sched tbody tr:hover td.cust-unmatched { background:var(--knk-danger-subtle) !important; }
 .sched td.c1 a { color:var(--knk-red); font-weight:700; text-decoration:none; }
 /* v5H226z481 (대표 지시): 관리번호 '+' 펼치기 + 펼친 호기 줄(상태·납기·단가 인라인 수정) */
-.sched .row-exp { float:right; cursor:pointer; user-select:none; font-weight:800; color:var(--knk-red); background:#fff; border:1px solid var(--line); border-radius:5px; width:18px; height:18px; line-height:15px; text-align:center; font-size:13px; margin-left:4px; }
-.sched .row-exp:hover { background:#fff0ef; }
-.sched .row-exp.on { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.sched .row-exp { float:right; cursor:pointer; user-select:none; font-weight:800; color:var(--knk-red); background:var(--knk-bg-surface); border:1px solid var(--line); border-radius:5px; width:18px; height:18px; line-height:15px; text-align:center; font-size:13px; margin-left:4px; }
+.sched .row-exp:hover { background:var(--knk-brand-subtle); }
+.sched .row-exp.on { background:var(--knk-red); color:var(--knk-text-inverse); border-color:var(--knk-red); }
 /* v5H226z638: 같은 관리번호 추가 수주 '참고' 칩 + 펼침 줄 · v5H226z640: 연한 회색 계열 */
-.sched .ref-chip { display:inline-flex; align-items:center; gap:2px; margin-left:6px; padding:1px 7px; font-size:10.5px; font-weight:700; color:#475569; background:#e3e6ea; border:1px solid #c4cad3; border-radius:9px; cursor:pointer; white-space:nowrap; user-select:none; }
-.sched .ref-chip:hover { background:#d8dce2; }
-.sched .ref-chip.on { background:#64748b; color:#fff; border-color:#64748b; }
+.sched .ref-chip { display:inline-flex; align-items:center; gap:2px; margin-left:6px; padding:1px 7px; font-size:10.5px; font-weight:700; color:var(--knk-text-secondary); background:var(--knk-bg-subtle); border:1px solid var(--knk-border-strong); border-radius:9px; cursor:pointer; white-space:nowrap; user-select:none; }
+.sched .ref-chip:hover { background:var(--knk-border-default); }
+.sched .ref-chip.on { background:var(--knk-text-muted); color:var(--knk-text-inverse); border-color:var(--knk-border-strong); }
 .sched .ref-arrow { font-size:9px; transition:transform .15s; }
 .sched .ref-chip.on .ref-arrow { transform:rotate(90deg); }
 .sched tr.ref-exp-row:hover > td { background:inherit !important; box-shadow:none !important; background-image:none !important; }
-.sched tr.ref-exp-row > td.ref-cell { background:#f7f8fa; padding:7px 12px; border-bottom:2px solid #cbd5e1; }
-.ref-wrap .ref-title { font-size:11.5px; color:#5b6675; font-weight:700; margin-bottom:6px; }
+.sched tr.ref-exp-row > td.ref-cell { background:var(--knk-bg-inset); padding:7px 12px; border-bottom:2px solid var(--knk-border-default); }
+.ref-wrap .ref-title { font-size:11.5px; color:var(--knk-text-secondary); font-weight:700; margin-bottom:6px; }
 .ref-tab { border-collapse:collapse; font-size:11.5px; }
-.ref-tab th, .ref-tab td { border:1px solid #e2e5ea; padding:3px 12px; }
-.ref-tab th { background:#eef0f3; color:#4b5563; }
+.ref-tab th, .ref-tab td { border:1px solid var(--knk-border-subtle); padding:3px 12px; }
+.ref-tab th { background:var(--knk-bg-subtle); color:var(--knk-text-secondary); }
 .ref-tab .num { text-align:right; font-variant-numeric:tabular-nums; }
-.sched tr.unit-exp-row > td.ux-cell { background:#f8fafc; padding:0; border-bottom:2px solid var(--knk-red); }
+.sched tr.unit-exp-row > td.ux-cell { background:var(--knk-bg-inset); padding:0; border-bottom:2px solid var(--knk-red); }
 /* v5H226z565 (대표 지시): 펼침 내용을 수주번호 칸부터 — 관리번호 칸은 빈칸(패널과 동일 배경·하단선) */
-.sched tr.unit-exp-row > td.ux-pad { background:#f8fafc; border-bottom:2px solid var(--knk-red); }
+.sched tr.unit-exp-row > td.ux-pad { background:var(--knk-bg-inset); border-bottom:2px solid var(--knk-red); }
 .ux-wrap { position:sticky; left:0; padding:8px 14px; width:max-content; max-width:96vw; }
 .ux-tab { border-collapse:collapse; font-size:12px; }
-.ux-tab th { text-align:left; font-size:11px; color:#64748b; font-weight:700; padding:2px 14px 5px 0; }
+.ux-tab th { text-align:left; font-size:11px; color:var(--knk-text-muted); font-weight:700; padding:2px 14px 5px 0; }
 .ux-tab td { padding:3px 14px 3px 0; vertical-align:middle; }
 /* v5H226z568 (대표 지시): 펼침 리스트 수량·단가·금액 우측 정렬 */
 .ux-tab td.num, .ux-tab th.num { text-align:right; font-variant-numeric:tabular-nums; }
-.ux-tab .ux-lbl { font-weight:700; color:#1e293b; white-space:nowrap; }
-.ux-tab .ux-so { font-size:10.5px; color:#94a3b8; font-weight:400; }
-.ux-tab select, .ux-tab input { border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12px; padding:3px 6px; background:#fff; }
+.ux-tab .ux-lbl { font-weight:700; color:var(--knk-text-primary); white-space:nowrap; }
+.ux-tab .ux-so { font-size:10.5px; color:var(--knk-text-muted); font-weight:400; }
+.ux-tab select, .ux-tab input { border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12px; padding:3px 6px; background:var(--knk-bg-surface); }
 .ux-tab input.ux-money { width:110px; text-align:right; font-variant-numeric:tabular-nums; }
 .ux-tab input.ux-ship { width:120px; }
 .ux-tab input.ux-note { width:200px; }
 .ux-tab input.ux-date { width:130px; }
 /* v5H226z485: 펼친 호기 세금계산서 — 한 칸 클릭→팝업(보드 메인행과 동일) */
-.ux-tab .ux-ti { cursor:pointer; min-width:108px; line-height:1.25; border:1px solid var(--line); border-radius:5px; padding:3px 8px; background:#fff; }
-.ux-tab .ux-ti:hover { background:#eef6ff; box-shadow:inset 0 0 0 1px #93c5fd; }
+.ux-tab .ux-ti { cursor:pointer; min-width:108px; line-height:1.25; border:1px solid var(--line); border-radius:5px; padding:3px 8px; background:var(--knk-bg-surface); }
+.ux-tab .ux-ti:hover { background:var(--knk-info-subtle); box-shadow:inset 0 0 0 1px var(--knk-info-line); }
 .ux-tab .ux-ti .ti-d { font-size:11px; font-variant-numeric:tabular-nums; }
-.ux-tab .ux-ti .ti-a { font-size:10.5px; color:#1d4ed8; font-weight:700; }
+.ux-tab .ux-ti .ti-a { font-size:10.5px; color:var(--knk-info); font-weight:700; }
 .ux-tab .ux-ti.ux-locked { cursor:not-allowed; opacity:.55; }
-.ux-tab .ux-ok { box-shadow:0 0 0 2px #86efac; }
+.ux-tab .ux-ok { box-shadow:0 0 0 2px var(--knk-success-line); }
 /* z1191z6: 저장된 칸 ✓ — 1.2초 초록 테두리(화면 아래 토스트만으로는 어느 칸이 저장됐는지 몰랐다) */
-td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
-.ux-tab .ux-empty { color:#94a3b8; padding:8px 0; }
+td.ux-ok { box-shadow: inset 0 0 0 2px var(--knk-success-line); transition: box-shadow .3s; }
+.ux-tab .ux-empty { color:var(--knk-text-muted); padding:8px 0; }
 .ux-tab [disabled] { opacity:.55; cursor:not-allowed; }
 /* v5H226z491b (대표 지시): 펼친 호기 줄 구분 더 뚜렷하게 — 진한 줄무늬 + 굵은 구분선 + 행 높이 여유 + 라벨칸 좌측 색 띠 */
-.ux-tab tbody tr > td { border-bottom:1px solid #b6c2d2; padding-top:5px; padding-bottom:5px; }
-.ux-tab tbody tr:nth-child(odd) > td { background:#ffffff; }
-.ux-tab tbody tr:nth-child(even) > td { background:#dde7f3; }
-.ux-tab tbody tr:hover > td { background:#fff1cf; }
+.ux-tab tbody tr > td { border-bottom:1px solid var(--knk-border-strong); padding-top:5px; padding-bottom:5px; }
+.ux-tab tbody tr:nth-child(odd) > td { background:var(--knk-bg-surface); }
+.ux-tab tbody tr:nth-child(even) > td { background:var(--knk-info-subtle); }
+.ux-tab tbody tr:hover > td { background:var(--knk-highlight-subtle); }
 /* 행 첫 칸 왼쪽 색 띠 — 줄마다 시작점이 또렷하게 (짝수줄 진하게). v5H226z631: 호기·품목 칸 제거로 첫 칸 기준으로 변경 */
-.ux-tab tbody tr > td:first-child { border-left:4px solid #cbd5e1; padding-left:8px; }
-.ux-tab tbody tr:nth-child(even) > td:first-child { border-left-color:#7c93b3; }
+.ux-tab tbody tr > td:first-child { border-left:4px solid var(--knk-border-default); padding-left:8px; }
+.ux-tab tbody tr:nth-child(even) > td:first-child { border-left-color:var(--knk-border-strong); }
 .ux-tab tbody tr:hover > td:first-child { border-left-color:var(--knk-red); }
-.sched .day { text-align:center; color:#15803d; font-weight:800; }
+.sched .day { text-align:center; color:var(--knk-success); font-weight:800; }
 /* z1191z204 (스킬 knk-calendar §2): 오늘 = 호박색 #d4a574 테두리(예전 빨강 — 일요일·휴일 빨강과 헷갈림) */
-.sched .day.today { box-shadow: inset 2px 0 0 #d4a574, inset -2px 0 0 #d4a574; background:#fffbe6; }
-.sched thead .day.today { background:#fde68a; }
+.sched .day.today { box-shadow: inset 2px 0 0 var(--knk-cal-today), inset -2px 0 0 var(--knk-cal-today); background:var(--knk-highlight-subtle); }
+.sched thead .day.today { background:var(--knk-highlight-subtle); }
 /* v5H226z846 (대표 지시): 날짜 헤더 — 평일 숫자 중립·일요일/공휴일 빨강(달력 관례). day 헤더만 --knk-red 상속을 덮음(정보열 머리글은 그대로). */
-.sched thead th.day { color:#475569; }
-.sched thead th.day.redday { color:#dc2626; font-weight:800; }
+.sched thead th.day { color:var(--knk-text-secondary); }
+.sched thead th.day.redday { color:var(--knk-cal-holiday); font-weight:800; }
 /* v5H226z1041 (대표 지시 · 달력 규정 §4-1/§4-2 `달력_캘린더_빌드_조건_사양_2026-06-13.md`)
    ─ 토요일 파랑(#2563eb)과 한국(K)·베트남(V) 공휴일 배지는 규정에 있었는데 일정표에만 빠져 있었다.
    ─ 날짜칸이 좁아 배지는 아주 작게(숫자 아래 한 줄), 공휴일 '이름'은 마우스오버 안내문(title)으로. */
-.sched thead th.day.satday { color:#2563eb; font-weight:800; }
+.sched thead th.day.satday { color:var(--knk-cal-sat); font-weight:800; }
 .sched thead th.day .dnum { display:block; line-height:1.05; }
 .sched thead th.day .hb { display:flex; gap:1px; justify-content:center; margin-top:1px; line-height:1; }
 .sched thead th.day .hb i { font-style:normal; display:inline-block; min-width:9px; height:9px; line-height:9px;
   padding:0 1px; text-align:center; border-radius:2px; font-size:7px; font-weight:800;
-  background:#dc2626; color:#fff; }            /* K = 한국 공휴일(빨강) */
-.sched thead th.day .hb i.v { background:#fb923c; }                                    /* V = 베트남 공휴일(주황) */
-.sched thead th.day .hb i.alt { background:#fff; color:#dc2626; border:1px dashed #dc2626; line-height:7px; }  /* 대체공휴일 = 흰 바탕+점선 */
-.sched thead th.day .hb i.v.alt { color:#fb923c; border-color:#fb923c; }
-.sched .day.bar { background:#cfe0f5; cursor:pointer; }
-.sched .day.bar.delay { background:#fcd9d9; }
+  background:var(--knk-cal-holiday); color:var(--knk-text-inverse); }            /* K = 한국 공휴일(빨강) */
+.sched thead th.day .hb i.v { background:var(--knk-cal-vn); }                                    /* V = 베트남 공휴일(주황) */
+.sched thead th.day .hb i.alt { background:var(--knk-bg-surface); color:var(--knk-cal-holiday); border:1px dashed var(--knk-cal-holiday); line-height:7px; }  /* 대체공휴일 = 흰 바탕+점선 */
+.sched thead th.day .hb i.v.alt { color:var(--knk-cal-vn); border-color:var(--knk-cal-vn); }
+.sched .day.bar { background:var(--knk-info-line); cursor:pointer; }
+.sched .day.bar.delay { background:var(--knk-danger-line); }
 /* v5H226z663 (대표 지시): 납기 점 색을 '출하 기준'으로 분리 — 초록=출하만, 파랑=진행중(예정), 빨강=지연, 회색=취소/보류 */
 /* v5H226z835 (대표 지시): 색칸(강한 채움) 삭제 — 납기칸은 '일정 바(옅은 파랑)'만 유지, 상태는 '글자색'으로만. */
-.sched .day.deliver { background:#cfe0f5; }                       /* 납기칸 = 일정 바(옅은 파랑) 유지 */
-.sched .day.deliver.delay { background:#fcd9d9; }                 /* 지연 = 일정 바 지연색(옅은 빨강) */
+.sched .day.deliver { background:var(--knk-info-line); }                       /* 납기칸 = 일정 바(옅은 파랑) 유지 */
+.sched .day.deliver.delay { background:var(--knk-danger-line); }                 /* 지연 = 일정 바 지연색(옅은 빨강) */
 .sched .day.has-memo::after { content:"📝"; font-size:9px; }
 /* v5H226z835/z838 (대표 지시): 달력 상태 = '글자색'만(색칸 삭제). 2글자 가로("납품")·라벨 2개(취소/보류)면 두 줄. z838: 글자 크게·진하게(꽉 차게) — cal-t 9→16px·cal-sub 8→12px·stat-ico 8.5→16px·weight 900. 셀 크기(30px·40px)는 불변. */
 .sched td.day { vertical-align:middle; }
-.sched .day .cal-t { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; text-shadow:0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }
-.sched .day .cal-t.m-deliver { color:#1d4ed8; }   /* 납품 파랑 */
-.sched .day .cal-t.m-ship    { color:#15803d; }   /* 출하 초록 */
-.sched .day .cal-t.m-delay   { color:#b91c1c; }   /* 지연 빨강 */
-.sched .day .cal-sub { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; color:#4b5563; text-shadow:0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }   /* 취소·보류 회색 — '납품' 아래 줄. z848: 12px */
+.sched .day .cal-t { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; text-shadow:0 0 3px var(--knk-bg-surface), 0 0 2px var(--knk-bg-surface), 0 0 1px var(--knk-bg-surface); white-space:nowrap; }
+.sched .day .cal-t.m-deliver { color:var(--knk-info); }   /* 납품 파랑 */
+.sched .day .cal-t.m-ship    { color:var(--knk-success); }   /* 출하 초록 */
+.sched .day .cal-t.m-delay   { color:var(--knk-danger); }   /* 지연 빨강 */
+.sched .day .cal-sub { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; color:var(--knk-text-secondary); text-shadow:0 0 3px var(--knk-bg-surface), 0 0 2px var(--knk-bg-surface), 0 0 1px var(--knk-bg-surface); white-space:nowrap; }   /* 취소·보류 회색 — '납품' 아래 줄. z848: 12px */
 /* v5H226z839 (대표 지시): 납품→취소/보류로 바뀐 칸은 크기를 '반대로' — '납품'(옛 계획)은 작게, '취소/보류'(현재 상태)를 크게. cal-t-sup는 취소/보류일 때만 납품 span에 붙음(그 외 단독 납품/출하/지연은 16px 유지). */
 .sched .day .cal-t.cal-t-sup { font-size:9px; }
 /* v5H226z711/z835 (대표 지시): 상태(출하/취소/보류) 발생일 표식 — 색칸 삭제, 글자색만(가로) */
 .sched .day.stat-mark { cursor:pointer; }
-.sched .day.stat-mark .stat-ico { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; text-shadow:0 0 3px #fff, 0 0 2px #fff, 0 0 1px #fff; white-space:nowrap; }
-.sched .day.stat-ship   .stat-ico { color:#15803d; }
-.sched .day.stat-cancel .stat-ico { color:#b91c1c; }
-.sched .day.stat-hold   .stat-ico { color:#4b5563; }
+.sched .day.stat-mark .stat-ico { display:block; font-size:12px; font-weight:900; line-height:1.0; letter-spacing:-0.5px; text-shadow:0 0 3px var(--knk-bg-surface), 0 0 2px var(--knk-bg-surface), 0 0 1px var(--knk-bg-surface); white-space:nowrap; }
+.sched .day.stat-ship   .stat-ico { color:var(--knk-success); }
+.sched .day.stat-cancel .stat-ico { color:var(--knk-danger); }
+.sched .day.stat-hold   .stat-ico { color:var(--knk-text-secondary); }
 /* v5H226z471 (대표 지시): 작업일정표 가로줄 가독성 — ①진한 가로 구분선(색칠 구간에서도 행 경계 또렷) ②번갈아 줄무늬(반투명 오버레이라 간트 색 유지) ③마우스 올린 행 전체 강조 밴드(색칠 칸 포함·반투명 노란 오버레이 + 위/아래 굵은 선) */
 /* v5H226z491c (대표 지적): 아래 가로줄/호버 규칙을 '자식 선택자'로 좁혀 펼친 호기 표(.ux-tab·.unit-exp-row)엔 안 새게. 자손 선택자라 펼친 블록 전체가 호박색 워시·탄색 테두리·갈색 오버레이로 덮여 z491b 줄무늬가 묻히던 문제 해결. 펼친 줄 구분은 .ux-tab 자체 줄무늬가 담당. */
-.sched > tbody > tr > td { border-bottom:1px solid #cdbd99; }
+.sched > tbody > tr > td { border-bottom:1px solid var(--knk-border-default); }
 .sched > tbody > tr:nth-child(even) > td { background-image: linear-gradient(0deg, rgba(120,113,90,.06), rgba(120,113,90,.06)); }
-.sched > tbody > tr:hover:not(.unit-exp-row) > td { background-image: linear-gradient(0deg, rgba(255,191,36,.32), rgba(255,191,36,.32)) !important; box-shadow: inset 0 2px 0 #f59e0b, inset 0 -2px 0 #f59e0b !important; }
-.sched > tbody > tr:hover:not(.unit-exp-row) > td.day.today { box-shadow: inset 2px 0 0 #d4a574, inset -2px 0 0 #d4a574, inset 0 2px 0 #f59e0b, inset 0 -2px 0 #f59e0b !important; }
-.sched > tbody > tr.row-selected:hover > td.c1 { box-shadow: inset 3px 0 0 var(--knk-red,#b0271f), inset 0 2px 0 #f59e0b, inset 0 -2px 0 #f59e0b !important; }
-.row-delay .c1 a { color:#b91c1c; }
+.sched > tbody > tr:hover:not(.unit-exp-row) > td { background-image: linear-gradient(0deg, rgba(255,191,36,.32), rgba(255,191,36,.32)) !important; box-shadow: inset 0 2px 0 var(--knk-highlight), inset 0 -2px 0 var(--knk-highlight) !important; }
+.sched > tbody > tr:hover:not(.unit-exp-row) > td.day.today { box-shadow: inset 2px 0 0 var(--knk-cal-today), inset -2px 0 0 var(--knk-cal-today), inset 0 2px 0 var(--knk-highlight), inset 0 -2px 0 var(--knk-highlight) !important; }
+.sched > tbody > tr.row-selected:hover > td.c1 { box-shadow: inset 3px 0 0 var(--knk-red), inset 0 2px 0 var(--knk-highlight), inset 0 -2px 0 var(--knk-highlight) !important; }
+.row-delay .c1 a { color:var(--knk-danger); }
 .empty { padding:40px; text-align:center; color:var(--qv-ink-3); }
 
 /* 헤더 래퍼 + 너비조정 핸들 — th 폭 전체를 채워 경계에 정확히 위치 */
@@ -328,77 +328,77 @@ td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
 .col-resizer { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:9; user-select:none; }
 .col-resizer:hover { background:rgba(176,16,16,.25); }
 /* v5H226z517 (대표 지시): 데이터 컬럼 위치 변경 — 머리글 ⠿ 그립 드래그 */
-.col-grip { cursor:grab; color:#c0bdb4; font-size:11px; margin-right:3px; user-select:none; -webkit-user-drag:element; }
+.col-grip { cursor:grab; color:var(--knk-text-muted); font-size:11px; margin-right:3px; user-select:none; -webkit-user-drag:element; }
 .col-grip:hover { color:var(--knk-red); }
 .col-grip:active { cursor:grabbing; }
 .sched thead th.col-dragging { opacity:.45; }
-.sched thead th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 #2563eb; }
+.sched thead th.col-drop-to .th-wrap { box-shadow:inset 3px 0 0 var(--knk-info); }
 /* z331: 헤더 제목 클릭 정렬 — 제목 클릭 시 오름↔내림 토글, 빈칸은 항상 아래. (폭조절 핸들 영역은 col-resize 유지) */
 .sched thead .c-info .th-wrap { cursor:pointer; user-select:none; }
-.sched thead .c-info .th-wrap:hover { color:#7f1d1d; }
-.sort-ind { margin-left:3px; font-size:9px; line-height:1; color:#c9b89a; }
+.sched thead .c-info .th-wrap:hover { color:var(--knk-brand-hover); }
+.sort-ind { margin-left:3px; font-size:9px; line-height:1; color:var(--knk-text-muted); }
 .th-wrap.sort-asc .sort-ind, .th-wrap.sort-desc .sort-ind { color:var(--knk-red); }
 
 .sched td.editable { cursor:text; }
 /* z1191z8 (이새롬 프로 요청 · 대표 승인 2026-11-06): 단가·금액 0 = 「무상」 표기(회색 알약) · 빈칸(＋)과 구분 */
 .sched td.free { text-align:center; }
-.sched .free-tag { display:inline-block; padding:0 7px; border-radius:999px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; font-size:11px; font-weight:700; line-height:18px; letter-spacing:.02em; }
+.sched .free-tag { display:inline-block; padding:0 7px; border-radius:999px; background:var(--knk-bg-subtle); color:var(--knk-text-secondary); border:1px solid var(--knk-border-default); font-size:11px; font-weight:700; line-height:18px; letter-spacing:.02em; }
 /* z1191z8: 소모품 탭 안 하위 책갈피(검사기/자동화) */
-.sched .sbm-sub { display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding-left:8px; border-left:2px solid #e2e8f0; }
-.sched .sbm-sub-lab { font-size:11px; color:#64748b; margin-right:2px; white-space:nowrap; }
+.sched .sbm-sub { display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding-left:8px; border-left:2px solid var(--knk-border-subtle); }
+.sched .sbm-sub-lab { font-size:11px; color:var(--knk-text-muted); margin-right:2px; white-space:nowrap; }
 .sched .sbm.sbm-s { padding:1px 8px; font-size:12px; }
-.sched .sbm-sub-none { font-size:11px; color:#b45309; background:#fffbeb; border:1px solid #fcd34d; border-radius:999px; padding:0 7px; line-height:18px; white-space:nowrap; }
-.sched td.editable:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
+.sched .sbm-sub-none { font-size:11px; color:var(--knk-warning); background:var(--knk-warning-subtle); border:1px solid var(--knk-warning-line); border-radius:999px; padding:0 7px; line-height:18px; white-space:nowrap; }
+.sched td.editable:hover { background:var(--knk-info-subtle) !important; box-shadow: inset 0 0 0 1px var(--knk-info-line); }
 /* v5H226z467/z469: 세금계산서 1/2/3차 셀(발행일+금액 2줄) + 미니 편집창. z486(대표 지시): 발행완료 텍스트 제거→2줄·줄간격 압축으로 칸 높이 절감 */
 .sched td.taxinv-cell { cursor:pointer; line-height:1.05; padding-top:1px; padding-bottom:1px; }
 .sched td.taxinv-cell .ti-d { font-size:10.5px; font-variant-numeric:tabular-nums; }
-.sched td.taxinv-cell .ti-a { font-size:10px; color:#1d4ed8; font-weight:700; }
+.sched td.taxinv-cell .ti-a { font-size:10px; color:var(--knk-info); font-weight:700; }
 .sched td.taxinv-cell .ti-stat { display:none; }   /* z486: 발행완료/미발행 텍스트 미표시(색만) */
-.sched td.taxinv-cell .ti-stat.bad { color:#c2410c; }
-.sched td.taxinv-cell .ti-stat.ok { color:#15803d; }
-.sched td.taxinv-cell.tax-mismatch { background:#fff4ed !important; box-shadow: inset 2px 0 0 #f59e0b; }
-.sched td.taxinv-cell.tax-ok { background:#f0fdf4 !important; }
+.sched td.taxinv-cell .ti-stat.bad { color:var(--knk-warning); }
+.sched td.taxinv-cell .ti-stat.ok { color:var(--knk-success); }
+.sched td.taxinv-cell.tax-mismatch { background:var(--knk-warning-subtle) !important; box-shadow: inset 2px 0 0 var(--knk-warning); }
+.sched td.taxinv-cell.tax-ok { background:var(--knk-success-subtle) !important; }
 /* z469: 미니 편집창 — 가로폭 확대(라벨 가로 고정·달력 겹침 회피 위해 금액 위·발행일 아래) */
-.ti-pop { position:absolute; z-index:9999; background:#fff; border:1px solid #94a3b8; border-radius:9px; box-shadow:0 10px 30px rgba(0,0,0,0.24); padding:12px 14px; width:296px; box-sizing:border-box; font-size:12.5px; }
-.ti-pop-ttl { font-weight:800; color:#0f172a; font-size:12.5px; margin-bottom:9px; white-space:normal; line-height:1.35; }   /* v5H226z704: 긴 제목(인보이스 등) 넘침 방지 — 줄바꿈 허용 */
+.ti-pop { position:absolute; z-index:9999; background:var(--knk-bg-surface); border:1px solid var(--knk-border-strong); border-radius:9px; box-shadow:0 10px 30px rgba(0,0,0,0.24); padding:12px 14px; width:296px; box-sizing:border-box; font-size:12.5px; }
+.ti-pop-ttl { font-weight:800; color:var(--knk-text-primary); font-size:12.5px; margin-bottom:9px; white-space:normal; line-height:1.35; }   /* v5H226z704: 긴 제목(인보이스 등) 넘침 방지 — 줄바꿈 허용 */
 .ti-pop-row { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
-.ti-pop-row label { width:46px; flex:none; color:#475569; font-weight:700; font-size:12px; white-space:nowrap; text-align:right; }
-.ti-pop-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid #cbd5e1; border-radius:6px; font:inherit; font-size:13px; }
+.ti-pop-row label { width:46px; flex:none; color:var(--knk-text-secondary); font-weight:700; font-size:12px; white-space:nowrap; text-align:right; }
+.ti-pop-row input { flex:1; min-width:0; padding:7px 9px; border:1px solid var(--knk-border-default); border-radius:6px; font:inherit; font-size:13px; }
 .ti-pop-row input.ti-pa { text-align:right; }
-.ti-pop-row .ti-cur { flex:none; color:#475569; font-weight:800; font-size:13px; }
-.ti-pop-row .ti-unit { flex:none; color:#94a3b8; font-size:11.5px; }
-.ti-pop-hint { font-size:10.5px; color:#94a3b8; line-height:1.5; margin:2px 0 9px; }
+.ti-pop-row .ti-cur { flex:none; color:var(--knk-text-secondary); font-weight:800; font-size:13px; }
+.ti-pop-row .ti-unit { flex:none; color:var(--knk-text-muted); font-size:11.5px; }
+.ti-pop-hint { font-size:10.5px; color:var(--knk-text-muted); line-height:1.5; margin:2px 0 9px; }
 .ti-pop-btns { display:flex; justify-content:flex-end; gap:7px; margin-top:2px; }
 .ti-pop-btns button { padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid; }
-.ti-pop-btns .ti-save { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
-.ti-pop-btns .ti-cancel { background:#fff; color:#334155; border-color:#cbd5e1; }
-.cell-input { width:100%; box-sizing:border-box; border:1px solid #2563eb; border-radius:3px; font:inherit; font-size:12px; padding:1px 6px; height:26px; }
+.ti-pop-btns .ti-save { background:var(--knk-action); color:var(--knk-text-inverse); border-color:var(--knk-action); }
+.ti-pop-btns .ti-cancel { background:var(--knk-bg-surface); color:var(--knk-text-secondary); border-color:var(--knk-border-default); }
+.cell-input { width:100%; box-sizing:border-box; border:1px solid var(--knk-focus); border-radius:3px; font:inherit; font-size:12px; padding:1px 6px; height:26px; }
 
 /* z270: 단계 칸 */
 .sched td.stage-cell { cursor:pointer; padding:0 6px; white-space:nowrap; }
-.sched td.stage-cell:hover { background:#eef6ff !important; box-shadow: inset 0 0 0 1px #93c5fd; }
-.stg-badge { display:inline-block; font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:10px; background:#dbeafe; color:#1e40af; vertical-align:middle; }
-.stg-badge.stg-none { background:#f1f0ec; color:#9b9384; }
+.sched td.stage-cell:hover { background:var(--knk-info-subtle) !important; box-shadow: inset 0 0 0 1px var(--knk-info-line); }
+.stg-badge { display:inline-block; font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:10px; background:var(--knk-info-subtle); color:var(--knk-info); vertical-align:middle; }
+.stg-badge.stg-none { background:var(--knk-bg-subtle); color:var(--knk-text-muted); }
 .stg-prog { display:inline-block; margin-left:5px; vertical-align:middle; white-space:nowrap; }
-.stg-prog .stg-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#e2e0d8; margin:0 1px; }
-.stg-prog .stg-dot.on { background:#16a34a; }
+.stg-prog .stg-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--knk-border-default); margin:0 1px; }
+.stg-prog .stg-dot.on { background:var(--knk-success); }
 
 /* z270: 단계 패널(모달) */
 .stage-modal { position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.38); display:none; }
 .stage-modal.show { display:flex; align-items:flex-start; justify-content:center; }
-.stage-card { background:#fff; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.3); width:520px; max-width:94vw; max-height:88vh; overflow:auto; margin-top:5vh; }
-.stage-card .sm-head { position:sticky; top:0; background:#fff; border-bottom:1px solid var(--line); padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
+.stage-card { background:var(--knk-bg-surface); border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.3); width:520px; max-width:94vw; max-height:88vh; overflow:auto; margin-top:5vh; }
+.stage-card .sm-head { position:sticky; top:0; background:var(--knk-bg-surface); border-bottom:1px solid var(--line); padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
 .stage-card .sm-title { font-size:15px; font-weight:800; }
 .stage-card .sm-x { cursor:pointer; font-size:18px; color:var(--qv-ink-3); background:none; border:none; }
 .stage-card .sm-body { padding:8px 16px 18px; }
 .sm-grp { font-size:10.5px; font-weight:800; color:var(--knk-red); letter-spacing:.1em; margin:12px 4px 4px; }
 .stg-row { border:1px solid var(--line); border-radius:9px; margin:6px 0; padding:9px 12px; }
-.stg-row.is-done { background:#f0fdf4; border-color:#bbf7d0; }
+.stg-row.is-done { background:var(--knk-success-subtle); border-color:var(--knk-success-line); }
 .stg-row .sr-top { display:flex; align-items:center; gap:8px; }
-.stg-row .sr-chk { width:18px; height:18px; flex:0 0 auto; border-radius:5px; border:2px solid #cbd5e1; display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:#fff; cursor:pointer; }
-.stg-row.is-done .sr-chk { background:#16a34a; border-color:#16a34a; }
+.stg-row .sr-chk { width:18px; height:18px; flex:0 0 auto; border-radius:5px; border:2px solid var(--knk-border-default); display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:var(--knk-text-inverse); cursor:pointer; }
+.stg-row.is-done .sr-chk { background:var(--knk-success); border-color:var(--knk-success); }
 .stg-row .sr-label { font-weight:700; font-size:13px; }
-.stg-row .sr-owner { font-size:10px; color:#fff; background:#94a3b8; border-radius:8px; padding:1px 7px; margin-left:auto; }
+.stg-row .sr-owner { font-size:10px; color:var(--knk-text-inverse); background:var(--knk-text-muted); border-radius:8px; padding:1px 7px; margin-left:auto; }
 .stg-row .sr-meta { font-size:11px; color:var(--qv-ink-3); margin-top:3px; margin-left:26px; }
 .stg-row .sr-edit { margin-top:8px; margin-left:26px; display:none; }
 .stg-row.editing .sr-edit { display:block; }
@@ -406,64 +406,64 @@ td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
 .sr-edit input[type=text], .sr-edit input[type=date], .sr-edit input[type=number], .sr-edit textarea { width:100%; box-sizing:border-box; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:12px; padding:5px 8px; }
 .sr-edit .sr-inline { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .sr-edit .sr-btns { display:flex; gap:6px; justify-content:flex-end; margin-top:9px; }
-.sr-edit .sr-btns button { padding:5px 14px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
-.sr-edit .sr-btns .sr-save { background:#2563eb; color:#fff; border-color:#2563eb; }
+.sr-edit .sr-btns button { padding:5px 14px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:var(--knk-bg-surface); }
+.sr-edit .sr-btns .sr-save { background:var(--knk-action); color:var(--knk-text-inverse); border-color:var(--knk-action); }
 .sr-subs { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 2px 26px; }
-.sr-sub { font-size:11.5px; font-weight:700; padding:4px 11px; border-radius:14px; border:1px solid var(--line); cursor:pointer; background:#fff; color:var(--qv-ink-2); text-align:center; line-height:1.25; }
-.sr-sub.on { background:#16a34a; color:#fff; border-color:#16a34a; }
+.sr-sub { font-size:11.5px; font-weight:700; padding:4px 11px; border-radius:14px; border:1px solid var(--line); cursor:pointer; background:var(--knk-bg-surface); color:var(--qv-ink-2); text-align:center; line-height:1.25; }
+.sr-sub.on { background:var(--knk-success); color:var(--knk-text-inverse); border-color:var(--knk-success); }
 /* v5H226z369 (대표 지시): 진행 6세부 담당 부서 — 세부 버튼 안에 작게 표기(사업부별) */
-.sr-sub .so { display:block; font-size:9px; font-weight:600; color:#64748b; margin-top:1px; }
-.sr-sub.on .so { color:#dcfce7; }
-.sr-export { margin:8px 0 0 26px; padding:8px; border:1px dashed #f59e0b; border-radius:8px; background:#fffbeb; }
-.sr-export .se-t { font-size:11px; font-weight:800; color:#b45309; margin-bottom:5px; }
+.sr-sub .so { display:block; font-size:9px; font-weight:600; color:var(--knk-text-muted); margin-top:1px; }
+.sr-sub.on .so { color:var(--knk-success-subtle); }
+.sr-export { margin:8px 0 0 26px; padding:8px; border:1px dashed var(--knk-warning); border-radius:8px; background:var(--knk-warning-subtle); }
+.sr-export .se-t { font-size:11px; font-weight:800; color:var(--knk-warning); margin-bottom:5px; }
 .sr-export label { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; margin:2px 10px 2px 0; }
 /* v5H226z477 (대표 지시): 단계 시작전→진행중→완료 상태 표시 + 착수 버튼 */
-.stg-row.st-doing { background:#eff6ff; border-color:#bfdbfe; }
-.stg-row.st-doing .sr-chk { background:#2563eb; border-color:#2563eb; }
+.stg-row.st-doing { background:var(--knk-info-subtle); border-color:var(--knk-info-line); }
+.stg-row.st-doing .sr-chk { background:var(--knk-info); border-color:var(--knk-info); }
 .sr-state { font-size:10px; font-weight:800; padding:1px 7px; border-radius:8px; margin-left:8px; }
-.sr-state.st-todo { background:#f1f0ec; color:#9b9384; }
-.sr-state.st-doing { background:#dbeafe; color:#1e40af; }
-.sr-state.st-done { background:#dcfce7; color:#15803d; }
-.sr-sub.doing { background:#dbeafe; color:#1e40af; border-color:#93c5fd; }
-.sr-sub.doing .so { color:#1e40af; }
-.sr-btns .sr-start { background:#2563eb; color:#fff; border-color:#2563eb; }
+.sr-state.st-todo { background:var(--knk-bg-subtle); color:var(--knk-text-muted); }
+.sr-state.st-doing { background:var(--knk-info-subtle); color:var(--knk-info); }
+.sr-state.st-done { background:var(--knk-success-subtle); color:var(--knk-success); }
+.sr-sub.doing { background:var(--knk-info-subtle); color:var(--knk-info); border-color:var(--knk-info-line); }
+.sr-sub.doing .so { color:var(--knk-info); }
+.sr-btns .sr-start { background:var(--knk-action); color:var(--knk-text-inverse); border-color:var(--knk-action); }
 
 /* z274: 신규 등록 모달(iframe — 기존 등록 폼 그대로) */
 .reg-modal { position:fixed; inset:0; z-index:10060; background:rgba(15,23,42,.42); display:none; }
 .reg-modal.show { display:flex; align-items:center; justify-content:center; }
 /* v5H226z733(대표 지시): 모달 폭을 넓혀(1180px 초과) 유형 선택 카드가 프로젝트 등록 화면처럼 '5개 한 줄'로 — 좁으면 카드 반응형이 3+2로 접힘 */
-.reg-card { background:#fff; border-radius:12px; width:min(1280px,96vw); height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.32); }
+.reg-card { background:var(--knk-bg-surface); border-radius:12px; width:min(1280px,96vw); height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.32); }
 .reg-head { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); font-weight:800; font-size:14px; background:var(--paper-2); }
 .reg-head button { border:none; background:none; font-size:18px; cursor:pointer; color:var(--qv-ink-3); }
-.reg-card iframe { flex:1; border:0; width:100%; background:#fff; }
+.reg-card iframe { flex:1; border:0; width:100%; background:var(--knk-bg-surface); }
 
-.memo-pop { position:fixed; z-index:10000; background:#fff; border:1px solid #2563eb; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.2); padding:10px; width:260px; display:none; }
+.memo-pop { position:fixed; z-index:10000; background:var(--knk-bg-surface); border:1px solid var(--knk-info); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.2); padding:10px; width:260px; display:none; }
 .memo-pop.show { display:block; }
 .memo-pop textarea { width:100%; box-sizing:border-box; height:70px; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:12px; padding:6px; resize:vertical; }
 .memo-pop .mp-head { font-size:11px; color:var(--qv-ink-3); margin-bottom:5px; font-weight:700; }
 .memo-pop .mp-btns { display:flex; gap:6px; justify-content:flex-end; margin-top:7px; }
-.memo-pop button { padding:5px 12px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
-.memo-pop .mp-save { background:#2563eb; color:#fff; border-color:#2563eb; }
+.memo-pop button { padding:5px 12px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:var(--knk-bg-surface); }
+.memo-pop .mp-save { background:var(--knk-action); color:var(--knk-text-inverse); border-color:var(--knk-action); }
 /* v5H226z711 (대표 지시): 날짜 클릭 팝업의 상태(출하/취소/보류) 선택 섹션 */
 .memo-pop .mp-stat { border-bottom:1px solid var(--line); padding-bottom:9px; margin-bottom:9px; }
 .memo-pop .mp-stat-row { font-size:11px; color:var(--qv-ink-3); margin-bottom:6px; font-weight:700; display:flex; align-items:center; gap:6px; }
 .memo-pop .mp-date { border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12px; padding:3px 6px; }
 .memo-pop .mp-stat-btns { display:flex; flex-wrap:wrap; gap:5px; }
-.memo-pop .sb { flex:1 1 calc(50% - 5px); padding:7px 6px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:#fff; }
+.memo-pop .sb { flex:1 1 calc(50% - 5px); padding:7px 6px; border-radius:6px; border:1px solid var(--line); font-size:12px; font-weight:700; cursor:pointer; background:var(--knk-bg-surface); }
 .memo-pop .sb:disabled { opacity:.5; cursor:wait; }
-.memo-pop .sb-ship { color:#15803d; border-color:#86efac; } .memo-pop .sb-ship:hover { background:#dcfce7; }
-.memo-pop .sb-hold { color:#6b7280; border-color:#d1d5db; } .memo-pop .sb-hold:hover { background:#f3f4f6; }
-.memo-pop .sb-cancel { color:#b91c1c; border-color:#fca5a5; } .memo-pop .sb-cancel:hover { background:#fee2e2; }
-.memo-pop .sb-prog { color:#b45309; border-color:#fcd34d; } .memo-pop .sb-prog:hover { background:#fef3c7; }
+.memo-pop .sb-ship { color:var(--knk-success); border-color:var(--knk-success-line); } .memo-pop .sb-ship:hover { background:var(--knk-success-subtle); }
+.memo-pop .sb-hold { color:var(--knk-text-muted); border-color:var(--knk-border-default); } .memo-pop .sb-hold:hover { background:var(--knk-bg-subtle); }
+.memo-pop .sb-cancel { color:var(--knk-danger); border-color:var(--knk-danger-line); } .memo-pop .sb-cancel:hover { background:var(--knk-danger-subtle); }
+.memo-pop .sb-prog { color:var(--knk-warning); border-color:var(--knk-warning-line); } .memo-pop .sb-prog:hover { background:var(--knk-warning-subtle); }
 .memo-pop .mp-stat-hint { font-size:10.5px; color:var(--mute); margin-top:6px; line-height:1.4; }
 .memo-pop .mp-memo-lbl { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-bottom:4px; }
-#schedToast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:8px 16px; border-radius:8px; font-size:12.5px; z-index:10001; opacity:0; transition:opacity .2s; pointer-events:none; }
+#schedToast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--knk-text-primary); color:var(--knk-text-inverse); padding:8px 16px; border-radius:8px; font-size:12.5px; z-index:10001; opacity:0; transition:opacity .2s; pointer-events:none; }
 #schedToast.show { opacity:.95; }
 
 /* z333(대표 지시): 인쇄 옵션 모달 — 출력 컬럼·날짜 구간 선택 후 인쇄(회의 출력용) */
 .print-modal { display:none; position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.4); }
 .print-modal.show { display:flex; align-items:center; justify-content:center; }
-.print-card { background:#fff; border-radius:12px; width:min(1040px,96vw); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 18px 50px rgba(0,0,0,.3); }
+.print-card { background:var(--knk-bg-surface); border-radius:12px; width:min(1040px,96vw); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 18px 50px rgba(0,0,0,.3); }
 .pm-head { display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line); font-weight:800; font-size:15px; }
 .pm-head button { border:none; background:none; font-size:18px; cursor:pointer; color:var(--qv-ink-3); }
 /* z334(대표 지시): 팝업 헤더를 잡고 드래그 이동 (배경 딤은 그대로 유지=B안). 버튼은 클릭 유지 */
@@ -477,19 +477,19 @@ td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
 .pm-mini:hover { border-color:var(--knk-red); }
 .pm-cols { display:grid; grid-template-columns:repeat(3,1fr); gap:3px 10px; }
 .pm-cols label { display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer; padding:3px 4px; border-radius:5px; }
-.pm-cols label:hover { background:#fdf3f3; }
+.pm-cols label:hover { background:var(--knk-brand-subtle); }
 .pm-days input { width:62px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; text-align:center; font-size:13px; }
 .pm-hint { font-size:11px; color:var(--qv-ink-3); margin-left:6px; }
 .pm-btns { display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--line); }
 .pm-btns button { padding:8px 18px; border:1px solid var(--line); border-radius:8px; background:var(--paper-2); font-weight:700; cursor:pointer; font-size:13px; }
-.pm-btns .pm-go { background:var(--knk-red); color:#fff; border-color:var(--knk-red); }
+.pm-btns .pm-go { background:var(--knk-red); color:var(--knk-text-inverse); border-color:var(--knk-red); }
 /* z335(대표 지시): 인쇄 실제 비율 미리보기 — A4 가로 한 페이지 폭 기준으로 표를 축소해 글자 크기까지 실제처럼 */
-.pp-frame { border:1px solid var(--line); border-radius:8px; background:#eceae3; padding:12px; max-height:52vh; overflow:auto; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.pp-frame { border:1px solid var(--line); border-radius:8px; background:var(--knk-bg-subtle); padding:12px; max-height:52vh; overflow:auto; display:flex; flex-direction:column; align-items:center; gap:14px; }
 .pp-item { display:flex; flex-direction:column; align-items:center; }
 .pp-scaler { position:relative; }
-.pp-page { background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.22); overflow:hidden; box-sizing:border-box; }
+.pp-page { background:var(--knk-bg-surface); box-shadow:0 2px 10px rgba(0,0,0,.22); overflow:hidden; box-sizing:border-box; }
 .pp-num { font-size:11px; color:var(--qv-ink-3); font-weight:700; margin-top:5px; }
-.pp-empty { padding:24px; color:#888; font-size:12.5px; text-align:center; }
+.pp-empty { padding:24px; color:var(--knk-text-muted); font-size:12.5px; text-align:center; }
 .pp-page .col-resizer, .pp-page .sort-ind { display:none; }
 .pp-page .sched .c1, .pp-page .sched .c2, .pp-page .sched .c3, .pp-page .sched thead th { position:static; }
 /* v5H226z1040: 사용자가 고정한 칸(JS 가 #schedPinCss 로 만든 `#schedTable [data-col=..]`)도 인쇄 땐 풀어야 한다.
@@ -517,14 +517,14 @@ td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
   /* 공통: 배경색·구분선 인쇄 보장 + 행 잘림 방지 + '오늘' 칸 강조(box-shadow는 인쇄 누락되므로 border로) */
   .sched th, .sched td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sched tbody tr, .sched thead { break-inside:avoid; }
-  .sched .day.today { border-left:2px solid #d4a574; border-right:2px solid #d4a574; }   /* z1191z204: 오늘 = 호박색 */
+  .sched .day.today { border-left:2px solid var(--knk-cal-today); border-right:2px solid var(--knk-cal-today); }   /* z1191z204: 오늘 = 호박색 */
 }
 
 /* ===== v5H226z1074 (대표 지시 2026-08-03): 화면 전환 베일 — 월 이동·전체 검색 클릭 '즉시' 불러오는 중 표시 ===== */
 #schedNavVeil { position:fixed; inset:0; z-index:99998; display:none; align-items:center; justify-content:center; background:rgba(248,250,252,.62); backdrop-filter:blur(1.5px); }
 #schedNavVeil.show { display:flex; }
-#schedNavVeil .nv-box { display:inline-flex; align-items:center; gap:10px; background:#1e293b; color:#fff; padding:13px 22px; border-radius:12px; font-size:14.5px; font-weight:800; box-shadow:0 10px 32px rgba(15,23,42,.25); }
-#schedNavVeil .nv-spin { width:16px; height:16px; border:2.5px solid #94a3b8; border-top-color:#fff; border-radius:50%; animation:knkNavSpin .7s linear infinite; }
+#schedNavVeil .nv-box { display:inline-flex; align-items:center; gap:10px; background:var(--knk-text-primary); color:var(--knk-text-inverse); padding:13px 22px; border-radius:12px; font-size:14.5px; font-weight:800; box-shadow:0 10px 32px rgba(15,23,42,.25); }
+#schedNavVeil .nv-spin { width:16px; height:16px; border:2.5px solid var(--knk-border-strong); border-top-color:var(--knk-bg-surface); border-radius:50%; animation:knkNavSpin .7s linear infinite; }
 @keyframes knkNavSpin { to { transform:rotate(360deg); } }
 
 /* ===== v5H226z1075 (대표 지시 2026-08-03): 상단 실행 줄 칸 크기 통일 — 전사 일정표·자동 저장됨·저장·엑셀로 저장·신규 등록 ===== */
@@ -533,3 +533,44 @@ td.ux-ok { box-shadow: inset 0 0 0 2px #86efac; transition: box-shadow .3s; }
   font-size:13px; font-weight:800; white-space:nowrap; cursor:pointer; text-decoration:none; font-family:inherit; }
 .sched-top .sb-act .ti { font-size:14px; }
 .sched-top .sb-act.sb-stat { cursor:default; }   /* 자동 저장됨 = 상태 표시(버튼 아님) */
+
+/* ── z1191z205 (디자인 4단계): 화면 안 <style> 두 묶음을 이 파일로 옮김 — 연·월 고르기 판(z47) · 연기 창(z128) ── */
+/* z1191z47: 연·월 고르기 판 */
+.sched-nav .ym-pick-wrap{ position:relative; display:inline-flex; }
+.sched-nav button.ym-pick-btn{ font:inherit; font-size:13px; font-weight:700; cursor:pointer; line-height:inherit; }
+.sched-nav button.ym-pick-btn:hover{ filter:brightness(1.08); }
+.ym-caret{ font-size:10px; opacity:.85; margin-left:2px; }
+.ym-pop{ position:absolute; top:calc(100% + 6px); left:0; z-index:400; width:264px; box-sizing:border-box; background:var(--knk-bg-surface); border:1px solid var(--line);
+         border-radius:10px; box-shadow:var(--knk-shadow-popover); padding:10px; }
+.ym-pop[hidden]{ display:none; }
+.ym-pop-y{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.ym-pop-y b{ font-size:15px; color:var(--ink); }
+.ym-pop button{ font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--paper-2); border-radius:7px; color:var(--ink); }
+.ym-yb{ width:34px; height:30px; font-size:12px; }
+.ym-pop-m{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.ym-pop .ym-mb{ padding:0; }
+.ym-mb{ height:34px; font-size:13px; font-weight:600; white-space:nowrap; min-width:0; }
+.ym-mb:hover, .ym-yb:hover, .ym-today:hover{ border-color:var(--knk-red); color:var(--knk-red); }
+.ym-mb.is-today{ border:2px solid var(--knk-red); }
+.ym-mb.is-sel{ background:var(--knk-red); border-color:var(--knk-red); color:var(--knk-text-inverse); }
+.ym-pop-f{ margin-top:8px; text-align:right; }
+.ym-today{ padding:5px 10px; font-size:12px; }
+/* z1191z128: 연기 창 · 사유 있는 연기는 밑줄 */
+.delay-mark { cursor:pointer; }
+.delay-mark.has-rsn { text-decoration:underline dotted; text-underline-offset:2px; }
+#dl128 { position:fixed; inset:0; z-index:9000; background:var(--knk-scrim); display:flex; align-items:center; justify-content:center; }
+#dl128 .dl128-box { background:var(--knk-bg-surface); color:var(--knk-text-primary); width:min(440px, calc(100vw - 24px)); border-radius:12px; box-shadow:var(--knk-shadow-modal); padding:14px 16px; font-size:13px; }
+#dl128 .dl128-h { font-weight:800; font-size:15px; display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+#dl128 .dl128-h span { font-weight:600; font-size:12px; color:var(--knk-text-muted); flex:1; }
+#dl128 .dl128-x { border:0; background:none; font-size:16px; cursor:pointer; color:var(--knk-text-muted); }
+#dl128 .dl128-row { display:flex; align-items:center; gap:10px; margin:6px 0; }
+#dl128 .dl128-row label { width:84px; color:var(--knk-text-secondary); font-weight:600; }
+#dl128 .dl128-col { flex-direction:column; align-items:stretch; gap:4px; }
+#dl128 .dl128-col label { width:auto; }
+#dl128 .dl128-col small { font-weight:400; color:var(--knk-text-muted); }
+#dl128 textarea, #dl128 input[type=date] { border:1px solid var(--knk-border-default); border-radius:8px; padding:6px 8px; font:inherit; }
+#dl128 .dl128-btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+#dl128 .dl128-b { border:1px solid var(--knk-border-default); background:var(--knk-bg-inset); border-radius:8px; padding:7px 10px; font-weight:700; cursor:pointer; }
+#dl128 .dl128-b.ok { background:var(--knk-action); color:var(--knk-text-inverse); border-color:var(--knk-action); }
+#dl128 .dl128-b.del { background:var(--knk-danger-subtle); color:var(--knk-danger); border-color:var(--knk-danger-line); margin-left:auto; }
+#dl128 .dl128-foot { margin-top:8px; font-size:11.5px; color:var(--knk-text-muted); }

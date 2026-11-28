@@ -2015,7 +2015,7 @@ def split_by_path(hits, base, root=None):
 
 
 # ⑤-2 · ⑤-3 면제 — 2026-11-28 규칙 만들 때 센 개수(파일 경로별 · 주석 뺌). ⚠ 늘리지 말 것 — 그 화면을 손볼 때 var(--knk-*) · 로고 파일로 옮기고 숫자를 줄일 것.
-COLOR_BASE = {
+COLOR_BASE = {   # z1191z205: 일정표·수주 목록·수주 상세·상태 알약 내림(0 은 줄을 뺌)
     'app/templates/_admin_z83.html': 25, 'app/templates/_contact_styles.html': 4, 'app/templates/_export_price_z86.html': 33,
     'app/templates/_export_z85.html': 76, 'app/templates/_knk_picker.html': 24, 'app/templates/_legacy_admin_v4.html': 26,
     'app/templates/_legacy_daily_v4.html': 1, 'app/templates/_legacy_guide_v4.html': 30,
@@ -2053,7 +2053,7 @@ COLOR_BASE = {
     'app/templates/_v5_partials/quote_fill.html': 56, 'app/templates/_v5_partials/quote_rows.html': 34,
     'app/templates/_v5_partials/reg_tabs.html': 9, 'app/templates/_v5_partials/sales_subtabs_z98.html': 5,
     'app/templates/_v5_partials/so_calendar.html': 50, 'app/templates/_v5_partials/so_pipeline.html': 15,
-    'app/templates/_v5_partials/so_status_pill.html': 18, 'app/templates/_v5_partials/so_type_pill.html': 10,
+    'app/templates/_v5_partials/so_type_pill.html': 10,
     'app/templates/_v5_partials/spa_nav.html': 3, 'app/templates/_v5_partials/step_z156.html': 13,
     'app/templates/_v5_partials/trade_ccy_warn.html': 11, 'app/templates/_v5_partials/works_pwa_head.html': 3,
     'app/templates/_v5_partials/xl_sheet_z172.html': 6, 'app/templates/_z75_tabs.html': 12, 'app/templates/admin.html': 15,
@@ -2126,12 +2126,12 @@ COLOR_BASE = {
     'app/templates/sales_aging.html': 12, 'app/templates/sales_dashboard.html': 12, 'app/templates/sales_drill.html': 59,
     'app/templates/sales_flow_guide.html': 18, 'app/templates/sales_fx_gain.html': 30, 'app/templates/sales_glance.html': 40,
     'app/templates/sales_home.html': 155, 'app/templates/sales_opportunities.html': 76,
-    'app/templates/sales_opportunity_form.html': 99, 'app/templates/sales_order_detail.html': 21,
-    'app/templates/sales_orders.html': 150, 'app/templates/sales_outstanding.html': 19,
+    'app/templates/sales_opportunity_form.html': 99, 
+    'app/templates/sales_outstanding.html': 19,
     'app/templates/sales_production.html': 12, 'app/templates/sales_quotations.html': 136,
     'app/templates/sales_quote_detail.html': 12, 'app/templates/sales_quote_form.html': 18,
     'app/templates/sales_receipts_check.html': 73, 'app/templates/sales_report.html': 40,
-    'app/templates/sales_shipments_receipts.html': 75, 'app/templates/schedule_board.html': 141,
+    'app/templates/sales_shipments_receipts.html': 75, 
     'app/templates/share_audio.html': 5, 'app/templates/so_check_z154.html': 43, 'app/templates/stock_abc.html': 21,
     'app/templates/stock_adjust.html': 27, 'app/templates/stock_adjustment.html': 32, 'app/templates/stock_audit.html': 26,
     'app/templates/stock_audits.html': 23, 'app/templates/stock_balances.html': 26, 'app/templates/stock_fifo.html': 21,
@@ -2145,7 +2145,7 @@ COLOR_BASE = {
     'app/templates/workflow/node_detail.html': 46, 'app/templates/workflow/project.html': 45,
     'app/templates/workflow/scenarios.html': 17, 'app/templates/workflow/team.html': 11,
     'app/templates/workflow/wizard.html': 14, 'static/css/knk-components.css': 3, 'static/css/project_detail.css': 99,
-    'static/css/schedule_board.css': 317, 'static/css/v5_base.css': 22, 'static/css/v5_form.css': 1,
+    'static/css/v5_base.css': 22, 'static/css/v5_form.css': 1,
     'static/css/v5_login.css': 2, 'static/css/v5_main.css': 14
 }   # __COLOR_BASE__
 LOGO_BASE = {

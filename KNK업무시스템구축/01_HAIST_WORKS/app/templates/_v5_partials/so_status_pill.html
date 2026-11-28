@@ -19,18 +19,19 @@
   {% else %}<span class="kr">{{ status or '—' }}</span>{% endif %}
 </span>
 <style>
+/* z1191z205: 상태 색 = 뜻 이름(--knk-*) — 확정=강조 · 진행중=확인 · 납품대기=표시 · 출하=정보 · 송장=구분(보라) · 수금=완료 · 취소=위험 */
 .so-pill { display:inline-flex; flex-direction:column; align-items:center;
            padding:4px 10px; border-radius:8px; font-size:.78em; line-height:1.15;
            font-weight:700; letter-spacing:.02em; text-align:center;
-           background:#e5e7eb; color:#374151; }
+           background:var(--knk-bg-subtle); color:var(--knk-text-secondary); }
 .so-pill .kr { font-size:.98em; font-weight:700; }
 .so-pill .en { font-size:.78em; opacity:.55; font-weight:600; margin-top:1px; letter-spacing:.02em; }
-.so-pill-confirmed     { background:#fef0c7; color:#7c2d12; }
-.so-pill-in_production { background:#fef3c7; color:#7c4a03; }
-.so-pill-ready_to_ship { background:#fed7aa; color:#7c2d12; }
-.so-pill-draft         { background:#e5e7eb; color:#374151; }
-.so-pill-shipped       { background:#dbeafe; color:#1e3a8a; }
-.so-pill-invoiced      { background:#ede9fe; color:#5b21b6; }
-.so-pill-paid          { background:#d1fae5; color:#065f46; }
-.so-pill-cancelled     { background:#fee2e2; color:#991b1b; }
+.so-pill-confirmed     { background:var(--knk-brand-subtle); color:var(--knk-brand-hover); }
+.so-pill-in_production { background:var(--knk-warning-subtle); color:var(--knk-warning-text); }
+.so-pill-ready_to_ship { background:var(--knk-highlight-subtle); color:var(--knk-warning-text); }
+.so-pill-draft         { background:var(--knk-bg-subtle); color:var(--knk-text-secondary); }
+.so-pill-shipped       { background:var(--knk-info-subtle); color:var(--knk-info-text); }
+.so-pill-invoiced      { background:var(--knk-cat-violet-subtle); color:var(--knk-cat-violet); }
+.so-pill-paid          { background:var(--knk-success-subtle); color:var(--knk-success-text); }
+.so-pill-cancelled     { background:var(--knk-danger-subtle); color:var(--knk-danger-text); }
 </style>

@@ -70,6 +70,20 @@
   --knk-text-muted-soft:  #5F6163;                  /* 부드럽게 테마 흐린 글자(밝기 0.93 에서 바탕 5.1·옅은 칸 4.75 — #6D6F71 은 4.18 로 미달) */
   --knk-font:      'NanumSquare', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', '맑은 고딕', sans-serif;
   --knk-font-head: 'NanumSquare', 'Pretendard', 'Malgun Gothic', '맑은 고딕', sans-serif;   /* 제목 = 굵기 800(ExtraBold) */
+
+  /* ── D. z1191z205 (4단계 화면 옮기기) 때 더한 이름 — 견본에 없던 뜻 · /admin/design-kit 「구분·표시·달력 색」 ── */
+  --knk-cat-violet:        #5E3A92;   /* 구분 색(보라) — 세금계산서 묶음·2차 고객사·전사 일정표처럼 「다른 갈래」 표시 · 흰 바탕 8.4:1 */
+  --knk-cat-violet-subtle: #F2EEF8;
+  --knk-cat-violet-line:   #D8CCEA;
+  --knk-cat-orange:        #A14A12;   /* 구분 색(주황) — 신규 장비 사업부·납기 3일 안 · 흰 바탕 6.3:1 (위험 --knk-danger 와 다른 뜻) */
+  --knk-cat-orange-subtle: #FCEEE3;
+  --knk-cat-orange-line:   #F0CDB0;
+  --knk-highlight:         #E0A526;   /* 지금 보는 줄·찾은 줄 강조 선(글자에 쓰지 않음) */
+  --knk-highlight-subtle:  #FFF6DA;   /* 찾은 줄 바탕 */
+  --knk-cal-holiday:       #DC2626;   /* 달력 일요일·공휴일 빨강 — 스킬 knk-calendar §2 값 그대로 */
+  --knk-cal-sat:           #2563EB;   /* 달력 토요일 파랑 — knk-calendar */
+  --knk-cal-vn:            #FB923C;   /* 베트남 휴일 「V」 주황 — knk-calendar */
+  --knk-cal-today:         #D4A574;   /* 오늘 호박색 테두리 — knk-calendar */
 }
 
 /* ── C. 새 기준 값 (견본 knk-standard.css 2026-11-28 · 회사 색 = brand.json) — 모든 화면(3단계 z203) ──

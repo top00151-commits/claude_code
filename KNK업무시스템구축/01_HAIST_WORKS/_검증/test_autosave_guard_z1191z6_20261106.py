@@ -39,7 +39,7 @@ check(b.count("_knkSafeReload()") >= 3 and "setTimeout(function(){ location.relo
 check(b.count("inp.dataset.knkOrig=cur") >= 4 and "sel.dataset.knkOrig=cur" in b, "입력칸 처음 값 기억(바뀌었는지 판단)")
 check("i.dataset.knkSaving) return false" in b and b.count("knkSaving='1'") >= 4, "저장 시작된 칸은 경고 대상에서 제외(Enter·칸 떠난 뒤 이동은 경고 없음)")
 check(b.count("keepalive:true") >= 10, "저장 요청 keepalive — %d곳" % b.count("keepalive:true"))
-check(b.count("_knkCellOk(td)") >= 4 and "td.ux-ok { box-shadow: inset 0 0 0 2px #86efac" in css, "저장된 칸 ✓(초록 테두리)")
+check(b.count("_knkCellOk(td)") >= 4 and ("td.ux-ok { box-shadow: inset 0 0 0 2px #86efac" in css or "td.ux-ok { box-shadow: inset 0 0 0 2px var(--knk-success-line)" in css), "저장된 칸 ✓(초록 테두리)")
 check(b.count("location.reload()") == b.count("knkLeaveOk=true, location.reload()") + b.count("knkLeaveOk=true; location.reload()"), "우리 코드의 새로고침은 전부 knkLeaveOk 표시 뒤(경고 안 뜸) — %d곳" % b.count("location.reload()"))
 print("§2 소모품 상세")
 check("el.dataset.knkDirty='1'" in c and "data-knk-dirty" in c and "beforeunload" in c, "고치고 저장 안 된 칸 → 떠날 때 경고")

@@ -58,7 +58,14 @@ want = (["knk-symbol_%s.svg" % v for v in ("full", "red", "gray", "black", "whit
         + ["knk-slogan-best_%s.svg" % v for v in ("full", "red", "gray", "black", "white")]
         + ["knk-sig-h-ko-en_full.svg", "knk-sig-h-en_full.svg", "knk-pattern-tile_red.png", "knk-pattern-tile_white.png"])
 have = sorted(os.listdir(bdir)) if os.path.isdir(bdir) else []
-check("static/img/brand/ = 문서가 적은 19개 그대로", sorted(want) == have, sorted(set(want) ^ set(have)))
+check("static/img/brand/ = 문서가 적은 19개가 적어도 다 있음(z205: 다른 세션이 원본 파일을 더할 수 있음)", set(want) <= set(have), sorted(set(want) - set(have)))
+def _src_of(f):   # z1191z205: 더한 파일도 스킬 knk-brand 원본(로고 svg·png · 패턴) 중 하나와 바이트까지 같아야 함
+    for sub in (os.path.join("logo", "svg"), os.path.join("logo", "png"), "pattern"):
+        o = os.path.join(SRC, sub, f)
+        if os.path.isfile(o): return o
+    return None
+_extra = sorted(set(have) - set(want))
+check("더한 파일 %d개도 스킬 원본과 같음 %s" % (len(_extra), _extra), all(_src_of(f) and open(_src_of(f), "rb").read() == open(os.path.join(bdir, f), "rb").read() for f in _extra))
 for f in want:
     sub = "pattern" if f.startswith("knk-pattern") else os.path.join("logo", "svg")
     o = os.path.join(SRC, sub, f)

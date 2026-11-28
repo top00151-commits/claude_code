@@ -22,7 +22,7 @@
   <div class="page-head" data-dn="page-head">
     <div>
       <div class="crumbs" data-dn="crumb"><a href="/sales">매출영업센터</a> · <b>작업 일정표</b></div>
-      <h1 class="page-title" data-dn="title"><em>작업 일정표</em> <span style="font-size:14px;color:var(--qv-ink-3);font-weight:500;">— 전사 일정 운영 보드</span></h1>
+      <h1 class="page-title" data-dn="title"><span class="k-tri" aria-hidden="true"><i></i><i></i><i></i></span><em>작업 일정표</em> <span style="font-size:14px;color:var(--qv-ink-3);font-weight:500;">— 전사 일정 운영 보드</span></h1>
     </div>
   </div>
 
@@ -47,27 +47,6 @@
       {% if ym != cur_ym %}<a href="?ym={{ cur_ym }}{% if biz %}&biz={{ biz }}{% endif %}{% if cbiz %}&cbiz={{ cbiz }}{% endif %}{% if cust %}&cust={{ cust }}{% endif %}" title="이번 달">오늘</a>{% endif %}
       {% endif %}
     </div>
-    <style>
-    /* z1191z47: 연·월 고르기 판 */
-    .sched-nav .ym-pick-wrap{ position:relative; display:inline-flex; }
-    .sched-nav button.ym-pick-btn{ font:inherit; font-size:13px; font-weight:700; cursor:pointer; line-height:inherit; }
-    .sched-nav button.ym-pick-btn:hover{ filter:brightness(1.08); }
-    .ym-caret{ font-size:10px; opacity:.85; margin-left:2px; }
-    .ym-pop{ position:absolute; top:calc(100% + 6px); left:0; z-index:400; width:264px; box-sizing:border-box; background:#fff; border:1px solid var(--line,#ddd);
-             border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,.18); padding:10px; }
-    .ym-pop[hidden]{ display:none; }
-    .ym-pop-y{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    .ym-pop-y b{ font-size:15px; color:var(--ink,#222); }
-    .ym-pop button{ font:inherit; cursor:pointer; border:1px solid var(--line,#ddd); background:var(--paper-2,#faf8f4); border-radius:7px; color:var(--ink,#222); }
-    .ym-yb{ width:34px; height:30px; font-size:12px; }
-    .ym-pop-m{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
-    .ym-mb{ height:34px; padding:0 !important; font-size:13px; font-weight:600; white-space:nowrap; min-width:0; }
-    .ym-mb:hover, .ym-yb:hover, .ym-today:hover{ border-color:var(--knk-red,#a5282c); color:var(--knk-red,#a5282c); }
-    .ym-mb.is-today{ border:2px solid var(--knk-red,#a5282c); }
-    .ym-mb.is-sel{ background:var(--knk-red,#a5282c); border-color:var(--knk-red,#a5282c); color:#fff; }
-    .ym-pop-f{ margin-top:8px; text-align:right; }
-    .ym-today{ padding:5px 10px; font-size:12px; }
-    </style>
     <script>
     /* z1191z47: 연·월 고르기 — 이전/다음 달 링크 주소(사업부·소모품 칸·찾기어 유지)에서 ym 만 바꿔 이동 */
     (function(){
@@ -121,39 +100,39 @@
     </div>
     {# v5H226z664 (대표 지시): '지연' 옆에 달력 점 '상태 색상' 설명(범례) 상시 표시 — 색 기준은 z663(출하 기준 분리). #}
     <span class="legend sched-status-legend" style="margin-left:16px;" title="작업일정표 달력의 납기일 점 색상 = 호기 상태 기준 (z663)">
-      <b style="font-weight:800;color:var(--qv-ink-2,#475569);">달력 표시:</b>
-      <span><i style="background:#2563eb;"></i>납품</span>
-      <span><i style="background:#16a34a;"></i>출하</span>
-      <span{{ ct('board.delay') }}><i style="background:#b91c1c;"></i>지연</span>
-      <span><i style="background:#9ca3af;"></i>취소·보류</span>
+      <b style="font-weight:800;color:var(--qv-ink-2);">달력 표시:</b>
+      <span><i style="background:var(--knk-info);"></i>납품</span>
+      <span><i style="background:var(--knk-success);"></i>출하</span>
+      <span{{ ct('board.delay') }}><i style="background:var(--knk-danger);"></i>지연</span>
+      <span><i style="background:var(--knk-border-strong);"></i>취소·보류</span>
     </span>
     {# v5H226z673 (대표 지시): 세금계산서 1/2/3차 칸 '색상' 의미 범례 — 영업·관리만(세금계산서 칸 자체가 can_sales_amt). 색 기준=refreshTaxStatus(z469): 1·2·3차 발행금액 합계 vs 수주금액. #}
     {# v5H226z823: 매출금액 표시 게이트 can_money→can_sales_amt(임원·매출금액 허용팀). #}
     {% if can_sales_amt %}
     <span class="legend ti-color-legend" style="margin-left:16px;" title="세금계산서 칸 배경색 = 발행한 세금계산서(최대 10장) 금액 합계와 그 건 수주금액 비교 — 합계=수주액이면 초록(전액 발행), 다르면 주황(일부만 발행했거나 금액 불일치), 미입력은 무색 · 마이너스(네고·할인) 건도 같은 기준">
-      <b style="font-weight:800;color:var(--qv-ink-2,#475569);">세금계산서:</b>
-      <span><i style="background:#f0fdf4;box-shadow:inset 0 0 0 1px #86efac;"></i>전액 발행</span>
-      <span><i style="background:#fff4ed;box-shadow:inset 2px 0 0 #f59e0b;"></i>일부·불일치</span>
-      <span><i style="background:#fff;box-shadow:inset 0 0 0 1px #e2e8f0;"></i>미발행</span>
+      <b style="font-weight:800;color:var(--qv-ink-2);">세금계산서:</b>
+      <span><i style="background:var(--knk-success-subtle);box-shadow:inset 0 0 0 1px var(--knk-success-line);"></i>전액 발행</span>
+      <span><i style="background:var(--knk-warning-subtle);box-shadow:inset 2px 0 0 var(--knk-warning);"></i>일부·불일치</span>
+      <span><i style="background:var(--knk-bg-surface);box-shadow:inset 0 0 0 1px var(--knk-border-subtle);"></i>미발행</span>
     </span>
     {% endif %}
     {# v5H226z547 (대표 지시): 보조 도구 접이 버튼(⚙ 도구) — 우측 그룹 시작(margin-left:auto). 범례는 도구 패널로 이동. #}
     <button type="button" class="sched-gear" onclick="toggleSchedTools(event)" style="margin-left:auto;" title="보기·표설정·정렬·묶어발행 도구 열기"><span class="ti">⚙</span> 도구 ▾</button>
     {# v5H226z1075 (대표 지시 2026-08-03): 실행 줄 5개(전사 일정표·자동 저장됨·저장·엑셀로 저장·신규 등록) 칸 크기 통일 —
        공용 .sb-act(150px×34px·글자 13px)로 균일하게. 색은 기능 구분용으로 유지(인라인은 색만 남김). #}
-    <a href="/dept/schedule" data-no-swap class="sb-act" title="전사 일정표 — 전사 프로젝트 진행/완료/변경 기록" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;"><span class="ti">🗓</span> 전사 일정표</a>
+    <a href="/dept/schedule" data-no-swap class="sb-act" title="전사 일정표 — 전사 프로젝트 진행/완료/변경 기록" style="background:var(--knk-cat-violet-subtle);color:var(--knk-cat-violet);border:1px solid var(--knk-cat-violet-line);"><span class="ti">🗓</span> 전사 일정표</a>
     {# v5H226z590 (대표 지시): 저장 상태 표시 + 수동 저장(확인용). 자동저장은 그대로 — 사용자가 '저장됐는지' 헷갈리는 문제 해결. #}
-    <span id="sbSaveState" class="sb-act sb-stat" title="작업 일정표의 모든 수정은 입력 즉시 자동 저장됩니다." style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">✅</span><span id="sbSaveStateTxt">자동 저장됨</span></span>
-    <button type="button" id="sbSaveBtn" class="sb-act" onclick="sbManualSave()" title="지금 입력 중인 칸을 저장 반영하고 확인합니다. (모든 수정은 평소에도 자동 저장됩니다)" style="background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;"><span class="ti">💾</span> 저장</button>
+    <span id="sbSaveState" class="sb-act sb-stat" title="작업 일정표의 모든 수정은 입력 즉시 자동 저장됩니다." style="background:var(--knk-success-subtle);color:var(--knk-success);border:1px solid var(--knk-success-line);"><span class="ti">✅</span><span id="sbSaveStateTxt">자동 저장됨</span></span>
+    <button type="button" id="sbSaveBtn" class="sb-act" onclick="sbManualSave()" title="지금 입력 중인 칸을 저장 반영하고 확인합니다. (모든 수정은 평소에도 자동 저장됩니다)" style="background:var(--knk-bg-surface);color:var(--knk-brand);border:1px solid var(--knk-brand);"><span class="ti">💾</span> 저장</button>
     {# v5H226z395 (대표 지시): '엑셀로 저장'을 상단 우측 '신규 등록' 왼쪽으로 이동 + 약간 녹색 계열. #}
     {# v5H226z1074c: 엑셀 저장도 '입력칸에 지금 보이는 검색어' 기준 — 지운 뒤 저장했는데 옛 검색어로 걸러져 나오는 불일치 방지 #}
     {# z1191z46 (대표 2026-11-17 요청사항 1): 줄을 고르면 그 줄만 + 고른 수주마다 상세내역 시트 · 안 고르면 지금처럼 화면 전체 #}
-    <button type="button" class="sb-act" id="schedXlsxBtn" onclick="schedExportXlsx()" title="줄을 고르면(☑) 고른 줄 + 수주마다 상세내역 시트 · 안 고르면 화면 전체" style="background:#edfaf1;color:#15803d;border:1px solid #7fc49b;"><span class="ti">📥</span> 엑셀로 저장<span id="schedXlsxN"></span></button>
+    <button type="button" class="sb-act" id="schedXlsxBtn" onclick="schedExportXlsx()" title="줄을 고르면(☑) 고른 줄 + 수주마다 상세내역 시트 · 안 고르면 화면 전체" style="background:var(--knk-success-subtle);color:var(--knk-success);border:1px solid var(--knk-success-line);"><span class="ti">📥</span> 엑셀로 저장<span id="schedXlsxN"></span></button>
     {# v5H226z347→z395 (대표 지시): 신규 등록 — 우측 끝(엑셀 버튼이 margin-left:auto 를 맡으므로 여긴 기본 gap 간격) #}
     {# z1191z58 (대표 11-18): 같은 발주의 관리번호를 ☑ 골라 한 장으로 묶은 제작요청서 새 작성(처음 발행) #}
-    <button type="button" class="sb-act" id="schedPrqBtn" onclick="schedPrqBundle()" title="같은 고객사 관리번호 줄을 ☑ 고른 뒤 누르면 한 장으로 묶은 제작요청서 새 작성 화면이 열립니다(처음 발행)" style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;"><span class="ti">📋</span> 골라서 제작요청서</button>
+    <button type="button" class="sb-act" id="schedPrqBtn" onclick="schedPrqBundle()" title="같은 고객사 관리번호 줄을 ☑ 고른 뒤 누르면 한 장으로 묶은 제작요청서 새 작성 화면이 열립니다(처음 발행)" style="background:var(--knk-brand-subtle);color:var(--knk-brand);border:1px solid var(--knk-brand-line);"><span class="ti">📋</span> 골라서 제작요청서</button>
     {# z1191z96 (대표 11-22 「없애기」): 「＋ 신규 등록」 단추 뺌 — 등록은 왼쪽 메뉴 「🆕 등록」 한 곳(창·스크립트는 그대로 · 단추만 없음) #}
-    <span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3,#64748b);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span>
+    <span class="reg-hint-z96" title="등록은 한 곳에서만 합니다(대표 11-22)" style="font-size:12px;color:var(--qv-ink-3);white-space:nowrap;">＋ 등록은 왼쪽 메뉴 <b>🆕 등록</b>에서</span>
   </div>
 
   {# v5H226z275/z345 (대표 지시): 사업부별 탭 — 3개 행 시각 구분 띠(band) · 파랑=보기/필터 #}
@@ -203,10 +182,10 @@
     {# v5H226z547: 묶어 발행(체크한 여러 출하 건을 한 장으로) — 도구 패널로 이동. 영업·관리만. #}
     {% if can_sales_amt %}<button type="button" class="bulk-tax-go" onclick="schedIssueTaxInvoice()" title="체크한 여러 건을 한 장의 세금계산서로 묶어 발행"><span class="ti">📄</span> 묶어 발행</button>{% endif %}
     <span class="legend" style="margin-left:auto;">
-      <span><i style="background:#cfe0f5;"></i>일정</span>
-      <span><i style="background:#2563eb;"></i>납품</span>
-      <span><i style="background:#16a34a;"></i>출하</span>
-      <span><i style="background:#b91c1c;"></i>지연</span>
+      <span><i style="background:var(--knk-info-subtle);"></i>일정</span>
+      <span><i style="background:var(--knk-info);"></i>납품</span>
+      <span><i style="background:var(--knk-success);"></i>출하</span>
+      <span><i style="background:var(--knk-danger);"></i>지연</span>
     </span>
   </div>
 
@@ -314,17 +293,17 @@
                상품 줄은 부품이 여러 줄이어도 수량 편집 허용(JS가 orders.unit_qty(quick-edit)로 라우팅 — 부품 qty 오염 없음). #}
           {# v5H226z1088 (대표 지시): 제품 표시수량(is_bqty) 줄 — "10 SET"·"1식" 표기·셀 직접수정 제외(값의 출처=등록/수정 폼 하나) #}
           {% set _qty_edit = (r.kind != 'consumable' and not r.is_bqty and (r.is_parts or not r.is_unit or (r.unit_iids and r.unit_iids|length == 1))) %}
-          <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty" data-unit="{{ r|qtyunit }}"{% if _qty_edit %} data-edit="qty"{% endif %}{% if r.is_bqty %} title="제품 표시수량 (등록 때 적은 값) — 수정은 프로젝트 수정(빠른 폼)에서"{% elif r.is_parts %} title="상품 수량 — 신규·추가 = 완제품 몇 대분 · 개조 = 몇 식 (z1191z15)"{% endif %}>{# z1191z4e (이새롬 프로 요청 · 대표 결정): 모든 줄 수량에 단위 — 숫자 오른쪽·단위 왼쪽 정렬 칸으로 줄맞춤 #}{% if r.qty and r.is_parts and r.qty_missing %}<span class="qwrap" style="color:#b91c1c;font-weight:700;" title="상품 수량(완제품 대분 · 개조 식)이 저장돼 있지 않습니다 — 눌러서 넣으세요 (z1191z16)">⚠ 미입력</span>{% elif r.qty %}<span class="qwrap"><span class="qn">{{ (1 if (r.is_parts and r.qty|int < 2) else r.qty)|qtyfmt }}</span><span class="qu">{{ r|qtyunit }}</span></span>{% else %}{{ '＋' if _qty_edit else '' }}{% endif %}</td>
+          <td class="c-info cw-qty{% if _qty_edit %} editable{% if r.qty %} filled{% endif %}{% endif %}" data-col="qty" data-unit="{{ r|qtyunit }}"{% if _qty_edit %} data-edit="qty"{% endif %}{% if r.is_bqty %} title="제품 표시수량 (등록 때 적은 값) — 수정은 프로젝트 수정(빠른 폼)에서"{% elif r.is_parts %} title="상품 수량 — 신규·추가 = 완제품 몇 대분 · 개조 = 몇 식 (z1191z15)"{% endif %}>{# z1191z4e (이새롬 프로 요청 · 대표 결정): 모든 줄 수량에 단위 — 숫자 오른쪽·단위 왼쪽 정렬 칸으로 줄맞춤 #}{% if r.qty and r.is_parts and r.qty_missing %}<span class="qwrap" style="color:var(--knk-danger);font-weight:700;" title="상품 수량(완제품 대분 · 개조 식)이 저장돼 있지 않습니다 — 눌러서 넣으세요 (z1191z16)">⚠ 미입력</span>{% elif r.qty %}<span class="qwrap"><span class="qn">{{ (1 if (r.is_parts and r.qty|int < 2) else r.qty)|qtyfmt }}</span><span class="qu">{{ r|qtyunit }}</span></span>{% else %}{{ '＋' if _qty_edit else '' }}{% endif %}</td>
           {% if can_sales_amt %}
-          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price or r.is_free %} filled{% endif %}{% endif %}{% if r.is_free %} free{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.is_free %}<span class="free-tag" title="무상 — 단가를 0 으로 적은 건">무상</span>{% elif r.is_tbd %}<span class="free-tag tbd-tag" title="단가 미정 — 정해지면 단가를 넣어 주세요(등록 때 「단가 미정」 체크)" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;">미정</span>{% elif r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
-          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount or r.is_free %} filled{% endif %}{% endif %}{% if r.is_free %} free{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.is_free %}<span class="free-tag" title="무상 — 단가를 0 으로 적은 건">무상</span>{% elif r.is_tbd %}<span class="free-tag tbd-tag" title="단가 미정 — 정해지면 단가를 넣어 주세요(등록 때 「단가 미정」 체크)" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;">미정</span>{% elif r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-price{% if r.kind != 'consumable' %} editable{% if r.price or r.is_free %} filled{% endif %}{% endif %}{% if r.is_free %} free{% endif %}" data-col="price"{% if r.kind != 'consumable' %} data-edit="price"{% endif %}>{% if r.is_free %}<span class="free-tag" title="무상 — 단가를 0 으로 적은 건">무상</span>{% elif r.is_tbd %}<span class="free-tag tbd-tag" title="단가 미정 — 정해지면 단가를 넣어 주세요(등록 때 「단가 미정」 체크)" style="background:var(--knk-warning-subtle);color:var(--knk-warning);border-color:var(--knk-warning-line);">미정</span>{% elif r.price %}{{ money(r.price, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
+          <td class="c-info cw-amount{% if r.kind != 'consumable' %} editable{% if r.amount or r.is_free %} filled{% endif %}{% endif %}{% if r.is_free %} free{% endif %}" data-col="amount"{% if r.kind != 'consumable' %} data-edit="amount"{% endif %}>{% if r.is_free %}<span class="free-tag" title="무상 — 단가를 0 으로 적은 건">무상</span>{% elif r.is_tbd %}<span class="free-tag tbd-tag" title="단가 미정 — 정해지면 단가를 넣어 주세요(등록 때 「단가 미정」 체크)" style="background:var(--knk-warning-subtle);color:var(--knk-warning);border-color:var(--knk-warning-line);">미정</span>{% elif r.amount %}{{ money(r.amount, r.currency or 'KRW') }}{% else %}{{ '＋' if (r.kind != 'consumable') else '' }}{% endif %}</td>
           {% endif %}
           <td class="c-info cw-trade{% if r.kind != 'consumable' %} editable{% if r.trade %} filled{% endif %}{% endif %}" data-col="trade"{% if r.kind != 'consumable' %} data-edit="trade"{% endif %}>{{ r.trade }}</td>
           <td class="c-info cw-po{% if r.kind != 'consumable' %} editable{% if r.po_type %} filled{% endif %}{% endif %}" data-col="po"{% if r.kind != 'consumable' %} data-edit="po_type"{% endif %}>{{ r.po_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
           {# v5H226z349 (대표 지시): 형태(제품/상품/기타) — 프로젝트는 드롭다운 선택 편집, 소모품은 '상품' 고정(읽기전용) #}
           <td class="c-info cw-form{% if r.kind != 'consumable' %} editable{% if r.form_type %} filled{% endif %}{% endif %}" data-col="form"{% if r.kind != 'consumable' %} data-edit="form_type"{% endif %}>{{ r.form_type or ('＋' if r.kind != 'consumable' else '—') }}</td>
-          <td class="c-info cw-cust{% if not r.cust_ok %} cust-unmatched{% endif %}{% if r.kind != 'consumable' %} editable{% if r.customer and r.customer != '—' %} filled{% endif %}{% endif %}" data-col="cust" data-real="{{ r.customer }}"{% if r.kind != 'consumable' %} data-edit="cust"{% endif %} title="정식: {{ r.customer }}{% if r.customer_disp and r.customer_disp != r.customer %} · 시스템명: {{ r.customer_disp }}{% endif %}{% if not r.cust_ok %} — 등록 고객사 미연결(확인 필요){% endif %}{% if r.so_customer and r.so_customer != r.customer and r.so_customer != r.customer_disp %} · 발주처: {{ r.so_customer }}{% endif %}">{{ r.customer_disp or r.customer }}{% if r.so_customer and r.so_customer != r.customer and r.so_customer != r.customer_disp %}<div style="font-size:9.5px;color:#7c3aed;font-weight:600;white-space:nowrap;">↪ 발주 {{ r.so_customer }}</div>{% endif %}</td>
-          <td class="c-info cw-cust2{% if r.kind != 'consumable' %} editable{% if r.cust2 %} filled{% endif %}{% endif %}" data-col="cust2"{% if r.kind != 'consumable' %} data-edit="cust2"{% endif %} title="{{ r.cust2 }}{% if r.cust2_inh %} — 이 수주에는 아직 안 정해 관리번호 값을 보여 줍니다(대표값 · 확인 필요){% endif %}">{{ r.cust2 or ('＋' if r.kind != 'consumable' else '') }}{% if r.cust2_inh %}<span style="color:#b45309;font-size:10px;"> (대표값)</span>{% endif %}</td>
+          <td class="c-info cw-cust{% if not r.cust_ok %} cust-unmatched{% endif %}{% if r.kind != 'consumable' %} editable{% if r.customer and r.customer != '—' %} filled{% endif %}{% endif %}" data-col="cust" data-real="{{ r.customer }}"{% if r.kind != 'consumable' %} data-edit="cust"{% endif %} title="정식: {{ r.customer }}{% if r.customer_disp and r.customer_disp != r.customer %} · 시스템명: {{ r.customer_disp }}{% endif %}{% if not r.cust_ok %} — 등록 고객사 미연결(확인 필요){% endif %}{% if r.so_customer and r.so_customer != r.customer and r.so_customer != r.customer_disp %} · 발주처: {{ r.so_customer }}{% endif %}">{{ r.customer_disp or r.customer }}{% if r.so_customer and r.so_customer != r.customer and r.so_customer != r.customer_disp %}<div style="font-size:9.5px;color:var(--knk-cat-violet);font-weight:600;white-space:nowrap;">↪ 발주 {{ r.so_customer }}</div>{% endif %}</td>
+          <td class="c-info cw-cust2{% if r.kind != 'consumable' %} editable{% if r.cust2 %} filled{% endif %}{% endif %}" data-col="cust2"{% if r.kind != 'consumable' %} data-edit="cust2"{% endif %} title="{{ r.cust2 }}{% if r.cust2_inh %} — 이 수주에는 아직 안 정해 관리번호 값을 보여 줍니다(대표값 · 확인 필요){% endif %}">{{ r.cust2 or ('＋' if r.kind != 'consumable' else '') }}{% if r.cust2_inh %}<span style="color:var(--knk-warning);font-size:10px;"> (대표값)</span>{% endif %}</td>
           <td class="c-info cw-dept editable{% if r.dept %} filled{% endif %}" data-col="dept" data-edit="dept">{{ r.dept or '＋' }}</td>
           <td class="c-info cw-owner editable{% if r.owner %} filled{% endif %}" data-col="owner" data-edit="owner">{{ r.owner or '＋' }}</td>
           <td class="c-info cw-contact{% if r.kind != 'consumable' %} editable{% if r.contact %} filled{% endif %}{% endif %}" data-col="contact"{% if r.kind != 'consumable' %} data-edit="contact"{% endif %}>{{ r.contact or ('＋' if r.kind != 'consumable' else '') }}</td>
@@ -442,15 +421,15 @@
   </div>
   {# v5H226z366 (대표 지시): 일괄 수정 미리보기 모달 — .main 안(SPA 안전) · 적용 전 '무엇을 몇 건' 확인 #}
   <div id="bulkModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.4);align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);">
-      <div style="padding:14px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
+    <div style="background:var(--knk-bg-surface);border-radius:12px;width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--knk-border-subtle);display:flex;align-items:center;justify-content:space-between;">
         <b style="font-size:15px;">✎ 일괄 수정 미리보기</b>
-        <button type="button" onclick="closeBulkModal()" style="border:none;background:none;font-size:18px;cursor:pointer;color:#888;">✕</button>
+        <button type="button" onclick="closeBulkModal()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--knk-text-muted);">✕</button>
       </div>
       <div id="bulkModalBody" style="padding:16px 18px;overflow:auto;font-size:13px;line-height:1.55;"></div>
-      <div style="padding:12px 18px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">
-        <button type="button" onclick="closeBulkModal()" style="padding:8px 16px;border:1px solid #ddd;background:#fff;border-radius:7px;cursor:pointer;">취소</button>
-        <button type="button" id="bulkConfirmBtn" onclick="schedBulkConfirm()" style="padding:8px 18px;border:1px solid var(--knk-red);background:var(--knk-red);color:#fff;border-radius:7px;font-weight:800;cursor:pointer;">적용</button>
+      <div style="padding:12px 18px;border-top:1px solid var(--knk-border-subtle);display:flex;gap:8px;justify-content:flex-end;">
+        <button type="button" onclick="closeBulkModal()" style="padding:8px 16px;border:1px solid var(--knk-border-default);background:var(--knk-bg-surface);border-radius:7px;cursor:pointer;">취소</button>
+        <button type="button" id="bulkConfirmBtn" onclick="schedBulkConfirm()" style="padding:8px 18px;border:1px solid var(--knk-red);background:var(--knk-red);color:var(--knk-text-inverse);border-radius:7px;font-weight:800;cursor:pointer;">적용</button>
       </div>
     </div>
   </div>
@@ -459,15 +438,15 @@
 
 {# v5H226z339 (대표 지시): 수주번호 소급 일괄 발급 모달 — SPA 안전(.main 안 · 독립 IIFE · window 노출 · load-time DOM 작업 없음) #}
 <div id="soBackfillModal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.4);align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:12px;width:760px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);">
-    <div style="padding:12px 16px;border-bottom:1px solid #eee;font-weight:700;display:flex;justify-content:space-between;align-items:center;">
+  <div style="background:var(--knk-bg-surface);border-radius:12px;width:760px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--knk-border-subtle);font-weight:700;display:flex;justify-content:space-between;align-items:center;">
       <span>🧾 수주번호 소급 일괄 발급</span>
-      <span style="cursor:pointer;color:#888;font-size:18px;" onclick="closeSoBackfill()">✕</span>
+      <span style="cursor:pointer;color:var(--knk-text-muted);font-size:18px;" onclick="closeSoBackfill()">✕</span>
     </div>
     <div id="soBackfillBody" style="padding:14px 16px;overflow:auto;font-size:13px;">불러오는 중…</div>
-    <div style="padding:10px 16px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">
+    <div style="padding:10px 16px;border-top:1px solid var(--knk-border-subtle);display:flex;gap:8px;justify-content:flex-end;">
       <button type="button" onclick="closeSoBackfill()">닫기</button>
-      <button type="button" id="soBackfillRunBtn" onclick="runSoBackfill()" disabled style="background:var(--knk-red,#c0392b);color:#fff;border:1px solid var(--knk-red,#c0392b);padding:6px 14px;border-radius:8px;cursor:pointer;">발주일 기준 발급 실행</button>
+      <button type="button" id="soBackfillRunBtn" onclick="runSoBackfill()" disabled style="background:var(--knk-red);color:var(--knk-text-inverse);border:1px solid var(--knk-red);padding:6px 14px;border-radius:8px;cursor:pointer;">발주일 기준 발급 실행</button>
     </div>
   </div>
 </div>
@@ -484,23 +463,23 @@
     var run=document.getElementById('soBackfillRunBtn'); if(run) run.disabled=true;
     body.innerHTML='대상 조회 중…';
     fetch('/projects/so-backfill/preview').then(function(r){return r.json();}).then(function(j){
-      if(!j.ok){ body.innerHTML='<div style="color:#b91c1c;">조회 실패: '+esc(j.error||'')+'</div>'; return; }
-      if(!j.count){ body.innerHTML='<div style="color:#15803d;">발주일이 있는데 수주번호가 빈 항목이 없습니다. (소급 발급할 대상 없음)</div>'; return; }
+      if(!j.ok){ body.innerHTML='<div style="color:var(--knk-danger);">조회 실패: '+esc(j.error||'')+'</div>'; return; }
+      if(!j.count){ body.innerHTML='<div style="color:var(--knk-success);">발주일이 있는데 수주번호가 빈 항목이 없습니다. (소급 발급할 대상 없음)</div>'; return; }
       var rows=j.items.map(function(it){
-        var md = it.mode==='수리' ? '<span style="color:#b45309;font-weight:700;">수리</span>' : '<span style="color:#15803d;font-weight:700;">신규</span>';
-        return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+md+'</td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;"><b>'+esc(it.biz_div)+'</b></td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;">'+esc(it.name)+'</td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date)+'</td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888;">'+esc(it.status||'')+'</td>'+
-          '<td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:right;">'+wonC(it.amount, it.currency)+'</td></tr>';
+        var md = it.mode==='수리' ? '<span style="color:var(--knk-warning);font-weight:700;">수리</span>' : '<span style="color:var(--knk-success);font-weight:700;">신규</span>';
+        return '<tr><td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;">'+md+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;"><b>'+esc(it.biz_div)+'</b></td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);">'+esc(it.name)+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;">'+esc(it.order_date)+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;color:var(--knk-text-muted);">'+esc(it.status||'')+'</td>'+
+          '<td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:right;">'+wonC(it.amount, it.currency)+'</td></tr>';
       }).join('');
-      body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:#c0392b;">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급/수리합니다.<br>'+
-        '<span style="font-size:11px;color:#666;">· 실행 전 DB 자동 백업 · 이미 정상 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · <b>신규</b>=새 발급, <b>수리</b>=깨진 번호 교체 · <b>초기협의 단계는 수주확정으로 올림</b>(진행중·출하는 보존)</span></div>'+
-        '<div style="max-height:46vh;overflow:auto;border:1px solid #eee;border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;">사업부</th><th style="padding:5px 6px;text-align:left;">프로젝트</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">현재단계</th><th style="padding:5px 6px;text-align:right;">수주액</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      body.innerHTML='<div style="margin-bottom:8px;">대상 <b style="color:var(--knk-brand);">'+j.count+'</b>건 — 각 항목의 <b>발주일</b> 기준으로 수주번호(사업부-발주일, 예 M-260518)를 발급/수리합니다.<br>'+
+        '<span style="font-size:11px;color:var(--knk-text-muted);">· 실행 전 DB 자동 백업 · 이미 정상 수주번호 있으면 건너뜀 · 발주일 없는 건은 대상 아님 · <b>신규</b>=새 발급, <b>수리</b>=깨진 번호 교체 · <b>초기협의 단계는 수주확정으로 올림</b>(진행중·출하는 보존)</span></div>'+
+        '<div style="max-height:46vh;overflow:auto;border:1px solid var(--knk-border-subtle);border-radius:6px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:var(--knk-bg-inset);position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;">사업부</th><th style="padding:5px 6px;text-align:left;">프로젝트</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">현재단계</th><th style="padding:5px 6px;text-align:right;">수주액</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
       var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false;
-    }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">조회 오류: '+esc(e)+'</div>'; });
+    }).catch(function(e){ body.innerHTML='<div style="color:var(--knk-danger);">조회 오류: '+esc(e)+'</div>'; });
   };
   window.closeSoBackfill = function(){ var m=document.getElementById('soBackfillModal'); if(m) m.style.display='none'; };
   window.runSoBackfill = function(){
@@ -510,43 +489,22 @@
     if(run) run.disabled=true;
     body.innerHTML='발급 중… (DB 백업 후 처리합니다. 잠시만요)';
     fetch('/projects/so-backfill/run',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(r){return r.json();}).then(function(j){
-      if(!j.ok){ body.innerHTML='<div style="color:#b91c1c;">실패: '+esc(j.error||'')+'</div>'; if(run) run.disabled=false; return; }
-      var html='<div style="color:#15803d;font-weight:700;font-size:14px;">✅ 발급 완료 — '+j.issued_count+'건</div>';
-      if(j.skipped_count) html+='<div style="color:#666;">건너뜀(이미 수주번호 있음): '+j.skipped_count+'건</div>';
-      if(j.failed_count) html+='<div style="color:#b91c1c;">실패: '+j.failed_count+'건 — '+esc((j.failed[0]||{}).error||'')+' …</div>';
-      html+='<div style="font-size:11px;color:#888;margin-top:4px;">DB 백업: '+esc(j.backup||'')+'</div>';
+      if(!j.ok){ body.innerHTML='<div style="color:var(--knk-danger);">실패: '+esc(j.error||'')+'</div>'; if(run) run.disabled=false; return; }
+      var html='<div style="color:var(--knk-success);font-weight:700;font-size:14px;">✅ 발급 완료 — '+j.issued_count+'건</div>';
+      if(j.skipped_count) html+='<div style="color:var(--knk-text-muted);">건너뜀(이미 수주번호 있음): '+j.skipped_count+'건</div>';
+      if(j.failed_count) html+='<div style="color:var(--knk-danger);">실패: '+j.failed_count+'건 — '+esc((j.failed[0]||{}).error||'')+' …</div>';
+      html+='<div style="font-size:11px;color:var(--knk-text-muted);margin-top:4px;">DB 백업: '+esc(j.backup||'')+'</div>';
       var rows=(j.issued||[]).slice(0,300).map(function(it){
-        var md = it.mode==='수리' ? '<span style="color:#b45309;">수리</span>' : '<span style="color:#15803d;">신규</span>';
-        return '<tr><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+md+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;font-family:monospace;color:#1d4ed8;"><b>'+esc(it.so_no||'')+'</b></td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;">'+esc(it.order_date||'')+'</td><td style="padding:3px 6px;border-bottom:1px solid #f0f0f0;text-align:center;color:#888;">'+esc(it.stage_to||'')+'</td></tr>';
+        var md = it.mode==='수리' ? '<span style="color:var(--knk-warning);">수리</span>' : '<span style="color:var(--knk-success);">신규</span>';
+        return '<tr><td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);font-family:monospace;">'+esc(it.mgmt_code||'-')+'</td><td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;">'+md+'</td><td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);font-family:monospace;color:var(--knk-info);"><b>'+esc(it.so_no||'')+'</b></td><td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;">'+esc(it.order_date||'')+'</td><td style="padding:3px 6px;border-bottom:1px solid var(--knk-border-subtle);text-align:center;color:var(--knk-text-muted);">'+esc(it.stage_to||'')+'</td></tr>';
       }).join('');
-      if(rows) html+='<div style="max-height:42vh;overflow:auto;border:1px solid #eee;border-radius:6px;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f7f7f7;position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;text-align:left;">발급 수주번호</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">단계</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-      html+='<div style="font-size:12px;color:#666;margin-top:8px;">목록을 새로고침하면 반영됩니다.</div>';
+      if(rows) html+='<div style="max-height:42vh;overflow:auto;border:1px solid var(--knk-border-subtle);border-radius:6px;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:var(--knk-bg-inset);position:sticky;top:0;"><th style="padding:5px 6px;text-align:left;">관리번호</th><th style="padding:5px 6px;">처리</th><th style="padding:5px 6px;text-align:left;">발급 수주번호</th><th style="padding:5px 6px;">발주일</th><th style="padding:5px 6px;">단계</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+      html+='<div style="font-size:12px;color:var(--knk-text-muted);margin-top:8px;">목록을 새로고침하면 반영됩니다.</div>';
       body.innerHTML=html;
-    }).catch(function(e){ body.innerHTML='<div style="color:#b91c1c;">오류: '+esc(e)+'</div>'; var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false; });
+    }).catch(function(e){ body.innerHTML='<div style="color:var(--knk-danger);">오류: '+esc(e)+'</div>'; var run2=document.getElementById('soBackfillRunBtn'); if(run2) run2.disabled=false; });
   };
 })();
 </script>
-<style>
-/* z1191z128: 연기 창 · 사유 있는 연기는 밑줄 */
-.delay-mark { cursor:pointer; }
-.delay-mark.has-rsn { text-decoration:underline dotted; text-underline-offset:2px; }
-#dl128 { position:fixed; inset:0; z-index:9000; background:rgba(15,23,42,.35); display:flex; align-items:center; justify-content:center; }
-#dl128 .dl128-box { background:#fff; color:#0f172a; width:min(440px, calc(100vw - 24px)); border-radius:12px; box-shadow:0 16px 40px rgba(15,23,42,.3); padding:14px 16px; font-size:13px; }
-#dl128 .dl128-h { font-weight:800; font-size:15px; display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-#dl128 .dl128-h span { font-weight:600; font-size:12px; color:#64748b; flex:1; }
-#dl128 .dl128-x { border:0; background:none; font-size:16px; cursor:pointer; color:#64748b; }
-#dl128 .dl128-row { display:flex; align-items:center; gap:10px; margin:6px 0; }
-#dl128 .dl128-row label { width:84px; color:#475569; font-weight:600; }
-#dl128 .dl128-col { flex-direction:column; align-items:stretch; gap:4px; }
-#dl128 .dl128-col label { width:auto; }
-#dl128 .dl128-col small { font-weight:400; color:#94a3b8; }
-#dl128 textarea, #dl128 input[type=date] { border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; font:inherit; }
-#dl128 .dl128-btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
-#dl128 .dl128-b { border:1px solid #cbd5e1; background:#f8fafc; border-radius:8px; padding:7px 10px; font-weight:700; cursor:pointer; }
-#dl128 .dl128-b.ok { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
-#dl128 .dl128-b.del { background:#fff1f2; color:#b91c1c; border-color:#fecdd3; margin-left:auto; }
-#dl128 .dl128-foot { margin-top:8px; font-size:11.5px; color:#64748b; }
-</style>
 <script>
 (function(){
 // v5H226z271: SPA 재실행 안전 — 전체를 IIFE로 감싸 const 재선언 오류 방지 + document 리스너 정리.
@@ -1906,8 +1864,8 @@ function _sbNow(){ var d=new Date(); function p(n){return (n<10?'0':'')+n;} retu
 function sbMarkSaved(){
   var s=document.getElementById('sbSaveState'), t=document.getElementById('sbSaveStateTxt'); if(!s||!t) return;
   t.textContent='저장됨 · '+_sbNow();
-  s.style.background='#dcfce7'; s.style.borderColor='#4ade80';   // 잠깐 진한 초록으로 강조
-  clearTimeout(window._sbSaveFlash); window._sbSaveFlash=setTimeout(function(){ s.style.background='#edfaf1'; s.style.borderColor='#7fc49b'; },1200);
+  s.style.background='var(--knk-success-line)'; s.style.borderColor='var(--knk-success)';   // 잠깐 진한 초록으로 강조
+  clearTimeout(window._sbSaveFlash); window._sbSaveFlash=setTimeout(function(){ s.style.background='var(--knk-success-subtle)'; s.style.borderColor='var(--knk-success-line)'; },1200);
 }
 function sbManualSave(){
   // 입력 중인 칸(셀/드롭다운)을 커밋 → blur 시 기존 저장 발동. 팝업(단가/메모)은 각자의 '저장' 버튼 사용.
@@ -2392,7 +2350,7 @@ function _tiOpenModal(lines, force){
   h+='<label>고객사 <b>'+(custKeys.length===1?esc(custKeys[0]):(custKeys.length===0?'(미지정)':custKeys.length+'곳'))+'</b></label></div>';
   h+='<table><thead><tr><th>관리번호</th><th>호기</th><th>고객사</th><th class="num" data-calc="'+{{ calc_tip('board.ti_amt')|tojson }}+'">금액('+_tiSym+')</th></tr></thead><tbody id="tiBody"></tbody>';
   h+='<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">합계</td><td class="num ti-total" id="tiTotal">'+_tiSym+'0</td></tr></tfoot></table>';
-  h+='<div class="ti-row-flex" style="margin-top:10px;"><label style="flex:1;">메모 <input type="text" id="tiMemo" style="width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:4px 7px;font:inherit;" placeholder="(선택) 세금계산서 메모" /></label></div>';
+  h+='<div class="ti-row-flex" style="margin-top:10px;"><label style="flex:1;">메모 <input type="text" id="tiMemo" style="width:100%;border:1px solid var(--knk-border-default);border-radius:5px;padding:4px 7px;font:inherit;" placeholder="(선택) 세금계산서 메모" /></label></div>';
   h+='</div><div class="ti-foot"><button type="button" class="ti-btn" onclick="_tiCloseModal()">취소</button>';
   h+='<button type="button" class="ti-btn primary" id="tiSubmitBtn" onclick="_tiSubmit(false)"'+(custKeys.length>1?' disabled title="다른 고객사끼리는 묶어 발행할 수 없습니다"':'')+'>'+(custKeys.length>1?'⛔ 고객사 분리 필요':'발행')+'</button></div>';
   h+='</div></div>';
@@ -2407,7 +2365,7 @@ function _tiTierChange(tier){
   _tiLines.forEach(function(l, i){
     var already=(l.tino && l.tino[tier]);   // 이 차수가 이미 다른 발행에 들어가 있음
     if(already){
-      h+='<tr style="opacity:.5;"><td>'+esc(l.code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td><td class="num" style="color:#7c3aed;">이미 #'+esc(already)+'</td></tr>';
+      h+='<tr style="opacity:.5;"><td>'+esc(l.code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td><td class="num" style="color:var(--knk-cat-violet);">이미 #'+esc(already)+'</td></tr>';
     } else {
       var dv=_tiDefaultAmt(l, tier);
       h+='<tr><td>'+esc(l.code||'—')+'</td><td>'+esc(l.label||'')+'</td><td>'+esc(l.customer||'—')+'</td>'
@@ -2465,12 +2423,12 @@ function openTiView(tiid){
       _tiCloseModal();
       var h='<div class="ti-modal-back" id="tiModalBack"><div class="ti-modal" onclick="event.stopPropagation()">';
       var _tn=['','1차(계약금)','2차(중도금)','3차(잔금)'][v.tier||1]||'';
-      h+='<h3>📄 세금계산서 #'+esc(v.ti_no||'')+(_tn?' <span style="font-size:12px;color:#7c3aed;">'+_tn+'</span>':'')+(v.status==='취소'?' <span style="color:#dc2626;">(취소됨)</span>':'')+'</h3><div class="ti-body">';
-      h+='<div class="ti-row-flex"><label>발행일 <b>'+esc(v.issue_date||'')+'</b></label><label>고객사 <b>'+esc(v.customer_name||'(미지정)')+'</b>'+(v.sub_biz_no?' <span style="color:#64748b;font-weight:600;font-size:11.5px;">[종사업장 '+esc(v.sub_biz_no)+']</span>':'')+'</label><label>발행자 <b>'+esc(v.created_by_name||'')+'</b></label></div>';
+      h+='<h3>📄 세금계산서 #'+esc(v.ti_no||'')+(_tn?' <span style="font-size:12px;color:var(--knk-cat-violet);">'+_tn+'</span>':'')+(v.status==='취소'?' <span style="color:var(--knk-danger);">(취소됨)</span>':'')+'</h3><div class="ti-body">';
+      h+='<div class="ti-row-flex"><label>발행일 <b>'+esc(v.issue_date||'')+'</b></label><label>고객사 <b>'+esc(v.customer_name||'(미지정)')+'</b>'+(v.sub_biz_no?' <span style="color:var(--knk-text-muted);font-weight:600;font-size:11.5px;">[종사업장 '+esc(v.sub_biz_no)+']</span>':'')+'</label><label>발행자 <b>'+esc(v.created_by_name||'')+'</b></label></div>';
       h+='<table><thead><tr><th>관리번호</th><th>수주번호</th><th>고객사</th><th class="num">금액</th></tr></thead><tbody>';
       ls.forEach(function(l){ h+='<tr><td>'+esc(l.code||l.mgmt_code||'—')+'</td><td>'+esc(l.so_no||'')+'</td><td>'+esc(l.customer||'—')+'</td><td class="num">'+sym+(Number(l.amount||0)).toLocaleString()+'</td></tr>'; });
       h+='</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:700;">합계</td><td class="num ti-total">'+sym+(Number(v.total_amount||0)).toLocaleString()+'</td></tr></tfoot></table>';
-      if(v.memo){ h+='<div style="margin-top:9px;color:#555;font-size:12.5px;">메모: '+esc(v.memo)+'</div>'; }
+      if(v.memo){ h+='<div style="margin-top:9px;color:var(--knk-text-secondary);font-size:12.5px;">메모: '+esc(v.memo)+'</div>'; }
       h+='</div><div class="ti-foot">';
       if(v.status!=='취소'){ h+='<button type="button" class="ti-btn danger" onclick="_tiCancel('+v.id+')">발행 취소</button>'; }
       h+='<button type="button" class="ti-btn" onclick="_tiCloseModal()">닫기</button></div></div></div>';
@@ -2526,19 +2484,19 @@ function schedBulkPreview(){
     if(tr.dataset.kind==='consumable') nCons++; else nProj++;
     var code=((tr.querySelector('.c1 a')||{}).textContent||'').trim();
     var nm=((tr.querySelector('td[data-col="name"]')||{}).textContent||'').trim();
-    if(lines.length<12) lines.push(esc(code)+' <span style="color:#999;">'+esc(nm)+'</span>');
+    if(lines.length<12) lines.push(esc(code)+' <span style="color:var(--knk-text-muted);">'+esc(nm)+'</span>');
   });
   _bulkPending={field:field, value:val, targets:targets};
-  var dispVal = (val==='') ? '<i style="color:#999;">(비움/해제)</i>' : esc(val);
+  var dispVal = (val==='') ? '<i style="color:var(--knk-text-muted);">(비움/해제)</i>' : esc(val);
   var warn='';
-  if(nCons>0 && CONS_OK_FIELDS.indexOf(field)<0){ warn+='<div style="margin-top:8px;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;padding:8px 10px;">⚠ 선택에 소모품 '+nCons+'건 포함 — 소모품은 이 항목을 보드에서 못 바꾸므로 건너뜁니다(프로젝트만 적용).</div>'; }
-  if(field==='cust'){ warn+='<div style="margin-top:8px;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:8px 10px;">ℹ 고객사명이 등록 고객사와 <b>정확히 1곳</b> 일치하면 자동 연결, 아니면 미매칭(빨강)으로 표시됩니다.</div>'; }
+  if(nCons>0 && CONS_OK_FIELDS.indexOf(field)<0){ warn+='<div style="margin-top:8px;color:var(--knk-warning);background:var(--knk-warning-subtle);border:1px solid var(--knk-warning-line);border-radius:7px;padding:8px 10px;">⚠ 선택에 소모품 '+nCons+'건 포함 — 소모품은 이 항목을 보드에서 못 바꾸므로 건너뜁니다(프로젝트만 적용).</div>'; }
+  if(field==='cust'){ warn+='<div style="margin-top:8px;color:var(--knk-info);background:var(--knk-info-subtle);border:1px solid var(--knk-info-line);border-radius:7px;padding:8px 10px;">ℹ 고객사명이 등록 고객사와 <b>정확히 1곳</b> 일치하면 자동 연결, 아니면 미매칭(빨강)으로 표시됩니다.</div>'; }
   var body=document.getElementById('bulkModalBody');
   body.innerHTML =
     '<div><b>'+esc(spec.label||field)+'</b> 항목을 <b style="color:var(--knk-red);">'+dispVal+'</b> (으)로 변경</div>'+
-    '<div style="margin-top:6px;color:#444;">대상 <b>'+rows.length+'건</b>'+(nProj?(' (프로젝트 '+nProj+(nCons?(' · 소모품 '+nCons):'')+')'):'')+'</div>'+
-    '<div style="margin-top:10px;max-height:38vh;overflow:auto;border:1px solid #eee;border-radius:7px;padding:8px 10px;font-family:monospace;font-size:12px;line-height:1.7;">'+
-      lines.join('<br>')+(rows.length>lines.length?('<br><span style="color:#999;">… 외 '+(rows.length-lines.length)+'건</span>'):'')+
+    '<div style="margin-top:6px;color:var(--knk-text-secondary);">대상 <b>'+rows.length+'건</b>'+(nProj?(' (프로젝트 '+nProj+(nCons?(' · 소모품 '+nCons):'')+')'):'')+'</div>'+
+    '<div style="margin-top:10px;max-height:38vh;overflow:auto;border:1px solid var(--knk-border-subtle);border-radius:7px;padding:8px 10px;font-family:monospace;font-size:12px;line-height:1.7;">'+
+      lines.join('<br>')+(rows.length>lines.length?('<br><span style="color:var(--knk-text-muted);">… 외 '+(rows.length-lines.length)+'건</span>'):'')+
     '</div>'+warn;
   var m=document.getElementById('bulkModal'); if(m) m.style.display='flex';
 }
@@ -2610,7 +2568,7 @@ try{
     try{
       var t=document.createElement('div');
       t.textContent=msg;
-      t.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99999;background:#1e293b;color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.28);opacity:0;transition:opacity .25s;max-width:92vw;';
+      t.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--knk-text-primary);color:var(--knk-text-inverse);padding:11px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.28);opacity:0;transition:opacity .25s;max-width:92vw;';
       document.body.appendChild(t);
       requestAnimationFrame(function(){ t.style.opacity='1'; });
       setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); }, 320); }, 4200);
