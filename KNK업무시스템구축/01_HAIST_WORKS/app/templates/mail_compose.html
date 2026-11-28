@@ -4,217 +4,217 @@
 {% include "_v5_partials/mail_pwa_head.html" %}
 <style>
   /* 11-19 대표 「모니터 크기 비율에 자동으로」: 폭 = 모니터 꽉(좌우 여백만) · 쓰는 칸 높이 = 남은 화면(아래 cmpFitEditor) */
-  .cmp-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:18px;margin:0 var(--content-pad,32px) 24px}
+  .cmp-card{border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,var(--knk-mail-c-white));padding:18px;margin:0 var(--content-pad,32px) 24px}
   .cmp-from{font-size:12px;color:var(--mute);padding:4px 2px 10px;border-bottom:1px solid var(--line)}
   .cmp-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:10px 2px}
   .cmp-row label{width:84px;font-size:13px;color:var(--mute);flex:none}
   .cmp-row input{flex:1;border:0;font-size:14px;outline:none;background:transparent}
   .cmp-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
   /* z1168(대표 지시): 같은 단추줄을 위에도 — 긴 메일에서 끝까지 안 내려가도 보낼 수 있게 */
-  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding:8px 0 10px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:var(--mt-surface,#fff)}
+  .cmp-actions-top{margin-top:0;margin-bottom:10px;padding:8px 0 10px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:var(--mt-surface,var(--knk-mail-c-white))}
   .mail-app-top ~ .main .cmp-actions-top{top:50px}   /* 앱(kmail) 머리띠 아래에 붙게 */
-  .cmp-keep{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 12px;margin:0 0 10px;font-size:13px;color:#78350f}
+  .cmp-keep{background:var(--knk-mail-c-yellow-04);border:1px solid var(--knk-mail-c-yellow-23);border-radius:9px;padding:8px 12px;margin:0 0 10px;font-size:13px;color:var(--knk-mail-c-orange-74-2)}
   .cmp-keep[hidden]{display:none}
-  .cmp-keep button{border:1px solid #fcd34d;background:var(--mt-surface,#fff);border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
-  .cmp-keep button.x{font-weight:400;color:#92400e}
-  .cmp-keep-n{color:#a16207;font-size:12px}
+  .cmp-keep button{border:1px solid var(--knk-mail-c-amber-35);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:7px;padding:3px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
+  .cmp-keep button.x{font-weight:400;color:var(--knk-mail-c-orange-69)}
+  .cmp-keep-n{color:var(--knk-mail-c-amber-67);font-size:12px}
   /* 11-19 「1단계」 보내기 전 확인 창 · 보내기 취소 띠 · 자동완성 고르기 · 전달 첨부 */
   .sc-wrap{position:fixed;inset:0;z-index:300;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:16px}
   .sc-wrap[hidden]{display:none}
-  .sc-box{background:var(--mt-surface,#fff);color:var(--mt-text,#111827);border-radius:14px;width:min(620px,100%);max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:18px 20px}
+  .sc-box{background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89));border-radius:14px;width:min(620px,100%);max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:18px 20px}
   .sc-box h3{margin:0 0 4px;font-size:17px}
-  .sc-sub{font-size:12.5px;color:var(--mt-mute,#6b7280);margin-bottom:12px}
-  .sc-item{display:flex;gap:10px;padding:10px 12px;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;margin-bottom:8px;font-size:13.5px;line-height:1.6;color:#713f12}
-  .sc-item.info{border-color:#bfdbfe;background:#eff6ff;color:#1e3a8a}
+  .sc-sub{font-size:12.5px;color:var(--mt-mute,var(--knk-mail-c-gray-54));margin-bottom:12px}
+  .sc-item{display:flex;gap:10px;padding:10px 12px;border:1px solid var(--knk-mail-c-amber-35);background:var(--knk-mail-c-yellow-04);border-radius:10px;margin-bottom:8px;font-size:13.5px;line-height:1.6;color:var(--knk-mail-c-orange-74)}
+  .sc-item.info{border-color:var(--knk-mail-c-blue-13);background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67)}
   .sc-item .ic{font-size:18px;flex:none;line-height:1.3}
   .sc-item b{display:block;font-size:14px}
   .sc-item .who{font-size:12.5px;word-break:break-all}
   .sc-item .fix{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px}
-  .sc-item .fix button{font:inherit;font-size:12.5px;font-weight:700;border:1px solid #b45309;background:#fff;color:#92400e;border-radius:7px;padding:4px 10px;cursor:pointer}
-  .sc-item.k-first{border-color:#fdba74;background:#fff7ed}
-  .cmp-q{font:inherit;font-size:11px;font-weight:800;width:17px;height:17px;line-height:15px;margin-left:4px;padding:0;border-radius:50%;border:1px solid var(--line,#d1d5db);background:var(--mt-surface,#fff);color:var(--mute,#6b7280);cursor:pointer;vertical-align:1px}
-  .cmp-q:hover{color:#1d4ed8;border-color:#93c5fd}
+  .sc-item .fix button{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--knk-mail-c-orange-63);background:var(--knk-mail-c-white);color:var(--knk-mail-c-orange-69);border-radius:7px;padding:4px 10px;cursor:pointer}
+  .sc-item.k-first{border-color:var(--knk-mail-c-orange-28);background:var(--knk-mail-c-amber-04)}
+  .cmp-q{font:inherit;font-size:11px;font-weight:800;width:17px;height:17px;line-height:15px;margin-left:4px;padding:0;border-radius:50%;border:1px solid var(--line,var(--knk-mail-c-gray-16-3));background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mute,var(--knk-mail-c-gray-54));cursor:pointer;vertical-align:1px}
+  .cmp-q:hover{color:var(--knk-mail-c-blue-52);border-color:var(--knk-mail-c-blue-22)}
   .sc-role{margin:8px 0 4px;font-size:13.5px;line-height:1.7}
   .sc-role b{display:inline-block;min-width:74px}
-  .sc-item.k-manner{border-color:#c4b5fd;background:#f5f3ff;color:#4c1d95}
-  .sc-item.k-night{border-color:#93c5fd;background:#eff6ff;color:#1e3a8a}
-  .sc-item.k-night .fix button{border-color:#1d4ed8;color:#1d4ed8}
-  .sc-item.k-other_cust{border-color:#fca5a5;background:#fef2f2;color:#7f1d1d}
+  .sc-item.k-manner{border-color:var(--knk-mail-c-violet-15);background:var(--knk-mail-c-violet-02);color:var(--knk-mail-c-violet-65)}
+  .sc-item.k-night{border-color:var(--knk-mail-c-blue-22);background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67)}
+  .sc-item.k-night .fix button{border-color:var(--knk-mail-c-blue-52);color:var(--knk-mail-c-blue-52)}
+  .sc-item.k-other_cust{border-color:var(--knk-mail-c-red-18);background:var(--knk-mail-c-red-03);color:var(--knk-mail-c-red-69)}
   .sc-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
-  .sc-btns button{font:inherit;font-size:14px;font-weight:700;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
-  .sc-btns button.go{background:var(--knk-red,#a5282c);border-color:var(--knk-red,#a5282c);color:#fff}
-  .sc-btns button.warn{background:#b45309;border-color:#b45309;color:#fff}
+  .sc-btns button{font:inherit;font-size:14px;font-weight:700;border-radius:9px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89))}
+  .sc-btns button.go{background:var(--knk-red);border-color:var(--knk-red);color:var(--knk-mail-c-white)}
+  .sc-btns button.warn{background:var(--knk-mail-c-orange-63);border-color:var(--knk-mail-c-orange-63);color:var(--knk-mail-c-white)}
   .sc-undo{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:310;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    max-width:calc(100vw - 24px);padding:12px 16px;border-radius:12px;background:#1f2937;color:#fff;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    max-width:calc(100vw - 24px);padding:12px 16px;border-radius:12px;background:var(--knk-mail-c-gray-83);color:var(--knk-mail-c-white);font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
   .sc-undo[hidden]{display:none}
   @media(max-width:640px){ .sc-undo{left:10px;right:10px;bottom:12px;transform:none;max-width:none;justify-content:space-between} .sc-undo>span:nth-child(2){flex:1;min-width:150px} }
-  .sc-undo .n{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--knk-red,#a5282c);font-weight:800}
-  .sc-undo button{font:inherit;font-size:13.5px;font-weight:700;border-radius:8px;padding:6px 13px;cursor:pointer;border:1px solid #4b5563;background:#374151;color:#fff}
-  .sc-undo button.cancel{background:#fff;color:#111827;border-color:#fff}
+  .sc-undo .n{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--knk-red);font-weight:800}
+  .sc-undo button{font:inherit;font-size:13.5px;font-weight:700;border-radius:8px;padding:6px 13px;cursor:pointer;border:1px solid var(--knk-mail-c-gray-66);background:var(--knk-mail-c-blue-73-2);color:var(--knk-mail-c-white)}
+  .sc-undo button.cancel{background:var(--knk-mail-c-white);color:var(--knk-mail-c-gray-89);border-color:var(--knk-mail-c-white)}
   .sc-lock{pointer-events:none;opacity:.55}
-  .ac-box .ac-it.on{background:#eef2ff}
-  .ac-box .ac-src{font-size:10.5px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:6px;padding:0 5px;margin-left:5px}
-  .cmp-bad{box-shadow:inset 0 -2px 0 #dc2626}
+  .ac-box .ac-it.on{background:var(--knk-mail-c-blue-03)}
+  .ac-box .ac-src{font-size:10.5px;font-weight:700;color:var(--knk-mail-c-indigo-49);background:var(--knk-mail-c-blue-03);border-radius:6px;padding:0 5px;margin-left:5px}
+  .cmp-bad{box-shadow:inset 0 -2px 0 var(--knk-mail-c-red-49)}
   .cmp-sigsel{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--mute)}
-  .cmp-sigsel select{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .cmp-sigsel select{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:2px 6px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink)}
   .sc-when{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
-  .sc-when button{font:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:10px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,#fff);color:var(--mt-text,#111827);text-align:left}
-  .sc-when button:hover{border-color:#93c5fd;background:#eff6ff}
-  .sc-when small{display:block;font-weight:500;color:var(--mt-mute,#6b7280);font-size:12px}
+  .sc-when button{font:inherit;font-size:14px;font-weight:700;border-radius:10px;padding:10px;cursor:pointer;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89));text-align:left}
+  .sc-when button:hover{border-color:var(--knk-mail-c-blue-22);background:var(--knk-mail-c-blue-03-2)}
+  .sc-when small{display:block;font-weight:500;color:var(--mt-mute,var(--knk-mail-c-gray-54));font-size:12px}
   .sc-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
   .sc-pick input{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
   /* 11-19 대표 「1단계」 — 📝 양식 · ⏳ 답 받기 · 👥 그룹 메일 명단 */
-  mark.knk-ph{background:#fef08a;color:inherit;border-radius:3px;padding:0 2px}
-  .cmp-tpl-pop{position:absolute;z-index:80;width:min(420px,92vw);max-height:420px;overflow:auto;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:8px}
+  mark.knk-ph{background:var(--knk-mail-c-yellow-23-2);color:inherit;border-radius:3px;padding:0 2px}
+  .cmp-tpl-pop{position:absolute;z-index:80;width:min(420px,92vw);max-height:420px;overflow:auto;background:var(--mt-surface,var(--knk-mail-c-white));border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:8px}
   .cmp-tpl-pop[hidden]{display:none}
-  .cmp-tpl-pop input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;margin-bottom:6px;background:var(--mt-surface,#fff);color:var(--ink)}
+  .cmp-tpl-pop input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;margin-bottom:6px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink)}
   .cmp-tpl-sec{font-size:11.5px;font-weight:800;color:var(--mute);padding:6px 6px 3px}
   .cmp-tpl-it{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px}
-  .cmp-tpl-it:hover{background:#eff6ff}
+  .cmp-tpl-it:hover{background:var(--knk-mail-c-blue-03-2)}
   .cmp-tpl-it .t{flex:1;font-weight:600}
-  .cmp-tpl-it .lg{font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;background:#eef2ff;color:#3730a3}
+  .cmp-tpl-it .lg{font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;background:var(--knk-mail-c-blue-03);color:var(--knk-mail-c-indigo-59)}
   .cmp-tpl-foot{border-top:1px solid var(--line);margin-top:6px;padding:7px 6px 2px;font-size:12px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
-  .cmp-wait{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--mt-text2,#374151);border:1px solid var(--line);border-radius:9px;padding:3px 4px 3px 9px;background:var(--mt-surface,#fff)}
+  .cmp-wait{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--mt-text2,var(--knk-mail-c-blue-73-2));border:1px solid var(--line);border-radius:9px;padding:3px 4px 3px 9px;background:var(--mt-surface,var(--knk-mail-c-white))}
   .cmp-wait select{font:inherit;font-size:12.5px;border:0;background:transparent;color:inherit;cursor:pointer}
-  .cmp-wait.on{border-color:#93c5fd;background:#eff6ff;color:#1e3a8a}
+  .cmp-wait.on{border-color:var(--knk-mail-c-blue-22);background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67)}
   .cmp-wait.no{opacity:.55}
   .cmp-grp{margin:2px 0 4px 96px;display:flex;flex-direction:column;gap:4px;font-size:12.5px}
   .cmp-grp[hidden]{display:none}
-  .cmp-grp .g{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:9px;padding:6px 10px;line-height:1.6}
-  .cmp-grp .g.u{border-color:#fde68a;background:#fffbeb;color:#92400e}
+  .cmp-grp .g{border:1px solid var(--knk-mail-c-blue-13);background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67);border-radius:9px;padding:6px 10px;line-height:1.6}
+  .cmp-grp .g.u{border-color:var(--knk-mail-c-yellow-23);background:var(--knk-mail-c-yellow-04);color:var(--knk-mail-c-orange-69)}
   .cmp-grp .g button{font:inherit;font-size:12px;font-weight:700;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;padding:0 2px}
   .cmp-grp .ppl{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
   .cmp-grp .ppl[hidden]{display:none}
-  .cmp-grp .ppl span{background:#fff;border:1px solid #bfdbfe;border-radius:999px;padding:1px 8px;color:#1e3a8a}
+  .cmp-grp .ppl span{background:var(--knk-mail-c-white);border:1px solid var(--knk-mail-c-blue-13);border-radius:999px;padding:1px 8px;color:var(--knk-mail-c-blue-67)}
   @media(max-width:700px){.cmp-grp{margin-left:0}}
   /* 11-20 2단계 — 받는 사람이 휴가면 작게 알려 줌(정보만 · 이음에 아무것도 안 보냄) */
   .cmp-vac{flex-direction:row;flex-wrap:wrap;gap:4px 6px;font-size:12px}
-  .cmp-vac .v{border:1px solid #a7f3d0;background:#ecfdf5;color:#065f46;border-radius:999px;padding:1px 9px;line-height:1.7}
-  html[data-mt="dark"] .cmp-vac .v{background:#052e2b;border-color:#065f46;color:#a7f3d0}
+  .cmp-vac .v{border:1px solid var(--knk-mail-c-teal-20);background:var(--knk-mail-c-teal-04);color:var(--knk-mail-c-teal-80);border-radius:999px;padding:1px 9px;line-height:1.7}
+  html[data-mt="dark"] .cmp-vac .v{background:var(--knk-mail-c-teal-90);border-color:var(--knk-mail-c-teal-80);color:var(--knk-mail-c-teal-20)}
   @media print{.cmp-grp{display:none !important}}
-  html[data-mt="dark"] .cmp-grp .g{background:#1e293b;border-color:#334155;color:#bfdbfe}
-  html[data-mt="dark"] .cmp-grp .ppl span{background:#0f172a;border-color:#334155;color:#bfdbfe}
-  html[data-mt="dark"] mark.knk-ph{background:#854d0e;color:#fef9c3}
+  html[data-mt="dark"] .cmp-grp .g{background:var(--knk-mail-c-blue-83);border-color:var(--knk-mail-c-blue-73);color:var(--knk-mail-c-blue-13)}
+  html[data-mt="dark"] .cmp-grp .ppl span{background:var(--knk-mail-c-blue-89);border-color:var(--knk-mail-c-blue-73);color:var(--knk-mail-c-blue-13)}
+  html[data-mt="dark"] mark.knk-ph{background:var(--knk-mail-c-orange-71);color:var(--knk-mail-c-yellow-12)}
   /* 11-19 대표 「웍스 달력 기준 · 확인 눌러 닫기 · 예약 날짜(요일) 시간 표시 → 보내기로 최종」 */
-  .sc-when button.on{border-color:#2563eb;background:#eff6ff;box-shadow:0 0 0 2px #93c5fd inset}
-  .sc-pick input.knk-cal{width:120px;cursor:pointer;background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
-  .sc-pick select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--mt-surface,#fff);color:var(--mt-text,#111827)}
-  .sc-prev{margin:12px 0 2px;padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1e3a8a;font-size:14px;font-weight:700}
-  .sc-prev.bad{background:#fef2f2;color:#991b1b}
-  .cmp-sched{display:inline-flex;align-items:center;gap:8px;margin-left:6px;padding:5px 6px 5px 12px;border-radius:999px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:13px;font-weight:800;white-space:nowrap}
+  .sc-when button.on{border-color:var(--knk-mail-c-blue-47);background:var(--knk-mail-c-blue-03-2);box-shadow:0 0 0 2px var(--knk-mail-c-blue-22) inset}
+  .sc-pick input.knk-cal{width:120px;cursor:pointer;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89))}
+  .sc-pick select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89))}
+  .sc-prev{margin:12px 0 2px;padding:10px 12px;border-radius:10px;background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67);font-size:14px;font-weight:700}
+  .sc-prev.bad{background:var(--knk-mail-c-red-03);color:var(--knk-mail-c-red-65)}
+  .cmp-sched{display:inline-flex;align-items:center;gap:8px;margin-left:6px;padding:5px 6px 5px 12px;border-radius:999px;background:var(--knk-mail-c-blue-03-2);border:1px solid var(--knk-mail-c-blue-22);color:var(--knk-mail-c-blue-67);font-size:13px;font-weight:800;white-space:nowrap}
   .cmp-sched[hidden]{display:none}
-  .cmp-sched button{font:inherit;font-size:12px;font-weight:700;border:0;border-radius:999px;padding:3px 9px;cursor:pointer;background:#fff;color:#1e3a8a}
-  .cmp-sched button.x{color:#991b1b}
-  html[data-mt="dark"] .cmp-sched, html[data-mt="dark"] .sc-prev{background:#1e293b;color:#bfdbfe;border-color:#334155}
-  html[data-mt="dark"] .cmp-sched button{background:#0f172a;color:#bfdbfe}
-  .cmp-pick{flex:none;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
-  .cmp-pick:hover{background:#e0e7ff}
+  .cmp-sched button{font:inherit;font-size:12px;font-weight:700;border:0;border-radius:999px;padding:3px 9px;cursor:pointer;background:var(--knk-mail-c-white);color:var(--knk-mail-c-blue-67)}
+  .cmp-sched button.x{color:var(--knk-mail-c-red-65)}
+  html[data-mt="dark"] .cmp-sched, html[data-mt="dark"] .sc-prev{background:var(--knk-mail-c-blue-83);color:var(--knk-mail-c-blue-13);border-color:var(--knk-mail-c-blue-73)}
+  html[data-mt="dark"] .cmp-sched button{background:var(--knk-mail-c-blue-89);color:var(--knk-mail-c-blue-13)}
+  .cmp-pick{flex:none;border:1px solid var(--knk-mail-c-blue-11);background:var(--knk-mail-c-blue-03);color:var(--knk-mail-c-indigo-59);border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit}
+  .cmp-pick:hover{background:var(--knk-mail-c-blue-06)}
   .ab-wrap{position:fixed;inset:0;z-index:200;background:rgba(15,23,42,.35);display:flex;align-items:center;justify-content:center}
   .ab-wrap[hidden]{display:none}
-  .ab-box{background:var(--mt-surface,#fff);border-radius:14px;width:min(640px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+  .ab-box{background:var(--mt-surface,var(--knk-mail-c-white));border-radius:14px;width:min(640px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
   .ab-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
   .ab-h b{font-size:15px}.ab-h input{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit}
   .ab-list{overflow:auto;flex:1;padding:4px 6px}
   .ab-row{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;font-size:13.5px;cursor:pointer}
-  .ab-row:hover{background:#f5f7ff}
-  .ab-row .co{color:var(--mute);font-size:12.5px}.ab-row .em{margin-left:auto;color:var(--mt-text2,#475569);font-size:12px}
+  .ab-row:hover{background:var(--knk-mail-c-blue-02)}
+  .ab-row .co{color:var(--mute);font-size:12.5px}.ab-row .em{margin-left:auto;color:var(--mt-text2,var(--knk-mail-c-gray-65));font-size:12px}
   .ab-f{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
   .ab-empty{padding:30px;text-align:center;color:var(--mute);font-size:13px}
   /* 11-20 대표 「주소록에 그룹메일 리스트 · 펼치기로 누가 포함됐는지 보고 보내기」 */
   .ab-tabs{display:flex;gap:6px;padding:8px 14px 0;border-bottom:1px solid var(--line)}
-  .ab-tab{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;padding:6px 14px;background:var(--mt-panel,#f8fafc);color:var(--mute);cursor:pointer;margin-bottom:-1px}
-  .ab-tab.on{background:var(--mt-surface,#fff);color:var(--ink);border-color:var(--line)}
+  .ab-tab{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--line);border-bottom:0;border-radius:9px 9px 0 0;padding:6px 14px;background:var(--mt-panel,var(--knk-mail-c-gray-02));color:var(--mute);cursor:pointer;margin-bottom:-1px}
+  .ab-tab.on{background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink);border-color:var(--line)}
   .ab-gsec{font-size:12px;font-weight:800;color:var(--mute);padding:8px 8px 3px}
   .ab-grp{border-radius:8px}
-  .ab-grp .ab-row .gn{font-size:12px;font-weight:800;border-radius:999px;padding:1px 8px;background:#eff6ff;color:#1e3a8a;margin-left:auto;flex:none}
-  .ab-grp .ab-row .ad{color:#1d4ed8;font-size:12px}
-  .ab-xp{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:7px;padding:2px 9px;background:var(--mt-surface,#fff);color:var(--ink);cursor:pointer;flex:none}
+  .ab-grp .ab-row .gn{font-size:12px;font-weight:800;border-radius:999px;padding:1px 8px;background:var(--knk-mail-c-blue-03-2);color:var(--knk-mail-c-blue-67);margin-left:auto;flex:none}
+  .ab-grp .ab-row .ad{color:var(--knk-mail-c-blue-52);font-size:12px}
+  .ab-xp{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:7px;padding:2px 9px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink);cursor:pointer;flex:none}
   .ab-mem{padding:2px 8px 8px 38px;display:flex;flex-direction:column;gap:1px}
   .ab-mem[hidden]{display:none}
   .ab-mem label{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 6px;border-radius:6px;cursor:pointer}
-  .ab-mem label:hover{background:#f5f7ff}
+  .ab-mem label:hover{background:var(--knk-mail-c-blue-02)}
   .ab-mem .em{margin-left:auto;color:var(--mute);font-size:11.5px}
   .ab-mem .tip{font-size:11.5px;color:var(--mute);padding:2px 6px 4px}
-  .ac-box div:hover{background:#f5f7ff}
-  .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:var(--mt-panel,#fafafa);margin-top:8px}
-  .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
-  .cmp-tb>button:hover,.cmp-color:hover{background:#f0f0f0}
+  .ac-box div:hover{background:var(--knk-mail-c-blue-02)}
+  .cmp-tb{display:flex;gap:4px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;padding:6px 8px;background:var(--mt-panel,var(--knk-mail-c-gray-02-4));margin-top:8px}
+  .cmp-tb>button,.cmp-color{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px}
+  .cmp-tb>button:hover,.cmp-color:hover{background:var(--knk-mail-c-gray-06-3)}
   .cmp-color{position:relative;font-weight:700;min-width:30px}
   .cmp-color input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
   /* 11-26 대표 「아웃룩처럼 도구 — 많이보다 쉽게」: 되돌리기·글자 크기·형광펜·정렬·번호 목록·표·그림 · 덜 쓰는 것은 「⋯ 더 보기」 */
   .cmp-tb>button.ic{min-width:30px;padding:0 6px}
-  .cmp-tb>button.on{background:#e0e7ff;border-color:#a5b4fc}
+  .cmp-tb>button.on{background:var(--knk-mail-c-blue-06);border-color:var(--knk-mail-c-blue-18)}
   /* 11-26 대표 「양식 아이콘 다른 걸로 · 너무 작아 · 다른 아이콘들과 다르게(눈에 들어오게)」 — 남색 채움 단추 */
-  #cTplBtn{display:inline-flex;align-items:center;gap:2px;height:30px;padding:0 12px;border-radius:8px;border:1px solid #4338ca;background:linear-gradient(180deg,#6366f1,#4f46e5);color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(79,70,229,.35);font-family:inherit}
+  #cTplBtn{display:inline-flex;align-items:center;gap:2px;height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--knk-mail-c-indigo-49);background:linear-gradient(180deg,var(--knk-mail-c-indigo-33),var(--knk-mail-c-indigo-41));color:var(--knk-mail-c-white);font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(79,70,229,.35);font-family:inherit}
   #cTplBtn:hover{filter:brightness(1.08)}
   #cTplBtn .cv{font-size:10px;opacity:.85;margin-left:3px}
-  html[data-mt="dark"] #cTplBtn{border-color:#818cf8}
+  html[data-mt="dark"] #cTplBtn{border-color:var(--knk-mail-c-indigo-26)}
   .cmp-tb svg{width:16px;height:16px;display:block}
   .cmp-tb .tb-sep{width:1px;height:18px;background:var(--line);margin:0 2px}
   .cmp-tb .tb-rel{position:relative;display:inline-block}
-  .cmp-tb .tb-rel>button{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px;color:inherit;font-family:inherit}
-  .cmp-tb .tb-rel>button:hover{background:#f0f0f0}
-  .cmp-fsz{font:inherit;font-size:12.5px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--mt-surface,#fff);color:var(--ink);padding:0 4px;cursor:pointer}
-  .cmp-mini{position:absolute;z-index:85;top:32px;left:0;background:var(--mt-surface,#fff);color:var(--mt-text,#111827);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:30px 10px 10px;min-width:180px}
+  .cmp-tb .tb-rel>button{font-size:13px;height:28px;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 9px;color:inherit;font-family:inherit}
+  .cmp-tb .tb-rel>button:hover{background:var(--knk-mail-c-gray-06-3)}
+  .cmp-fsz{font:inherit;font-size:12.5px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--ink);padding:0 4px;cursor:pointer}
+  .cmp-mini{position:absolute;z-index:85;top:32px;left:0;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89));border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:30px 10px 10px;min-width:180px}
   .cmp-mini[hidden]{display:none}
-  .cmp-mini .mx{position:absolute;top:4px;right:6px;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--mt-mute,#64748b);font-size:15px;font-weight:700;cursor:pointer;padding:0;font-family:inherit}
-  .cmp-mini .mx:hover{background:var(--mt-hover,#f1f3f5);color:var(--ink,#111827)}
+  .cmp-mini .mx{position:absolute;top:4px;right:6px;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--mt-mute,var(--knk-mail-c-gray-53));font-size:15px;font-weight:700;cursor:pointer;padding:0;font-family:inherit}
+  .cmp-mini .mx:hover{background:var(--mt-hover,var(--knk-mail-c-gray-05));color:var(--ink,var(--knk-mail-c-gray-89))}
   .cmp-mini .ttl{position:absolute;top:8px;left:10px;font-size:12px;font-weight:800;color:var(--mute)}
   .cmp-hl{display:flex;gap:6px;flex-wrap:wrap}
   .cmp-hl button{width:30px;height:28px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:12px;padding:0;font-family:inherit}
-  .cmp-hl button.none{width:auto;padding:0 8px;background:var(--mt-surface,#fff);color:inherit}
+  .cmp-hl button.none{width:auto;padding:0 8px;background:var(--mt-surface,var(--knk-mail-c-white));color:inherit}
   .cmp-tg{display:grid;grid-template-columns:repeat(8,20px);gap:3px}
-  .cmp-tg span{width:20px;height:20px;border:1px solid #cbd5e1;border-radius:3px;background:var(--mt-surface,#fff);cursor:pointer;box-sizing:border-box}
-  .cmp-tg span.on{background:#c7d2fe;border-color:#6366f1}
-  .cmp-tg-lab{margin-top:8px;font-size:12.5px;font-weight:700;text-align:center;color:var(--mt-text2,#374151)}
+  .cmp-tg span{width:20px;height:20px;border:1px solid var(--knk-mail-c-gray-16);border-radius:3px;background:var(--mt-surface,var(--knk-mail-c-white));cursor:pointer;box-sizing:border-box}
+  .cmp-tg span.on{background:var(--knk-mail-c-blue-11);border-color:var(--knk-mail-c-indigo-33)}
+  .cmp-tg-lab{margin-top:8px;font-size:12.5px;font-weight:700;text-align:center;color:var(--mt-text2,var(--knk-mail-c-blue-73-2))}
   .cmp-more{display:flex;flex-direction:column;gap:3px;min-width:200px}
   .cmp-more button{display:flex;align-items:center;gap:8px;text-align:left;font:inherit;font-size:13px;border:0;background:transparent;color:inherit;border-radius:7px;padding:6px 8px;cursor:pointer}
-  .cmp-more button:hover{background:#eff6ff}
+  .cmp-more button:hover{background:var(--knk-mail-c-blue-03-2)}
   .cmp-more button svg{width:16px;height:16px;flex:none}
   .cmp-more .mob-only{display:none}
   .cmp-more hr{border:0;border-top:1px solid var(--line);margin:3px 0;width:100%}
-  .cmp-defnote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#1e3a8a;background:#eff6ff;border:1px solid #bfdbfe;border-bottom:0;padding:5px 10px;line-height:1.6}
+  .cmp-defnote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--knk-mail-c-blue-67);background:var(--knk-mail-c-blue-03-2);border:1px solid var(--knk-mail-c-blue-13);border-bottom:0;padding:5px 10px;line-height:1.6}
   .cmp-defnote[hidden]{display:none}
-  .cmp-defnote button,.cmp-defnote a{font:inherit;font-size:12px;font-weight:700;border:1px solid #93c5fd;background:var(--mt-surface,#fff);color:#1e3a8a;border-radius:7px;padding:1px 9px;cursor:pointer;text-decoration:none}
-  html[data-mt="dark"] .cmp-defnote{background:#1e293b;border-color:#334155;color:#bfdbfe}
-  html[data-mt="dark"] .cmp-defnote button,html[data-mt="dark"] .cmp-defnote a{background:#0f172a;color:#bfdbfe;border-color:#334155}
+  .cmp-defnote button,.cmp-defnote a{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--knk-mail-c-blue-22);background:var(--mt-surface,var(--knk-mail-c-white));color:var(--knk-mail-c-blue-67);border-radius:7px;padding:1px 9px;cursor:pointer;text-decoration:none}
+  html[data-mt="dark"] .cmp-defnote{background:var(--knk-mail-c-blue-83);border-color:var(--knk-mail-c-blue-73);color:var(--knk-mail-c-blue-13)}
+  html[data-mt="dark"] .cmp-defnote button,html[data-mt="dark"] .cmp-defnote a{background:var(--knk-mail-c-blue-89);color:var(--knk-mail-c-blue-13);border-color:var(--knk-mail-c-blue-73)}
   /* 가운데 폭(노트북 반 화면 등): 덜 쓰는 것(되돌리기·정렬·번호 목록)은 「⋯ 더 보기」 안으로 */
   @media(max-width:1000px){ .cmp-tb .tb-wide{display:none !important} .cmp-more .mob-only{display:flex} }
-  .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:var(--mt-surface,#fff)}
-  .cmp-editor:empty:before{content:attr(data-ph);color:var(--mt-mute,#9ca3af)}
+  .cmp-editor{min-height:280px;border:1px solid var(--line);border-radius:0 0 8px 8px;outline:none;font-size:14px;line-height:1.7;padding:12px;overflow:auto;box-sizing:border-box;background:var(--mt-surface,var(--knk-mail-c-white))}
+  .cmp-editor:empty:before{content:attr(data-ph);color:var(--mt-mute,var(--knk-mail-c-gray-35-2))}
   .cmp-editor img{max-width:100%;height:auto;cursor:pointer}
-  .cmp-editor img.imgsel{outline:2px solid #7c3aed;outline-offset:1px}
-  .img-tb{position:absolute;z-index:70;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
-  .img-tb button{height:26px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:5px;cursor:pointer;padding:0 7px;font-size:12px}
-  .img-tb button:hover{background:#f0f0f0}
+  .cmp-editor img.imgsel{outline:2px solid var(--knk-mail-c-violet-42);outline-offset:1px}
+  .img-tb{position:absolute;z-index:70;background:var(--mt-surface,var(--knk-mail-c-white));border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+  .img-tb button{height:26px;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:5px;cursor:pointer;padding:0 7px;font-size:12px}
+  .img-tb button:hover{background:var(--knk-mail-c-gray-06-3)}
   .img-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
   .crop-mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center}
-  .crop-box{background:var(--mt-surface,#fff);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:94vw}
-  .crop-stage{position:relative;overflow:hidden;background:#222;align-self:center;line-height:0}
+  .crop-box{background:var(--mt-surface,var(--knk-mail-c-white));border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;max-width:94vw}
+  .crop-stage{position:relative;overflow:hidden;background:var(--knk-mail-c-gray-87-2);align-self:center;line-height:0}
   .crop-stage img{display:block;max-width:82vw;max-height:58vh;user-select:none;-webkit-user-drag:none}
-  .crop-sel{position:absolute;border:2px dashed #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;box-sizing:border-box}
-  .crop-sel .br{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;background:#7c3aed;border:2px solid #fff;border-radius:50%;cursor:se-resize}
+  .crop-sel{position:absolute;border:2px dashed var(--knk-mail-c-white);box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;box-sizing:border-box}
+  .crop-sel .br{position:absolute;right:-8px;bottom:-8px;width:15px;height:15px;background:var(--knk-mail-c-violet-42);border:2px solid var(--knk-mail-c-white);border-radius:50%;cursor:se-resize}
   .cmp-editor table td,.cmp-editor table th{min-width:24px}
-  .cmp-editor td.tblsel{outline:2px solid #7c3aed;outline-offset:-2px}
-  .paste-pop{position:absolute;z-index:80;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;gap:6px;align-items:center;font-size:12px}
-  .paste-pop button{height:28px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:6px;cursor:pointer;padding:0 10px;font-size:12px}
-  .paste-pop button:hover{background:#f0f0f0}
-  .tbl-tb{position:absolute;z-index:70;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
-  .tbl-tb button{height:26px;border:1px solid var(--line);background:var(--mt-surface,#fff);border-radius:5px;cursor:pointer;padding:0 7px;font-size:11.5px}
-  .tbl-tb button:hover{background:#f0f0f0}
+  .cmp-editor td.tblsel{outline:2px solid var(--knk-mail-c-violet-42);outline-offset:-2px}
+  .paste-pop{position:absolute;z-index:80;background:var(--mt-surface,var(--knk-mail-c-white));border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:6px;display:flex;gap:6px;align-items:center;font-size:12px}
+  .paste-pop button{height:28px;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:6px;cursor:pointer;padding:0 10px;font-size:12px}
+  .paste-pop button:hover{background:var(--knk-mail-c-gray-06-3)}
+  .tbl-tb{position:absolute;z-index:70;background:var(--mt-surface,var(--knk-mail-c-white));border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.16);padding:4px;display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+  .tbl-tb button{height:26px;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));border-radius:5px;cursor:pointer;padding:0 7px;font-size:11.5px}
+  .tbl-tb button:hover{background:var(--knk-mail-c-gray-06-3)}
   .tbl-tb .sep{width:1px;height:16px;background:var(--line);margin:0 2px}
   /* 11-26 2차 대표 「그림·표 크기를 마우스로 · 글꼴 · 글자색 단색 칸」 — 손잡이·테두리는 본문 밖 겹 요소(data-knk-ui)라 저장·보내기 HTML 에 안 섞임 */
   .cmp-tb .cmp-split{display:inline-flex;align-items:stretch}
   .cmp-tb .cmp-split>.sp-main{border-radius:6px 0 0 6px;flex-direction:column;gap:1px;padding:0 7px;line-height:1;min-width:30px}
   .cmp-tb .cmp-split>.sp-dd{border-radius:0 6px 6px 0;border-left:0;padding:0 4px;font-size:10px;color:var(--mute)}
   .cmp-split .sp-a{font-weight:800;font-size:13px}
-  .cmp-split .bar{display:block;width:16px;height:4px;border-radius:1px;background:#c00000;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .cmp-split .bar{display:block;width:16px;height:4px;border-radius:1px;background:var(--knk-mail-c-red-62);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
   .cmp-tb .tb-rel>.cmp-fontbtn{min-width:84px;justify-content:space-between;gap:4px}
   .cmp-fontbtn .fl{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cmp-tb .dd{font-size:10px;color:var(--mute)}
   .cmp-fonts{display:flex;flex-direction:column;gap:1px;min-width:220px}
   .cmp-fonts button{font-size:15px;text-align:left;border:0;background:transparent;color:inherit;border-radius:7px;padding:6px 9px;cursor:pointer}
-  .cmp-fonts button:hover,.cmp-fonts button.on{background:#eff6ff}
+  .cmp-fonts button:hover,.cmp-fonts button.on{background:var(--knk-mail-c-blue-03-2)}
   .cmp-fonts button small{font-family:system-ui,sans-serif;font-size:11px;color:var(--mute);margin-left:6px}
   .cmp-pal{display:flex;flex-direction:column;gap:4px}
   .cmp-pal .pal-lab{font-size:11.5px;font-weight:700;color:var(--mute);margin-top:4px}
@@ -222,36 +222,36 @@
   .pal-grid .gap{grid-column:1/-1;height:3px}
   .pal-row{display:flex;gap:3px;flex-wrap:wrap;min-height:20px;align-items:center}
   .cmp-pal .sw,.tbl-sub .sw{width:20px;height:20px;border:1px solid rgba(0,0,0,.18);border-radius:3px;padding:0;cursor:pointer;box-sizing:border-box;flex:none}
-  .cmp-pal .sw:hover,.tbl-sub .sw:hover{outline:2px solid #2563eb;outline-offset:1px}
-  .pal-auto{display:flex;align-items:center;gap:8px;font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--mt-surface,#fff);color:inherit;border-radius:7px;padding:4px 8px;cursor:pointer;text-align:left}
-  .pal-auto:hover{background:#eff6ff}
+  .cmp-pal .sw:hover,.tbl-sub .sw:hover{outline:2px solid var(--knk-mail-c-blue-47);outline-offset:1px}
+  .pal-auto{display:flex;align-items:center;gap:8px;font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--mt-surface,var(--knk-mail-c-white));color:inherit;border-radius:7px;padding:4px 8px;cursor:pointer;text-align:left}
+  .pal-auto:hover{background:var(--knk-mail-c-blue-03-2)}
   .pal-auto .sq{width:16px;height:16px;border:1px solid rgba(0,0,0,.25);border-radius:3px;display:inline-block;flex:none}
-  .pal-auto .sq.none{background:linear-gradient(135deg,#fff 45%,#dc2626 46%,#dc2626 54%,#fff 55%)}
+  .pal-auto .sq.none{background:linear-gradient(135deg,var(--knk-mail-c-white) 45%,var(--knk-mail-c-red-49) 46%,var(--knk-mail-c-red-49) 54%,var(--knk-mail-c-white) 55%)}
   .pal-empty,.pal-note{font-size:11.5px;color:var(--mute)}
-  .pal-more{position:relative;font-size:12.5px;color:#1d4ed8;cursor:pointer;margin-top:4px;display:inline-block}
+  .pal-more{position:relative;font-size:12.5px;color:var(--knk-mail-c-blue-52);cursor:pointer;margin-top:4px;display:inline-block}
   .pal-more input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-  .img-ov{position:absolute;z-index:65;border:2px solid #7c3aed;box-sizing:border-box;pointer-events:none}
+  .img-ov{position:absolute;z-index:65;border:2px solid var(--knk-mail-c-violet-42);box-sizing:border-box;pointer-events:none}
   .img-ov[hidden],.tbl-ov[hidden]{display:none}
-  .img-ov .h{position:absolute;width:14px;height:14px;background:#fff;border:2px solid #7c3aed;border-radius:3px;box-sizing:border-box;pointer-events:auto;touch-action:none}
+  .img-ov .h{position:absolute;width:14px;height:14px;background:var(--knk-mail-c-white);border:2px solid var(--knk-mail-c-violet-42);border-radius:3px;box-sizing:border-box;pointer-events:auto;touch-action:none}
   .img-ov .hnw{left:-8px;top:-8px;cursor:nwse-resize} .img-ov .hne{right:-8px;top:-8px;cursor:nesw-resize}
   .img-ov .hsw{left:-8px;bottom:-8px;cursor:nesw-resize} .img-ov .hse{right:-8px;bottom:-8px;cursor:nwse-resize}
-  .img-ov .sz{position:absolute;right:4px;bottom:4px;background:rgba(17,24,39,.75);color:#fff;font-size:11px;border-radius:4px;padding:1px 6px;white-space:nowrap}
+  .img-ov .sz{position:absolute;right:4px;bottom:4px;background:rgba(17,24,39,.75);color:var(--knk-mail-c-white);font-size:11px;border-radius:4px;padding:1px 6px;white-space:nowrap}
   .tbl-ov{position:absolute;z-index:64;pointer-events:none}
   .tbl-ov .cb{position:absolute;top:0;bottom:0;width:9px;transform:translateX(-50%);cursor:col-resize;pointer-events:auto;touch-action:none}
   .tbl-ov .rb{position:absolute;left:0;right:0;height:9px;transform:translateY(-50%);cursor:row-resize;pointer-events:auto;touch-action:none}
-  .tbl-ov .cb:hover,.tbl-ov .cb.on{background:linear-gradient(90deg,transparent 3px,#2563eb 3px,#2563eb 6px,transparent 6px)}
-  .tbl-ov .rb:hover,.tbl-ov .rb.on{background:linear-gradient(180deg,transparent 3px,#2563eb 3px,#2563eb 6px,transparent 6px)}
-  .tbl-ov .tc{position:absolute;right:-7px;bottom:-7px;width:13px;height:13px;background:#7c3aed;border:2px solid #fff;border-radius:3px;box-shadow:0 0 0 1px #7c3aed;box-sizing:border-box;cursor:nwse-resize;pointer-events:auto;touch-action:none}
+  .tbl-ov .cb:hover,.tbl-ov .cb.on{background:linear-gradient(90deg,transparent 3px,var(--knk-mail-c-blue-47) 3px,var(--knk-mail-c-blue-47) 6px,transparent 6px)}
+  .tbl-ov .rb:hover,.tbl-ov .rb.on{background:linear-gradient(180deg,transparent 3px,var(--knk-mail-c-blue-47) 3px,var(--knk-mail-c-blue-47) 6px,transparent 6px)}
+  .tbl-ov .tc{position:absolute;right:-7px;bottom:-7px;width:13px;height:13px;background:var(--knk-mail-c-violet-42);border:2px solid var(--knk-mail-c-white);border-radius:3px;box-shadow:0 0 0 1px var(--knk-mail-c-violet-42);box-sizing:border-box;cursor:nwse-resize;pointer-events:auto;touch-action:none}
   @media(pointer:coarse){ .tbl-ov .cb{width:18px} .tbl-ov .rb{height:18px} .tbl-ov .tc{width:22px;height:22px;right:-11px;bottom:-11px}
     .img-ov .h{width:22px;height:22px} .img-ov .hnw{left:-12px;top:-12px} .img-ov .hne{right:-12px;top:-12px} .img-ov .hsw{left:-12px;bottom:-12px} .img-ov .hse{right:-12px;bottom:-12px} }
   body.knk-resizing,body.knk-resizing *{user-select:none !important;-webkit-user-select:none !important}
   .img-tb,.tbl-tb{max-width:calc(100vw - 16px);box-sizing:border-box}
-  .img-tb button.x,.tbl-tb button.x{color:#991b1b;font-weight:700}
+  .img-tb button.x,.tbl-tb button.x{color:var(--knk-mail-c-red-65);font-weight:700}
   .img-tb .lab,.tbl-tb .lab{font-size:11px;font-weight:800;color:var(--mute);padding:0 2px 0 4px}
-  .img-tb button.on,.tbl-tb button.on{background:#e0e7ff;border-color:#a5b4fc}
-  .tbl-sub{position:absolute;left:0;top:calc(100% + 4px);z-index:72;background:var(--mt-surface,#fff);color:var(--mt-text,#111827);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:30px 10px 10px;min-width:230px;max-width:calc(100vw - 24px);box-sizing:border-box;display:flex;flex-direction:column;gap:6px}
+  .img-tb button.on,.tbl-tb button.on{background:var(--knk-mail-c-blue-06);border-color:var(--knk-mail-c-blue-18)}
+  .tbl-sub{position:absolute;left:0;top:calc(100% + 4px);z-index:72;background:var(--mt-surface,var(--knk-mail-c-white));color:var(--mt-text,var(--knk-mail-c-gray-89));border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.18);padding:30px 10px 10px;min-width:230px;max-width:calc(100vw - 24px);box-sizing:border-box;display:flex;flex-direction:column;gap:6px}
   .tbl-sub .ttl{position:absolute;top:8px;left:10px;font-size:12px;font-weight:800;color:var(--mute)}
-  .tbl-sub .mx{position:absolute;top:4px;right:6px;width:24px;height:24px;border:0;background:transparent;font-size:15px;font-weight:700;padding:0;color:var(--mt-mute,#64748b)}
+  .tbl-sub .mx{position:absolute;top:4px;right:6px;width:24px;height:24px;border:0;background:transparent;font-size:15px;font-weight:700;padding:0;color:var(--mt-mute,var(--knk-mail-c-gray-53))}
   .tbl-sub .opt{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:12px}
   .tbl-sub .opt b{min-width:34px;font-size:11.5px;color:var(--mute)}
   @media(max-width:640px){ .cmp-tb .tb-rel>.cmp-fontbtn{min-width:0} .cmp-fontbtn .fl{max-width:58px} .cmp-fsz{max-width:64px}
@@ -324,13 +324,13 @@
 {% include "_v5_partials/mail_popx.html" %}
   <div class="page-head"><div>
     <div class="crumbs"><a href="/mail/inbox">HAIST WORKS 메일함</a> · 메일 쓰기</div>
-    <h1 class="page-title">✏️ 메일 <em>쓰기</em></h1>
+    <h1 class="page-title">{{ mi('square-pen') }} 메일 <em>쓰기</em></h1>
   </div></div>
 
   {% if not ready %}
   <div class="form-card" style="border-color:var(--amber);margin:0 var(--content-pad,32px) 12px;">
-    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">⚠ 아직 <b>보내기 설정(발송망)</b>이 안 돼 있어 실제 발송이 안 됩니다.
-      {% if can_link %}<a href="/mail/account"><b>📮 내 회사 주소 연결</b></a>에서 내 회사 메일주소를 한 번 연결하면 바로 보낼 수 있습니다.
+    <div style="font-size:12.5px;color:var(--amber-deep);line-height:1.7;">{{ mi('triangle-alert') }} 아직 <b>보내기 설정(발송망)</b>이 안 돼 있어 실제 발송이 안 됩니다.
+      {% if can_link %}<a href="/mail/account"><b>{{ mi('mailbox') }} 내 회사 주소 연결</b></a>에서 내 회사 메일주소를 한 번 연결하면 바로 보낼 수 있습니다.
       {% elif is_admin %}<a href="/admin/mail-send"><b>메일 보내기 설정</b></a>에서 보내기 설정을 먼저 해 주세요.
       {% else %}관리자에게 보내기 설정을 요청하세요.{% endif %}
     </div>
@@ -340,23 +340,23 @@
   <div class="cmp-card">
     {# z1168(대표): 긴 메일에서도 끝까지 안 내려가고 보내기 → 11-18 「같은 단추는 한 번만」: 위 한 줄을 화면에 늘 붙여 두고 아래 같은 줄은 뺐다 #}
     <div class="cmp-actions cmp-actions-top">
-      <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
-      <button type="button" class="btn btn-secondary js-send" id="cSchedBtn" onclick="cmpSchedule()" {% if not ready %}disabled{% endif %} title="정한 때에 보내기 — 창을 닫아도 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 바꾸거나 취소">⏱ 예약</button>
+      <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>{{ mi('send') }} 보내기</button>
+      <button type="button" class="btn btn-secondary js-send" id="cSchedBtn" onclick="cmpSchedule()" {% if not ready %}disabled{% endif %} title="정한 때에 보내기 — 창을 닫아도 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 바꾸거나 취소">{{ mi('timer') }} 예약</button>
       <label class="cmp-wait" id="cWaitBox" title="바깥 거래처에 보내는 메일 — 이 날까지 답이 없으면 받은편지함 위에 알려 드림 · 답이 오면 저절로 빠짐">⏳ 답<span class="cw-t"> 받기</span> <select id="cWait"><option value="0">안 함</option><option value="1">내일까지</option><option value="2">2일 안</option><option value="3">3일 안</option><option value="5">5일 안</option><option value="7">1주 안</option></select></label>
       <input type="hidden" id="cNudgeOf" value="{{ prefill.nudge_of|default('') }}">
-      <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
+      <button type="button" class="btn btn-secondary" onclick="saveDraft()">{{ mi('save') }} 임시저장</button>
       <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
-      <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
-      {% if can_link %}<a href="/mail/account" class="btn btn-secondary{{ ' cmp-acct-ok' if acct_ok else '' }}" title="내 회사 메일 주소로 보내기 연결">📮 내 회사 주소 연결{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
-      <span class="cmp-sched" id="cSchedTag" hidden title="이 때에 서버가 보냅니다 — 창을 닫아도 됩니다">⏱ <span id="cSchedTxt"></span> 예약 <button type="button" onclick="cmpSchedule()">바꾸기</button><button type="button" class="x" onclick="cmpSchedClear()">✕ 예약 빼기</button></span>
+      <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">{{ mi('pen-line') }} 서명</a>
+      {% if can_link %}<a href="/mail/account" class="btn btn-secondary{{ ' cmp-acct-ok' if acct_ok else '' }}" title="내 회사 메일 주소로 보내기 연결">{{ mi('mailbox') }} 내 회사 주소 연결{% if not acct_ok %} {{ mi('triangle-alert') }}{% endif %}</a>{% endif %}
+      <span class="cmp-sched" id="cSchedTag" hidden title="이 때에 서버가 보냅니다 — 창을 닫아도 됩니다">{{ mi('timer') }}<span id="cSchedTxt"></span> 예약 <button type="button" onclick="cmpSchedule()">바꾸기</button><button type="button" class="x" onclick="cmpSchedClear()">✕ 예약 빼기</button></span>
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
-    <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
+    <div class="cmp-keep" id="cKeep" hidden>{{ mi('file-pen') }}<b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
     <div class="cmp-from"><span class="cmp-from-l">보내는 사람</span> <span><b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</span></div>
     <div class="cmp-row"><label title="받는사람 = 이 메일을 읽고 일을 해 줄 사람(답을 줄 사람)">받는사람<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cTo" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="이름이나 주소를 치면 아래에 고를 사람이 나옵니다 (여러 명은 쉼표)" value="{{ prefill.to }}" data-knk-no-draft><script>{# 11-28 M-6 휴대폰: 안내 글이 칸보다 길어 「…고…」로 잘림 → 짧은 글(그리기 전에 바꿈) #}(function(){ try{ if(window.matchMedia('(max-width:640px)').matches){ var i=document.getElementById('cTo'); if(i) i.placeholder='이름·주소를 치면 목록이 나와요'; } }catch(e){} })();</script>
-      <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">📇 주소록</button></div>
+      <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">{{ mi('contact') }} 주소록</button></div>
     <div class="cmp-row"><label title="참조 = 알고 있어야 할 사람(윗분·관련 부서) — 답할 사람은 아님">참조(CC)<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cCc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>
-      <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>
+      <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">{{ mi('contact') }} 주소록</button>
       <a href="javascript:void(0)" id="bccToggle" style="font-size:12px;color:var(--mute);text-decoration:none;flex:none;">+ 숨은참조</a></div>
     <div class="cmp-grp" id="cGrpInfo" hidden></div>
     <div class="cmp-grp cmp-vac" id="cVacInfo" hidden></div>
@@ -364,7 +364,7 @@
     <div class="cmp-row"><label>제목</label><input id="cSubj" type="text" placeholder="제목" value="{{ prefill.subject }}" data-knk-no-draft></div>
     {% if ai_on %}
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
-      <button type="button" class="btn btn-primary" id="cAiBtn" style="background:#7c3aed;border-color:#7c3aed;" onclick="aiCompose()">✨ AI로 정리</button>
+      <button type="button" class="btn btn-primary" id="cAiBtn" style="background:var(--knk-mail-c-violet-42);border-color:var(--knk-mail-c-violet-42);" onclick="aiCompose()">{{ mi('sparkles') }} AI로 정리</button>
       <span style="font-size:11.5px;color:var(--mute);">본문에 요점만 막 적고 누르면 → 정중한 업무 메일로 다듬어 줍니다</span>
     </div>
     {% endif %}
@@ -382,8 +382,8 @@
       <button type="button" class="ic" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>U</u></button>
       <span class="tb-rel cmp-split" data-pal="fore"><button type="button" id="cColor" class="sp-main" data-paint="fore" title="글자색 — 누르면 아래 막대 색으로 바로 칠함 · 다른 색은 ▾"><span class="sp-a">A</span><span class="bar"></span></button><button type="button" class="sp-dd" id="cColorDd" title="글자색 고르기" aria-label="글자색 고르기" aria-haspopup="true">▾</button>
         <div class="cmp-mini" id="cColorPop" hidden role="dialog" aria-label="글자색 고르기"><span class="ttl">A 글자색</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cColorPop">✕</button><div class="cmp-pal" data-pal="fore"></div></div></span>
-      <span class="tb-rel cmp-split" data-pal="hl"><button type="button" id="cHlBtn" class="sp-main" data-paint="hl" title="형광펜 — 누르면 아래 막대 색으로 바로 칠함 · 다른 색은 ▾"><span class="sp-a">🖍</span><span class="bar"></span></button><button type="button" class="sp-dd" id="cHlDd" title="형광펜 색 고르기" aria-label="형광펜 색 고르기" aria-haspopup="true">▾</button>
-        <div class="cmp-mini" id="cHlPop" hidden role="dialog" aria-label="형광펜 색 고르기"><span class="ttl">🖍 형광펜</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cHlPop">✕</button><div class="cmp-pal" data-pal="hl"></div></div></span>
+      <span class="tb-rel cmp-split" data-pal="hl"><button type="button" id="cHlBtn" class="sp-main" data-paint="hl" title="형광펜 — 누르면 아래 막대 색으로 바로 칠함 · 다른 색은 ▾"><span class="sp-a">{{ mi('highlighter') }}</span><span class="bar"></span></button><button type="button" class="sp-dd" id="cHlDd" title="형광펜 색 고르기" aria-label="형광펜 색 고르기" aria-haspopup="true">▾</button>
+        <div class="cmp-mini" id="cHlPop" hidden role="dialog" aria-label="형광펜 색 고르기"><span class="ttl">{{ mi('highlighter') }} 형광펜</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cHlPop">✕</button><div class="cmp-pal" data-pal="hl"></div></div></span>
       <span class="tb-sep"></span>
       <button type="button" class="ic tb-wide" data-cmd="justifyLeft" title="왼쪽 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8"/></svg></button>
       <button type="button" class="ic tb-wide" data-cmd="justifyCenter" title="가운데 정렬"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h12M4 6.5h8M2 9.5h12M4 12.5h8"/></svg></button>
@@ -391,13 +391,13 @@
       <button type="button" data-cmd="insertUnorderedList" title="글머리 목록">•<span class="tl">&nbsp;목록</span></button>
       <button type="button" class="tb-wide" data-cmd="insertOrderedList" title="번호 목록 (1. 2. 3.)">1.<span class="tl">&nbsp;번호</span></button>
       <span class="tb-sep"></span>
-      <button type="button" id="cLink" title="링크 넣기 · 링크 글자 안에서 누르면 주소 고치기·풀기">🔗<span class="tl">&nbsp;링크</span></button>
+      <button type="button" id="cLink" title="링크 넣기 · 링크 글자 안에서 누르면 주소 고치기·풀기">{{ mi('link') }}<span class="tl">&nbsp;링크</span></button>
       <span class="tb-rel"><button type="button" id="cTblBtn" title="표 넣기 — 칸 수를 골라 누르기 · 넣은 표의 칸을 누르면 행·열 더하기·빼기" aria-haspopup="true">▦<span class="tl">&nbsp;표</span></button>
         <div class="cmp-mini" id="cTblPop" hidden role="dialog" aria-label="표 크기 고르기"><span class="ttl">▦ 표 넣기</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cTblPop">✕</button>
           <div class="cmp-tg" id="cTblGrid"></div><div class="cmp-tg-lab" id="cTblLab">3 × 3 표</div></div></span>
-      <button type="button" id="cImgBtn" title="그림 넣기 — 본문 속에 사진·그림(큰 사진은 알맞게 줄여 넣음) · 넣은 그림을 누르면 크기·정렬·자르기">🖼<span class="tl">&nbsp;그림</span></button>
+      <button type="button" id="cImgBtn" title="그림 넣기 — 본문 속에 사진·그림(큰 사진은 알맞게 줄여 넣음) · 넣은 그림을 누르면 크기·정렬·자르기">{{ mi('image') }}<span class="tl">&nbsp;그림</span></button>
       <input type="file" id="cImgFile" accept="image/*" multiple data-knk-no-dropzone style="display:none">
-      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">📑<span class="tl-keep">&nbsp;양식</span><span class="cv">▾</span></button>
+      <span style="position:relative;display:inline-block"><button type="button" id="cTplBtn" title="자주 쓰는 글(견적 송부·발주 확인·납기 안내…) 넣기 — 노란 [빈칸]은 Tab 키로 차례로">{{ mi('clipboard-list') }}<span class="tl-keep">&nbsp;양식</span><span class="cv">▾</span></button>
         <div class="cmp-tpl-pop" id="cTplPop" hidden></div></span>
       <span class="tb-rel"><button type="button" id="cMoreBtn" title="도구 더 보기 — 들여쓰기·가로줄·취소선·서식 지우기" aria-haspopup="true">⋯<span class="tl">&nbsp;더 보기</span></button>
         <div class="cmp-mini" id="cMorePop" hidden role="dialog" aria-label="도구 더 보기"><span class="ttl">⋯ 도구 더 보기</span><button type="button" class="mx" title="닫기" aria-label="닫기" data-close="cMorePop">✕</button>
@@ -413,10 +413,10 @@
             <button type="button" data-cmd="outdent"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 3.5h7M7 6.5h7M7 9.5h7M2 12.5h12M5 5L2 7.5 5 10"/></svg>내어쓰기</button>
             <button type="button" id="cHrBtn">― 가로줄 넣기</button>
             <button type="button" data-cmd="strikeThrough"><s>가</s> 취소선</button>
-            <button type="button" id="cUnlink" title="커서가 있는 링크를 풉니다(글자는 남음)">⛓ 링크 풀기</button>
+            <button type="button" id="cUnlink" title="커서가 있는 링크를 풉니다(글자는 남음)">{{ mi('link') }} 링크 풀기</button>
             <button type="button" id="cClear" title="고른 글의 굵게·색·크기 등을 지움">✕ 서식 지우기</button>
           </div></div></span>
-      {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">✍ <select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}"{% if (g.slot|string) == (sig_default|default('')|string) %} selected{% endif %}>{{ g.name }}</option>{% endfor %}{% if not (sig_list|default([]) and (sig_list[0].slot|string).startswith('co-')) %}<option value="none"{% if sig_default|default('') == 'none' %} selected{% endif %}>서명 없음</option>{% endif %}</select></label>{% endif %}
+      {% if sig_list|default([])|length > 1 %}<label class="cmp-sigsel" title="✍ 서명 고르기 — 본문 속 서명을 바꿔 넣음(서명 만들기: 위 「✍️ 서명」)">{{ mi('pen-line') }}<select id="cSigSel" onchange="cmpSigSwap(this.value)">{% for g in sig_list %}<option value="{{ g.slot }}"{% if (g.slot|string) == (sig_default|default('')|string) %} selected{% endif %}>{{ g.name }}</option>{% endfor %}{% if not (sig_list|default([]) and (sig_list[0].slot|string).startswith('co-')) %}<option value="none"{% if sig_default|default('') == 'none' %} selected{% endif %}>서명 없음</option>{% endif %}</select></label>{% endif %}
     </div>
     <div class="cmp-defnote" id="cDefNote" hidden role="status"></div>{# 11-26 새 메일 기본 양식을 넣었을 때 한 줄 안내(이번 메일에서 빼기 · 바꾸기·끄기) — 본문에 글을 쓰면 사라짐 #}
     <div id="cBody" class="cmp-editor" contenteditable="true" data-ph="내용을 입력하세요..."></div>
@@ -431,9 +431,9 @@
       <label style="padding-top:6px;">첨부</label>
       <div style="flex:1;">
         <div style="position:relative;display:inline-block;">
-          <button type="button" class="btn btn-secondary" id="cAttachBtn" title="파일 첨부">📎 첨부</button>
+          <button type="button" class="btn btn-secondary" id="cAttachBtn" title="파일 첨부">{{ mi('paperclip') }} 첨부</button>
           <div id="cAttachMenu" style="display:none;position:absolute;z-index:60;top:36px;left:0;width:290px;background:var(--mt-surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;">
-            <button type="button" class="btn btn-secondary" id="cPickBtn" style="width:100%;margin-bottom:8px;">📁 내 컴퓨터에서 파일 선택</button>
+            <button type="button" class="btn btn-secondary" id="cPickBtn" style="width:100%;margin-bottom:8px;">{{ mi('folder') }} 내 컴퓨터에서 파일 선택</button>
             <div id="cDrop" style="border:2px dashed var(--line);border-radius:8px;padding:16px;text-align:center;font-size:12px;color:var(--mute);">여기로 파일을 <b>끌어다 놓기</b><br><span style="font-size:11px;">여러 개 가능 · 10MB↑ 자동 대용량</span></div>
           </div>
         </div>
@@ -470,8 +470,8 @@
   <button type="button" class="cancel" onclick="cmpUndoCancel()">↺ 보내기 취소</button><button type="button" onclick="cmpUndoNow()">지금 보내기</button></div>
 <div class="ab-wrap" id="abWrap" hidden onclick="if(event.target===this) abClose()">
   <div class="ab-box" role="dialog" aria-label="주소록에서 고르기">
-    <div class="ab-h"><b>📇 주소록</b><input id="abQ" type="text" placeholder="이름·회사·주소로 찾기" oninput="abFind()" autocomplete="off"><button type="button" class="btn btn-secondary" onclick="abClose()">닫기</button></div>
-    <div class="ab-tabs"><button type="button" class="ab-tab on" id="abTabC" onclick="abTab('c')">📇 연락처</button><button type="button" class="ab-tab" id="abTabG" onclick="abTab('g')">👥 그룹 메일 · 묶음</button></div>
+    <div class="ab-h"><b>{{ mi('contact') }} 주소록</b><input id="abQ" type="text" placeholder="이름·회사·주소로 찾기" oninput="abFind()" autocomplete="off"><button type="button" class="btn btn-secondary" onclick="abClose()">닫기</button></div>
+    <div class="ab-tabs"><button type="button" class="ab-tab on" id="abTabC" onclick="abTab('c')">{{ mi('contact') }} 연락처</button><button type="button" class="ab-tab" id="abTabG" onclick="abTab('g')">{{ mi('users') }} 그룹 메일 · 묶음</button></div>
     <div class="ab-list" id="abList"><div class="ab-empty">불러오는 중…</div></div>
     <div class="ab-f"><span id="abN" style="font-size:12.5px;color:var(--mute)">0명 고름</span><span style="flex:1"></span>
       <button type="button" class="btn btn-primary" onclick="abPut('cTo')">받는 사람에 넣기</button>
@@ -597,7 +597,7 @@ function abPut(target){
   function attRow(icon, file){
     var list=document.getElementById('cAttList');
     var row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:#fafafa';
+    row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:var(--knk-mail-c-gray-02-4)';
     var nm=document.createElement('span'); nm.style.flex='1';
     nm.textContent=icon+' '+file.name+' ('+hsize(file.size)+')';   // textContent = XSS 안전
     row.appendChild(nm); list.appendChild(row);
@@ -661,7 +661,7 @@ function abPut(target){
     e.target.value=''; closeMenu();   // 같은 파일 재선택 가능
   });
   if(drop){
-    drop.addEventListener('dragover',function(e){ e.preventDefault(); drop.style.background='#fef3c7'; drop.style.borderColor='var(--amber-deep,#b8852e)'; });
+    drop.addEventListener('dragover',function(e){ e.preventDefault(); drop.style.background='var(--knk-mail-c-yellow-11)'; drop.style.borderColor='var(--amber-deep,var(--knk-mail-c-amber-55))'; });
     drop.addEventListener('dragleave',function(e){ e.preventDefault(); drop.style.background=''; drop.style.borderColor='var(--line)'; });
     drop.addEventListener('drop',async function(e){ e.preventDefault(); drop.style.background=''; drop.style.borderColor='var(--line)';
       var files=e.dataTransfer.files; for(var i=0;i<files.length;i++){ await addFile(files[i]); } closeMenu(); });
@@ -772,7 +772,7 @@ function abPut(target){
     palRows().forEach(function(r, ri){ if(ri===1) h+='<span class="gap"></span>'; r.forEach(function(c, ci){ h+=swB(c, PAL_NAME[ci]+(PAL_ROWNAME[ri] ? ' '+PAL_ROWNAME[ri] : '')); }); });
     h+='</div><div class="pal-lab">최근 쓴 색</div><div class="pal-row">';
     var rc=recentGet(kind); h+= rc.length ? rc.map(function(c){ return swB(c); }).join('') : '<span class="pal-empty">아직 없음 — 고른 색이 여기에 남습니다</span>';
-    h+='</div><label class="pal-more">🎨 다른 색 고르기…<input type="color" value="'+(isHex(PALS[kind].last) ? PALS[kind].last : '#c00000')+'"></label>';
+    h+='</div><label class="pal-more">'+mdI('palette')+' 다른 색 고르기…<input type="color" value="'+(isHex(PALS[kind].last) ? PALS[kind].last : '#c00000')+'"></label>';
     box.innerHTML=h; }
   function paint(kind, c){
     if(kind==='fore') exec('foreColor', c, true); else exec('hiliteColor', c, true);
@@ -1057,9 +1057,9 @@ function abPut(target){
     pasteData=data; pasteText=text; closePaste();
     pastePop=document.createElement('div'); pastePop.className='paste-pop';
     var lab=document.createElement('span'); lab.textContent='붙여넣기:'; lab.style.color='var(--mute)'; pastePop.appendChild(lab);
-    var bt=document.createElement('button'); bt.type='button'; bt.textContent='📊 표로';
+    var bt=document.createElement('button'); bt.type='button'; bt.textContent='📊 표로'; if(window.mdFix) mdFix(bt);
     bt.addEventListener('click',function(){ insertHtmlAtRange(dataToTableHtml(pasteData)); closePaste(); });
-    var bx=document.createElement('button'); bx.type='button'; bx.textContent='📝 텍스트로';
+    var bx=document.createElement('button'); bx.type='button'; bx.textContent='📝 텍스트로'; if(window.mdFix) mdFix(bx);
     bx.addEventListener('click',function(){ insertHtmlAtRange(escHtml(pasteText).replace(/\t/g,'&nbsp;&nbsp;&nbsp;&nbsp;').replace(/\n/g,'<br>')); closePaste(); });
     pastePop.appendChild(bt); pastePop.appendChild(bx);
     var rect=null; try{ rect=pasteRange.getBoundingClientRect(); }catch(_){}
@@ -1549,7 +1549,7 @@ function abPut(target){
     var hs='', ms='';
     for(var h=0;h<24;h++) hs+='<option value="'+h+'"'+(h===+cur.h?' selected':'')+'>'+(h<12?'오전 ':'오후 ')+((h%12)||12)+'시</option>';
     for(var m=0;m<60;m+=5) ms+='<option value="'+m+'"'+(m===+cur.m?' selected':'')+'>'+scP2(m)+'분</option>';
-    scOpen('<h3>⏱ 언제 보낼까요?</h3><div class="sc-sub">고른 뒤 「✓ 확인」 → 위 「⏱ 예약 보내기」로 보내면 예약됩니다 · 창을 닫아도 그때 서버가 보냅니다 · 시각은 내 소속('+(SCHED_OFF===7?'베트남':'본사')+') 기준</div>'+
+    scOpen('<h3>'+mdI('timer')+' 언제 보낼까요?</h3><div class="sc-sub">고른 뒤 「✓ 확인」 → 위 「'+mdI('timer')+' 예약 보내기」로 보내면 예약됩니다 · 창을 닫아도 그때 서버가 보냅니다 · 시각은 내 소속('+(SCHED_OFF===7?'베트남':'본사')+') 기준</div>'+
       '<div class="sc-when"><button type="button" onclick="cmpSchedQuick(\'tom8\',this)">내일 아침 8시<small>출근 전에 도착</small></button><button type="button" onclick="cmpSchedQuick(\'tom9\',this)">내일 오전 9시</button>'+
       '<button type="button" onclick="cmpSchedQuick(\'tom14\',this)">내일 오후 2시</button><button type="button" onclick="cmpSchedQuick(\'nextmon9\',this)">다음 주 월요일 9시</button></div>'+
       '<div class="sc-pick"><b>직접 고르기</b> 날짜 <input type="text" class="knk-cal" id="scDate" readonly value="'+cur.date+'" title="눌러서 달력에서 고르기"> 시각 <select id="scH">'+hs+'</select><select id="scM">'+ms+'</select></div>'+
@@ -1565,17 +1565,17 @@ function abPut(target){
     if(window.KnkCal) KnkCal.hide(); scClose(); scShow(); cmsg('',''); };
   window.cmpSchedClear=function(){ SCHED=null; scShow(); cmsg('예약을 뺐습니다 — 「📤 보내기」를 누르면 바로 보냅니다',''); };
   function scShow(){ var tag=document.getElementById('cSchedTag'), b=document.getElementById('cSendBtn');
-    if(SCHED){ document.getElementById('cSchedTxt').textContent=scLabel(SCHED.date,SCHED.h,SCHED.m); tag.hidden=false; b.textContent='⏱ 예약 보내기'; b.title=scLabel(SCHED.date,SCHED.h,SCHED.m)+' 에 보내도록 예약합니다'; }
-    else { tag.hidden=true; b.textContent='📤 보내기'; b.title=''; } }
+    if(SCHED){ document.getElementById('cSchedTxt').textContent=scLabel(SCHED.date,SCHED.h,SCHED.m); tag.hidden=false; b.textContent='⏱ 예약 보내기'; if(window.mdFix) mdFix(b); b.title=scLabel(SCHED.date,SCHED.h,SCHED.m)+' 에 보내도록 예약합니다'; }
+    else { tag.hidden=true; b.textContent='📤 보내기'; if(window.mdFix) mdFix(b); b.title=''; } }
   function cmpSchedSend(){
     if(!scValid(SCHED.date,SCHED.h,SCHED.m)){ cmsg('⚠ 예약 시각('+scLabel(SCHED.date,SCHED.h,SCHED.m)+')이 너무 가깝거나 지났습니다 — 「바꾸기」로 다시 골라 주세요','red'); return; }
     var r0=checks();
     if(r0.stop){ cmsg('⚠ '+r0.stop,'red'); return; }
     cmpPre(r0, function(r){
     var lab=scLabel(SCHED.date,SCHED.h,SCHED.m), hasWarn=r.warns.some(function(w){ return !w.info; });
-    scOpen('<h3>⏱ '+esc(lab)+' 에 보낼까요?</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+(r.P.cBcc.ok.length?' · 숨은참조 '+r.P.cBcc.ok.length+'명':'')+' · 창을 닫아도 그때 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 취소 가능</div>'+
+    scOpen('<h3>'+mdI('timer')+' '+esc(lab)+' 에 보낼까요?</h3><div class="sc-sub">받는 사람 '+r.P.cTo.ok.length+'명'+(r.P.cCc.ok.length?' · 참조 '+r.P.cCc.ok.length+'명':'')+(r.P.cBcc.ok.length?' · 숨은참조 '+r.P.cBcc.ok.length+'명':'')+' · 창을 닫아도 그때 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 취소 가능</div>'+
       scItems(r.warns)+
-      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button><button type="button" class="'+(hasWarn?'warn':'go')+'" onclick="scClose();cmpSchedGo(\''+SCHED.at+'\')">'+(hasWarn?'그래도 예약':'⏱ 예약 보내기')+'</button></div>');
+      '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">← 고치기</button><button type="button" class="'+(hasWarn?'warn':'go')+'" onclick="scClose();cmpSchedGo(\''+SCHED.at+'\')">'+(hasWarn?'그래도 예약':(window.mdI?mdI('timer')+' ':'')+'예약 보내기')+'</button></div>');
     });
   }
   window.cmpSchedGo=async function(at){
@@ -1616,8 +1616,8 @@ function abPut(target){
         var rf=j.refused||[];
         if(rf.length){
           cmsg('⚠ 일부 주소에는 못 갔습니다','red');
-          scOpen('<h3>⚠ 보냈지만, 일부 주소에는 못 갔습니다</h3><div class="sc-sub">'+(j.sent_n||0)+'명에게는 보냈습니다. 아래 주소는 메일 서버가 받지 않았습니다 — 주소를 확인해 다시 보내 주세요.</div>'+
-            rf.map(function(x){ return '<div class="sc-item"><span class="ic">✉</span><div><b>'+esc(x.addr)+'</b><span class="who">'+esc(x.why||'')+'</span></div></div>'; }).join('')+
+          scOpen('<h3>'+mdI('triangle-alert')+' 보냈지만, 일부 주소에는 못 갔습니다</h3><div class="sc-sub">'+(j.sent_n||0)+'명에게는 보냈습니다. 아래 주소는 메일 서버가 받지 않았습니다 — 주소를 확인해 다시 보내 주세요.</div>'+
+            rf.map(function(x){ return '<div class="sc-item"><span class="ic">'+mdI('mail')+'</span><div><b>'+esc(x.addr)+'</b><span class="who">'+esc(x.why||'')+'</span></div></div>'; }).join('')+
             '<div class="sc-btns"><button type="button" class="go" onclick="cmpGo(\'/mail/sent\')">'+(window.CMP_WIN?'확인 — 창 닫기':'보낸편지함으로')+'</button></div>');
           return;
         }
@@ -1647,7 +1647,7 @@ function abPut(target){
     if(!window._cDirty && !AUTO_DRAFT){ window._cmpLeaving=true; if(window.cKeepClear) window.cKeepClear(); cmpGo('/mail/inbox'); return; }
     scOpen('<h3>쓰던 메일을 어떻게 할까요?</h3><div class="sc-sub">임시보관함에 두면 나중에 이어 쓸 수 있습니다.</div>'+
       '<div class="sc-btns"><button type="button" class="back" onclick="scClose()">계속 쓰기</button>'+
-      '<button type="button" onclick="cmpLeave(false)">🗑 버리고 나가기</button><button type="button" class="go" onclick="cmpLeave(true)">📝 임시보관함에 두고 나가기</button></div>');
+      '<button type="button" onclick="cmpLeave(false)">'+(window.mdI?mdI('trash-2')+' ':'')+'버리고 나가기</button><button type="button" class="go" onclick="cmpLeave(true)">'+(window.mdI?mdI('file-pen')+' ':'')+'임시보관함에 두고 나가기</button></div>');
   };
   window.cmpLeave=async function(keep){
     window._cmpLeaving=true;
@@ -1683,10 +1683,10 @@ function abPut(target){
       close(); if(!list.length) return; items=list;
       box=document.createElement('div'); box.className='ac-box';
       var r=input.getBoundingClientRect();
-      box.style.cssText='position:absolute;z-index:9999;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.13);max-height:240px;overflow:auto;';
+      box.style.cssText='position:absolute;z-index:9999;background:var(--knk-mail-c-white);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.13);max-height:240px;overflow:auto;';
       box.style.left=(r.left+window.scrollX)+'px'; box.style.top=(r.bottom+window.scrollY+2)+'px'; box.style.width=Math.max(r.width,240)+'px';
       list.forEach(function(it,i){
-        var d=document.createElement('div'); d.className='ac-it'; d.style.cssText='padding:7px 11px;cursor:pointer;border-bottom:1px solid #f1f1f1';
+        var d=document.createElement('div'); d.className='ac-it'; d.style.cssText='padding:7px 11px;cursor:pointer;border-bottom:1px solid var(--knk-mail-c-gray-05-2)';
         var nm=document.createElement('div'); nm.style.fontWeight='600'; nm.style.fontSize='13px';
         nm.textContent=(it.name||'')+(it.company? ' · '+it.company:'')+(it.position? ' '+it.position:'');  // textContent=XSS 안전
         if(it.src){ var sb=document.createElement('span'); sb.className='ac-src'; sb.textContent=it.src; nm.appendChild(sb); }
@@ -1793,7 +1793,7 @@ function abPut(target){
     if(top){ var gap=document.createElement('div'); gap.innerHTML='<br>'; ED2.insertBefore(d, top); ED2.insertBefore(gap, top); }
     else { ED2.innerHTML=''; ED2.appendChild(d); }
     DEF_TXT=defNorm(d.textContent);
-    if(DN){ DN.innerHTML='✉ <span>기본 양식 <b></b>을(를) 넣었습니다</span><button type="button" onclick="cmpDefRemove()" title="이 메일에서만 뺌 — 다음 새 메일에는 또 들어감">이번 메일에서 빼기</button>'+
+    if(DN){ DN.innerHTML=''+mdI('mail')+' <span>기본 양식 <b></b>을(를) 넣었습니다</span><button type="button" onclick="cmpDefRemove()" title="이 메일에서만 뺌 — 다음 새 메일에는 또 들어감">이번 메일에서 빼기</button>'+
         '<a href="/mail/templates?from=compose" target="_blank" rel="noopener" title="다른 양식을 기본으로 정하거나 끄기 — 새 창">바꾸기·끄기 ↗</a>';
       DN.querySelector('b').textContent='「'+(t.title||'기본 양식')+'」'; DN.hidden=false; }
     return true;
@@ -1823,15 +1823,15 @@ function abPut(target){
       var it=(TPLS[sec[0]]||[]).filter(function(t){ return !q || (t.title+' '+t.subject+' '+(L[t.lang]||'')).toLowerCase().indexOf(q)>=0; });
       if(!it.length) return; html+='<div class="cmp-tpl-sec">'+sec[1]+'</div>';
       it.forEach(function(t){ var isDef=sec[0]!=='builtin' && t.id && +t.id===+(TPLS.default_id||0);   // 11-26 ✉ 새 메일 기본 양식 표시
-        html+='<div class="cmp-tpl-it" data-i="'+all.length+'"><span class="t">'+escH(t.title)+'</span>'+(isDef?'<span class="lg" style="background:#dbeafe;color:#1e40af" title="새 메일을 열면 저절로 들어가는 양식">✉ 기본</span>':'')+'<span class="lg">'+escH(L[t.lang]||t.lang)+'</span></div>'; all.push(t); }); });
+        html+='<div class="cmp-tpl-it" data-i="'+all.length+'"><span class="t">'+escH(t.title)+'</span>'+(isDef?'<span class="lg" style="background:var(--knk-mail-c-blue-07);color:var(--knk-mail-c-blue-60)" title="새 메일을 열면 저절로 들어가는 양식">'+mdI('mail')+' 기본</span>':'')+'<span class="lg">'+escH(L[t.lang]||t.lang)+'</span></div>'; all.push(t); }); });
     if(!all.length) html+='<div style="padding:10px;color:var(--mute);font-size:13px">맞는 양식이 없어요</div>';
-    html+='<div class="cmp-tpl-foot"><span>노란 [빈칸] → Tab 키로 차례로</span><a href="/mail/templates?from=compose" target="_blank" rel="noopener">✏ 양식 만들기·고치기</a></div>';
+    html+='<div class="cmp-tpl-foot"><span>노란 [빈칸] → Tab 키로 차례로</span><a href="/mail/templates?from=compose" target="_blank" rel="noopener">'+mdI('square-pen')+' 양식 만들기·고치기</a></div>';
     var box=pop.querySelector('.lst'); box.innerHTML=html;
     box.querySelectorAll('.cmp-tpl-it').forEach(function(el){ el.addEventListener('mousedown', function(e){ e.preventDefault(); pop.hidden=true; insertTpl(all[+el.dataset.i]); }); });
   }
   document.getElementById('cTplBtn').addEventListener('click', async function(e){
     e.preventDefault(); if(window.cmpCloseMinis) cmpCloseMinis(); if(!pop.hidden){ pop.hidden=true; return; }
-    pop.innerHTML='<input type="text" placeholder="🔍 양식 찾기 (견적, 발주, Quotation…)"><div class="lst"><div style="padding:10px;color:var(--mute)">불러오는 중…</div></div>'; pop.hidden=false; if(window.cmpFitPop) cmpFitPop(pop);
+    pop.innerHTML='<input type="text" placeholder="양식 찾기 (견적, 발주, Quotation…)"><div class="lst"><div style="padding:10px;color:var(--mute)">불러오는 중…</div></div>'; pop.hidden=false; if(window.cmpFitPop) cmpFitPop(pop);
     var qi=pop.querySelector('input'); await tplLoad(); tplRender(''); qi.focus(); qi.addEventListener('input', function(){ tplRender(qi.value); });
     qi.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ pop.hidden=true; } if(ev.key==='Enter'){ ev.preventDefault(); var f=pop.querySelector('.cmp-tpl-it'); if(f) f.dispatchEvent(new MouseEvent('mousedown')); } });
   });
@@ -1862,9 +1862,9 @@ function abPut(target){
     var box=document.getElementById('cGrpInfo'), html='';
     ads.forEach(function(a){ var g=GRP[a]; if(!g) return;
       if(g.kind==='group'){ var ppl=g.members.map(function(m){ return '<span title="'+escH(m.email)+'">'+escH(m.disp||m.email)+'</span>'; }).join('');
-        html+='<div class="g">👥 <b>'+escH(a)+'</b> = <b>'+escH(g.name)+'</b> 그룹 메일 · <b>'+g.n+'명</b>이 받습니다'+(g.note?' · '+escH(g.note):'')+
+        html+='<div class="g">'+mdI('users')+' <b>'+escH(a)+'</b> = <b>'+escH(g.name)+'</b> 그룹 메일 · <b>'+g.n+'명</b>이 받습니다'+(g.note?' · '+escH(g.note):'')+
           ' <button type="button" onclick="var p=this.parentNode.querySelector(\'.ppl\'); p.hidden=!p.hidden; this.textContent=p.hidden?\'명단 보기 ▾\':\'접기 ▴\'">'+(g.n>12?'명단 보기 ▾':'접기 ▴')+'</button><div class="ppl"'+(g.n>12?' hidden':'')+'>'+ppl+'</div></div>'; }
-      else if(g.kind==='unknown'){ html+='<div class="g u">❔ <b>'+escH(a)+'</b> — 직원 주소가 아닌 사내 주소입니다(그룹 메일이면 여러 명이 받을 수 있음) · 명단이 아직 등록 안 됨'+(window._grpAdmin?' · <a href="/mail/groups" target="_blank" rel="noopener">👥 그룹 메일 등록</a>':' · 관리자가 「👥 묶음·그룹 메일」에 등록하면 명단이 보입니다')+'</div>'; } });
+      else if(g.kind==='unknown'){ html+='<div class="g u">'+mdI('circle-help')+' <b>'+escH(a)+'</b> — 직원 주소가 아닌 사내 주소입니다(그룹 메일이면 여러 명이 받을 수 있음) · 명단이 아직 등록 안 됨'+(window._grpAdmin?' · <a href="/mail/groups" target="_blank" rel="noopener">'+mdI('users')+' 그룹 메일 등록</a>':' · 관리자가 「👥 묶음·그룹 메일」에 등록하면 명단이 보입니다')+'</div>'; } });
     box.innerHTML=html; box.hidden=!html;
   }, 350); };
   ['cTo','cCc','cBcc'].forEach(function(i){ var e=document.getElementById(i); if(e){ e.addEventListener('input', cmpGrpCheck); e.addEventListener('change', cmpGrpCheck); e.addEventListener('blur', cmpGrpCheck); } });
