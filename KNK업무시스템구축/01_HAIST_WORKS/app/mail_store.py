@@ -2240,13 +2240,23 @@ def hard_delete_mail(c, mail_id: int, user_id: int) -> dict:
     return {"ok": n > 0, "n": n, "until": until, "batch": batch, "why": ""}
 
 
+# 11-28 대표 「별표 메일은 빼고」 — 관리 일괄 삭제는 별표(is_starred=1) 메일을 세지도 옮기지도 않는다(휴지통 완전 삭제·비우기는 사용자가 고른 것이라 그대로)
+_OLD_BULK_WHERE = "direction='in' AND received_at < ? AND COALESCE(is_deleted,0) IN (0,1) AND COALESCE(is_starred,0)=0"
+
+
 def purge_old_count(c, user_id: int, before_iso: str) -> int:
-    """받은 메일 중 before_iso(받은시각) 이전 통수(미리보기) — 받은편지함·휴지통에 있는 것(이미 완전 삭제 대기인 것은 뺌)."""
+    """받은 메일 중 before_iso(받은시각) 이전 통수(미리보기) — 받은편지함·휴지통에 있는 것(이미 완전 삭제 대기인 것 · 별표는 뺌)."""
     _ensure_purge(c)
-    r = c.execute("SELECT COUNT(*) AS n FROM mail_messages "
-                  "WHERE user_id=? AND direction='in' AND received_at < ? AND COALESCE(is_deleted,0) IN (0,1)",
+    r = c.execute("SELECT COUNT(*) AS n FROM mail_messages WHERE user_id=? AND " + _OLD_BULK_WHERE,
                   (user_id, before_iso)).fetchone()
     return (r["n"] if r else 0) or 0
+
+
+def purge_old_starred_count(c, user_id: int, before_iso: str) -> int:
+    """같은 기간 안 별표 메일 수 — 「별표 N통은 남깁니다」 안내용."""
+    r = c.execute("SELECT COUNT(*) FROM mail_messages WHERE user_id=? AND direction='in' AND received_at < ? "
+                  "AND COALESCE(is_deleted,0) IN (0,1) AND COALESCE(is_starred,0)=1", (user_id, before_iso)).fetchone()
+    return (r[0] if r else 0) or 0
 
 
 def count_pending(c, user_id: int) -> dict:
@@ -2337,7 +2347,7 @@ def empty_trash_run(session, user_id: int) -> dict:
 
 def purge_old_run(session, user_id: int, before_iso: str, actor_id=None) -> dict:
     """관리 「오래된 받은 메일 일괄」 — before_iso 이전 받은 메일(받은편지함·휴지통) → 완전 삭제 대기(30일 보관)."""
-    return mark_pending_run(session, user_id, "direction='in' AND received_at < ? AND COALESCE(is_deleted,0) IN (0,1)",
+    return mark_pending_run(session, user_id, _OLD_BULK_WHERE,
                             (before_iso,), "old_bulk", actor_id if actor_id is not None else user_id)
 
 

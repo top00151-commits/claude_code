@@ -184,6 +184,10 @@ as_(A)
 print("④ 관리 「오래된 받은 메일 일괄 완전 삭제」")
 old1, old2 = put(ADM, "가짜오래된메일1", days_ago=400), put(ADM, "가짜오래된메일2", days_ago=500, deleted=1)
 new1 = put(ADM, "가짜최근메일1", days_ago=3)
+star1 = put(ADM, "가짜별표오래된메일", days_ago=450)          # 11-28 대표 「별표 메일은 빼고」
+star2 = put(ADM, "가짜별표오래된휴지통", days_ago=460, deleted=1)
+with _db.db_session() as c:
+    c.execute("UPDATE mail_messages SET is_starred=1 WHERE id IN (?,?)", (star1, star2))
 oth = put(A, "가짜남의오래된메일", days_ago=600)
 as_(MEM)
 r1 = k.post("/admin/mail-purge/preview", data={"months": "12"})
@@ -194,13 +198,19 @@ ck("직원이 눌러도 그대로", isd(old1) == 0)
 as_(ADM)
 pv = k.post("/admin/mail-purge/preview", data={"months": "12"}).json()
 ck("미리보기 = 2통(받은편지함 1 + 휴지통 1) · 지울 날 +30", pv.get("count") == 2 and pv.get("until_label") == LABEL30, pv)
+ck("미리보기 = 별표 2통은 수에서 빠지고 「남깁니다」 수로", pv.get("starred") == 2, pv)
 ap = k.get("/admin/mail-purge").text
 ck("관리 화면 = 안내문 창(mailPurgeAsk) · 옛 「되돌릴 수 없습니다」 confirm 없음",
    "mailPurgeAsk" in ap and "되돌릴 수 없습니다" not in ap and "30일 보관" in ap, "")
+ck("관리 화면 안내 = 「별표한 메일은 지우지 않습니다」 · 미리보기 「별표 N통은 남깁니다」",
+   "별표한 메일은 지우지 않습니다" in ap and "통은 남깁니다" in ap, "")
 j = k.post("/admin/mail-purge/run", data={"months": "12"}).json()
 ck("실행 → 2통 대기 · 안내 날짜 +30", j.get("ok") and j["count"] == 2 and j["until_label"] == LABEL30, j)
 ck("오래된 메일 줄·첨부 남음 · 대기", all(isd(x) == 2 and att_n(x) == 1 and isd(x, "purge_how") == "old_bulk" for x in (old1, old2)))
 ck("최근 메일 그대로", isd(new1) == 0)
+ck("별표 메일은 일괄 삭제 뒤에도 받은편지함 그대로", isd(star1) == 0 and isd(star1, "purge_how") in (None, ""), row(star1))
+ck("별표 메일(휴지통)도 그대로 휴지통", isd(star2) == 1, row(star2))
+ck("별표 받은 메일은 검색에도 그대로 보임", in_search("가짜별표오래된메일", star1))
 ck("남(갑)의 오래된 메일 그대로(관리자 본인 메일함만)", isd(oth) == 0)
 ck("다시 미리보기 = 0통(대기는 다시 안 셈)", k.post("/admin/mail-purge/preview", data={"months": "12"}).json()["count"] == 0)
 ck("(준비) 최근 메일은 검색 결과 줄에 보임", in_search("가짜최근메일1", new1))
@@ -211,6 +221,14 @@ ck("되살리기 = 원래 자리(받은편지함에서 온 것 → 받은편지�
 ck("되살린 받은 메일은 검색에 다시 보임", in_search("가짜오래된메일1", old1))
 j = k.post("/admin/mail-purge/run", data={"months": "12"}).json()
 ck("(다시) 실행 → 2통 대기", j.get("count") == 2 and isd(old1) == 2 and isd(old2) == 2, j)
+ck("(다시) 실행 뒤에도 별표 그대로", isd(star1) == 0 and isd(star2) == 1)
+with _db.db_session() as c:
+    c.execute("UPDATE mail_messages SET is_deleted=1 WHERE id=?", (star1,))
+    hd = ms.hard_delete_mail(c, star1, ADM)
+ck("휴지통 「완전 삭제」는 사용자가 고른 것 → 별표라도 대기로(그대로)", hd.get("ok") and isd(star1) == 2, hd)
+with _db.db_session() as c:
+    ms.restore_pending(c, ADM, [star1])
+    c.execute("UPDATE mail_messages SET is_deleted=0, deleted_at=NULL WHERE id=?", (star1,))
 
 print("④-2 많은 통은 나눠 저장(한 번에 1통씩으로 시험)")
 ch = [put(B, "가짜나눔%d" % i, deleted=1) for i in range(5)]

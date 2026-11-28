@@ -31265,8 +31265,9 @@ async def admin_mail_purge_preview(req: Request):
     before = _purge_cutoff_iso(form.get("months") or 12)
     with db_session() as c:
         n = _mailbox.purge_old_count(c, u["id"], before)
+        starred = _mailbox.purge_old_starred_count(c, u["id"], before)   # 11-28 별표는 남김
         until = _mailbox.purge_until(c)
-    return JSONResponse({"ok": True, "count": n, "before": before[:10], "until": until,
+    return JSONResponse({"ok": True, "count": n, "starred": starred, "before": before[:10], "until": until,
                          "until_label": _mailbox.purge_date_label(until), "days": _mailbox.PURGE_KEEP_DAYS})
 
 
