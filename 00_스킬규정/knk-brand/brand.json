@@ -1,0 +1,235 @@
+{
+  "_about": "KNK 브랜드 정의 — 로고·심볼마크·패턴의 색·구성·의미·역사. 값은 이 파일 한 곳에서만 정한다. 화면·문서·코드는 이 값을 읽어 쓴다. 바꿀 때는 대표 승인 후 이 파일과 SKILL.md, knk-brand.css 를 함께 고친다.",
+  "version": "2026-11-28",
+  "sources": {
+    "logo_ai": "X:/1. KNK(법인)/21. CI브랜드컨설팅/수앤진컴퍼니/3.Design/LOGO/0. 최종_KNK_CI_LOGO/KNK_최종 로고 모음.ai",
+    "slogan_ai": "X:/1. KNK(법인)/21. CI브랜드컨설팅/수앤진컴퍼니/3.Design/LOGO/0. 최종_KNK_CI_LOGO/KNK_Human & Ai create the Best.ai",
+    "pattern_ai": "X:/1. KNK(법인)/21. CI브랜드컨설팅/수앤진컴퍼니/3.Design/0.최종/260521_패턴디자인_ol.ai",
+    "manual_pdf": "X:/1. KNK(법인)/21. CI브랜드컨설팅/수앤진컴퍼니/260330_KNK 로고 메뉴얼.pdf",
+    "manual_pdf_note": "안내서는 「무단으로 외부 유출·복제 금지」 — 이 폴더(깃허브)에 복사하지 않는다",
+    "designer": "㈜수앤진컴퍼니",
+    "vina_logo": "X:/1. KNK(법인)/21. CI브랜드컨설팅/수앤진컴퍼니/1.CI/0. 최종_KNK VINA_CI_LOGO/ (그림 파일만 있음 · .ai 원본 없음)"
+  },
+
+  "company": {
+    "name_ko": "㈜케이엔케이",
+    "name_en": "KNK Co.,Ltd",
+    "short": "KNK",
+    "subsidiaries": [
+      { "id": "vina", "name": "KNK VINA", "country": "VN", "logo": "HAIST Innovation + KNK + 회색 「VINA」 (2026-04-16 그림 파일)" }
+    ]
+  },
+
+  "slogan": {
+    "text": "HAIST Innovation",
+    "long": "Human & Ai create the Best",
+    "parts": [
+      { "letters": "H", "from": "Human", "ko": "인간" },
+      { "letters": "AI", "from": "AI", "ko": "인공지능" },
+      { "letters": "ST", "from": "Best", "ko": "최고" }
+    ],
+    "headline_ko": "인간과 AI의 협업을 통한 혁신",
+    "meaning_ko": "KNK가 인간과 AI 협업을 통해 최고의 기술력을 제공하겠다는 의지.",
+    "philosophy_ko": "인간 중심의 연결과 새로운 지식 창출",
+    "promise_ko": "끊임없는 변화와 혁신적인 기술로 미래 시대를 선도하며 인류에게 최고의 가치를 제공하는 기업",
+    "source": "안내서 3쪽 Brand Strategy"
+  },
+
+  "colors": {
+    "red": {
+      "name_ko": "KNK 빨강", "name_en": "KNK RED",
+      "screen": "#AE2025",
+      "print_cmyk": [36, 100, 100, 0],
+      "how_screen_was_made": "원본 .ai 의 CMYK(0.359 1 1 0)를 원본에 든 색 기준 Japan Color 2001 Coated · 지각적(perceptual) 변환으로 sRGB 로 바꿈",
+      "manual_pdf_rgb": "#AE2B30",
+      "contrast_on_white": 6.92
+    },
+    "gray": {
+      "name_ko": "KNK 회색", "name_en": "KNK GRAY",
+      "screen": "#727171",
+      "print_cmyk": [0, 0, 0, 70],
+      "manual_pdf_rgb": "#6D6F71",
+      "contrast_on_white": 4.87,
+      "note": "로고 글자 회색. 화면 본문 흐린 글자는 --knk-text-muted(#6D6F71) 를 쓴다(밝은 회색 바탕에서도 4.5:1)"
+    },
+    "black": {
+      "name_ko": "KNK 검정", "name_en": "KNK BLACK",
+      "screen": "#231F20",
+      "print_cmyk": [0, 0, 0, 100],
+      "note": "로고 검정판·검정 바탕"
+    },
+    "ink": {
+      "name_ko": "KNK 먹색 (화면 글자)",
+      "screen": "#414042",
+      "contrast_on_white": 10.31,
+      "note": "안내서 화면 글자색 · 웍스 --knk-text-primary"
+    },
+    "white": { "screen": "#FFFFFF" },
+    "rules": [
+      "화면은 screen 값, 인쇄는 print_cmyk 값만 쓴다",
+      "manual_pdf_rgb 는 안내서 PDF로 내보낼 때 달라진 값 — 쓰지 않는다",
+      "빨강은 한 화면에 색 채운 단추 하나만. 넓은 바탕에 칠하지 않는다(로그인 왼쪽 판처럼 브랜드를 보여 주는 자리는 예외)",
+      "위험·지연 표시는 회사 빨강과 헷갈리지 않게 따로 정한 위험 색(#C4320A) + 글자로"
+    ]
+  },
+
+  "symbol": {
+    "id": "knk-symbol",
+    "name_ko": "심볼마크",
+    "reads": "K · N · K",
+    "aspect_w_over_h": 3.0717,
+    "measured_on": "원본 .ai 2번 대지, 높이 22.289pt",
+    "construction": {
+      "unit": "심볼 높이 H = 1",
+      "height": 1.0,
+      "width": 3.0717,
+      "stem_width": 0.254,
+      "stripe_width": 0.0875,
+      "stripe_pitch": 0.157,
+      "stripe_count": 3,
+      "parts": [
+        { "part": "K (왼쪽)", "x": 0.000, "makeup": "두꺼운 세로 획(0.254) + 꺾인 팔(약 45°)" },
+        { "part": "N", "x": 0.925, "makeup": "두꺼운 세로 획(0.254) + 사선 + 오른쪽 세로 획 자리를 가는 줄 셋으로 나눔(각 0.0875, 중심 간격 0.157)" },
+        { "part": "K (오른쪽)", "x": 2.146, "makeup": "왼쪽 K 와 같은 모양" }
+      ],
+      "insight": "N 의 오른쪽 획을 가는 줄 세 개로 쪼갰다. 세 줄을 합친 굵기(3 × 0.0875 = 0.26)가 두꺼운 획(0.254)과 거의 같아, 멀리서 보면 하나의 N, 가까이서 보면 세 줄이 보인다"
+    },
+    "meaning": {
+      "N_between_K": {
+        "title_ko": "K와 K 사이의 N — 연결과 조화",
+        "text_ko": "KNK는 인간의 지식과 과학적 지식을 연결하고, 이를 통해 새로운 가치를 창출하며 끊임없이 발전하는 기업을 지향한다."
+      },
+      "three_stripes": [
+        { "order": 1, "key": "transformation", "title_ko": "점진적인 변화와 발전 (Transformation)", "text_ko": "과거에서 현재로 이어지는 점진적인 변화와 성장. 현재에 안주하지 않고 어제보다 더 나은 내일을 위해 끊임없이 발전해 나간다." },
+        { "order": 2, "key": "innovation", "title_ko": "혁신적인 기술 (Innovation)", "text_ko": "HAIST Innovation 슬로건과 같이 시대를 선도하는 혁신적인 최고의 기술력. AI와 최첨단 기술로 사회와 인류에 긍정적인 영향을 미치는 혁신을 주도한다." },
+        { "order": 3, "key": "future_vision", "title_ko": "미래를 향한 비전 (Future Vision)", "text_ko": "미래를 향한 KNK의 확고한 비전과 끊임없는 도전. 다가올 시대의 변화를 예측하고 선도하며 인류의 삶을 풍요롭게 만들 미래 기술을 개척한다." }
+      ],
+      "source": "안내서 6쪽 BS_01"
+    },
+    "clear_space": "사방 3.5 (안내서 BS_01~04 최소공간규정 표기값)",
+    "min_size": { "symbol_print": "세로 20mm 이하 사용 금지 (안내서 BS_01)", "signature_print": "세로 8mm 이하 사용 금지 (안내서 BS_02)", "screen_proposal_px": 16 }
+  },
+
+  "signatures": [
+    { "id": "knk-symbol",              "layout": "symbol",     "text": [],                                         "use_ko": "앱 아이콘 · 파비콘 · 좁은 머리" },
+    { "id": "knk-sig-h-haist",         "layout": "horizontal", "text": ["HAIST Innovation"],                       "use_ko": "웍스·이음·메일 화면 왼쪽 위(기본)" },
+    { "id": "knk-sig-h-haist-2line",   "layout": "horizontal", "text": ["HAIST", "Innovation"],                    "use_ko": "높이가 넉넉한 머리" },
+    { "id": "knk-sig-h-ko",            "layout": "horizontal", "text": ["(주)케이엔케이"],                          "use_ko": "국내 문서 머리" },
+    { "id": "knk-sig-h-en",            "layout": "horizontal", "text": ["KNK Co.,Ltd"],                            "use_ko": "해외 문서(인보이스·패킹리스트)" },
+    { "id": "knk-sig-h-ko-en",         "layout": "horizontal", "text": ["(주)케이엔케이", "KNK Co.,Ltd"],            "use_ko": "견적서·발주서 머리" },
+    { "id": "knk-sig-h-ko-en-b",       "layout": "horizontal", "text": ["(주)케이엔케이 (크게)", "KNK Co.,Ltd (작게)"], "use_ko": "명함·봉투" },
+    { "id": "knk-sig-h-humanai",       "layout": "horizontal", "text": ["Human & Ai (크게)", "HAIST Innovation (작게)"], "use_ko": "소개 자료 표지" },
+    { "id": "knk-sig-h-humanai-haist", "layout": "horizontal", "text": ["Human & Ai (작게)", "HAIST Innovation (크게)"], "use_ko": "소개 자료 표지" },
+    { "id": "knk-slogan-best",         "layout": "horizontal", "text": ["Human & Ai create the Best", "HAIST Innovation"], "use_ko": "로그인 · 발표 표지 · 메일 서명" },
+    { "id": "knk-sig-v-haist-top",     "layout": "vertical",   "text": ["HAIST Innovation (위)"],                   "use_ko": "정사각 자리(현수막·SNS) · 안내서 대표 시그니처" },
+    { "id": "knk-sig-v-haist",         "layout": "vertical",   "text": ["HAIST Innovation"],                       "use_ko": "정사각 자리" },
+    { "id": "knk-sig-v-ko",            "layout": "vertical",   "text": ["(주)케이엔케이"],                          "use_ko": "명찰·사원증" },
+    { "id": "knk-sig-v-en",            "layout": "vertical",   "text": ["KNK Co.,Ltd"],                            "use_ko": "명찰·사원증(해외)" },
+    { "id": "knk-sig-v-hai-tech",      "layout": "vertical",   "text": ["HAI Technology"],                         "use_ko": "기술 자료" }
+  ],
+  "signature_colors": { "symbol": "red", "text": "gray" },
+  "files": {
+    "svg": "assets/logo/svg/{id}_{variant}.svg",
+    "png": "assets/logo/png/{id}_{variant}.png (full · white 만, 높이 240px, 바탕 투명)",
+    "crop": "둘레 여백 없이 잘림 — 여백은 쓰는 쪽에서"
+  },
+
+  "variants": {
+    "full":  { "symbol": "#AE2025", "text": "#727171", "on": ["white"] },
+    "red":   { "symbol": "#AE2025", "text": "#AE2025", "on": ["white"] },
+    "gray":  { "symbol": "#727171", "text": "#727171", "on": ["white"] },
+    "black": { "symbol": "#231F20", "text": "#231F20", "on": ["white", "gray"] },
+    "white": { "symbol": "#FFFFFF", "text": "#FFFFFF", "on": ["red", "gray", "black"] }
+  },
+  "backgrounds": {
+    "white": ["full", "red", "gray", "black"],
+    "red":   ["white"],
+    "gray":  ["white", "black"],
+    "black": ["white"],
+    "photo_or_pattern": [],
+    "photo_or_pattern_note": "사진·무늬 위에 바로 얹지 않는다. 꼭 써야 하면 흰 상자 위에 full",
+    "source": "안내서 BS_06 Signature Color · BS_07 Background Color"
+  },
+
+  "pattern": {
+    "id": "knk-pattern",
+    "name_ko": "그래픽 모티브(패턴)",
+    "construction": {
+      "base": "심볼마크 N 의 세 줄(3선)",
+      "band": "가는 줄 3개가 한 띠",
+      "directions_deg": [0, 52, 128],
+      "directions_note": "원본 선의 기울기를 잰 값(가로 · 약 +52° · 약 -52°)",
+      "motif": "세 방향의 띠가 서로 엇갈려 삼각형을 이루고, 모든 띠가 끊기지 않고 이웃 삼각형으로 이어진다",
+      "stripe_width_pt": 4.5,
+      "stripe_pitch_pt": 10.25,
+      "tile_pt": [132.5, 79.5],
+      "tile_png_px": [531, 319],
+      "tile_css_px": [265, 159],
+      "tile_note": "그림을 밀어 맞춰 찾은 되풀이 간격. 3×3 이어 붙여 이음매 없음 확인(2026-11-28)",
+      "colors": { "lines": "#AE2025", "ground": "#FFFFFF", "negative": "빨강 바탕 + 흰 줄" }
+    },
+    "meaning_ko": "KNK의 3선을 사선의 형태로 변형하여 KNK의 발전과 미래를 상징하며, 진취적인 형태로 모든 선들이 유기적으로 연결되어 KNK의 자동화 시스템을 상징한다.",
+    "role_ko": "심볼 등 공식 표시와 달리 별도로 디자인된 요소. 여러 매체에 적용되어 CI를 보조하고 정체성을 강화한다",
+    "source": "안내서 17~19쪽 BS_12~14 · 원본 260521_패턴디자인_ol.ai",
+    "applications_in_manual": ["노트·다이어리 표지", "봉투", "골프공(삼각 단위 하나)", "안내서 표지 띠"],
+    "files": {
+      "tile_png": "assets/pattern/knk-pattern-tile_{red|white|gray}.png",
+      "tile_svg": "assets/pattern/knk-pattern-tile_{red|white}.svg"
+    },
+    "screen_rules": [
+      "시스템이 스스로 일하는 곳에만: 화면 머리 띠(6~10% 옅게), 로그인 배경, 자동 저장 표시, 불러오는 중, 빈 화면",
+      "표·입력칸·본문 글자 뒤에는 깔지 않는다",
+      "로고 바로 뒤에 깔지 않는다"
+    ]
+  },
+
+  "typeface": {
+    "family": "NanumSquare (나눔스퀘어)",
+    "heading": { "weight": "ExtraBold", "width_pct": 98, "tracking": -20 },
+    "body": { "weight": "Regular", "width_pct": 98, "tracking": -20 },
+    "web": "웹 글꼴 파일을 각 앱 static/fonts/ 에 직접 두고 @font-face 로 연결 (대표 결정 2026-11-28) · 파일 없이 이름만 부르지 않는다",
+    "fallback": ["Pretendard", "Malgun Gothic", "맑은 고딕", "sans-serif"],
+    "source": "안내서 BS_09~10"
+  },
+
+  "ui_rules": [
+    { "meaning": "N = 연결과 조화", "rule_ko": "이어진 자료(견적 → 수주 → 제작요청 → 출하 → 세금계산서 → 입금)는 N 의 사선으로 잇는다. 이어짐 = 빨간 사선, 아직 없음 = 회색 사선 + 점선 상자", "css": [".k-chain", ".k-chain-item", ".k-conn"] },
+    { "meaning": "세 줄 = 변화 · 혁신 · 미래", "rule_ko": "화면·상자 제목 앞 세 줄 표식. 일의 단계는 세 줄 진행 표시(준비 → 진행 → 완료, 다 끝나면 초록)", "css": [".k-tri", ".k-p3"] },
+    { "meaning": "패턴 = 이어진 선, 자동화 시스템", "rule_ko": "시스템이 스스로 일하는 곳에만 패턴", "css": [".k-hero", ".k-auto", ".k-loading", ".knk-pattern"] },
+    { "meaning": "HAIST = Human · AI · Best", "rule_ko": "AI가 만든 결과는 「AI가 정리 → 사람이 확인해 끝」으로 보여 준다", "css": [] }
+  ],
+
+  "dont": [
+    "그림자 넣기", "모양 늘이기·눕히기·찌그러뜨리기", "지정하지 않은 색", "흐리게(블러)", "획 굵기 바꾸기",
+    "그러데이션", "둘레에 테두리 두르기", "테두리 선만으로 그리기", "글자 사이 간격 바꾸기", "로고 글꼴 바꾸기",
+    "가로·세로 비율 다르게 키우기", "다시 그리기·글자로 흉내 내기", "안내서 PDF 화면 캡처를 로고로 쓰기"
+  ],
+  "dont_source": "안내서 BS_11 Incorrect Usage",
+
+  "history": [
+    { "date": "2025-11-08", "event": "수앤진컴퍼니 기업로고(CI)·홈페이지 개발 견적", "evidence": "0.계약서/20251108_KNK_기업로고개발CI - 견적서.pdf" },
+    { "date": "2025-11-12", "event": "기업로고 디자인 개발 계약 · 홈페이지 디자인 개발 계약", "evidence": "0.계약서/251112_수앤진컴퍼니_기업로고디자인개발계약서.pdf" },
+    { "date": "2025-11-14", "event": "CIP 개발 오더지(요청서) 전달", "evidence": "1.CI/CIP 개발_오더지.xls (파일 날짜)" },
+    { "date": "2025-12-10", "event": "1차 시안", "evidence": "1.CI/01차시안-KNK.pdf (파일 날짜)" },
+    { "date": "2026-02-05", "event": "로고 응용항목 개발 견적", "evidence": "0.계약서/20260205_KNK_기업로고 응용항목 개발건 - 견적서.pdf" },
+    { "date": "2026-03-12", "event": "로고 디자인 시안 확정 그림", "evidence": "1.CI/KNK로고_디자인시안.jpg (파일 날짜)" },
+    { "date": "2026-03-30", "event": "로고 안내서(매뉴얼) 완성 · CI 개발 잔금 청구", "evidence": "260330_KNK 로고 메뉴얼.pdf · 0.계약서/20260330_KNK_CI개발 잔금청구서.pdf" },
+    { "date": "2026-04-01", "event": "로고 움직이는 영상 2종(1안·얼터, 4K)", "evidence": "1.CI/KNK로고_1안_4K.mp4 · KNK로고_얼터_4K.mp4 (파일 날짜)" },
+    { "date": "2026-04-07", "event": "최종 로고 모음(13가지) 원본", "evidence": "3.Design/LOGO/0. 최종_KNK_CI_LOGO/KNK_최종 로고 모음.ai" },
+    { "date": "2026-04-09", "event": "슬로건 로고 「Human & Ai create the Best」", "evidence": "KNK_Human & Ai create the Best.ai (파일 날짜)" },
+    { "date": "2026-04-16", "event": "베트남법인 KNK VINA 로고", "evidence": "1.CI/0. 최종_KNK VINA_CI_LOGO/ (그림 파일 날짜)" },
+    { "date": "2026-04-20", "event": "명함 최종(KNK · KNK VINA)", "evidence": "3.Design/0.최종/260420_KNK_명함_최종.pdf · 260420_KNKVINA_명함_최종.pdf" },
+    { "date": "2026-05-21", "event": "대·소 봉투 · 패턴 디자인 최종", "evidence": "3.Design/0.최종/260521_KNK_대소봉투_Ver.6.ai · 260521_패턴디자인_ol.ai" },
+    { "date": "2026-11-28", "event": "이음웍스 화면 기준표에 반영 · 로고·패턴 원본 정리 · 이 정의 파일과 스킬 knk-brand 만듦 (대표 지시)", "evidence": "00_스킬규정/knk-brand/" }
+  ],
+  "before_ci": {
+    "works_red": "#A5282C",
+    "note": "새 CI 전 웍스 코드의 빨강(--knk-red · v5 토큰 2026-04-29 · knk-foundation.css). 새 CI 값 #AE2025 로 바꿀 대상"
+  },
+
+  "known_issues_in_manual": [
+    { "where": "10·13쪽 색 표기", "issue": "빨강·회색·검정 모두 「PANTONE 922C · C74 M1 Y50 K0 · R0 G192 B163 · #00C0A3」(청록)로 똑같이 적힘 — 잘못 적힌 값", "fix": "원본 .ai 값 사용 (colors)" },
+    { "where": "3쪽", "issue": "「HSIST」「Humam」 오타", "fix": "HAIST · Human" },
+    { "where": "2쪽", "issue": "「KNK dentity」 오타 · 주의 사항 번호 6 없이 7", "fix": "Identity" }
+  ]
+}

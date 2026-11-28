@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KNK 로고 모음</title>
+<style>
+:root{--red:#AE2025;--gray:#727171;--black:#231F20;--ink:#414042;--muted:#6D6F71;--line:#E6E6E8}
+body{margin:0;background:#F4F4F5;color:var(--ink);font-family:'NanumSquare','Pretendard','Malgun Gothic','맑은 고딕',sans-serif;font-size:14px;line-height:1.5}
+main{max-width:1280px;margin:0 auto;padding:32px 16px 64px;display:flex;flex-direction:column;gap:24px}
+h1{margin:0;font-size:26px;font-weight:800}
+h2{margin:0 0 12px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px}
+.tri{display:inline-flex;gap:2px;height:16px}.tri i{width:3px;background:var(--red)}
+.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
+.logo{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.bgs{display:grid;grid-template-columns:repeat(4,1fr)}
+.bgs div{height:96px;display:flex;align-items:center;justify-content:center;padding:12px}
+.bgs img{max-width:100%;max-height:44px}
+.meta{padding:10px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.meta b{display:block;font-size:13px;color:var(--ink)}
+code{font-family:Consolas,monospace;font-size:12px}
+.sw{display:flex;gap:12px;flex-wrap:wrap}
+.sw div{width:200px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.sw span{display:block;height:56px}
+.sw p{margin:0;padding:8px 10px;font-size:12px}
+.pat{height:160px;border-radius:8px;background:url('assets/pattern/knk-pattern-tile_red.png') 0 0/265px auto repeat}
+.pat.on-red{background:var(--red) url('assets/pattern/knk-pattern-tile_white.png') 0 0/265px auto repeat}
+</style>
+</head>
+<body>
+<main>
+<div><h1>KNK 로고 모음</h1><p style="margin:4px 0 0;color:var(--muted)">원본: 수앤진컴퍼니 최종 로고 .ai (2026-04) · 뽑은 날 2026-11-28 · 이 화면은 파일 확인용입니다.</p></div>
+
+<section class="card"><h2><span class="tri"><i></i><i></i><i></i></span>회사 색</h2>
+<div class="sw">
+<div><span style="background:#AE2025"></span><p><b>KNK 빨강</b><br>화면 #AE2025<br>인쇄 C36 M100 Y100 K0</p></div>
+<div><span style="background:#727171"></span><p><b>KNK 회색</b><br>화면 #727171<br>인쇄 K70</p></div>
+<div><span style="background:#231F20"></span><p><b>KNK 검정</b><br>화면 #231F20<br>인쇄 K100</p></div>
+</div></section>
+
+<section class="card"><h2><span class="tri"><i></i><i></i><i></i></span>로고 15가지 — 흰 · 빨강 · 회색 · 검정 바탕</h2>
+<div class="grid" id="g"></div></section>
+
+<section class="card"><h2><span class="tri"><i></i><i></i><i></i></span>패턴 — 이음매 없이 이어지는 한 칸</h2>
+<div style="display:grid;gap:12px;grid-template-columns:1fr 1fr"><div class="pat"></div><div class="pat on-red"></div></div>
+<p class="meta" style="border:0;padding:8px 0 0">assets/pattern/knk-pattern-tile_red.png · _white.png · _gray.png · .svg — 한 칸 = 가로 265 · 세로 159 (화면 픽셀, 반으로 줄여 씀)</p></section>
+</main>
+<script>
+var L=[["knk-symbol","심볼마크만"],["knk-sig-h-haist","가로 · HAIST Innovation 한 줄"],["knk-sig-h-haist-2line","가로 · HAIST / Innovation 두 줄"],["knk-sig-h-ko","가로 · (주)케이엔케이"],["knk-sig-h-en","가로 · KNK Co.,Ltd"],["knk-sig-h-ko-en","가로 · 국문/영문 같은 크기"],["knk-sig-h-ko-en-b","가로 · 국문 크게/영문 작게"],["knk-sig-h-humanai","가로 · Human & Ai 크게"],["knk-sig-h-humanai-haist","가로 · HAIST Innovation 크게"],["knk-slogan-best","가로 · Human & Ai create the Best"],["knk-sig-v-haist-top","세로 · 위 HAIST Innovation"],["knk-sig-v-haist","세로 · HAIST Innovation"],["knk-sig-v-ko","세로 · (주)케이엔케이"],["knk-sig-v-en","세로 · KNK Co.,Ltd"],["knk-sig-v-hai-tech","세로 · HAI Technology"]];
+var g=document.getElementById('g');
+L.forEach(function(x){var n=x[0];var d=document.createElement('div');d.className='logo';
+d.innerHTML='<div class="bgs"><div style="background:#fff"><img alt="" src="assets/logo/svg/'+n+'_full.svg"></div><div style="background:#AE2025"><img alt="" src="assets/logo/svg/'+n+'_white.svg"></div><div style="background:#727171"><img alt="" src="assets/logo/svg/'+n+'_white.svg"></div><div style="background:#231F20"><img alt="" src="assets/logo/svg/'+n+'_white.svg"></div></div><div class="meta"><b>'+x[1]+'</b><code>'+n+'_full · _red · _gray · _black · _white (.svg)</code></div>';
+g.appendChild(d);});
+</script>
+</body>
+</html>
