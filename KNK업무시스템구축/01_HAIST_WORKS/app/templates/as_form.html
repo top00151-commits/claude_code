@@ -103,10 +103,10 @@
         </div>
         <div class="af-field">
           <label>담당자</label>
-          <select name="assignee_id">
-            <option value="">— 선택 —</option>
-            {% for usr in users %}<option value="{{ usr.id }}">{{ usr.name }}</option>{% endfor %}
-          </select>
+          {# z1191z204: 공용 명단(🇰🇷 본사 / 🇻🇳 베트남법인 책갈피 · 부서 순 · 「이름 직책 · 부서」) · 저장 값 = 사용자 번호 그대로 #}
+          {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+          <select name="assignee_id" data-knk-staff>{{ staff_options(users) }}</select>
+          {% include "_knk_picker.html" %}
         </div>
       </div>
       <div class="af-row">

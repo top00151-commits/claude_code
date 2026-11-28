@@ -116,10 +116,10 @@
             </div>
             <div class="af-field">
               <label>담당자</label>
-              <select name="assignee_id" style="padding:9px 12px;font-size:13.5px;border:1px solid var(--qv-line);border-radius:8px;background:var(--qv-surface-2);">
-                <option value="">— 선택 —</option>
-                {% for usr in users %}<option value="{{ usr.id }}" {% if t.assignee_id == usr.id %}selected{% endif %}>{{ usr.name }}</option>{% endfor %}
-              </select>
+              {# z1191z204: 공용 명단 · 지금 담당(잠긴 계정이어도)은 서버가 남겨 저장 때 말없이 지워지지 않음 #}
+              {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+              <select name="assignee_id" data-knk-staff style="padding:9px 12px;font-size:13.5px;border:1px solid var(--qv-line);border-radius:8px;background:var(--qv-surface-2);">{{ staff_options(users, t.assignee_id) }}</select>
+              {% include "_knk_picker.html" %}
             </div>
             <div style="text-align:right;margin-top:6px;"><button type="submit" class="btn-save">💾 저장</button></div>
           </form>

@@ -438,8 +438,9 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
                                    WHERE workflow_id=? AND seq>? ORDER BY seq ASC LIMIT 1""",
                                 (n['workflow_id'], n['seq'])).fetchone()
             # 사용자 목록 (담당자 지정용)
-            users = c.execute("""SELECT id, name, email FROM users
-                                  WHERE is_active=1 ORDER BY name LIMIT 300""").fetchall()
+            # z1191z204: 공용 명단(본사/베트남법인 책갈피 · 부서 순 · 「이름 직책 · 부서」) · 예전 300명 잘림 없앰 · 지금 담당은 남김
+            from .main import staff_pick_rows as _staff_rows
+            users = _staff_rows(c, include_ids=[n['assigned_user_id']] if n['assigned_user_id'] else ())
             # 담당자 정보
             assignee = None
             if n['assigned_user_id']:

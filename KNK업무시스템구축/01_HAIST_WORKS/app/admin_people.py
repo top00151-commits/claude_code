@@ -55,7 +55,9 @@ def _items_of(row):
 
 
 def _corp(row):
-    return "법인" if ((row.get("team_entity") or row.get("entity")) == "VN" or row.get("team_id") == 12) else "본사"
+    # z1191z204: 부서 기준 공용 판정 하나(main.staff_corp · 부서 코드 02_VN/ → 팀 → 사람) · 팀 번호 12 고정 뺌
+    from .main import staff_corp
+    return "법인" if staff_corp(row) == "VN" else "본사"
 
 
 def register_admin_people(app, d):

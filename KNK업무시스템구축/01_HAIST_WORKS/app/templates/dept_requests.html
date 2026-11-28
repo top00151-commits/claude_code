@@ -83,6 +83,7 @@
       <div class="dr-empty">아직 나에게 연결된 부서 요청이 없습니다.<br>영업에서 부서로 검토·조사를 요청하면 이 화면에 표시됩니다.</div>
     {% endif %}
 
+    {% from "_v5_partials/knk_staff_pick.html" import staff_options %}{# z1191z204 #}
     {% macro req_head(r) %}
       <div class="dr-head">
         {% if r.opp_id %}<a class="dr-opp" href="/sales/opportunities/{{ r.opp_id }}" target="_blank">🎯 {{ r.opp_no or '' }}</a>{% endif %}
@@ -155,10 +156,8 @@
             {% endfor %}
           </div>
           <form method="post" action="/dept/requests/{{ r.id }}/members/add" class="dr-act">
-            <select name="user_id" required>
-              <option value="">— 구성원 추가 —</option>
-              {% for au in all_users %}<option value="{{ au.id }}">{{ au.name }}{% if au.team_name %} ({{ au.team_name }}){% endif %}</option>{% endfor %}
-            </select>
+            {# z1191z204: 공용 명단(책갈피 · 부서 순 · 「이름 직책 · 부서」) #}
+            <select name="user_id" required data-knk-staff data-knk-staff-title="👤 구성원 추가">{{ staff_options(all_users, None, '— 구성원 추가 —') }}</select>
             <button class="dr-btn">+ 구성원 추가</button>
           </form>
           <form method="post" action="/dept/requests/{{ r.id }}/status" class="dr-act">
@@ -189,6 +188,7 @@
     {% endif %}
 
   </div>
+  {% include "_knk_picker.html" %}{# z1191z204: 구성원 추가 = 책갈피 고르기 창 #}
 </main></div>
 {% include "_v5_partials/knk_datepicker.html" ignore missing %}
 <script>

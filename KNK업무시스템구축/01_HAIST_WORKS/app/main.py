@@ -409,6 +409,81 @@ def user_disp_by_id(c, uid, fallback="", lang=None):
 tpl.env.filters["vname"] = vname
 
 
+# z1191z204 (대표 2026-11-28 · 스킬 knk-staff-list): 사람 고르기 명단 = 공용 하나.
+#   본사/베트남법인 = **부서** 기준(users.dept_code 앞 「02_VN/」 → 베트남법인 · 「01_KOR/」 → 본사 ·
+#   부서 코드가 없을 때만 팀(teams.entity) → 사람(users.entity)). ⛔ 팀 번호(12) 고정 · 이름·사번 모양으로 짐작 금지.
+#   순서 = 본사 먼저 → 부서 코드 순(00_총괄 맨 앞) → 같은 부서 안 사번 순. 봇·잠긴(퇴사) 계정 뺌.
+#   include_ids = 지금 저장돼 있는 사람(잠긴 사람이어도 목록에 남겨 「저장」 때 말없이 지워지지 않게).
+#   화면은 _v5_partials/knk_staff_pick.html 의 staff_options() + _knk_picker.html(책갈피 고르기 창)으로 그린다.
+STAFF_VN_PREFIX, STAFF_KOR_PREFIX = "02_VN/", "01_KOR/"
+
+
+def staff_corp(row):
+    """사람 한 줄(dict) → 'VN'(베트남법인) / 'KOR'(본사). 기준 = 부서."""
+    try:
+        dc = (row.get("dept_code") or "").strip()
+        if dc.startswith(STAFF_VN_PREFIX):
+            return "VN"
+        if dc.startswith(STAFF_KOR_PREFIX):
+            return "KOR"
+        ent = (row.get("team_entity") or row.get("entity") or "").strip().upper()
+        return "VN" if ent == "VN" else "KOR"
+    except Exception:
+        return "KOR"
+tpl.env.globals["staff_corp"] = staff_corp
+
+
+def staff_pick_rows(c, include_ids=(), where="", params=(), lang=None):
+    """사람 고르기 명단(공용). where = 화면별 추가 조건(SQL 조각 · 별칭 u/t) — 예) "u.id<>?".
+    반환 dict: id · disp(이름) · sub(「직책 · 부서」) · label(「이름 직책 · 부서」) · corp(KOR/VN) · dkey(부서 순서 열쇠) · dept · inactive"""
+    try:
+        ucols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+    except Exception:
+        ucols = set()
+    def _col(n, alias=None):
+        return ("u.%s" % n if n in ucols else "''") + " AS " + (alias or n)
+    inc = [int(x) for x in (include_ids or ()) if str(x or "").strip().isdigit() and int(x) > 0]
+    act = "COALESCE(u.is_active,1)=1" if "is_active" in ucols else "1=1"
+    nobot = "COALESCE(u.role,'')<>'bot'" if "role" in ucols else "1=1"
+    cond = "(%s AND %s%s)" % (act, nobot, (" AND (%s)" % where) if where else "")
+    args = list(params or ())
+    if inc:
+        cond = "(%s OR u.id IN (%s))" % (cond, ",".join("?" * len(inc)))
+        args += inc
+    sql = ("SELECT u.id, COALESCE(u.name,'') AS name, %s, %s, %s, %s, %s, %s, "
+           "COALESCE(t.name,'') AS team_name, COALESCE(t.entity,'') AS team_entity, COALESCE(t.code,'') AS team_code "
+           "FROM users u LEFT JOIN teams t ON t.id=u.team_id WHERE %s"
+           % (_col("name_vi"), _col("rank"), _col("dept_code"), _col("entity"), _col("employee_no"),
+              ("COALESCE(u.is_active,1) AS is_active" if "is_active" in ucols else "1 AS is_active"), cond))
+    out = []
+    for r in c.execute(sql, args).fetchall():
+        d = dict(r)
+        corp = staff_corp(d)
+        dc = (d.get("dept_code") or "").strip()
+        if dc.startswith(STAFF_VN_PREFIX) or dc.startswith(STAFF_KOR_PREFIX):
+            dkey = dc
+        elif d.get("team_name"):
+            dkey = (STAFF_VN_PREFIX if corp == "VN" else STAFF_KOR_PREFIX) + "%s_%s" % ((d.get("team_code") or "99"), d["team_name"])
+        else:
+            dkey = (STAFF_VN_PREFIX if corp == "VN" else STAFF_KOR_PREFIX) + "ZZ_미지정"
+        dept = d.get("team_name") or (dc.split("/", 1)[-1].split("_", 1)[-1] if dc else "")
+        disp = vname(d)
+        rank = rank_label((d.get("rank") or "").strip(), lang or "ko") if d.get("rank") else ""
+        sub = " · ".join([x for x in (rank, dept) if x])
+        inactive = not d.get("is_active")
+        emp = (d.get("employee_no") or "").strip()
+        out.append({
+            "id": d["id"], "disp": disp, "sub": sub, "rank": rank, "dept": dept, "corp": corp, "dkey": dkey,
+            "label": (disp + (" " + sub if sub else "")) + (" (잠긴 계정)" if inactive else ""),
+            "inactive": inactive, "emp": emp,
+            "_k": (0 if corp == "KOR" else 1, dkey, 0 if emp.isdigit() else 1, int(emp) if emp.isdigit() else 0, emp, disp, d["id"]),
+        })
+    out.sort(key=lambda x: x["_k"])
+    for x in out:
+        x.pop("_k", None)
+    return out
+
+
 # =====================================================
 # v5H226z175 (2026-06-03): 상태(status) 영문 enum → 한글 표기 공통 필터 (대표 지시)
 #   매출·수출·진행현황 등에서 SHIPPED / IN_PRODUCTION 같은 영문 코드가 그대로
@@ -4774,12 +4849,7 @@ def daily_page(req: Request, sel_date: str = ""):
                 "ORDER BY id DESC LIMIT 60", (u["id"],)).fetchall()]
             for _wc in wo_created:  # 처리자(수락자) 호버 전체
                 _wc["accepted_by_disp"] = user_disp_by_id(c2, _wc.get("accepted_by"), _wc.get("accepted_by_name") or "")
-            wo_users = [dict(r) for r in c2.execute(
-                "SELECT u.id, u.name, COALESCE(t.name,'') AS team, t.entity AS team_entity "
-                "FROM users u LEFT JOIN teams t ON t.id=u.team_id "
-                "WHERE COALESCE(u.is_active,1)=1 AND u.id<>? "
-                "ORDER BY (CASE WHEN COALESCE(t.entity,'KOR')='VN' THEN 1 ELSE 0 END), t.name, u.name",
-                (u["id"],)).fetchall()]   # v5H226z542: 본사 먼저·법인 라벨용 entity
+            wo_users = staff_pick_rows(c2, where="u.id<>?", params=(u["id"],))   # z1191z204: 공용 명단(본사/베트남법인 책갈피 · 부서 순) · 나 빼고
             wo_teams = [dict(r) for r in c2.execute(
                 "SELECT id, name, entity FROM teams "
                 "ORDER BY (CASE WHEN COALESCE(entity,'KOR')='VN' THEN 1 ELSE 0 END), display_order, name"
@@ -18171,7 +18241,7 @@ async def admin_users_perms_page(req: Request):
         raw = c.execute(
             "SELECT u.*, t.name AS team_name, t.entity AS team_entity FROM users u "
             "LEFT JOIN teams t ON t.id=u.team_id WHERE COALESCE(u.is_active,1)=1 "
-            "ORDER BY CASE WHEN (COALESCE(t.entity,'')='VN' OR u.team_id=12) THEN 1 ELSE 0 END, "
+            "ORDER BY CASE WHEN COALESCE(t.entity,'')='VN' THEN 1 ELSE 0 END, "   # z1191z204: 줄 순서만(법인 표시는 아래 staff_corp) · 팀 번호 12 고정 뺌
             "COALESCE(t.display_order, 9999), t.name, "
             "CASE WHEN COALESCE(u.employee_no,'')='' THEN 1 ELSE 0 END, "
             "CAST(u.employee_no AS INTEGER), u.employee_no, u.id").fetchall()
@@ -18179,7 +18249,7 @@ async def admin_users_perms_page(req: Request):
     for r in raw:
         # 비밀번호 등 비밀값 칸은 화면으로 넘기지 않는다
         d = {k: r[k] for k in r.keys() if not any(s in k.lower() for s in ("password", "token", "secret"))}
-        vn = ((d.get("team_entity") or d.get("entity")) == "VN") or d.get("team_id") == 12   # admin.html 사용자 목록과 같은 규칙(z747)
+        vn = staff_corp(d) == "VN"   # z1191z204: 부서 기준 공용 판정(admin.html 사용자 목록과 같은 함수) · 팀 번호 12 고정 뺌
         d["corp"] = "베트남법인" if vn else "본사"
         d["dept"] = (("베트남 · " if vn else "본사 · ") + d["team_name"]) if d.get("team_name") else (d.get("dept_code") or "미지정")
         d["biz_divs"] = _z1191f_biz_norm(d.get("biz_divs"))
@@ -18400,9 +18470,7 @@ async def admin_teams_new_form(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     with db_session() as c:
-        users = [dict(r) for r in c.execute(
-            "SELECT id, name, name_vi, rank FROM users WHERE is_active=1 "
-            "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+        users = staff_pick_rows(c, where="u.role IN ('leader','executive','member')")   # z1191z204: 공용 명단 · 역할 조건은 그대로
         # v5H226z614 (대표 지시): 상위팀 선택 — 설계팀 아래 검사기/자동화 하위팀 구성용
         teams = [dict(r) for r in c.execute(
             "SELECT id, name, sector FROM teams ORDER BY display_order, name").fetchall()]
@@ -18448,9 +18516,8 @@ async def admin_teams_edit_form(req: Request, tid: int):
         row = c.execute("SELECT * FROM teams WHERE id=?", (tid,)).fetchone()
         if not row:
             return RedirectResponse("/admin", 303)
-        users = [dict(r) for r in c.execute(
-            "SELECT id, name, name_vi, rank FROM users WHERE is_active=1 "
-            "AND role IN ('leader','executive','member') ORDER BY name").fetchall()]
+        users = staff_pick_rows(c, where="u.role IN ('leader','executive','member')",
+                                include_ids=[row["leader_id"]] if "leader_id" in row.keys() else ())   # z1191z204: 공용 명단 · 지금 팀장은 남김
         # v5H226z614: 상위팀 후보 — 자기 자신 제외(자기 상위 금지)
         teams = [dict(r) for r in c.execute(
             "SELECT id, name, sector FROM teams WHERE id<>? ORDER BY display_order, name",
@@ -19760,9 +19827,7 @@ async def dept_requests_page(request: Request):
             base_sel + "WHERE r.id IN (SELECT request_id FROM opp_request_members "
             "WHERE user_id=? AND role_in_req='member') "
             "AND r.status != 'canceled' ORDER BY r.id DESC", (uid,)).fetchall())
-        all_users = [dict(r) for r in c.execute(
-            "SELECT u.id, u.name, t.name AS team_name FROM users u LEFT JOIN teams t ON t.id=u.team_id "
-            "WHERE COALESCE(u.is_active,1)=1 ORDER BY t.name, u.name").fetchall()]
+        all_users = staff_pick_rows(c)   # z1191z204: 공용 명단(본사/베트남법인 책갈피 · 부서 순 · 「이름 직책 · 부서」)
         has_demo = _demo_dept_requests_count(c) > 0   # v5H226z850 (대표 지시): 남은 검증용 가상(ZZDEMO) 데이터 유무 → 초기화 버튼 노출
     return ctx(request, "dept_requests.html", user=u,
                as_leader=as_leader, as_pm=as_pm, as_member=as_member,
@@ -52194,16 +52259,11 @@ async def projects_so_backfill_run(request: Request):
 # v5H226z216 (2026-06-05 대표 지시): A/S 관리(수리 접수·처리) 화면 — 라이프밸류 전용 2단계.
 #   목록(/as) · 접수 등록(/as/new) · 상세(/as/{id}) · 상태변경 · 수리 처리
 # ==========================================================
-def _as_users_picker():
-    """담당자 선택용 사용자 목록."""
-    for _sql in ("SELECT id, name FROM users WHERE COALESCE(is_active,1)=1 ORDER BY name",
-                 "SELECT id, name FROM users ORDER BY name"):
-        try:
-            with db_session() as c:
-                return [dict(r) for r in c.execute(_sql).fetchall()]
-        except Exception:
-            continue
-    return []
+def _as_users_picker(include_ids=()):
+    """담당자 선택용 사용자 목록 — z1191z204: 공용 명단(staff_pick_rows · 본사/베트남법인 책갈피 · 부서 순 · 「이름 직책 · 부서」).
+    include_ids = 지금 담당(잠긴 계정이어도 남겨 저장 때 말없이 지워지지 않게)."""
+    with db_session() as c:
+        return staff_pick_rows(c, include_ids=include_ids)
 
 
 @app.get("/as", response_class=HTMLResponse)
@@ -52281,7 +52341,7 @@ async def as_detail_page(request: Request, as_id: int):
     if not t:
         return RedirectResponse("/as?error=notfound", 303)
     return ctx(request, "as_detail.html", user=u, active_tab="sales",
-               t=t, AS_STATUSES=_logi.AS_STATUSES, users=_as_users_picker())
+               t=t, AS_STATUSES=_logi.AS_STATUSES, users=_as_users_picker([t.get("assignee_id")] if hasattr(t, "get") else ()))
 
 
 @app.post("/as/{as_id}/status")
@@ -64834,7 +64894,8 @@ async def qc_report_new_form(req: Request):
         parts_options = [dict(r) for r in c.execute(
             "SELECT id, part_name AS name, spec, unit FROM parts ORDER BY part_name LIMIT 300"
         ).fetchall()]
-    return ctx(req, "qc_report_form.html", user=u, active="qc_reports",
+        qa_staff = staff_pick_rows(c)   # z1191z204: QA 매니저 고르기 — 그동안 목록을 안 넘겨 칸이 늘 비어 있었다(저장 칸 qa_manager_id 는 원래 번호)
+    return ctx(req, "qc_report_form.html", user=u, active="qc_reports", qa_staff=qa_staff,
                customers=customers, orders=orders, parts_options=parts_options,
                QC_OVERALL_OPTIONS=QC_OVERALL_OPTIONS,
                QC_STANDARD_ITEMS=QC_STANDARD_ITEMS,

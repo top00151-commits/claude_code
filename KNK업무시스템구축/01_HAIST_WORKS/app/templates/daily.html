@@ -436,8 +436,9 @@
         <div class="wo-f"><label>대상 종류</label>
           <select id="woTgtType" onchange="woTgtSwitch()"><option value="user">사람</option><option value="team">부서</option></select></div>
         <div class="wo-f" id="woUserWrap"><label>받을 사람</label>
-          <select id="woUser"><option value="">선택</option>
-            {% for x in wo_users %}<option value="{{ x.id }}">{{ x.name }}{% if x.team %} ({{ teamlabel(x.team, x.team_entity) }}){% endif %}</option>{% endfor %}
+          {# z1191z204: 공용 명단(🇰🇷 본사 / 🇻🇳 베트남법인 책갈피 · 부서 순 · 「이름 직책 · 부서」) · 값 = 사용자 번호 그대로 #}
+          {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+          <select id="woUser" data-knk-staff>{{ staff_options(wo_users, None, '선택') }}
           </select></div>
         <div class="wo-f" id="woTeamWrap" style="display:none;"><label>받을 부서</label>
           <select id="woTeam"><option value="">선택</option>
@@ -458,6 +459,7 @@
       </div>
     </div>
   </div>
+  {% include "_knk_picker.html" %}{# z1191z204: 받을 사람 = 책갈피 고르기 창 #}
 </main>
 </div>
 

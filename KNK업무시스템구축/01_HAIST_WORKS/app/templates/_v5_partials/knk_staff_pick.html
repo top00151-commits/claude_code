@@ -1,0 +1,25 @@
+{# =========================================================================
+   z1191z204 (대표 2026-11-28 · 스킬 knk-staff-list) — 담당자 1명 고르기 칸 공용 조각
+   ─────────────────────────────────────────────────────────────────────────
+   서버: 명단 = main.staff_pick_rows(c, include_ids=[지금 담당]) 하나만 쓴다(본사/베트남법인 = 부서 기준 · 부서 순 · 00_총괄 맨 앞).
+   화면:
+     {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+     <select name="assignee_id" data-knk-staff>{{ staff_options(users, t.assignee_id) }}</select>
+     ... 화면 본문 안(셀렉트 뒤)에 {% include "_knk_picker.html" %} 한 번 → 「🇰🇷 본사 N / 🇻🇳 베트남법인 N」 책갈피 고르기 창이 붙는다.
+   ⛔ 저장 값은 그대로 사용자 번호(users.id) — 셀렉트 이름·값은 바꾸지 않는다(서버·기존 JS 100% 그대로).
+   JS 가 안 돌아도 셀렉트 자체가 「이름 직책 · 부서」 · 본사/베트남법인 묶음으로 보인다.
+========================================================================= #}
+{% macro staff_options(rows, selected=None, empty='— 선택 —') -%}
+<option value="">{{ empty }}</option>
+{%- set _sel = (selected|string) if (selected is not none and selected != '') else '' %}
+{%- for _corp, _lbl in [('KOR', '🇰🇷 본사'), ('VN', '🇻🇳 베트남법인')] %}
+{%- set _grp = (rows or [])|selectattr('corp', 'equalto', _corp)|list %}
+{%- if _grp %}
+<optgroup label="{{ _lbl }}">
+{%- for p in _grp %}
+<option value="{{ p.id }}" data-corp="{{ p.corp }}" data-dkey="{{ p.dkey }}" data-dept="{{ p.dept }}" data-nm="{{ p.disp }}" data-sub="{{ p.sub }}" data-emp="{{ p.emp }}"{% if p.inactive %} data-off="1"{% endif %}{% if _sel and _sel == (p.id|string) %} selected{% endif %}>{{ p.label }}</option>
+{%- endfor %}
+</optgroup>
+{%- endif %}
+{%- endfor %}
+{%- endmacro %}

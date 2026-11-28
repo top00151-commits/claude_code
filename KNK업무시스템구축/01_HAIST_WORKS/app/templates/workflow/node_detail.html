@@ -179,12 +179,10 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
       <div class="box">
         <h3>👤 누가 함 (담당자 지정)</h3>
         <form class="assignee-pick" onsubmit="assignUser(event)">
-          <select id="userSel">
-            <option value="">— 미지정 —</option>
-            {% for u in users %}
-              <option value="{{ u.id }}" {% if assignee and assignee.id==u.id %}selected{% endif %}>{{ u.name }}{% if u.email %} ({{ u.email }}){% endif %}</option>
-            {% endfor %}
-          </select>
+          {# z1191z204: 공용 명단(책갈피 · 부서 순 · 「이름 직책 · 부서」 · 예전 이름순 300명 잘림 없앰) #}
+          {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+          <select id="userSel" data-knk-staff>{{ staff_options(users, assignee.id if assignee else None, '— 미지정 —') }}</select>
+          {% include "_knk_picker.html" %}
           <button type="submit">지정</button>
         </form>
         <p style="font-size:11px; color:var(--qv-ink-3); margin-top:8px;">지정 시 본인에게 알림이 자동 발송됩니다.</p>

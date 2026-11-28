@@ -135,7 +135,7 @@
               {% for ow in owners if ow.extra %}<option value="{{ ow.id }}" selected>{{ ow.name }} (지금 담당 · 기술영업팀 아님)</option>{% endfor %}
             </select></div>
           <div class="op-f"><label>예상 수주월</label>
-            <input type="month" name="expected_order_ym" value="{{ opp.expected_order_ym|default('', true) }}" {% if not can_edit %}disabled{% endif %}></div>
+            <input type="month" class="knk-cal" name="expected_order_ym" value="{{ opp.expected_order_ym|default('', true) }}" {% if not can_edit %}disabled{% endif %}></div>
           {% if can_money %}
           <div class="op-f"><label>예상 금액</label>
             <input type="text" name="expected_amount" inputmode="numeric" value="{{ (opp.expected_amount|int) if opp and opp.expected_amount else '' }}" {% if not can_edit %}disabled{% endif %}></div>

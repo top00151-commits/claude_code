@@ -1,6 +1,6 @@
 {# =========================================================================
    KNK 공용 선택위젯 (z886 · 대표 지시 규정)
-   부서/사용자 선택창 표준 — 🏢본사 / 🌏베트남 책갈피(탭) + 검색 + 선택칩(항상 확인)
+   부서/사용자 선택창 표준 — 🇰🇷 본사 / 🇻🇳 베트남법인 책갈피(탭) + 검색 + 선택칩(항상 확인)
    ─────────────────────────────────────────────────────────────────────────
    [사용법 · 규정]
    1) 이 파티셜을 페이지에 한 번 include:  {% include "_knk_picker.html" %}
@@ -15,6 +15,8 @@
    5) 개별(멤버) 접이식 컨테이너엔 class="knkp-collapse" 추가(검색 시 자동 펼침).
    6) 패널 안에 원래 있던 법인 제목은 data-knkp-paneltitle 로 표시하면 탭이 대체(자동 숨김).
    7) JS로 체크박스를 바꾼 뒤엔  KNKPicker.refresh(rootEl)  호출(선택칩·탭 갱신).
+   8) z1191z204: 담당자 「한 명」 고르기 = <select data-knk-staff>{{ staff_options(rows, 지금값) }}</select>
+      (_v5_partials/knk_staff_pick.html · 서버 명단 = main.staff_pick_rows) — 셀렉트는 그대로, 책갈피 고르기 창만 덧붙는다.
    ── 기존 체크박스 name/value/class/onchange 는 절대 건드리지 않음(폼·기존 로직 100% 보존) ──
 ========================================================================= #}
 <script>
@@ -30,8 +32,11 @@
       ".knkp-search{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:8px;padding:7px 11px;font-size:13px;outline:none;}",
       ".knkp-search:focus{border-color:#f97316;box-shadow:0 0 0 2px #fed7aa;}",
       ".knkp-tabs{display:flex;gap:6px;}",
-      ".knkp-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#f4f4f5;color:#52525b;font-size:12.5px;font-weight:800;cursor:pointer;line-height:1.15;}",
-      ".knkp-tab.active{background:#fff;color:#9a3412;border-color:#fdba74;box-shadow:0 -2px 0 #f97316 inset;}",
+      /* z1191z204 (스킬 knk-staff-list §2): 고른 책갈피 = 진한 회사 색 바탕 + 흰 글씨 · 고르지 않은 쪽 = 연한 회색 · 숫자 = 그 책갈피 전체 인원 */
+      ".knkp-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;border:1px solid var(--knk-border-default);border-radius:8px;background:var(--knk-bg-subtle);color:var(--knk-text-secondary);font-size:12.5px;font-weight:800;cursor:pointer;line-height:1.15;}",
+      ".knkp-tab.active{background:var(--knk-action);color:var(--knk-text-inverse);border-color:var(--knk-action);}",
+      ".knkp-tab-n{font-size:.85em;font-weight:800;background:rgba(0,0,0,.10);border-radius:999px;padding:0 7px;}",
+      ".knkp-tab.active .knkp-tab-n{background:rgba(255,255,255,.24);}",
       ".knkp-cnt{display:inline-flex;gap:4px;align-items:center;}",
       ".knkp-badge-chk{background:#f97316;color:#fff;border-radius:99px;padding:0 6px;font-size:10.5px;font-weight:800;}",
       ".knkp-badge-hit{background:#dbeafe;color:#1d4ed8;border-radius:99px;padding:0 6px;font-size:10.5px;font-weight:700;}",
@@ -108,13 +113,16 @@
     panels.forEach(function (p, i) {
       var b = document.createElement("button");
       b.type = "button"; b.className = "knkp-tab";
-      var lbl = p.getAttribute("data-knkp-label") || p.getAttribute("data-entity") || ("그룹 " + (i + 1));
-      b.innerHTML = '<span class="knkp-tab-l">' + esc(lbl) + '</span><span class="knkp-cnt"></span>';
+      var ent = (p.getAttribute("data-entity") || "").toUpperCase();
+      var lbl = ent === "KOR" ? "🇰🇷 본사" : (ent === "VN" ? "🇻🇳 베트남법인" : (p.getAttribute("data-knkp-label") || p.getAttribute("data-entity") || ("그룹 " + (i + 1))));
+      b.innerHTML = '<span class="knkp-tab-l">' + esc(lbl) + '</span><span class="knkp-tab-n">' + totalOf(p) + '</span><span class="knkp-cnt"></span>';
       b.addEventListener("click", function () { setActive(i); });
       tabs.appendChild(b); tabBtns.push(b);
     });
 
+    // 처음 열 때 = 본사 · 본사에 아무도 없으면 베트남법인(스킬 §2)
     var active = 0;
+    if (!totalOf(panels[0]) && panels.length > 1 && totalOf(panels[1])) active = 1;
     function setActive(i) {
       active = i;
       panels.forEach(function (p, j) { p.classList.toggle("knkp-active", j === i); });
@@ -123,6 +131,17 @@
     }
 
     function panelItems(p) { return [].slice.call(p.querySelectorAll(".knkp-item")); }
+    // z1191z204: 책갈피 숫자 = 그 책갈피의 전체 인원(같은 사람이 두 부서에 있어도 한 번) · 사람 줄이 없으면 부서 수
+    function totalOf(p) {
+      var seen = {}, n = 0, d = 0;
+      [].slice.call(p.querySelectorAll('.knkp-item')).forEach(function (it) {
+        if ((it.getAttribute("data-kind") || "dept") === "user") {
+          var cb = it.querySelector("input"), k = cb ? (cb.name + "=" + cb.value) : (it.getAttribute("data-label") || "");
+          if (!seen[k]) { seen[k] = 1; n++; }
+        } else { d++; }
+      });
+      return n || d;
+    }
     function cbOf(it) { return it.querySelector('input[type="checkbox"]'); }
 
     function applySearch() {
@@ -159,7 +178,7 @@
           if (q && norm(it.getAttribute("data-label")).indexOf(q) >= 0) hit++;
         });
         var s = "";
-        if (chk) s += '<span class="knkp-badge-chk">' + chk + '</span>';
+        if (chk) s += '<span class="knkp-badge-chk" title="고른 수">✓' + chk + '</span>';
         if (q && pi !== active && hit) s += '<span class="knkp-badge-hit">🔍' + hit + '</span>';
         var cnt = tabBtns[pi].querySelector(".knkp-cnt");
         if (cnt) cnt.innerHTML = s;
@@ -206,18 +225,268 @@
     // 외부 JS(블록적용·전체선택 등 dispatch 없는 변경)용 새로고침 훅
     root.__knkpRefresh = function () { rebuildChips(); applySearch(); };
 
-    setActive(0);
+    setActive(active);
     rebuildChips();
+  }
+
+  /* =======================================================================
+     z1191z204 (대표 2026-11-28 · 스킬 knk-staff-list) — 담당자 「한 명」 고르기
+     <select data-knk-staff> 에 붙는다(옵션은 _v5_partials/knk_staff_pick.html staff_options()).
+     · 셀렉트는 그대로 두고(이름·값 = 사용자 번호 · 서버·기존 JS 그대로) 옆에 단추 하나 → 누르면 고르기 창
+     · 창 = 검색(지금 책갈피 안 · 초성) + 「🇰🇷 본사 N」「🇻🇳 베트남법인 N」 책갈피 + 부서 순 「사진 · 이름 · 직책 · 부서」 + ✕ 닫기
+     ======================================================================= */
+  if (!document.getElementById("knksStyle")) {
+    var st2 = document.createElement("style");
+    st2.id = "knksStyle";
+    st2.textContent = [
+      ".knks-wrap{position:relative;display:block;min-width:0;}",
+      ".knks-native{position:absolute !important;left:0;bottom:0;width:1px !important;height:1px !important;opacity:0 !important;pointer-events:none !important;}",
+      ".knks-btn{display:flex;align-items:center;gap:8px;width:100%;min-height:var(--knk-h-control,36px);box-sizing:border-box;padding:5px 30px 5px 10px;border:1px solid var(--knk-border-default);border-radius:var(--knk-radius-control,6px);background:var(--knk-bg-white);color:var(--knk-text-primary);font:inherit;font-size:13px;text-align:left;cursor:pointer;position:relative;}",
+      ".knks-btn:after{content:'\\25BE';position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--knk-text-muted);font-size:11px;}",
+      ".knks-btn:hover{border-color:var(--knk-border-strong);}",
+      ".knks-btn:focus{outline:none;border-color:var(--knk-action);box-shadow:0 0 0 2px var(--knk-focus-ring);}",
+      ".knks-btn[disabled]{opacity:.6;cursor:not-allowed;}",
+      ".knks-btn .nm{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}",
+      ".knks-btn .sb{font-size:11.5px;color:var(--knk-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}",
+      ".knks-btn .ph{color:var(--knk-text-muted);}",
+      ".knks-pop{position:fixed;z-index:100060;display:flex;flex-direction:column;background:var(--knk-bg-white);border:1px solid var(--knk-border-default);border-radius:var(--knk-radius-modal,10px);box-shadow:var(--knk-shadow-popover);padding:10px;box-sizing:border-box;color:var(--knk-text-primary);font-size:13px;}",
+      ".knks-pop[hidden]{display:none;}",
+      ".knks-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}",
+      ".knks-ttl{flex:1;font-weight:800;font-size:13px;}",
+      ".knks-x{border:1px solid var(--knk-border-default);background:var(--knk-bg-white);color:var(--knk-text-secondary);border-radius:var(--knk-radius-control,6px);padding:4px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}",
+      ".knks-x:hover{border-color:var(--knk-action);color:var(--knk-action);}",
+      ".knks-q{width:100%;box-sizing:border-box;border:1px solid var(--knk-border-default);border-radius:8px;padding:7px 11px;font:inherit;font-size:13px;outline:none;margin-bottom:7px;}",
+      ".knks-q:focus{border-color:var(--knk-action);box-shadow:0 0 0 2px var(--knk-focus-ring);}",
+      ".knks-pop .knkp-tabs{margin-bottom:7px;flex-shrink:0;}",
+      ".knks-list{overflow:auto;overscroll-behavior:contain;flex:1;min-height:0;}",
+      ".knks-dh{font-size:11px;font-weight:800;color:var(--knk-text-muted);padding:7px 6px 3px;}",
+      ".knks-row{display:flex;align-items:center;gap:9px;width:100%;box-sizing:border-box;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;}",
+      ".knks-row:hover{background:var(--knk-bg-hover);}",
+      ".knks-row.on{background:var(--knk-bg-selected);}",
+      ".knks-row.on:after{content:'\\2713';margin-left:auto;font-weight:800;color:var(--knk-action);}",
+      ".knks-av{flex-shrink:0;width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--knk-text-inverse);}",
+      ".knks-tx{min-width:0;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}",
+      ".knks-tx .nm{font-weight:800;}",
+      ".knks-tx .sb{font-size:11.5px;color:var(--knk-text-muted);}",
+      ".knks-none{color:var(--knk-text-muted);}",
+      ".knks-empty{font-size:12px;color:var(--knk-text-muted);padding:14px 6px;}",
+      ".knks-row[hidden],.knks-dh[hidden],.knks-empty[hidden]{display:none;}"
+    ].join("");
+    document.head.appendChild(st2);
+  }
+
+  // 한글 초성 찾기 — 「ㄱㅈㄹ」 → 김정락
+  var CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+  function choOf(s) {
+    var o = "";
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      o += (c >= 0xAC00 && c <= 0xD7A3) ? CHO.charAt(Math.floor((c - 0xAC00) / 588)) : s.charAt(i);
+    }
+    return o;
+  }
+  function hit(hay, q) {
+    if (!q) return true;
+    if (hay.indexOf(q) >= 0) return true;
+    return /^[ㄱ-ㅎ]+$/.test(q) && choOf(hay).indexOf(q) >= 0;
+  }
+  function avColor(id) {   // 사람별 색(번호로 정해짐 · 직접 색 숫자 없이)
+    var h = (parseInt(id, 10) || 0) * 47 % 360;
+    return "hsl(" + h + ",45%,42%)";
+  }
+
+  var spop = null, sCur = null, sTab = "KOR";
+  function sEnsure() {
+    if (spop && document.body.contains(spop)) return spop;
+    spop = document.createElement("div");
+    spop.className = "knks-pop"; spop.hidden = true;
+    spop.setAttribute("role", "dialog");
+    spop.innerHTML = '<div class="knks-head"><span class="knks-ttl"></span><button type="button" class="knks-x" data-x>✕ 닫기</button></div>'
+      + '<input type="text" class="knks-q" autocomplete="off" placeholder="🔍 이름·직책·부서·사번 (초성도)">'
+      + '<div class="knkp-tabs"></div><div class="knks-list"></div>';
+    document.body.appendChild(spop);
+    spop.querySelector("[data-x]").addEventListener("click", function () { sHide(true); });
+    var q = spop.querySelector(".knks-q");
+    q.addEventListener("input", sFilter);
+    q.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        var f = spop.querySelector(".knks-row[data-d]:not([hidden])");
+        if (f) f.click();
+      } else if (e.key === "Escape") { e.stopPropagation(); sHide(true); }
+    });
+    if (!window.__knksDocWired) {
+      window.__knksDocWired = true;
+      document.addEventListener("mousedown", function (e) {
+        if (!spop || spop.hidden) return;
+        if (spop.contains(e.target)) return;
+        if (sCur && sCur.btn.contains(e.target)) return;
+        sHide(false);
+      }, true);
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && spop && !spop.hidden) sHide(true); });
+      window.addEventListener("resize", function () { sPlace(); });
+      window.addEventListener("scroll", function (e) { if (spop && !spop.hidden && !spop.contains(e.target)) sPlace(); }, true);
+    }
+    return spop;
+  }
+  function optsOf(sel) {
+    return [].slice.call(sel.options).filter(function (o) { return o.value !== ""; });
+  }
+  function corpOf(o) { return (o.getAttribute("data-corp") || "KOR").toUpperCase() === "VN" ? "VN" : "KOR"; }
+  function sRender() {
+    var p = sEnsure(), sel = sCur.sel, opts = optsOf(sel);
+    var ttl = sel.getAttribute("data-knk-staff-title") || (sCur.lab ? ("👤 " + sCur.lab + " 고르기") : "👤 사람 고르기");
+    p.querySelector(".knks-ttl").textContent = ttl;
+    var n = { KOR: 0, VN: 0 };
+    opts.forEach(function (o) { n[corpOf(o)]++; });
+    var tabs = p.querySelector(".knkp-tabs");
+    tabs.innerHTML = "";
+    [["KOR", "🇰🇷 본사"], ["VN", "🇻🇳 베트남법인"]].forEach(function (t) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "knkp-tab" + (sTab === t[0] ? " active" : "");
+      b.setAttribute("data-tab", t[0]);
+      b.innerHTML = esc(t[1]) + ' <span class="knkp-tab-n">' + n[t[0]] + "</span>";
+      b.addEventListener("click", function () {
+        var qv = p.querySelector(".knks-q").value;
+        sTab = t[0]; sRender(); p.querySelector(".knks-q").value = qv; sFilter();
+        try { p.querySelector(".knks-q").focus({ preventScroll: true }); } catch (e) {}
+      });
+      tabs.appendChild(b);
+    });
+    var list = p.querySelector(".knks-list");
+    var h = [], lastD = null, cnt = 0;
+    var none = (sel.options.length && sel.options[0].value === "") ? sel.options[0].textContent : "— 선택 안 함 —";
+    h.push('<button type="button" class="knks-row knks-none' + (sel.value === "" ? " on" : "") + '" data-v="">' + esc(none) + "</button>");
+    opts.forEach(function (o) {
+      if (corpOf(o) !== sTab) return;
+      cnt++;
+      var dk = o.getAttribute("data-dkey") || "", dl = o.getAttribute("data-dept") || "";
+      if (dk !== lastD) { h.push('<div class="knks-dh" data-dh="' + esc(dk) + '">' + esc(dl || "부서 미지정") + "</div>"); lastD = dk; }
+      var nm = o.getAttribute("data-nm") || o.textContent, sb = o.getAttribute("data-sub") || "";
+      var hay = (nm + " " + sb + " " + (o.getAttribute("data-emp") || "")).toLowerCase().replace(/\s+/g, "");
+      h.push('<button type="button" class="knks-row' + (o.value === sel.value ? " on" : "") + '" data-v="' + esc(o.value) + '" data-d="' + esc(dk) + '" data-hay="' + esc(hay) + '">'
+        + '<span class="knks-av" style="background:' + avColor(o.value) + '">' + esc((nm || "?").charAt(0)) + "</span>"
+        + '<span class="knks-tx"><span class="nm">' + esc(nm) + "</span>" + (sb ? '<span class="sb">' + esc(sb) + "</span>" : "")
+        + (o.getAttribute("data-off") ? '<span class="sb">(잠긴 계정)</span>' : "") + "</span></button>");
+    });
+    if (!cnt) h.push('<div class="knks-empty">해당 인원이 없습니다.</div>');
+    h.push('<div class="knks-empty" data-noq hidden>검색 결과 없음</div>');
+    list.innerHTML = h.join("");
+    [].slice.call(list.querySelectorAll(".knks-row")).forEach(function (r) {
+      r.addEventListener("click", function () { sPick(r.getAttribute("data-v")); });
+    });
+  }
+  function sFilter() {
+    if (!spop) return;
+    var q = (spop.querySelector(".knks-q").value || "").toLowerCase().replace(/\s+/g, "");
+    var shown = {}, any = 0;
+    [].slice.call(spop.querySelectorAll(".knks-row[data-d]")).forEach(function (r) {
+      var ok = hit(r.getAttribute("data-hay") || "", q);
+      r.hidden = !ok;
+      if (ok) { shown[r.getAttribute("data-d")] = 1; any++; }
+    });
+    [].slice.call(spop.querySelectorAll(".knks-dh")).forEach(function (d) { d.hidden = !shown[d.getAttribute("data-dh")]; });
+    var nr = spop.querySelector(".knks-none"); if (nr) nr.hidden = !!q;
+    var e = spop.querySelector("[data-noq]"); if (e) e.hidden = !(q && !any);
+  }
+  function sPlace() {
+    if (!spop || spop.hidden || !sCur) return;
+    if (!document.body.contains(sCur.btn)) { sHide(false); return; }
+    var r = sCur.btn.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight, G = 8;
+    var w = Math.min(Math.max(r.width, 360), vw - 2 * G);
+    var below = vh - r.bottom - G, above = r.top - G;
+    var hgt = Math.min(460, Math.max(below, above) - 4);
+    if (hgt < 240) hgt = Math.min(460, vh - 2 * G);
+    spop.style.width = w + "px";
+    spop.style.height = hgt + "px";
+    spop.style.left = Math.max(G, Math.min(r.left, vw - w - G)) + "px";
+    var top = (below >= hgt || below >= above) ? r.bottom + 4 : r.top - hgt - 4;
+    spop.style.top = Math.max(G, Math.min(top, vh - hgt - G)) + "px";
+  }
+  function sShow(rec) {
+    if (rec.sel.disabled) return;
+    sEnsure(); sCur = rec;
+    var so = rec.sel.selectedOptions && rec.sel.selectedOptions[0];
+    var hasKor = optsOf(rec.sel).some(function (o) { return corpOf(o) === "KOR"; });
+    sTab = (so && so.value) ? corpOf(so) : (hasKor ? "KOR" : "VN");
+    spop.querySelector(".knks-q").value = "";
+    sRender(); sFilter();
+    spop.hidden = false; sPlace();
+    var on = spop.querySelector(".knks-row.on[data-d]");
+    if (on && on.scrollIntoView) { try { on.scrollIntoView({ block: "nearest" }); } catch (e) {} }
+    try { spop.querySelector(".knks-q").focus({ preventScroll: true }); } catch (e) {}
+  }
+  function sHide(focusBack) {
+    if (spop) spop.hidden = true;
+    var c = sCur; sCur = null;
+    if (focusBack && c) { try { c.btn.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  function sPick(v) {
+    var c = sCur; if (!c) return;
+    if (c.sel.value !== v) {
+      c.sel.value = v;
+      fireChange(c.sel);
+      try { c.sel.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) {}
+    }
+    sLabel(c);
+    sHide(true);
+  }
+  function sLabel(rec) {
+    var so = rec.sel.selectedOptions && rec.sel.selectedOptions[0];
+    if (so && so.value) {
+      var nm = so.getAttribute("data-nm") || so.textContent, sb = so.getAttribute("data-sub") || "";
+      rec.btn.innerHTML = '<span class="nm">' + esc(nm) + "</span>" + (sb ? '<span class="sb">' + esc(sb) + "</span>" : "");
+      rec.btn.title = nm + (sb ? " · " + sb : "");
+    } else {
+      var ph = (rec.sel.options[0] && rec.sel.options[0].value === "") ? rec.sel.options[0].textContent : "— 선택 —";
+      rec.btn.innerHTML = '<span class="ph">' + esc(ph) + "</span>";
+      rec.btn.title = "";
+    }
+    rec.btn.disabled = !!rec.sel.disabled;
+  }
+  function staffEnhance(sel) {
+    if (!sel || sel.__knks || sel.tagName !== "SELECT" || sel.multiple) return;
+    sel.__knks = true;
+    var wrap = document.createElement("span"); wrap.className = "knks-wrap";
+    if (sel.style && sel.style.width) wrap.style.width = sel.style.width;
+    if (sel.style && sel.style.flex) wrap.style.flex = sel.style.flex;
+    sel.parentNode.insertBefore(wrap, sel);
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "knks-btn";
+    btn.setAttribute("aria-haspopup", "dialog");
+    if (sel.id) btn.setAttribute("data-for", sel.id);
+    if (sel.name) btn.setAttribute("data-for-name", sel.name);
+    wrap.appendChild(btn); wrap.appendChild(sel);
+    sel.classList.add("knks-native");
+    sel.setAttribute("tabindex", "-1");
+    var lab = "";
+    try {
+      var fl = sel.closest && sel.closest(".af-field,.fld,.op-f,.wo-f,.field,.box");
+      var le = fl && fl.querySelector("label,h3");
+      lab = le ? (le.textContent || "").replace(/[\(（].*$/, "").replace(/[👤*]/g, "").trim() : "";
+    } catch (e) {}
+    var rec = { sel: sel, btn: btn, lab: lab };
+    btn.addEventListener("click", function () { if (sCur === rec && spop && !spop.hidden) sHide(true); else sShow(rec); });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") { e.preventDefault(); sShow(rec); }
+    });
+    sel.addEventListener("change", function () { sLabel(rec); });
+    // 필수 칸인데 비었으면 브라우저 말풍선 대신 고르기 창을 연다
+    sel.addEventListener("invalid", function () { setTimeout(function () { sShow(rec); }, 0); });
+    sLabel(rec);
   }
 
   function initAll(ctx) {
     var list = (ctx || document).querySelectorAll("[data-knk-picker]");
     for (var i = 0; i < list.length; i++) { enhance(list[i]); }
+    var ss = (ctx || document).querySelectorAll("select[data-knk-staff]");
+    for (var j = 0; j < ss.length; j++) { staffEnhance(ss[j]); }
   }
 
   window.KNKPicker = window.KNKPicker || {};
   window.KNKPicker.init = initAll;
   window.KNKPicker.enhance = enhance;
+  window.KNKPicker.staff = staffEnhance;   // z1191z204: 나중에 생긴 담당자 칸은 KNKPicker.staff(selectEl)
   window.KNKPicker.refresh = function (root) {
     if (typeof root === "string") root = document.getElementById(root);
     if (root && root.__knkpRefresh) root.__knkpRefresh();

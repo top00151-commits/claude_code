@@ -57,12 +57,10 @@
       </div>
       <div class="fld">
         <label>팀장</label>
-        <select name="leader_id">
-          <option value="">— 미지정 —</option>
-          {% for u in users %}
-          <option value="{{ u.id }}" {% if team and team.leader_id == u.id %}selected{% endif %}>{{ vname(u) }} ({{ rank_label(u.rank|default('-'), lang|default('ko')) }})</option>
-          {% endfor %}
-        </select>
+        {# z1191z204: 공용 명단(책갈피 · 부서 순 · 「이름 직책 · 부서」) · 지금 팀장은 서버가 남김 #}
+        {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+        <select name="leader_id" data-knk-staff>{{ staff_options(users, team.leader_id if team else None, '— 미지정 —') }}</select>
+        {% include "_knk_picker.html" %}
       </div>
       {# v5H226z614 (대표 지시): 상위팀 — 설계팀 아래 검사기/자동화 하위팀 구성용 #}
       <div class="fld full">

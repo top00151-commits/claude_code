@@ -28,12 +28,12 @@
 .cal-day:hover { background: var(--qv-surface-2); cursor: pointer; }
 /* v5H202: 공휴일 배지 (수주관리 캘린더 기준 통일) */
 .cal-day .hol-badge { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; z-index: 2; }
-.cal-day .hol-badge .b { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; text-align: center;
+.cal-day .hol-badge .b, .upcoming-info .hol-badge .b { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; padding: 0 4px; text-align: center;
                           border-radius: 4px; font-size: 10px; font-weight: 800;
                           background: #dc2626; color: #fff; box-shadow: 0 1px 3px rgba(220,38,38,0.4); }
-.cal-day .hol-badge .b.vn { background: #fb923c; box-shadow: 0 1px 3px rgba(251,146,60,0.4); }
-.cal-day .hol-badge .b.alt { background: #fff; color: #dc2626; border: 1px dashed #dc2626; box-shadow: none; }
-.cal-day .hol-badge .b.alt.vn { color: #fb923c; border-color: #fb923c; }
+.cal-day .hol-badge .b.vn, .upcoming-info .hol-badge .b.vn { background: #fb923c; box-shadow: 0 1px 3px rgba(251,146,60,0.4); }
+.cal-day .hol-badge .b.alt, .upcoming-info .hol-badge .b.alt { background: #fff; color: #dc2626; border: 1px dashed #dc2626; box-shadow: none; }
+.cal-day .hol-badge .b.alt.vn, .upcoming-info .hol-badge .b.alt.vn { color: #fb923c; border-color: #fb923c; }
 .cal-day .hol-name { display: block; margin-top: 2px; font-size: 10px; color: #dc2626; font-weight: 700; line-height: 1.2; }
 .bento, .section, .tbl-wrap { margin-left: 0; margin-right: 0; }
 
@@ -65,7 +65,8 @@
 .upcoming-info .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--qv-ink-3); }
 .upcoming-info .meta b { color: var(--qv-ink); font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .upcoming-info .hol { font-size: 10.5px; color: #dc2626; font-weight: 700; margin-top: 2px; }
-.upcoming-info .hol.vn { color: #fb923c; }
+.upcoming-info .hol.vn, .cal-day .hol-name.vn { color: #fb923c; }
+.upcoming-info .hol-badge { display: inline-flex; vertical-align: -4px; margin-right: 5px; }   /* z1191z204: 임박 일정 K/V 표시 */
 .upcoming-empty { padding: 14px; text-align: center; color: var(--qv-ink-3); font-size: 12px; }
 
 .upcoming-foot { padding: 10px 14px; background: var(--qv-surface-3); border-top: 1px solid var(--qv-line); font-size: 11px; color: var(--qv-ink-3); text-align: center; }
@@ -108,7 +109,7 @@
           <div class="cal-day other"></div>
           {% else %}
           <a href="/daily/{{ d.date }}" class="cal-day {% if d.is_today %}today{% endif %} {% if _is_hol %}holiday{% endif %}"
-             title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %}">
+             title="{{ d.date }}{% if d.hol_kr %} · 한국 공휴일: {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 베트남 공휴일: {{ d.hol_vn }}{% endif %}">
             {% if _is_hol %}
             <span class="hol-badge">
               {# v5H226z1041: 대체공휴일 판정은 공용 hol_is_alt() 로 (언어 바뀌어도 안 깨지게) #}
@@ -117,7 +118,9 @@
             </span>
             {% endif %}
             <div class="num {% if d.is_sun %}sun{% elif d.is_sat %}sat{% endif %}{% if _is_hol %} hol{% endif %}">{{ d.day }}</div>
+            {# z1191z204: 칸 안 휴일 이름 = 한국·베트남 둘 다(예전엔 한국 것만) #}
             {% if d.hol_kr %}<span class="hol-name">{{ d.hol_kr }}</span>{% endif %}
+            {% if d.hol_vn and d.hol_vn != d.hol_kr %}<span class="hol-name vn">{{ d.hol_vn }}</span>{% endif %}
             {% if d.d %}
             <div class="stat">
               <span class="pill pill-progress">{{ d.d.total }}</span>
@@ -147,7 +150,8 @@
         <a href="/daily/{{ u.date }}"
            class="upcoming-item{% if u.is_today %} today{% endif %}{% if _is_weekend and not u.is_today %} weekend{% endif %}">
           <div class="upcoming-date">
-            <div class="day{% if u.wd == 6 or u.hol_kr %} sun{% elif u.wd == 5 %} sat{% endif %}">{{ u.day }}</div>
+            {# z1191z204: 빨강 = 일요일·한국 휴일·베트남 휴일(예전엔 베트남 휴일 빠짐) · 휴일인 토요일은 빨강 우선 #}
+            <div class="day{% if u.wd == 6 or u.hol_kr or u.hol_vn %} sun{% elif u.wd == 5 %} sat{% endif %}">{{ u.day }}</div>
             <div class="rel{% if u.is_today %} now{% endif %}">{{ u.rel_label }}</div>
           </div>
           <div class="upcoming-info">
@@ -160,8 +164,9 @@
                 <span style="color:var(--qv-ink-4);">업무 없음</span>
               {% endif %}
             </div>
-            {% if u.hol_kr %}<div class="hol">🇰🇷 {{ u.hol_kr }}</div>{% endif %}
-            {% if u.hol_vn %}<div class="hol vn">🇻🇳 {{ u.hol_vn }}</div>{% endif %}
+            {# z1191z204: 국기 그림 대신 기준 표시 K(빨강)·V(주황) · 대체 휴일은 점선(공용 hol_is_alt) #}
+            {% if u.hol_kr %}<div class="hol"><span class="hol-badge"><span class="b kr {% if hol_is_alt(u.hol_kr) %}alt{% endif %}">K</span></span>{{ u.hol_kr }}</div>{% endif %}
+            {% if u.hol_vn %}<div class="hol vn"><span class="hol-badge"><span class="b vn {% if hol_is_alt(u.hol_vn) %}alt{% endif %}">V</span></span>{{ u.hol_vn }}</div>{% endif %}
           </div>
         </a>
       {% else %}

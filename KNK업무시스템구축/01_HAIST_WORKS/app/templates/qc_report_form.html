@@ -440,9 +440,10 @@
                   </div>
                   <div class="field">
                     <label>QA 매니저 (등록)</label>
-                    <select name="qa_manager_id">
-                      <option value="">— 선택 안함 —</option>
-                    </select>
+                    {# z1191z204: 그동안 명단을 안 넘겨 늘 비어 있던 칸 → 공용 명단(저장 = qa_manager_id 사용자 번호 · 원래 칸) #}
+                    {% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+                    <select name="qa_manager_id" data-knk-staff>{{ staff_options(qa_staff|default([]), None, '— 선택 안함 —') }}</select>
+                    {% include "_knk_picker.html" %}
                     <div class="field-hint">QA 매니저명을 직접 입력해도 됩니다.</div>
                   </div>
                 </div>

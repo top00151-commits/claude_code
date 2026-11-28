@@ -264,7 +264,7 @@ body {
             <a href="?{% if biz %}biz={{ biz }}&{% endif %}cal_ym={{ _nav.prev }}" title="이전 달">←</a>
             <a class="today-btn" href="?{% if biz %}biz={{ biz }}{% endif %}" title="이번 달">오늘</a>
             <a href="?{% if biz %}biz={{ biz }}&{% endif %}cal_ym={{ _nav.next }}" title="다음 달">→</a>
-            <input type="month" value="{{ _nav.current }}" title="달력 빠른 이동"
+            <input type="month" class="knk-cal" value="{{ _nav.current }}" title="달력 빠른 이동"
                    onchange="if(this.value) location.href='?{% if biz %}biz={{ biz }}&{% endif %}cal_ym='+this.value;"
                    style="padding:2px 4px;border:1px solid #d6cdb6;border-radius:3px;font-size:10.5px;font-weight:600;margin-left:3px;">
           </span>
@@ -278,7 +278,7 @@ body {
             {% set _is_hol = d.hol_kr or d.hol_vn %}
             <a class="cal-day cls-{{ d.cls }} {% if d.is_today %}today{% endif %} {% if d.is_selected %}selected{% endif %}"
                href="?{% if biz %}biz={{ biz }}&{% endif %}due_date={{ d.date }}"
-               title="{{ d.date }}{% if d.hol_kr %} · 🇰🇷 {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 🇻🇳 {{ d.hol_vn }}{% endif %} · {{ d.count }}건{% if d.amount %} · {{ money(d.amount, 'KRW') }}{% endif %}">
+               title="{{ d.date }}{% if d.hol_kr %} · 한국 공휴일: {{ d.hol_kr }}{% endif %}{% if d.hol_vn %} · 베트남 공휴일: {{ d.hol_vn }}{% endif %} · {{ d.count }}건{% if d.amount %} · {{ money(d.amount, 'KRW') }}{% endif %}">
               {% if _is_hol %}
               <span class="hol-badge">
                 {# v5H226z1041: 대체공휴일 판정은 공용 hol_is_alt() 로 (언어 바뀌어도 안 깨지게) #}

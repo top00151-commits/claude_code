@@ -1,6 +1,10 @@
 {# v5H203: 공휴일 표시 데이트픽커 — 수주관리 캘린더 기준 통일
    사용법: 페이지 어디에 한 번 include 하고, 날짜 input 에 class="knk-cal" 추가
    (동적으로 추가된 input 은 KnkCal.attach(el) 호출)
+   z1191z204 (대표 2026-11-28 · 스킬 knk-calendar): 머리 = 「📅 YYYY.MM」 + 「← 오늘 →」.
+     월 고르기 칸(type=month)·날짜+시각 칸(type=datetime-local)도 class="knk-cal" 을 달면 이 달력이 붙는다
+     (브라우저 기본 달력 대신). 저장 값 모양은 그대로 — 월 = YYYY-MM · 날짜+시각 = YYYY-MM-DDTHH:MM.
+     ⚠ 월·날짜시각 칸은 class="knk-cal" 을 단 칸에만 붙는다(다른 화면 동작이 말없이 바뀌지 않게).
 #}
 <style>
 .knk-cal-pop { position: absolute; z-index: 100050; background: #fff; border: 1px solid #f1e8d4;  /* v5H226z558: 팝업(ti-pop z9999) 위로 — 날짜 클릭 가림 방지 */
@@ -8,12 +12,20 @@
                width: 340px; font-family: inherit; }
 .knk-cal-pop.hidden { display: none; }
 .knk-cal-pop .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.knk-cal-pop .head .title { font-weight: 800; font-size: 13px; color: #b91c1c; }
+.knk-cal-pop .head .title { font-weight: 800; font-size: 13px; color: var(--knk-text-primary); }
 .knk-cal-pop .head .nav { display: flex; gap: 4px; }
 .knk-cal-pop .head .nav button { background: #fafaf7; border: 1px solid #f1e8d4; border-radius: 6px;
                                   width: 26px; height: 26px; cursor: pointer; font-size: 13px; color: #475569;
                                   display: flex; align-items: center; justify-content: center; padding: 0; }
 .knk-cal-pop .head .nav button:hover { background: #fef3c7; border-color: #d4a574; }
+.knk-cal-pop .head .nav button[data-act="today"] { width: auto; padding: 0 9px; font-size: 11.5px; font-weight: 700; }
+/* z1191z204: 월 고르기(12달) · 날짜+시각의 시각 줄 */
+.knk-cal-pop .mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.knk-cal-pop .mon { padding: 10px 0; text-align: center; border-radius: 6px; background: var(--knk-bg-inset); border: 1px solid transparent; cursor: pointer; font-size: 13px; font-weight: 800; color: var(--knk-text-primary); }
+.knk-cal-pop .mon:hover { border-color: var(--knk-border-strong); }
+.knk-cal-pop .tline { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--knk-text-secondary); }
+.knk-cal-pop .dow-row[hidden], .knk-cal-pop .grid[hidden], .knk-cal-pop .mgrid[hidden], .knk-cal-pop .tline[hidden] { display: none; }
+.knk-cal-pop .tline input { padding: 4px 8px; border: 1px solid var(--knk-border-default); border-radius: 6px; font: inherit; font-size: 13px; }
 .knk-cal-pop .dow-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
 .knk-cal-pop .dow { text-align: center; font-size: 10.5px; font-weight: 700; color: #64748b; padding: 4px 0; }
 .knk-cal-pop .dow.sun { color: #dc2626; }
@@ -29,7 +41,8 @@
 .knk-cal-pop .day.out .d { color: #cbd5e1; }
 .knk-cal-pop .day.out:hover { background: transparent; border-color: transparent; transform: none; }
 .knk-cal-pop .day.today { box-shadow: inset 0 0 0 2px #d4a574; }
-.knk-cal-pop .day.selected { background: #fef3c7 !important; box-shadow: inset 0 0 0 2px #b91c1c; }
+.knk-cal-pop .day.selected, .knk-cal-pop .mon.selected { background: #fef3c7 !important; box-shadow: inset 0 0 0 2px #b91c1c; }
+.knk-cal-pop .mon.today { box-shadow: inset 0 0 0 2px #d4a574; }
 /* 일요일·공휴일 적색 / 토요일 청색 — 수주관리 캘린더 동일 패턴 (!important 로 무력화 방지) */
 .knk-cal-pop .day .d.sun, .knk-cal-pop .day .d.hol { color: #dc2626 !important; }
 .knk-cal-pop .day .d.sat { color: #2563eb !important; }
@@ -83,7 +96,9 @@ input.knk-cal { cursor: pointer; }
     var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]);
   }
 
-  var pop = null, currentInput = null, viewY = 0, viewM = 0;
+  var pop = null, currentInput = null, viewY = 0, viewM = 0, mode = 'date';
+  function modeOf(input){ return (input && input._knkCalMode) || 'date'; }
+  function nowHM(){ var t = new Date(); return pad2(t.getHours()) + ':' + pad2(t.getMinutes()); }
 
   function ensurePop(){
     if (pop) return pop;
@@ -92,16 +107,18 @@ input.knk-cal { cursor: pointer; }
     pop.innerHTML = ''
       + '<div class="head"><div class="title"></div>'
       + '<div class="nav">'
-      + '<button type="button" data-act="prev" title="이전 달">‹</button>'
-      + '<button type="button" data-act="today" title="오늘로">●</button>'
-      + '<button type="button" data-act="next" title="다음 달">›</button>'
+      + '<button type="button" data-act="prev" title="이전">←</button>'
+      + '<button type="button" data-act="today" title="오늘로">오늘</button>'
+      + '<button type="button" data-act="next" title="다음">→</button>'
       + '</div></div>'
       + '<div class="dow-row">'
       + '<div class="dow sun">일</div><div class="dow">월</div><div class="dow">화</div>'
       + '<div class="dow">수</div><div class="dow">목</div><div class="dow">금</div>'
       + '<div class="dow sat">토</div></div>'
       + '<div class="grid"></div>'
+      + '<div class="mgrid" hidden></div>'
       + '<div class="holname"></div>'
+      + '<div class="tline" hidden>🕘 시각 <input type="time" step="60" data-time></div>'
       + '<div class="foot">'
       + '<button type="button" class="clear" data-act="clear">✕ 지우기</button>'
       + '<button type="button" data-act="close">닫기</button>'
@@ -109,11 +126,19 @@ input.knk-cal { cursor: pointer; }
     document.body.appendChild(pop);
     pop.addEventListener('click', function(e){
       var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
-      if (act === 'prev') { shift(-1); }
-      else if (act === 'next') { shift(1); }
+      if (act === 'prev') { shift(mode === 'month' ? -12 : -1); }
+      else if (act === 'next') { shift(mode === 'month' ? 12 : 1); }
       else if (act === 'today') { var t = new Date(); viewY = t.getFullYear(); viewM = t.getMonth(); render(); }
       else if (act === 'clear') { if (currentInput) { currentInput.value = ''; fireChange(currentInput); } hide(); }
       else if (act === 'close') { hide(); }
+    });
+    // z1191z204: 날짜+시각 칸 — 시각을 바꾸면 고른 날짜에 바로 반영(값 모양 YYYY-MM-DDTHH:MM 그대로)
+    pop.querySelector('[data-time]').addEventListener('change', function(){
+      if (!currentInput || mode !== 'datetime') return;
+      var dpart = (currentInput.value || '').slice(0, 10);
+      if (!parseISO(dpart)) return;
+      currentInput.value = dpart + 'T' + (this.value || '00:00');
+      fireChange(currentInput);
     });
     document.addEventListener('mousedown', function(e){
       if (!pop || pop.classList.contains('hidden')) return;
@@ -139,9 +164,34 @@ input.knk-cal { cursor: pointer; }
     render();
   }
 
+  // z1191z204: 월 고르기 — 12달 (값 YYYY-MM)
+  function renderMonths(p){
+    p.querySelector('.title').textContent = '📅 ' + viewY;
+    var mg = p.querySelector('.mgrid'); mg.innerHTML = '';
+    var t = new Date(), sel = (currentInput && currentInput.value) || '';
+    for (var k = 0; k < 12; k++){
+      var ym = viewY + '-' + pad2(k + 1);
+      var c = document.createElement('div');
+      c.className = 'mon' + (ym === sel.slice(0, 7) ? ' selected' : '') + ((viewY === t.getFullYear() && k === t.getMonth()) ? ' today' : '');
+      c.setAttribute('data-ym', ym);
+      c.textContent = (k + 1) + '월';
+      c.addEventListener('click', function(){
+        if (currentInput) { currentInput.value = this.getAttribute('data-ym'); fireChange(currentInput); }
+        hide();
+      });
+      mg.appendChild(c);
+    }
+  }
+
   function render(){
     var p = ensurePop();
-    p.querySelector('.title').textContent = viewY + '년 ' + (viewM+1) + '월';
+    var isMon = (mode === 'month');
+    p.querySelector('.dow-row').hidden = isMon;
+    p.querySelector('.grid').hidden = isMon;
+    p.querySelector('.mgrid').hidden = !isMon;
+    p.querySelector('.tline').hidden = (mode !== 'datetime');
+    if (isMon) { p.querySelector('.holname').style.display = 'none'; renderMonths(p); return; }
+    p.querySelector('.title').textContent = '📅 ' + viewY + '.' + pad2(viewM + 1);   // z1191z204: 기준 머리 「📅 YYYY.MM」
     var grid = p.querySelector('.grid');
     grid.innerHTML = '';
     var first = new Date(viewY, viewM, 1);
@@ -149,7 +199,7 @@ input.knk-cal { cursor: pointer; }
     var daysInMonth = new Date(viewY, viewM+1, 0).getDate();
     var prevDays = new Date(viewY, viewM, 0).getDate();
     var todayIso = isoOf(new Date());
-    var selVal = currentInput && currentInput.value ? currentInput.value : '';
+    var selVal = currentInput && currentInput.value ? currentInput.value.slice(0, 10) : '';
     var holNamesShown = [];
 
     for (var i = 0; i < 42; i++){
@@ -192,6 +242,14 @@ input.knk-cal { cursor: pointer; }
       if (inMonth) {
         cell.addEventListener('click', function(){
           var v = this.getAttribute('data-iso');
+          if (mode === 'datetime') {
+            // z1191z204: 날짜+시각 — 날짜를 누르면 시각 줄의 시각과 합쳐 넣고, 시각을 고칠 수 있게 창은 열어 둔다
+            var tm = pop.querySelector('[data-time]');
+            if (!tm.value) tm.value = nowHM();
+            if (currentInput) { currentInput.value = v + 'T' + tm.value; fireChange(currentInput); }
+            render();
+            return;
+          }
           if (currentInput) {
             currentInput.value = v;
             fireChange(currentInput);
@@ -215,9 +273,13 @@ input.knk-cal { cursor: pointer; }
   function show(input){
     var p = ensurePop();
     currentInput = input;
-    var v = input.value;
-    var d = parseISO(v) || new Date();
+    mode = modeOf(input);
+    var v = input.value || '';
+    var d = (mode === 'month') ? parseISO(v.slice(0, 7) + '-01') : parseISO(v.slice(0, 10));
+    d = d || new Date();
     viewY = d.getFullYear(); viewM = d.getMonth();
+    var tm = p.querySelector('[data-time]');
+    if (tm) tm.value = (mode === 'datetime' && /T\d{2}:\d{2}/.test(v)) ? v.slice(11, 16) : '';
     render();
     // 먼저 보여주고 실제 사이즈 측정 — 그 후 위치 결정
     p.classList.remove('hidden');
@@ -271,8 +333,12 @@ input.knk-cal { cursor: pointer; }
   function attach(input){
     if (!input || input._knkCalBound) return;
     input._knkCalBound = true;
+    // z1191z204: 원래 칸 종류로 모드 정함 — month = 월(YYYY-MM) · datetime-local = 날짜+시각(YYYY-MM-DDTHH:MM) · 나머지 = 날짜
+    var _ot = (input.getAttribute('type') || '').toLowerCase();
+    input._knkCalMode = (_ot === 'month') ? 'month' : ((_ot === 'datetime-local') ? 'datetime' : 'date');
+    var _ph = input._knkCalMode === 'month' ? 'YYYY-MM' : (input._knkCalMode === 'datetime' ? 'YYYY-MM-DDTHH:MM' : 'YYYY-MM-DD');
     // 브라우저 native picker 무력화 → 우리 popup 만 사용
-    try { input.setAttribute('type', 'text'); input.setAttribute('placeholder', 'YYYY-MM-DD'); input.setAttribute('inputmode', 'numeric'); } catch(e){}
+    try { input.setAttribute('type', 'text'); input.setAttribute('placeholder', _ph); input.setAttribute('inputmode', 'numeric'); } catch(e){}
     input.addEventListener('focus', function(){ show(this); });
     input.addEventListener('click', function(){ show(this); });
     input.addEventListener('keydown', function(e){
