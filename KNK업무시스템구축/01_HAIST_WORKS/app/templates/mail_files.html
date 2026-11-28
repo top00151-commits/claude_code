@@ -25,6 +25,26 @@
   .fl-empty{padding:28px;text-align:center;color:var(--mute)}
   .fl-note{font-size:12px;color:var(--mute);margin-top:10px;line-height:1.7}
   @media(max-width:760px){.fl-tbl .hm{display:none}}
+  /* 11-28 M-3 「휴대폰에서 파일 이름이 세로로 쪼개지고 오른쪽 단추가 잘림(가로 넘침 44px)」 — 휴대폰(≤640)은 한 파일 = 한 장(카드)
+     1줄 = 파일 이름 · 받음/보냄 / 2줄 = 상대 · 메일 제목 / 3줄 = ⬇ 받기 · 메일 · ↪ 전달(손가락 크기) · 넓은 화면 표는 그대로 */
+  @media(max-width:640px){
+    .fl-bar input[type=text]{flex:1 1 100%;min-width:0;max-width:none;font-size:16px}
+    .fl-bar select{flex:1 1 0;min-width:0;font-size:16px}
+    .fl-bar .btn{min-height:40px}
+    .fl-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+    .fl-chips::-webkit-scrollbar{display:none}
+    .fl-chip{flex:none;white-space:nowrap;padding:7px 12px}
+    .fl-tbl,.fl-tbl tbody{display:block;width:100%;border:0;border-radius:0;background:none;overflow:visible}
+    .fl-tbl thead{display:none}
+    .fl-tbl tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;align-items:start;border:1px solid var(--line);border-radius:12px;background:var(--mt-surface,#fff);padding:10px 12px;margin:0 0 8px}
+    .fl-tbl td{display:block;padding:0;border:0;min-width:0}
+    .fl-tbl td.hm{display:none}
+    .fl-tbl td.fl-sub,.fl-tbl td.fl-act,.fl-tbl td.fl-empty{grid-column:1 / -1}
+    .fl-fn{word-break:normal;overflow-wrap:anywhere;font-size:14px;line-height:1.4}
+    .fl-sub{font-size:13px;overflow-wrap:anywhere}
+    .fl-tbl td.fl-act{display:flex;gap:6px}
+    .fl-act a{flex:1 1 0;margin:0;text-align:center;min-height:36px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;padding:0 8px}
+  }
 </style>
 </head><body>
 <div class="app">{% if mail_app %}{% include "_v5_partials/mail_app_head.html" %}{% else %}{% set active_tab = 'home' %}{% include "_v5_partials/chrome.html" with context %}{% endif %}

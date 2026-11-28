@@ -158,7 +158,11 @@
     tile(b,'2년째부터 12개월 넘은 것', mb(yr.body*n*rm), '월별 묶음 압축 뒤 1년 치', true);
     tile(b,'1년에 늘어나는 첨부(많아야)', mb(attYr*n), '같은 파일을 여러 명이 받으면 이보다 적음');
   };
-  poll();   // 앞서 잰 것이 있으면 바로 보임
+  // 11-28 M-4 앞서 잰 결과는 서버가 화면과 함께 넘김 → 그리기 전에 채움(뒤에 물어 와 그리면 아래가 크게 밀렸음) · 재는 중일 때만 물어 봄
+  var S0 = {{ (st0|default({}))|tojson }};
+  if(S0 && S0.state==='done' && S0.result){ J=S0.result; try{ draw(); say('✓ '+J.at+' 잼 · '+J.secs+'초 걸림','#047857'); }catch(e){ poll(); } }
+  else if(S0 && S0.state==='error'){ say('⚠ 재지 못했습니다 — '+(S0.error||''),'#b91c1c'); }
+  else if(S0 && S0.state==='running'){ poll(); }
 
   /* 11-23 본문 정리 */
   var PT=null;

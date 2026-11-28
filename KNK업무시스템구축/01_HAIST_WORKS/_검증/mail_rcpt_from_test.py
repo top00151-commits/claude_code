@@ -138,7 +138,9 @@ with _db.db_session() as c:
 for nm, u in (("메일 보기", "/mail/%d?app=1" % VIA), ("읽기 칸 조각", "/mail/%d/pane" % VIA)):
     h = k.get(u).text
     hs = h[h.find('id="mvHsub"'):h.find('</div>', h.find('id="mvHsub"'))]
-    check("%s: 내가 든 그룹 칩 = 초록 「나」(여섯째라도 숨기지 않음)" % nm, 'class="mv-rc-p via" data-addr="sales-demo@knknara.co.kr"' in hs and '<b class="mv-via">나</b>' in hs, hs[:600])
+    # 11-28 M-2 그룹 칩은 서버가 처음부터 그림(뒤에 끼우면 휴대폰에서 줄이 밀림) → class 에 grp · 「👥 이름(N명 ▾)」 단추가 처음 HTML 에 있음
+    check("%s: 내가 든 그룹 칩 = 초록 「나」(여섯째라도 숨기지 않음)" % nm, 'class="mv-rc-p via grp" data-addr="sales-demo@knknara.co.kr"' in hs and '<b class="mv-via">나</b>' in hs, hs[:600])
+    check("%s: 그룹 칩 = 처음 HTML 에 「👥 이름(N명 ▾)」·명단(화면이 뒤에 다시 끼우지 않음)" % nm, 'class="mv-grp-b" onclick="mvGrpToggle(this)"' in hs and '<span class="mv-grp-c">👥 ' in hs and 'class="mv-grp-p" hidden' in hs, hs[:600])
     check("%s: 그룹으로 받으면 🙈 칩·띠 없음 · 「외 1명」(내 그룹 빼고 셈)" % nm, "🙈" not in hs and "외 1명 ▾" in hs and hs.count('class="mv-rc-p x"') == 1, hs.count('class="mv-rc-p x"'))
     check("%s: 칩 마우스 = 「나는 이 그룹 메일로 받았습니다」" % nm, "나는 이 그룹 메일로 받았습니다" in hs)
 h = k.get("/mail/%d?app=1" % BCC).text

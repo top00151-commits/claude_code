@@ -26649,7 +26649,15 @@ async def mail_storage_page(req: Request):
     if not u:
         _au = get_user(req)
         return RedirectResponse("/mail/tools" if _au else "/login", 303)
-    return ctx(req, "mail_storage.html", user=u, active="mail")
+    # 11-28 M-4 「저장 공간 화면이 열린 뒤 크게 튐(0.24~0.82)」 — 앞서 잰 결과를 화면이 뜬 뒤 물어 와 칸을 그리느라 아래가 밀렸음
+    #   → 마지막 결과(파일 읽기만)를 처음 그릴 때 함께 넘겨 그리기 전에 채움 · 재는 중이면 예전처럼 물어 봄
+    try:
+        from . import mail_storage as _mst
+        st0 = _mst.status(u["id"])
+    except Exception as _e:
+        print("[MAIL-STORAGE] 지난 결과 읽기 실패(화면이 뒤에 다시 물음): %s" % str(_e)[:160], flush=True)
+        st0 = {"state": "none"}
+    return ctx(req, "mail_storage.html", user=u, active="mail", st0=st0)
 
 
 @app.post("/mail/storage/start")
@@ -30247,7 +30255,27 @@ def _mail_view_people(c, u, m) -> dict:
                 if _r["via"]:
                     _r["title"] = "나는 이 그룹 메일로 받았습니다 — " + _r["title"]
                 _r["x"] = _i >= 4 and not _r["me"] and not _r["via"]   # 「외 N명」에 숨기는 칩(나·내 그룹은 늘 보임)
-        _boss = "" if int(m.get("risk_level") or 0) >= 2 else s.get("boss", "")   # 11-27 의심 메일엔 👔 안 붙임
+        # 11-28 M-2 「휴대폰 메일 읽기가 열린 뒤 꿀렁(0.14~0.19)」 — 그룹 메일 칩(👥 영업부 17명 ▾)을 화면이 뜬 뒤 서버에 다시 물어
+        #   끼우느라 칩 폭이 바뀌어 줄이 넘어가며 아래 단추 줄 전체가 밀렸음 → 처음 그릴 때 같은 모양으로 그려 둠(읽기만 · 저장 없음)
+        try:
+            _gm = _mwork.company_group_map(c)
+            _gad = [_r["email"] for _lst in (_to, _cc) for _r in _lst if (_r.get("email") or "").lower() in _gm]
+            if _gad:
+                _gi = _mwork.addr_info(c, _gad)
+                for _lst in (_to, _cc):
+                    for _r in _lst:
+                        _g = _gi.get((_r.get("email") or "").lower())
+                        if not _g or _g.get("kind") != "group":
+                            continue
+                        _r["grp"] = {"name": _g.get("name") or "", "n": _g.get("n") or 0,
+                                     "members": [{"email": _mm.get("email") or "",
+                                                  "disp": _mw_disp(_mm) if _mm.get("staff") else (_mm.get("name") or _mm.get("email") or "")}
+                                                 for _mm in _g.get("members") or []]}
+                        _r["title"] = ("나는 이 그룹 메일로 받았습니다 — " if _r.get("via") else "") + "%s = %s 그룹 메일 · %d명 — 눌러서 명단" % (
+                            _r["email"], _r["grp"]["name"], _r["grp"]["n"])
+        except Exception as _e3:
+            print("[MAIL-PEOPLE] 그룹 칩 미리 그리기 실패(화면이 뒤에 다시 물어 채움): %s" % str(_e3)[:160], flush=True)
+        _boss ="" if int(m.get("risk_level") or 0) >= 2 else s.get("boss", "")   # 11-27 의심 메일엔 👔 안 붙임
         return {"disp": s.get("disp", ""), "boss": _boss,
                 "role": _role, "via": _via, "rcpt_to": _to, "rcpt_cc": _cc}
     except Exception as _e:

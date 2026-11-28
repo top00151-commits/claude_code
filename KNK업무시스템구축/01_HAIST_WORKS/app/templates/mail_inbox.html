@@ -345,7 +345,7 @@
   html[data-mt="dark"] .mbx-day-i.red{background:#3f1d1d;border-color:#7f1d1d;color:#fecaca}
   html[data-mt="dark"] .mbx-day-i.warn{background:#3b2410;border-color:#9a3412;color:#fed7aa}
   html[data-mt="dark"] .mbx-day-i.zero{background:transparent;border-color:var(--line);color:var(--mute)}
-  @media(max-width:640px){.mbx-day{gap:5px;padding:6px 8px}.mbx-day-h{width:100%}.mbx-day-i{padding:3px 8px;font-size:12.5px}.mbx-vac .mbx-vac-go{margin-left:0}}
+  @media(max-width:640px){.mbx-day{gap:5px;padding:6px 8px}.mbx-day-i{padding:3px 8px;font-size:12.5px}.mbx-vac .mbx-vac-go{margin-left:0}}
   @media print{.mbx-day,.mbx-vac{display:none !important}}
   .mbx-arbar a{margin-left:auto;font-weight:700;color:inherit}
   .mbx-arc{flex:none;font-size:11px;padding:1px 7px;border-radius:6px;background:#fef3c7;color:#92400e;white-space:nowrap}
@@ -384,7 +384,26 @@
   }
   /* ── 폰(≤640px): 글씨·터치영역 키우고, 폴더는 접어 목록을 바로 크게 (대표 지시 2026-06-14 모바일) ── */
   .mbx-foldtoggle{display:none}  /* 데스크톱·태블릿에선 숨김 */
+  /* 11-28 M-1·M-7 「폴드 펼침·좁은 창에서 메일 목록이 첫 화면 아래로 밀림」 — 폴더 접기·한 줄 띠를 휴대폰(≤640)만이 아니라
+     한 칸으로 쌓이는 폭(≤900) 전체에 같게: 폴드 펼침 768~884 · 좁은 창 892 도 휴대폰과 한 모양
+     ① 폴더 칸은 접힌 채 시작(「📁 메일함·폴더」 한 줄 · 누르면 펼침) ② 오늘 챙길 메일·거르기 칩 = 한 줄 가로 띠(옆으로 밀어 보기)
+     넓은 화면(901px~) 규칙은 그대로 */
+  @media(max-width:900px){
+    .mbx-foldtoggle{display:flex;align-items:center;gap:8px;flex:none;margin:0;box-sizing:border-box;min-height:36px;
+      padding:6px 13px;border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);
+      font:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
+    .mbx-foldtoggle .chev{margin-left:auto;transition:transform .15s;color:var(--mute)}
+    .mbx-split.folders-collapsed .mbx-side{display:none}
+    nav.mbx-day{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior-x:contain}
+    nav.mbx-day::-webkit-scrollbar{display:none}
+    nav.mbx-day>*{flex:none}
+    .mbx-chips{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior-x:contain;align-items:center;padding-top:6px;padding-bottom:6px}
+    .mbx-chips::-webkit-scrollbar{display:none}
+    .mbx-chips>*,.mbx-chips .mbx-chip{flex:none;white-space:nowrap}
+    .mbx-chips .mbx-kindmenu{display:contents}  /* 종류 칩(견적·발주·…)도 같은 띠에 한 줄로 */
+  }
   @media(max-width:640px){
+    .mbx-foldtoggle{width:100%;order:2;min-height:40px}   /* 휴대폰: 찾기 칸 아래 한 줄 */
     .app .main{padding:6px 8px}
     .mbx-topbar{gap:7px;padding:0 0 8px}
     .mbx-search{min-width:0;width:100%;gap:5px}
@@ -392,12 +411,7 @@
     .mbx-search input[type=date]{font-size:13px}
     .mbx-actions{width:100%;gap:5px}
     .mbx-actions .btn{flex:1 1 auto;text-align:center;font-size:12.5px;padding:9px 7px}
-    /* 폴더 접기 토글 버튼 */
-    .mbx-foldtoggle{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 8px;
-      padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--mt-surface,#fff);
-      font-size:14px;font-weight:600;color:var(--ink);cursor:pointer}
-    .mbx-foldtoggle .chev{margin-left:auto;transition:transform .15s;color:var(--mute)}
-    .mbx-split.folders-collapsed .mbx-side{display:none}
+    /* 폴더 접기 단추는 위 ≤900 묶음(11-28)에서 */
     .mbx-side{max-height:none;margin:0 0 8px}
     .mbx-fold{padding:12px 13px;font-size:14px}
     .mbx-fold-h{font-size:11.5px}
@@ -612,6 +626,10 @@
     <div class="mbx-viewctl">
       {% if not _mbx_inline_top %}<button type="button" class="mbx-foldbtn" onclick="mbxFoldPop(event)" title="메일함·폴더 칸 열기(메일을 끌어 이 단추 위에 잠깐 두면 열림)" hidden>☰ 폴더</button>{% endif %}
     </div>
+    {# 좁은 화면(≤900) 전용: 폴더 칸 접기/펼치기(넓은 화면은 CSS 로 숨김) · 11-28 M-1 따로 한 줄 쓰던 것을 찾기 줄 안으로(폴드 펼침·좁은 창은 찾기 칸 옆 · 휴대폰은 찾기 칸 아래 한 줄) #}
+    <button type="button" class="mbx-foldtoggle" onclick="toggleFolders(this)" title="메일함·분류·거래처 폴더 보기/숨기기">
+      📁 <span>메일함·폴더</span><span class="chev">▾</span>
+    </button>
     {{ _mbx_search_html }}
   </div>
   <a href="/mail/compose" class="mbx-fab" title="새 메일 쓰기">✏️ 쓰기</a>
@@ -654,10 +672,6 @@
   </div>
   {% endif %}
 
-  {# 폰 전용: 폴더 패널 접기/펼치기 버튼 (데스크톱에선 CSS로 숨김) #}
-  <button type="button" class="mbx-foldtoggle" onclick="toggleFolders(this)" title="메일함·분류·거래처 폴더 보기/숨기기">
-    📁 <span>메일함·폴더</span><span class="chev">▾</span>
-  </button>
 
   {# ── 3분할 본문 ── #}
   <div class="mbx-split{{ ' has-lh' if box=='in' else ' np' }}">
@@ -665,6 +679,8 @@
        전에는 화면 끝의 보기 방식(apply)이 다 읽은 뒤 붙여 목록 200줄을 한 번 더 계산했음(CPU 느린 PC 에서 0.2~0.3초).
        규칙은 apply 와 같음(900px 이하 = 안 붙임) · apply 는 그대로 다시 돌아 같은 값이면 아무것도 안 바꿈 #}
     <script>(function(){ var me=document.currentScript; try{ var s=me.parentNode;
+      {# 11-28 M-1 — 한 칸으로 쌓이는 폭(≤900)은 폴더 칸을 접은 채 그림(그린 뒤 접으면 목록이 튐 · knk-smooth-page ④) #}
+      if(window.matchMedia('(max-width:900px)').matches){ s.classList.add('folders-collapsed'); }
       if(!window.matchMedia('(max-width:900px)').matches){ var d=''; try{ d=localStorage.getItem('knkmail.dense')||''; }catch(e){}
         if(d!=='normal') s.classList.add('dense'); } }catch(e){} try{ me.remove(); }catch(e){} })();</script>
 
@@ -1205,7 +1221,7 @@ function toggleFolders(btn){
   // 폰 첫 진입 시 폴더는 접어두고 메일 목록을 바로 크게 (JS 없으면 펼쳐진 채 — 안전 폴백)
   try{
     var split=document.querySelector('.mbx-split');
-    if(split && window.matchMedia('(max-width:640px)').matches){ split.classList.add('folders-collapsed'); }
+    if(split && window.matchMedia('(max-width:900px)').matches){ split.classList.add('folders-collapsed'); }
   }catch(e){}
 })();
 /* ── ▼ 더 보기(11-18 · 200통에서 끊기지 않게) — 같은 조건으로 다음 200통을 이어 붙임 · 목록 끝이 보이면 저절로 ── */

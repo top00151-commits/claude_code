@@ -275,6 +275,21 @@
     .cmp-mini{position:fixed;left:10px !important;right:10px;top:auto !important;bottom:12px;min-width:0}   /* 휴대폰: 아래쪽에 넓게 */
     .cmp-actions{gap:7px}
     .cmp-actions .btn{flex:1 1 46%;min-width:0;text-align:center;padding:11px 8px;font-size:14px}
+    /* 11-28 M-6 「휴대폰 쓰기: 받는 사람 칸이 화면 아래쪽에서 시작(위 단추 묶음이 큼 · 440px)」
+       위 단추 = 한 줄 셋씩 두 줄(보내기·예약·답 받기 / 임시저장·취소·서명 · 높이 38px 하나) · 제목 띠 얇게(경로 글 숨김)
+       · 회사 주소가 이미 연결됐으면 「📮 내 회사 주소 연결」은 휴대폰에서 숨김(⚙ 설정·정리 → 계정에 그대로 · 연결 안 됐으면 ⚠ 와 함께 보임) */
+    .page-head{padding-top:8px !important;padding-bottom:6px !important}
+    .page-head .crumbs{display:none}
+    .page-head .page-title{font-size:18px;margin:0}
+    .cmp-card{padding-top:6px}
+    .cmp-actions-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:6px 0 8px}
+    .cmp-actions-top>.btn,.cmp-actions-top>.cmp-wait{height:38px;min-height:38px;box-sizing:border-box;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;gap:3px;line-height:1;white-space:nowrap;min-width:0;overflow:hidden;font-size:13.5px;border-radius:8px}
+    .cmp-actions-top>.cmp-wait{padding:0 2px 0 6px;font-size:12.5px}
+    .cmp-actions-top>.cmp-wait select{min-width:0;max-width:100%;font-size:13px;padding:0}
+    .cmp-actions-top>.cmp-wait .cw-t{display:none}   /* 「⏳ 답 [안 함 ▾]」 — 고르기 칸이 잘리지 않게(뜻은 마우스 올림 설명에 그대로) */
+    .cmp-actions-top>.cmp-acct-ok{display:none !important}
+    .cmp-actions-top>.cmp-sched:not([hidden]),.cmp-actions-top>#cMsg{grid-column:1 / -1}
+    .cmp-actions-top>#cMsg:empty{display:none}
   }
   /* ══ 11-27 대표 「위쪽 아이콘들 높이가 다 달라 — 균일하게 · 여백들이 달라 — 웹 디자인이라 생각하고 정리」 ══
      전: 위 단추 34·36·28·38·36·40px(그림 문자가 줄 높이를 늘림) · 입력 줄 34·44·44·41px · 「보내는 사람」만 이름 시작 위치 다름
@@ -327,18 +342,18 @@
     <div class="cmp-actions cmp-actions-top">
       <button type="button" class="btn btn-primary js-send" id="cSendBtn" onclick="sendMail()" {% if not ready %}disabled{% endif %}>📤 보내기</button>
       <button type="button" class="btn btn-secondary js-send" id="cSchedBtn" onclick="cmpSchedule()" {% if not ready %}disabled{% endif %} title="정한 때에 보내기 — 창을 닫아도 서버가 보냅니다 · 보낸편지함 위 「보낼 예정」에서 바꾸거나 취소">⏱ 예약</button>
-      <label class="cmp-wait" id="cWaitBox" title="바깥 거래처에 보내는 메일 — 이 날까지 답이 없으면 받은편지함 위에 알려 드림 · 답이 오면 저절로 빠짐">⏳ 답 받기 <select id="cWait"><option value="0">안 함</option><option value="1">내일까지</option><option value="2">2일 안</option><option value="3">3일 안</option><option value="5">5일 안</option><option value="7">1주 안</option></select></label>
+      <label class="cmp-wait" id="cWaitBox" title="바깥 거래처에 보내는 메일 — 이 날까지 답이 없으면 받은편지함 위에 알려 드림 · 답이 오면 저절로 빠짐">⏳ 답<span class="cw-t"> 받기</span> <select id="cWait"><option value="0">안 함</option><option value="1">내일까지</option><option value="2">2일 안</option><option value="3">3일 안</option><option value="5">5일 안</option><option value="7">1주 안</option></select></label>
       <input type="hidden" id="cNudgeOf" value="{{ prefill.nudge_of|default('') }}">
       <button type="button" class="btn btn-secondary" onclick="saveDraft()">💾 임시저장</button>
       <button type="button" class="btn btn-secondary" id="cCancelBtn" onclick="cmpCancel()">취소</button>
       <a href="/mail/signature" class="btn btn-secondary" title="내 서명 만들기/수정">✍️ 서명</a>
-      {% if can_link %}<a href="/mail/account" class="btn btn-secondary" title="내 회사 메일 주소로 보내기 연결">📮 내 회사 주소 연결{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
+      {% if can_link %}<a href="/mail/account" class="btn btn-secondary{{ ' cmp-acct-ok' if acct_ok else '' }}" title="내 회사 메일 주소로 보내기 연결">📮 내 회사 주소 연결{% if not acct_ok %} ⚠{% endif %}</a>{% endif %}
       <span class="cmp-sched" id="cSchedTag" hidden title="이 때에 서버가 보냅니다 — 창을 닫아도 됩니다">⏱ <span id="cSchedTxt"></span> 예약 <button type="button" onclick="cmpSchedule()">바꾸기</button><button type="button" class="x" onclick="cmpSchedClear()">✕ 예약 빼기</button></span>
       <span id="cMsg" class="js-cmsg" style="font-size:12.5px;margin-left:6px;"></span>
     </div>
     <div class="cmp-keep" id="cKeep" hidden>📝 <b>쓰다가 닫힌 메일</b>이 있습니다 <span id="cKeepAt"></span> — <button type="button" onclick="cKeepRestore()">되살리기</button> <button type="button" class="x" onclick="cKeepDrop()">버리기</button> <span class="cmp-keep-n">(첨부 파일은 다시 붙여 주세요)</span></div>
     <div class="cmp-from"><span class="cmp-from-l">보내는 사람</span> <span><b>{{ user.name }}</b> &lt;{{ from_addr }}&gt;</span></div>
-    <div class="cmp-row"><label title="받는사람 = 이 메일을 읽고 일을 해 줄 사람(답을 줄 사람)">받는사람<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cTo" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="이름이나 주소를 치면 아래에 고를 사람이 나옵니다 (여러 명은 쉼표)" value="{{ prefill.to }}" data-knk-no-draft>
+    <div class="cmp-row"><label title="받는사람 = 이 메일을 읽고 일을 해 줄 사람(답을 줄 사람)">받는사람<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cTo" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="이름이나 주소를 치면 아래에 고를 사람이 나옵니다 (여러 명은 쉼표)" value="{{ prefill.to }}" data-knk-no-draft><script>{# 11-28 M-6 휴대폰: 안내 글이 칸보다 길어 「…고…」로 잘림 → 짧은 글(그리기 전에 바꿈) #}(function(){ try{ if(window.matchMedia('(max-width:640px)').matches){ var i=document.getElementById('cTo'); if(i) i.placeholder='이름·주소를 치면 목록이 나와요'; } }catch(e){} })();</script>
       <button type="button" class="cmp-pick" onclick="abOpen('cTo')" title="주소록에서 골라 넣기(이름·회사로 찾기)">📇 주소록</button></div>
     <div class="cmp-row"><label title="참조 = 알고 있어야 할 사람(윗분·관련 부서) — 답할 사람은 아님">참조(CC)<button type="button" class="cmp-q" onclick="cmpRoleHelp()" title="받는사람·참조·숨은참조는 언제 쓰나요?">?</button></label><input id="cCc" type="text" inputmode="email" autocomplete="off" spellcheck="false" placeholder="(선택, 쉼표로 여러 명)" value="{{ prefill.cc }}" data-knk-no-draft>
       <button type="button" class="cmp-pick" onclick="abOpen('cCc')" title="주소록에서 골라 참조에 넣기">📇 주소록</button>

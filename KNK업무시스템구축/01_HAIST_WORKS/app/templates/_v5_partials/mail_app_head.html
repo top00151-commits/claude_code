@@ -174,7 +174,8 @@
   @media(max-width:1439px){ .mail-app-top .mt-quick .t { display:none; } .mail-app-top .mt-quick a { padding:5px 7px; } }
   /* 좁은 창에서 한 줄을 넘지 않게(11-23 실측: 메뉴 그림만 + 뒤로·앞으로 120px = 약 888px) — 930px 아래 화살표만 · 780px 아래 메뉴 숨김(도구 줄에 같은 메뉴) */
   @media(max-width:930px){ .mail-app-top .navbtn.mt-hist { min-width:56px; padding:0 10px; font-size:18px; } .mail-app-top .navbtn.mt-hist .t { display:none; } }
-  @media(max-width:780px){ .mail-app-top .mt-quick { display:none; } }
+  /* 11-28 M-7 780 → 900: 폴드 펼침(768~884)·좁은 창(892)에서 머리띠가 두 줄로 넘어가 이름 칩이 둘째 줄로 밀렸음(840폭 81px) → 한 줄 · 같은 메뉴는 아래 도구 줄에 그대로 */
+  @media(max-width:900px){ .mail-app-top .mt-quick { display:none; } }
   @media(max-width:640px){ .mail-app-top .mt-quick { display:none; } .mail-app-top .navbtn.mt-hist { min-width:0; padding:0 9px; font-size:13px; } .mail-app-top .navbtn.mt-hist .t { display:none; } }
   /* ── 폰(≤640px): 상단 메일바를 한 줄 가로스크롤로(여러 줄로 안 깨지게) (대표 지시 2026-06-14 모바일) ── */
   @media(max-width:640px){
@@ -378,6 +379,9 @@ window.mailLinkBand=function(j){
   b.innerHTML=html; b.classList.toggle('imp', imp); b.hidden=!html;
   if(was!==!b.hidden){ try{ mailFixedH(); window.dispatchEvent(new Event('resize')); }catch(_){} }
 };
+/* 11-28 「첨부·쓰기·읽기 등 다른 메일 화면은 열린 뒤 0.2~0.7초에 안내 띠가 끼워지며 화면 전체가 밀림(첨부 360폭 0.141)」
+   — 받은편지함만 하던 「마지막으로 받은 숫자·안내 띠를 그리기 전에 먼저」(knk-smooth-page ①)를 모든 메일 화면 공용으로 · 기억값이면 새 메일 판정 안 함 */
+try{ var _lc0=JSON.parse(sessionStorage.getItem('knkmail.lastCounts')||'null'); if(_lc0) window.mailCountsApply(_lc0, false, true); }catch(e){}
 /* 11-23 대표 「아웃룩처럼 보내기/받기」 — 누르면(또는 F9) 새 메일을 지금 바로 받아 오고 숫자·목록을 새로
    받은편지함 목록이면 새 메일이 바로 보이게 화면을 새로(보던 자리·열어 둔 메일 그대로 = mail_keep_pos) · 메일을 골라(☐) 둔 중이면 파란 띠만 */
 window.mailSyncMsg=function(msg, warn){

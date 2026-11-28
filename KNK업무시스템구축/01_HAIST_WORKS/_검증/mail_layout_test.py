@@ -202,10 +202,11 @@ check("그룹 메일 = 칩 하나 「👥 이름(N명 ▾)」 · 넓은 화면 �
 j = km.get("/api/mail/addrinfo?a=grp-lay" + D).json()
 check("그룹 명단 API 그대로(2명)", j.get("ok") and j["info"]["grp-lay" + D]["kind"] == "group" and j["info"]["grp-lay" + D]["n"] == 2, j)
 act = p[p.find('class="mv-actions"'):p.find('id="mvMore"')]
-check("단추 글자: 답장 · 전체답장 · 확인 답장 · 전달", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", "✅ 확인 답장", "↪ 전달")))
+# 11-28 M-5 휴대폰 짧은 이름 — 「✅ 확인<span class="mv-bt-l"> 답장</span>」(넓은 화면은 「확인 답장」 그대로 · 휴대폰은 「확인」)
+check("단추 글자: 답장 · 전체답장 · 확인 답장 · 전달", all(x in act for x in ("↩ 답장</a>", "↩↩ 전체답장", '✅ 확인<span class="mv-bt-l"> 답장</span>', "↪ 전달")))
 check("중요·보관·삭제 = 그림만 + 뜻(title·aria-label)", 'id="mvStarBtn"' in act and 'aria-label="중요 표시">☆</button>' in act and 'aria-label="보관">📦</button>' in act
       and 'title="🗑 삭제 — 휴지통으로 (Delete)" aria-label="삭제">🗑</button>' in act)
-check("기한·알림 · 더 보기 = 넓은 화면 그림만(휴대폰 글자)", '🚩<span class="mv-bt"> 기한·알림</span> ▾' in p and '⋯<span class="mv-bt"> 더 보기</span>' in p)
+check("기한·알림 · 더 보기 = 넓은 화면 그림만(휴대폰 글자 · 11-28 휴대폰은 「기한」)", '🚩<span class="mv-bt"> 기한<span class="mv-bt-l">·알림</span></span> ▾' in p and '⋯<span class="mv-bt"> 더 보기</span>' in p)
 check("중요·보관 눌렀을 때 바뀌는 글자도 그림(mvStar·mvArchive)", "b.textContent = j.starred ? '⭐' : '☆';" in p and "b.textContent = on ? '📥' : '📦';" in p)
 # 11-26 대표 「많이 쓰는 메뉴 = 맡기기 오른쪽으로」 — PC 전용 단추(mv-desk)에 빠른 단추(mv-quick)가 더해짐
 check("휴대폰: 중요·보관·삭제는 「⋯ 더 보기」 안 그대로", p.count('class="mv-mob') >= 3 and p.count("mv-desk") - p.count("mv-quick") == 3, (p.count("mv-desk"), p.count("mv-quick")))
