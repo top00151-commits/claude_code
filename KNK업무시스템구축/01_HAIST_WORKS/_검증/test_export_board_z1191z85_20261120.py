@@ -274,7 +274,7 @@ EB._CFG["go_live"] = "2026-01-01"
 
 print("§7 권한 · 예전 화면")
 CUR["u"] = N
-chk(cl.get("/export").status_code == 303 and cl.get("/export").headers["location"] == "/home", "수출 권한 없으면 보드 → /home")
+chk(cl.get("/export").status_code == 303 and cl.get("/export").headers["location"] == "/home?no_perm=page", "수출 권한 없으면 보드 → /home?no_perm=page(z1191z199 권한 없음 안내)")
 chk(cl.post("/export/s/%s/save" % today_no, json={"old": {}, "new": {"note": "x"}}).status_code == 403, "저장 403")
 chk(cl.post("/export/s/%s/file" % today_no, data={"kind": "etc"}, files={"file": ("a.pdf", b"%PDF", "application/pdf")}).status_code == 403, "올리기 403")
 chk(cl.get("/export/s/%s/file/%d" % (today_no, fid)).status_code == 303, "받기도 막힘")

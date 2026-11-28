@@ -136,7 +136,7 @@ loc = lambda r: (r.status_code, r.headers.get("location", ""))   # noqa: E731
 r1, r2, r3, r4, r5, r6 = (get("Z920", p) for p in ("/sales", "/logistics", "/sales/bank-recon", "/export", "/fx/rates", "/sales/schedule"))
 check("3 체크 없는 관리자: 매출·자재·은행 대사·수출입·환율 → 홈으로(303) · 작업일정표 → 전사일정표",
       loc(r1) == (303, "/home?no_perm=sales") and loc(r2) == (303, "/home?no_perm=logistics")   # z1191x: 센터 입구는 안내값을 붙여 돌려보낸다
-      and all(loc(r) == (303, "/home") for r in (r3, r4, r5)) and loc(r6) == (303, "/dept/schedule"),
+      and all(loc(r) == (303, "/home?no_perm=page") for r in (r3, r4, r5)) and loc(r6) == (303, "/dept/schedule"),   # z1191z199: 말없이 홈 대신 권한 없음 안내
       [loc(r) for r in (r1, r2, r3, r4, r5, r6)])
 d0 = get("Z920", "/dashboard")
 check("   대시보드는 열림(200) · 매출·미수금·수출·재고 카드 없음 · 품질·완료율·지연·환율 카드는 있음",
@@ -158,7 +158,7 @@ r5b = get("Z925", "/sales/bank-recon")
 s5 = get("Z925", "/sales")
 s3 = get("Z923", "/sales")
 check("5 매출 보기만 켠 관리자: 매출 센터 200 · 은행 대사는 못 함(매출 등록 필요) · 메뉴에도 은행 대사 없음 · 재고 카드 없음",
-      s5.status_code == 200 and loc(r5b) == (303, "/home") and "/sales/bank-recon" not in s5.text
+      s5.status_code == 200 and loc(r5b) == (303, "/home?no_perm=page") and "/sales/bank-recon" not in s5.text
       and "이번달 매출" in d5.text and "활성 재고 품목" not in d5.text, (s5.status_code, loc(r5b)))
 # z1191z98: 은행 대사 = 💰 입금 메뉴 안의 탭(메뉴 줄 없음) → 매출 등록 켠 관리자는 💰 입금 메뉴 + 입금 확인 화면에 🏦 입금 대사 탭
 s3r = get("Z923", "/sales/receipts-check")

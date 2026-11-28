@@ -103,6 +103,7 @@ def _dt(s):
 def register_export_board(app, d):
     _CFG.update(d)
     ctx, guard, db_session = d["ctx"], d["guard"], d["db_session"]
+    _gu199 = d.get("get_user") or (lambda _r: True)   # z1191z199: 권한 없음 → /home?no_perm=page · 로그인 풀림 → 로그인 화면
     udisp, kst_now, log = d["user_disp"], d["kst_now"], d["log"]
 
     def ensure(c):
@@ -252,7 +253,7 @@ def register_export_board(app, d):
     async def export_board(req: Request):
         u = guard(req)
         if not u:
-            return RedirectResponse("/home", 303)
+            return RedirectResponse("/home?no_perm=page" if _gu199(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
         with db_session() as c:
             S = collect(c)
             stp = XP.stamp(c)
@@ -421,7 +422,7 @@ def register_export_board(app, d):
     async def export_ship_page(req: Request, no: str):
         u = guard(req)
         if not u:
-            return RedirectResponse("/home", 303)
+            return RedirectResponse("/home?no_perm=page" if _gu199(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
         if not INV_OK.match(no or ""):
             return RedirectResponse("/export", 303)
         try:
@@ -621,7 +622,7 @@ def register_export_board(app, d):
     async def export_ship_file_get(req: Request, no: str, fid: int):
         u = guard(req)
         if not u:
-            return RedirectResponse("/home", 303)
+            return RedirectResponse("/home?no_perm=page" if _gu199(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
         with db_session() as c:
             ensure(c)
             r = c.execute("SELECT * FROM export_ship_file WHERE id=? AND invoice_no=?", (fid, no)).fetchone()
@@ -719,7 +720,7 @@ def register_export_board(app, d):
     async def export_rules_page(req: Request):
         u = guard(req)
         if not u:
-            return RedirectResponse("/home", 303)
+            return RedirectResponse("/home?no_perm=page" if _gu199(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
         with db_session() as c:
             rs = XP.rules(c)
             for k in rs:

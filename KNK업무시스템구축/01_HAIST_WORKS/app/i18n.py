@@ -1723,6 +1723,8 @@ T = {
                        "vi": "Bạn không có quyền vào Trung tâm vật tư·mua hàng."},
     "ch_no_perm_sales": {"ko": "매출영업센터 권한이 없어 들어갈 수 없습니다.",
                         "vi": "Bạn không có quyền vào Trung tâm kinh doanh."},
+    "ch_no_perm_page": {"ko": "이 화면을 볼 권한이 없습니다.",
+                       "vi": "Bạn không có quyền xem màn hình này."},
     "ch_noti": {"ko": "알림",
                "vi": "Thông báo"},
     "ch_pin": {"ko": "이 화면 고정 — 계정에 저장되어 다른 PC에서도 유지",

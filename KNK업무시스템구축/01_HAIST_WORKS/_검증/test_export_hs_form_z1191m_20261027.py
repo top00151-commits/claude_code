@@ -140,7 +140,7 @@ r404b = quiet(cl.get, "/export/hs-fill/form/xyz")
 check("9 모르는 종류 → 404(경로 장난 안 됨)", r404b.status_code == 404 and r404.status_code in (404, 405), (r404.status_code, r404b.status_code))
 as_user("M902")
 rno = quiet(cl.get, "/export/hs-fill/form/suchaek")
-check("10 수출 권한 없으면 303 /home", rno.status_code == 303 and rno.headers.get("location") == "/home", rno.status_code)
+check("10 수출 권한 없으면 303 /home?no_perm=page(z1191z199 권한 없음 안내)", rno.status_code == 303 and rno.headers.get("location") == "/home?no_perm=page", rno.headers.get("location"))
 as_user("M901")
 pg = quiet(cl.get, "/export/hs-fill")
 check("11 화면에 「표준 양식 내려받기」 단추 둘", pg.status_code == 200 and 'href="/export/hs-fill/form/suchaek"' in pg.text

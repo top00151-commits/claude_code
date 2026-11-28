@@ -66,8 +66,9 @@ print("§1 서버 — 센터 입구는 안내값을 붙여 돌려보낸다")
 CUR["u"] = USERS["X902"]
 chk(loc("/logistics") == (303, "/home?no_perm=logistics"), "권한 없음 /logistics → /home?no_perm=logistics · 실제 %s" % (loc("/logistics"),))
 chk(loc("/sales") == (303, "/home?no_perm=sales"), "권한 없음 /sales → /home?no_perm=sales · 실제 %s" % (loc("/sales"),))
+# z1191z199 (대표 11-28 「권한 없을 때 말없이 홈으로 보내는 곳에 안내」): 자재 안쪽 메뉴도 서버가 직접 안내값(?no_perm=logistics)
 for p in ("/parts", "/po", "/stock/movements"):
-    chk(loc(p) == (303, "/home"), "안쪽 메뉴 %s 는 서버 그대로 /home(안내는 화면 전환 쪽) · 실제 %s" % (p, loc(p)))
+    chk(loc(p) == (303, "/home?no_perm=logistics"), "안쪽 메뉴 %s 권한 없음 → /home?no_perm=logistics · 실제 %s" % (p, loc(p)))
 # z1191z198 D (화면 전수 점검): 매출 메뉴 화면(프로젝트·견적·수주·미수·영업 기회)은 서버가 직접 안내값(?no_perm=sales) — 새로 열기(FULL_ONLY)·주소 바로 열기에도 안내
 for p in ("/projects", "/sales/quotations"):
     chk(loc(p) == (303, "/home?no_perm=sales"), "매출 메뉴 %s 권한 없음 → /home?no_perm=sales · 실제 %s" % (p, loc(p)))

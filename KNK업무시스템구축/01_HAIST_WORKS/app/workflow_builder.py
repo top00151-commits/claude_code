@@ -70,6 +70,20 @@ a{{display:inline-block;margin-top:16px;padding:8px 16px;background:#6366f1;colo
     return HTMLResponse(body, status_code=403)
 
 
+# z1191z199 (대표 11-28 「일 순서 만들기 — 나만 빼고 모두 안 보이게」): 허브(/workflow)·만들기 길잡이(/workflow/wizard GET·POST)
+#   = 대표 김정락(users.id 85)만. 대표 역할이 두 계정이라 역할이 아니라 번호로 가른다(재고 출고 z1191z195 와 같은 모양).
+#   다른 사람은 「/home?no_perm=page」(권한 없음 안내)로. 홈·일일업무에서 여는 일 자세히(/workflow/node/…)·
+#   프로젝트 일 순서(/workflow/project/…)·우리 팀(/workflow/team)·내 할 일(/workflow/my)은 그대로 둔다.
+_Z199_WF_OWNER = 85
+
+
+def _z199_wf_owner_ok(user) -> bool:
+    try:
+        return bool(user) and int(user.get('id') or 0) == _Z199_WF_OWNER
+    except Exception:
+        return False
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # 라우트 등록 헬퍼 — main.py 에서 register_workflow_routes(app, tpl, ctx, get_user, db_session) 호출
 # ──────────────────────────────────────────────────────────────────────────
@@ -86,6 +100,8 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         user = get_user(request)
         if not user:
             return RedirectResponse("/login", 303)
+        if not _z199_wf_owner_ok(user):   # z1191z199: 대표만
+            return RedirectResponse("/home?no_perm=page", 303)
         with db_session() as c:
             templates = c.execute("""
                 SELECT id, code, title_ko, description,
@@ -118,6 +134,8 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         user = get_user(request)
         if not user:
             return RedirectResponse("/login", 303)
+        if not _z199_wf_owner_ok(user):   # z1191z199: 대표만
+            return RedirectResponse("/home?no_perm=page", 303)
         # z105b: 권한 게이트
         if not _can_run_wizard(user):
             return _deny_wizard_html()
@@ -190,6 +208,8 @@ def register_workflow_routes(app, tpl, ctx, get_user, db_session):
         user = get_user(request)
         if not user:
             return RedirectResponse("/login", 303)
+        if not _z199_wf_owner_ok(user):   # z1191z199: 대표만(저장도 막음)
+            return RedirectResponse("/home?no_perm=page", 303)
         # z105b: 권한 게이트
         if not _can_run_wizard(user):
             return _deny_wizard_html()

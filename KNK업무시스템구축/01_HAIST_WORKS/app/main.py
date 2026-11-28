@@ -4530,6 +4530,7 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
 
     monthly_revenue = None
     yoy_delta = None
+    yoy_day = None   # z1191z199: 작년 같은 기간의 끝 날(1~N일)
     if is_executive:
         # 경영진만 매출 지표 컨텍스트 수신
         try:
@@ -4541,26 +4542,19 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
                 #   실측(2026-09-10): 2026-07 화면 186,149,155원 vs 올바름 325,279,719원
                 #   — 1억 3,913만원(43%)이 빠져 있었다. 대표규정 §4 규칙48(월 기준환율 단일 기준).
                 _rates = _fx_load_rates(c)
-
-                def _month_krw(_ym):
-                    _rows = [dict(x) for x in c.execute(
-                        "SELECT COALESCE(currency,'KRW') AS currency, "
-                        "COALESCE(order_amount,0) AS order_amount, "
-                        "COALESCE(order_date,'') AS order_date "
-                        "FROM projects WHERE order_date LIKE ? AND order_amount>0",
-                        (f"{_ym}%",)).fetchall()]
-                    _bd = _ccy_breakdown(_rows, "order_amount", "currency",
-                                         date_keys=("order_date",), rates=_rates)
-                    if _bd["krw"] is not None:
-                        return _bd["krw"]
-                    # 환율이 아예 없는 통화가 섞였을 때: 그 통화는 빼고 원화분만 센다.
-                    # ⛔ 절대 통화 무시 단순합(naive)으로 되돌아가지 않는다 — 그게 이 결함이었다.
-                    return sum(r["total"] for r in _bd["by_ccy"] if r["currency"] == "KRW")
-
-                monthly_revenue = _month_krw(ym)
-                # YoY 전년 동월 대비
-                last_year_ym = f"{_d.today().year - 1}-{_d.today().strftime('%m')}"
-                last = _month_krw(last_year_ym)
+                # z1191z199 (대표 11-28): 숫자 = 매출 홈 「수주매출」과 같은 공용 계산(_sales_3way · 수주 호기 금액 + 소모품 발주 ·
+                #   추가 수주 포함 · 취소·폐기 제외 · 발주 달 월 기준환율) — 예전 관리번호 처음 등록 금액(projects.order_amount) 합계는 쓰지 않는다.
+                #   비교 = 같은 기간: 이번 달 1일~오늘 vs 작년 같은 달 1일~같은 날(그 날이 없으면 그 달 말일) · 날짜 경계 = 본사 시간(+9).
+                import calendar as _cal199
+                from datetime import datetime as _dt199, timezone as _tz199, timedelta as _td199
+                _t199 = _dt199.now(_tz199(_td199(hours=9))).date()
+                _ly199 = _t199.year - 1
+                _ld199 = min(_t199.day, _cal199.monthrange(_ly199, _t199.month)[1])
+                monthly_revenue = _sales_3way(c, _rates, {}, "month", str(_t199.year), "1", str(_t199.month),
+                                              day_to=_t199.day)["kpi"]["order"]
+                last = _sales_3way(c, _rates, {}, "month", str(_ly199), "1", str(_t199.month),
+                                   day_to=_ld199)["kpi"]["order"]
+                yoy_day = _ld199
                 if last > 0:
                     yoy_delta = round((monthly_revenue - last) / last * 100, 1)
         except Exception as e:
@@ -4648,6 +4642,7 @@ def home_page(req: Request, sel_date: str = "", tab: str = "",
         # 힐링 #12 §8-bis 권한 분기 컨텍스트
         monthly_revenue=monthly_revenue,
         yoy_delta=yoy_delta,
+        yoy_day=yoy_day,   # z1191z199
         is_executive=is_executive,
         is_leader_plus=is_leader_plus,
         greeting=greeting,
@@ -11157,7 +11152,7 @@ async def team_permissions_index(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if u["role"] not in ("leader", "executive", "ceo", "admin"):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if u["role"] == "leader" and u.get("team_id"):
         return RedirectResponse(f"/team/{u['team_id']}/permissions", 303)
     # CEO/임원/admin → 첫 활성 팀으로 redirect (인덱스도 페이지 구조 동일)
@@ -11180,7 +11175,7 @@ async def team_permissions_page(req: Request, team_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if u["role"] not in ("leader", "executive", "ceo", "admin"):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # 팀장은 본인 팀만 (감사 가드)
     if u["role"] == "leader" and u.get("team_id") != team_id:
         return RedirectResponse(f"/team/{u.get('team_id')}/permissions", 303)
@@ -11249,9 +11244,9 @@ async def team_permissions_save(req: Request, team_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if u["role"] not in ("leader", "executive", "ceo", "admin"):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if u["role"] == "leader" and u.get("team_id") != team_id:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
 
     form = await req.form()
     is_admin_actor = u["role"] in ("ceo", "admin")
@@ -22908,7 +22903,7 @@ async def admin_note_sweep(request: Request, v: str = "67", done: str = ""):
     들어간 값(예: 사번 '67')을 전수 스캔 → 목록 확인 → 일괄 비우기. 대표/관리자 전용."""
     u = get_user(request)
     if not u or (u.get("role") or "").lower() not in ("admin", "ceo"):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if u else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _val = (v or "67").strip()[:10] or "67"
     import html as _h978
     with db_session() as c:
@@ -22950,7 +22945,7 @@ async def admin_note_sweep_clear(request: Request):
     """v5H226z978: 스캔된 비고 오염값 일괄 비우기 — 값이 정확히 일치(트림)하는 것만 NULL 처리."""
     u = get_user(request)
     if not u or (u.get("role") or "").lower() not in ("admin", "ceo"):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if u else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     _val = (form.get("v") or "67").strip()[:10] or "67"
     cleared = 0
@@ -23308,7 +23303,7 @@ async def suppliers_export_xlsx(req: Request):
     u = get_user(req)
     if not u: return RedirectResponse("/login", 303)
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 공급사 명부 전체 덤프 = 구매처 정보 정책 팀만
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
             "SELECT id, name, "
@@ -23579,7 +23574,7 @@ async def sales_quotations_export_xlsx(req: Request):
     z1191z160: 「금액 다름」 상태 없음 · 한 수주에 견적서가 여러 장이면 장마다 한 줄."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     b = _z105_board(u, **_z105_args(req, u))
     cm = b["can_money"]
     out = []
@@ -31040,7 +31035,7 @@ async def sales_quotes_new_form(req: Request):
     """v5H52: 견적 신규 작성 폼 → z1191z105 (대표 11-22 「견적서는 엑셀파일로 작성해서 등록」): 견적 관리로 보냄."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return RedirectResponse("/sales/quotations", 303)
 
 
@@ -31059,7 +31054,7 @@ async def sales_quotes_new_submit(req: Request):
     """v5H52: 견적 + 라인 일괄 INSERT. 라인은 line_name_N/line_qty_N/line_price_N 패턴."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await req.form()
     customer_id = form.get("customer_id") or None
     valid_until = form.get("valid_until") or None
@@ -31117,7 +31112,7 @@ async def sales_quote_detail(req: Request, qid: int):
     """견적 상세 — 라인 + 합계 + 인쇄/수주전환 액션."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         row = c.execute(
             """SELECT q.*, COALESCE(cu.name,'-') AS customer_name,
@@ -31208,7 +31203,7 @@ async def parts_import_page(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # 쓰기 권한 여부 → 템플릿에서 안내 배너 표시용
     has_write = can_use_logistics(u)
     return ctx(req, "parts_import.html", user=u, active="parts",
@@ -31222,7 +31217,7 @@ async def parts_import_submit(req: Request, file: UploadFile = File(...)):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     raw = await file.read()
     if not raw:
         return ctx(req, "parts_import.html", user=u, active="parts",
@@ -31336,7 +31331,7 @@ async def parts_import_apply(req: Request,
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     import base64, tempfile, os
     try:
         raw = base64.b64decode(file_b64 or "")
@@ -31387,7 +31382,7 @@ async def parts_import_marked_xlsx(req: Request,
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     import base64, tempfile, os
     try:
         raw = base64.b64decode(file_b64 or "")
@@ -31437,7 +31432,7 @@ def parts_import_template(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment
@@ -33806,7 +33801,7 @@ def _z161_c2_parts(spec, krw):
     return out
 
 
-def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=None):
+def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=None, day_to=None):
     """v5H226z925 (대표 지시): 매출 홈 3지표 —
        ① 수주매출 = 발주일(orders.order_date) 기준, 전 호기 oi.amount + 소모품 발주.
        ② 진행매출 = 출하일(출하일이 없으면 납기) 기준, unit_status='출하'(기존 _sales_delivered 와 동일 로직).
@@ -33901,6 +33896,12 @@ def _sales_3way(c, rates, oi_map, mode, sel_year, sel_q, sel_m, detail=None, ym=
             return
         if not _sales_period_ok(mm, mode, sel_q, sel_m):
             return
+        # z1191z199 (대표 11-28 「같은 기간 비교」): day_to 를 주면 그 달 1일~day_to 일만(홈 「이번 달 수주」 카드 · 작년 같은 기간).
+        #   날짜에 일이 없으면(달만 적힌 줄) 그 달 줄로 넣는다 · 안 주면(다른 화면 전부) 예전과 같다.
+        if day_to is not None:
+            _dd199 = dd[8:10]
+            if _dd199.isdigit() and int(_dd199) > int(day_to):
+                return
         b = (biz or "").strip().upper()
         if b not in SALES3_BIZ:   # z1191z22: 소모품은 CT/CM/CE
             b = "E"      # 관리번호 없음/미지정 → 기타
@@ -35682,7 +35683,7 @@ def parts_list_page(request: Request, q: str = "", biz_div: str = "",
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H226z863 (대표 지시·성능 원천개선): 페이지 나눔 — 자재 3천+종 전 행을 매번 읽고
     #   한 화면에 다 그리던 것(약 4만 DOM·수 MB)이 지연 원인. 서버에서 200행씩만 보내고
     #   상단 통계는 집계쿼리 1방(parts_stats). 자재가 계속 늘어도 화면 비용 일정.
@@ -35720,7 +35721,7 @@ async def parts_new_form(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H226z979: 제조사 자동완성 — 기존 등록 제조사 표기 통일 유도 (미스미/MISUMI 중복 방지)
     try:
         makers = _logi.parts_makers_list()
@@ -35757,7 +35758,7 @@ async def parts_new_submit(
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H113: 검증 실패 친절한 에러
     try:
         new_pid = _logi.parts_create({
@@ -35812,7 +35813,7 @@ async def parts_reclassify_page(request: Request,
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from .database import parts_usage_distribution as _pud
     rows = _pud(focus_biz_div=focus, days=int(days or 365), limit=500)
     # 통계
@@ -35839,7 +35840,7 @@ async def parts_reclassify_apply(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     # part_id_N (체크박스) + new_biz_div_N (각 행의 추천값) 형식
     updates = []
@@ -35923,7 +35924,7 @@ async def parts_dedup_page(request: Request):
         if can_view_logistics(u):
             return RedirectResponse(
                 f"/parts?error={_q('자재 중복 정리는 자재관리 사용 권한이 필요합니다 — 관리자(대표)에게 권한을 요청하세요')}", 303)
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         scan = _logi.parts_dedup_scan()
     except Exception as e:
@@ -35947,7 +35948,7 @@ async def parts_dedup_merge_submit(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     try:
@@ -35987,7 +35988,7 @@ async def parts_dedup_dismiss_submit(request: Request, group_key: str = Form(...
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     try:
         _uid = int(u["id"])
@@ -36007,7 +36008,7 @@ async def parts_dedup_dismiss_undo(request: Request, group_key: str = Form(...))
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     try:
         _logi.parts_dedup_undismiss(group_key)
@@ -36022,7 +36023,7 @@ async def parts_dedup_unmerge_submit(request: Request, log_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     try:
         _uid = int(u["id"])
@@ -36091,7 +36092,7 @@ async def project_baseline_page(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_view_logistics(u) or _bom_can_upload(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
         if not pr:
@@ -36350,7 +36351,7 @@ async def bom_tools_page(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_view_logistics(u) or _bom_can_upload(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = [dict(r) for r in c.execute(
             "SELECT r.*, u.name AS by_name FROM bom_tool_runs r "
@@ -36659,7 +36660,7 @@ async def bom_tools_download(request: Request, run_id: int, f: str = "out"):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_view_logistics(u) or _bom_can_upload(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         r = c.execute("SELECT * FROM bom_tool_runs WHERE id=?", (run_id,)).fetchone()
         _pol = load_field_access_policy(c)
@@ -36735,7 +36736,7 @@ async def bom_upload_form(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not _bom_can_upload(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         recent = _bom.bom_projects_summary(limit=30)
     except Exception:
@@ -36751,7 +36752,7 @@ async def bom_upload_submit(request: Request, file: UploadFile = File(...)):
     if not u:
         return RedirectResponse("/login", 303)
     if not _bom_can_upload(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     raw = await file.read()
     fname = (file.filename or "bom.xlsx")
     if not raw:
@@ -36813,7 +36814,7 @@ async def bom_upload_apply(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not _bom_can_upload(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     import base64, tempfile
@@ -36889,7 +36890,7 @@ async def project_bom_board(request: Request, pid: int, view: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_view_logistics(u) or _bom_can_upload(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
     if not pr:
@@ -37135,7 +37136,7 @@ async def project_units_page(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_units(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
         orders = [dict(r) for r in c.execute(
@@ -37168,7 +37169,7 @@ async def project_units_candidates(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_create_unit(u) or can_link_unit_order(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
     if not pr:
@@ -37187,7 +37188,7 @@ async def project_units_candidates_apply(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_create_unit(u) or can_link_unit_order(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     decisions = []
@@ -37234,7 +37235,7 @@ async def project_units_create(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_create_unit(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     try:
@@ -37259,7 +37260,7 @@ async def project_unit_change_no(request: Request, unit_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_create_unit(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     unit = _punit.get_unit(unit_id)
@@ -37289,7 +37290,7 @@ async def project_unit_confirm(request: Request, unit_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_approve_unit(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     # [게이트 v6 P0-01] 입력폼을 **확정하기 전에** 읽는다.
     #   예전에는 확정을 먼저 실행하고 감사 단계에서 폼을 참조해, 확정은 이미 끝났는데
@@ -37317,7 +37318,7 @@ async def project_unit_cancel(request: Request, unit_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_approve_unit(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     unit = _punit.get_unit(unit_id)
@@ -37344,7 +37345,7 @@ async def project_unit_order_link(request: Request, unit_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_link_unit_order(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     unit = _punit.get_unit(unit_id)
@@ -37378,7 +37379,7 @@ async def project_units_status_sync(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_units(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         pr = c.execute("SELECT id, mgmt_code, name FROM projects WHERE id=?", (pid,)).fetchone()
     if not pr:
@@ -37402,7 +37403,7 @@ async def project_units_status_sync_apply(request: Request, pid: int):
         return RedirectResponse("/login", 303)
     # 출하→확정 / 취소→취소 로 **신원이 바뀌는** 보정이라 승인권자만 실행한다.
     if not can_approve_unit(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # [대표 지시 2026-07-26 · 확산 승인 철회] 화면에서 버튼을 감추는 것만으론 부족하다 —
     #   서버가 실제 실행 요청을 거부한다. **승인권자여도 잠금이 우선**한다(데이터 전부 불변).
     if _punit.status_sync_locked():
@@ -37469,7 +37470,7 @@ async def bom_upload_report(request: Request, uid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_view_logistics(u) or _bom_can_upload(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         up, items = _bom.get_upload_report(uid)
     except Exception:
@@ -37486,7 +37487,7 @@ async def bom_item_edit(request: Request, iid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     it = _bom.get_item(iid)
@@ -37542,7 +37543,7 @@ async def project_bom_buyat(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     form = await request.form()
     val = (form.get("buy_at") or "").upper()
@@ -37574,7 +37575,7 @@ async def project_bom_purge(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from urllib.parse import quote as _q
     # WP-01(P0-05·게이트 F-03): 운영 BOM 폐기 차단 — admin/ceo 전용 + 테스트 관리번호(999/A 접두)만
     _role = ((u.get("role") if isinstance(u, dict) else u["role"]) or "")
@@ -37611,7 +37612,7 @@ async def project_bom_export(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_view_logistics(u) or _bom_can_upload(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         data = _bom.export_xlsx(pid)
     except Exception:
@@ -37701,7 +37702,7 @@ async def parts_qr_print(request: Request, pid: int, count: int = 12):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     p = _logi.parts_get(pid)
     if not p:
         return RedirectResponse("/parts", 303)
@@ -37717,7 +37718,7 @@ async def po_qr_print(request: Request, po_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         row = c.execute(
             """SELECT po.*, s.name AS supplier_name
@@ -37791,7 +37792,7 @@ async def parts_edit_form(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     p = _logi.parts_get(pid)
     if not p:
         return RedirectResponse("/parts", status_code=303)
@@ -37860,7 +37861,7 @@ async def parts_edit_submit(
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H113: 검증 실패 친절한 에러
     try:
         _logi.parts_update(pid, {
@@ -37895,7 +37896,7 @@ async def parts_delete_submit(request: Request, pid: int):
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H112: cascade 안전망 + JSON 에러 (v5H98 패턴)
     try:
         _logi.parts_delete(pid)
@@ -41063,7 +41064,7 @@ def consumables_export_xlsx_z46(request: Request, co_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     sh = _z46_co_sheet(co_id)
     if not sh:
         return RedirectResponse("/consumables", 303)
@@ -41295,7 +41296,7 @@ async def schedule_bulk_template(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         buf = _build_bulk_template_buf()
     except ImportError:
@@ -41935,7 +41936,7 @@ async def projects_import_product_template(request: Request, so_id: int = 0):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _hdr988, _rows988, _tag988 = None, None, ""
     if so_id:
         try:
@@ -43561,7 +43562,7 @@ async def schedule_board_diag(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
 
     def _esc(s):
         return ("" if s is None else str(s)).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -45446,7 +45447,7 @@ def projects_export_xlsx(request: Request, q: str = "", div: str = "",
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _div = (div or "").strip().upper()
     _biz = _div if _div in ("T", "M", "L") else ""
     _ptype = {"E": "OTHER", "C": "CONSUMABLE"}.get(_div, "")
@@ -45726,7 +45727,7 @@ async def projects_new_form(request: Request,
     _t = (type or "").strip().upper()
     if not can_use_sales(u):
         # z1191z102 (대표 11-22 「고객사 등록도 기술영업팀만」): z101 의 「권한 없어도 🤝 고객사 카드만」 되돌림 — 예전처럼 홈으로
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # type 없으면 chooser 페이지
     if not _t:
         return ctx(request, "project_new_chooser.html",
@@ -48214,7 +48215,7 @@ async def projects_quick_form(request: Request, embed: str = "", biz_div: str = 
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     _bd = (biz_div or "").strip().upper()
     # v5H226z355 (대표 지시): 기타(E)도 간편 폼 허용 (검사기 T·자동화 M·라이프 L 와 동일 흐름)
@@ -48287,7 +48288,7 @@ async def projects_quick_edit_form(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # 진입 시 SO 기준 자가치유 (정식 편집 폼 projects_edit_form 과 동일 로직)
     try:
         with db_session() as c2:
@@ -48531,7 +48532,7 @@ async def projects_so_check_z154(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_sales(u) or can_view_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows_all = _z154_check_rows(c)
         files156 = _z156_noso_files(c) if can_view_sales(u) else []   # z1191z156: 파일은 금액 볼 권한자만(견적서·발주서 권한과 같음)
@@ -48732,7 +48733,7 @@ async def _projects_new_submit_core(request: Request):
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:   # z1191z117 ⑤: 등록 전 최대 수주 번호(이번 등록으로 생긴 수주에만 「단가 미정」을 붙이려고)
         with db_session() as _c117:
             _maxoid117 = int(_c117.execute("SELECT COALESCE(MAX(id),0) FROM orders").fetchone()[0] or 0)
@@ -50636,7 +50637,7 @@ async def projects_import_template(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from pathlib import Path as _Path
     p = _Path(__file__).parent / "static" / "templates" / "프로젝트_일괄등록_양식.xlsx"
     if not p.exists():
@@ -50658,7 +50659,7 @@ async def projects_import_template_kind(request: Request, kind: str):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _map = {
         "assy":  ("ASSY_일괄등록_양식.xlsx",  "KNK_일괄등록_ASSY(장비)_양식.xlsx"),
         "parts": ("부품_일괄등록_양식.xlsx",  "KNK_일괄등록_부품_양식.xlsx"),
@@ -50689,7 +50690,7 @@ async def projects_import_template_biz(request: Request, biz: str):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _bz = (biz or "").strip().upper()
     _sheet = {"T": "T_검사기", "M": "M_자동화", "L": "L_라이프밸류", "E": "E_기타"}.get(_bz)
     _label = {"T": "검사기", "M": "자동화", "L": "라이프밸류", "E": "기타"}.get(_bz)
@@ -50761,7 +50762,7 @@ async def projects_import_template_mgmt(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         buf = _build_bulk_template_buf()
     except ImportError:
@@ -51697,7 +51698,7 @@ async def as_list_page(request: Request, status: str = "", q: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = _logi.as_ticket_list(c, status=status, q=q)
         counts = {st: c.execute("SELECT COUNT(*) FROM as_tickets WHERE status=?", (st,)).fetchone()[0]
@@ -51714,7 +51715,7 @@ async def as_new_form(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return ctx(request, "as_form.html", user=u, active_tab="sales",
                users=_as_users_picker(), today=date.today().isoformat(),
                err=request.query_params.get("error", ""))
@@ -51726,7 +51727,7 @@ async def as_new_submit(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     cust_name = (form.get("customer_name") or "").strip()
     if not cust_name:
@@ -51760,7 +51761,7 @@ async def as_detail_page(request: Request, as_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         t = _logi.as_ticket_get(c, as_id)
     if not t:
@@ -51775,7 +51776,7 @@ async def as_status_submit(request: Request, as_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     to_status = (form.get("status") or "").strip()
     note = (form.get("note") or "").strip()
@@ -51790,7 +51791,7 @@ async def as_edit_submit(request: Request, as_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     data = {"is_paid": form.get("is_paid", "")}   # 체크박스 — 미체크 시 무상(0)
     for k in ("customer_name", "customer_phone", "customer_address", "product_name", "model_name",
@@ -51968,7 +51969,7 @@ async def customers_import_template(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -52286,7 +52287,7 @@ async def projects_edit_form(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H101: 편집 폼 진입 시 SO 기준으로 자가치유
     #   납기/발주일/수주액 = SO 합계·MAX·MIN 으로 정정 후 폼 노출
     sos = []   # v5H226z1034: 아래 확정 수량 계산이 참조 — 조회가 실패해도 NameError 안 나게
@@ -52445,7 +52446,7 @@ async def _projects_edit_submit_core(request: Request, pid: int):
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_sales(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     # v5H226z150 (2026-06-02 대표 지시): SSO 단일 로그인 전환으로 본인 WORKS 비밀번호가
     #   없어 비밀번호 검증 폐기 → '잠금 해제(확인창) 통과' 만 요구. 변경은 이력에 기록됨.
@@ -53219,9 +53220,9 @@ async def suppliers_list_page(request: Request, q: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처(협력사) 정보 = 정책 팀만(총괄·관리·구매·기술영업)
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     rows = _logi.suppliers_list(q=q)
     return ctx(request, "suppliers.html",
                user=u, active="suppliers",
@@ -53234,9 +53235,9 @@ async def suppliers_new_form(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return ctx(request, "supplier_form.html",
                user=u, active="suppliers", supplier=None,
                PAYMENT_TERMS=_logi.PAYMENT_TERMS,
@@ -53260,9 +53261,9 @@ async def suppliers_new_submit(
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(_u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H113: 검증 실패 친절한 에러
     try:
         _logi.supplier_create({
@@ -53285,9 +53286,9 @@ async def suppliers_edit_form(request: Request, sid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     s = _logi.supplier_get(sid)
     if not s:
         return RedirectResponse("/suppliers", 303)
@@ -53317,9 +53318,9 @@ async def suppliers_edit_submit(
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(_u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H113: 검증 실패 친절한 에러
     try:
         _logi.supplier_update(sid, {
@@ -53342,9 +53343,9 @@ async def suppliers_delete_submit(request: Request, sid: int):
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(_u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H112: cascade 안전망 + JSON 에러
     try:
         _logi.supplier_delete(sid)
@@ -53369,9 +53370,9 @@ async def suppliers_import_page(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     has_write = can_use_logistics(u)
     return ctx(req, "suppliers_import.html", user=u, active="suppliers",
                result=None, mode="upload", has_write=has_write)
@@ -53384,9 +53385,9 @@ async def suppliers_import_submit(req: Request, file: UploadFile = File(...)):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     raw = await file.read()
     if not raw:
         return ctx(req, "suppliers_import.html", user=u, active="suppliers",
@@ -53495,9 +53496,9 @@ async def suppliers_import_apply(req: Request,
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     import base64, tempfile, os
     try:
         raw = base64.b64decode(file_b64 or "")
@@ -53543,9 +53544,9 @@ async def suppliers_import_template(req: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not can_view_field(u, "supplier_info"):   # v5H226z830: 구매처 정보 정책
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment
@@ -53713,7 +53714,7 @@ async def po_list_page(request: Request, q: str = "", status: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     rows = _logi.po_list(q=q, status=status)
     # 🔴 세션01 전달 2026-09-10 — 이 화면 합계가 **통화를 안 보고 그냥 더하고** 있었다.
     #   매출 쪽이 같은 결함으로 25건·오차 41억을 냈고, ⚠**24건은 실제보다 작게** 나와
@@ -53749,7 +53750,7 @@ async def po_new_form(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # 드롭다운용 데이터
     suppliers = _logi.suppliers_list(active_only=True)
     # 관리코드 발급된 프로젝트만 선택 가능
@@ -53772,7 +53773,7 @@ async def po_new_submit(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     header = {
         "project_id": form.get("project_id", ""),
@@ -53809,7 +53810,7 @@ async def po_detail(request: Request, po_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     header, items = _logi.po_get(po_id)
     if not header:
         return RedirectResponse("/po", 303)
@@ -53870,7 +53871,7 @@ async def po_edit_form(request: Request, po_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     header, items = _logi.po_get(po_id)
     if not header:
         return RedirectResponse("/po", 303)
@@ -53893,7 +53894,7 @@ async def po_edit_submit(request: Request, po_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     header = {
         "project_id": form.get("project_id", ""),
@@ -53930,7 +53931,7 @@ async def po_delete_submit(request: Request, po_id: int):
     if not _u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(_u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H112: cascade 안전망 + JSON 에러
     try:
         _logi.po_delete(po_id)
@@ -53988,7 +53989,7 @@ async def rates_page(request: Request, currency: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     items = exchange_rates_list(limit=200, currency=currency)
     latest = exchange_rates_latest()
     return ctx(request, "rates.html", user=u, items=items, latest=latest,
@@ -54009,7 +54010,7 @@ async def rates_create_submit(
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         exchange_rate_create({
             "rate_date": rate_date,
@@ -54048,7 +54049,7 @@ async def parts_price_create_submit(
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     sid = int(supplier_id) if supplier_id.isdigit() else None
     new_price = float(unit_price)
     # S4-1 옵션 A: 직전 활성 단가 조회 (애플리케이션 레벨 훅)
@@ -54107,7 +54108,7 @@ async def parts_detail_page(request: Request, pid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     part = _logi.parts_get(pid)
     if not part:
         return RedirectResponse("/parts", 303)
@@ -54179,7 +54180,7 @@ async def po_receive_form(request: Request, po_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # WP-01(게이트 v4 F-02 · 대표 결정 2026-07-24): 입고문서·검수(QC)·격리재고가 없어
     #   검수 전 자재가 곧바로 가용재고로 잡히던 경로 — 정식 입고(WP-07)까지 잠금.
     if not _wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
@@ -54200,7 +54201,7 @@ async def po_receive_submit(request: Request, po_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # WP-01(게이트 v4 F-02): 화면 버튼을 막는 것만으론 부족 — 서버에서도 직접 POST 차단.
     #   PO 수량·입고문서·검수·원장·재고 전부 불변이어야 한다.
     if not _wp01_unlocked("KNK_ENABLE_PO_RECEIVE"):
@@ -54259,7 +54260,7 @@ async def stock_issue_form(request: Request, part_id: str = ""):
         return RedirectResponse("/logistics?no_perm=stock_issue", 303)
     # WP-01(P0-04): 출고=재고를 바꾸는 화면 — 조회 권한(can_view) 차단, 쓰기 권한 필수
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # WP-01(게이트 v3 F-01 · 대표 결정 2026-07-24): 승인 없이 즉시 차감하는 '직접 출고' 화면 운영 잠금.
     #   출고는 요청 → 승인 → 확정(단일 Transaction) 흐름으로만 처리한다. 정식 출고 State는 WP-08.
     if not _wp01_unlocked("KNK_ENABLE_STOCK_DIRECT_ISSUE"):
@@ -54307,7 +54308,7 @@ async def stock_issue_submit(
         return RedirectResponse("/login", 303)
     # WP-01(P0-04): 출고 실행=재고 차감 — 조회 권한(can_view)으로 실행되던 구멍 차단
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # WP-01(게이트 v3 F-01): 화면 링크를 지우는 것만으론 부족 — 서버에서도 직접 POST 차단.
     #   쓰기 권한이 있어도 잠금이 우선한다(재고·원장·문서 전부 불변).
     if not _wp01_unlocked("KNK_ENABLE_STOCK_DIRECT_ISSUE"):
@@ -54347,7 +54348,7 @@ async def stock_adjust_form(request: Request, part_id: str = ""):
         return RedirectResponse("/login", 303)
     # WP-01(P0-04): 재고 조정 화면 — 쓰기 권한 필수
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         parts = c.execute(
             """SELECT id, part_no, part_name, unit, stock_qty
@@ -54371,7 +54372,7 @@ async def stock_adjust_submit(
         return RedirectResponse("/login", 303)
     # WP-01(P0-04): 재고 조정 실행 — 조회 권한(can_view)으로 실행되던 구멍 차단
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         pid = int(part_id)
         qty = float(quantity)
@@ -54423,7 +54424,7 @@ async def stock_audits_page(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     audits = stock_audits_list(limit=50)
     return ctx(request, "stock_audits.html", user=u, audits=audits,
                can_approve=_audit_approve_guard(u), active="stock")
@@ -54435,7 +54436,7 @@ async def stock_audits_new(request: Request, note: str = Form("")):
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     aid, ano = stock_audit_create(led_by=u["id"], note=note)
     return RedirectResponse(f"/stock/audits/{aid}?success={ano}", 303)
 
@@ -54446,7 +54447,7 @@ async def stock_audit_detail(request: Request, audit_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     audit = stock_audit_get(audit_id)
     if not audit:
         return RedirectResponse("/stock/audits", 303)
@@ -54487,7 +54488,7 @@ async def stock_audit_item_add(
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         pid = int(part_id)
         cq = float(counted_qty)
@@ -54503,7 +54504,7 @@ async def stock_adjustments_page(request: Request, status: str = "PENDING"):
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     items = stock_adjustments_list(status=status, limit=200)
     # 첨부 카운트 (라인 옆 표시용)
     att_counts = {}
@@ -54578,7 +54579,7 @@ async def stock_adjustment_attach(request: Request, adj_id: int,
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     raw = await file.read()
     if len(raw) > _AUDIT_MAX_BYTES:
         return RedirectResponse(f"/stock/adjustments?error=size_over_10MB", 303)
@@ -54611,7 +54612,7 @@ async def stock_adjustment_attachments_page(request: Request, adj_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     atts = audit_attachments_list(adj_id)
     return ctx(request, "stock_adjustment.html", user=u,
                adjustments=[], filter_status="ATTACH", att_counts={},
@@ -54625,7 +54626,7 @@ async def stock_adjustment_attachment_download(request: Request, adj_id: int, at
     if not u:
         return RedirectResponse("/login", 303)
     if not _audit_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     rec = audit_attachment_get(att_id)
     if not rec or int(rec["adjustment_id"]) != int(adj_id):
         return RedirectResponse(f"/stock/adjustments/{adj_id}/attachments?error=not_found", 303)
@@ -54687,7 +54688,7 @@ async def parts_attach_upload(request: Request, pid: int,
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # 자재 존재 확인
     p = _logi.parts_get(pid)
     if not p:
@@ -54732,7 +54733,7 @@ async def parts_attachment_download(request: Request, pid: int, aid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     rec = part_attachment_get(aid)
     if not rec or int(rec["part_id"]) != int(pid):
         return RedirectResponse(f"/parts/{pid}/edit?error=첨부+없음", 303)
@@ -54755,7 +54756,7 @@ async def parts_attachment_delete(request: Request, pid: int, aid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     rec = part_attachment_get(aid)
     if not rec or int(rec["part_id"]) != int(pid):
         return RedirectResponse(f"/parts/{pid}/edit?error=첨부+없음", 303)
@@ -54788,7 +54789,7 @@ async def stock_movements_page(
     if not u:
         return RedirectResponse("/login", 303)
     if not can_view_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     items = stock_movements_list(
         part_id=int(part_id) if part_id.isdigit() else 0,
         kind=kind,
@@ -55580,7 +55581,7 @@ async def stock_balances_page(req: Request):
     """재고 잔고 — stock_balances VIEW 조회 (시안 §화면 영역 잔고)"""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = c.execute(
             """SELECT sb.part_id, sb.part_no, sb.part_name, sb.on_hand, sb.unit,
@@ -55608,7 +55609,7 @@ async def stock_fifo_page(req: Request, part_id: int):
     """FIFO 레이어 상세 — 입고일·잔량·단가 시각화 (S2-3차)."""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     summary = fifo_layers(part_id)
     return ctx(req, "stock_fifo.html", user=u, active="stock", summary=summary)
 
@@ -55618,7 +55619,7 @@ async def stock_abc_page(req: Request, days: int = 90, top: int = 50):
     """ABC 분류 — 최근 N일 출고 매출 누적 비중 기준 (A 80%, B 95%, C 나머지)."""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     items = abc_classification(days=days)
     a_cnt = sum(1 for r in items if r["abc_class"] == "A")
     b_cnt = sum(1 for r in items if r["abc_class"] == "B")
@@ -55633,7 +55634,7 @@ async def stock_turnover_page(req: Request, days: int = 90):
     """재고 회전율 — 출고량/평균재고 (FAST≥2 / NORMAL 0.5~2 / SLOW<0.5)."""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     items = stock_turnover(days=days)
     fast = sum(1 for r in items if r["band"] == "FAST")
     normal = sum(1 for r in items if r["band"] == "NORMAL")
@@ -55647,7 +55648,7 @@ async def stock_receipts_page(req: Request):
     """입고 목록 — receipts 테이블 (시안 §화면 영역 입고 GR)"""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = c.execute(
             """SELECT id, po_id, total_qty, qc_inspection_id, status, received_at, note
@@ -55712,7 +55713,7 @@ async def stock_qc_disposition_page(req: Request, qc_id: int):
     """부적합 처리 모달 — RETURN/SPECIAL_ACCEPT/SCRAP (시안 §데이터 모델 qc_disposition)"""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return ctx(req, "stock_qc.html", user=u, qc_id=qc_id, mode="disposition", active="stock")
 
 
@@ -55748,7 +55749,7 @@ async def stock_qc_page(req: Request, po_item_id: int):
     """검수 화면 — qc_inspections 작성 (시안 §화면 영역 QC 우 패널)"""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return ctx(req, "stock_qc.html", user=u, po_item_id=po_item_id, active="stock")
 
 
@@ -55800,7 +55801,7 @@ async def stock_issues_page(req: Request):
     """출고 목록 — issues_out 테이블 (시안 §화면 영역 출고 GI)"""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     if not _z195_stock_issue_ok(u):   # z1191z195: 대표만
         return RedirectResponse("/logistics?no_perm=stock_issue", 303)
     with db_session() as c:
@@ -56045,7 +56046,7 @@ async def sales_quotation_print(req: Request, quote_id: int, lang: str = ""):
     사이클 63 P11 — 다국어 지원 (?lang=ko|en|vi 쿼리. 미지정 시 사용자 lang)."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         h = c.execute(
             """SELECT q.id, q.quote_no, q.customer_id,
@@ -56702,7 +56703,7 @@ async def sales_production_page(req: Request):
     """생산지시 탭 (시안 §1 탭3 WO) — production_orders 리스트 + 진행률"""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = c.execute(
             """SELECT p.id, p.order_id, o.order_no,
@@ -57046,7 +57047,7 @@ async def sales_shipments_receipts_page(req: Request):
     can_money 마스킹(가격 게이트). 옛 모델(shipments·invoices) → 현 모델로 z745 재구축."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     can_money = bool(can_view_sales(u))
     today = date.today()
     ym = (req.query_params.get("ym") or "").strip()
@@ -57730,7 +57731,7 @@ async def sales_dashboard_v3(req: Request):
     """Top3-S1-3차 강화 대시 — KPI 8 + 월별 차트 + Pareto Top5 + 파이프라인 9."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # z1191z115 (대표 11-23 「그렇게해」): 옛 「매출 강화 대시」는 숫자 기준이 매출 홈과 달랐다(원화만 더함 · 건수 다름 · 파이프라인 ₩0)
     #   → 매출 홈과 같은 숫자인 📈 한눈에 보기로 보낸다. 권한 거르기(위)는 그대로. 아래 옛 화면 코드는 되돌리기용으로 남김(안 탐).
     if True:
@@ -57789,7 +57790,7 @@ async def sales_forecast_page(req: Request):
     """z1191z140 (대표 11-24 「삭제」): 옛 매출 예측 화면(숫자가 늘 0 · 메뉴 길 없음)을 지움 — 옛 즐겨찾기는 매출 홈으로."""
     u = _s1_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return RedirectResponse("/sales", 303)
 
 
@@ -58072,7 +58073,7 @@ async def bank_recon_page(req: Request):
     if u and (u.get("role") or "") == "admin" and not can_use_sales(u):   # z1191g: 관리자는 매출 등록 체크가 있어야
         u = None
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return ctx(req, "bank_recon.html", user=u, active="sales", result=None)
 
 
@@ -58083,7 +58084,7 @@ async def bank_recon_upload(req: Request):
     if u and (u.get("role") or "") == "admin" and not can_use_sales(u):   # z1191g: 관리자는 매출 등록 체크가 있어야
         u = None
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await req.form()
     up = form.get("file")
     if up is None or not getattr(up, "filename", ""):
@@ -58585,7 +58586,7 @@ async def sales_outstanding_page(req: Request):
 async def sales_aging_page(req: Request):
     """z1191z98 (대표 11-22 「5·6 합치기」): 채권 노화는 📊 미수 현황 표(지난 날수 구간 칸)로 합쳤다 — 옛 주소로 오면 그리로."""
     if not _s1_guard(req):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return RedirectResponse("/sales/outstanding", 303)
 
 
@@ -58656,7 +58657,7 @@ async def export_home(req: Request):
     """수출 메인 (수주 목록 + 진행 상태 KPI) — 2차 본문."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = c.execute(
             """SELECT eo.id, eo.buyer, eo.shipping_terms, eo.payment_terms,
@@ -58692,7 +58693,7 @@ async def export_prep_list(req: Request):
     """출하 전 수출 건(거래구분=수출) 목록 + 통관 입력 진행률."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         rows = c.execute(
             """SELECT p.id, p.mgmt_code, p.name, p.customer_id, p.customer_name, p.currency,
@@ -58738,7 +58739,7 @@ async def export_prep_detail(req: Request, pid: int, so: str = ""):
     """수출 건 1개의 '상품별 통관 입력' 화면 — 그 프로젝트의 모든 SO 품목(order_items)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         # v5H226z464 (대표 지시): 통관 입력 화면에 모델명·장비명 참고 표시 → SELECT 에 추가
         prow = c.execute(
@@ -59655,7 +59656,7 @@ async def export_hs_dict_review_xlsx(req: Request):
     """HS 사전 전체 → 검토표(.xlsx) 내려받기. 한국·베트남 담당자에게 보내 확정칸만 적어 되받는 왕복 양식."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         _hs_dict_ensure(c)
         rows = [dict(r) for r in c.execute(
@@ -59682,7 +59683,7 @@ async def export_hs_dict_page(req: Request):
     """HS 사전 관리 — 검색·상태 필터·인라인 수정(HS·베트남어명·상태)·최종파일 업로드."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     q = (req.query_params.get("q") or "").strip()
     st = (req.query_params.get("status") or "").strip().upper()
     with db_session() as c:
@@ -60135,7 +60136,7 @@ async def export_hs_fill_page(req: Request):
     """인보이스 HS 자동 채움 — ① 보내기 전 채우기 · ③ 법인 회신 반영 · 최근 기록(회신 대기)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from . import hs_fill as _hf
     with db_session() as c:
         _hs_dict_ensure(c)
@@ -60432,7 +60433,7 @@ async def export_hs_fill_form(req: Request, kind: str):
     """표준 양식(수책통관·일반통관) 내려받기 — 보내는 곳·받는 곳·담당·항구·조건·서명은 미리 적혀 있다."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     f = _HS_FORMS.get(kind)
     p = os.path.join(os.path.dirname(__file__), "seed", f[0]) if f else ""
     if not f or not os.path.exists(p):
@@ -60449,7 +60450,7 @@ async def export_hs_fill_download(req: Request, lid: int):
     """채운 인보이스 내려받기 — 올린 이름 그대로(이음 방에 그대로 올리면 된다)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         _hs_fill_log_ensure(c)
         r = c.execute("SELECT file_name, stored FROM export_hs_fill_log WHERE id=?", (lid,)).fetchone()
@@ -61626,7 +61627,7 @@ async def export_prep_invoice_pl_xlsx(req: Request, pid: int, so: str = ""):
     PACKING LIST: B관리번호 D규격 F수량 I Gross(kg) + 우측 박스 요약(NO/SIZE/G/W)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         st166, o166, L166 = _z166_pick(c, pid, so)   # z1191z166: 수주별
         if st166 != "ok":
@@ -61775,7 +61776,7 @@ async def export_prep_packing_print(req: Request, pid: int, so: str = ""):
     """PACKING LIST 인쇄(A4) — 1단계 통관 입력 데이터로 생성. z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         st166, o166, L166 = _z166_pick(c, pid, so)
         if st166 != "ok":
@@ -61794,7 +61795,7 @@ async def export_prep_packing_xlsx(req: Request, pid: int, so: str = ""):
     """PACKING LIST 엑셀(KNK 표준) — 1단계 통관 입력 데이터로 생성. z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         st166, o166, L166 = _z166_pick(c, pid, so)
         if st166 != "ok":
@@ -61852,7 +61853,7 @@ async def export_prep_invoice_print(req: Request, pid: int, so: str = ""):
     """COMMERCIAL INVOICE 인쇄(A4) — 통관 입력 + 인보이스(USD) 금액으로 품목명세 생성. (v5H226z946) z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         st166, o166, L166 = _z166_pick(c, pid, so)
         if st166 != "ok":
@@ -61871,7 +61872,7 @@ async def export_prep_invoice_xlsx(req: Request, pid: int, so: str = ""):
     """COMMERCIAL INVOICE 엑셀(품목명세 포함). (v5H226z946) z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         st166, o166, L166 = _z166_pick(c, pid, so)
         if st166 != "ok":
@@ -62016,7 +62017,7 @@ async def export_ship_qr_print(req: Request, pid: int, so: str = ""):
     """출고 QR 라벨 인쇄 — 출하 건 대표 QR(큰) + 박스별 QR 라벨 격자. z1191z166: 수주별(?so=)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         st166, o166, L166 = _z166_pick(c, pid, so)
         if st166 != "ok":
@@ -62033,7 +62034,7 @@ async def export_order_new_form(req: Request):
     """수출 수주 등록 폼 — 1차 골격 (UI 본문 다음 사이클)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         orders = [dict(r) for r in c.execute(
             """SELECT id, order_no, customer_id, total_amount, order_date
@@ -62082,7 +62083,7 @@ async def export_order_detail(req: Request, eo_id: int):
     """수출 수주 상세 (CI/PL/BL/관세 탭) — 1차 골격."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         # v5H126: orders.currency 함께 조회 (CI 통화 mismatch 환산표용)
         try:
@@ -62166,7 +62167,7 @@ async def export_ci_form(req: Request, eo_id: int):
     """CI 작성/조회 (매출 자동 채움) — 2차 본문."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         eo = c.execute(
             """SELECT eo.*, COALESCE(o.total_amount,0) AS order_amount
@@ -62292,7 +62293,7 @@ async def export_pl_form(req: Request, eo_id: int):
     """PL 작성/조회 — 1차 골격."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         eo = c.execute(
             "SELECT * FROM export_orders WHERE id=?", (eo_id,)).fetchone()
@@ -62414,7 +62415,7 @@ async def export_bl_form(req: Request, eo_id: int):
     """BL · 관세 통합 폼 — 2차 본문 (CI 자동 채움 → declared_value)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         eo = c.execute(
             "SELECT * FROM export_orders WHERE id=?", (eo_id,)).fetchone()
@@ -62489,7 +62490,7 @@ async def export_customs_view(req: Request, eo_id: int):
     """관세 신고 조회 — 1차 골격 (BL 템플릿 재사용)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     return RedirectResponse(f"/export/bl/{eo_id}", 303)
 
 
@@ -62565,7 +62566,7 @@ async def export_ci_print(req: Request, ci_id: int):
     """CI 인쇄용 (한국어 + 영어 양식 · 헤더/사이드바 숨김)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         ci = c.execute(
             """SELECT ci.*, eo.buyer, eo.shipping_terms, eo.payment_terms,
@@ -62590,7 +62591,7 @@ async def export_pl_print(req: Request, pl_id: int):
     """PL 인쇄용 (라인 합계 · 헤더/사이드바 숨김)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         pl = c.execute(
             """SELECT pl.*, eo.buyer, eo.shipping_terms,
@@ -62617,7 +62618,7 @@ async def export_bl_print(req: Request, bl_id: int):
     """BL/관세 인쇄용 (헤더/사이드바 숨김)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         bl = c.execute(
             """SELECT bl.*, eo.buyer, eo.shipping_terms,
@@ -63743,7 +63744,7 @@ async def stock_safety_page(req: Request, q: str = ""):
     """안전재고 설정 페이지 — parts 별 safety_stock / reorder_point / reorder_qty."""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from .database import parts_safety_settings_list
     items = parts_safety_settings_list(q=q)
     return ctx(req, "stock_safety.html", user=u, active="stock",
@@ -63755,7 +63756,7 @@ async def stock_safety_save(req: Request, part_id: int):
     """안전재고 등록/수정 — safety_stock / reorder_point / reorder_qty 일괄 갱신."""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await req.form()
     from .database import parts_safety_update
     ok = parts_safety_update(
@@ -63775,7 +63776,7 @@ async def stock_reorder_page(req: Request, limit: int = 200):
     """발주 추천 — 재발주점 미달 부품 + 권장 발주량 + 우선순위(HIGH/MID/LOW)."""
     u = _s2_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # OPS-V4 [정적점검]: limit 상한 가드 (메모리 폭주 방지)
     limit = max(1, min(int(limit or 200), 1000))
     from .database import recommend_reorders
@@ -63837,7 +63838,7 @@ async def fx_rates_page(request: Request, currency: str = "", locked: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not _fx_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     items = exchange_rates_list(limit=200, currency=currency)
     latest = exchange_rates_latest()
     return ctx(request, "fx_rates.html", user=u, items=items, latest=latest,
@@ -63867,7 +63868,7 @@ async def fx_rates_create(
     if not u:
         return RedirectResponse("/login", 303)
     if not _fx_guard(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     # v5H226z1072 (대표 지시 2026-07-30 · 환율 단일 기준 보호 §2): POST /fx/rates 서버측 잠금.
     #   월 기준환율 입력의 유일 근거 = /admin/fx-rates(규칙48). 이 경로는 어떤 값이 와도 exchange_rates 에 쓰지 않는다
     #   — UI 버튼 숨김이 아니라 **서버가 거부**(exchange_rate_create 호출 제거). GET(조회)는 존치·URL 삭제/리다이렉트 안 함.
@@ -63881,7 +63882,7 @@ async def part_prices_page(request: Request, part_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (_fx_guard(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     part = _logi.parts_get(part_id)
     if not part:
         return RedirectResponse("/parts", 303)
@@ -63921,7 +63922,7 @@ async def part_prices_create(
     if not u:
         return RedirectResponse("/login", 303)
     if not (_fx_guard(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     sid = int(supplier_id) if supplier_id and supplier_id.isdigit() else None
     new_price = float(unit_price)
     # S4-1: 직전 활성 단가 조회 (애플리케이션 레벨 훅)
@@ -64023,7 +64024,7 @@ async def export_fta_list(req: Request):
     """원산지증명서 목록 (안지연 본업 · 04 시뮬 MISSING #1)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     status = req.query_params.get("status") or None
     fta_type = req.query_params.get("fta_type") or None
     items = get_fta_certificates(status=status, fta_type=fta_type, limit=300)
@@ -64037,7 +64038,7 @@ async def export_fta_new_form(req: Request):
     """원산지증명서 신규 발급 폼."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
             "SELECT " + _CUST_PICK_COLS + ", COALESCE(tier,'') AS country FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL + " LIMIT 200"
@@ -64167,7 +64168,7 @@ async def export_fta_detail(req: Request, cert_id: int):
     """원산지증명서 상세 (라인 + 발급/인쇄 액션)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     cert = get_fta_certificate(cert_id)
     if not cert:
         return RedirectResponse("/export/fta", 303)
@@ -64236,7 +64237,7 @@ async def export_fta_print(req: Request, cert_id: int):
     """원산지증명서 인쇄 view (HTML + window.print(), 외부 PDF 0건)."""
     u = _export_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     cert = get_fta_certificate(cert_id)
     if not cert:
         return RedirectResponse("/export/fta", 303)
@@ -64291,7 +64292,7 @@ async def qc_report_list(req: Request):
     """검사기 출하성적서 목록 (김정록 본업 · 04 시뮬 MISSING #2)."""
     u = _qcr_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     status = req.query_params.get("status") or None
     overall = req.query_params.get("overall") or None
     items = get_qc_inspection_reports(status=status, overall=overall, limit=300)
@@ -64305,7 +64306,7 @@ async def qc_report_new_form(req: Request):
     """검사기 출하성적서 신규 발급 폼."""
     u = _qcr_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         customers = [dict(r) for r in c.execute(
             "SELECT " + _CUST_PICK_COLS + ", COALESCE(tier,'') AS country FROM customers ORDER BY " + _CUST_PICK_ORDER_SQL + " LIMIT 200"
@@ -64407,7 +64408,7 @@ async def qc_report_detail(req: Request, report_id: int):
     """검사기 출하성적서 상세 (라인 + 발급/인쇄 액션)."""
     u = _qcr_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     report = get_qc_inspection_report(report_id)
     if not report:
         return RedirectResponse("/qc/inspection-reports", 303)
@@ -64474,7 +64475,7 @@ async def qc_report_print(req: Request, report_id: int):
     """검사기 출하성적서 인쇄 view (HTML + window.print(), 외부 PDF 0건)."""
     u = _qcr_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     report = get_qc_inspection_report(report_id)
     if not report:
         return RedirectResponse("/qc/inspection-reports", 303)
@@ -64543,7 +64544,7 @@ async def wo_list(req: Request):
     """가공팀 작업지시서 목록 (윤영조·이수빈 본업 · MISSING #3)."""
     u = _wo_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     status = req.query_params.get("status") or None
     items = get_work_orders(status=status, limit=300)
     # v5H226z800 (대표 지시·규칙): 작업자·작성자 = 이름 직책 부서(표 셀은 호버 전체) [[knk_name_display_rule]]
@@ -64564,7 +64565,7 @@ async def wo_new_form(req: Request):
     """가공팀 작업지시서 신규 폼."""
     u = _wo_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     with db_session() as c:
         orders = [dict(r) for r in c.execute(
             """SELECT o.id, o.order_no, COALESCE(cu.name,'-') AS cust_name
@@ -64663,7 +64664,7 @@ async def wo_detail(req: Request, wo_id: int):
     """가공팀 작업지시서 상세 (라인 + 진행률 + 발행/인쇄 액션)."""
     u = _wo_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     wo = get_work_order(wo_id)
     if not wo:
         return RedirectResponse("/production/work-orders", 303)
@@ -64720,7 +64721,7 @@ async def wo_print(req: Request, wo_id: int):
     """가공팀 작업지시서 인쇄 view (HTML + window.print, 외부 PDF 0건)."""
     u = _wo_guard(req)
     if not u:
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page" if get_user(req) else "/login", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     wo = get_work_order(wo_id)
     if not wo:
         return RedirectResponse("/production/work-orders", 303)
@@ -64746,7 +64747,7 @@ async def po_item_link_project_route(request: Request, po_id: int, iid: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     form = await request.form()
     try:
         project_id = int(form.get("project_id") or 0)
@@ -64775,7 +64776,7 @@ async def po_item_unlink_project_route(request: Request, link_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not can_use_logistics(u):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=logistics", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     po_id = None
     try:
         with db_session() as c:
@@ -64949,7 +64950,7 @@ async def consumables_list(request: Request, status: str = "", q: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     rows = _co.co_list(status=status, q=q, limit=300)
     groups: dict = {}
     for r in rows:
@@ -64978,7 +64979,7 @@ async def consumables_new_form(request: Request, embed: str = ""):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _embed = str(embed).strip().lower() in ("1", "true", "on", "yes", "y")
     return ctx(request, "consumable_form_upload.html",
                user=u, active="consumables", embed=_embed,
@@ -65008,7 +65009,7 @@ async def consumables_create_direct(request: Request,
     if not u:
         return JSONResponse({"ok": False, "error": "auth"}, 401) if _json else RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return JSONResponse({"ok": False, "error": "forbidden"}, 403) if _json else RedirectResponse("/home", 303)
+        return JSONResponse({"ok": False, "error": "forbidden"}, 403) if _json else RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _bd = (biz_div or "").strip().upper()
     if _bd not in ("T", "M", "L"):
         return (JSONResponse({"ok": False, "error": "진행 사업부를 선택하세요"}, 400) if _json
@@ -65073,7 +65074,7 @@ async def consumables_import_template(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     from pathlib import Path as _Path
     p = _Path(__file__).parent / "static" / "templates" / "소모품수주_양식.xlsx"
     if not p.exists():
@@ -65095,7 +65096,7 @@ async def consumables_import_bulk_template(request: Request):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     try:
         buf = _co.build_co_bulk_template_buf()
     except ImportError:
@@ -65579,7 +65580,7 @@ async def consumables_detail(request: Request, co_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     co = _co.co_get(co_id)
     if not co:
         return RedirectResponse("/consumables", 303)
@@ -66354,7 +66355,7 @@ async def consumables_delete(request: Request, co_id: int):
     if not u:
         return RedirectResponse("/login", 303)
     if not (can_use_logistics(u) or can_use_sales(u)):
-        return RedirectResponse("/home", 303)
+        return RedirectResponse("/home?no_perm=page", 303)   # z1191z199: 권한 없음 안내(chrome ?no_perm=) · 말없이 홈으로 보내지 않음
     _co.co_delete(co_id)
     return RedirectResponse("/consumables", 303)
 
@@ -66419,7 +66420,7 @@ except Exception as _e83:
 try:
     from . import export_board as _z85eb
     _z85eb.register_export_board(app, {
-        "ctx": ctx, "guard": _export_guard, "db_session": db_session, "user_disp": user_disp_by_id,
+        "ctx": ctx, "guard": _export_guard, "db_session": db_session, "user_disp": user_disp_by_id, "get_user": lambda _r: get_user(_r),   # z1191z199: 권한 없음 안내 · 로그인 풀림 가르기(부를 때 이름을 찾음)
         "kst_now": _kst_wall_now, "log": log, "base": BASE, "hs_fill_dir": _HS_FILL_DIR,
     })
     print("[z85] 수출 관리 선적 건 보드(/export · /export/s/…) 등록")

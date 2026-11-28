@@ -74,7 +74,7 @@ textarea.note { width:100%; min-height:80px; padding:10px; border:1px solid var(
   <div class="page-head">
     <div class="page-meta">이 일 자세히 (노드 상세 · 5W 가이드)</div>
     <div class="crumb">
-      <a href="/workflow">일 순서 만들기</a> →
+      {% if user and user.id == 85 %}<a href="/workflow">일 순서 만들기</a> →{% endif %}{# z1191z199: 일 순서 만들기 허브 = 대표만 #}
       <a href="/workflow/project/{{ n.project_id }}">{{ n.mgmt_code or '' }} {{ n.project_name }}</a> →
       <strong>{{ '%02d'|format(n.seq) }}. {{ n.title_ko }}</strong>
     </div>

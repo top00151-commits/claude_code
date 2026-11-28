@@ -74,6 +74,7 @@ var CH = {
   no_perm: {{ i.ch_no_perm|tojson }},
   no_perm_logi: {{ i.ch_no_perm_logi|tojson }},
   no_perm_sales: {{ i.ch_no_perm_sales|tojson }},
+  no_perm_page: {{ i.ch_no_perm_page|tojson }},
   pin: {{ i.ch_pin|tojson }},
   pin_max_a: {{ i.ch_pin_max_a|tojson }},
   pin_max_b: {{ i.ch_pin_max_b|tojson }},
@@ -106,7 +107,7 @@ var CH = {
     if (k === null) return;
     u.searchParams.delete('no_perm');
     history.replaceState(history.state, '', u.pathname + u.search + u.hash);
-    var m = k === 'logistics' ? CH.no_perm_logi : k === 'sales' ? CH.no_perm_sales : CH.no_perm;
+    var m = k === 'logistics' ? CH.no_perm_logi : k === 'sales' ? CH.no_perm_sales : k === 'page' ? CH.no_perm_page : CH.no_perm;   // z1191z199: page = 「이 화면을 볼 권한이 없습니다」
     window.KNKBusy.toast(m, 'err', 6000);
   } catch(e){ console.warn('no_perm 안내 실패', e); }
 })();
@@ -684,7 +685,8 @@ var CH = {
   {{ a('/team',          i.ch_m_team,  'M-00-07') }}
   {% if _role in ('ceo','admin','executive','leader') %}{{ a('/dashboard',     i.ch_m_dash,    'M-05-01') }}{% endif %}
   {% if _is_leader %}{{ a('/workflow/team',      i.ch_m_wf_team,   'M-00-17') }}{% endif %}
-  {% if _is_pm %}{{ a('/workflow',           i.ch_m_wf, 'M-00-18') }}{% endif %}
+  {# z1191z199 (대표 11-28 「나만 빼고 모두 안 보이게」): 일 순서 만들기 = 대표(users.id 85)만 · _is_pm 은 다른 곳 그대로 #}
+  {% if user.id == 85 %}{{ a('/workflow',           i.ch_m_wf, 'M-00-18') }}{% endif %}
   {{ a('/dept/requests', i.ch_m_deptreq,  'M-00-19') }}
   {{ a('/work-orders', i.ch_m_wo, 'M-00-23') }}
   {{ a('/rnd', i.ch_m_rnd, 'M-00-24') }}

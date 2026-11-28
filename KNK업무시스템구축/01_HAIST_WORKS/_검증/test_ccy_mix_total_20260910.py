@@ -398,8 +398,9 @@ chk(46, "홈 KPI 코드가 통화 무시 단순합(SUM(order_amount)) 을 더 �
      "SELECT COALESCE(SUM(order_amount),0) AS t " not in
      io.open(MAIN_PY, encoding="utf-8").read(),
      "main.py 에 옛 쿼리가 남아 있음")
-chk(47, "홈 KPI 가 공용 _ccy_breakdown 을 쓴다",
-     "_month_krw" in io.open(MAIN_PY, encoding="utf-8").read())
+# z1191z199 (대표 11-28): 홈 「이번 달 수주」 = 매출 홈 수주매출과 같은 공용 계산(_sales_3way · 월 기준환율 환산 _fx_to_krw) — _month_krw(관리번호 금액) 없앰
+chk(47, "홈 KPI 가 공용 환산 계산(매출 홈 _sales_3way)을 쓴다",
+     "monthly_revenue = _sales_3way(" in io.open(MAIN_PY, encoding="utf-8").read())
 
 # ===========================================================================
 print("\n§10 저장값 재계산 — 화면만 고치면 되살아난다")

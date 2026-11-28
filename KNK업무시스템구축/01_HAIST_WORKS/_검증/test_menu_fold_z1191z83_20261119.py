@@ -100,7 +100,7 @@ G_HOME, G_SALES, G_LOGI, G_COMMON, G_ADMIN = KO["ch_tab_home"], KO["ch_g_sales"]
 
 FOLD_MEMBER = ["/daily", "/now", "/weekly", "/calendar", "/board/company", "/team", "/dept/requests", "/work-orders", "/rnd",
                "/tickets", "/changes", "/issues", "/as", "/search"]   # z1191z195: 출고 요청(/stock/issues) = 대표(85)만
-FOLD_CEO = ["/daily", "/now", "/weekly", "/calendar", "/board/company", "/team", "/dashboard", "/workflow/team", "/workflow",
+FOLD_CEO = ["/daily", "/now", "/weekly", "/calendar", "/board/company", "/team", "/dashboard", "/workflow/team",   # z1191z199: 일 순서 만들기(/workflow) = 대표(85)만 · 시험 계정 id 1 = 대표 아님
             "/dept/requests", "/work-orders", "/rnd", "/tickets", "/changes", "/issues", "/as", "/search"]   # z1191z195: 시험 계정 id 1 = 대표(85) 아님
 COMMON_NOW = ["/dept/schedule", "/meetings", "/voice-notes", "/contacts", "/notifications"]
 # 바꾸기 전(main 0109fffd) 사이드바에 있던 주소 — 전부 그대로 한 번씩 있어야 한다(지운 것 없음)
@@ -130,11 +130,11 @@ chk(hrefs(g, G_HOME) == ["/home"], "통합 플랫폼 묶음 = 업무현황 하�
 chk(hrefs(g, G_ADMIN) == ["/admin"], "관리 묶음 = 「⚙️ 관리」 하나(2단계 · 나머지는 관리 홈으로) · 실제 %s" % hrefs(g, G_ADMIN))
 chk(sd.index('<div class="sb-group">' + G_ADMIN) < sd.index('<details class="sb-fold"'), "접은 묶음은 관리 아래(맨 아래)")
 allh = [h for n, its in g for h, _, _ in its] + [h for h, _, _ in fl]
-chk(all(allh.count(p) == 1 for p in BEFORE_HOME + BEFORE_COMMON + ["/dashboard", "/workflow/team", "/workflow"]),
+chk(all(allh.count(p) == 1 for p in BEFORE_HOME + BEFORE_COMMON + ["/dashboard", "/workflow/team"]) and "/workflow" not in allh,   # z1191z199
     "대표에게 보이던 주소 전부 한 번씩(지운 것 없음)")
 gl, fll, _, _ = parse(render("/home", role="member", position="팀장"))
-chk("/workflow/team" in [h for h, _, _ in fll] and "/workflow" in [h for h, _, _ in fll] and "/dashboard" not in [h for h, _, _ in fll],
-    "팀장(일반 역할) = 우리 팀 현황·일 순서는 보이고 대표 대시는 안 보임(전과 같은 조건)")
+chk("/workflow/team" in [h for h, _, _ in fll] and "/workflow" not in [h for h, _, _ in fll] and "/dashboard" not in [h for h, _, _ in fll],
+    "팀장(일반 역할) = 우리 팀 현황은 보이고 일 순서 만들기(z1191z199 대표만)·대표 대시는 안 보임")
 
 print("§3 매출영업 · 자재구매 화면 — A/S 관리 · 출고 요청은 묶음으로, 나머지 순서 그대로")
 g, fl, _, _ = parse(render("/sales", active_tab="sales"))

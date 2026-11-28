@@ -20,7 +20,7 @@ check("홈 일일업무 카드 = 작성 안 함 / 작성함(1·0 고정 없음)"
 check("홈 날짜 ‹ › 44px(묶음 M) 그대로", "min-width: 44px; min-height: 44px" in rd(T, "home.html"))
 
 mn = rd(ROOT, "app", "main.py")
-check("메뉴 3화면(견적·수주·미수) 권한 없음 = ?no_perm=sales · 로그인 풀림 = 로그인", mn.count('RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)') == 3)
+check("메뉴 3화면(견적·수주·미수) 권한 없음 = ?no_perm=sales · 로그인 풀림 = 로그인", mn.count('RedirectResponse("/home?no_perm=sales" if get_user(req) else "/login", 303)') >= 3)   # z1191z199: 같은 안내를 다른 매출 화면에도 붙여 3곳보다 많아짐
 check("프로젝트 권한 없음 = ?no_perm=sales", 'if not can_view_sales(u):\n        return RedirectResponse("/home?no_perm=sales", 303)' in mn)
 check("영업 기회 권한 없음 = 역할 홈 + ?no_perm=sales", 'RedirectResponse(role_home(u) + "?no_perm=sales", 303)' in mn)
 

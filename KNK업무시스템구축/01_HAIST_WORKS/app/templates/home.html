@@ -363,11 +363,12 @@ button { font-family: inherit; cursor: pointer; }
     <div class="bento" data-dn="home-exec-bento" style="margin-top:var(--space-4);grid-template-columns:repeat(2,1fr);grid-auto-rows:130px;">
       <div class="card" style="position:relative;">
         <div style="position:absolute;top:10px;right:10px;background:var(--qv-surface-3);color:var(--qv-ink-2);font-size:9px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.5px;">🔒 경영진</div>
+        {# z1191z199 (대표 11-28): 숫자 = 매출 홈 「수주매출」과 같은 계산(이번 달 1일~오늘) · 비교 = 작년 같은 달 같은 기간 #}
         <div class="card-label">이번 달 수주</div>
         {% if monthly_revenue is not none and monthly_revenue > 0 %}
         <div class="card-value" style="font-size:24px;">{{ money(monthly_revenue, 'KRW') }}</div>
         {% if yoy_delta is not none %}
-        <div class="card-trend {% if yoy_delta >= 0 %}up{% else %}alert{% endif %}">전년 동월 {{ '%+.1f'|format(yoy_delta) }}%</div>
+        <div class="card-trend {% if yoy_delta >= 0 %}up{% else %}alert{% endif %}">작년 같은 기간(1~{{ yoy_day }}일) 대비 {{ '%+.1f'|format(yoy_delta) }}%</div>
         {% endif %}
         {% else %}
         <div class="card-value" style="font-size:16px;color:var(--qv-ink-3);">데이터 준비 중</div>

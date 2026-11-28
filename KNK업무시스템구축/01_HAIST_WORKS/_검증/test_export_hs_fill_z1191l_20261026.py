@@ -254,7 +254,7 @@ r1, r2 = quiet(cl.get, "/export/hs-fill"), quiet(cl.post, "/export/hs-fill", fil
 as_user("L903")
 r3 = quiet(cl.get, "/export/hs-fill")
 check("10 권한: 매출 등록 체크 없는 팀원·관리자 → 화면 303 /home · 올리기 403 (수출 권한 _export_guard 그대로)",
-      r1.status_code == 303 and r1.headers.get("location") == "/home" and r2.status_code == 403 and r3.status_code == 303,
+      r1.status_code == 303 and r1.headers.get("location") == "/home?no_perm=page" and   # z1191z199: 권한 없음 안내 r2.status_code == 403 and r3.status_code == 303,
       (r1.status_code, r2.status_code, r3.status_code))
 as_user("L901")
 pg = quiet(cl.get, "/export/hs-fill")
