@@ -1079,7 +1079,8 @@ var MF = {
   at_q_ask2: {{ i.mf_at_q_ask2|tojson }}, at_q_nostart: {{ i.mf_at_q_nostart|tojson }},   {# z1213 #}
   ac_none: {{ i.mf_ac_none|tojson }}, ac_chk: {{ i.mf_ac_chk|tojson }}, ac_chk_t: {{ i.mf_ac_chk_t|tojson }}, ac_chg: {{ i.mf_ac_chg|tojson }},
   ac_att: {{ i.mf_ac_att|tojson }}, ac_for: {{ i.mf_ac_for|tojson }}, ac_saved: {{ i.mf_ac_saved|tojson }},
-  ac_ask: {{ i.mf_ac_ask|tojson }}, ac_ask_pick: {{ i.mf_ac_ask_pick|tojson }}, ac_ask_me: {{ i.mf_ac_ask_me|tojson }}, ac_cancel: {{ i.mf_cancel|tojson }}
+  ac_ask: {{ i.mf_ac_ask|tojson }}, ac_ask_pick: {{ i.mf_ac_ask_pick|tojson }}, ac_ask_me: {{ i.mf_ac_ask_me|tojson }}, ac_cancel: {{ i.mf_cancel|tojson }},
+  ac_man: {{ i.mf_ac_man|tojson }}, ac_man_t: {{ i.mf_ac_man_t|tojson }}, ac_man_keep: {{ i.mf_ac_man_keep|tojson }}   {# z1214 #}
 };
 </script>
 <script>
@@ -1301,6 +1302,11 @@ window.__MTG = {
         + '</div>';
     }).join('');
   }
+  // z1214: 사람이 담당을 고른 AI 할 일 수 → 「다시 정리」·「이전 정리」 묻기에 한 줄(없으면 빈 글)
+  function manKeepLine(){
+    var n = (M.actions || []).filter(function(a){ return +a.assignee_manual === 1 && a.source === 'ai' && !a.linked_task_id; }).length;
+    return n ? MF.ac_man_keep.replace('{n}', n) + String.fromCharCode(10) : '';
+  }
   function renderActions(){
     var box = $('actList'); if(!box) return;
     if (!M.actions.length){ box.innerHTML = '<div class="ri-empty">'+MF.act_empty+'</div>'; return; }
@@ -1315,6 +1321,7 @@ window.__MTG = {
           ? '<button type="button" class="mf-offtag ri-chk" data-act="pick-as" data-id="'+a.id+'" title="'+esc(MF.ac_chk_t)+'">'+esc(MF.ac_chk)+'</button>'
           : '<span class="mf-offtag ri-chk" title="'+esc(MF.ac_chk_t)+'">'+esc(MF.ac_chk)+'</span>';
       }
+      if (+a.assignee_manual === 1) sub += ' <span class="at-tag ac-man" title="'+esc(MF.ac_man_t)+'">'+esc(MF.ac_man)+'</span>';   // z1214: 다시 정리해도 남는 담당
       if (canChg && (a.assignee_user_id || +a.assignee_ext === 1)) sub += '<button type="button" class="ri-chg" data-act="pick-as" data-id="'+a.id+'">'+esc(MF.ac_chg)+'</button>';
       if (a.due_date) sub += '<span class="ri-sub">⏰ '+esc(a.due_date)+'</span>';
       var right = a.linked_task_id
@@ -1467,7 +1474,7 @@ window.__MTG = {
        「🔄 다시 정리」·새 녹음 자동 정리 둘 다 여기를 지난다 → 한 곳에서 묻는다. 확인하면 지금 정리는 「이전 정리」로 보관. */
     if (res.data && res.data.need_confirm){
       var _nl = String.fromCharCode(10);
-      if (!confirm(MF.edit_ask1.replace('{at}', res.data.edited_at || '-') + _nl + MF.edit_ask2 + _nl + MF.edit_ask3))
+      if (!confirm(MF.edit_ask1.replace('{at}', res.data.edited_at || '-') + _nl + MF.edit_ask2 + _nl + manKeepLine() + MF.edit_ask3))   // z1214
         return { ok:false, cancel:true, error: MF.edit_kept };
       res = await jreq('POST', '/api/meeting/'+M.id+'/extract', { confirm_overwrite: true });
     }
@@ -1772,7 +1779,8 @@ window.__MTG = {
   var _bSumP=$('btnSumPrev');
   if(_bSumP) _bSumP.addEventListener('click', async function(){
     if (!M.has_prev) return;
-    if (!confirm(MF.prev_ask1.replace('{at}', M.prev_at || '-') + String.fromCharCode(10) + MF.prev_ask2)) return;
+    if (!confirm(MF.prev_ask1.replace('{at}', M.prev_at || '-') + String.fromCharCode(10) + MF.prev_ask2
+                 + (manKeepLine() ? String.fromCharCode(10) + manKeepLine().replace(/\n$/, '') : ''))) return;   // z1214
     _bSumP.disabled = true;
     var r = await jreq('POST', '/api/meeting/' + M.id + '/summary-restore', { base_ts: M.base_ts });
     _bSumP.disabled = false;

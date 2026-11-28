@@ -1904,6 +1904,16 @@ def startup():
             print(f"[MEETING-ACT-EXT-MIG-Z1213] {_rmae}")
     except Exception as _e:
         print(f"[MEETING-ACT-EXT-MIG-Z1213 ERR] {_e}")
+    # z1214 (대표 2026-11-28 「3. 남겨」): 할 일 담당을 **사람이 정했는지** — meeting_actions.assignee_manual (idempotent)
+    #   1 = 담당 바꾸기(/assignee)·양식 담당 칸 고치기로 사람이 정함 → 「🔄 다시 정리」·「↩ 이전 정리」가 지우지 않는다 · 옛 줄 0 그대로
+    try:
+        from .migrations.m_z1214_meeting_action_manual import migrate as _mam_migrate
+        from .database import DB_PATH as _DB_PATH_MAM
+        _rmam = _mam_migrate(_DB_PATH_MAM)
+        if _rmam.get('added'):
+            print(f"[MEETING-ACT-MANUAL-MIG-Z1214] {_rmam}")
+    except Exception as _e:
+        print(f"[MEETING-ACT-MANUAL-MIG-Z1214 ERR] {_e}")
     # z1144 (대표 지시 2026-10-08): 🎤 음성 메모 — voice_notes 새 표 (idempotent)
     try:
         from .migrations.m_z1144_voice_note import migrate as _vn_migrate
@@ -5507,24 +5517,108 @@ def _mtg_assignee_from_attendees(c, mid, name):
     견주는 이름 = users.name(한국 이름·한국 발음) · users.name_vi(베트남 이름) · 「베트남 이름 (한국 발음)」 표시 이름 ·
                  참석자 줄 name(이음·화면이 적은 이름). 모두 공백·대소문자만 맞춘 **정확히 같은 글자**.
     · 참석자 안에서 정확히 한 사람일 때만 그 번호 · 없거나 둘 이상이면 None(화면이 「👤 담당 확인」).
-    · 참석자 밖 직원은 찾지 않는다(직원 전체 이름 맞추기 없음) · 잠긴 계정은 빼고 본다."""
+    · 참석자 밖 직원은 찾지 않는다(직원 전체 이름 맞추기 없음) · 잠긴 계정은 빼고 본다.
+    z1214 (대표 2026-11-28 「2. 떼고 맞춰」): 정확히 맞는 사람이 없으면 이름 끝의 **직책**(users.rank 실제 값 · 지어 넣지 않음)과
+    뒤에 붙은 「님」을 떼고 다시 본다 — 띄어 쓴 「홍길동 과장」 · 붙여 쓴 「홍길동과장」 · 「홍길동 과장님」.
+    · 뗀 이름으로도 참석자 안에서만 · 정확히 한 명이면 그 사람.
+    · 같은 이름이 둘 이상이면 뗀 직책과 users.rank 가 같은 사람이 정확히 한 명일 때만 · 그래도 아니면 None.
+    · rank 에 없는 꼬리글은 떼지 않는다(그대로 None)."""
     key = _mtg_norm_name(name)
     if not key:
         return None
-    hits = set()
+    rows = []
     try:
         for r in c.execute(
-                "SELECT a.user_id, a.name AS aname, u.name AS uname, COALESCE(" + _mtg_vi_col(c) + ",'') AS vname "
+                "SELECT a.user_id, a.name AS aname, u.name AS uname, COALESCE(" + _mtg_vi_col(c) + ",'') AS vname, "
+                "COALESCE(u.rank,'') AS urank "
                 "FROM meeting_attendees a JOIN users u ON u.id=a.user_id "
                 "WHERE a.meeting_id=? AND a.user_id IS NOT NULL AND COALESCE(u.is_active,1)=1", (mid,)):
             keys = {_mtg_norm_name(r["aname"]), _mtg_norm_name(r["uname"]), _mtg_norm_name(r["vname"]),
-                    _mtg_norm_name(vname({"name": r["uname"], "name_vi": r["vname"]}))}
-            if key in keys - {""}:
-                hits.add(r["user_id"])
+                    _mtg_norm_name(vname({"name": r["uname"], "name_vi": r["vname"]}))} - {""}
+            rows.append((r["user_id"], keys, _mtg_norm_name(r["urank"])))
     except Exception as _e:
         print(f"[MTG-ASSIGNEE-Z1213] 참석자 읽기 실패: {type(_e).__name__}", flush=True)
         return None
-    return next(iter(hits)) if len(hits) == 1 else None
+
+    def _hits(k):
+        return {uid for uid, ks, _rk in rows if k in ks}
+    hits = _hits(key)
+    if hits:
+        return next(iter(hits)) if len(hits) == 1 else None
+    # z1214: 「님」 떼기 → 직책 떼기(긴 직책부터 · 띄어 쓴 것·붙여 쓴 것 모두)
+    base = key[:-1].rstrip() if key.endswith("님") else key
+    if not base:
+        return None
+    if base != key:
+        hits = _hits(base)
+        if hits:
+            return next(iter(hits)) if len(hits) == 1 else None
+    try:
+        ranks = sorted({_mtg_norm_name(r[0]) for r in c.execute(
+            "SELECT DISTINCT rank FROM users WHERE TRIM(COALESCE(rank,''))<>''")} - {""}, key=len, reverse=True)
+    except Exception as _e:
+        print(f"[MTG-ASSIGNEE-Z1214] 직책 목록 읽기 실패: {type(_e).__name__}", flush=True)
+        return None
+    found = set()
+    for rk in ranks:
+        if len(base) <= len(rk) or not base.endswith(rk):
+            continue
+        nm = base[:-len(rk)].rstrip()
+        if not nm:
+            continue
+        hits = _hits(nm)
+        if len(hits) > 1:
+            hits = {uid for uid, ks, urk in rows if nm in ks and urk == rk}
+        if len(hits) == 1:
+            found |= hits
+    return next(iter(found)) if len(found) == 1 else None
+
+
+def _mtg_task_key(v) -> str:
+    """z1214: 할 일 글자 견주기(사람이 고른 담당을 남긴 할 일과 새 AI 할 일이 같은지) — 공백·대소문자만 맞춘다."""
+    return " ".join(str(v or "").split()).casefold()
+
+
+def _mtg_manual_keep_keys(c, mid) -> set:
+    """z1214: 「다시 정리」·「이전 정리」가 남기는 할 일(AI 가 만들고 사람이 담당을 고름 · 일일카드로 안 보냄)의 글자 열쇠."""
+    return {_mtg_task_key(r[0]) for r in c.execute(
+        "SELECT task FROM meeting_actions WHERE meeting_id=? AND source='ai' AND COALESCE(assignee_manual,0)=1 "
+        "AND linked_task_id IS NULL", (mid,))} - {""}
+
+
+_KNK_TOK_CACHE = {"m": None, "v": ""}
+
+
+def _knk_token_vars() -> str:
+    """z1214: static/css/v5_tokens.css 맨 바깥 :root 묶음의 이름(--*)만 모아 「:root{…}」 한 줄로.
+    단독 양식 화면(📄 회의록 양식 meeting_doc.html)은 종이 양식 글꼴·여백을 지키려고 그 파일을 통째로 불러오지 않는다
+    → 공용 한 명 고르기 부품(_knk_picker.html)과 담당 고르기 창이 쓰는 색 이름(var(--knk-*))만 이렇게 넘긴다(값은 그 파일 한 곳)."""
+    p = os.path.join(BASE, "static", "css", "v5_tokens.css")
+    try:
+        mt = os.path.getmtime(p)
+        if _KNK_TOK_CACHE["m"] == mt:
+            return _KNK_TOK_CACHE["v"]
+        import re as _re214
+        s = _re214.sub(r"/\*.*?\*/", "", io.open(p, encoding="utf-8").read(), flags=_re214.S)
+        out, depth, sel_start, body_start, sel = [], 0, 0, 0, ""
+        for i, ch in enumerate(s):
+            if ch == "{":
+                if depth == 0:
+                    sel, body_start = s[sel_start:i], i + 1
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    if sel.split(",")[0].strip() == ":root" and "{" not in s[body_start:i]:
+                        for m in _re214.finditer(r"(--[\w-]+)\s*:\s*([^;{}<>]+);", s[body_start:i]):
+                            out.append(m.group(1) + ":" + m.group(2).strip() + ";")
+                    sel_start = i + 1
+        v = (":root{" + "".join(out) + "}") if out else ""
+        _KNK_TOK_CACHE.update(m=mt, v=v)
+        return v
+    except Exception as _e:
+        print(f"[MTG-DOC-TOK-Z1214] 색 이름 읽기 실패: {type(_e).__name__}: {_e}", flush=True)
+        return ""
 
 
 def _mtg_assignee_wanted(c, d):
@@ -6503,6 +6597,22 @@ async def meeting_doc_page(req: Request, mid: int):
     _kle = ({"id": mid, "ts": _kle_ts, "summary": (m.get("summary") or "").replace("\r\n", "\n").strip()}
             if (_kle_can and _dlang == "ko") else None)
     _kle_t = {k: _di.get("kle_" + k, "") for k in ("saved", "body_n", "body_0", "undo", "undone", "bad", "empty", "fail")}
+    # z1214 (대표 2026-11-28 「1. 바꿔」): 할 일 담당 칸 = 고르기 창 — 이 회의 참석자(번호 · 활성) 단추 + 공용 한 명 고르기 명단
+    _ac = None
+    if _kle is not None:
+        with db_session() as c:
+            _ac_staff = staff_pick_rows(c, include_ids=[a.get("assignee_user_id") for a in actions if a.get("assignee_user_id")],
+                                        lang="ko")
+            _ac_by = {r["id"]: r for r in _ac_staff}
+            _ac_att, _ac_seen = [], set()
+            for _r in c.execute("SELECT a.user_id FROM meeting_attendees a JOIN users u ON u.id=a.user_id "
+                                "WHERE a.meeting_id=? AND a.user_id IS NOT NULL AND COALESCE(u.is_active,1)=1 ORDER BY a.id", (mid,)):
+                _x = _ac_by.get(_r[0])
+                if _x and not _x.get("inactive") and _r[0] not in _ac_seen:
+                    _ac_seen.add(_r[0])
+                    _ac_att.append(_x)
+        _ac = {"att": _ac_att, "staff": _ac_staff,
+               "t": {k: _di.get("md_ac_" + k, "") for k in ("saved", "ext_empty", "for", "fail")}}
     return tpl.TemplateResponse(request=req, name="meeting_doc.html", context={
         "m": m, "decisions": decisions, "actions": actions, "owner_name": owner_name,
         "owner_disp": owner_disp,
@@ -6512,6 +6622,7 @@ async def meeting_doc_page(req: Request, mid: int):
         "i": _di, "dl": _tr_doc_js(_di), "doc_lang": _dlang, "tr": _dtr,   # z1199
         "tr_back": get_all_translations("vi").get("md_tr_vi", ""),
         "kle": _kle, "kle_t": _kle_t, "kle_hint": _di.get("kle_hint", ""),   # z1202
+        "ac": _ac, "tok_vars": (_knk_token_vars() if _ac is not None else ""),   # z1214
     })
 
 
@@ -7320,6 +7431,10 @@ async def _mtg_item_edit(req: Request, mid: int, iid: int, table: str, fields: d
             return JSONResponse({"ok": False, "error": "없는 줄입니다."}, 404)
         if "assignee_name" in sets:
             sets["assignee_user_id"] = _meeting_match_user_id(c, sets["assignee_name"])
+            # z1214: 담당 글자를 실제로 바꿨으면 사람이 정한 담당 → 「다시 정리」·「이전 정리」가 지우지 않는다
+            _old_as = c.execute(f"SELECT assignee_name FROM {table} WHERE id=? AND meeting_id=?", (iid, mid)).fetchone()
+            if ((_old_as["assignee_name"] if _old_as else "") or "").strip() != sets["assignee_name"]:
+                sets["assignee_manual"] = 1
         c.execute(f"UPDATE {table} SET " + ", ".join(f"{k}=?" for k in sets) + " WHERE id=? AND meeting_id=?",
                   (*sets.values(), iid, mid))
         _bf = _mtg_body_fix(c, u, mid, d.get("fix"))
@@ -7391,10 +7506,12 @@ def _mtg_ai_items(c, mid: int) -> dict:
     """z1183: 지금 AI 가 만든 결정·할 일(사람이 넣은 것·일일카드로 보낸 할 일은 빼고) — 이전 정리와 같이 보관한다."""
     decs = [{"who": r["who"] or "", "what": r["what"] or "", "due": r["due"] or ""} for r in c.execute(
         "SELECT who, what, due FROM meeting_decisions WHERE meeting_id=? AND source='ai' ORDER BY id", (mid,))]
+    #  z1214: 사람이 담당을 고른 할 일(assignee_manual=1)은 다시 정리·맞바꿈에도 그 자리에 남으므로 보관하지 않는다 · 외부 표시도 함께 보관
     acts = [{"assignee_name": r["assignee_name"] or "", "assignee_user_id": r["assignee_user_id"],
+             "assignee_ext": 1 if r["assignee_ext"] else 0,
              "task": r["task"] or "", "due_date": r["due_date"] or ""} for r in c.execute(
-        "SELECT assignee_name, assignee_user_id, task, due_date FROM meeting_actions "
-        "WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL ORDER BY id", (mid,))]
+        "SELECT assignee_name, assignee_user_id, COALESCE(assignee_ext,0) AS assignee_ext, task, due_date FROM meeting_actions "
+        "WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL AND COALESCE(assignee_manual,0)=0 ORDER BY id", (mid,))]
     return {"decisions": decs, "actions": acts}
 
 
@@ -7431,14 +7548,19 @@ async def api_meeting_summary_restore(req: Request, mid: int):
         cur_sum = (m.get("summary") or "").strip()
         cur_items = _mtg_ai_items(c, mid)
         c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
-        c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
+        c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL "
+                  "AND COALESCE(assignee_manual,0)=0", (mid,))   # z1214: 사람이 고른 담당은 남긴다
         for dec in (prev_items.get("decisions") or []):
             c.execute("INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'ai')",
                       (mid, dec.get("who") or "", dec.get("what") or "", dec.get("due") or ""))
+        _keep = _mtg_manual_keep_keys(c, mid)   # z1214: 남긴 할 일과 글자가 같은 것은 다시 넣지 않는다
         for act in (prev_items.get("actions") or []):
-            c.execute("INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source) "
-                      "VALUES(?,?,?,?,?,'ai')",
+            if _mtg_task_key(act.get("task")) in _keep:
+                continue
+            c.execute("INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, assignee_ext, task, due_date, source) "
+                      "VALUES(?,?,?,?,?,?,'ai')",
                       (mid, act.get("assignee_name") or "", act.get("assignee_user_id"),
+                       1 if act.get("assignee_ext") else 0,   # z1214: 외부 표시도 되돌린다(옛 보관엔 없음 → 0)
                        act.get("task") or "", act.get("due_date") or ""))
         #  되돌린 정리 = 사람이 고른 것 → 다음 「다시 정리」도 먼저 묻는다
         c.execute("UPDATE meetings SET summary=?, summary_prev=?, summary_prev_items=?, "
@@ -7572,13 +7694,18 @@ def _mtg_sum_worker(mid: int):
                     _old_items = _mtg_ai_items(c, mid)
                     # AI 추출분만 교체(수기 추가분·이미 일일카드 연동분은 보존)
                     c.execute("DELETE FROM meeting_decisions WHERE meeting_id=? AND source='ai'", (mid,))
-                    c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL", (mid,))
+                    # z1214 (대표 「3. 남겨」): 사람이 고른 담당(assignee_manual=1)은 지우지 않는다
+                    c.execute("DELETE FROM meeting_actions WHERE meeting_id=? AND source='ai' AND linked_task_id IS NULL "
+                              "AND COALESCE(assignee_manual,0)=0", (mid,))
                     for dec in result["decisions"]:
                         c.execute(
                             "INSERT INTO meeting_decisions(meeting_id, who, what, due, source) VALUES(?,?,?,?,'ai')",
                             (mid, dec["who"], dec["what"], dec["due"]),
                         )
+                    _keep = _mtg_manual_keep_keys(c, mid)   # z1214: 남긴 할 일과 글자가 같은 새 AI 할 일은 넣지 않는다
                     for act in result["actions"]:
+                        if _mtg_task_key(act.get("task")) in _keep:
+                            continue
                         c.execute(
                             """INSERT INTO meeting_actions(meeting_id, assignee_name, assignee_user_id, task, due_date, source)
                                VALUES(?,?,?,?,?,'ai')""",
@@ -7813,8 +7940,9 @@ async def api_meeting_action_assignee(req: Request, mid: int, aid: int):
             return JSONResponse({"ok": False, "error": str(_e)}, 400)
         if _aw is None:
             return JSONResponse({"ok": False, "error": "담당(assignee_user_id 또는 assignee_ext)이 없습니다."}, 400)
-        c.execute("UPDATE meeting_actions SET assignee_name=?, assignee_user_id=?, assignee_ext=? WHERE id=? AND meeting_id=?",
-                  (_aw[0], _aw[1], _aw[2], aid, mid))
+        c.execute("UPDATE meeting_actions SET assignee_name=?, assignee_user_id=?, assignee_ext=?, assignee_manual=1 "
+                  "WHERE id=? AND meeting_id=?",
+                  (_aw[0], _aw[1], _aw[2], aid, mid))   # z1214: 사람이 고른 담당 → 다시 정리·이전 정리에도 남긴다
         row = _mtg_actions_view(c, c.execute("SELECT * FROM meeting_actions WHERE id=?", (aid,)),
                                 lang=(u.get("lang") or "ko"))[0]
     _tr_kick("mtg", mid, "edit")

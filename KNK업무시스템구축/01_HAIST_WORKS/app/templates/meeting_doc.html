@@ -263,7 +263,7 @@
       <tbody>
         {% for a in actions %}
         <tr><td class="c">{{ loop.index }}</td><td{% if kle %} data-klec="act:{{ a.id }}:task" data-v="{{ a.task or '' }}"{% endif %}>{{ a.task }}</td>
-            <td class="c" title="{{ a.assignee_disp or a.assignee_name or '' }}"{% if kle %} data-klec="act:{{ a.id }}:assignee" data-v="{{ a.assignee_name or '' }}"{% endif %}>{{ a.assignee_name or '—' }}</td>
+            <td class="c" title="{% if kle and a.linked_task_id %}{{ i.md_ac_linked }}{% else %}{{ a.assignee_disp or a.assignee_name or '' }}{% endif %}"{% if kle and not a.linked_task_id %} data-klec="act:{{ a.id }}:assignee" data-v="{{ a.assignee_name or '' }}" data-auid="{{ a.assignee_user_id or '' }}" data-task="{{ a.task or '' }}"{% endif %}>{{ a.assignee_name or '—' }}</td>{# z1214: 담당 = 고르기 창 · 일일카드로 보낸 줄은 고르지 않음(안내만) #}
             <td class="c"{% if kle %} data-klec="act:{{ a.id }}:due" data-v="{{ a.due_date or '' }}"{% endif %}>{{ a.due_date or '—' }}</td></tr>
         {% endfor %}
       </tbody>
@@ -534,6 +534,7 @@
     }
     //  결정·할 일 표 칸 — data-klec="dec:12:what" · data-v = 저장값(빈칸이면 「—」만 보인다)
     var p = el.getAttribute('data-klec').split(':'), kind = p[0], id = p[1], f = p[2], v = el.getAttribute('data-v') || '';
+    if (kind === 'act' && f === 'assignee'){ acOpen(el, id); return; }   // z1214: 담당 = 고르기 창(글자 고치기 아님)
     KNKLineEdit.begin({ el: el,
       html: function(){ return esc(v); },
       restore: function(){ el.textContent = v || '—'; },
@@ -551,12 +552,115 @@
         return true;
       } }, e);
   });
+  /* z1214 (대표 2026-11-28 「1. 바꿔」): 할 일 담당 칸 = 작은 고르기 창
+     · 맨 위 「이 회의 참석자」(번호로 연결된 참석자) 단추 — 한 번 누르면 바로 저장
+     · 「👥 다른 직원 고르기」 = 공용 한 명 고르기 부품(select[data-knk-staff] · 본사/베트남법인 책갈피 · 부서 순 · 「이름 직책 · 부서」)
+     · 「✍ 외부 사람」 = 이름 글자 + 「넣기」(직원 이름과 같아도 맞추지 않음) · 「✕ 닫기」·Esc·바깥 누르기 = 닫기
+     · 저장 = z1213 입구 /action/{id}/assignee({assignee_user_id} 또는 {assignee_ext}) → 서버가 「사람이 고름」 표시(다시 정리에도 남음)
+     · 창은 양식(.sheet) 밖(body 끝)에 있어 이미지 저장 그림에 안 들어가고, 이미지 저장 전에 고치기 모드를 끄면서 닫는다 */
+  var AT = {{ ((ac or {}).t or {})|tojson }}, acCur = null, acBusy = false;
+  function acPop(){ return document.getElementById('mdAc'); }
+  function acPlace(){
+    var pop = acPop(); if (!pop || pop.hidden || !acCur) return;
+    if (!document.body.contains(acCur.el)) { acClose(); return; }
+    var r = acCur.el.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight, G = 8;
+    var w = Math.min(340, vw - 2 * G);
+    pop.style.width = w + 'px';
+    pop.style.maxHeight = (vh - 2 * G) + 'px';
+    var h = pop.offsetHeight;
+    pop.style.left = Math.max(G, Math.min(r.left + r.width / 2 - w / 2, vw - w - G)) + 'px';
+    var top = (vh - r.bottom - G >= h || vh - r.bottom >= r.top) ? r.bottom + 4 : r.top - h - 4;
+    pop.style.top = Math.max(G, Math.min(top, vh - h - G)) + 'px';
+  }
+  function acClose(){
+    var pop = acPop(); if (pop) pop.hidden = true;
+    var kp = document.querySelector('.knks-pop'); if (kp && !kp.hidden && acCur) kp.hidden = true;
+    acCur = null;
+  }
+  function acOpen(el, id){
+    var pop = acPop();
+    if (!pop || !body.hasAttribute('data-kle-mode')) return;          // 「✏ 고치기」를 누른 뒤에만
+    acWire(pop);                                                        // 창 자리는 이 묶음 뒤(body 끝)에 있어 처음 열 때 잇는다
+    if (KNKLineEdit.editing()) KNKLineEdit.finish(true);
+    acCur = { el: el, id: id };
+    var uid = el.getAttribute('data-auid') || '';
+    document.getElementById('mdAcFor').textContent = AT['for'] + (el.getAttribute('data-task') || '');
+    Array.prototype.forEach.call(pop.querySelectorAll('.mdac-p'), function(b){ b.classList.toggle('on', b.getAttribute('data-uid') === uid); });
+    var sel = document.getElementById('mdAcSel');
+    if (sel){
+      var has = Array.prototype.some.call(sel.options, function(o){ return o.value === uid; });
+      sel.value = has ? uid : '';
+      sel.__mdMute = true;
+      try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (_){}
+      sel.__mdMute = false;
+    }
+    var ex = document.getElementById('mdAcExt'); if (ex) ex.value = '';
+    pop.hidden = false;
+    acPlace();
+    var f = pop.querySelector('.mdac-p.on') || pop.querySelector('.mdac-p') || pop.querySelector('.mdac-x');
+    try { f.focus({ preventScroll: true }); } catch (_){}
+  }
+  async function acSave(data){
+    if (!acCur || acBusy) return;
+    var cur = acCur, pop = acPop();
+    acBusy = true; pop.classList.add('busy');
+    var r = await post('/api/meeting/' + K.id + '/action/' + cur.id + '/assignee', data);
+    acBusy = false; pop.classList.remove('busy');
+    if (!(r.ok && r.data && r.data.ok)){ failToast(r.data && (r.data.error || r.data.message) ? r : { data: { error: AT.fail } }); return; }
+    var a = r.data.action || {}, nm = a.assignee_name || '';
+    cur.el.textContent = nm || '—';
+    cur.el.setAttribute('data-v', nm);
+    cur.el.setAttribute('data-auid', a.assignee_user_id ? String(a.assignee_user_id) : '');
+    cur.el.title = a.assignee_disp || nm;
+    acClose();
+    KNKLineEdit.toast(AT.saved);
+  }
+  function acWire(pop){
+    if (pop.__mdWired) return;
+    pop.__mdWired = true;
+    pop.addEventListener('click', function(e){
+      var b = e.target && e.target.closest ? e.target.closest('.mdac-p') : null;
+      if (b) acSave({ assignee_user_id: +b.getAttribute('data-uid') });
+    });
+    document.getElementById('mdAcX').addEventListener('click', acClose);
+    var sel = document.getElementById('mdAcSel');
+    if (sel) sel.addEventListener('change', function(){
+      if (sel.__mdMute || !acCur || !sel.value) return;
+      if (sel.value === (acCur.el.getAttribute('data-auid') || '')) return;
+      acSave({ assignee_user_id: +sel.value });
+    });
+    var ex = document.getElementById('mdAcExt'), go = document.getElementById('mdAcExtGo');
+    function extSave(){
+      var v = String(ex.value || '').replace(/\s+/g, ' ').trim();
+      if (!v){ KNKLineEdit.toast(AT.ext_empty, { err: true }); try { ex.focus(); } catch (_){} return; }
+      acSave({ assignee_ext: v });
+    }
+    go.addEventListener('click', extSave);
+    ex.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); extSave(); } });
+    //  Esc = 닫기 — 직원 고르기 창(공용 부품)이 열려 있으면 그것만 먼저 닫힌다(그 부품이 닫는다)
+    document.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape' || pop.hidden) return;
+      var kp = document.querySelector('.knks-pop');
+      if (kp && !kp.hidden) return;
+      acClose();
+    }, true);
+    //  바깥 누르기 = 닫기(창 안 · 직원 고르기 창 안은 그대로)
+    document.addEventListener('mousedown', function(e){
+      if (pop.hidden) return;
+      var t = e.target;
+      if (pop.contains(t) || (t.closest && t.closest('.knks-pop')) || (acCur && acCur.el.contains(t))) return;
+      acClose();
+    }, true);
+    window.addEventListener('resize', acPlace);
+    window.addEventListener('scroll', function(e){ if (!pop.contains(e.target)) acPlace(); }, true);
+  }
   mark();
   Array.prototype.forEach.call(body.querySelectorAll('[data-klec]'), function(el){ el.setAttribute('data-kle-on', ''); });
   //  z1204 (대표 2026-11-04 「수정할때 수정하기 누르고 완료되면 수정완료 이렇게 누르게」):
   //   「✏ 고치기」 → 고치기 모드(칸마다 점선 · 양식 모양 그대로) → 「✔ 수정 완료」 = 고치던 칸도 저장하고 끝
   var kb = document.getElementById('btnKle'), kh = document.getElementById('kleDocHint');
   function setMode(on){
+    if (!on) acClose();   // z1214: 담당 고르기 창도 닫는다(이미지 저장·수정 완료)
     if (on) body.setAttribute('data-kle-mode', ''); else body.removeAttribute('data-kle-mode');
     if (kb){ kb.textContent = kb.getAttribute(on ? 'data-on' : 'data-off'); kb.classList.toggle('on', !!on); }
     if (kh){ kh.textContent = kh.getAttribute(on ? 'data-on' : 'data-off'); kh.style.color = on ? '#b45309' : '#475569'; kh.style.fontWeight = on ? '700' : ''; }
@@ -576,6 +680,49 @@
   }, true);
 })();
 </script>
+{% if ac %}
+{# z1214 (대표 2026-11-28 「1. 바꿔」): 할 일 담당 고르기 창 — 양식(.sheet) 밖 · 인쇄·이미지에 안 들어감 #}
+{% from "_v5_partials/knk_staff_pick.html" import staff_options %}
+<style>{{ tok_vars|safe }}</style>
+<style>
+  .mdac-pop { position: fixed; z-index: 100050; box-sizing: border-box; overflow: auto; overscroll-behavior: contain;
+    background: var(--knk-bg-white); color: var(--knk-text-primary); border: 1px solid var(--knk-border-default);
+    border-radius: var(--knk-radius-modal, 10px); box-shadow: var(--knk-shadow-popover); padding: 10px 12px 12px; font-size: 13px; line-height: 1.45; }
+  .mdac-pop[hidden] { display: none; }
+  .mdac-pop.busy { opacity: .6; pointer-events: none; }
+  .mdac-hd { display: flex; align-items: center; gap: 8px; }
+  .mdac-ttl { flex: 1; font-weight: 800; font-size: 14px; }
+  .mdac-x, .mdac-go { border: 1px solid var(--knk-border-default); background: var(--knk-bg-white); color: var(--knk-text-secondary);
+    border-radius: var(--knk-radius-control, 6px); padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .mdac-x:hover, .mdac-go:hover { border-color: var(--knk-action); color: var(--knk-action); }
+  .mdac-for { font-size: 12px; color: var(--knk-text-secondary); margin: 4px 0 2px; word-break: break-word; }
+  .mdac-lbl { font-size: 11.5px; font-weight: 800; color: var(--knk-text-muted); margin: 9px 0 4px; }
+  .mdac-att { display: flex; flex-direction: column; gap: 4px; }
+  .mdac-p { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer;
+    border: 1px solid var(--knk-border-default); background: var(--knk-bg-white); color: var(--knk-text-primary);
+    border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 13px; }
+  .mdac-p:hover { background: var(--knk-bg-hover); }
+  .mdac-p.on { background: var(--knk-bg-selected); border-color: var(--knk-action); }
+  .mdac-p span { font-size: 11.5px; color: var(--knk-text-muted); }
+  .mdac-none { font-size: 12px; color: var(--knk-text-muted); }
+  .mdac-ext { display: flex; gap: 6px; }
+  .mdac-ext input { flex: 1; min-width: 0; box-sizing: border-box; border: 1px solid var(--knk-border-default); border-radius: 8px;
+    padding: 6px 9px; font: inherit; font-size: 13px; color: var(--knk-text-primary); background: var(--knk-bg-white); }
+  .mdac-ext input:focus { outline: none; border-color: var(--knk-action); box-shadow: 0 0 0 2px var(--knk-focus-ring); }
+  @media print { .mdac-pop, .knks-pop { display: none !important; } }
+</style>
+<div class="mdac-pop" id="mdAc" role="dialog" aria-label="{{ i.md_ac_title }}" hidden>
+  <div class="mdac-hd"><span class="mdac-ttl">{{ i.md_ac_title }}</span><button type="button" class="mdac-x" id="mdAcX">{{ i.md_ac_close }}</button></div>
+  <div class="mdac-for" id="mdAcFor"></div>
+  <div class="mdac-lbl">{{ i.md_ac_att }}</div>
+  <div class="mdac-att" id="mdAcAtt">{% for p in ac.att %}<button type="button" class="mdac-p" data-uid="{{ p.id }}" title="{{ p.label }}"><b>{{ p.disp }}</b>{% if p.sub %}<span>{{ p.sub }}</span>{% endif %}</button>{% else %}<span class="mdac-none">{{ i.md_ac_att_none }}</span>{% endfor %}</div>
+  <div class="mdac-lbl">{{ i.md_ac_other }}</div>
+  <select id="mdAcSel" data-knk-staff data-knk-staff-title="{{ i.md_ac_other }}">{{ staff_options(ac.staff, None, i.md_ac_other_ph) }}</select>
+  <div class="mdac-lbl">{{ i.md_ac_ext }}</div>
+  <div class="mdac-ext"><input type="text" id="mdAcExt" maxlength="60" placeholder="{{ i.md_ac_ext_ph }}" autocomplete="off"><button type="button" class="mdac-go" id="mdAcExtGo">{{ i.md_ac_ext_add }}</button></div>
+</div>
+{% include "_knk_picker.html" %}
+{% endif %}
 {% endif %}
 <script>
 /* z1207 (대표 2026-11-09) 🔗 링크 복사 — 이 회의록 양식 화면 주소를 복사한다(엑셀 등에 붙여 두고 나중에 눌러 연다).
